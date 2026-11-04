@@ -1390,6 +1390,21 @@ impl Transfer<'_> {
                         return Err(bad(span, "head address requires a live managed position"));
                     }
                 }
+                InstructionKind::OwnedStoreBorrow { store, .. }
+                | InstructionKind::OwnedStoreBorrowMut { store, .. }
+                    if instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .is_some() =>
+                {
+                    let dst = slots.desc_value
+                        [instruction.result.expect("Store view result").0 as usize]
+                        .expect("Store view description slot");
+                    let src = slots.desc_value[store.0 as usize]
+                        .ok_or_else(|| bad(span, "Store view lacks an actual source descriptor"))?;
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src].clone();
+                }
                 InstructionKind::DescribeAddress { address } => {
                     let dst = instruction
                         .result

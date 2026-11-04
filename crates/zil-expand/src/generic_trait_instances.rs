@@ -874,6 +874,7 @@ impl CallRewrite<'_> {
                 self.expr(callee);
                 for a in arguments {
                     match a {
+                        GenericArg::Lifetime(_) => {}
                         GenericArg::Type(t) => self.ty(t),
                         GenericArg::Const(e) => self.expr(e),
                     }

@@ -462,6 +462,7 @@ impl Selection<'_, '_> {
                         break;
                     }
                     found = match argument {
+                        s::GenericArg::Lifetime(_) => false,
                         s::GenericArg::Type(ty) => {
                             self.compiler
                                 .ct_only_type(module, ty, depth + 1, &mut Vec::new())?

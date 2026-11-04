@@ -537,6 +537,12 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
+        if function.storage_life.is_some() {
+            return Err(unsupported(
+                "stored-borrow signature consumer is not yet implemented",
+                Some(function.span),
+            ));
+        }
         budget.current_function = Some(index);
         for ty in std::iter::once(&function.return_type)
             .chain(function.locals.iter().map(|l| &l.ty))
@@ -907,6 +913,12 @@ fn check_type_shape(
             native_values::target(target, None)?;
         }
         match ty {
+            Type::BorrowedStorage { .. } => {
+                return Err(unsupported(
+                    "stored-borrow type consumer is not yet implemented",
+                    None,
+                ));
+            }
             Type::Registration {
                 environment: element,
             }
@@ -1697,6 +1709,12 @@ fn check_instruction(
 ) -> Check<()> {
     let span = Some(instruction.span);
     let expected = match &instruction.kind {
+        InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
+            return Err(unsupported(
+                "stored-borrow instruction consumer is not yet implemented",
+                span,
+            ));
+        }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
         | InstructionKind::RegistrationClose { .. } => {
@@ -2030,7 +2048,9 @@ fn check_instruction(
                 ));
             };
             let projected = match inner.as_ref() {
-                Type::Managed(payload) if !*mutable => {
+                Type::Managed(payload)
+                    if resources::head_address(value_type(function, *address, span)?) =>
+                {
                     resources::check_type_for(module, inner, span, budget)?;
                     payload.as_ref()
                 }
@@ -3029,6 +3049,10 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::LoadStoredBorrow { storage, .. } => ([Some(*storage), None], &[]),
+        InstructionKind::StoreStoredBorrow { storage, value, .. } => {
+            ([Some(*storage), Some(*value)], &[])
+        }
         InstructionKind::RegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => ([Some(*registration), None], &[]),

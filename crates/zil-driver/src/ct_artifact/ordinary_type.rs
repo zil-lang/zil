@@ -39,6 +39,11 @@ pub(super) fn checked_type(
             .get(id.0 as usize)
             .ok_or_else(|| error("CT Type node is out of range"))?;
         Ok(match actual {
+            CtTypeNode::BorrowedStorage { .. } => {
+                return Err(error(
+                    "stored-borrow CT layout consumer is not yet implemented",
+                ));
+            }
             CtTypeNode::Primitive(scalar) => match scalar {
                 CtScalarTy::Unit => Type::Unit,
                 CtScalarTy::Bool => Type::Bool,

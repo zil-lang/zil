@@ -4,7 +4,7 @@
   "baseline": "77eea5bde60b1737b1a7f885ff549ed17308c3de",
   "scope": "Ordinary generic windows, CopyT+mutable life, invocation-local thin borrowed function pointers and lossless bounded CT, actual borrowed finite resource heads; full terminal obligations remain in progress; finite HRTB callback invocation relations",
   "tests": {
-    "cross_function_borrows": 70,
+    "cross_function_borrows": 71,
     "generic_regressions": 35,
     "impl033": 10,
     "impl099_owned_bytes": 9,
@@ -115,7 +115,8 @@
     "ordinary_generic_mutable_life": "PassLimited cd7ba94b5 exact 50ec87cb2",
     "borrowed_pointer": "PassLimited 9e740be05 exact8e58b48bc",
     "resource_heads": "PassLimited 4365536a4 exact ec1d9e904; root SyncCell followup separately reviewed58ab47a4d",
-    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate"
+    "higher_rank_original": "PassLimited d5b3b25e6 exact13677; source fee finding corrected in next candidate",
+    "higher_rank_corrected": "PassLimited254de49db exactebcc159b5"
   },
   "native_342_borrowed_pointer": {
     "sources": 9,
@@ -525,7 +526,50 @@
       "342-hrtb-signature-analyze-scoped.log": "cf9afc6c0d1787266a4bafb6b41908c466b284278b5dd04a31a2502b526e4c5e",
       "342-hrtb-signature-exact.log": "682428150348c4092c876da4cf3b3ca3373d5f9fd231def3097caffd085d37ee"
     },
-    "independent_review": "Pending exact corrected candidate; original13677 PassLimited d5b3b25e6 retained open signature-fee finding",
+    "independent_review": "PassLimited254de49db exactebcc159b5",
+    "formal_full_suite": "NotRunByImplementationAuthor"
+  },
+  "higher_rank_export_identity_fee": {
+    "status": "AuthorScopedPass",
+    "base_commit": "7e13f41bb",
+    "scope": "same remaining Types ledger prepays added export/role scan and numeric relation bytes growth/hash; serialized bytes unchanged",
+    "production_files": 351,
+    "production_sha256": "01a575aafbeddb7e5dedc9d69b7aaceea7cc13285e23671c84c583d8849524a7",
+    "production_recipe": "same as higher_rank_callbacks.production_binding",
+    "test_file": "tests/language-readiness/terminal/342/higher_rank.rs",
+    "test_sha256": "8f776bfc7b96274951176a136ae26b9abdfb36a24a45e7eab7294ea8bed5c085",
+    "harness": "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-492a6902b3023121",
+    "harness_sha256": "9e1cfd987c073a95358b9026adadc88e021f5ff9252c1dcc91ba89580480b7ba",
+    "exact_ten_driver_targets": [
+      71,
+      35,
+      10,
+      9,
+      7,
+      18,
+      14,
+      10,
+      37,
+      4
+    ],
+    "project_types_n": [
+      662,
+      784
+    ],
+    "n_minus_one_resource_limit": true,
+    "fresh_n_identical": true,
+    "default_limits_changed": false,
+    "prior_recorded_single_module_ns_unchanged": true,
+    "raw_and_wire": true,
+    "existing_live_restored_and_alpha_interface_tests": "Pass",
+    "clippy": "same ten driver targets llvm-api -D warnings Pass",
+    "logs": {
+      "342-hrtb-identity-before.log": "804de3fefee7dce7e902daf0409ce16d56419fdaef40355fea251c50f0ceea3c",
+      "342-hrtb-identity-after.log": "11049e45289e87b3959316dc69c062b790fddcf5dcd5e1acc041437090b04562",
+      "342-hrtb-identity-final.log": "c803f016f9de95157fa9c41561d19a1c66ae44eba578ce6161c6868a644786db",
+      "342-hrtb-identity-clippy.log": "d33db4b590db62b342ffd79c986ad8de930da9c829c09b243eed04ba8eb19719"
+    },
+    "independent_review": "Pending exact small identity-fee followup; ebcc recursive fee correction separately PassLimited254de49db",
     "formal_full_suite": "NotRunByImplementationAuthor"
   },
   "root_wire37_combination": {
@@ -567,5 +611,81 @@
     },
     "full_workspace": "NotRun",
     "next": "Author interface-fee exact project controls, merge-specific Window/ClosedEnvironment controls and independent review remain separate"
+  },
+  "store_resource_head_continuation": {
+    "status": "AuthorScopedPass",
+    "base_commit": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
+    "scope": "Actual Store descriptor origins through exclusive Package resource-head Copy-field projection; strict compilation adapters for staged Wire38 only, no general stored-borrow consumer claim",
+    "production_binding": {
+      "recipe": "same as higher_rank_callbacks.production_binding",
+      "file_count": 409,
+      "sha256": "81599ecfc26a15c9bbd6aa7448e7994a76cb9ce132641a2c2a44898ba9d52e12"
+    },
+    "source_fixture": {
+      "path": "tests/language-readiness/terminal/342/store_resource_head.zil",
+      "sha256": "93a6664e79746b0e803f9df58e654c09f61c9de2546224ea1569dd0b30b077d7",
+      "byte_equal_to_original_b377_runtime_source": true,
+      "old": "Analyze/SafeReject: instruction cannot produce the claimed resource kind",
+      "new": "Verify/Success; Clang/API O0/O2 actual exit0 stdout ZB"
+    },
+    "source_tests": {
+      "tests/language-readiness/terminal/342/resource_head.rs": "5df3a41510e2c942b252d77f4d3c5a751cc9f88cee674838d51284322e504f45",
+      "tests/language-readiness/terminal/342/higher_rank.rs": "9b03b8e7179d013e7ca3be1864720d0386288381fcc75647914155c561c3e677",
+      "crates/zil-driver/tests/impl180_store_mut.rs": "aeba5176da36f9cf57f48db19c0385124ca09b8c08bbc2cebd424f52efa707b6"
+    },
+    "existing_targets": {
+      "cross_function_borrows": 77,
+      "impl180_store_mut": 19,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 0
+    },
+    "new_focused": {
+      "tests": 4,
+      "native_profiles": 8,
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "actual_cleanup_stdout": "ZB",
+      "last_use_then_reserve_positive": true,
+      "dynamic_unknown_indexes_no_apart": true,
+      "raw_and_decoded_wire_both_kernels": [
+        "shared downgrade",
+        "early actual Store owner drop",
+        "structural reserve during view",
+        "same actual Store passed through two nominally distinct arguments"
+      ],
+      "live_and_restored_cache_body_mode_mutations": "SafeReject"
+    },
+    "budget": {
+      "analyze": 22441,
+      "verify": 38508,
+      "n_minus_one_resource_limit": true,
+      "fresh_n_equal": true,
+      "defaults_unchanged": true
+    },
+    "clippy": "same two existing driver targets llvm-api -D warnings Pass",
+    "harnesses": {
+      "/workspace/.zil-env/target342/debug/deps/cross_function_borrows-404161b788b1a299": "01f3b4c2150d4ff1d0036f26a39abc61485cb5bd40035b530b9e666b0f7b4fc3",
+      "/workspace/.zil-env/target342/debug/deps/impl180_store_mut-4ebd16ce64ec1cb7": "d9b0e21520c23664e88c189a76d00639edef47d920e6d8573b8073cf1a1b40b6"
+    },
+    "logs": {
+      "342-storage38-adapters-check.log": "0832b2456bdda7bdac628eb238186c5af598e277e6975a61acba436c6ce0ca9c",
+      "342-storehead-final.log": "c67e76a11f08c4886514bb4028a86638362ee84eab8ec8123abbd48f1361a485",
+      "342-storehead-final-clippy.log": "03a3db57d6102696e957bdfd99ad2fd0f1b7b08e9cdd41ff90eff06f97592781"
+    },
+    "independent_review": "Pending exact checkpoint; previous ec1/HRTB independent receipts remain separate",
+    "formal_full_workspace": "NotRunByImplementationAuthor",
+    "remaining": [
+      "General stored-borrow CopyShared/Reborrow/Take/refill source+kernel consumers",
+      "CT nominal scoped lifetime and phantom fullargs",
+      "Canonical generic ForLifetime identity",
+      "general State/lending/dyn and borrowed Task ports"
+    ]
   }
 }

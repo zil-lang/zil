@@ -144,6 +144,13 @@ impl Budget {
         // the upper bound. Arrays compare their length once, not per element.
         self.spend(2 + usize::from(copy_check), context)?;
         match ty {
+            Type::BorrowedStorage { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "stored-borrow type consumer is not yet implemented",
+                    None,
+                )]);
+            }
             Type::Tuple(fields) => {
                 for field in fields {
                     self.type_work(field, copy_check, context)?;
@@ -647,6 +654,13 @@ pub(super) fn preflight(
                 _ => {}
             }
             match ty {
+                Type::BorrowedStorage { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "stored-borrow type consumer is not yet implemented",
+                        None,
+                    )]);
+                }
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
                     pending.push((
@@ -833,6 +847,13 @@ pub(super) fn preflight(
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
     for closure in &module.closures {
+        if closure.storage_life.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "stored-borrow closure contract consumer is not yet implemented",
+                None,
+            )]);
+        }
         count(0, closure.captures.len(), limits.max_locals, "capture")?;
         count(
             0,
@@ -978,6 +999,13 @@ pub(super) fn preflight(
     // scan is needed in the scope checker, including for legacy scalar IR.
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
+        if function.storage_life.is_some() {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "stored-borrow signature consumer is not yet implemented",
+                Some(function.span),
+            )]);
+        }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));
         }
@@ -1156,6 +1184,14 @@ pub(super) fn preflight(
             for instruction in &block.instructions {
                 budget.input(1, "instruction preflight")?;
                 match &instruction.kind {
+                    InstructionKind::LoadStoredBorrow { .. }
+                    | InstructionKind::StoreStoredBorrow { .. } => {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "stored-borrow instruction consumer is not yet implemented",
+                            Some(instruction.span),
+                        )]);
+                    }
                     InstructionKind::RegistrationStart {
                         register,
                         close,

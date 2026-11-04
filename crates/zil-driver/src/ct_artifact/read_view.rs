@@ -118,6 +118,11 @@ impl FrozenReadView<'_> {
             out.push((text.to_owned(), CtTokenClass::Identifier, None))
         };
         match actual {
+            CtTypeNode::BorrowedStorage { .. } => {
+                return Err(
+                    self.unready("stored-borrow Type needs a closed scoped source reconstruction")
+                );
+            }
             CtTypeNode::Primitive(scalar) => out.push((
                 match scalar {
                     CtScalarTy::Unit => "Unit",
@@ -1328,6 +1333,11 @@ impl FrozenReadView<'_> {
                 let mut arguments = Vec::new();
                 for arg in args {
                     match arg {
+                        s::GenericArg::Lifetime(_) => {
+                            return Err(self.unready(
+                                "nominal lifetime CT argument requires a closed numeric scope",
+                            ));
+                        }
                         s::GenericArg::Type(inner) => {
                             arguments.push(CtTypeArgument::Type(self.append_source_type(
                                 requester,
@@ -2460,6 +2470,11 @@ impl CtReadView for FrozenReadView<'_> {
                     let shift = |id: CtTypeNodeId| CtTypeNodeId(id.0.saturating_add(base));
                     for node in &value.nodes {
                         nodes.push(match node {
+                            CtTypeNode::BorrowedStorage { .. } => {
+                                return Err(self.unready(
+                                    "stored-borrow CT substitution requires closed scope remapping",
+                                ));
+                            }
                             CtTypeNode::Primitive(value) => CtTypeNode::Primitive(*value),
                             CtTypeNode::Builtin(value) => CtTypeNode::Builtin(*value),
                             CtTypeNode::Nominal { symbol, arguments } => CtTypeNode::Nominal {

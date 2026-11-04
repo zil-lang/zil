@@ -334,6 +334,7 @@ impl<'a> Budget<'a> {
         subs: Option<&BTreeMap<String, TypeRef>>,
     ) -> R<()> {
         match arg {
+            GenericArg::Lifetime(name) => self.text(name, Span::default()),
             GenericArg::Type(t) => self.ty_at(t, depth, subs),
             GenericArg::Const(e) => self.expr(e, depth, subs),
         }

@@ -66,10 +66,78 @@ pub struct FunctionLifeContract {
     pub result_life: Option<u32>,
 }
 
+/// Untrusted permitted leaf access. Desc variants are uppers, not authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StoredBorrowMode {
+    SharedAddress,
+    ExclusiveAddress,
+    ReadOnlyDescription,
+    WritableDescription,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeSlot {
+    pub path: Vec<PlaceProjection>,
+    pub binder: u32,
+    pub mode: StoredBorrowMode,
+}
+/// Canonical dense fixed classes across actual stored leaves; never target roots.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeShape {
+    pub binder_count: u32,
+    pub slots: Vec<StorageLifeSlot>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StorageBase {
+    Parameter(u32),
+    Capture(u32),
+    Result,
+}
+/// Contract-only selection; DynPort is never a byte/GEP/load projection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ContractProjection {
+    Place(PlaceProjection),
+    DynPort(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StoragePosition {
+    pub base: StorageBase,
+    pub path: Vec<ContractProjection>,
+}
+/// Existing Fixed classes cannot be narrowed or freshened by an invocation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum StorageBinder {
+    Fixed(u32),
+    Invocation(u32),
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeBinding {
+    pub position: StoragePosition,
+    pub binder: StorageBinder,
+}
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageLifeContract {
+    pub fixed_binder_count: u32,
+    pub invocation_binder_count: u32,
+    pub bindings: Vec<StorageLifeBinding>,
+}
+/// Actual permission, initialization, target/parent loans and epochs are checked.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum StoredBorrowLoad {
+    CopyShared,
+    CopyDescription,
+    Reborrow { mutable: bool },
+    Take,
+}
+
 /// Scalar B0 checking is deliberately a subset of this raw schema. All other
 /// variants must be diagnosed as Unsupported until their checker is implemented.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Type {
+    /// Relational shape; machine layout is exactly the actual storage layout.
+    BorrowedStorage {
+        storage: Box<Type>,
+        life: StorageLifeShape,
+    },
     Unit,
     Bool,
     I32,
@@ -486,6 +554,8 @@ pub enum CoreAggregateArgument {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreFunction {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     /// Source declaration, or None for body-derived selection. Never an effect proof.
     pub call_kind: Option<CallKind>,
     /// Source-declared lexical life bindings. Raw metadata, never a proof.
@@ -1038,6 +1108,8 @@ pub struct ResourceDefinition {
 /// this record does not grant address lifetime or calling authority.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct ClosureDefinition {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     pub id: ClosureId,
     pub function: FunctionId,
     pub captures: Vec<Type>,
@@ -1050,6 +1122,8 @@ pub struct ClosureDefinition {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct TypedFunction {
+    /// Raw relation; each kernel separately checks complete actual CFG/targets.
+    pub storage_life: Option<StorageLifeContract>,
     /// Raw ABI/effect selection; actual reachable effects are checked independently.
     pub call_kind: CallKind,
     /// Raw declared upper bound for a shared or mutable reference result; sorted unique
@@ -1119,14 +1193,14 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 /// One checked step through a real Enum variant payload. It never creates a
 /// view or grants ownership; each selected tag must be independently proved.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariantProjection {
     pub variant: u32,
     pub index: u32,
 }
 /// One actual inline place step. Field never crosses Managed, Address or
 /// external stable storage; Variant always retains its selected tag and field.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum PlaceProjection {
     Field(u32),
     Variant(VariantProjection),
@@ -1135,6 +1209,18 @@ pub enum PlaceProjection {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum InstructionKind {
+    /// Real stored-leaf selection from an actual storage Address.
+    LoadStoredBorrow {
+        storage: ValueId,
+        path: Vec<PlaceProjection>,
+        mode: StoredBorrowLoad,
+    },
+    /// Invariant initialized/vacant leaf store; new Hold precedes old release.
+    StoreStoredBorrow {
+        storage: ValueId,
+        path: Vec<PlaceProjection>,
+        value: ValueId,
+    },
     /// Construct an empty owning prefix; no allocation. Element metadata is a
     /// raw claim and must be independently checked before executable admission.
     OwnedStoreNew {
@@ -2056,7 +2142,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V37\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V38\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -2088,6 +2174,7 @@ fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
         for index in &closure.lending_captures {
             encode_u32(bytes, *index);
         }
+        encode_storage_contract(bytes, &closure.storage_life);
     }
     encode_len(bytes, module.resources.len());
     for resource in &module.resources {
@@ -2125,8 +2212,84 @@ fn encode_optional_span(b: &mut impl FingerprintSink, s: Option<Span>) {
         encode_span(b, s);
     }
 }
+fn encode_storage_path(b: &mut impl FingerprintSink, path: &[PlaceProjection]) {
+    encode_len(b, path.len());
+    for step in path {
+        match step {
+            PlaceProjection::Field(i) => {
+                b.push(0);
+                encode_u32(b, *i);
+            }
+            PlaceProjection::Variant(p) => {
+                b.push(1);
+                encode_u32(b, p.variant);
+                encode_u32(b, p.index);
+            }
+            PlaceProjection::ErrorArm(error) => b.extend_from_slice(&[2, u8::from(*error)]),
+        }
+    }
+}
+fn encode_storage_shape(b: &mut impl FingerprintSink, shape: &StorageLifeShape) {
+    encode_u32(b, shape.binder_count);
+    encode_len(b, shape.slots.len());
+    for slot in &shape.slots {
+        encode_storage_path(b, &slot.path);
+        encode_u32(b, slot.binder);
+        b.push(slot.mode as u8);
+    }
+}
+fn encode_storage_contract(b: &mut impl FingerprintSink, contract: &Option<StorageLifeContract>) {
+    b.push(u8::from(contract.is_some()));
+    if let Some(c) = contract {
+        encode_u32(b, c.fixed_binder_count);
+        encode_u32(b, c.invocation_binder_count);
+        encode_len(b, c.bindings.len());
+        for binding in &c.bindings {
+            match binding.position.base {
+                StorageBase::Parameter(i) => {
+                    b.push(0);
+                    encode_u32(b, i)
+                }
+                StorageBase::Capture(i) => {
+                    b.push(1);
+                    encode_u32(b, i)
+                }
+                StorageBase::Result => b.push(2),
+            }
+            encode_len(b, binding.position.path.len());
+            for step in &binding.position.path {
+                match step {
+                    ContractProjection::Place(p) => {
+                        b.push(0);
+                        encode_storage_path(b, std::slice::from_ref(p));
+                    }
+                    ContractProjection::DynPort(p) => {
+                        b.push(1);
+                        encode_u32(b, *p);
+                    }
+                }
+            }
+            match binding.binder {
+                StorageBinder::Fixed(i) => {
+                    b.push(0);
+                    encode_u32(b, i)
+                }
+                StorageBinder::Invocation(i) => {
+                    b.push(1);
+                    encode_u32(b, i)
+                }
+            }
+        }
+    }
+}
+
 fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     match t {
+        Type::BorrowedStorage { storage, life } => {
+            b.push(35);
+            encode_storage_shape(b, life);
+            encode_type(b, storage)
+        }
         Type::Unit => b.push(0),
         Type::Bool => b.push(1),
         Type::I32 => b.push(2),
@@ -2277,6 +2440,7 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
 }
 fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     b.push(f.call_kind as u8);
+    encode_storage_contract(b, &f.storage_life);
     b.push(u8::from(f.reference_return_bound.is_some()));
     if let Some(bound) = &f.reference_return_bound {
         encode_len(b, bound.len());
@@ -2579,6 +2743,33 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for field in fields {
                 encode_u32(b, field.0);
             }
+        }
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode,
+        } => {
+            b.push(129);
+            encode_u32(b, storage.0);
+            encode_storage_path(b, path);
+            match mode {
+                StoredBorrowLoad::CopyShared => b.push(0),
+                StoredBorrowLoad::CopyDescription => b.push(1),
+                StoredBorrowLoad::Reborrow { mutable } => {
+                    b.extend_from_slice(&[2, u8::from(*mutable)])
+                }
+                StoredBorrowLoad::Take => b.push(3),
+            }
+        }
+        InstructionKind::StoreStoredBorrow {
+            storage,
+            path,
+            value,
+        } => {
+            b.push(130);
+            encode_u32(b, storage.0);
+            encode_storage_path(b, path);
+            encode_u32(b, value.0);
         }
         InstructionKind::DescribeAddress { address } => {
             b.push(109);

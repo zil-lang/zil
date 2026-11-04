@@ -432,6 +432,7 @@ impl Materializer<'_, '_> {
                 self.expression(callee, depth + 1)?;
                 for a in arguments {
                     match a {
+                        s::GenericArg::Lifetime(_) => {}
                         s::GenericArg::Const(e) => self.expression(e, depth + 1)?,
                         s::GenericArg::Type(ty) if !self.iterations.is_empty() => {
                             self.generation_type(ty, depth + 1)?;

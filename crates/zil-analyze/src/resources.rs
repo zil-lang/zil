@@ -423,6 +423,10 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::LoadStoredBorrow { storage, .. } => (Some(*storage), None, &[]),
+        InstructionKind::StoreStoredBorrow { storage, value, .. } => {
+            (Some(*storage), Some(*value), &[])
+        }
         InstructionKind::RegistrationStart { callback, .. } => (Some(*callback), None, &[]),
         InstructionKind::RegistrationValid { registration }
         | InstructionKind::RegistrationClose { registration } => (Some(*registration), None, &[]),
@@ -1930,6 +1934,16 @@ impl Flow<'_> {
                     {
                         return Err(error("head address requires a live managed position"));
                     }
+                }
+                InstructionKind::OwnedStoreBorrow { store, .. }
+                | InstructionKind::OwnedStoreBorrowMut { store, .. }
+                    if out_shape.is_some_and(|s| s.description) =>
+                {
+                    let fact = copied(state, Place::Value(*store), budget)?;
+                    produced = Some(Fact {
+                        sources: fact.sources,
+                        ..Fact::default()
+                    });
                 }
                 InstructionKind::DescribeAddress { address } => {
                     let fact = copied(state, Place::Value(*address), budget)?;

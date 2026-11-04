@@ -150,6 +150,8 @@ pub enum TypeKind {
 
 #[derive(Clone, Debug, PartialEq)]
 pub enum GenericArg {
+    /// Explicit lifetime actual, resolved against its lexical declaration.
+    Lifetime(String),
     Type(TypeRef),
     Const(Expr),
 }

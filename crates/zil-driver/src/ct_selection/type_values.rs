@@ -68,6 +68,7 @@ impl materialize::Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         match argument {
+            s::GenericArg::Lifetime(_) => Ok(()),
             s::GenericArg::Type(ty) => self.generation_type(ty, depth),
             s::GenericArg::Const(value) => self.expression(value, depth),
         }

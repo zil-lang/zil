@@ -229,6 +229,7 @@ impl materialize::Materializer<'_, '_> {
             module_id: self.module,
             source_fingerprint: self.context.program.source_fingerprint,
             functions: vec![CoreFunction {
+                storage_life: None,
                 call_kind: None,
                 life: None,
                 id: NodeId(u32::MAX - 8),

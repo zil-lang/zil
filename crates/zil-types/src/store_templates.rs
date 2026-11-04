@@ -591,6 +591,7 @@ impl Builder<'_, '_> {
             module: template.context.module,
             public: template.public,
             signature: ScalarFunction {
+                storage_life: None,
                 reference_return_bound: None,
                 name: function.name,
                 function: id,

@@ -21,6 +21,7 @@ fn plain_type(ty: &s::TypeRef) -> bool {
     match &ty.kind {
         TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
             args.iter().all(|arg| match arg {
+                GenericArg::Lifetime(_) => false,
                 GenericArg::Type(ty) => plain_type(ty),
                 GenericArg::Const(expr) => matches!(expr.kind, s::ExprKind::Literal(_)),
             })

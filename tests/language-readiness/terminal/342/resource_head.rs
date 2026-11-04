@@ -491,3 +491,378 @@ fn terminal342_mutable_nested_product_retains_actual_parent_and_head_modes() {
         );
     }
 }
+
+const STORE_RESOURCE_HEAD: &str = include_str!("store_resource_head.zil");
+#[test]
+fn terminal342_store_resource_copy_field_uses_actual_exclusive_head_and_cleanup() {
+    let temp = Temp::new();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    let last_use = STORE_RESOURCE_HEAD.replace(
+        "v.owner.code=90;return 0",
+        "v.owner.code=90;let n=v.owner.code;store_reserve(s,16);return n-90",
+    );
+    for text in [STORE_RESOURCE_HEAD, &last_use] {
+        for backend in &backends {
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend: *backend,
+                        optimization,
+                        output: Some(temp.0.join("store-head")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                let mut child = Command::new(&report.artifacts["executable"])
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                let deadline = Instant::now() + Duration::from_secs(5);
+                while child.try_wait().unwrap().is_none() {
+                    if Instant::now() >= deadline {
+                        let _ = child.kill();
+                        let _ = child.wait();
+                        panic!("native Store head timed out");
+                    }
+                    std::thread::sleep(Duration::from_millis(5));
+                }
+                let output = child.wait_with_output().unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(output.stdout, b"ZB");
+                assert!(output.stderr.is_empty());
+            }
+        }
+    }
+    let (model, _) = STORE_RESOURCE_HEAD.split_once("fn main()").unwrap();
+    for body in [
+        "let v=store_at(s,0);v.owner.code=90;return 0",
+        "let v=store_at_mut(s,0);store_reserve(s,16);v.owner.code=90;return 0",
+        "let v=store_at_mut(s,0);let moved=give s;v.owner.code=90;return 0",
+        "let v=store_at_mut(s,0);let p=&v.owner.code;v.owner.code=90;return *p",
+    ] {
+        let text =
+            STORE_RESOURCE_HEAD.replace("let v=store_at_mut(s,0);v.owner.code=90;return 0", body);
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{body}: {}",
+            report.to_json()
+        );
+    }
+    let text = format!(
+        "{model}fn bad(s:Store<Cell>,i:i64,j:i64)->i32{{let a=store_at_mut(s,i);let b=store_at_mut(s,j);a.owner.code=90;return b.owner.code}}fn main(){{}}"
+    );
+    let report = compile_source(&source(&text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn terminal342_store_resource_head_raw_and_wire_keep_permissions_and_parent_windows() {
+    use zil_ir::{Instruction, Type, ValueId};
+    let module = typed(STORE_RESOURCE_HEAD);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    for mode in 0..3 {
+        let mut changed = module.clone();
+        let f = changed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        match mode {
+            0 => {
+                for ty in f
+                    .values
+                    .iter_mut()
+                    .chain(f.locals.iter_mut().map(|l| &mut l.ty))
+                {
+                    if let Type::Address { mutable, .. } = ty {
+                        *mutable = false;
+                    }
+                }
+                for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                    match &mut i.kind {
+                        InstructionKind::OwnedStoreBorrowMut { store, index } => {
+                            i.kind = InstructionKind::OwnedStoreBorrow {
+                                store: *store,
+                                index: *index,
+                            }
+                        }
+                        InstructionKind::ReborrowAddress { mutable, .. } => *mutable = false,
+                        _ => {}
+                    }
+                }
+            }
+            1 => {
+                let (db, di) = f
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .find_map(|(b, block)| {
+                        block
+                            .instructions
+                            .iter()
+                            .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                            .map(|i| (b, i))
+                    })
+                    .unwrap();
+                let drop = f.blocks[db].instructions.remove(di);
+                let (bb, bi) = f
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .find_map(|(b, block)| {
+                        block
+                            .instructions
+                            .iter()
+                            .position(|i| {
+                                matches!(i.kind, InstructionKind::OwnedStoreBorrowMut { .. })
+                            })
+                            .map(|i| (b, i))
+                    })
+                    .unwrap();
+                f.blocks[bb].instructions.insert(bi + 1, drop);
+            }
+            _ => {
+                let capacity = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| {
+                        if let InstructionKind::OwnedStoreReserve { capacity, .. } = i.kind {
+                            Some(capacity)
+                        } else {
+                            None
+                        }
+                    })
+                    .unwrap();
+                let (bb, bi, store, span) = f
+                    .blocks
+                    .iter()
+                    .enumerate()
+                    .find_map(|(b, block)| {
+                        block.instructions.iter().enumerate().find_map(|(i, inst)| {
+                            if let InstructionKind::OwnedStoreBorrowMut { store, .. } = inst.kind {
+                                Some((b, i, store, inst.span))
+                            } else {
+                                None
+                            }
+                        })
+                    })
+                    .unwrap();
+                let result = ValueId(f.values.len() as u32);
+                f.values.push(Type::Bool);
+                f.blocks[bb].instructions.insert(
+                    bi + 1,
+                    Instruction {
+                        result: Some(result),
+                        kind: InstructionKind::OwnedStoreReserve { store, capacity },
+                        span,
+                    },
+                );
+            }
+        }
+        let errors = zil_analyze::analyze(&changed, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{mode}: {errors:?}"
+        );
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let bytes = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+        let (decoded, decoded_plan) =
+            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+        assert!(zil_analyze::analyze(&decoded, &limits).is_err());
+        for result in [
+            zil_verify::verify_module(changed, candidate, &module.target, &limits),
+            zil_verify::verify_module(decoded, decoded_plan, &module.target, &limits),
+        ] {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::SafeReject),
+                "{mode}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal342_store_resource_head_substitutes_actual_store_roots_without_index_apart() {
+    let (model, _) = STORE_RESOURCE_HEAD.split_once("fn main()").unwrap();
+    let text = format!(
+        "{model}fn act(a:Store<Cell>,b:Store<Cell>,i:i64,j:i64)->i32{{let read=store_at(b,j);let edit=store_at_mut(a,i);edit.owner.code=90;return read.owner.code+edit.owner.code}}fn main()->i32{{let a=empty();let b=empty();store_reserve(a,2);store_reserve(b,2);store_push(a,cell(65));store_push(b,cell(66));return act(a,b,0,0)-156}}"
+    );
+    let module = typed(&text);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let act = module
+        .functions
+        .iter()
+        .find(|f| f.name == "act")
+        .unwrap()
+        .id;
+    let mut changed = module.clone();
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let arguments = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| match &mut i.kind {
+            InstructionKind::Call {
+                function,
+                arguments,
+            } if *function == act => Some(arguments),
+            _ => None,
+        })
+        .unwrap();
+    arguments[1] = arguments[0];
+    assert!(zil_analyze::analyze(&changed, &limits).is_err());
+    let mut candidate = plan;
+    candidate.module_fingerprint = changed.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
+    let (decoded, decoded_plan) = zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap();
+    assert!(zil_analyze::analyze(&decoded, &limits).is_err());
+    assert!(zil_verify::verify_module(changed, candidate, &module.target, &limits).is_err());
+    assert!(zil_verify::verify_module(decoded, decoded_plan, &module.target, &limits).is_err());
+}
+
+#[test]
+fn terminal342_store_resource_head_pays_work_and_rechecks_live_restored_cache() {
+    fn boundary<T: PartialEq + std::fmt::Debug>(
+        phase: Phase,
+        mut run: impl FnMut(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+    ) -> usize {
+        let expected = run(Limits::default().max_analysis_steps).unwrap();
+        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+        while low + 1 < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(value) => {
+                    assert_eq!(value, expected);
+                    high = mid
+                }
+                Err(errors) => {
+                    assert!(
+                        errors.iter().all(
+                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
+                        ),
+                        "{phase:?}: {errors:?}"
+                    );
+                    low = mid
+                }
+            }
+        }
+        assert_eq!(run(high).unwrap(), expected);
+        assert!(
+            run(high - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run(high).unwrap(), expected);
+        high
+    }
+    let module = typed(STORE_RESOURCE_HEAD);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let analyze = boundary(Phase::Analyze, |n| {
+        zil_analyze::analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+    });
+    let verify = boundary(Phase::Verify, |n| {
+        zil_verify::verify_module(
+            module.clone(),
+            plan.clone(),
+            &module.target,
+            &Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            },
+        )
+        .map(|v| v.fingerprint())
+    });
+    println!(
+        "342 Store resource head N Analyze={analyze} Verify={verify}; N-1 ResourceLimit and fresh N success"
+    );
+    let temp = Temp::new();
+    let text = format!(
+        "{}fn zero()->i32{{return 0}}",
+        STORE_RESOURCE_HEAD.replace(
+            "v.owner.code=90;return 0",
+            "v.owner.code=90;return #(zero())"
+        )
+    );
+    let project = |text: &str| zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text)],
+        paths: std::collections::BTreeMap::new(),
+    };
+    let options = CompileOptions {
+        semantic_cache: Some(temp.0.join("store-head-cache")),
+        ..CompileOptions::default()
+    };
+    let mut session = zil_driver::CompilationSession::default();
+    let cold = session.compile_project(&project(&text), &options);
+    assert_eq!(cold.status, ResultCategory::Success, "{}", cold.to_json());
+    for report in [
+        session.compile_project(&project(&text), &options),
+        zil_driver::compile_project(&project(&text), &options),
+    ] {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(report.cache_hit, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+    }
+    for bad in [
+        text.replace("v.owner.code=90", "store_reserve(s,16);v.owner.code=90"),
+        text.replace("store_at_mut(s,0)", "store_at(s,0)"),
+    ] {
+        for report in [
+            session.compile_project(&project(&bad), &options),
+            zil_driver::compile_project(&project(&bad), &options),
+        ] {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(!report.artifacts.contains_key("executable"));
+        }
+    }
+}
