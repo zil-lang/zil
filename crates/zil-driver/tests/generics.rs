@@ -1545,11 +1545,12 @@ fn terminal_explicit_stored_closure_annotations_require_their_context() {
             report.to_json()
         );
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains("retained enclosing life context")
-                    || d.message.contains("genuine enclosing definition context")),
+            report.diagnostics.iter().any(|d| d
+                .message
+                .contains("retained enclosing life context")
+                || d.message.contains("genuine enclosing definition context")
+                || d.message
+                    .contains("closure creator requires an actual qualified input header")),
             "{}",
             report.to_json()
         );

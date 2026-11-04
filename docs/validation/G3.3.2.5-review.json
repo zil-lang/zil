@@ -1,0 +1,110 @@
+{
+  "task": "G3.3.2.5",
+  "reviewer": "g8_3 non-author independent code review",
+  "verdict": "LimitedPassCode",
+  "final_docs_commit": null,
+  "seal_status": "Code/test review bound now at root request. Future docs seal must be checked byte-equal production+tests and then referenced; no runtime retest needed for docs-only seal.",
+  "source_commit": "0be6609733ed299494e1c2bb688525ff2ef13ae6",
+  "combined_source_commit": "25cc31f00db20bf960554b06b330bcb909f9aabf",
+  "test_commit": "9709d3a6ffd96e8fbea9c0cefe04d71dd26f0a8b",
+  "execution_commit": "52768815def26d96a442b337554e8d930ec69860",
+  "execution_tree": "/workspace/zil-G3.3.3-review",
+  "binding": {
+    "all_Types_files_byte_equal_to_source0be": true,
+    "generics_test_and_move_counter_fixture_byte_equal_to_test9709": true,
+    "Types_source_sha256": {
+      "crates/zil-types/src/borrowed_fp_qualified.rs": "7b25126f0ed3d0692f3045ef40bc504da1bbd443a87985bf45715935fd6c7435",
+      "crates/zil-types/src/closures.rs": "99ff9968cb28aad7d9820c1301bf5598fc56641ac28ff7e000246bdaedbcd077",
+      "crates/zil-types/src/closures/source_context.rs": "b6ccf67fb6244ff5c23b7becac3463c668950b7aeb024f738d140dc431f08e9a",
+      "crates/zil-types/src/deferred.rs": "73a72122de06b3bde9719664cc75ecd3feaf7b820a5188dba052a6eddc7bb440",
+      "crates/zil-types/src/inference.rs": "dba851abb5403443d7ed466732e9a11556a8fd4edabf702427bb33579aa72339",
+      "crates/zil-types/src/lib.rs": "1843f2cb3dd095d76d323898313acd43a290c5070d2b2b729231e246c7649dcb",
+      "crates/zil-types/src/program.rs": "e8009ba0066ad63018fad6ad69b0564d3f64645f25226ec269b5e432babbf66f",
+      "crates/zil-types/src/scalar_expr_variants.rs": "b7094c274473bddc67ad10d0c362ccbbd0d13041d66354954fea140eba9de6fa"
+    },
+    "tests_sha256": {
+      "crates/zil-driver/tests/generics.rs": "4ee4154fa1c5861e24ce0fbb367a393ffe09ad954b99075fb0bfdf81ad88a0a7",
+      "tests/language-readiness/terminal/342/fixed-context-producer/fnmut-move-input-capture.zil": "5b2ffa72e56d27aac278cbbecd520a346bb67f9e03ac392f562bba348493794f"
+    },
+    "test_executable": {
+      "path": "/workspace/.zil-env/target343/debug/deps/generics-ba4159fc2009dbc9",
+      "sha256": "5215549050ceb7b3b61e4351a2f7ccdc8b3e0ceced7f94ca85067d59ab1a4c12"
+    },
+    "cross_worktree_rebuild": "Fresh compile log records actual review-tree Types, Syntax, Expand, IR-dependent consumers, LLVM, Driver. Reused target343; not a clean-cache claim."
+  },
+  "independent_execution": {
+    "new_Types_tests": {
+      "pass": 4,
+      "fail": 0,
+      "names": [
+        "g3_3_2_actual_source_forms_complete_capture_relations_in_three_modes",
+        "g3_3_2_raw_source_context_rows_are_consumed_from_actual_creators",
+        "g3_3_2_context_clone_preflight_and_warm_scalar_orphan_stay_closed",
+        "g3_3_2_source_formation_request_budget_and_default_worker_are_reproducible"
+      ],
+      "whole_Types_request_N": 1611,
+      "Nminus1": "ResourceLimit",
+      "fresh_retry": "exact Typed equality",
+      "default_worker": "32 actual shallow Source closures in std::thread::spawn default stack; no custom stack"
+    },
+    "existing_G3_3_generics_regressions": {
+      "pass": 10,
+      "fail": 0,
+      "counting": "Driver generics g3 filter total14 includes these10+new4, no double count"
+    },
+    "integrated_Source_regressions": {
+      "pass": 3,
+      "fail": 0,
+      "separate_receipt": "/tmp/zil-G3.3.3-review.json",
+      "native_note": "12 Source native runs are integrated replays of 3 cases, not extra independent architecture acceptance of root Lower/backend. Native FnMut is the generated two-call move-counter variant; the dedicated Types FnMut fixture is tested through Types in this receipt."
+    },
+    "strict_clippy": "zil-types+zil-analyze --lib and existing driver generics/generic_regressions targets with llvm-api all passed",
+    "workspace_fmt": "pass",
+    "diff_check": "pass"
+  },
+  "static_review": {
+    "actual_owner": "Core creator must uniquely identify actual function and resolve its concrete assigned FunctionId. The row is keyed by (actual Typed creator.id, actual expression NodeId) and consumed at actual closure_expression, never by diagnostic Span/name/type equality.",
+    "actual_inputs": "Capture source is actual LocalId. prepare finds it in creator.parameters and checks actual complete creator.storage_life position/header binder. Structural type equality only checks the snapshot, not provenance. Borrow/Class input selectors are checked against actual boundary, class count and path.",
+    "ordinal_domains": "Source original full lifetime ordinal is validated independently from runtime parameter ordinal and final closure Fixed index. Anonymous input source None and anonymous borrowed local Fixed::Local remain separate from Fixed::Header(StorageBinder). Distinct real creator IDs remain distinct with equal diagnostic spans.",
+    "joint_relation": "Inferred physical capture order/kind comes first. Writer traverses full Parameter/Capture/Result order with separate dense Fixed/Invocation first-occurrence domains. Named Source proposal positions and domains must match actual complete typed positions, every free Fixed must be grounded by actual capture; no capture can acquire a fresh Invocation. Relation attached equally to actual entry and ClosureDefinition.",
+    "budgets": "Core metadata reserve validates/prepays vector/text/path/domain work before normalization/snapshot clones. Standalone inference pays copies2, program inference copies1 plus aggregate full module clone reserve, and State install separately pays actual current State remainder before row clone. Formation precharges complete type snapshots before comparison/stored clone; consume/form/finish debit the same active State work, no reset. Empty context reserve/bind/finish return immediately.",
+    "ledger": "Duplicate key install rejects; missing contextual capture rejects; wrong creator, expression, full ordinal, header binder, duplicate selector and absent current expression each reject with direct context reason, not schema/stale plan. Actual unused function definitions still checked. Unconsumed rows rejected by final State finish; raw metadata cannot suppress current proof."
+  },
+  "cache_review": {
+    "actual_Source_function_cache": "Whole-program scalar gate in Types FunctionSession refuses the real qualified creator parameter; scalar_typed also rejects actual storage_life/environment/non-scalar locals.",
+    "real_warm_negative": "Original tiny scalar fixture would not have made a key. Test-only9709 fixes to4 statements and asserts first executed1, second reused1. After adding orphan raw context, current install/finish rejects no actual consumed expression, even though an earlier body was cached.",
+    "semantic_scope": "Single-module actual Source creator is excluded by Writer.signature storage_life and qualified type charge. Private dependency creator behind scalar export is not claimed universally excluded: existing exact semantic key binds complete project source/module/path/rules/limits/target plus installed compiler and full Typed Wire preserves relation; restored candidate always current Verify. This private-wrapper route was statically checked, not independently dynamically executed here; root explicitly chose no speculative global ban.",
+    "private_Core_queries": "There is no separate public CoreModule content fingerprint used here. Driver raw snapshots are immutable process-local constructions keyed by exact full source request and ordered upstream identities. PreparedProgram identity shortcut requires private unchanged Core, exact Limits, and complete Core Eq after CT, including context rows.",
+    "pure_CT": "Selected actual creator carrying runtime context explicitly Unsupported before pure-query compilation; unselected functions and contexts retire together. Ordinary Source CT evaluator prepays and preserves all context rows. No raw context grants verified CT authority."
+  },
+  "findings": [
+    {
+      "id": "warm-fixture-not-worthwhile",
+      "severity": "evidence precision only",
+      "status": "fixed test-only9709; independently ran actual reuse assertion",
+      "production_vulnerability": false
+    }
+  ],
+  "blocking_findings": [],
+  "excluded": [
+    "Formal full suite",
+    "General mixed/type/const/member/generated/nested creator identity or escape profile",
+    "F-bound/helper Source context bridges",
+    "Borrowed mutable count FnMut variant success; dedicated moved scalar counter FnMut is the positive",
+    "Universal semantic cache ban or dynamic private-wrapper cache evidence",
+    "Separate independent architecture acceptance for root Verify05cc/Lower/backend; integrated pipeline tests are not a substitute",
+    "Whole parent G3.3.2 Done or runtime/RSS superiority"
+  ],
+  "logs_sha256": {
+    "clippy-driver.log": "4be0724b2c44d1fc2aced30e670b1ab2a646661613bc6abd88b852887eeba0b3",
+    "fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "driver-g3-first.log": "2e72c806ef328ff0e4aa386b13127652f61b14eb8b5946627c4940f992b575bd",
+    "stored-flow-first.log": "4e9d20cb4de690c3004b092d7a0a490f31574cbc8aa2f5bf5dd5fb605b661b37",
+    "signature-life.log": "001d133456a909597d82a550fd52bfd373b8ace69d68e057fcd43a7d7393981c",
+    "clippy-libs.log": "1263ac8e485c43cb198a519de0599c7b151a2c4a9f2ab04451d71d810867a3ae",
+    "owned-fixed-first.log": "8bad0b396fabc0ce7f7aa2ead319ecb41637cd10e9d16f54271b2ed1670ad6f1",
+    "stored-flow-final.log": "e2e626f1d228690d3afea63ee5899adc726468cb0480a2dc2615225ad8ebd74f"
+  },
+  "target_status": "All reviewer Cargo/tests stopped; target343 released to root/g10 for G4.4.2 independent review",
+  "tracked_review_edits": "none; only exact author test commits composed in separate detached review tree"
+}
