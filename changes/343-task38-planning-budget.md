@@ -19,3 +19,8 @@ Sequence、Record/更新、Try、If及静态/方法/指针调用结果路径，�
 复制所需Task投影，不把计费修正缩成仅Name。生成Core的正确Ascribed/Sequence
 head仍通过Types→Analyze→Verify；错误完整T仍拒绝。原Holder.task公开字段源先由
 既有普通aggregate字段要求在Types拒绝，不由Task hint决定结果。
+
+提示resolver的每个词法scope及每个本地/导入BTree表使用实际key字节数与有界
+比较次数预付；静态/方法lookup改为借用的逐表解析。重试scope、module显式边扫描、
+完整nominal.member key生成和imported table宽度分别计费，不借一次本地表费用
+覆盖别的查询。此补丁先作为公共39合流所需的聚焦源码检查点，合流后重跑控制。
