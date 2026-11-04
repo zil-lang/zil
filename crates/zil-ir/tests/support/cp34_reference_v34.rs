@@ -1,4 +1,4 @@
-// Vec-based schema34 reference extended from the retained schema32 reference.
+// Vec-based current schema35 reference extended from the retained schema32 reference.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
 #![allow(dead_code)]
 use zil_base::{Fingerprint, Span};
@@ -32,7 +32,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V34\0"
+        b"ZIL-TYPED-MODULE-V35\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -115,6 +115,36 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
         Type::U8 => b.push(18),
         Type::U16 => b.push(19),
         Type::ByteBuffer => b.push(24),
+        Type::U64 => b.push(26),
+        Type::Usize => b.push(27),
+        Type::F32 => b.push(28),
+        Type::F64 => b.push(29),
+        Type::SyncCell(kind) => b.extend_from_slice(&[30, *kind as u8]),
+        Type::TaskI32 => b.push(33),
+        Type::BorrowedFunctionPointer {
+            parameters,
+            result,
+            life,
+        } => {
+            b.push(31);
+            encode_u32(b, life.binder_count);
+            encode_len(b, life.parameter_lives.len());
+            for index in &life.parameter_lives {
+                b.push(u8::from(index.is_some()));
+                if let Some(index) = index {
+                    encode_u32(b, *index);
+                }
+            }
+            b.push(u8::from(life.result_life.is_some()));
+            if let Some(index) = life.result_life {
+                encode_u32(b, index);
+            }
+            encode_len(b, parameters.len());
+            for ty in parameters {
+                encode_type(b, ty);
+            }
+            encode_type(b, result);
+        }
         Type::OwnedStore { element } => {
             b.push(25);
             encode_type(b, element);
@@ -338,6 +368,18 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
             b.push(5);
             b.extend_from_slice(&v.to_le_bytes());
         }
+        Constant::U64(v) | Constant::Usize(v) | Constant::F64(v) => {
+            b.push(match c {
+                Constant::U64(_) => 9,
+                Constant::Usize(_) => 10,
+                _ => 12,
+            });
+            b.extend_from_slice(&v.to_le_bytes());
+        }
+        Constant::F32(v) => {
+            b.push(11);
+            b.extend_from_slice(&v.to_le_bytes());
+        }
         Constant::NullHandle => b.push(6),
         Constant::NullWideString => b.push(7),
         Constant::WideString(units) => {
@@ -359,6 +401,109 @@ fn encode_constant(b: &mut Vec<u8>, c: &Constant) {
 }
 fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
     match i {
+        InstructionKind::ConvertNumber { value, target } => {
+            assert!(v32, "schema31 cannot represent floating conversions");
+            b.push(98);
+            encode_u32(b, value.0);
+            encode_type(b, target);
+        }
+        InstructionKind::WithSyncCell {
+            kind,
+            initial,
+            body,
+        } => {
+            assert!(v32, "schema31 cannot represent sync cells");
+            b.extend_from_slice(&[96, *kind as u8]);
+            encode_u32(b, initial.0);
+            encode_u32(b, body.0);
+        }
+        InstructionKind::SyncI32 {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            assert!(v32, "schema31 cannot represent sync operations");
+            b.extend_from_slice(&[97, *op as u8]);
+            encode_u32(b, address.0);
+            b.push(u8::from(value.is_some()));
+            if let Some(value) = value {
+                encode_u32(b, value.0);
+            }
+            b.push(*ordering as u8);
+        }
+        InstructionKind::TaskStart { worker, argument } => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(99);
+            encode_u32(b, worker.0);
+            encode_u32(b, argument.0);
+        }
+        InstructionKind::TaskYield => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(100);
+        }
+        InstructionKind::TaskValid { task }
+        | InstructionKind::TaskPoll { task }
+        | InstructionKind::TaskRequestCancel { task }
+        | InstructionKind::TaskPollClose { task }
+        | InstructionKind::TaskFinishDestroy { task } => {
+            assert!(v32, "schema31 cannot represent tasks");
+            b.push(match i {
+                InstructionKind::TaskValid { .. } => 101,
+                InstructionKind::TaskPoll { .. } => 102,
+                InstructionKind::TaskRequestCancel { .. } => 103,
+                InstructionKind::TaskPollClose { .. } => 104,
+                _ => 105,
+            });
+            encode_u32(b, task.0);
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            assert!(v32, "schema31 cannot represent local variant loans");
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::VariantTagAddress { address, path }
+        | InstructionKind::BorrowVariantAddress { address, path, .. } => {
+            assert!(v32, "schema31 cannot represent addressed variants");
+            b.push(if matches!(i, InstructionKind::VariantTagAddress { .. }) {
+                107
+            } else {
+                108
+            });
+            encode_u32(b, address.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            if let InstructionKind::BorrowVariantAddress { mutable, .. } = i {
+                b.push(u8::from(*mutable));
+            }
+        }
+        InstructionKind::BorrowFieldLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            assert!(v32, "schema31 cannot represent actual local field loans");
+            b.push(110);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for index in path {
+                encode_u32(b, *index);
+            }
+            b.push(u8::from(*mutable));
+        }
         InstructionKind::WithScopedThread {
             worker,
             argument,
