@@ -2902,7 +2902,7 @@ mod tests {
     }
     #[test]
     fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
-        for case in 0..11 {
+        for case in 0..13 {
             let mut m = fixture::captured_owned_fixed(false);
             match case {
                 0 => {
@@ -3011,9 +3011,12 @@ mod tests {
                         ),
                     );
                 }
-                _ => {
-                    m.closures[0].kind = zil_ir::CallableKind::Fn;
+                10 => { m.closures[0].kind = zil_ir::CallableKind::Fn; }
+                11 => {
+                    m.resources[0].name="Other".into();
+                    if let Type::Record{name,..}=&mut m.resources[0].payload { *name="Other".into(); }
                 }
+                _ => { m.resources.clear(); }
             }
             let c = captured_candidate(&m);
             let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
@@ -3037,13 +3040,10 @@ mod tests {
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
                         "case{case}: {error:?}"
                     );
+                } else if case>=11 {
+                    assert!(error.iter().any(|d|d.code=="E-VERIFY-RESOURCE"),"case{case}: {error:?}");
                 } else {
-                    assert!(
-                        error
-                            .iter()
-                            .any(|d| d.category == zil_base::ResultCategory::Unsupported),
-                        "case{case}: {error:?}"
-                    );
+                    assert!(error.iter().any(|d|d.category==zil_base::ResultCategory::Unsupported),"case{case}: {error:?}");
                 }
             }
         }
