@@ -31,7 +31,10 @@ impl Meter {
     pub(super) fn new(left: usize) -> Self {
         Self(std::sync::atomic::AtomicUsize::new(left))
     }
-    fn spend(&self, amount: usize) -> CompileResult<()> {
+    pub(super) fn remaining(&self) -> usize {
+        self.0.load(std::sync::atomic::Ordering::Relaxed)
+    }
+    pub(super) fn spend(&self, amount: usize) -> CompileResult<()> {
         self.0
             .try_update(
                 std::sync::atomic::Ordering::Relaxed,
@@ -726,7 +729,9 @@ pub(super) fn runtime(lir: &LirView<'_>, enabled: bool, meter: &Meter) -> Compil
     let mut items = vec![];
     for f in lir.functions {
         if f.foreign.as_ref().is_some_and(|foreign| {
-            foreign.symbol.starts_with("zil.task.") || foreign.symbol.starts_with("zil_task_frame_")
+            foreign.symbol.starts_with("zil.task.")
+                || foreign.symbol.starts_with("zil.sabi.task.")
+                || foreign.symbol.starts_with("zil_task_frame_")
         }) {
             return invalid(
                 "E-CODEGEN-FOREIGN",
@@ -984,4 +989,125 @@ impl FunctionEmitter<'_> {
         )));
         Ok(())
     }
+}
+
+pub(crate) fn export_name(id: FunctionId, operation: &str) -> String {
+    format!("zil.sabi.task.{operation}.{}", id.0)
+}
+
+/// The public v1 boundary has only scalar/pointer C-compatible results. The
+/// source tuple and internal worker poll stay independent of C aggregate ABI.
+pub(super) fn exports(id: FunctionId, meter: &Meter) -> CompileResult<Vec<m::Item>> {
+    meter.spend(512)?;
+    let mut result = Vec::new();
+    for operation in [
+        "init",
+        "poll",
+        "request_cancel",
+        "poll_close",
+        "finish_destroy",
+    ] {
+        let mut body = vec![];
+        let (parameter, returned) = match operation {
+            "init" => (m::Ty::Int(32), m::Ty::Ptr),
+            "poll" => (m::Ty::Ptr, m::Ty::Int(64)),
+            "poll_close" => (m::Ty::Ptr, m::Ty::Int(1)),
+            _ => (m::Ty::Ptr, m::Ty::Void),
+        };
+        if operation == "init" {
+            call(
+                &mut body,
+                Some("result"),
+                returned.clone(),
+                m::global(name(id, "init")),
+                vec![m::Arg::new(parameter.clone(), loc("input"))],
+            );
+            ret(&mut body, returned.clone(), loc("result"));
+        } else if operation == "finish_destroy" {
+            call(
+                &mut body,
+                None,
+                m::Ty::Void,
+                m::global("zil.task.finish_destroy".into()),
+                vec![m::Arg::new(m::Ty::Ptr, loc("input"))],
+            );
+            push(&mut body, None, m::Op::Return(None));
+        } else {
+            push(
+                &mut body,
+                Some("head"),
+                m::Op::Alloca {
+                    ty: m::Ty::Ptr,
+                    align: 8,
+                },
+            );
+            store(&mut body, m::Ty::Ptr, loc("input"), loc("head"));
+            let call_result = if operation == "poll" {
+                result_ty()
+            } else {
+                returned.clone()
+            };
+            call(
+                &mut body,
+                (call_result != m::Ty::Void).then_some("result"),
+                call_result.clone(),
+                m::global(format!("zil.task.{operation}")),
+                vec![m::Arg::new(m::Ty::Ptr, loc("head"))],
+            );
+            if operation == "poll" {
+                for (index, label) in [(0, "tag"), (1, "value")] {
+                    push(
+                        &mut body,
+                        Some(label),
+                        m::Op::Extract {
+                            arg: m::Arg::new(call_result.clone(), loc("result")),
+                            index,
+                        },
+                    );
+                    push(
+                        &mut body,
+                        Some(&format!("{label}.wide")),
+                        m::Op::Cast {
+                            opcode: "zext".into(),
+                            arg: m::Arg::new(m::Ty::Int(32), loc(label)),
+                            to: m::Ty::Int(64),
+                        },
+                    );
+                }
+                push(
+                    &mut body,
+                    Some("tag.shifted"),
+                    m::Op::Binary {
+                        opcode: "shl".into(),
+                        ty: m::Ty::Int(64),
+                        left: loc("tag.wide"),
+                        right: m::val(32),
+                    },
+                );
+                push(
+                    &mut body,
+                    Some("packed"),
+                    m::Op::Binary {
+                        opcode: "or".into(),
+                        ty: m::Ty::Int(64),
+                        left: loc("tag.shifted"),
+                        right: loc("value.wide"),
+                    },
+                );
+                ret(&mut body, returned.clone(), loc("packed"));
+            } else if returned == m::Ty::Void {
+                push(&mut body, None, m::Op::Return(None));
+            } else {
+                ret(&mut body, returned.clone(), loc("result"));
+            }
+        }
+        result.push(m::Item::Function(m::Function {
+            name: export_name(id, operation),
+            linkage: m::Linkage::External,
+            signature: m::Signature::new(returned, vec![m::Param::new(parameter, "input")]),
+            attrs: vec![],
+            blocks: Some(vec![block("entry", body)]),
+        }));
+    }
+    Ok(result)
 }

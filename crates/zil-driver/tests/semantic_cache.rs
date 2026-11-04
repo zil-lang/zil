@@ -69,7 +69,7 @@ impl Dir {
         CompilationSession::default().compile_project(&self.project(), options)
     }
     fn entries(&self) -> Vec<PathBuf> {
-        let mut files = fs::read_dir(self.0.join("cache/semantic-v3"))
+        let mut files = fs::read_dir(self.0.join("cache/semantic-v4"))
             .into_iter()
             .flatten()
             .map(|p| p.unwrap().path())
@@ -427,7 +427,7 @@ fn unsupported_cache_modes_and_writable_store_keep_current_source_path() {
     let options = d.options();
     success(&d.compile(&options));
     fs::set_permissions(
-        d.0.join("cache/semantic-v3"),
+        d.0.join("cache/semantic-v4"),
         fs::Permissions::from_mode(0o777),
     )
     .unwrap();
@@ -451,7 +451,7 @@ fn prior_cache_directory_and_format_are_not_reused() {
     let current = d.entries().pop().unwrap();
     let bytes = fs::read(&current).unwrap();
     assert_eq!(&bytes[..8], b"ZILRAW02");
-    assert_eq!(&bytes[80..88], b"ZILSEM03");
+    assert_eq!(&bytes[80..88], b"ZILSEM04");
     let old_directory = d.0.join("cache/semantic-v2");
     fs::create_dir(&old_directory).unwrap();
     let old_entry = old_directory.join(current.file_name().unwrap());

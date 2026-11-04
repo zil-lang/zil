@@ -784,6 +784,7 @@ fn owned_sum_copy_local_observers_and_exact_request_limits_are_retained() {
     let raw = verify_module(m.clone(), p.clone(), &m.target, &limits).unwrap();
     let shared = verify_shared_module(shared_m, shared_p, &m.target, &limits).unwrap();
     let program = Arc::new(TypedProgram {
+        task_interfaces: Vec::new(),
         module: m.clone(),
         interfaces: vec![],
         root_functions: vec![],
