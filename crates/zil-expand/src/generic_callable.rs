@@ -8,6 +8,7 @@ pub(crate) struct CallableTemplate {
     pub index: usize,
     pub generic_index: u32,
     pub generic_name: String,
+    pub closed_environment: bool,
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
@@ -23,6 +24,7 @@ pub(crate) struct CallableTemplates {
     /// source classification grants no concrete ownership proof.
     pub owned_factory: bool,
     pub forwarded: bool,
+    pub retained_registration: bool,
     /// One type slot, but two real owning inputs. Syntax classification keeps
     /// its old role storage until the paid selector pass publishes the owner.
     pub state_replacement: Option<StateReplacement>,
@@ -314,6 +316,21 @@ pub(crate) fn opaque_signature(ty: &TypeRef) -> Option<(CallableKind, &[TypeRef]
     Some((kind, parameters, result))
 }
 
+pub(crate) fn registration_environment(ty: &TypeRef) -> Option<&TypeRef> {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return None;
+    };
+    if path.as_slice() != ["Registration"] {
+        return None;
+    }
+    let [GenericArg::Type(environment)] = args.as_slice() else {
+        return None;
+    };
+    Some(environment)
+}
+pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ClosedEnvironment"] && args.is_empty())
+}
 pub(crate) fn template(function: &Function) -> R<Option<CallableTemplates>> {
     template_with_state(function, |ty, name, dual| {
         if dual {
@@ -547,6 +564,13 @@ fn template_with_state(
         .return_type
         .as_ref()
         .is_some_and(|ty| opaque_signature(ty).is_some());
+    let retained_registration = matches!(callables.as_slice(), [parameter] if function.return_type.as_ref().and_then(registration_environment).is_some_and(|environment| parameter_mode(environment, &parameter.name)==Some(None)));
+    if retained_registration && (callables.len() != 1 || function.generics.len() != 1) {
+        return Err(unsupported(
+            function.span,
+            "Registration return requires one concrete callable binder",
+        ));
+    }
     let forwarded = matches!(callables.as_slice(), [parameter]
         if function.return_type.as_ref().is_some_and(|ty|parameter_mode(ty,&parameter.name)==Some(None)));
     if forwarded && (callables.len() != 1 || function.generics.len() != 1) {
@@ -593,15 +617,36 @@ fn template_with_state(
         let GenericParamKind::Type(bounds) = &parameter.kind else {
             unreachable!()
         };
-        if bounds.len() != 1 {
+        let closed_environment = bounds.iter().filter(|bound| closed_bound(bound)).count();
+        if closed_environment > 1 {
+            return Err(error(parameter.span, "duplicate ClosedEnvironment bound"));
+        }
+        let callable_bounds = bounds
+            .iter()
+            .filter(|bound| !closed_bound(bound))
+            .collect::<Vec<_>>();
+        let [callable_bound] = callable_bounds.as_slice() else {
             return Err(unsupported(
                 parameter.span,
-                "one callable bound is implemented",
+                "one callable bound and optional ClosedEnvironment are implemented",
+            ));
+        };
+        let TypeKind::Named { path, args } = &callable_bound.kind else {
+            return Err(unsupported(parameter.span, "invalid callable bound"));
+        };
+        let closed_environment = closed_environment == 1;
+        if closed_environment && (dual || owned_state) {
+            return Err(unsupported(
+                parameter.span,
+                "ClosedEnvironment currently qualifies a direct concrete callable input",
             ));
         }
-        let TypeKind::Named { path, args } = &bounds[0].kind else {
-            unreachable!()
-        };
+        if retained_registration && !closed_environment {
+            return Err(error(
+                parameter.span,
+                "Registration<F> requires an explicit ClosedEnvironment bound in this definition",
+            ));
+        }
         let kind = match path[0].as_str() {
             "Fn" => CallableKind::Fn,
             "FnMut" => CallableKind::FnMut,
@@ -701,7 +746,9 @@ fn template_with_state(
                 direct_owner = Some(index);
             }
             match (kind, mode) {
-                (CallableKind::FnMut, None) if !owning && !owned_factory && !forwarded => {
+                (CallableKind::FnMut, None)
+                    if !owning && !owned_factory && !forwarded && !retained_registration =>
+                {
                     return Err(unsupported(
                         input.span,
                         "by-value FnMut helper needs an explicit mutable binding; use &mut F in this slice",
@@ -726,6 +773,7 @@ fn template_with_state(
                 index,
                 generic_index: generic_index as u32,
                 generic_name: parameter.name.clone(),
+                closed_environment,
                 kind,
                 parameters: parameters.clone(),
                 result: result.clone(),
@@ -740,6 +788,10 @@ fn template_with_state(
         if function.return_type.as_ref().is_some_and(|t| {
             refers(t, &parameter.name)
                 && !is_state(t, &parameter.name, dual)
+                && !(retained_registration
+                    && registration_environment(t).is_some_and(|environment| {
+                        parameter_mode(environment, &parameter.name) == Some(None)
+                    }))
                 && !(forwarded && parameter_mode(t, &parameter.name) == Some(None))
                 && !(dual && takes_state && state_union_result(t, &parameter.name, &is_state))
         }) {
@@ -792,6 +844,7 @@ fn template_with_state(
         owned_state,
         owned_factory,
         forwarded,
+        retained_registration,
         state_replacement,
     }))
 }

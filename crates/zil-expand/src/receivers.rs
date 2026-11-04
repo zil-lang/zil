@@ -57,6 +57,7 @@ impl Expander<'_> {
                         index: role.index as u32,
                         generic_index: role.generic_index,
                         generic_name: role.generic_name,
+                        closed_environment: role.closed_environment,
                         kind: role.kind,
                         parameters: role.parameters.iter().map(type_ref).collect(),
                         result: type_ref(&role.result),

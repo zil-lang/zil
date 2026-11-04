@@ -185,6 +185,9 @@ fn reserve_enum_metadata(
         }
         Type::Array { element, .. }
         | Type::Slice { element }
+        | Type::Registration {
+            environment: element,
+        }
         | Type::OwnedStore { element }
         | Type::Address { inner: element, .. }
         | Type::Managed(element)

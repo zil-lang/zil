@@ -13,6 +13,7 @@ mod foreign;
 mod owned_sums;
 mod packages;
 mod parallel_lowering;
+mod registration;
 mod resource_closures;
 mod resources;
 mod scalar_leaf;
@@ -299,6 +300,10 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         verified.uses_scalar_tasks(),
         &task_meter,
     )?);
+    if verified.uses_retained_registration() {
+        let runtime = registration::runtime(lir, &text, &task_meter)?;
+        text.append(runtime);
+    }
     for (operation, bits) in intrinsics {
         text.push(m::Event::Declare(m::Function {
             name: format!("llvm.{}.with.overflow.i{}", operation, bits),
@@ -504,6 +509,9 @@ fn lower_function_batch(
                 body.push(m::Item::Function(machine));
                 continue;
             }
+        }
+        if verified.uses_retained_registration() {
+            registration::reserve_function(function, closures, task_meter)?;
         }
         let emitted = FunctionEmitter {
             function,
@@ -1328,6 +1336,15 @@ impl FunctionEmitter<'_> {
         )));
         self.event(m::Event::End);
         for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::RegistrationStart {
+                register,
+                close,
+                callback,
+                ..
+            } = instruction.kind
+            {
+                self.registration_functions(instruction, register, close, callback)?;
+            }
             if let InstructionKind::WithScopedThread { worker, body, .. } = instruction.kind {
                 self.scoped_thread_functions(instruction, worker, body)?;
             }
@@ -1360,6 +1377,11 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         match &instruction.kind {
+            InstructionKind::RegistrationStart { .. }
+            | InstructionKind::RegistrationValid { .. }
+            | InstructionKind::RegistrationClose { .. } => {
+                self.registration_instruction(instruction)?
+            }
             InstructionKind::TaskStart { .. }
             | InstructionKind::TaskYield
             | InstructionKind::TaskValid { .. }
@@ -2932,7 +2954,7 @@ fn environment_type(id: ClosureId) -> m::Ty {
 }
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
-        Type::TaskI32 => Ok(m::Ty::Ptr),
+        Type::Registration { .. } | Type::TaskI32 => Ok(m::Ty::Ptr),
         Type::Unit => Ok("void".into()),
         Type::Bool => Ok("i1".into()),
         Type::I32 => Ok("i32".into()),
@@ -2986,6 +3008,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok("ptr".into())
@@ -2994,6 +3017,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             llvm_type(payload)
@@ -3031,7 +3055,9 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer | Type::TaskI32 | Type::OwnedStore { .. } => Ok(8),
+        Type::ByteBuffer | Type::TaskI32 | Type::Registration { .. } | Type::OwnedStore { .. } => {
+            Ok(8)
+        }
         Type::ForeignHandle | Type::CWideString | Type::ForeignCallback { .. } => Ok(8),
         Type::I32 => Ok(4),
         Type::I64 => Ok(8),
@@ -3050,6 +3076,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             Ok(8)
@@ -3058,6 +3085,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
             if (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
                 || payload.as_ref() == &Type::ByteBuffer
                 || payload.as_ref() == &Type::TaskI32
+                || matches!(payload.as_ref(), Type::Registration { .. })
                 || matches!(payload.as_ref(), Type::OwnedStore { .. }) =>
         {
             alignment(payload, closures)

@@ -93,8 +93,19 @@ fn task_name(name: &str) -> bool {
             | "task_finish_destroy"
     )
 }
+fn registration_name(name: &str) -> bool {
+    matches!(
+        name,
+        "Registration"
+            | "ClosedEnvironment"
+            | "c_register"
+            | "registration_valid"
+            | "registration_close"
+    )
+}
 fn primitive_name(name: &str) -> bool {
-    task_name(name)
+    registration_name(name)
+        || task_name(name)
         || sync_name(name)
         || name == "thread_scope"
         || integer_name(name)
@@ -980,7 +991,11 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if task_name(name) || sync_name(name) || name == "c_with_callback" || name == "thread_scope"
+        if registration_name(name)
+            || task_name(name)
+            || sync_name(name)
+            || name == "c_with_callback"
+            || name == "thread_scope"
         {
             self.diagnostics.push(primitive_name_error(name, span));
         }
@@ -1519,6 +1534,15 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Registration"] => {
+            if let [s::GenericArg::Type(environment)] = args.as_slice() {
+                Type::Desc(Box::new(Type::Registration {
+                    environment: Box::new(type_ref(environment)),
+                }))
+            } else {
+                Type::Unsupported("Registration requires one concrete environment type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Store"] => {
             if let [s::GenericArg::Type(element)] = args.as_slice() {
                 Type::Desc(Box::new(Type::OwnedStore {

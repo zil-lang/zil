@@ -968,6 +968,9 @@ impl Resolver<'_> {
                 }
                 ty.clone()
             }
+            Type::Registration { environment } => Type::Registration {
+                environment: Box::new(self.ty(environment, depth + 1, span)?),
+            },
             Type::OwnedStore { element } => {
                 let element = self.ty(element, depth + 1, span)?;
                 if !self.store_element_shape(&element, depth, span)? {
@@ -1018,6 +1021,11 @@ impl Resolver<'_> {
                     Type::Managed(payload) | Type::Desc(payload) => payload,
                     Type::OwnedStore { .. }
                         if matches!(inner.as_ref(), Type::OwnedStore { .. }) =>
+                    {
+                        Box::new(resolved)
+                    }
+                    Type::Registration { .. }
+                        if matches!(inner.as_ref(), Type::Registration { .. }) =>
                     {
                         Box::new(resolved)
                     }
@@ -2424,6 +2432,12 @@ impl Resolver<'_> {
                 span,
                 "generic Product formal index is invalid",
             )),
+            CoreAggregateTypeRecipe::Registration { environment } => {
+                let environment = self.generic_recipe(environment, args, owner, depth + 1, span)?;
+                Ok(Type::Desc(Box::new(Type::Registration {
+                    environment: Box::new(environment),
+                })))
+            }
             CoreAggregateTypeRecipe::Store { element } => {
                 let element = self.generic_recipe(element, args, owner, depth + 1, span)?;
                 Ok(Type::Desc(Box::new(Type::OwnedStore {
