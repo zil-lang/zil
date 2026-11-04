@@ -194,6 +194,16 @@ pub(super) fn reconstruct(
     ordinary: &Facts,
     budget: &mut Budget,
 ) -> Check<CaptureFacts> {
+    reconstruct_roots(module, f, graph, &ordinary.values, budget)
+}
+
+pub(super) fn reconstruct_roots(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    ordinary: &[Roots],
+    budget: &mut Budget,
+) -> Check<CaptureFacts> {
     budget.spend(
         f.values
             .len()
@@ -206,6 +216,13 @@ pub(super) fn reconstruct(
     for (parameter, local) in f.parameters.iter().enumerate() {
         budget.spend(1)?;
         if let Some((id, _)) = helpers::parameter_type(&f.locals[local.0 as usize].ty) {
+            if budget.owning_address_captures {
+                let definition = &module.closures[id.0 as usize];
+                budget.spend(definition.captures.len())?;
+                if !definition.lending_captures.is_empty() && definition.captures.iter().any(|ty| matches!(ty, Type::Address{inner,..} if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))) {
+                    return Err(unsupported("external owning-address lending through a callable parameter needs actual capture-slot substitution", Some(f.span)));
+                }
+            }
             let mut slots = Slots::new();
             for (capture, ty) in module.closures[id.0 as usize].captures.iter().enumerate() {
                 budget.spend(2)?;
@@ -261,7 +278,7 @@ pub(super) fn reconstruct(
                             {
                                 budget.spend(1)?;
                                 if tracks(ty) {
-                                    let roots = &ordinary.values[value.0 as usize];
+                                    let roots = &ordinary[value.0 as usize];
                                     budget.spend(roots.len())?;
                                     row.insert(
                                         index as u32,
@@ -668,4 +685,85 @@ pub(super) fn infer(
             return Ok(effects);
         }
     }
+}
+
+/// Retain the actual selected captured target. These facts are reconstructed
+/// from executable MakeClosure/Store/Load operations, never claimed Holds.
+pub(super) fn lending_entry<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+    kind: &InstructionKind,
+) -> Option<&'a ClosureDefinition> {
+    let ty = match kind {
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. } => &f.locals[callee.0 as usize].ty,
+        InstructionKind::CallClosureBorrowed { callee, .. } => &f.values[callee.0 as usize],
+        _ => return None,
+    };
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return None;
+    };
+    module.closures.get(id.0 as usize)
+}
+fn lending_rebase(relative: Root, actual: Root) -> Check<Root> {
+    let Root::Window(HoldRoot::Capture(_), start, end) = relative else {
+        return Ok(actual);
+    };
+    Ok(match actual {
+        Root::Window(origin, base, bound) => {
+            let lo = base
+                .checked_add(start)
+                .ok_or_else(|| limit("lending relative window overflow"))?;
+            let hi = base
+                .checked_add(end)
+                .filter(|hi| *hi <= bound)
+                .ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-LENDING",
+                        None,
+                        "returned window exceeds actual captured parent",
+                    )
+                })?;
+            Root::Window(origin, lo, hi)
+        }
+        Root::Local(local) => Root::Window(HoldRoot::Local(local), start, end),
+        Root::Parameter(p) => Root::Window(HoldRoot::Parameter(p), start, end),
+        Root::Capture(c) => Root::Window(HoldRoot::Capture(c), start, end),
+        other => other,
+    })
+}
+pub(super) fn lending_result(
+    d: &ClosureDefinition,
+    returned: &Roots,
+    slots: Option<&Slots>,
+    environment: &[Root],
+    budget: &mut Budget,
+) -> Check<Roots> {
+    budget.spend(returned.len())?;
+    let mut roots = Roots::new();
+    for relative in returned {
+        let HoldRoot::Capture(index) = relative.coarse() else {
+            continue;
+        };
+        if !matches!(d.captures[index as usize], Type::Address { .. }) {
+            roots_join(&mut roots, environment, budget)?;
+            continue;
+        }
+        if let Some(slots) = slots {
+            lookup(budget, slots.len())?;
+            if let Some(actual) = slots.get(&index) {
+                budget.spend(actual.len())?;
+                for actual in actual {
+                    let root = lending_rebase(*relative, actual.position())?;
+                    roots_join(&mut roots, &[root], budget)?;
+                }
+            }
+        }
+    }
+    Ok(roots)
 }

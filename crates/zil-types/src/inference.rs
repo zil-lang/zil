@@ -2407,6 +2407,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
+    fn pattern_term(&self, variable: Variable, span: Span) -> R<Term> {
+        Ok(match self.graph.address_shape(variable, span)? {
+            Some((inner, Some(mutable))) => Term::Address(inner, mutable),
+            _ => Term::Scalar(variable),
+        })
+    }
     // A shared aggregate projection constrains its pointee shape only.
     // Ordinary checking still decides place validity and all address permissions.
     fn projection_base(&mut self, term: &Term, span: Span) -> R<Variable> {
@@ -2900,7 +2906,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value, statement.span)?;
                     self.binding_types.insert(index, value.clone());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), *mutable, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, *mutable, span)?;
                     }
                 }
                 CoreStatementKind::Binding {
@@ -3080,7 +3087,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value_type, value.span)?;
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), false, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, false, span)?;
                     }
                     self.block(then_body, depth + 1)?;
                     self.scopes.pop();
@@ -3097,7 +3105,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     let variable = self.scalar(&value_type, value.span)?;
                     self.scopes.push(BTreeMap::new());
                     for (name, variable, span) in self.graph.pattern_bind(pattern, variable)? {
-                        self.insert(&name, Term::Scalar(variable), false, span)?;
+                        let term = self.pattern_term(variable, span)?;
+                        self.insert(&name, term, false, span)?;
                     }
                     self.block(body, depth + 1)?;
                     self.scopes.pop();
@@ -3127,7 +3136,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         for (name, variable, span) in
                             self.graph.pattern_bind(&arm.pattern, variable)?
                         {
-                            self.insert(&name, Term::Scalar(variable), false, span)?;
+                            let term = self.pattern_term(variable, span)?;
+                            self.insert(&name, term, false, span)?;
                         }
                         self.block(&arm.body, depth + 1)?;
                         self.scopes.pop();

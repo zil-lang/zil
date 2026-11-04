@@ -291,6 +291,7 @@ struct Budget {
     shared_thread_functions: Option<Vec<bool>>,
     borrowed_function_pointers: bool,
     invocation_callbacks: bool,
+    owning_address_captures: bool,
     head_descriptions: bool,
 }
 impl Budget {
@@ -312,6 +313,7 @@ impl Budget {
             shared_thread_functions: None,
             borrowed_function_pointers: false,
             invocation_callbacks: false,
+            owning_address_captures: false,
             head_descriptions: false,
         }
     }
