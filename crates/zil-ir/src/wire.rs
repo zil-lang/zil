@@ -929,6 +929,10 @@ impl<'a> Writer<'a> {
                     self.u32(field.0)?;
                 }
             }
+            InstructionKind::DescribeAddress { address } => {
+                self.u8(109)?;
+                self.u32(address.0)?;
+            }
             InstructionKind::DescribeLocal { local } => {
                 self.u8(35)?;
                 self.u32(local.0)?;
@@ -2591,6 +2595,9 @@ impl<'a> Reader<'a> {
                 }
                 InstructionKind::MakeManaged { fields }
             }
+            109 => InstructionKind::DescribeAddress {
+                address: ValueId(self.u32()?),
+            },
             35 => InstructionKind::DescribeLocal {
                 local: LocalId(self.u32()?),
             },
