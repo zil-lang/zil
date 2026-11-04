@@ -267,7 +267,7 @@ impl Tree {
         budget: &mut Budget,
     ) -> CompileResult<()> {
         budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
-        if matches!(ty, Type::Enum { .. }) && ty.is_copy_value() {
+        if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value() {
             let old = self.copied(budget)?;
             let mut unknown = Self::unknown(ty, budget)?;
             unknown.preserve_missing(&old, budget)?;
