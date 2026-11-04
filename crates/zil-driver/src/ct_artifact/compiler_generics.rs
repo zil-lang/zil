@@ -148,7 +148,7 @@ impl<'a> Compiler<'a> {
         }
         match ty {
             CtTy::Scalar(_) => Ok(()),
-            CtTy::Tuple(fields) => {
+            CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
                 for field in fields {
                     self.ordinary_copy(field, depth + 1, span)?;
                 }

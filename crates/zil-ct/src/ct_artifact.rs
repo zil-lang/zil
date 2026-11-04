@@ -276,13 +276,45 @@ impl<'a> Frame<'a> {
     }
 }
 
+fn type_storage(ty: &CtTy, mut budget: Option<&mut CtExecutionBudget>) -> CompileResult<u64> {
+    if let Some(budget) = budget.as_deref_mut() {
+        budget.reserve_analysis_work(2)?;
+    }
+    let mut bytes = 64u64;
+    match ty {
+        CtTy::Tuple(fields) | CtTy::AnonymousSum(fields) => {
+            for field in fields {
+                bytes = bytes.saturating_add(type_storage(field, budget.as_deref_mut())?);
+            }
+        }
+        CtTy::Array { element, .. } | CtTy::List(element) => {
+            bytes = bytes.saturating_add(type_storage(element, budget)?)
+        }
+        _ => {}
+    }
+    Ok(bytes)
+}
+fn aggregate_storage(
+    values: &[CtValue],
+    mut budget: Option<&mut CtExecutionBudget>,
+) -> CompileResult<u64> {
+    let mut bytes = 16u64;
+    for value in values {
+        bytes = bytes.saturating_add(value_storage(value, budget.as_deref_mut())?);
+    }
+    Ok(bytes)
+}
 fn value_bytes(value: &CtValue) -> u64 {
-    let sum = |values: &[CtValue]| {
-        values
-            .iter()
-            .fold(16u64, |n, v| n.saturating_add(value_bytes(v)))
-    };
-    match value {
+    value_storage(value, None).expect("unmetered admitted-value byte arithmetic cannot fail")
+}
+fn copy_value_bytes(value: &CtValue, budget: &mut CtExecutionBudget) -> CompileResult<u64> {
+    value_storage(value, Some(budget))
+}
+fn value_storage(
+    value: &CtValue,
+    mut budget: Option<&mut CtExecutionBudget>,
+) -> CompileResult<u64> {
+    Ok(match value {
         CtValue::Scalar(_) => 16,
         CtValue::Text(s) => 16u64.saturating_add(s.len() as u64),
         CtValue::Type(t) => 16u64.saturating_add((t.nodes.len() as u64).saturating_mul(64)),
@@ -318,18 +350,33 @@ fn value_bytes(value: &CtValue) -> u64 {
         CtValue::LayoutInfo(l) => {
             64u64.saturating_add((l.field_offsets.len() as u64).saturating_mul(8))
         }
-        CtValue::Tuple(v) | CtValue::Array(v) | CtValue::List(v) => sum(v),
-        CtValue::Record { fields, .. } | CtValue::Variant { fields, .. } => sum(fields),
-    }
+        CtValue::Tuple(v) | CtValue::Array(v) | CtValue::List(v) => aggregate_storage(v, budget)?,
+        CtValue::Record { fields, .. } | CtValue::Variant { fields, .. } => {
+            aggregate_storage(fields, budget)?
+        }
+        CtValue::AnonymousSum {
+            members, payload, ..
+        } => {
+            if let Some(budget) = budget.as_deref_mut() {
+                budget.reserve_analysis_work(2)?;
+            }
+            let mut bytes = 64u64;
+            for member in members {
+                bytes = bytes.saturating_add(type_storage(member, budget.as_deref_mut())?);
+            }
+            bytes.saturating_add(value_storage(payload, budget)?)
+        }
+    })
 }
 fn clone_operands(
     frame: &Frame<'_>,
     ids: &[CtValueId],
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(Vec<CtValue>, u64)> {
-    let bytes = ids.iter().fold(0u64, |n, id| {
-        n.saturating_add(value_bytes(frame.value(*id)))
-    });
+    let mut bytes = 0u64;
+    for id in ids {
+        bytes = bytes.saturating_add(copy_value_bytes(frame.value(*id), budget)?);
+    }
     budget.reserve_temporary_bytes(bytes)?;
     Ok((
         ids.iter().map(|id| frame.value(*id).clone()).collect(),
@@ -401,7 +448,10 @@ pub fn evaluate_ct_artifact(
     }
     budget.reserve_instance()?;
     budget.observe_depth(1)?;
-    let argument_bytes: Vec<_> = arguments.iter().map(value_bytes).collect();
+    let argument_bytes: Vec<_> = arguments
+        .iter()
+        .map(|v| copy_value_bytes(v, budget))
+        .collect::<CompileResult<_>>()?;
     for bytes in &argument_bytes {
         budget.reserve_temporary_bytes(*bytes)?;
     }
@@ -426,8 +476,8 @@ pub fn evaluate_ct_artifact(
                 budget.observe_live_cells(live_cells.saturating_add(incoming_cells))?;
                 let argument_bytes: Vec<_> = arguments
                     .iter()
-                    .map(|v| value_bytes(frame.value(*v)))
-                    .collect();
+                    .map(|v| copy_value_bytes(frame.value(*v), budget))
+                    .collect::<CompileResult<_>>()?;
                 for bytes in &argument_bytes {
                     budget.reserve_temporary_bytes(*bytes)?;
                 }
@@ -463,7 +513,10 @@ pub fn evaluate_ct_artifact(
         } else {
             match block.terminator {
                 CtTerminator::Return(result) => {
-                    let bytes = result.map_or(16, |id| value_bytes(frame.value(id)));
+                    let bytes = match result {
+                        Some(id) => copy_value_bytes(frame.value(id), budget)?,
+                        None => 16,
+                    };
                     budget.reserve_temporary_bytes(bytes)?;
                     let output = result
                         .map(|id| frame.value(id).clone())
@@ -592,6 +645,41 @@ fn value_matches_type(
             }
             if let Some(schema) = raw.record_schemas.get(id.0 as usize) {
                 fields_match(fields, &schema.fields, budget)?
+            } else {
+                false
+            }
+        }
+        (
+            CtValue::AnonymousSum {
+                members,
+                active,
+                payload,
+            },
+            CtTy::AnonymousSum(expected),
+        ) => {
+            let actual_key = crate::artifact_sum_members_key(
+                members,
+                &raw.record_schemas,
+                &raw.enum_schemas,
+                budget,
+            )?;
+            let expected_key = crate::artifact_sum_members_key(
+                expected,
+                &raw.record_schemas,
+                &raw.enum_schemas,
+                budget,
+            )?;
+            budget.reserve_analysis_work(
+                (actual_key.len() as u64).saturating_add(expected_key.len() as u64),
+            )?;
+            let same = actual_key == expected_key;
+            budget.release_temporary_bytes(
+                (actual_key.capacity() as u64).saturating_add(expected_key.capacity() as u64),
+            );
+            if !same {
+                false
+            } else if let Some(member) = expected.get(*active as usize) {
+                value_matches_type(payload, member, raw, depth + 1, budget)?
             } else {
                 false
             }
@@ -936,48 +1024,79 @@ fn execute_instruction(
 ) -> CompileResult<Option<CtValue>> {
     use CtInstructionKind as K;
     let get = |id: CtValueId| frame.value(id);
-    let copy_bytes = |ids: &[CtValueId]| -> u64 {
-        ids.iter()
-            .fold(16u64, |n, id| n.saturating_add(value_bytes(get(*id))))
-    };
+    fn copy_bytes(
+        frame: &Frame<'_>,
+        ids: &[CtValueId],
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<u64> {
+        let mut bytes = 16u64;
+        for id in ids {
+            bytes = bytes.saturating_add(copy_value_bytes(frame.value(*id), budget)?);
+        }
+        Ok(bytes)
+    }
     let planned = match &inst.kind {
         K::Constant(id) => match &raw.constants[id.0 as usize] {
             CtConstant::Scalar(_) => 16,
             CtConstant::Text(t) => 16u64.saturating_add(t.len() as u64),
         },
-        K::InvocationInput { index } => value_bytes(&invocation[*index as usize]),
-        K::Load(id) => value_bytes(
+        K::InvocationInput { index } => copy_value_bytes(&invocation[*index as usize], budget)?,
+        K::Load(id) => copy_value_bytes(
             frame.locals[id.0 as usize]
                 .as_ref()
                 .expect("verified initialized local"),
-        ),
+            budget,
+        )?,
         K::ConvertInteger { .. }
         | K::ConvertNumber { .. }
         | K::Unary { .. }
         | K::Binary { .. }
         | K::Length(_)
         | K::VariantTag(_) => 16,
-        K::MakeTuple(ids) | K::MakeArray(ids) | K::MakeList(ids) => copy_bytes(ids),
-        K::MakeRecord { fields, .. } | K::MakeVariant { fields, .. } => copy_bytes(fields),
+        K::MakeTuple(ids) | K::MakeArray(ids) | K::MakeList(ids) => copy_bytes(frame, ids, budget)?,
+        K::MakeRecord { fields, .. } | K::MakeVariant { fields, .. } => {
+            copy_bytes(frame, fields, budget)?
+        }
         K::TypePrimitive(_) | K::TypeBuiltin(_) => 80,
-        K::VariantField { value, field, .. } => match get(*value) {
-            CtValue::Variant { fields, .. } => value_bytes(&fields[*field as usize]),
+        K::MakeAnonymousSum {
+            members, payload, ..
+        } => {
+            let mut bytes = 64u64;
+            for member in members {
+                bytes = bytes.saturating_add(type_storage(member, Some(budget))?);
+            }
+            bytes.saturating_add(copy_value_bytes(get(*payload), budget)?)
+        }
+        K::VariantField {
+            value,
+            variant,
+            field,
+        } => match get(*value) {
+            CtValue::Variant { tag, fields, .. } if tag == variant => {
+                copy_value_bytes(&fields[*field as usize], budget)?
+            }
+            CtValue::AnonymousSum {
+                active, payload, ..
+            } if active == variant && *field == 0 => copy_value_bytes(payload, budget)?,
+            CtValue::Variant { .. } | CtValue::AnonymousSum { .. } => {
+                return Err(error("CT inactive variant projection reached"));
+            }
             _ => unreachable!("verified enum"),
         },
         K::Extract { aggregate, index } => match get(*aggregate) {
             CtValue::Array(fields) | CtValue::List(fields) => {
-                value_bytes(&fields[integer_index(get(*index), fields.len())?])
+                copy_value_bytes(&fields[integer_index(get(*index), fields.len())?], budget)?
             }
             _ => unreachable!("verified homogeneous container"),
         },
         K::ExtractField { aggregate, index } => match get(*aggregate) {
             CtValue::Tuple(fields) | CtValue::Record { fields, .. } => {
-                value_bytes(&fields[*index as usize])
+                copy_value_bytes(&fields[*index as usize], budget)?
             }
             _ => unreachable!("verified static container"),
         },
         K::Replace { aggregate, .. } | K::ReplaceField { aggregate, .. } => {
-            value_bytes(get(*aggregate))
+            copy_value_bytes(get(*aggregate), budget)?
         }
         _ => 0,
     };
@@ -1003,7 +1122,7 @@ fn execute_instruction(
                 .clone(),
         ),
         K::Store { local, value } => {
-            let bytes = value_bytes(get(*value));
+            let bytes = copy_value_bytes(get(*value), budget)?;
             budget.reserve_temporary_bytes(bytes)?;
             let copied = get(*value).clone();
             budget.release_temporary_bytes(frame.local_bytes[local.0 as usize]);
@@ -1084,6 +1203,15 @@ fn execute_instruction(
             tag: *tag,
             fields: fields.iter().map(|id| get(*id).clone()).collect(),
         }),
+        K::MakeAnonymousSum {
+            members,
+            active,
+            payload,
+        } => Some(CtValue::AnonymousSum {
+            members: members.clone(),
+            active: *active,
+            payload: Box::new(get(*payload).clone()),
+        }),
         K::Length(id) => {
             let len = match get(*id) {
                 CtValue::Array(v) | CtValue::List(v) => v.len(),
@@ -1096,26 +1224,28 @@ fn execute_instruction(
             )))
         }
         K::VariantTag(id) => {
-            let CtValue::Variant { tag, .. } = get(*id) else {
-                unreachable!("verified enum")
+            let tag = match get(*id) {
+                CtValue::Variant { tag, .. } => *tag,
+                CtValue::AnonymousSum { active, .. } => *active,
+                _ => unreachable!("verified enum or anonymous sum"),
             };
             Some(CtValue::Scalar(Constant::I32(
-                i32::try_from(*tag).map_err(|_| limit("CT variant tag exceeds i32"))?,
+                i32::try_from(tag).map_err(|_| limit("CT variant tag exceeds i32"))?,
             )))
         }
         K::VariantField {
             value,
             variant,
             field,
-        } => {
-            let CtValue::Variant { tag, fields, .. } = get(*value) else {
-                unreachable!("verified enum")
-            };
-            if tag != variant {
-                return Err(error("CT inactive variant projection reached"));
+        } => match get(*value) {
+            CtValue::Variant { tag, fields, .. } if tag == variant => {
+                Some(fields[*field as usize].clone())
             }
-            Some(fields[*field as usize].clone())
-        }
+            CtValue::AnonymousSum {
+                active, payload, ..
+            } if active == variant && *field == 0 => Some(payload.as_ref().clone()),
+            _ => return Err(error("CT inactive variant projection reached")),
+        },
         K::Extract { aggregate, index } => {
             let fields = match get(*aggregate) {
                 CtValue::Array(v) | CtValue::List(v) => v,
@@ -2103,5 +2233,377 @@ mod tests {
                 "raw/Wire type attack {attack}"
             );
         }
+    }
+    fn anonymous_value_program() -> CtArtifactProgram {
+        let mut p = raw();
+        p.budget.max_analysis_work = 1_000_000;
+        p.budget.max_temporary_bytes = 1_000_000;
+        let members = vec![
+            CtTy::Scalar(CtScalarTy::Bool),
+            CtTy::Scalar(CtScalarTy::I32),
+        ];
+        let f = &mut p.functions[0];
+        f.result_type = CtTy::AnonymousSum(members.clone());
+        f.values = vec![CtTy::Scalar(CtScalarTy::I32), f.result_type.clone()];
+        f.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::Constant(CtConstantId(0)),
+                span: Span::default(),
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::MakeAnonymousSum {
+                    members,
+                    active: 1,
+                    payload: CtValueId(0),
+                },
+                span: Span::default(),
+            },
+        ];
+        f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+        p
+    }
+    #[test]
+    fn anonymous_value_raw_vm_wire_and_inactive_projection() {
+        let p = anonymous_value_program();
+        let limits = Limits::default();
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        let bytes = zil_ir::ct_wire::encode_program(&p, &limits).unwrap();
+        let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+        let checked = verify_ct_artifact(decoded, &limits, &authority).unwrap();
+        let (value, _) = evaluate_ct_artifact(
+            &checked,
+            &[],
+            &Reader,
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        let expected = CtValue::AnonymousSum {
+            members: vec![
+                CtTy::Scalar(CtScalarTy::Bool),
+                CtTy::Scalar(CtScalarTy::I32),
+            ],
+            active: 1,
+            payload: Box::new(CtValue::Scalar(Constant::I32(4))),
+        };
+        assert_eq!(value, expected);
+        let value_bytes = zil_ir::ct_wire::encode_value(&value, &limits).unwrap();
+        assert_eq!(
+            zil_ir::ct_wire::decode_value(&value_bytes, &limits).unwrap(),
+            value
+        );
+        for attack in 0..5 {
+            let mut raw = p.clone();
+            let CtInstructionKind::MakeAnonymousSum {
+                members,
+                active,
+                payload,
+            } = &mut raw.functions[0].blocks[0].instructions[1].kind
+            else {
+                unreachable!()
+            };
+            match attack {
+                0 => members.reverse(),
+                1 => *active = 2,
+                2 => *active = 0,
+                3 => members[1] = members[0].clone(),
+                _ => *payload = CtValueId(9),
+            };
+            assert!(
+                verify_ct_artifact(raw, &limits, &authority).is_err(),
+                "raw attack {attack}"
+            );
+        }
+        for active in [true, false] {
+            let mut raw = p.clone();
+            let f = &mut raw.functions[0];
+            f.result_type = CtTy::Scalar(if active {
+                CtScalarTy::I32
+            } else {
+                CtScalarTy::Bool
+            });
+            f.values.push(f.result_type.clone());
+            f.blocks[0].instructions.push(CtInstruction {
+                result: Some(CtValueId(2)),
+                kind: CtInstructionKind::VariantField {
+                    value: CtValueId(1),
+                    variant: if active { 1 } else { 0 },
+                    field: 0,
+                },
+                span: Span::default(),
+            });
+            f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(2)));
+            let checked = verify_ct_artifact(raw.clone(), &limits, &authority).unwrap();
+            let output = evaluate_ct_artifact(
+                &checked,
+                &[],
+                &Reader,
+                &mut CtExecutionBudget::new(raw.budget),
+            );
+            if active {
+                assert_eq!(output.unwrap().0, CtValue::Scalar(Constant::I32(4)));
+            } else {
+                assert!(output.unwrap_err()[0].message.contains("inactive"));
+            }
+        }
+    }
+    #[test]
+    fn anonymous_value_complete_descriptor_and_payload_are_checked() {
+        let raw = anonymous_value_program();
+        let ty = raw.functions[0].result_type.clone();
+        let CtTy::AnonymousSum(members) = &ty else {
+            unreachable!()
+        };
+        let valid = CtValue::AnonymousSum {
+            members: members.clone(),
+            active: 1,
+            payload: Box::new(CtValue::Scalar(Constant::I32(4))),
+        };
+        let mut budget = CtExecutionBudget::new(raw.budget);
+        assert!(value_matches_type(&valid, &ty, &raw, 0, &mut budget).unwrap());
+        assert_eq!(budget.live_temporary_bytes(), 0);
+        for attack in 0..5 {
+            let mut value = valid.clone();
+            let CtValue::AnonymousSum {
+                members,
+                active,
+                payload,
+            } = &mut value
+            else {
+                unreachable!()
+            };
+            match attack {
+                0 => members.reverse(),
+                1 => *active = 9,
+                2 => *payload = Box::new(CtValue::Scalar(Constant::Bool(false))),
+                3 => members[0] = CtTy::Record(CtRecordSchemaId(9)),
+                _ => members[0] = CtTy::Scalar(CtScalarTy::U8),
+            };
+            assert!(
+                !value_matches_type(
+                    &value,
+                    &ty,
+                    &raw,
+                    0,
+                    &mut CtExecutionBudget::new(raw.budget)
+                )
+                .unwrap_or(false),
+                "value attack {attack}"
+            );
+        }
+    }
+    #[test]
+    fn anonymous_value_nominal_phantom_const_identity_cycles_and_budget() {
+        let mut p = anonymous_value_program();
+        let owner = CtSymbolId {
+            declaration: NodeId(30),
+            ..symbol()
+        };
+        for (phantom, n) in [
+            (CtScalarTy::Bool, 7),
+            (CtScalarTy::U8, 7),
+            (CtScalarTy::Bool, 8),
+        ] {
+            p.record_schemas.push(CtRecordSchema {
+                name: owner.clone(),
+                arguments: vec![
+                    CtSchemaArgument::Type(CtTy::Scalar(CtScalarTy::I32)),
+                    CtSchemaArgument::Type(CtTy::Scalar(phantom)),
+                    CtSchemaArgument::Scalar(Constant::I32(n)),
+                ],
+                fields: vec![CtTy::Scalar(CtScalarTy::I32)],
+                origin: CtSchemaOrigin::UserPure,
+            });
+        }
+        let input = vec![
+            CtTy::Record(CtRecordSchemaId(2)),
+            CtTy::Record(CtRecordSchemaId(0)),
+            CtTy::Record(CtRecordSchemaId(1)),
+        ];
+        let canonical = crate::canonical_artifact_sum(
+            input.clone(),
+            &p.record_schemas,
+            &[],
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        let mut swapped = input;
+        swapped.reverse();
+        assert_eq!(
+            crate::canonical_artifact_sum(
+                swapped,
+                &p.record_schemas,
+                &[],
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .unwrap(),
+            canonical
+        );
+        let limits = Limits::default();
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        assert!(verify_ct_artifact(p.clone(), &limits, &authority).is_ok());
+        let mut duplicate = p.clone();
+        duplicate
+            .record_schemas
+            .push(duplicate.record_schemas[0].clone());
+        assert!(
+            verify_ct_artifact(duplicate, &limits, &authority).unwrap_err()[0]
+                .message
+                .contains("duplicated")
+        );
+        let mut cycle = p.clone();
+        cycle.record_schemas[0].arguments[0] =
+            CtSchemaArgument::Type(CtTy::Record(CtRecordSchemaId(0)));
+        assert!(
+            verify_ct_artifact(cycle, &limits, &authority).unwrap_err()[0]
+                .message
+                .contains("cycle")
+        );
+        let mut wide = p.clone();
+        wide.target_pointer_width = 32;
+        wide.record_schemas[0].arguments[2] = CtSchemaArgument::Scalar(Constant::Usize(u64::MAX));
+        assert!(
+            verify_ct_artifact(wide, &limits, &authority).unwrap_err()[0]
+                .message
+                .contains("width")
+        );
+        let run = |n| {
+            let mut p = p.clone();
+            p.budget.max_analysis_work = n;
+            verify_ct_artifact(p, &limits, &authority)
+        };
+        let (mut low, mut high) = (1, p.budget.max_analysis_work);
+        while low < high {
+            let middle = (low + high) / 2;
+            if run(middle).is_ok() {
+                high = middle
+            } else {
+                low = middle + 1
+            }
+        }
+        assert!(run(low).is_ok());
+        assert_eq!(
+            run(low - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert!(run(low).is_ok());
+        eprintln!("344 CT3 nominal verification N={low}/N-1/fresh");
+        let key = crate::artifact_type_key(
+            &canonical,
+            &p.record_schemas,
+            &[],
+            &mut CtExecutionBudget::new(p.budget),
+        )
+        .unwrap();
+        assert!(!key.is_empty());
+    }
+    #[test]
+    fn anonymous_value_schema_three_rejects_preserved_v2_envelopes() {
+        let limits = Limits::default();
+        let program = include_bytes!(
+            "../../../tests/language-readiness/terminal/344/anonymous/fixtures/artifact-v2-program.wire"
+        );
+        let value = include_bytes!(
+            "../../../tests/language-readiness/terminal/344/anonymous/fixtures/artifact-v2-value.wire"
+        );
+        for bytes in [program.as_slice(), value.as_slice()] {
+            assert_eq!(u32::from_le_bytes(bytes[8..12].try_into().unwrap()), 2);
+        }
+        assert_eq!(
+            zil_ir::ct_wire::decode_program(program, &limits),
+            Err(zil_ir::ct_wire::WireError::BadFingerprint)
+        );
+        assert_eq!(
+            zil_ir::ct_wire::decode_value(value, &limits),
+            Err(zil_ir::ct_wire::WireError::BadFingerprint)
+        );
+        let mut p = anonymous_value_program();
+        p.schema_version = 2;
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        assert!(
+            verify_ct_artifact(p, &limits, &authority).unwrap_err()[0]
+                .message
+                .contains("schema")
+        );
+    }
+    #[test]
+    fn anonymous_value_tag_and_legacy_inactive_empty_enum_project_cleanly() {
+        let mut p = anonymous_value_program();
+        let f = &mut p.functions[0];
+        f.result_type = CtTy::Scalar(CtScalarTy::I32);
+        f.values.push(f.result_type.clone());
+        f.blocks[0].instructions.push(CtInstruction {
+            result: Some(CtValueId(2)),
+            kind: CtInstructionKind::VariantTag(CtValueId(1)),
+            span: Span::default(),
+        });
+        f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(2)));
+        let limits = Limits::default();
+        let authority = Authority {
+            snapshot: p.snapshot.clone(),
+        };
+        let checked = verify_ct_artifact(p.clone(), &limits, &authority).unwrap();
+        assert_eq!(
+            evaluate_ct_artifact(
+                &checked,
+                &[],
+                &Reader,
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .unwrap()
+            .0,
+            CtValue::Scalar(Constant::I32(1))
+        );
+        p.enum_schemas.push(CtEnumSchema {
+            name: CtSymbolId {
+                declaration: NodeId(50),
+                ..symbol()
+            },
+            arguments: Vec::new(),
+            variants: vec![Vec::new(), vec![CtTy::Scalar(CtScalarTy::I32)]],
+            origin: CtSchemaOrigin::UserPure,
+        });
+        let f = &mut p.functions[0];
+        f.values = vec![CtTy::Enum(CtEnumSchemaId(0)), CtTy::Scalar(CtScalarTy::I32)];
+        f.blocks[0].instructions = vec![
+            CtInstruction {
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::MakeVariant {
+                    schema: CtEnumSchemaId(0),
+                    tag: 0,
+                    fields: Vec::new(),
+                },
+                span: Span::default(),
+            },
+            CtInstruction {
+                result: Some(CtValueId(1)),
+                kind: CtInstructionKind::VariantField {
+                    value: CtValueId(0),
+                    variant: 1,
+                    field: 0,
+                },
+                span: Span::default(),
+            },
+        ];
+        f.blocks[0].terminator = CtTerminator::Return(Some(CtValueId(1)));
+        let checked = verify_ct_artifact(p.clone(), &limits, &authority).unwrap();
+        assert!(
+            evaluate_ct_artifact(
+                &checked,
+                &[],
+                &Reader,
+                &mut CtExecutionBudget::new(p.budget)
+            )
+            .unwrap_err()[0]
+                .message
+                .contains("inactive")
+        );
     }
 }

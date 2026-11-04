@@ -379,10 +379,16 @@ impl<'a> Compiler<'a> {
                         self.budget.node(ty.span)?;
                         let id = CtRecordSchemaId(self.records.len() as u32);
                         let name = self.symbol(owner, item.span)?;
+                        let mut schema_arguments = Vec::new();
+                        for argument in &arguments {
+                            self.budget.copy_ty(argument, 0, ty.span)?;
+                            schema_arguments.push(CtSchemaArgument::Type(argument.clone()));
+                        }
                         self.record_sources.push((owner, a));
                         self.record_arguments.push(arguments);
                         self.records.push(CtRecordSchema {
                             name,
+                            arguments: schema_arguments,
                             fields: Vec::new(),
                             origin: CtSchemaOrigin::UserPure,
                         });
@@ -418,6 +424,7 @@ impl<'a> Compiler<'a> {
                         self.enum_sources.push((owner, e));
                         self.enums.push(CtEnumSchema {
                             name,
+                            arguments: Vec::new(),
                             variants: Vec::new(),
                             origin: CtSchemaOrigin::UserPure,
                         });
