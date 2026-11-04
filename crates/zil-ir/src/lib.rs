@@ -108,6 +108,14 @@ pub enum Type {
     Unsupported(String),
 }
 impl Type {
+    /// Stable complete type identity, never a proof of type or access validity.
+    /// Untrusted callers must validate and prepay the type traversal first.
+    pub fn fingerprint(&self) -> Fingerprint {
+        let mut bytes = FingerprintStream::new();
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V35\0");
+        encode_type(&mut bytes, self);
+        bytes.finish()
+    }
     pub fn is_b0_scalar(&self) -> bool {
         matches!(
             self,
