@@ -1,5 +1,15 @@
 # ZIL 施工总计划
 
+## 2026-11-04：进度复核、旧分支退役与消费者收敛
+
+本轮按真实拓扑删除63个已被接受main包含的远端旧分支、40个干净旧worktree及39个本地分支；所有独有提交和实际WIP保留，无reset/clean。六名子代理因usage limit停止后，root备份实际源码并继续接手。环境可执行和推送，handoff本次实跑CurrentPass；GitHub CI此前账户限额导致未启动，不冒充检查通过。
+
+共同40的4d9d1b9ae已接通混合life/F helper实际源码与两核/Lower/LLVM：两源八次Clang/API O0/O2，加闭合Code参数四次；generics33、generic_regressions83、Types44及两核13/12分别通过，真实读取源N21782/N−1/warm/fresh。344的真实CT5 Definition上下文中断源码已恢复成9cd6e354c并组合为1d939a646，继续共同树回放；一般上下文及语言终态不因此升级。Task40计费修正独审0b35ea609已归入主树。
+
+后续优先把现有消费者收敛到同一共同40：life/F闭环之后接CT5真实数据、拥有替换、CAS41和通用异步责任；39保留可运行检查点，不再以各支线局部成功累加终态。原大数组O0/默认栈问题已经修复，不重复派工。精确范围、剩余缺口及清理收据见docs/LANGUAGE-PROGRESS-20261104.md。完整语言/ZUI、原生Windows及Rust同语义成本仍待完成，B0继续Doing。
+
+本批共同40最终7dfc68461通过完整aggregates149/cross84/generic_regressions83/generics33，合计349、零忽略/过滤；两核13/12和Clippy通过，Clippy显式保留既有dead_code豁免。原CT phantom Code与真实上下文查询两源八次原生执行通过。首轮140/9失败保留，其中Option既有载荷例外被Task集成误删，81a0667b7恢复后50项通过；主树39同步022ad313e并单独复核50项。源代码候选仍待独审及正式全量，不升级终态门。
+
 ## 2026-11-04：共同39保留可运行，40/CT5消费者持续贯通
 
 共同39已接真实共享View的Source/两核/Lower及Clang/API O0/O2，拥有Task输入、保存SSA、Ready结果和取消清理，以及实际CT4的混合const/life/type全序号身份。e50317ad5的CT4五项源码控制通过，含四个正例的16次原生执行与N26295/N−1/warm/fresh；Astra独审fe9cdbf19绑定实际源码。e6ad196a5三目标cross84、generic_regressions82、generics28通过，只是该精确候选的限定检查，不能拼成当前整仓验收。
