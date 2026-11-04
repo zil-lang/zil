@@ -999,8 +999,7 @@ pub(super) fn check_module(
             if !owning_dispatch
                 && !forwarding
                 && !f.return_type.is_copy_value()
-                && !(proposed.life.is_some()
-                    && matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee()))
+                && !(proposed.life.is_some() && matches!(&f.return_type, Type::Address { .. }))
                 && !(parameters.len() == 1
                     && *borrowed
                     && closures::lending_result(&f.return_type)
@@ -1055,6 +1054,7 @@ pub(super) fn check_module(
                         .saturating_add(life.binder_count as usize)
                         .saturating_add(2),
                 )?;
+                borrowed_fp::signature_work(&definition.parameters, &definition.result, budget)?;
                 borrowed_fp::relation(
                     &definition.parameters,
                     &definition.result,

@@ -710,6 +710,17 @@ pub(super) fn preflight(
         let invocation = closure.lending_captures.is_empty()
             && crate::borrowed_fp::invocation(&closure.parameters, &closure.result);
         if invocation {
+            budget.type_work(
+                &closure.result,
+                true,
+                "finite invocation result eligibility",
+            )?;
+            if !matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            {
+                return Err(bad(
+                    "invocation callback result requires a finite Copy or slice pointee",
+                ));
+            }
             budget.borrowed_function_pointers = true;
             budget.invocation_callbacks = true;
         }

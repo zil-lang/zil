@@ -129,3 +129,7 @@ Rust四目标：本切片提供实际普遍body义务、独立两核/raw/Wire及
 真实345 ui_input Composition 的普通字段 text:std.string.String，经 &mut Composition 的 `string.clear(&mut session.text)` 被Types既有shared-only子Product门拒绝。保留源/API，不展开String或改成按值借出；当前Types和两个核已接受实际Address<Package>签名及父来源/贷款。本步只把实际mutable父地址投影到已逐层资格核验的有限子Product，Verify独立核子Product完整真实类型，不能升级shared父权限或替换拥有责任。沿既有AddressField/DescribeAddress与实际父窗口，不新增opcode或登记许可。以普通嵌套Text/String完整机器正例、shared伪造raw/Wire、活view撞clear/父替换反例检查。未泛化到存储Address/Desc叶，不替代随后固定life位置合同。
 
 实际mutable嵌套Product补丁验证：新增 `nested_product.zil` 使用真实std.string.String及原API调用形状，双后端/O0/O2四次exit0。现有AddressField父loan/实际resource来源足以覆盖此有限投影，Analyze无需新增许可；Verify对子Package完整实际类型独立资格核验。raw/decodedWire将begin的实际参数/重借改shared后两核拒绝；shared源请求mutable、活view跨begin、活view跨parent替换均拒绝。完整既有十目标68/35/10/9/7/18/14/10/37/4通过，Clippy cross llvm-api -D warnings通过，旧记录phaseN全部不变。当前342没有UInt及新std.ui_input loader，完整原345 ui_input由root合成树重放，本文不冒称已经执行原UI。统一stored Address/Desc life仍后续实现。
+
+### 独审 HRTB 实际签名重复遍历收费修正提案
+
+13677独审重放10/0和64native，但发现每个role的relation递归pointee资格/Copy判断及实际result类型比较未逐次预费完整形状；普通raw preflight只支付自身遍历，不能重复抵扣。两个核各自先从同一剩余台账预费参数/结果完整树，再进行关系/比较；Types validate_bound同样在推断操作前支付本次资格判断。调用固定点只用浅Address-result触发实际完整证明，不反复递归判断pointee；仍按实际声明位置核根和权限。增加deep/wide Copy pointee的实际源、N/N−1/fresh及raw/Wire控制，记录新费用，不升默认上限。

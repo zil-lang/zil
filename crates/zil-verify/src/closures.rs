@@ -93,6 +93,17 @@ pub(super) fn check_definitions(
         } else {
             false
         };
+        if invocation {
+            borrowed_fp::signature_work(&[], &closure.result, budget)?;
+            if !matches!(&closure.result, Type::Address { inner, .. } if inner.is_address_pointee())
+            {
+                return Err(reject(
+                    "E-VERIFY-LENDING",
+                    None,
+                    "invocation callback result requires a finite Copy or slice pointee",
+                ));
+            }
+        }
         budget.borrowed_function_pointers |= invocation;
         budget.invocation_callbacks |= invocation;
         if matches!(closure.result, Type::Address { .. }) && !invocation {

@@ -488,59 +488,60 @@ fn terminal342_original_higher_rank_probe_runs_unchanged() {
     }
 }
 
-#[test]
-fn terminal342_hrtb_budget_is_one_fresh_phase_ledger() {
-    fn boundary<T: std::fmt::Debug + PartialEq>(
-        phase: Phase,
-        run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
-    ) -> usize {
-        let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
-        let expected = run(high).unwrap();
-        while low + 1 < high {
-            let n = low + (high - low) / 2;
-            match run(n) {
-                Ok(value) => {
-                    assert_eq!(value, expected);
-                    high = n;
-                }
-                Err(error) => {
-                    assert!(
-                        error.iter().all(
-                            |d| d.phase == phase && d.category == ResultCategory::ResourceLimit
-                        ),
-                        "{error:?}"
-                    );
-                    low = n;
-                }
+fn hrtb_boundary<T: std::fmt::Debug + PartialEq>(
+    phase: Phase,
+    run: impl Fn(usize) -> Result<T, Vec<zil_base::Diagnostic>>,
+) -> usize {
+    let (mut low, mut high) = (0, Limits::default().max_analysis_steps);
+    let expected = run(high).unwrap();
+    while low + 1 < high {
+        let n = low + (high - low) / 2;
+        match run(n) {
+            Ok(value) => {
+                assert_eq!(value, expected);
+                high = n;
+            }
+            Err(error) => {
+                assert!(
+                    error
+                        .iter()
+                        .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit),
+                    "{error:?}"
+                );
+                low = n;
             }
         }
-        assert_eq!(run(high).unwrap(), expected);
-        assert!(
-            run(high - 1)
-                .unwrap_err()
-                .iter()
-                .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
-        );
-        assert_eq!(run(high).unwrap(), expected);
-        high
     }
+    assert_eq!(run(high).unwrap(), expected);
+    assert!(
+        run(high - 1)
+            .unwrap_err()
+            .iter()
+            .all(|d| d.phase == phase && d.category == ResultCategory::ResourceLimit)
+    );
+    assert_eq!(run(high).unwrap(), expected);
+    high
+}
+
+#[test]
+fn terminal342_hrtb_budget_is_one_fresh_phase_ledger() {
     let unit = source(STORAGE);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let limit = |n| Limits {
         max_analysis_steps: n,
         ..Limits::default()
     };
-    let expand = boundary(Phase::Expand, |n| {
+    let expand = hrtb_boundary(Phase::Expand, |n| {
         zil_expand::expand_with_map_limits(&unit, &syntax, &limit(n)).map(|m| m.core)
     });
     let core = zil_expand::expand(&unit, &syntax).unwrap();
-    let types = boundary(Phase::Types, |n| {
+    let types = hrtb_boundary(Phase::Types, |n| {
         zil_types::check(&core, &TargetProfile::default(), &limit(n))
     });
     let module = typed(STORAGE);
-    let analyze = boundary(Phase::Analyze, |n| zil_analyze::analyze(&module, &limit(n)));
+    let analyze = hrtb_boundary(Phase::Analyze, |n| zil_analyze::analyze(&module, &limit(n)));
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
-    let verify = boundary(Phase::Verify, |n| {
+    let verify = hrtb_boundary(Phase::Verify, |n| {
         zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limit(n))
             .map(|m| m.fingerprint())
     });
@@ -703,5 +704,175 @@ fn terminal342_hrtb_owned_preparation_failure_cleans_without_calling_body() {
                 execute(&report.artifacts["executable"], expected);
             }
         }
+    }
+}
+
+#[test]
+fn terminal342_hrtb_deep_wide_pointee_relations_pay_each_actual_signature() {
+    let fields = (0..32)
+        .map(|i| format!("f{i}:i64"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let values = (0..32)
+        .map(|i| format!("f{i}:0"))
+        .collect::<Vec<_>>()
+        .join(",");
+    let mut deep = "i64".to_owned();
+    let mut value = "0".to_owned();
+    for _ in 0..8 {
+        deep = format!("({deep},)");
+        value = format!("({value},)");
+    }
+    let text = format!(
+        "struct Payload{{{fields},tail:{deep}}}fn pair<F:for<life a> Fn(&'a Payload)->&'a Payload,G:for<life b> Fn(&'b Payload)->&'b Payload>(f:&F,g:&G,p:&Payload)->&Payload{{let child=f(p);return g(child)}}fn main(){{let n=Payload{{{values},tail:{value}}};let f=(p:&Payload)=>p;let p=pair(&f,&f,&n);let q=pair(&f,&f,&n)}}"
+    );
+    let unit = source(&text);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let limit = |n| Limits {
+        max_analysis_steps: n,
+        ..Limits::default()
+    };
+    let types = hrtb_boundary(Phase::Types, |n| {
+        zil_types::check(&core, &TargetProfile::default(), &limit(n))
+    });
+    let module = typed(&text);
+    let analyze = hrtb_boundary(Phase::Analyze, |n| zil_analyze::analyze(&module, &limit(n)));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let verify = hrtb_boundary(Phase::Verify, |n| {
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limit(n))
+            .map(|v| v.fingerprint())
+    });
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &limit(verify)).is_ok());
+    let errors =
+        zil_verify::verify_module_bytes(&wire, &module.target, &limit(verify - 1)).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &limit(verify)).is_ok());
+    let mut changed = module.clone();
+    let role = &mut changed
+        .functions
+        .iter_mut()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .callable_contract
+        .as_mut()
+        .unwrap()
+        .roles[1];
+    role.life.as_mut().unwrap().parameter_lives[0] = None;
+    assert!(zil_analyze::analyze(&changed, &Limits::default()).is_err());
+    let mut fake = plan;
+    fake.module_fingerprint = changed.fingerprint();
+    assert!(
+        zil_verify::verify_module(
+            changed.clone(),
+            fake.clone(),
+            &changed.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&changed, &fake, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &changed.target, &Limits::default()).is_err());
+    let mut nonfinite = typed(STORAGE);
+    for f in &mut nonfinite.functions {
+        f.callable_contract = None;
+    }
+    let result = zil_ir::Type::Address {
+        mutable: false,
+        inner: Box::new(zil_ir::Type::Package {
+            name: "NonFiniteResult".into(),
+            fields: vec![(
+                "data".into(),
+                zil_ir::Type::Managed(Box::new(zil_ir::Type::ByteBuffer)),
+            )],
+        }),
+    };
+    let d = &mut nonfinite.closures[0];
+    d.result = result.clone();
+    nonfinite.functions[d.function.0 as usize].return_type = result;
+    let errors = zil_analyze::analyze(&nonfinite, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("finite Copy or slice pointee")),
+        "{errors:?}"
+    );
+    let mut fake = zil_analyze::analyze(&typed(STORAGE), &Limits::default()).unwrap();
+    fake.module_fingerprint = nonfinite.fingerprint();
+    let errors = zil_verify::verify_module(
+        nonfinite.clone(),
+        fake.clone(),
+        &nonfinite.target,
+        &Limits::default(),
+    )
+    .unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-VERIFY-LENDING"),
+        "{errors:?}"
+    );
+    let wire =
+        zil_ir::wire::encode_module_candidate(&nonfinite, &fake, &Limits::default()).unwrap();
+    let errors =
+        zil_verify::verify_module_bytes(&wire, &nonfinite.target, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().any(|d| d.code == "E-VERIFY-LENDING"),
+        "{errors:?}"
+    );
+    println!(
+        "342 HRTB deep-wide pointee N: types={types} analyze={analyze} verify={verify}; raw/Wire N-1 ResourceLimit and fresh N identical"
+    );
+}
+
+#[test]
+fn terminal342_hrtb_raw_mixed_headers_preflight_before_recursive_relation() {
+    let unit = source(STORAGE);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let original = zil_expand::expand(&unit, &syntax).unwrap();
+    for deep in [false, true] {
+        let mut core = original.clone();
+        let f = core
+            .functions
+            .iter_mut()
+            .find(|f| !f.callable_parameters.is_empty())
+            .unwrap();
+        f.state_parameters = vec![zil_ir::CoreStateParameter {
+            index: 0,
+            bindings: vec![],
+        }];
+        let mut inner = zil_ir::Type::Managed(Box::new(zil_ir::Type::ByteBuffer));
+        let limits = if deep {
+            for _ in 0..32 {
+                inner = zil_ir::Type::Tuple(vec![inner]);
+            }
+            Limits {
+                max_call_depth: 16,
+                ..Limits::default()
+            }
+        } else {
+            let mut fields = vec![zil_ir::Type::I64; 256];
+            fields.push(inner);
+            inner = zil_ir::Type::Tuple(fields);
+            Limits {
+                max_analysis_steps: 128,
+                ..Limits::default()
+            }
+        };
+        f.callable_parameters[0].parameters[0] = zil_ir::Type::Address {
+            mutable: false,
+            inner: Box::new(inner),
+        };
+        let errors = zil_types::check(&core, &TargetProfile::default(), &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.phase == Phase::Types && d.category == ResultCategory::ResourceLimit),
+            "deep={deep}: {errors:?}"
+        );
     }
 }
