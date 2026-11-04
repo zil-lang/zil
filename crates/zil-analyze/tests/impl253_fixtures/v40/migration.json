@@ -1,0 +1,34 @@
+{
+  "decoder_commit": "e6ad196a5c58d7efae3b6be5d86dd81c3b2ef0ef",
+  "status": "UntrustedStructuralTranscode",
+  "profile": "No callable/storage relations or nonempty dyn/life inventories; writer refuses changed relation fields",
+  "adapter_source_sha256": "85ccdcb89973cd9f4620db47f2ec360ebf7046d6533bbeb241ba86e24e7f6ab6",
+  "writer_source_sha256": "3e0f73cd09f01bee56c3d6021233999e50b8f0a7f7600c67573294fb117d8aff",
+  "inputs": {
+    "control_concrete_copy_byvalue_call.wire": "e2372463c723a422705e9b0bef98a6c8e36eb455b0425fa606415e0420935e9e",
+    "control_shared_callback_i32_argument.wire": "6a1eb660cec82b6ae318187a427834809b58f1bd6e66ab9d1e67139decd1b0b3",
+    "escape_byvalue_symbolic_fn_call.wire": "d630c24270bdce9be1e3af5586b9860bd9e7ac6edefd196b763b6c78ecdee7be",
+    "escape_callback_argument.wire": "87df17c79f5c82cc7ce7876e0c68d24c5f4aaf5510515448af5d5cdcdc9486be",
+    "escape_shared_callback_f_argument.wire": "c18728b5b865a7ea0ed6e146e9a64db0d678e9e81e1822ff78ab4ec53d99695e",
+    "escape_thin_store.wire": "4264d99ea5b849625169b10e290144577ea1156a01a4bba50f6ca81b59850969",
+    "escape_two_element_array.wire": "c90a4b17e7cffbfb26a78200a2fa14cc2dd059e30fd5921c10a5bc163680f0b4",
+    "parent_stale_no_call_edge.wire": "921e3a653cd3f07ecba08e44c659dc8a851c243479235a6410442f38226def3f",
+    "parent_stale_with_call_edge.wire": "379ad03f67fe72ac637777bf3351bded02e7e0a1b0fbc6e433d7ab8b730a3baa",
+    "parent_valid_no_call_edge.wire": "15ffe938d63d0c7558ad40905f706aa99f3f3170b8e8ea2448b9b18b23f4b6dc",
+    "parent_valid_with_call_edge.wire": "45576c1238cdfa17c44cdf0e9e8cbd97bc2b784d0d2b534d8ef43244b6af4452"
+  },
+  "outputs": {
+    "control_concrete_copy_byvalue_call.wire": "4c4b440bfb693fbe1a9b544302c7fea6f2bc12ae5043a470de4312379d6f366e",
+    "control_shared_callback_i32_argument.wire": "e544bdc6b175229704572fe18b0b318b57cb9359e854cf67f12c1413fdb5b516",
+    "escape_byvalue_symbolic_fn_call.wire": "31c462fbfdc3ec3f9efbb2da9c4b31fdcbcbd92675915404548432a5f121754d",
+    "escape_callback_argument.wire": "e3d61e6f1e8e2a2324383753077d9e0449600dfed08f417753122fe72f981d3b",
+    "escape_shared_callback_f_argument.wire": "612afe15ff2d13b52f76d4a0afbe6ec2c45cd16c43222c4f74f7d80e1d389e97",
+    "escape_thin_store.wire": "81a97f6a646aa09f8c1590794a7697a731f48018c1cc98af7fd376872022543c",
+    "escape_two_element_array.wire": "1df37d660f6175d8da818a303b0828cb5d1ce29bdce2f71d717576d00db844ab",
+    "parent_stale_no_call_edge.wire": "f56c04244a28ac12d9469b9b0fc2103cb6aac50effd88f512e4459dc3481c094",
+    "parent_stale_with_call_edge.wire": "e41340a11fcf1b119a5af0d587b5b16b26895705e530a9e5f985947822e576aa",
+    "parent_valid_no_call_edge.wire": "f193b557e3d4c2660f9a79e0a97671319ca30d0b694a28f0c3cab8dd8d6f745e",
+    "parent_valid_with_call_edge.wire": "a20e2cb8c8750ee488b6d30a8350a4ce13ee2d629236abf6813283073bc46045"
+  },
+  "authority": "Current kernels must recheck; old plan claims grant no authority"
+}
