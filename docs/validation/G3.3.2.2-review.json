@@ -1,0 +1,82 @@
+{
+  "task": "G3.3.2.2",
+  "reviewer": "g1_3 (non-author)",
+  "verdict": "LimitedPassIndependentPrivateTypedConsumer",
+  "head": "c108aac4bc2f35168953e380ad468300dc87fe9f",
+  "source_test_commit": "5a96d0cb6d1e5933878d921ca186883dd91cb81d",
+  "baseline": "f18ba34eddfe7cf08941789fbd21d2019b4b2df8",
+  "scope": "Independent Verify consumer of existing Typed capture-grounded Fixed metadata. Shared scalar/Address captures, ordinary/qualified finite Record/Tuple pointees, scalar result and existing Fn/FnMut/true FnOnce modes.",
+  "static_findings": [
+    "Complete canonical Parameter/Capture/Result relation checked against actual definition and entry. Every Fixed is capture-grounded; Capture Invocation rejected. Output fresh/ungrounded positions cannot silently manufacture class facts.",
+    "class_flow equations grant no physical permission. Rigid header facts or actual BorrowLocal Address origins ground class ports; local phantom inner classes with no such source remain Unsupported.",
+    "Three stages reconstruct source structure, substitute actual MakeClosure operands and freeze persistent environment Fixed before closure/helper calls. Invocation alone gets new variables per call. Ports belong to SSA/local environment instances, not ClosureId; move/TakeLocal preserves them.",
+    "stored_flow independently reconstructs Capture-root permissions and actual selected pointee leaves, retains outer/field parent-loan ancestry, checks local destruction/mutation and call separation. Class equality cannot replace a missing actual target or evade active loan checks.",
+    "Helper complete enclosing relation and actual callable role checked separately. Current raw role equality with definition is only a conservative Typed fence. Identical numeric Fixed0 is not a proof of Source original-owner/fullordinal/ordered-argument or F-bound Named role adaptation.",
+    "True FnOnce still needs ordinary nonCopy owner consumption; Fn/FnMut to Once adaptation explicitly Unsupported. Captured qualified writes, result environment transfer, lending/owning/nested environments and resource-module retained integration remain closed.",
+    "No Analyze/Types proof solver imported; shared fixture and claim constructor are untrusted models only. No public schema, producer or normative change in this implementation."
+  ],
+  "executed": [
+    {
+      "command": "/workspace/.zil-env/target344/debug/deps/zil_verify-76b42b1447e71442 --nocapture",
+      "result": "372 passed, 0 failed",
+      "log": "/workspace/.zil-env/G3.3.2.2-review-tmp/lib.log",
+      "log_sha256": "de28b79690d4bec87070312c6e1d2fb45c04f3fb9986d3ebdc1c2e419e7d43f6",
+      "binary_sha256": "a5cf907e232bf8c5e281d969a4f4eb51ddffbeae895da410f645d1713cfa6ed3"
+    },
+    {
+      "command": "/workspace/.zil-env/target344/debug/deps/zil_verify-76b42b1447e71442 capture_grounded_fixed --nocapture",
+      "result": "8 passed, 0 failed (subset replay, not 8 new unique tests)",
+      "log": "/workspace/.zil-env/G3.3.2.2-review-tmp/fixed-eight.log",
+      "log_sha256": "dd5a0307ebd69a3aecfe8076040c53ddb2bf0165da35dcced8564ec065bd471d",
+      "binary_sha256": "a5cf907e232bf8c5e281d969a4f4eb51ddffbeae895da410f645d1713cfa6ed3"
+    }
+  ],
+  "exact_budget": "Raw/Wire N16203, N-1 ResourceLimit, fresh/warm/retry observed independently in both full and filtered runs; no limit raised.",
+  "independent_neighbor_probe": {
+    "evidence_layer": "Untrusted Typed/model raw and Wire only; no Source/native witness.",
+    "construction": "Neutral fixture constructors plus the untrusted candidate-root constructor; no proof functions copied. Added reviewer mutations in temporary program, author tree untouched.",
+    "fresh_production_binding": "Direct rustc of frozen crates/zil-verify/src/lib.rs linked only existing exact zil-base/zil-ir rlibs. Not a Cargo full rebuild; eliminates cross-worktree Fresh ambiguity for additional probe.",
+    "build_commands": [
+      "source /workspace/.zil-env/env.sh; rustc --edition=2024 --crate-name zil_verify --crate-type rlib -C debuginfo=0 -C strip=symbols -L dependency=/workspace/.zil-env/target344/debug/deps --extern zil_base=/workspace/.zil-env/target344/debug/deps/libzil_base-a61626d807411100.rlib --extern zil_ir=/workspace/.zil-env/target344/debug/deps/libzil_ir-62aa7541f591a1c3.rlib crates/zil-verify/src/lib.rs -o /workspace/.zil-env/G3.3.2.2-review-tmp/libzil_verify.rlib",
+      "rustc --edition=2024 -C debuginfo=0 -C strip=symbols -L dependency=/workspace/.zil-env/target344/debug/deps --extern zil_verify=/workspace/.zil-env/G3.3.2.2-review-tmp/libzil_verify.rlib --extern zil_base=/workspace/.zil-env/target344/debug/deps/libzil_base-a61626d807411100.rlib --extern zil_ir=/workspace/.zil-env/target344/debug/deps/libzil_ir-62aa7541f591a1c3.rlib /workspace/.zil-env/G3.3.2.2-review-tmp/independent-neighbors.rs -o /workspace/.zil-env/G3.3.2.2-review-tmp/independent-neighbors"
+    ],
+    "run_command": "/workspace/.zil-env/G3.3.2.2-review-tmp/independent-neighbors",
+    "cases": {
+      "two_environment_baseline": "raw/Wire Pass",
+      "second_environment_capture_swapped_to_first_input": "raw/Wire E-VERIFY-CLASS-EQUATION actual class equality rejection, original call argument retained",
+      "physical_target_baseline": "raw/Wire Pass",
+      "underlying_scalar_target_StorageDead_before_MakeClosure": "raw/Wire E-VERIFY-STORED live incompatible loan rejection; nominal classes unchanged"
+    },
+    "executions": {
+      "positive": 4,
+      "negative": 4
+    },
+    "files": {
+      "/workspace/.zil-env/G3.3.2.2-review-tmp/independent-neighbors.rs": "cef46d6218aee9aee1784c4dc07b756334f1fb9e7f292010b6c785f1c40786ae",
+      "/workspace/.zil-env/G3.3.2.2-review-tmp/independent-neighbors": "04d6ca022d6a3972b3f6c72dc92a04b05800c5c9c048a73faf10fff220a0843d",
+      "/workspace/.zil-env/G3.3.2.2-review-tmp/libzil_verify.rlib": "8ba6f9977a5ce81e01970cb673f122d7d91c5ca8b44b39f730bca7f24638c19b",
+      "/workspace/.zil-env/G3.3.2.2-review-tmp/probe-build.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "/workspace/.zil-env/G3.3.2.2-review-tmp/probe.log": "1e7ab20dfed54292c8cb5595e1a59179d1e27127c67b53975b5c6bd1007062a1"
+    }
+  },
+  "source_manifest_verified": {
+    "crates/zil-verify/src/class_flow.rs": "81f6f458b0cf91d11c5ad4d6509a3a68524722ebf5f9fe005c7cee6274b220eb",
+    "crates/zil-verify/src/closures.rs": "a433f096ef92206518f3a074e45a084f03a2fa0596f572d426bf48ec741fee48",
+    "crates/zil-verify/src/helpers.rs": "b55902cdae29f39e00a34353de3d78908ca6420b53405dfeee48d00ab96dc5f1",
+    "crates/zil-verify/src/lib.rs": "c0f1cd398a41e17ad113cbfc8f1b5cfdb9a90d2ef84df3435b58438655b100b0",
+    "crates/zil-verify/src/signature_life.rs": "048c313c0dbff11b35bb11eaa1682ff59b8befec88c156efdab48fe6cb63a466",
+    "crates/zil-verify/src/stored_callables.rs": "29c6f26a4138445baedcd0da2d75d36f91cf3527571254f8124c37b41b4706d0",
+    "crates/zil-verify/src/stored_flow.rs": "3bed8bb211df8d35bf6703bf57a7c5603c70a8f172718a7848dc2c2c135959de",
+    "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "f0b8d6b2a044c51b0043c9f56fa216e33b191bdb017a14db0b2f203e1f0ea632"
+  },
+  "author_receipt_sha256": "a086aea0826fd3fe71ce9bbcf90617f9169e1cb283e3032d0200fdc8f2b8392c",
+  "state": "Frozen author worktree unchanged; no Cargo used during review. target344 stopped/released; temporary direct-rustc probe completed.",
+  "evidence_limits": {
+    "Source": "Guard remains closed; no capture-grounded Fixed Source success claimed.",
+    "Core43_identity_producer": "Not present; original owner/fullordinal/ordered actual arguments and Source F-bound alignment are successors.",
+    "native": 0,
+    "driver_builds": 0,
+    "formal_full_gate": 0,
+    "Analyze_Types_comparison": "Separate implementation freeze/review pending, not inferred from this Verify pass."
+  }
+}

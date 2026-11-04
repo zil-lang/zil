@@ -1,0 +1,288 @@
+{
+  "task": "G2.3.2",
+  "decision": "AcceptLimitedSelfConstantsAndErrorUnionReplacement",
+  "integrator": "/root",
+  "tested_language_source": "4cd866068ed4381a714797f3678cf116c948524d",
+  "engineering_source": "53b6592a878eb6a9fc09595cdf34c3d27561c821",
+  "main_before": "3aa49e3bcc3b56cf3c750bb025967c121feb2842",
+  "scope": [
+    "G1.3.3 actual initialized local ErrorUnion mutable alias and current-tag arm replacement; old/new owner and prepare failure cleanup",
+    "G2.3.1 nongeneric trait / concrete nominal impl scalar Self-dependent associated constants evaluated by the actual CT compiler, independent Verify and VM; effective/default checks and precise generated coverage",
+    "Fresh-worktree compact conformance/docs output creation; historical contract specification binding from independently accepted PR38"
+  ],
+  "independent_reviews": [
+    "docs/validation/G1.3.3-review.json",
+    "docs/validation/G2.3.1-review.json",
+    "docs/validation/G2.3.2-tooling-review.json",
+    "docs/validation/G10.1.9-review.json"
+  ],
+  "default": {
+    "source": "4cd866068ed4381a714797f3678cf116c948524d",
+    "source_after": "4cd866068ed4381a714797f3678cf116c948524d",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 496.78,
+    "groups": 422,
+    "passed": 4651,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "71a4e9ce4d267f697e7019bb087c3958a0eac5c08de42db83a114551d70d545f",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14934557672
+  },
+  "reference": {
+    "source": "4cd866068ed4381a714797f3678cf116c948524d",
+    "source_after": "4cd866068ed4381a714797f3678cf116c948524d",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast",
+      "--no-default-features"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 384.92,
+    "groups": 422,
+    "passed": 4539,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "94b13ea5d36bd31837808d787e519e842bc5e465e1e767a31352d354987d5203",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14256357808
+  },
+  "strict_format_and_clippy": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 5.05,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 22.64,
+      "log_sha256": "faf533e9522d0952068af3567ebcf533702b0f42a8ea087ff342d61b1820720c"
+    },
+    {
+      "name": "reference-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 26.49,
+      "log_sha256": "8def107d9756ea287c84fc51a00cd93977f4865efa4745f1a6fdfa00ea3496e9"
+    }
+  ],
+  "text_reference": {
+    "passed": 70,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "c7313c16337b1e56db073333c11906686699287b41c0166a0253da21219c0d99"
+  },
+  "release_consumer": {
+    "status": "Pass",
+    "source_commit": "4cd866068ed4381a714797f3678cf116c948524d",
+    "cli_sha256": "18a283ec28bf60d5e4225fcde35f98de8c4d08ff413bcaf5de1ec919f2fceef4",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+    "commands": 145,
+    "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "builds": 16,
+    "observations": 128,
+    "summary_sha256": "ad894df5c1d62d137a59e64106f4a9ec2b9f23b66a4de9fe40bc7c8d93d6f5b8"
+  },
+  "engineering": {
+    "source": "53b6592a878eb6a9fc09595cdf34c3d27561c821",
+    "results": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "27d32cd1278543c3004f70f1622a404b383228c2d6a57b9c7abf3e06b0b682d8"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G2.3.2-final-engineering/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "8d5f4762328999df1df9383faaa38a783ac1a62ff4c18841101894a7b25c7f2c"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "71fd383cb38b4356a69198ae90d9310a526ce33f36a9140fc028cd030bf346e3"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "d3d96578d855bc2ada1143ba791eb73ad3059d1818892a371e021cdf6caf0d2b"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "f2b7cdf24bb38094da8d1374d60e290ad23eb5733cbf544eb7e390233f1417cc"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e99d1f023643f2af19a0b71d74e5b6e0852d14d749cc58c4417b68b716c3fbea"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "7f134e7f637269ab35c29601c1ec499a9ba116cd0b969a5735a4400c0b8e1173"
+      }
+    ]
+  },
+  "handoff_scope": {
+    "status": "CurrentPass",
+    "checked_main_head": "3aa49e3bcc3b56cf3c750bb025967c121feb2842",
+    "current_errors": 0,
+    "historical_status": {
+      "status": "Unavailable",
+      "archived": 274,
+      "unavailable": 220,
+      "unreviewed": 54,
+      "object_availability_changes": 0,
+      "claims_revalidated": false,
+      "source_commit": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072"
+    },
+    "note": "This tool checks actual main-tree engineering records, not arbitrary candidate branches. PR38 independently checked candidate main in isolated real Git clones before merge."
+  },
+  "post_language_gate_changes": {
+    "paths": [
+      ".task/G10.1.9.md",
+      ".task/impl/181.md",
+      ".task/impl/340.md",
+      ".task/impl/341.md",
+      ".task/impl/342.md",
+      ".task/impl/343.md",
+      ".task/impl/344.md",
+      ".task/impl/345.md",
+      "changes/G10.1.9-historical-specification-revision.md",
+      "docs/validation/G10.1.9-historical-specification.json",
+      "docs/validation/G10.1.9-review.json",
+      "tests/handoff.test.mjs",
+      "tools/check-conformance.py",
+      "tools/check-docs.py",
+      "tools/handoff.mjs"
+    ],
+    "compiler_tests_libraries_spec_cargo_unchanged": true,
+    "tool_changes_independently_reviewed": true
+  },
+  "historical_failures": [
+    "b4db initial strict workspace Clippy:2 needless references in new Driver tests; fixed before all-language suites",
+    "First engineering run at4cd: conformance/docs could not write to absent ignored evidence directory; two mkdir additions independently verified on fresh git archives",
+    "The 4cd old handoff tool did not understand historical specification revisions in current main. Accepted PR38 was merged; exact post-merge tool check now CurrentPass0. Previous common41/common42 development-tree handoff checks read the then-current old main, not those candidate trees."
+  ],
+  "github_ci": {
+    "status": "NotObservedForThisPR",
+    "previous": "PR37 Actions did not start because billing/spending limit; never counted Pass",
+    "bypass": false
+  },
+  "not_completed": [
+    "General associated projections, blanket/generic/lending trait methods, cross-module Self-default witnesses and resource Drop combinations",
+    "General ErrorUnion/Package/nested owning replacement and saved old-Desc addressed-Sum coverage",
+    "G3.3 Source captured Fixed formation/true FnOnce resource composition and G4.4 complete instantiated lifetime contexts remain separate active branches",
+    "General dyn/state/concurrency, complete library/ZUI, native Windows, same-semantics Rust product comparisons"
+  ],
+  "post_acceptance_change_scope": "Acceptance/review records and Rust reflection only; no new compiler or language test changes after the bound sources."
+}

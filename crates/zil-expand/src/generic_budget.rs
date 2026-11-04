@@ -8,6 +8,7 @@ pub(crate) struct Budget<'a> {
     limits: &'a Limits,
     nodes: usize,
     work: usize,
+    temporary_bytes: Option<usize>,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
@@ -28,6 +29,7 @@ impl<'a> Budget<'a> {
             limits,
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
+            temporary_bytes: None,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
@@ -66,12 +68,34 @@ impl<'a> Budget<'a> {
         Limits {
             max_nodes: self.nodes,
             max_analysis_steps: self.work,
+            max_source_bytes: self.temporary_bytes.unwrap_or(self.limits.max_source_bytes),
             ..self.limits.clone()
         }
+    }
+    /// The CT planning caller supplies its current remaining temporary quota.
+    /// Every prepaid syntax/key visit bounds the allocation it can authorize;
+    /// ordinary expansion keeps its existing node/work-only ledger.
+    pub(crate) fn limit_temporary_bytes(&mut self, bytes: usize) {
+        self.temporary_bytes = Some(bytes);
+    }
+    fn temporary(&mut self, bytes: usize, span: Span) -> R<()> {
+        if let Some(left) = &mut self.temporary_bytes {
+            *left = left.checked_sub(bytes).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Expand,
+                    "associated constant planning temporary bytes exhausted",
+                    Some(span),
+                )
+            })?;
+        }
+        Ok(())
     }
     pub(crate) fn adopt_remaining(&mut self, remaining: &Limits) {
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
+        if let Some(bytes) = &mut self.temporary_bytes {
+            *bytes = (*bytes).min(remaining.max_source_bytes);
+        }
     }
     pub(crate) fn note_enum_profile(&mut self, span: Span) -> R<()> {
         self.node(span, 0)?;
@@ -112,6 +136,11 @@ impl<'a> Budget<'a> {
         self.enum_profiles.contains(&span)
     }
     pub(crate) fn node(&mut self, span: Span, depth: usize) -> R<()> {
+        let node_bytes = std::mem::size_of::<Item>()
+            .saturating_add(std::mem::size_of::<Expr>())
+            .saturating_add(std::mem::size_of::<TypeRef>())
+            .saturating_add(std::mem::size_of::<Function>());
+        self.temporary(node_bytes, span)?;
         if depth > self.limits.max_call_depth || self.nodes == 0 || self.work == 0 {
             return Err(Diagnostic::limit(
                 Phase::Expand,
@@ -124,6 +153,7 @@ impl<'a> Budget<'a> {
         Ok(())
     }
     pub(crate) fn numeric_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.temporary(amount, span)?;
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -145,6 +175,7 @@ impl<'a> Budget<'a> {
         Ok(())
     }
     pub(crate) fn identity_work(&mut self, amount: usize, span: Span) -> R<()> {
+        self.temporary(amount, span)?;
         self.work = self.work.checked_sub(amount).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,
@@ -155,6 +186,10 @@ impl<'a> Budget<'a> {
         Ok(())
     }
     pub(crate) fn text(&mut self, text: &str, span: Span) -> R<()> {
+        self.temporary(
+            text.len().saturating_add(4 * std::mem::size_of::<String>()),
+            span,
+        )?;
         self.work = self.work.checked_sub(text.len()).ok_or_else(|| {
             Diagnostic::limit(
                 Phase::Expand,

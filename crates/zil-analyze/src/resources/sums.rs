@@ -607,12 +607,16 @@ impl Plan {
         }
         budget.spend(f.values.len() + f.locals.len(), "Sum plan inventory")?;
         let mut partial = false;
+        let mut address_tag = false;
+        let mut address_replacement = false;
         let mut constants = BTreeMap::new();
         let mut observations = BTreeMap::new();
         let mut tests = BTreeMap::new();
         let mut definitions = BTreeSet::new();
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             budget.spend(1, "Sum instruction inventory")?;
+            address_tag |= matches!(i.kind, InstructionKind::PlaceTagAddress { .. });
+            address_replacement |= matches!(i.kind, InstructionKind::ReservePlaceAddress { .. });
             partial |= matches!(
                 i.kind,
                 InstructionKind::BorrowPlaceLocal { .. }
@@ -665,7 +669,7 @@ impl Plan {
             }
         }
         Ok(Some(Self {
-            partial: if partial {
+            partial: if partial || (address_tag && address_replacement) {
                 Some(partial_places::Meta::new(f, budget)?)
             } else {
                 None

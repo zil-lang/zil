@@ -136,6 +136,7 @@ impl Expander<'_> {
         let saved_return = self.return_type.take();
         let saved_parent = self.parent_map;
         let id = self.id();
+        let saved_function = self.current_function.replace(id);
         let parent = self.map_node(id, f.span, ExpansionRole::Source, Vec::new());
         self.parent_map = Some(parent);
 
@@ -276,6 +277,7 @@ impl Expander<'_> {
             receiver,
             span: f.span,
         });
+        self.current_function = saved_function;
         self.parent_map = saved_parent;
         self.self_type = saved_self;
         self.lexical_receiver = saved_receiver;

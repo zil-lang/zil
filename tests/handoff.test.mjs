@@ -586,9 +586,84 @@ scenario('handoff-031', '全部14正式合同不可改名为Goal来逃过规范�
   check(hasError(result, 'Done task lacks an integrator acceptance record'));
 });
 
+scenario('handoff-032', 'Goal历史合同显式锁祖先规范且不升级记录状态', t => {
+  const f = fixture(t), original = structuredClone(f.task);
+  f.task.status_authority = 'goal:goal.md';
+  f.task.specification_revision = f.baseline;
+  f.save(); commit(f.root, 'bind historical contract specification');
+  const next = advanceSpecification(f);
+  const result = inspectHandoff(f.root);
+  check(result.status, 'Pass');
+  check(result.slices[0].status, original.status);
+  check(result.slices[0].baseline, original.baseline);
+  check(result.slices[0].specification, {source: 'specification_revision', revision: f.baseline, spec_hash: original.spec_hash, normative_hash: original.normative_hash});
+  check(result.spec_hash, next.spec_hash); check(result.normative_hash, next.normative_hash);
+  check(f.task.spec_hash, original.spec_hash); check(f.task.normative_hash, original.normative_hash);
+  check(capture(process.execPath, [script, '--check'], {cwd: f.root}).status, 0);
+  put(f.root, '_zil_design.md', '# Unregistered current change\n');
+  check(hasError(inspectHandoff(f.root), 'Changed or missing input'));
+});
+
+scenario('handoff-033', '显式历史revision必须是完整现存main祖先commit', t => {
+  const f = fixture(t);
+  f.task.status_authority = 'goal:goal.md';
+  const blob = git(f.root, 'rev-parse', `${f.baseline}:_zil_design.md`);
+  for (const value of [null, [f.baseline], {}, f.baseline.slice(0, 12), 'a'.repeat(40), blob]) {
+    f.task.specification_revision = value; f.save(); commit(f.root, 'retain invalid revision control');
+    check(hasError(inspectHandoff(f.root), 'specification_revision must identify an existing complete commit'));
+  }
+  git(f.root, 'switch', '--quiet', '-c', 'side-spec');
+  put(f.root, 'side-only.txt', 'not an ancestor of main\n');
+  const side = commit(f.root, 'side specification candidate');
+  git(f.root, 'switch', '--quiet', 'main');
+  f.task.specification_revision = side; f.save(); commit(f.root, 'reference unmerged side commit');
+  check(hasError(inspectHandoff(f.root), 'specification_revision is not in main history'));
+});
+
+scenario('handoff-034', '历史revision须已提交Goal权威且不能覆盖合入或正式合同', t => {
+  const f = fixture(t), originalHash = f.task.spec_hash;
+  f.task.specification_revision = f.baseline; f.save(); commit(f.root, 'missing Goal authority');
+  check(hasError(inspectHandoff(f.root), 'requires an unmerged historical slice'));
+  f.task.status_authority = 'goal:goal.md'; f.save();
+  check(hasError(inspectHandoff(f.root), 'Historical specification_revision record must be committed'));
+  commit(f.root, 'commit Goal specification binding'); check(inspectHandoff(f.root).status, 'Pass');
+  f.task.spec_hash = 'wrong'; f.save(); commit(f.root, 'wrong declared historical hash');
+  check(hasError(inspectHandoff(f.root), 'differs from its specification_revision'));
+  f.task.spec_hash = originalHash; f.save(); commit(f.root, 'restore original historical hash');
+  merged(f);
+  const mergedResult = inspectHandoff(f.root);
+  check(hasError(mergedResult, 'requires an unmerged historical slice'));
+  check(mergedResult.slices[0].specification.source, 'implementation_commit');
+  check(mergedResult.slices[0].specification.revision, f.task.implementation_commit);
+  const g = fixture(t), name = '.task/B0.md';
+  const formal = JSON.parse(fs.readFileSync(path.join(g.root, name), 'utf8').match(/```json\n([\s\S]*?)\n```/)[1]);
+  Object.assign(formal, {status_authority: 'goal:goal.md', specification_revision: g.baseline});
+  put(g.root, name, `# B0\n\`\`\`json\n${JSON.stringify(formal)}\n\`\`\`\n`); commit(g.root, 'formal cannot use slice revision override');
+  check(inspectHandoff(g.root).errors.some(e => e.id === 'B0' && e.reason.includes('requires an unmerged historical slice')));
+});
+
+scenario('handoff-035', '显式revision仍核原规范字节及完整注册集合', t => {
+  for (const corruption of ['changed', 'omission']) {
+    const f = fixture(t);
+    if (corruption === 'changed') put(f.root, '_zil_design.md', '# Historical bytes disagree with registry\n');
+    else {
+      const name = 'data/normative-inputs.json';
+      const registry = JSON.parse(fs.readFileSync(path.join(f.root, name), 'utf8'));
+      delete registry.files['spec/grammar.ebnf']; put(f.root, name, registry);
+    }
+    const revision = commit(f.root, 'retain corrupt historical specification');
+    advanceSpecification(f);
+    f.task.status_authority = 'goal:goal.md'; f.task.specification_revision = revision;
+    f.save(); commit(f.root, 'bind corrupt ancestor control');
+    const result = inspectHandoff(f.root);
+    check(result.status, 'Fail');
+    check(hasError(result, corruption === 'changed' ? 'Historical normative input does not match' : 'Historical normative registry differs'));
+  }
+});
+
 after(() => {
   const baseline = git(project, 'rev-parse', 'HEAD');
-  const expectedIds = Array.from({length: 31}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
+  const expectedIds = Array.from({length: 35}, (_, n) => `handoff-${String(n + 1).padStart(3, '0')}`);
   const report = {schema_version: 1, scope: 'Real temporary Git repositories and handoff CLI; not ZIL language acceptance.', status: results.length === expectedIds.length && expectedIds.every(id => results.some(row => row.id === id)) && results.every(x => x.status === 'Pass') ? 'Pass' : 'Fail', executed: results.length, assertions, baseline_commit: baseline, source_hashes: Object.fromEntries(['tools/handoff.mjs', 'tools/check-plan.py', 'tools/check-docs.py', 'tests/handoff.test.mjs'].map(name => [name, sha(fs.readFileSync(path.join(project, name)))])), node: process.version, results};
   const output = writeReport('handoff-tests.json', report, {file: process.env.ZIL_HANDOFF_REPORT});
   console.log(JSON.stringify({handoff_report: output, status: report.status, executed: report.executed, assertions: report.assertions}));

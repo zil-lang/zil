@@ -7867,3 +7867,267 @@ fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
         eprintln!("G4.4.1 joint CT schema whole Source N={low}/N-1/warm/fresh");
     }
 }
+
+#[test]
+fn terminal340_owner_replacement_error_arm_actual_mutable_alias() {
+    let prefix = "extern \"C\" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}package P{manages owner:R;n:i32}enum F{Bad}fn make()->F!P{return P{owner:R{code:65},n:42}}";
+    let text = format!(
+        "{prefix}fn result()->i32{{var value=make();let input=&mut value;match *input{{.ok(ref mut p)=>{{p.owner=R{{code:66}};return p.n+p.owner.code-66}},.err(_)=>{{return 0}}}}}}"
+    );
+    let unknown =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil");
+    let relay = unknown.replace("match *input", "let relay=input;match *relay");
+    let read_old = unknown.replace("R{code:66}", "R{code:p.owner.code+1}");
+    for text in [text.as_str(), unknown, relay.as_str(), read_old.as_str()] {
+        let temp = Temp::new();
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                emit_dir: Some(temp.0.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_output(&[("main", text)], b"AB42\n");
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_error_arm_alias_abort_and_pins() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-error-arm-alias-failure.zil"
+    );
+    let temp = Temp::new();
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            emit_dir: Some(temp.0.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+    assert!(typed.contains("AbortPlaceReservation"), "{typed}");
+    review329_native_output(&[("main", text)], b"BA42\n");
+    let text =
+        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil");
+    for (case, neighbor) in [
+        text.replace("let input=&mut value", "let input=&value"),
+        text.replace(
+            "p.owner=R{code:66};return p.n+p.owner.code-66",
+            "let old=p.owner;p.owner=R{code:66};return old.code",
+        ),
+        format!(
+            "fn write(p:&mut P)->i32{{p.n=0;return 66}}{}",
+            text.replace("p.owner=R{code:66}", "p.owner=R{code:write(p)}")
+        ),
+        format!(
+            "fn touch(p:&mut(F!P))->i32{{return 66}}{}",
+            text.replace("p.owner=R{code:66}", "p.owner=R{code:touch(input)}")
+        ),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = compile_source(&source(&neighbor), &CompileOptions::default());
+        let (phase, code) = if case == 0 {
+            (Phase::Types, "E-ADDRESS-PERMISSION")
+        } else if case == 1 {
+            // Describing this addressed Sum field remains an earlier producer
+            // boundary; do not count this as a new invalidation consumer.
+            (Phase::Analyze, "E-ANALYZE-IR")
+        } else {
+            (Phase::Analyze, "E-BORROW-CONFLICT")
+        };
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_error_arm_actual_root_and_epoch() {
+    let text = "resource R{code:i32}package P{manages owner:R;n:i32}enum F{Bad}fn make(ok:bool)->F!P{if ok{return P{owner:R{code:65},n:42}}return F.Bad()}fn tick()->i32{return 0}fn work(ok:bool)->i32{var value=make(ok);var other=make(true);let spare=&mut other;tick();let input=&mut value;match *input{.ok(ref mut p)=>{p.owner=R{code:66};return p.n},.err(_)=>{return 0}}}fn result()->i32{return work(true)+work(false)}";
+    let input = source(text);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for case in ["other-root", "stale-read", "wrong-arm"] {
+        let mut raw = typed.clone();
+        let mut claim = plan.clone();
+        let tick = raw.functions.iter().find(|f| f.name == "tick").unwrap().id;
+        let f = raw.functions.iter_mut().find(|f| f.name == "work").unwrap();
+        let (block, pos) = f
+            .blocks
+            .iter()
+            .enumerate()
+            .find_map(|(b, block)| {
+                block
+                    .instructions
+                    .iter()
+                    .position(|i| matches!(i.kind, InstructionKind::PlaceTagAddress { .. }))
+                    .map(|p| (b, p))
+            })
+            .unwrap();
+        let tag = f.blocks[block].instructions[pos].result.unwrap();
+        match case {
+            "other-root" => {
+                let spare = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| match i.kind {
+                        InstructionKind::BorrowLocalMut { local }
+                            if f.locals[local.0 as usize].name == "other" =>
+                        {
+                            i.result
+                        }
+                        _ => None,
+                    })
+                    .unwrap();
+                let InstructionKind::PlaceTagAddress { address, .. } =
+                    &mut f.blocks[block].instructions[pos].kind
+                else {
+                    unreachable!()
+                };
+                *address = spare;
+            }
+            "stale-read" => {
+                let (b, p) = f.blocks.iter().enumerate().find_map(|(b, block)| block.instructions.iter().position(|i| matches!(i.kind, InstructionKind::Call { function, .. } if function == tick)).map(|p| (b,p))).unwrap();
+                let call = f.blocks[b].instructions.remove(p);
+                let pos = f.blocks[block]
+                    .instructions
+                    .iter()
+                    .position(|i| i.result == Some(tag))
+                    .unwrap();
+                f.blocks[block].instructions.insert(pos + 1, call);
+            }
+            "wrong-arm" => {
+                let constant = f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| match i.kind {
+                        InstructionKind::Binary { left, right, .. } if left == tag => Some(right),
+                        _ => None,
+                    })
+                    .unwrap();
+                let i = f
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| i.result == Some(constant))
+                    .unwrap();
+                assert!(matches!(
+                    i.kind,
+                    InstructionKind::Constant(zil_ir::Constant::I32(0))
+                ));
+                i.kind = InstructionKind::Constant(zil_ir::Constant::I32(1));
+            }
+            _ => unreachable!(),
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code == "E-ANALYZE-IR"),
+            "{case}: {errors:?}"
+        );
+        let errors =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code.starts_with("E-VERIFY-SUM")),
+            "{case}: {errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let errors = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|e| e.code.starts_with("E-VERIFY-SUM")),
+            "Wire {case}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn terminal340_owner_replacement_error_arm_alias_budget() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil"
+    ));
+    for (stage, expected_n) in [(Stage::Analyze, 46908), (Stage::Verify, 97818)] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&input, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert_eq!(
+            low, expected_n,
+            "{stage:?}: actual address tag proof work changed"
+        );
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&input, &options(work)),
+                warm.compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        }
+                    );
+                } else if stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("G1.3.3 {stage:?} N={low}; N-1/fresh/warm/retry");
+    }
+}

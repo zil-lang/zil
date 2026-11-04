@@ -121,11 +121,20 @@ fn origin(
                     .collect(),
             ))
         }
-        Some(InstructionKind::Load(l))
+        Some(InstructionKind::Load(l) | InstructionKind::TakeLocal { local: l })
             if matches!(f.values.get(v.0 as usize), Some(Type::Address { .. })) =>
         {
             match stores.get(l.0 as usize).copied().flatten() {
-                Some(v) => origin(f, defs, stores, v, depth + 1, active, b)?,
+                Some(v) => {
+                    // A parameter has an incoming value before any later
+                    // Store. A unique Store alone cannot identify that epoch.
+                    pay(b, f.parameters.len())?;
+                    if f.parameters.contains(l) {
+                        None
+                    } else {
+                        origin(f, defs, stores, v, depth + 1, active, b)?
+                    }
+                }
                 None => None,
             }
         }
