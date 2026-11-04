@@ -1904,6 +1904,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                         .collect(),
                     result_life: matches!(result.as_ref(), Type::Address { .. }).then_some(0),
                 };
+                let Some(life) = zil_ir::StorageLifeContract::from_flat(life) else {
+                    return Type::Unsupported("callable relation arity exhausted".into());
+                };
                 Type::BorrowedFunctionPointer {
                     parameters,
                     result,

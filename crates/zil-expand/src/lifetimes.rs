@@ -286,14 +286,17 @@ pub(super) fn pointer_type(ty: &s::TypeRef) -> Type {
             result: Box::new(lower(result)),
         };
     }
+    let Some(life) = zil_ir::StorageLifeContract::from_flat(zil_ir::FunctionLifeContract {
+        binder_count: next,
+        parameter_lives,
+        result_life,
+    }) else {
+        return Type::Unsupported("higher-rank callable relation arity exhausted".into());
+    };
     Type::BorrowedFunctionPointer {
         parameters: params.iter().map(lower).collect(),
         result: Box::new(lower(result)),
-        life: zil_ir::FunctionLifeContract {
-            binder_count: next,
-            parameter_lives,
-            result_life,
-        },
+        life,
     }
 }
 
