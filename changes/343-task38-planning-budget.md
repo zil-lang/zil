@@ -13,3 +13,9 @@ lookup；加法不能覆盖长公共前缀比较。固定生成声明与变长�
 控制：同一深拥有结果在足量全局限制下触发depth，在耗尽调用者余额时先触发work；
 失败不退还已访问前缀。定义/result各有N/N−1/fresh，原源长公共前缀namespace有
 短/长增长邻居及各自N/N−1/fresh。此处是规划单位验证，不冒充拥有Task runtime。
+
+补充：动态Task类型提示保留借用的Name实际capture/sum槽、Member、Index、Ascribed、
+Sequence、Record/更新、Try、If及静态/方法/指针调用结果路径，按实际余额付费后才
+复制所需Task投影，不把计费修正缩成仅Name。生成Core的正确Ascribed/Sequence
+head仍通过Types→Analyze→Verify；错误完整T仍拒绝。原Holder.task公开字段源先由
+既有普通aggregate字段要求在Types拒绝，不由Task hint决定结果。

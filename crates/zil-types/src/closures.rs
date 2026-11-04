@@ -446,6 +446,21 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    pub(super) fn borrowed_task_result(
+        &self,
+        id: ClosureId,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<&Type>> {
+        let Some(pending) = self.pending.get(id.0 as usize) else {
+            return Ok(None);
+        };
+        pending
+            .inference
+            .graph
+            .borrowed_task_type(pending.inference.result, left, span)
+    }
+
     // Thread-only queries join this request's existing work counter. General
     // expression inference keeps its historical independent Graph profile.
     pub(super) fn thread_result(&mut self, id: ClosureId) -> R<Option<Type>> {
@@ -1049,6 +1064,23 @@ impl Graph {
             shape: None,
         });
         variable
+    }
+    fn borrowed_task_type(
+        &self,
+        mut variable: Variable,
+        left: &mut usize,
+        span: Span,
+    ) -> R<Option<&Type>> {
+        loop {
+            *left = left
+                .checked_sub(1)
+                .ok_or_else(|| limit("task closure hint work budget exceeded", span))?;
+            let node = &self.nodes[variable];
+            if node.parent == variable {
+                return Ok(node.concrete.as_ref());
+            }
+            variable = node.parent;
+        }
     }
     fn root(&self, mut variable: Variable) -> Variable {
         while self.nodes[variable].parent != variable {

@@ -447,3 +447,78 @@ fn general_task343_user_poll_shape_does_not_replace_standard_identity() {
         report.to_json()
     );
 }
+
+#[test]
+fn general_task343_generated_ascribed_and_sequence_head_hints_preserve_types() {
+    use zil_ir::{CoreExprKind as E, CoreStatementKind as S, Type};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for sequence in [false, true] {
+        for wrong in [false, true] {
+            let mut core = expand(SOURCE, &limits).unwrap().core;
+            let drive = core
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "drive")
+                .unwrap();
+            let S::Binding {
+                initializer: Some(initializer),
+                ..
+            } = &mut drive.body.statements[0].kind
+            else {
+                panic!()
+            };
+            let E::Try(call) = &mut initializer.kind else {
+                panic!()
+            };
+            let E::Call { arguments, .. } = &mut call.kind else {
+                panic!()
+            };
+            let old = arguments[0].clone();
+            let ty = Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Managed(Box::new(Type::Task {
+                    result: Box::new(if wrong { Type::Bool } else { Type::I32 }),
+                }))),
+            };
+            arguments[0].kind = E::Ascribed {
+                ty,
+                value: Box::new(old),
+            };
+            if sequence {
+                let old = arguments[0].clone();
+                arguments[0].kind = E::Sequence {
+                    bindings: vec![],
+                    value: Box::new(old),
+                };
+            }
+            let typed = zil_types::check(&core, &target, &limits);
+            if wrong {
+                assert_eq!(typed.unwrap_err()[0].code, "E-TYPE-MISMATCH");
+            } else {
+                let typed = typed.unwrap();
+                let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+                zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+            }
+        }
+    }
+    // The earlier field admission gate remains the nearest rejection for this
+    // original user projection; task hint selection does not decide its fate.
+    let projected = include_str!("task-general-projected-head.zil");
+    let report = compile_source(&source(projected), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("aggregate field")),
+        "{}",
+        report.to_json()
+    );
+}
