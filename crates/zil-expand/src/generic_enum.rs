@@ -230,7 +230,15 @@ fn shape(
             let arity = if variables.contains(name)
                 || matches!(
                     name.as_str(),
-                    "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+                    "u8" | "u16"
+                        | "u64"
+                        | "usize"
+                        | "i32"
+                        | "i64"
+                        | "bool"
+                        | "void"
+                        | "c_handle"
+                        | "c_wstr"
                 ) {
                 0
             } else {
@@ -290,7 +298,15 @@ fn layout(
             }
             if matches!(
                 name.as_str(),
-                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "bool" | "void" | "c_handle" | "c_wstr"
+                "u8" | "u16"
+                    | "u64"
+                    | "usize"
+                    | "i32"
+                    | "i64"
+                    | "bool"
+                    | "void"
+                    | "c_handle"
+                    | "c_wstr"
             ) && args.is_empty()
             {
                 return Ok(());
@@ -490,6 +506,17 @@ impl Engine<'_> {
                 }
                 env.insert(name.clone(), ty.cloned());
             }
+            PatternKind::Reference { mutable, pattern } => {
+                let address = ty.map(|inner| TypeRef {
+                    kind: TypeKind::Reference {
+                        lifetime: None,
+                        mutable: *mutable,
+                        inner: Box::new(inner.clone()),
+                    },
+                    span: pattern.span,
+                });
+                self.enum_pattern(pattern, address.as_ref(), env, depth + 1)?;
+            }
             PatternKind::Tuple(patterns) => {
                 let types = ty.and_then(|ty| match &grouped(ty).kind {
                     TypeKind::Tuple(fields) => Some(fields.as_slice()),
@@ -521,6 +548,9 @@ impl Engine<'_> {
                         ));
                     }
                     path[0] = decl.name.clone();
+                }
+                if path.len() == 2 && path[0] == "Option" && decl.name == options::TEMPLATE {
+                    path[0] = options::TEMPLATE.into();
                 }
                 if path.len() != 2 || path[0] != decl.name {
                     return Err(error(

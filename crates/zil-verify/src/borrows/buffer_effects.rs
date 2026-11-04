@@ -22,7 +22,7 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
                 borrowed(&module.closures[id.0 as usize].captures[capture as usize])
             })
         }
-        Root::Local(_) | Root::Field(..) => false,
+        Root::Local(_) | Root::Field(..) | Root::Projection(..) => false,
     }
 }
 

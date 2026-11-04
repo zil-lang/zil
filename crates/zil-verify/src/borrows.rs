@@ -404,6 +404,7 @@ fn check(
             | InstructionKind::BorrowLocalMut { local }
             | InstructionKind::BorrowOwnedArrayElement { local, .. }
             | InstructionKind::BorrowPackageField { local, .. }
+            | InstructionKind::BorrowVariantLocal { local, .. }
             | InstructionKind::Store { local, .. }
             | InstructionKind::BorrowLocal { local }
             | InstructionKind::CallClosureMut { callee: local, .. }
@@ -434,6 +435,8 @@ fn check(
             }
             let invalidated = match instruction.kind {
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::EndPackageCapture { local, .. }
@@ -634,6 +637,10 @@ fn reconstruct(
                         }
                         InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             row.push(Root::Local(*local));
+                        }
+                        InstructionKind::BorrowVariantLocal { local, path, .. } => {
+                            budget.spend(path.len().saturating_add(1))?;
+                            row.push(roots::variant_root(f, *local, path, budget)?);
                         }
                         InstructionKind::BorrowPackageField { local, index, .. } => {
                             row.push(field_root(f, *local, *index, budget)?);

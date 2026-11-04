@@ -184,7 +184,8 @@ fn reconstruct(
                         | InstructionKind::OwnedStoreBorrow { .. }
                         | InstructionKind::OwnedStoreBorrowMut { .. }
                         | InstructionKind::BorrowOwnedArrayElement { .. }
-                        | InstructionKind::BorrowPackageField { .. } => {
+                        | InstructionKind::BorrowPackageField { .. }
+                        | InstructionKind::BorrowVariantLocal { .. } => {
                             row.insert(id);
                         }
                         InstructionKind::BorrowCapture { .. }
@@ -975,6 +976,21 @@ pub(super) fn check(
                 InstructionKind::BorrowOwnedArrayElement { local, mutable, .. } => {
                     access.check(&empty, &[Root::Local(*local)], *mutable, budget)?;
                 }
+                InstructionKind::BorrowVariantLocal {
+                    local,
+                    path,
+                    mutable,
+                } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root = super::roots::variant_root(f, *local, path, budget)?;
+                    access.check(&empty, &[root], *mutable, budget)?;
+                }
+                InstructionKind::ReadVariantLocal { local, path }
+                | InstructionKind::VariantTagLocal { local, path } => {
+                    budget.spend(path.len().saturating_add(1))?;
+                    let root = super::roots::variant_root(f, *local, path, budget)?;
+                    access.check(&empty, &[root], false, budget)?;
+                }
                 InstructionKind::BorrowPackageField {
                     local,
                     index,
@@ -988,6 +1004,8 @@ pub(super) fn check(
                     access.check(&empty, &[root], false, budget)?;
                 }
                 InstructionKind::Store { local, .. }
+                | InstructionKind::DropEnum { local }
+                | InstructionKind::UnpackVariant { local, .. }
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropClosure { local }
@@ -1079,6 +1097,7 @@ pub(super) fn check(
                 InstructionKind::TakeLocal { local } => {
                     if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))
                         || matches!(f.locals[local.0 as usize].ty, Type::Package { .. })
+                        || crate::sums::owned_enum(&f.locals[local.0 as usize].ty)
                         || errors::owned(&f.locals[local.0 as usize].ty, budget.sums)
                         || resources::arrays::is_owned_type(&f.locals[local.0 as usize].ty)
                         || matches!(f.locals[local.0 as usize].ty, Type::Managed(_))

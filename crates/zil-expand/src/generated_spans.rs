@@ -89,7 +89,7 @@ impl Visitor for Mapper<'_> {
     }
 }
 
-trait Visitor {
+pub(crate) trait Visitor {
     fn node(&mut self, span: &mut Span, depth: usize) -> CompileResult<()>;
     fn text(&mut self, value: &str, span: Span) -> CompileResult<()>;
     fn item(&mut self, item: &mut s::Item, depth: usize) -> CompileResult<()> {
@@ -250,7 +250,7 @@ fn field<V: Visitor + ?Sized>(v: &mut V, f: &mut s::Field, depth: usize) -> Comp
     }
     Ok(())
 }
-fn walk_item<V: Visitor + ?Sized>(
+pub(crate) fn walk_item<V: Visitor + ?Sized>(
     v: &mut V,
     item: &mut s::Item,
     depth: usize,
@@ -370,7 +370,7 @@ fn walk_item<V: Visitor + ?Sized>(
     }
     Ok(())
 }
-fn walk_type<V: Visitor + ?Sized>(
+pub(crate) fn walk_type<V: Visitor + ?Sized>(
     v: &mut V,
     t: &mut s::TypeRef,
     depth: usize,
@@ -590,7 +590,7 @@ fn literal<V: Visitor + ?Sized>(v: &mut V, l: &mut s::Literal, span: Span) -> Co
         s::Literal::Bool(_) => Ok(()),
     }
 }
-fn walk_expression<V: Visitor + ?Sized>(
+pub(crate) fn walk_expression<V: Visitor + ?Sized>(
     v: &mut V,
     e: &mut s::Expr,
     depth: usize,

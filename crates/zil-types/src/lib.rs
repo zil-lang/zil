@@ -40,6 +40,7 @@ pub use preparation::{
     InferredProgram, PreparedProgram, check_prepared_program, infer_program_for_ct,
     infer_shared_program_for_ct,
 };
+mod reference_patterns;
 mod resource_effects;
 mod resources;
 mod retained;

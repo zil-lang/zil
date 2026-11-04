@@ -497,6 +497,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
+        | InstructionKind::BorrowVariantLocal { .. }
         | InstructionKind::UnpackVariant { .. }
         | InstructionKind::DropEnum { .. }
         | InstructionKind::OwnedStoreNew { .. }
@@ -1029,7 +1030,8 @@ impl Flow<'_> {
             }
             match &i.kind {
                 InstructionKind::VariantTagLocal { local, .. }
-                | InstructionKind::ReadVariantLocal { local, .. } => {
+                | InstructionKind::ReadVariantLocal { local, .. }
+                | InstructionKind::BorrowVariantLocal { local, .. } => {
                     if check
                         && self.shapes.contains_key(&Place::Local(*local))
                         && !exact(

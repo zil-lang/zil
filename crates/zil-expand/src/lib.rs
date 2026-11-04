@@ -82,6 +82,7 @@ fn sync_name(name: &str) -> bool {
 }
 fn primitive_name(name: &str) -> bool {
     sync_name(name)
+        || name == "Option"
         || name == "thread_scope"
         || integer_name(name)
         || foreign_constructor_name(name)
@@ -95,6 +96,13 @@ fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
             "E-SYNC-NAME",
             Some(span),
             "sealed synchronization names cannot be rebound",
+        )
+    } else if name == "Option" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-OPTION-NAME",
+            Some(span),
+            "Option is a reserved built-in type and constructor namespace",
         )
     } else if name == "thread_scope" {
         Diagnostic::error(
@@ -959,7 +967,11 @@ impl Expander<'_> {
         }
     }
     fn scoped_binding(&mut self, name: &str, span: Span) {
-        if sync_name(name) || name == "c_with_callback" || name == "thread_scope" {
+        if sync_name(name)
+            || name == "Option"
+            || name == "c_with_callback"
+            || name == "thread_scope"
+        {
             self.diagnostics.push(primitive_name_error(name, span));
         }
     }
@@ -1073,6 +1085,7 @@ impl Expander<'_> {
         match &pattern.kind {
             s::PatternKind::Name(_) | s::PatternKind::Wildcard => true,
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
+            s::PatternKind::Reference { pattern, .. } => Self::tuple_binding_pattern(pattern),
             _ => false,
         }
     }
@@ -1084,7 +1097,10 @@ impl Expander<'_> {
                 ty,
                 value,
             } => {
-                if matches!(pattern.kind, s::PatternKind::Tuple(_)) {
+                if matches!(
+                    pattern.kind,
+                    s::PatternKind::Tuple(_) | s::PatternKind::Reference { .. }
+                ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(
                             CoreStatementKind::Unsupported(
@@ -1347,8 +1363,8 @@ impl Expander<'_> {
                                 "u16" => Type::U16,
                                 "i32" => Type::I32,
                                 "i64" => Type::I64,
-            "u64" => Type::U64,
-            "usize" => Type::Usize,
+                                "u64" => Type::U64,
+                                "usize" => Type::Usize,
                                 _ => unreachable!(),
                             },
                         }

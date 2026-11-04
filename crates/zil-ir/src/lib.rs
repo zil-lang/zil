@@ -1427,6 +1427,14 @@ pub enum InstructionKind {
         local: LocalId,
         path: Vec<VariantProjection>,
     },
+    /// Borrow a real active payload place through an Enum-only path.
+    /// The nonempty path, all active tags and exact local mutability are raw
+    /// claims checked independently. The address retains its parent local loan.
+    BorrowVariantLocal {
+        local: LocalId,
+        path: Vec<VariantProjection>,
+        mutable: bool,
+    },
     /// Atomically consume one complete Enum and initialize all variant fields.
     /// Fields are exact distinct vacant locals, registered in reverse order;
     /// this instruction has no SSA result and inherits no cleanup age.
@@ -2534,6 +2542,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, step.variant);
                 encode_u32(b, step.index);
             }
+        }
+        InstructionKind::BorrowVariantLocal {
+            local,
+            path,
+            mutable,
+        } => {
+            b.push(106);
+            encode_u32(b, local.0);
+            encode_len(b, path.len());
+            for step in path {
+                encode_u32(b, step.variant);
+                encode_u32(b, step.index);
+            }
+            b.push(u8::from(*mutable));
         }
         InstructionKind::UnpackVariant {
             local,
