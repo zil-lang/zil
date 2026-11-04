@@ -373,6 +373,14 @@ impl<'a> Engine<'a> {
                     };
                     signature = required_function;
                 }
+                let source_ids = if self.traits.has_instances {
+                    Some(trait_instances::expression_ids(
+                        &function.body,
+                        &mut self.budget,
+                    )?)
+                } else {
+                    None
+                };
                 let mut checked = Item {
                     kind: ItemKind::Function(function),
                     attributes: vec![],
@@ -482,12 +490,18 @@ impl<'a> Engine<'a> {
                     self.impl_definitions.len(),
                     method.name
                 );
-                let checked = consts::definition(&function, &mut self.budget)?;
+                let checked = consts::definition(
+                    &function,
+                    &mut self.budget,
+                    self.traits.has_instances,
+                    source_ids,
+                )?;
                 let mut calls = trait_instances::Calls::new();
                 check::validate_parametric_with_bounds(
                     &checked,
                     check::ParametricTables {
                         source_definition: Some(&function),
+                        expression_origins: checked.source_ids.as_ref(),
                         definition_equations: (self.traits.has_generic_methods
                             && !equations.is_empty())
                         .then_some(&equations),
@@ -625,6 +639,7 @@ impl<'a> Engine<'a> {
         }
         let (_, declaration) = self.traits.declaration_item(&witness.reference);
         let self_substitution = BTreeMap::from([("Self".into(), witness.actual)]);
+        let mut remapped_calls = BTreeMap::new();
         for (ordinal, member) in implementation.members.iter_mut().enumerate() {
             if let ItemKind::Function(function) = &mut member.kind
                 && !function.params.first().is_some_and(|p| p.name == "self")
@@ -653,9 +668,21 @@ impl<'a> Engine<'a> {
                     }
                 }
             }
-            self.budget.substituted_item(member, &self_substitution)?;
-            substitute_item(member, &self_substitution)?;
+            let mut anchors = None;
             if let Some(calls) = self.impl_calls.get(&(witness.recipe, ordinal)) {
+                if self.traits.has_generic_methods {
+                    let resolved = trait_instances::resolve_generic_calls(
+                        calls,
+                        &witness.substitutions,
+                        &mut self.budget,
+                        member.span,
+                    )?;
+                    anchors = Some(trait_instances::anchor_resolved_calls(
+                        member,
+                        resolved,
+                        &mut self.budget,
+                    )?);
+                }
                 trait_instances::rewrite_calls(
                     member,
                     calls,
@@ -663,15 +690,22 @@ impl<'a> Engine<'a> {
                     &mut self.budget,
                 )?;
             }
+            self.budget.substituted_item(member, &self_substitution)?;
+            substitute_item(member, &self_substitution)?;
             substitute_item(member, &witness.substitutions)?;
+            if let Some(anchors) = anchors {
+                remapped_calls.insert(
+                    ordinal,
+                    trait_instances::rekey_anchored_calls(member, anchors, &mut self.budget)?,
+                );
+            }
         }
         implementation.generics.clear();
         implementation.where_clause.clear();
         self.realized_impls.insert(key);
         let origin = self.template_origin(witness.item)?;
-        let calls = self.impl_method_calls(witness.item, &witness.substitutions)?;
         self.enqueue(instance, origin)?;
-        self.pending.back_mut().expect("just enqueued").member_calls = calls;
+        self.pending.back_mut().expect("just enqueued").member_calls = remapped_calls;
         Ok(())
     }
 
