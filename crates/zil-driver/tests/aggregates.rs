@@ -6565,6 +6565,27 @@ fn ct3_enum_match_checks_actual_owner_source() {
 }
 
 #[test]
+fn ct4_fixed_phantom_context_source_bridge() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("transformed declarations require explicit source lineage")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 fn ct4_invocation_scoped_nominal_metadata_retains_pending_source_boundary() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil"

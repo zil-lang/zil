@@ -357,3 +357,22 @@ quantifier. The independent verifier reconstructs the same scoped identity witho
 calling the producer's proof code. Compiler declaration rows without authentic
 origin inventory remain explicit Unsupported. All new traversal, paths, clones
 and comparisons consume the existing request balance before allocation.
+
+### CT4 authentic source lifetime handle checkpoint
+
+An expression query binds each used lifetime to its actual frozen definition and
+original full generic parameter ordinal. The private handle follows the verified
+schema/value context into AST reification; a string is only the final candidate
+spelling checked by the ordinary kernels. Nominal contexts retain all ordered
+TypeInContext/Lifetime actuals and their joint canonical class partition. A reused
+local context with a different authentic owner or source ordinal explicitly
+rejects: private handles do not bypass serialized duplicate identity checks.
+
+Direct materialization controls execute CT and preserve42 for original and alpha
+renamed source, including a Type binder before the lifetime; the full ordinal is
+retained. The real whole-source fixture currently reaches the explicit transformed
+declaration lineage boundary, to be composed with341's aligned original ledger.
+The rich borrowed-function fixture stays Unsupported until a shared successor
+contract represents its nested Fixed/Invocation relation. These are WIP source
+bindings, not acceptance of all CT4 scopes, physical borrowed CT values or native
+execution of the new fixture. Existing CT3 source9/40 native controls remain green.
