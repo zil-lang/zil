@@ -92,3 +92,12 @@ definition is checked separately before conversion to Invocation-only code.
 The independent kernel counterpart9e6698 rejects the raw phantom counterexample;
 its prior acceptance and correction are recorded separately by the reviewer.
 No captured/enclosing Fixed code context is claimed by this construction slice.
+
+The source consumer also checks an explicit alias
+`type Code=for<life a>for<life b>fn(&'a Tag<'b>)->i32` and `let f:Code=read`.
+After341's actual scoped nominal producer38ca6124a, both inferred and explicit
+variants pass Source through independent kernels and Clang/API O0/O2: eight
+native executions in total, each stdout42 with no fallback. Each source retains
+the whole-request boundary12633 with N−1/warm/fresh controls. Two initial root
+test inputs used a comma-separated `for` binder spelling rejected by the parser;
+the preserved logs are test-input failures, not kernel or native observations.
