@@ -1406,6 +1406,28 @@ impl Flow<'_> {
                         });
                     }
                 }
+                InstructionKind::SuspendCall {
+                    function,
+                    arguments,
+                } => {
+                    budget.spend(arguments.len(), "child transferred inputs")?;
+                    for &value in arguments {
+                        self.consume(state, value, check, budget)?;
+                    }
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        sources: BTreeSet::new(),
+                        birth: BTreeSet::from([
+                            if self.module.functions[function.0 as usize].result_mode
+                                == PassingMode::Create
+                            {
+                                Birth::Created
+                            } else {
+                                Birth::Incoming
+                            },
+                        ]),
+                    });
+                }
                 InstructionKind::TaskCreate { arguments, .. } => {
                     budget.spend(arguments.len(), "task transferred inputs")?;
                     for &v in arguments {

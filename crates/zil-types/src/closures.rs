@@ -3424,7 +3424,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         if let Some(name) = tasks::primitive(callee) {
             self.visit(depth + 1, callee.span)?;
             self.graph.spend_count(12, span)?;
-            if name == "task_create" {
+            if matches!(name, "task_create" | "task_await") {
                 let Some(worker) = arguments.first() else {
                     return Err(error(
                         "E-CALL-ARITY",
@@ -3455,7 +3455,14 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 for _ in 0..4 {
                     self.graph.reserve_type(&signature.result, 0, span)?;
                 }
-                return self.known(&tasks::create_type(&signature.result), span);
+                return self.known(
+                    &if name == "task_await" {
+                        signature.result
+                    } else {
+                        tasks::create_type(&signature.result)
+                    },
+                    span,
+                );
             }
             let offset = usize::from(matches!(name, "task_start" | "task_await"));
             let parameters = tasks::parameters(name);

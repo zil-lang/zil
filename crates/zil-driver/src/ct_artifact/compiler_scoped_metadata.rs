@@ -295,4 +295,125 @@ impl<'a> Compiler<'a> {
             span,
         )
     }
+    pub(super) fn registered_scoped_data_type(&mut self, graph: &CtTypeRef, span: Span) -> R<CtTy> {
+        for (enumeration, count) in [(false, self.records.len()), (true, self.enums.len())] {
+            for id in 0..count {
+                self.budget.work(1, span)?;
+                let context = if enumeration {
+                    self.enums[id].life_context.as_ref()
+                } else {
+                    self.records[id].life_context.as_ref()
+                };
+                if let Some(context) = context {
+                    self.budget.metadata(context, span)?;
+                    self.budget.metadata(graph, span)?;
+                    if context == graph {
+                        self.budget.work(self.source_life_bindings.len(), span)?;
+                        if !self
+                            .source_life_bindings
+                            .iter()
+                            .any(|b| b.enumeration == enumeration && b.schema as usize == id)
+                        {
+                            return Err(error(
+                                span,
+                                "scoped data type has no authentic source binding",
+                            ));
+                        }
+                        return Ok(if enumeration {
+                            CtTy::Enum(CtEnumSchemaId(id as u32))
+                        } else {
+                            CtTy::Record(CtRecordSchemaId(id as u32))
+                        });
+                    }
+                }
+            }
+        }
+        Err(vec![Diagnostic::unsupported(
+            Phase::Ct,
+            "scoped type extraction needs its registered joint value context",
+            Some(span),
+        )])
+    }
+    pub(super) fn copy_registered_scoped_data(
+        &mut self,
+        graph: &CtTypeRef,
+        depth: usize,
+        span: Span,
+    ) -> R<()> {
+        self.budget.depth(depth, span)?;
+        let ty = self.registered_scoped_data_type(graph, span)?;
+        for old in &self.active_copy_metadata {
+            self.budget.metadata(old, span)?;
+            self.budget.metadata(graph, span)?;
+            if old == graph {
+                return Err(error(
+                    span,
+                    "recursive scoped Copy data has no finite layout",
+                ));
+            }
+        }
+        self.budget.metadata(graph, span)?;
+        self.active_copy_metadata.push(graph.clone());
+        let result = (|| {
+            let count = match ty {
+                CtTy::Record(id) => self.records[id.0 as usize].fields.len(),
+                CtTy::Enum(id) => {
+                    let variants = &self.enums[id.0 as usize].variants;
+                    self.budget.work(variants.len(), span)?;
+                    variants.iter().try_fold(0usize, |n, fields| {
+                        n.checked_add(fields.len())
+                            .ok_or_else(|| error(span, "scoped field count overflow"))
+                    })?
+                }
+                _ => unreachable!(),
+            };
+            self.budget.work(count, span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                count.saturating_mul(std::mem::size_of::<&CtTy>()),
+                span,
+                "CT scoped field traversal bytes exhausted",
+            )?;
+            let mut fields = Vec::with_capacity(count);
+            match ty {
+                CtTy::Record(id) => fields.extend(self.records[id.0 as usize].fields.iter()),
+                CtTy::Enum(id) => {
+                    fields.extend(self.enums[id.0 as usize].variants.iter().flatten())
+                }
+                _ => unreachable!(),
+            }
+            for ty in &fields {
+                self.budget.copy_ty(ty, depth + 1, span)?;
+            }
+            let fields = fields.into_iter().cloned().collect::<Vec<_>>();
+            for ty in fields {
+                self.scoped_field_copy(&ty, depth + 1, span)?;
+            }
+            Ok(())
+        })();
+        self.active_copy_metadata.pop();
+        result
+    }
+    fn scoped_field_copy(&mut self, ty: &CtTy, depth: usize, span: Span) -> R<()> {
+        self.budget.depth(depth, span)?;
+        self.budget.node(span)?;
+        match ty {
+            CtTy::Scalar(_) => Ok(()),
+            CtTy::Tuple(fields) => {
+                for field in fields {
+                    self.scoped_field_copy(field, depth + 1, span)?;
+                }
+                Ok(())
+            }
+            CtTy::Array { element, .. } => self.scoped_field_copy(element, depth + 1, span),
+            CtTy::Record(_) | CtTy::Enum(_) => {
+                let graph = self.metadata_data(ty, span, depth + 1)?;
+                self.metadata_copy(&graph, depth + 1, span)
+            }
+            _ => Err(error(
+                span,
+                "CT-only field metadata does not establish ordinary Copy qualification",
+            )),
+        }
+    }
 }
