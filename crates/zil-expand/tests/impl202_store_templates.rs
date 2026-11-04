@@ -267,7 +267,9 @@ fn legacy_single_field_state_preserves_exact_expand_budget() {
             .any(|d| d.category == ResultCategory::ResourceLimit)
     );
     check(exact).unwrap();
-    assert_eq!(exact, 2766);
+    // Prior2766; G10.1.5 tail retains three actual callable source-life
+    // queries after removing irrelevant fixed-class leaf walks (921 was2774).
+    assert_eq!(exact, 2769);
 }
 
 const ORDINARY: &str = r#"

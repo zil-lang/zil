@@ -929,10 +929,10 @@ fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     // Pre322 N1938 now becomes2358 because the complete type-position life
     // validator is charged through the shared alias/generic budget remainder.
     assert_eq!(
-        // G10.1.5: prior 2766; retained callable source-life scope scans cost 8.
-        // The redundant flat-role and noncallable scans were removed separately.
+        // G10.1.5: prior2766, first921 measurement2774. Removing the unused
+        // fixed-class leaf query leaves three real callable source-life scans.
         expand,
-        2774,
+        2769,
         "205 State alias checks plus322 full-AST life validation; source/default unchanged"
     );
 }
