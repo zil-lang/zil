@@ -527,6 +527,14 @@ fn recipe(
             result: Box::new(recipe(result, formal, families, budget, depth + 1)?),
         });
     }
+    if let TypeKind::Named { path, args } = &grouped(ty).kind
+        && path.as_slice() == ["AsyncRegistration"]
+        && let [GenericArg::Type(environment)] = args.as_slice()
+    {
+        return Ok(CoreAggregateTypeRecipe::AsyncRegistration {
+            environment: Box::new(recipe(environment, formal, families, budget, depth + 1)?),
+        });
+    }
     if let Some(element) = stores::element(ty) {
         return Ok(CoreAggregateTypeRecipe::Store {
             element: Box::new(recipe(element, formal, families, budget, depth + 1)?),

@@ -2417,6 +2417,19 @@ impl Flow<'_> {
                     if check
                         && f.call_kind == CallKind::Direct
                         && fact.life.contains(&Life::Available)
+                        && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::TaskI32|Type::Task{..}))
+                    {
+                        tasks::require_synchronous_drop(
+                            self.module,
+                            f,
+                            *local,
+                            budget,
+                            Some(i.span),
+                        )?;
+                    }
+                    if check
+                        && f.call_kind == CallKind::Direct
+                        && fact.life.contains(&Life::Available)
                         && matches!(&f.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                     {
                         return Err(error(

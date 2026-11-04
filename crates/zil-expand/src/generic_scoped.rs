@@ -301,7 +301,7 @@ impl Check<'_, '_, '_> {
                 StmtKind::Return(Some(e))
                 | StmtKind::Expression(e)
                 | StmtKind::Binding { value: e, .. }
-                    if matches!(&e.kind,ExprKind::Call{callee,..} if matches!(super::super::super::foreign::bare_name(callee),Some("c_with_callback"|"c_register"))) =>
+                    if matches!(&e.kind,ExprKind::Call{callee,..} if matches!(super::super::super::foreign::bare_name(callee),Some("c_with_callback"|"c_register"|"c_register_async"))) =>
                 {
                     return Ok(true);
                 }

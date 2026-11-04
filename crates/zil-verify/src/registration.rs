@@ -105,7 +105,7 @@ fn closed(
             match t {
                 Type::AsyncRegistration { .. } => {
                     return Err(unsupported(
-                        "pollable registration ClosedEnvironment consumer is not implemented",
+                        "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
                         span,
                     ));
                 }
@@ -135,10 +135,10 @@ fn closed(
                     budget.spend(module.resources.len())?;
                     for resource in &module.resources {
                         resources::charge_payload(&resource.payload, budget)?;
-                        if resource.payload == **p {
-                            if let Some(teardown) = resource.teardown {
-                                code_queue.push(teardown);
-                            }
+                        if resource.payload == **p
+                            && let Some(teardown) = resource.teardown
+                        {
+                            code_queue.push(teardown);
                         }
                     }
                     budget.spend(1)?;
@@ -406,7 +406,9 @@ pub(super) fn factory(module: &TypedModule, f: &TypedFunction, budget: &mut Budg
     let Type::Managed(payload) = &f.return_type else {
         return Ok(false);
     };
-    let Type::Registration { environment } = payload.as_ref() else {
+    let (Type::Registration { environment } | Type::AsyncRegistration { environment }) =
+        payload.as_ref()
+    else {
         return Ok(false);
     };
     let Type::Closure(id) = environment.as_ref() else {
@@ -448,4 +450,110 @@ pub(super) fn factory(module: &TypedModule, f: &TypedFunction, budget: &mut Budg
     }
     closed(module, *id, Some(f.span), budget)?;
     Ok(true)
+}
+
+/// Inventory every actual shape, including unused declarations. No transported
+/// Closed/producer bit grants ordinary nested storage permission.
+pub(super) fn storage(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+    if !budget.async_registrations {
+        return Ok(());
+    }
+    let roots = module
+        .resources
+        .iter()
+        .map(|r| &r.payload)
+        .chain(module.functions.iter().flat_map(|f| {
+            f.values
+                .iter()
+                .chain(f.locals.iter().map(|l| &l.ty))
+                .chain(std::iter::once(&f.return_type))
+        }))
+        .chain(module.closures.iter().flat_map(|c| {
+            c.captures
+                .iter()
+                .chain(c.parameters.iter())
+                .chain(std::iter::once(&c.result))
+        }));
+    for root in roots {
+        let mut pending = vec![(root, false)];
+        while let Some((ty, blocked)) = pending.pop() {
+            budget.spend(1)?;
+            if blocked && matches!(ty, Type::AsyncRegistration { .. }) {
+                return Err(error(
+                    None,
+                    "pollable registration roots inside ordinary Store/Package need an asynchronous storage consumer",
+                ));
+            }
+            let count = match ty {
+                Type::Record { fields, .. } | Type::Package { fields, .. } => fields.len(),
+                Type::Tuple(fields) => fields.len(),
+                Type::Enum { variants, .. } => {
+                    budget.spend(variants.len())?;
+                    variants
+                        .iter()
+                        .fold(0usize, |n, (_, fields)| n.saturating_add(fields.len()))
+                }
+                Type::ErrorUnion { .. } => 2,
+                Type::AsyncRegistration { .. }
+                | Type::Registration { .. }
+                | Type::BorrowedStorage { .. }
+                | Type::Task { .. }
+                | Type::Address { .. }
+                | Type::Managed(_)
+                | Type::Desc(_)
+                | Type::Opaque { .. }
+                | Type::Array { .. }
+                | Type::Slice { .. }
+                | Type::OwnedStore { .. } => 1,
+                Type::FunctionPointer { parameters, .. }
+                | Type::BorrowedFunctionPointer { parameters, .. }
+                | Type::ForeignCallback { parameters, .. } => parameters.len().saturating_add(1),
+                _ => 0,
+            };
+            budget.spend(count)?;
+            let mut children = Vec::with_capacity(count);
+            let mut blocked = blocked;
+            match ty {
+                Type::Package { fields, .. } => {
+                    blocked = true;
+                    children.extend(fields.iter().map(|(_, t)| t));
+                }
+                Type::OwnedStore { element } => {
+                    blocked = true;
+                    children.push(element.as_ref());
+                }
+                Type::Record { fields, .. } => children.extend(fields.iter().map(|(_, t)| t)),
+                Type::Tuple(fields) => children.extend(fields),
+                Type::Enum { variants, .. } => {
+                    for (_, fields) in variants {
+                        children.extend(fields);
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    children.extend([error.as_ref(), result.as_ref()])
+                }
+                Type::AsyncRegistration { environment: inner }
+                | Type::Registration { environment: inner }
+                | Type::BorrowedStorage { storage: inner, .. }
+                | Type::Task { result: inner, .. }
+                | Type::Address { inner, .. }
+                | Type::Managed(inner)
+                | Type::Desc(inner)
+                | Type::Opaque { hidden: inner, .. }
+                | Type::Array { element: inner, .. }
+                | Type::Slice { element: inner } => children.push(inner.as_ref()),
+                Type::FunctionPointer { parameters, result }
+                | Type::BorrowedFunctionPointer {
+                    parameters, result, ..
+                }
+                | Type::ForeignCallback { parameters, result } => {
+                    children.extend(parameters);
+                    children.push(result.as_ref());
+                }
+                _ => {}
+            }
+            pending.extend(children.into_iter().map(|t| (t, blocked)));
+        }
+    }
+    Ok(())
 }

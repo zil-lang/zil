@@ -102,10 +102,16 @@ pub(super) fn add_definitions(
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(std::iter::once(&f.return_type))
         {
-            let mut pending = vec![root];
-            while let Some(t) = pending.pop() {
+            let mut pending = vec![(root, false)];
+            while let Some((t, blocked)) = pending.pop() {
                 spend(left, 1)?;
                 tasks::require_closed_context(t, f.span)?;
+                if blocked && matches!(t, Type::AsyncRegistration { .. }) {
+                    return Err(unsupported(
+                        f.span,
+                        "pollable registration roots inside ordinary Store/Package require an asynchronous storage consumer",
+                    ));
+                }
                 match t {
                     Type::Registration { environment }
                     | Type::AsyncRegistration { environment } => {
@@ -128,29 +134,33 @@ pub(super) fn add_definitions(
                     | Type::Address { inner: t, .. }
                     | Type::Opaque { hidden: t, .. }
                     | Type::Array { element: t, .. }
-                    | Type::OwnedStore { element: t }
                     | Type::Slice { element: t } => {
                         spend(left, 1)?;
-                        pending.push(t)
+                        pending.push((t, blocked))
+                    }
+                    Type::OwnedStore { element } => {
+                        spend(left, 1)?;
+                        pending.push((element, true));
                     }
                     Type::Tuple(ts) => {
                         spend(left, ts.len())?;
-                        pending.extend(ts)
+                        pending.extend(ts.iter().map(|t| (t, blocked)))
                     }
                     Type::Record { fields, .. } | Type::Package { fields, .. } => {
                         spend(left, fields.len())?;
-                        pending.extend(fields.iter().map(|(_, t)| t))
+                        let blocked = blocked || matches!(t, Type::Package { .. });
+                        pending.extend(fields.iter().map(|(_, t)| (t, blocked)))
                     }
                     Type::Enum { variants, .. } => {
                         spend(left, variants.len())?;
                         for (_, ts) in variants {
                             spend(left, ts.len())?;
-                            pending.extend(ts)
+                            pending.extend(ts.iter().map(|t| (t, blocked)))
                         }
                     }
                     Type::ErrorUnion { error, result } => {
                         spend(left, 2)?;
-                        pending.extend([error.as_ref(), result.as_ref()])
+                        pending.extend([(error.as_ref(), blocked), (result.as_ref(), blocked)])
                     }
                     _ => {}
                 }
@@ -429,7 +439,7 @@ pub(super) fn closed_environment(
                 Type::AsyncRegistration { .. } => {
                     return Err(unsupported(
                         span,
-                        "pollable registration ClosedEnvironment consumer is not implemented",
+                        "ClosedEnvironment cannot retain a pollable registration with asynchronous teardown",
                     ));
                 }
                 Type::Dyn { .. }

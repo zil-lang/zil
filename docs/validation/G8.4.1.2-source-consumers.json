@@ -1,0 +1,71 @@
+{
+  "task": "G8.4.1.2",
+  "author": "g8_4_front",
+  "scope": "Source/Expand/Types and independent ordinary registration/FFI/resource kernels; author limited validation only",
+  "public_baseline": "20d40f57580265788915f48f35ba567fe286b301",
+  "source_checkpoint": "49383a59eba51b22629f7ad16eb53852b5f4de16",
+  "task_drop_dependency": {
+    "author_commit": "6e3d9a0e0689151c74c3db760d6d0d13b6a6270f",
+    "local_cherry_pick": "c5ae59cb0",
+    "interface": "Each kernel independently invokes tasks::require_synchronous_drop only for actually live Direct Task Drop"
+  },
+  "checks": {
+    "async_registration_g8412": {
+      "passed": 3,
+      "failed": 0,
+      "source_neighbors": 13,
+      "raw_variants": 10,
+      "verify_raw_and_wire": true,
+      "generic_factory": "Pass",
+      "unused_generic_definitions": "Pass",
+      "early_explicit_finish_admission": "Pass; native CLOSED guard still required"
+    },
+    "public42_roles_and_unauthorized_candidates": {
+      "passed": 1,
+      "failed": 0,
+      "legal_unused_role_cases": 3,
+      "unauthorized_candidate_cases": 5,
+      "both_kernels_raw_and_wire": true
+    },
+    "old_sync_registration_source": {
+      "passed": 1,
+      "failed": 0
+    },
+    "old_sync_registration_raw_wire_budgets": {
+      "passed": 1,
+      "failed": 0
+    },
+    "strict_affected_clippy": "Pass",
+    "fmt": "Pass"
+  },
+  "async_exact_analysis_steps": {
+    "analyze": 6003,
+    "verify": 7922,
+    "n_minus_1": "ResourceLimit in each independent kernel",
+    "fresh_n": "Pass"
+  },
+  "commands": [
+    "cargo test -p zil-driver --test generic_regressions async_registration_g8412 --offline -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions public42_unused_roles_and_unauthorized_pollable_candidates_raw_and_wire --offline -- --nocapture",
+    "cargo test -p zil-driver --test generic_regressions registration343_raw_wire_and_exact_kernel_budgets --offline -- --exact --nocapture",
+    "cargo test -p zil-driver --test generic_regressions registration343_source_definition_moves_and_closed_environment_rejects --offline -- --exact --nocapture",
+    "cargo clippy -p zil-expand -p zil-types -p zil-analyze -p zil-verify -p zil-ct -p zil-driver --test generic_regressions --offline -- -D warnings",
+    "cargo fmt --all -- --check"
+  ],
+  "environment": {
+    "target_dir": "/workspace/.zil-env/target341",
+    "jobs": 2,
+    "debug": 0,
+    "incremental": false,
+    "strip": "symbols",
+    "default_limits_changed": false
+  },
+  "limits": [
+    "No formal full suite, main merge, or independent review claim.",
+    "No native pass is inferred from BackendUnsupported or the semantic fixtures.",
+    "Real Task PendingExit/drain/late-entry/no-future execution requires the separate combined G8.4.1.3 consumer.",
+    "CT changes only traverse existing type/recipe metadata; CT async execution remains forbidden and CT artifact5 encoding is unchanged.",
+    "Borrowed/Transfer/Share callback environment, nested pollable callback roots, ordinary Store/Package roots, and live TaskCreate pollable input are outside the first slice.",
+    "Same-semantics Rust runtime/RSS/compile/maintenance measurements and repeatable product net breakthrough remain unmeasured."
+  ]
+}

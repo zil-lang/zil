@@ -485,11 +485,6 @@ pub(super) fn hint_type(
     *nodes += 1;
     *work = work.checked_sub(1).ok_or_else(limit)?;
     match ty {
-        Type::AsyncRegistration { .. } => Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "pollable registration type consumer is not implemented",
-            None,
-        )]),
         Type::BorrowedStorage { storage, life } => {
             inventory::shape(life, depth + 1, nodes, work, limits)?;
             hint_type(storage, depth + 1, nodes, work, limits)?;
@@ -545,6 +540,7 @@ pub(super) fn hint_type(
             Ok(usable)
         }
         Type::Address { inner, .. }
+        | Type::AsyncRegistration { environment: inner }
         | Type::Registration { environment: inner }
         | Type::OwnedStore { element: inner }
         | Type::Slice { element: inner }
