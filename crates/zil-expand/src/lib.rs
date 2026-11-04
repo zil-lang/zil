@@ -258,9 +258,33 @@ pub fn expand_with_map_limits_target(
     limits: &Limits,
     target: &zil_base::TargetProfile,
 ) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target_impl(source, module, limits, target, None)
+}
+/// Explicit declaration naming/lineage input; this view grants no permissions.
+pub fn expand_with_map_limits_target_context(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<ExpandedModule> {
+    expand_with_map_limits_target_impl(source, module, limits, target, Some(context))
+}
+fn expand_with_map_limits_target_impl(
+    source: &SourceUnit,
+    module: &s::Module,
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: Option<source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<ExpandedModule> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = generics::specialize_products(module, limits, &mut products)?;
+    let specialized = generics::specialize_products_with_context(
+        module,
+        limits,
+        &mut products,
+        context.map(|context| (std::slice::from_ref(source), context)),
+    )?;
     let mut lower_limits = products.trait_limits(limits);
     let mut expanded = expand_inner(
         source,
@@ -474,9 +498,32 @@ pub fn expand_program_with_limits_target(
     limits: &Limits,
     target: &zil_base::TargetProfile,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, None)
+}
+/// The snapshot mode requires the complete original closed request. Explicit
+/// mode additionally supplies canonical logical module identities.
+pub fn expand_program_with_limits_target_context(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: source_context::SourceIdentityContext<'_>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
+    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, Some(context))
+}
+fn expand_program_with_limits_target_impl(
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
+    context: Option<source_context::SourceIdentityContext<'_>>,
+) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
-    let specialized = modules::specialize(sources, syntax, imports, limits, &mut products)?;
+    let specialized =
+        modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?;
     let project_modules: Vec<_> = specialized.iter().map(|(module, _)| module).collect();
     let declarations = declaration_index(project_modules.iter().copied());
     let mut result = Vec::new();
