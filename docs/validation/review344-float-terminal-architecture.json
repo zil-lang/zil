@@ -1,0 +1,44 @@
+{
+  "status": "PassLimited",
+  "reviewer": "/root/terminal_architecture",
+  "implementation_commit": "c81fafe43012600d553432d578c9c03ee5211f3c",
+  "production_commits": ["f6f698b0e747ee9e6bb9c8b00249177b27b9bc9d", "3f9670cb065fd6eb5d7279186d34b79b1585b1d7"],
+  "scope": "IEEE f32/f64 with the branch's u8/u16/i32/i64 integer domain, CT/raw-bit preservation, ordinary generic/aggregate/closure/fnptr consumers and the finite C scalar/POD ABI. UInt integration and anonymous sums are separate obligations.",
+  "identity": {
+    "production_rust_count": 306,
+    "production_rust_sha256": "142be3e26d9f1848f0274a046288c6610d9b12ba25f5c1404b099970e13213d6",
+    "production_algorithm": "Exact candidate Git blobs for crates/**/src/**/*.rs sorted by Python Path component order, each repository-relative UTF-8 path + NUL + bytes + NUL.",
+    "source_hashes": "Independently recomputed all four input and four harness source hashes listed in float_milestone; all match.",
+    "retained_harnesses": {
+      "/tmp/zil-terminal-review/aggregates-float-344": "49b496cc28114f1e63ae6293f2493c4dba629d14ce09cc73606776c040eaa7a4",
+      "/tmp/zil-terminal-review/driver-float-344": "58d985128a7818c196a3bcfaeb7cf9b2d4d6a74d0bc462df82ea6cc92eb688e4",
+      "/tmp/zil-terminal-review/ct-float-344": "b7340209bc2df67adf0d7c2c8abefa9088d2963d247f4f0b63461a47313fab75",
+      "/tmp/zil-terminal-review/base-float-344": "fb83b8aa261c3f5525597bf7b1b28113dd60ede4c9931843a7202b36e5662d18",
+      "/tmp/zil-terminal-review/machine-float-344": "acd5c1aeeb8e4268156fa05ec003e7c9da1183f812ba281a180854a70cc40bd8"
+    },
+    "binding": "All five retained harnesses match the committed receipt hashes and were copied before target reuse. Source and C fixture text are compiled into the test harnesses."
+  },
+  "independent_execution": {
+    "environment": "Sourced /workspace/.zil-env/env.sh; native temporary artifacts under /tmp/zil-terminal-review; no Cargo builds or added Cargo test targets.",
+    "runs": [
+      {"harness": "aggregates-float-344", "filter": "ieee_float_", "passed": 8, "failed": 0, "filtered": 60, "seconds": 1.55},
+      {"harness": "driver-float-344", "filter": "ieee_float_", "passed": 2, "failed": 0, "filtered": 79, "seconds": 0.01},
+      {"harness": "ct-float-344", "exact": "ct_artifact::tests::ieee_float_raw_artifact_constants_and_identity_casts_preserve_bits", "passed": 1, "failed": 0, "filtered": 36},
+      {"harness": "base-float-344", "filter": "numeric::tests", "passed": 2, "failed": 0, "filtered": 8},
+      {"harness": "machine-float-344", "filter": "ieee_float_bits_and_operations_have_distinct_machine_types", "passed": 1, "failed": 0, "filtered": 25}
+    ],
+    "native": "Three source fixtures times Clang/LlvmApi times O0/O2 produce 12 successful executions. Six invalid conversion expressions times four profiles produce 24 actual runtime trap executions. Typed C scalar/POD consumers and wrong-prototype controls execute at O0/O2; those C controls are ABI observations, not safe-source proofs.",
+    "boundaries": "Raw Typed and decoded-Wire wrong float/integer operator, conversion and width candidates reject; distinct zero/NaN bits retain identities; actual target range guards precede potentially poison-producing float-to-int casts. N=2189 accepts and N-1 rejects in warm/fresh sessions."
+  },
+  "source_review": [
+    "Binary32/64 decimal parsing and CT arithmetic use explicit software nearest-ties-even semantics, with quadratic decimal work paid before normalization/APFloat. LLVM operations carry no fast-math flags; ordered/unordered comparisons implement the stated NaN rules.",
+    "Float-to-integer conversion checks exact power-of-two lower/exclusive-upper bounds before fptosi/fptoui, then checks an exact roundtrip for integrality. Narrowing float conversion rejects finite-to-infinity overflow while retaining the specified exceptional-value categories.",
+    "Machine constants use raw-bit integer-to-float bitcasts in text and API paths; finite C float/double parameters/results and borrowed POD fields use their actual target types/layouts.",
+    "The review-discovered raw NaN reification defect is resolved: strict fixed-width lowercase generated @bits spellings lower directly to Core Constant, with bytes prepaid and no decimal parsing. Same-format CT conversion preserves the original bits. Source lexing cannot produce the generated spelling, and malformed generated AST still rejects.",
+    "Ten raw float values including noncanonical/signaling NaNs survive generated AST, ordinary kernels and Wire; raw artifact constant/identity-cast tests independently Verify before VM execution. These handcrafted artifacts do not substitute for source authentication evidence."
+  ],
+  "limitations": [
+    "Float conversions involving u64/usize require the combined340 consumer and mathematical-boundary tests; this exact candidate contains only the old integer set.",
+    "Anonymous tagged sums, broader special ABI reliability, native Windows and Rust product-cost gates remain incomplete. No reviewer workspace-wide or Clippy execution is claimed."
+  ]
+}
