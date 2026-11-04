@@ -1685,6 +1685,20 @@ impl FunctionEmitter<'_> {
                 value,
                 ordering,
             } => self.sync_i32(instruction, *op, *address, *value, *ordering)?,
+            InstructionKind::SyncI32CompareExchange {
+                address,
+                expected,
+                desired,
+                success,
+                failure,
+            } => self.sync_compare_exchange(
+                instruction,
+                *address,
+                *expected,
+                *desired,
+                *success,
+                *failure,
+            )?,
             InstructionKind::Constant(constant) => {
                 let result = result(instruction)?;
                 match constant {
