@@ -123,6 +123,7 @@ struct Materializer<'a, 'b> {
     previews: Vec<Preview>,
     required_imports: Vec<(ModuleId, CoreImport)>,
     runtime_scopes: Vec<BTreeSet<String>>,
+    data_source_scopes: Vec<super::execute::value_context::ValueSourceScope>,
     max_depth: usize,
 }
 
@@ -433,11 +434,14 @@ impl Materializer<'_, '_> {
         };
         let type_arg = |ty: s::TypeRef| s::GenericArg::Type(ty);
         let kind = match node {
-            CtTypeNode::BorrowedStorage { .. } => {
-                return Err(category(
-                    "stored-borrow Type needs a closed scoped source reconstruction",
-                    span,
-                ));
+            CtTypeNode::BorrowedStorage { storage, .. } => {
+                if !self.data_source_scopes.iter().any(|s| s.owner == id) {
+                    return Err(category(
+                        "stored-borrow Type has no genuine scoped source handle",
+                        span,
+                    ));
+                }
+                return self.owner_node(ty, *storage, caller, span, depth + 1);
             }
             CtTypeNode::Primitive(primitive) => named(
                 match primitive {
@@ -499,12 +503,92 @@ impl Materializer<'_, '_> {
                             depth + 1,
                         )?)),
                         CtTypeArgument::Lifetime(value) => {
+                            if let zil_ir::StorageBinder::Fixed(binder) = value.binder {
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(self.data_source_scopes.len() as u64)?;
+                                let scope = self
+                                    .data_source_scopes
+                                    .iter()
+                                    .find(|s| s.owner == value.owner)
+                                    .ok_or_else(|| {
+                                        runtime(
+                                            "fixed lifetime has no authentic source handle",
+                                            span,
+                                        )
+                                    })?;
+                                let ordinal =
+                                    *scope.parameters.get(binder as usize).ok_or_else(|| {
+                                        runtime("fixed lifetime source ordinal is absent", span)
+                                    })?;
+                                let definition = scope.definition.clone();
+                                fn name<'a>(
+                                    this: &'a Materializer<'_, '_>,
+                                    definition: &CtSymbolId,
+                                    ordinal: u32,
+                                    span: Span,
+                                ) -> CompileResult<&'a str> {
+                                    let (_, parsed) = this.parsed_source(definition.module)?;
+                                    let item = parsed
+                                        .module
+                                        .items
+                                        .get(definition.declaration.0 as usize)
+                                        .ok_or_else(|| {
+                                            runtime("source lifetime definition is absent", span)
+                                        })?;
+                                    if this
+                                        .environment
+                                        .index
+                                        .symbol_at(definition.module, item.span)
+                                        .as_ref()
+                                        != Some(definition)
+                                    {
+                                        return Err(runtime(
+                                            "source lifetime owner differs from its frozen declaration",
+                                            span,
+                                        ));
+                                    }
+                                    let s::ItemKind::Function(function) = &item.kind else {
+                                        return Err(category(
+                                            "source lifetime owner is not an original function",
+                                            span,
+                                        ));
+                                    };
+                                    let parameter = function
+                                        .generics
+                                        .get(ordinal as usize)
+                                        .ok_or_else(|| {
+                                            runtime("source lifetime full ordinal is absent", span)
+                                        })?;
+                                    if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                                        return Err(runtime(
+                                            "source lifetime full ordinal selects a different parameter kind",
+                                            span,
+                                        ));
+                                    }
+                                    Ok(&parameter.name)
+                                }
+                                self.environment.budget.reserve_analysis_work(
+                                    self.environment
+                                        .index
+                                        .symbol_lookup_work()
+                                        .saturating_add(self.sources.len() as u64)
+                                        .saturating_mul(2),
+                                )?;
+                                let length = name(self, &definition, ordinal, span)?.len();
+                                self.environment
+                                    .budget
+                                    .reserve_analysis_work(length as u64 + 1)?;
+                                self.environment
+                                    .budget
+                                    .reserve_temporary_bytes(length as u64)?;
+                                args.push(s::GenericArg::Lifetime(
+                                    name(self, &definition, ordinal, span)?.to_owned(),
+                                ));
+                                continue;
+                            }
                             let zil_ir::StorageBinder::Invocation(binder) = value.binder else {
-                                return Err(vec![Diagnostic::unsupported(
-                                    Phase::Ct,
-                                    "fixed lifetime spelling requires its genuine source context",
-                                    Some(span),
-                                )]);
+                                unreachable!()
                             };
                             let Some(CtTypeNode::BorrowedFunctionPointer { life, .. }) =
                                 ty.nodes.get(value.owner.0 as usize)
@@ -1764,6 +1848,7 @@ pub(crate) fn materialize(
         previews: Vec::new(),
         required_imports: Vec::new(),
         runtime_scopes: Vec::new(),
+        data_source_scopes: Vec::new(),
         max_depth: limits.max_call_depth,
     };
     for module in &mut output {
@@ -1912,3 +1997,81 @@ mod float_tests {
 
 #[path = "materialize_value.rs"]
 mod data_value;
+
+#[cfg(test)]
+mod scoped_tests {
+    use super::*;
+    fn run(text: &str) -> CompileResult<Materialized> {
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
+        let parsed = Arc::new(zil_syntax::parse(&source));
+        let syntax = &parsed.module;
+        materialize(
+            std::slice::from_ref(&source),
+            std::slice::from_ref(&parsed),
+            &[syntax],
+            &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &TargetProfile::host_llvm(),
+            &Limits::default(),
+            None,
+        )
+    }
+    #[test]
+    fn ct4_materialization_binds_original_full_lifetime_ordinal() {
+        let text = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        );
+        for (text, name) in [
+            (text.to_owned(), "s"),
+            (
+                text.replace("result<life s>", "result<T:Copy,life renamed>")
+                    .replace("'s", "'renamed")
+                    .replace("return result(&n)", "return result::<i32>(&n)"),
+                "renamed",
+            ),
+        ] {
+            let output = run(&text).unwrap();
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == "result" => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, value } = &value.kind else {
+                panic!("missing full type ascription {value:?}")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Record { fields, .. } = &value.kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { value, .. } = &fields[0].value.as_ref().unwrap().kind
+            else {
+                unreachable!()
+            };
+            assert!(matches!(&value.kind,s::ExprKind::Literal(s::Literal::Integer(n)) if n=="42"));
+            assert_eq!(args.len(), 1);
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual) if actual==name));
+            assert!(output.usage.analysis_work > 0);
+        }
+        let collision = "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}";
+        let errors = run(collision).err().expect("ambient collision must reject");
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("different ambient lifetimes")),
+            "{errors:?}"
+        );
+    }
+}
