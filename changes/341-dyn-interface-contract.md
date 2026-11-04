@@ -194,3 +194,11 @@ Bindings remain explicitly unsupported at module/trait semantic admission until
 their consumer exists. The existing three-package compile check reaches only
 the separately assigned Task/CT4/common constructor/lifetime adapters (and was
 not a successful build); actual dyn source/safety behavior is still unfinished.
+
+The Types adapter walks MakeDynBorrow.source and CallDynSlot.callee/arguments
+in the existing managed-slot, Product-use and capture-effect traversals. Its
+input type/closure preflight and scalar expression dispatcher reject the new
+unimplemented semantic operations before cloning them. Captured Dyn environments
+do not satisfy ClosedEnvironment. The targeted Types check after this adapter
+has15 remaining Task retained-shape errors on d2ad18d81, all separately assigned;
+there is no successful Types build or dyn source acceptance at this checkpoint.

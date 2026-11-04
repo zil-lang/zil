@@ -1623,6 +1623,12 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     fn expr_non_call(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         let result = match &e.kind {
+            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
+                return Err(unsupported(
+                    e.span,
+                    "dyn expression consumer is not yet implemented",
+                ));
+            }
             CoreExprKind::Literal(value) => {
                 foreign::check_literal(value, e.span)?;
                 self.constant(value.clone(), e.span)?
