@@ -62,6 +62,7 @@ pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
 #[derive(Clone)]
 struct Signature {
+    storage_life: Option<StorageLifeContract>,
     life: Option<FunctionLifeContract>,
     id: Option<FunctionId>,
     // Effective type bindings; state_parameter keeps their distinct owning source.
@@ -140,6 +141,23 @@ fn signatures(
                 f.span,
                 "stored-borrow generic, foreign or callable signature requires its definition consumer",
             )]);
+        }
+        if let Some(life) = &f.storage_life {
+            borrowed_fp::charge_contract(
+                life,
+                |cost| {
+                    foreign_work = foreign_work.checked_sub(cost).ok_or_else(|| {
+                        Diagnostic::limit(
+                            Phase::Types,
+                            "complete static signature budget exceeded",
+                            Some(f.span),
+                        )
+                    })?;
+                    Ok(())
+                },
+                1,
+            )
+            .map_err(|diagnostic| vec![diagnostic])?;
         }
         if let Some(life) = &f.life {
             foreign_work = foreign_work
@@ -232,6 +250,7 @@ fn signatures(
             .insert(
                 f.name.clone(),
                 Signature {
+                    storage_life: f.storage_life.clone(),
                     life: f.life.as_ref().map(borrowed_fp::from_life),
                     callable: state_origins::bounds(f).into_owned(),
                     state_parameter: f.state_parameters.first().cloned(),

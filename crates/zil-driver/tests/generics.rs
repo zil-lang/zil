@@ -1348,3 +1348,95 @@ fn generic_instance_growth_is_bounded_before_type_building() {
     assert_eq!(error[0].phase, Phase::Expand);
     assert_eq!(error[0].code, "E-RESOURCE-LIMIT");
 }
+
+include!("../../../tests/language-readiness/terminal/181/interface_source.rs");
+
+#[test]
+fn terminal_static_function_value_keeps_qualified_input_classes() {
+    use zil_driver::{CompilationSession, NativeBackend, Optimization};
+    let text = "struct Tag<life a>{n:i32} fn read<life a>(v:&Tag<'a>)->i32{return v.n} fn apply<life a>(p:&'a i32)->i32{let v:Tag<'a>=Tag::<'a>{n:*p};let f=read;return f(&v)} fn result()->i32{let n=42;return apply(&n)} fn main()->i32{return result()}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let bad = "struct Tag<life a>{n:i32} fn both<life a>(p:&Tag<'a>,q:&Tag<'a>)->i32{return p.n+q.n} fn bad<life a,life b>(p:&Tag<'a>,q:&Tag<'b>)->i32{let f=both;return f(p,q)} fn main()->i32{return 0}";
+    let report = compile_source(&source(bad), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let out = std::env::temp_dir().join(format!(
+                "zil-static-rich-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir(&out).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("result".into()),
+                    output: Some(out.join("program")),
+                    backend,
+                    optimization,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let actual = report.native_codegen.as_ref().unwrap();
+            assert_eq!(actual.backend, backend);
+            assert!(actual.fallback.is_none());
+            run(&report.artifacts["executable"], 42);
+            fs::remove_dir_all(out).unwrap();
+        }
+    }
+    let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+    let options = |steps| CompileOptions {
+        limits: zil_base::Limits {
+            max_analysis_steps: steps,
+            ..Default::default()
+        },
+        ..Default::default()
+    };
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let report = compile_source(&source(text), &options(mid));
+        match report.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (steps, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&source(text), &options(steps)),
+            compile_source(&source(text), &options(steps)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    eprintln!(
+        "static qualified pointer source Types/analysis whole request N={low}/N-1/warm/fresh"
+    );
+}
