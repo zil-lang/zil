@@ -381,8 +381,8 @@ impl<'a> Compiler<'a> {
                         let name = self.symbol(owner, item.span)?;
                         let mut schema_arguments = Vec::new();
                         for argument in &arguments {
-                            self.budget.copy_ty(argument, 0, ty.span)?;
-                            schema_arguments.push(CtSchemaArgument::Type(argument.clone()));
+                            let graph = self.metadata_data(argument, ty.span, depth + 1)?;
+                            schema_arguments.push(CtSchemaArgument::Type(graph));
                         }
                         self.record_sources.push((owner, a));
                         self.record_arguments.push(arguments);
@@ -475,7 +475,7 @@ impl<'a> Compiler<'a> {
             }
         })
     }
-    fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
+    pub(super) fn fixed_length(&mut self, expression: &s::Expr) -> R<u32> {
         self.budget.work(1, expression.span)?;
         if let s::ExprKind::Literal(s::Literal::Integer(text)) = &expression.kind {
             self.budget.text(text, expression.span)?;
