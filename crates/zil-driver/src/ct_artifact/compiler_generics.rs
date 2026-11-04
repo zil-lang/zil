@@ -464,7 +464,7 @@ impl<'a> Compiler<'a> {
             }
             self.ensure_generic_definition(index)?;
             self.budget.node(d.item.span)?;
-            definitions.push(self.symbol(d.module, d.item.span)?);
+            definitions.push(self.item_symbol(d.module, d.item)?);
         }
         self.drain_symbolic()?;
         self.checking_generics = false;

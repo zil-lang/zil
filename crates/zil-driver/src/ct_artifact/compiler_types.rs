@@ -464,7 +464,7 @@ impl<'a> Compiler<'a> {
                         }
                         self.budget.node(ty.span)?;
                         let id = CtRecordSchemaId(self.records.len() as u32);
-                        let name = self.symbol(owner, item.span)?;
+                        let name = self.item_symbol(owner, item)?;
                         let mut schema_arguments = Vec::new();
                         if !self.checking_generics {
                             for argument in &arguments {
@@ -532,7 +532,7 @@ impl<'a> Compiler<'a> {
                         }
                         self.budget.node(ty.span)?;
                         let id = CtEnumSchemaId(self.enums.len() as u32);
-                        let name = self.symbol(owner, item.span)?;
+                        let name = self.item_symbol(owner, item)?;
                         self.enum_sources.push((owner, e));
                         self.enums.push(CtEnumSchema {
                             life_context: None,

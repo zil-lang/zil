@@ -2232,6 +2232,99 @@ mod scoped_tests {
         )
     }
     #[test]
+    fn ct5_shared_function_spans_keep_actual_lifetime_owners_through_verify() {
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "shared-scope-spans.zil",
+            "struct Phantom<life s>{n:i32} fn scalar(t:Type,n:i32)->i32{return n} fn first<life left>(p:&'left i32)->i32{let value:Phantom<'left>=#(Phantom::<'left>{n:scalar(i32,42)});return value.n} fn second<life right>(p:&'right i32)->i32{let value:Phantom<'right>=#(Phantom::<'right>{n:scalar(i32,42)});return value.n} fn main()->i32{let n=0;return first(&n)+second(&n)-42}",
+        );
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let shared = parsed.module.span;
+        parsed.module.items[2].span = shared;
+        parsed.module.items[3].span = shared;
+        let parsed = Arc::new(parsed);
+        let sources = std::slice::from_ref(&source);
+        let syntax = [&parsed.module];
+        let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let output = materialize(
+            sources,
+            std::slice::from_ref(&parsed),
+            &syntax,
+            &paths,
+            &[vec![]],
+            ModuleId(0),
+            source.fingerprint(),
+            &target,
+            &limits,
+            None,
+            true,
+        )
+        .unwrap();
+        for (name, lifetime) in [("first", "left"), ("second", "right")] {
+            let function = output.modules[0]
+                .items
+                .iter()
+                .find_map(|item| match &item.kind {
+                    s::ItemKind::Function(function) if function.name == name => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let s::FunctionBody::Block(block) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::Ascribed { ty, .. } = &value.kind else {
+                panic!("scoped value lost ascription")
+            };
+            let s::TypeKind::Named { args, .. } = &ty.kind else {
+                unreachable!()
+            };
+            assert!(matches!(&args[0],s::GenericArg::Lifetime(actual)if actual==lifetime));
+        }
+        let origins = output.declaration_origins.as_ref().unwrap();
+        let refs = output.modules.iter().collect::<Vec<_>>();
+        let expanded = zil_expand::expand_program_with_limits_target_context(
+            sources,
+            &refs,
+            &[vec![]],
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Aligned(origins),
+            },
+        )
+        .unwrap();
+        let core = zil_ir::CoreProgram {
+            root: ModuleId(0),
+            source_fingerprint: source.fingerprint(),
+            modules: expanded
+                .into_iter()
+                .map(|(module, _)| zil_ir::ProgramModule {
+                    core: module.core,
+                    imports: module.imports,
+                    exports: module.exports,
+                })
+                .collect(),
+        };
+        let typed = zil_types::check_program(&core, &target, &limits).unwrap();
+        let candidate = zil_analyze::analyze_program(&typed, &limits).unwrap();
+        zil_verify::verify_shared_program_module(
+            Arc::new(typed),
+            Arc::new(candidate),
+            &target,
+            &limits,
+        )
+        .unwrap();
+    }
+    #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
         let text = include_str!(
             "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
@@ -2279,13 +2372,8 @@ mod scoped_tests {
             assert!(output.usage.analysis_work > 0);
         }
         let collision = "struct Phantom<life a>{n:i32}fn scalar(t:Type,n:i32)->i32{return n}fn value<life a,life b>(pa:&'a i32,pb:&'b i32){let pair=#((Phantom::<'a>{n:scalar(i32,1)},Phantom::<'b>{n:scalar(i32,2)}))}";
-        let errors = run(collision).err().expect("ambient collision must reject");
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("different ambient lifetimes")),
-            "{errors:?}"
-        );
+        let output = run(collision).expect("CT5 preserves both full original lifetime ordinals");
+        assert!(output.declaration_origins.is_some());
     }
     #[test]
     fn ct4_materialization_scope_work_is_exact_and_request_local() {

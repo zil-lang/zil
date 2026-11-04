@@ -263,7 +263,7 @@ impl<'a> Compiler<'a> {
                 _ => return Err(error(span, "closed nominal actual kind differs")),
             }
         }
-        let name = self.symbol(owner, item.span)?;
+        let name = self.item_symbol(owner, item)?;
         let record = matches!(item.kind, s::ItemKind::Aggregate(_));
         let len = if record {
             self.records.len()
