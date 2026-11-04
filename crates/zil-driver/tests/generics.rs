@@ -2470,3 +2470,64 @@ fn g3_3_1_source_class_work_has_exact_fresh_and_warm_limits() {
         eprintln!("G3.3.1 {label} source-through-Lower N={low}/N-1/fresh/warm");
     }
 }
+
+#[test]
+fn g3_3_1_repeated_host_headers_prepay_each_method_before_the_existing_fence() {
+    let mut boundaries = Vec::new();
+    for width in [16, 64] {
+        let names = (0..width)
+            .map(|n| format!("life h{n}"))
+            .collect::<Vec<_>>()
+            .join(",");
+        let methods = (0..8)
+            .map(|n| format!("fn inspect{n}(self:Self)->i32{{return 0}}"))
+            .collect::<String>();
+        let text = format!("struct Reader<{names}>{{{methods}}}fn main()->i32{{return 42}}");
+        let options = |steps| CompileOptions {
+            limits: zil_base::Limits {
+                max_analysis_steps: steps,
+                ..Default::default()
+            },
+            ..Default::default()
+        };
+        let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&source(&text), &options(mid));
+            match report.status {
+                ResultCategory::Unsupported => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        let mut session = zil_driver::CompilationSession::default();
+        for (steps, expected) in [
+            (low, ResultCategory::Unsupported),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Unsupported),
+        ] {
+            for report in [
+                compile_source(&source(&text), &options(steps)),
+                session.compile_source(&source(&text), &options(steps)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                assert_eq!(report.phase, Phase::Expand);
+                if expected == ResultCategory::Unsupported {
+                    assert!(
+                        report.diagnostics.iter().any(|d| d
+                            .message
+                            .contains("generic resource or methods require capability resolution")),
+                        "{}",
+                        report.to_json()
+                    );
+                }
+            }
+            assert_eq!(session.active_query_count(), 0);
+        }
+        eprintln!(
+            "G3.3.1 inherited host width={width}, methods=8 request N={low}/N-1/fresh/warm into existing Unsupported fence"
+        );
+        boundaries.push(low);
+    }
+    assert!(boundaries[1] > boundaries[0]);
+}

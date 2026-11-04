@@ -1067,6 +1067,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
                 }
                 ItemKind::Impl(i) => {
+                    budget.identity_work(i.generics.len(), item.span)?;
                     if i.generics
                         .iter()
                         .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
@@ -1079,6 +1080,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     inventory(&i.members, found, host, false, budget, depth + 1)?;
                 }
                 ItemKind::Trait(t) => {
+                    budget.identity_work(t.generics.len(), item.span)?;
                     if t.generics
                         .iter()
                         .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
@@ -1113,12 +1115,15 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     for owner in 0..check.functions.len() {
         let f = check.functions[owner];
         check.pay(f.span, f.generics.len())?;
-        let inherited = check.hosts[owner].is_some_and(|h| {
+        let inherited = if let Some(h) = check.hosts[owner] {
+            check.pay(f.span, check.records[h].generics.len())?;
             check.records[h]
                 .generics
                 .iter()
                 .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
-        });
+        } else {
+            false
+        };
         if !inherited
             && !f
                 .generics

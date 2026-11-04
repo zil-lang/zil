@@ -14,10 +14,10 @@
     ]
   },
   "write_set_sha256": {
-    "crates/zil-expand/src/generic_source_life.rs": "a1146b7dcbed0c5e4d83266794556672fcec7052b1b62cdb3bc63181e1991c9d",
+    "crates/zil-expand/src/generic_source_life.rs": "9f9c16200f9483e9aaf32a9fbcfc1f0308426bf4de304e34a35c0d452624d896",
     "crates/zil-expand/src/generic_alias.rs": "2155cd9773b52ee97392fc43ea9ad059dc5f0542d698969845e013122ab32b29",
     "crates/zil-expand/src/generics.rs": "71a7a960c38d80f880a4c6f815f6f0a26d2f8ecdac9ccceb792166ffedf4db69",
-    "crates/zil-driver/tests/generics.rs": "1f011803040403eec030ad835b0eb5a7712fd0d92407aee99dcfb48d9f84f1bf"
+    "crates/zil-driver/tests/generics.rs": "9aafa1b0157fdb611a9ea83f073d8525260ac6f381bc383f2909af4a3a5d1364"
   },
   "original_8477": {
     "ordinary-phantom": {
@@ -41,7 +41,8 @@
     "identity": "borrowed actual declaration slot plus original full generic ordinal; method host and own function have separate owner domains",
     "obligation": "persistent nominal classes invariant; ordinary outer address uppers may intersect; unknown qualified facts cannot discharge required source classes",
     "kernels": "no Core/Typed/Wire authority bit, no kernel bypass, no default budget change; accepted sources continue through Types/Analyze/Verify",
-    "alias": "enter actual function lifetime generic scope for alias actual normalization"
+    "alias": "enter actual function lifetime generic scope for alias actual normalization",
+    "header_accounting": "Each Impl/Trait generic any scan and each method inherited-host generic any scan prepays its full borrowed header length on the same budget, independently of previous syntax walks."
   },
   "commands": [
     "cargo test -p zil-driver --test generics --features llvm-api -j2",
@@ -52,11 +53,11 @@
   ],
   "results": {
     "generics": {
-      "passed": 42,
+      "passed": 43,
       "failed": 0
     },
     "new_selected": {
-      "passed": 6,
+      "passed": 7,
       "failed": 0,
       "native_executions": 56,
       "backends": [
@@ -84,7 +85,22 @@
       "current": "Expand ResourceLimit, normal exit; generated exact original 512-wrap source in committed existing test"
     },
     "unused_aggregate_method": "wrong source annotation SafeReject/Expand E-GENERIC-ARGUMENT; correct own-life method Verify Success",
-    "ordinary_borrow": "borrow-return and reborrow helpers accepted; shared upper intersection with only scalar observation accepted; forcing unknown intersection into a/b annotation Unsupported"
+    "ordinary_borrow": "borrow-return and reborrow helpers accepted; shared upper intersection with only scalar observation accepted; forcing unknown intersection into a/b annotation Unsupported",
+    "repeated_host_header_fee": {
+      "method_count": 8,
+      "host_generic_widths": [
+        16,
+        64
+      ],
+      "exact_analysis_step_N": [
+        4119,
+        20055
+      ],
+      "at_N": "existing Expand Unsupported generic resource or methods require capability resolution",
+      "at_N_minus_1": "Expand ResourceLimit",
+      "fresh_warm_retry": true,
+      "acceptance_claim": false
+    }
   },
   "limits": [
     "Private source relation repair; not general type inference or loan authority",
@@ -128,5 +144,9 @@
       "verification_runs": 1
     }
   },
-  "historical_comparison": "8477 ordinary/direct CT wrongly accepted; projection originally stopped at CT schema fence. d1 composed removes that independent fence and exposes projection wrong-class acceptance too. M37 rejected the lifetime generic syntax at Parse, so is not an older acceptance witness."
+  "historical_comparison": "8477 ordinary/direct CT wrongly accepted; projection originally stopped at CT schema fence. d1 composed removes that independent fence and exposes projection wrong-class acceptance too. M37 rejected the lifetime generic syntax at Parse, so is not an older acceptance witness.",
+  "previous_checkpoint": {
+    "sha": "a4aa0179a85dd304a883d8c7400a275da8b5ba8c",
+    "result": "independently functional Pass; repeated Impl/Trait/host-header scanning fees subsequently confirmed incomplete, so not final accounting acceptance"
+  }
 }
