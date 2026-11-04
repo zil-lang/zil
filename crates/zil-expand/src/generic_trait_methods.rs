@@ -778,6 +778,9 @@ impl Engine<'_> {
         let Some(actual) = actual else { return Ok(()) };
         let actual = self.original_type(&actual)?;
         let host = projection_shape(&actual);
+        if dynamic::is_interface(host) {
+            return Ok(());
+        }
         let captured = self
             .method_calls
             .remove(&(member_expr as *const Expr as usize));

@@ -287,4 +287,11 @@ checks. Full llvm-api targeted suites pass23+59; Clippy and Expand test build
 pass. Current request work/node boundaries: method69941/10121,
 no-outer9204/2667, type-growth15862/4038, const-growth16238/4034, with N-1,
 cold/warm/fresh/persisted controls and unchanged limits. This corrective
-checkpoint remains bounded and awaits independent exact review.
+checkpoint remains bounded. Independent exact review d556e0ece passes20/0,
+matches production/test/harness hashes and closes the earlier wrong-dispatch
+finding for e5b3e9ae6; combined root replay remains separate.
+
+The next dyn source catalog is explicitly WIP. See
+changes/341-dyn-interface-contract.md for the actual external public39 patch,
+raw transport checks and remaining ordinary/downstream consumers. Data-model
+or Unsupported results do not promote the pending dyn source to acceptance.

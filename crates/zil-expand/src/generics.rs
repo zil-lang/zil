@@ -40,6 +40,7 @@ pub(super) mod store_templates;
 mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
+pub(super) use trait_bounds::dynamic;
 #[path = "generic_trait_defaults.rs"]
 pub(super) mod trait_defaults;
 #[path = "generic_trait_impls.rs"]
@@ -161,7 +162,7 @@ fn specialize_products_prepared<'a>(
             }
         }
     }
-    if has_generic_methods {
+    if has_generic_methods || names_budget.has_dynamic() {
         if let Some(origins) = &mut products.origins {
             if inserted_option {
                 origins
@@ -250,6 +251,7 @@ fn specialize_products_prepared<'a>(
                 .iter()
                 .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
             && !names_budget.has_enum_profiles()
+            && !names_budget.has_dynamic()
         {
             return Ok(Cow::Owned(normalized.module));
         }
@@ -274,6 +276,7 @@ fn specialize_products_prepared<'a>(
             .iter()
             .any(|item| matches!(&item.kind,ItemKind::Trait(t) if !t.generics.is_empty()))
         && !names_budget.has_enum_profiles()
+        && !names_budget.has_dynamic()
     {
         return Ok(Cow::Borrowed(module));
     }
@@ -689,6 +692,14 @@ impl<'a> Engine<'a> {
             }
         }
         helper_dependencies.check(&mut engine.budget)?;
+        if engine.budget.has_dynamic() {
+            engine.products.dynamic = dynamic::collect(
+                module,
+                &engine.traits,
+                origins.ok_or_else(|| error(module.span, "dyn source provenance absent"))?,
+                &mut engine.budget,
+            )?;
+        }
         Ok(engine)
     }
     fn tick(&mut self, span: Span, depth: usize) -> R<()> {
@@ -2109,6 +2120,13 @@ impl<'a> Engine<'a> {
                     }
                     if let Some(actual) = hint {
                         let actual = self.original_type(&actual)?;
+                        trait_signature = self.products.dynamic.method(
+                            &self.traits,
+                            projection_shape(&actual),
+                            member,
+                            &mut self.budget,
+                            callee.span,
+                        )?;
                         if let Some(host) = trait_bounds::plain(projection_shape(&actual))
                             && let Some((target, signature)) = self.traits.concrete_method(
                                 host,
@@ -2133,6 +2151,7 @@ impl<'a> Engine<'a> {
                         }
                         if trait_signature.is_none()
                             && !self.traits.recipes.is_empty()
+                            && !dynamic::is_interface(projection_shape(&actual))
                             && let Some((target, signature, witness)) = self.traits.recipe_method(
                                 projection_shape(&actual),
                                 member,
