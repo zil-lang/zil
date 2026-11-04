@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate construction contracts only; never claims ZIL implementation success."""
+"""Validate engineering contracts; does not read the live goal board or check all development branches."""
 from pathlib import Path
 import argparse
 import copy
@@ -222,14 +222,16 @@ def validate(root, tasks, interfaces, plans, conformance=None, allow_pending=Fal
                     errors.append(f'{tid}: invalid evidence {name}: {ex}')
             require(set(t['plan_case_ids'] + t.get('case_ids', [])) <= observed, f'{tid}: Done has missing actual case executions')
     return {
-        'scope': 'Construction plan consistency only; not compiler, language-safety or product acceptance.',
+        'scope': 'Engineering-contract record consistency only; does not read the live goal board or check all development branches. Not compiler, language-safety or product acceptance.',
+        'live_plan_checked': False,
+        'development_branches_checked': False,
         'ok': not errors,
         'tasks': len(tasks),
         'protocol_case_requirements': len(cases),
         'conformance_sources': len(conformance_by),
         'registered_artifacts': len(amap),
         'unordered_task_pairs_checked': len(parallel_pairs),
-        'ready_tasks': [t['id'] for t in tasks if t.get('status') == 'Ready'],
+        'recorded_ready_tasks': [t['id'] for t in tasks if t.get('status') == 'Ready'],
         'errors': errors,
         'warnings': warnings,
     }
