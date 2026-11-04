@@ -1693,210 +1693,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                     t,
                 )
             }
-            CoreExprKind::Call { callee, arguments } => {
-                if let CoreExprKind::TypeApply {
-                    callee: target,
-                    type_arguments,
-                } = &callee.kind
-                {
-                    return self.call_type_template(
-                        target,
-                        type_arguments,
-                        arguments,
-                        expected,
-                        e.span,
-                    );
-                }
-                if let Some(name) = dynamic_store::primitive(callee) {
-                    return self.dynamic_store_call(name, arguments, expected, e.span);
-                }
-                if let Some(name) = byte_buffer::primitive(callee) {
-                    return self.byte_buffer_call(name, arguments, expected, e.span);
-                }
-                if let CoreExprKind::Member {
-                    object,
-                    member,
-                    owner,
-                } = &callee.kind
-                    && member == "len"
-                    && self
-                        .known_type(object)
-                        .is_some_and(|ty| ty.is_slice_address())
-                {
-                    if !arguments.is_empty() {
-                        return Err(error(
-                            "E-CALL-ARITY",
-                            e.span,
-                            "slice len requires no arguments",
-                        ));
-                    }
-                    let (address, ty) = self.expr(object, None)?;
-                    if !ty.is_slice_address() {
-                        return Err(error(
-                            "E-SLICE-TYPE",
-                            object.span,
-                            "slice len requires a borrowed slice",
-                        ));
-                    }
-                    self.member_owner(&ty, owner.as_ref(), callee.span)?;
-                    let value =
-                        self.value(InstructionKind::SliceLength { address }, Type::I64, e.span)?;
-                    if let Some(expected) = expected {
-                        self.same(&Type::I64, expected, e.span)?;
-                    }
-                    return Ok((value, Type::I64));
-                }
-                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
-                    return self.with_scoped_thread(arguments, expected, e.span);
-                }
-                if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
-                    return self.with_foreign_callback(arguments, expected, e.span);
-                }
-                if foreign::callback_constructor(callee) {
-                    return self.foreign_callback(arguments, e.span);
-                }
-                if let Some((ty, variant)) = self.enum_constructor(callee)? {
-                    return self.make_variant(&ty, variant, arguments, expected, e.span);
-                }
-                if let CoreExprKind::Member {
-                    object,
-                    member,
-                    owner,
-                } = &callee.kind
-                    && let Some(signature) = self.method_signature(object, member).cloned()
-                {
-                    return self.method_call(
-                        object,
-                        arguments,
-                        &signature,
-                        owner.as_ref(),
-                        expected,
-                        e.span,
-                    );
-                }
-                let direct = match &callee.kind {
-                    CoreExprKind::Name(name) => self.lookup(name).is_none(),
-                    CoreExprKind::Member { object, .. } => matches!(
-                        &object.kind,
-                        CoreExprKind::Name(name) if self.lookup(name).is_none()
-                    ),
-                    _ => false,
-                };
-                if !direct {
-                    return self.call_closure(callee, arguments, expected, e.span);
-                }
-                let signature = self.resolve_callee(callee)?.clone();
-                if signature.type_parameter.is_some() {
-                    return self
-                        .call_inferred_type_template(signature, arguments, expected, e.span);
-                }
-                if signature.callable_return.is_some()
-                    && signature.callable.is_empty()
-                    && matches!(signature.result, Type::Opaque { .. })
-                {
-                    return Err(unsupported(
-                        e.span,
-                        "callable factory result identity has not been resolved",
-                    ));
-                }
-                if !signature.callable.is_empty() {
-                    return self.call_helper(&signature, arguments, expected, e.span);
-                }
-                if arguments.len() != signature.parameters.len() {
-                    return Err(error(
-                        "E-CALL-ARITY",
-                        e.span,
-                        format!(
-                            "{} arguments required, {} supplied",
-                            signature.parameters.len(),
-                            arguments.len()
-                        ),
-                    ));
-                }
-                let mut values = vec![];
-                for (a, t) in arguments.iter().zip(&signature.parameters) {
-                    let (v, actual) = self.argument_expr(a, t)?;
-                    self.same(&actual, t, a.span)?;
-                    values.push(self.stage_argument(v, &actual, a.span)?)
-                }
-                let values = self.commit_arguments(values, e.span)?;
-                let call = self.direct_call(&signature, values, e.span)?;
-                if signature.result == Type::Unit {
-                    self.emit(call, None, e.span)?;
-                    self.constant(Constant::Unit, e.span)?
-                } else {
-                    let id = self.value(call, signature.result.clone(), e.span)?;
-                    (id, signature.result)
-                }
-            }
-            CoreExprKind::If {
-                condition,
-                then_value,
-                else_value,
-            } => {
-                let condition_temps = self.resource_temps.len();
-                let (c, t) = self.expr(condition, Some(&Type::Bool))?;
-                self.same(&t, &Type::Bool, condition.span)?;
-                // The condition has its own temporary scope. A preceding
-                // argument of the enclosing call must remain alive until that
-                // call completes.
-                self.finish_resource_temps_from(condition_temps, condition.span)?;
-                let tb = self.block_id()?;
-                let eb = self.block_id()?;
-                let join = self.block_id()?;
-                self.terminate(Terminator::Branch {
-                    condition: c,
-                    then_block: tb,
-                    else_block: eb,
-                });
-                self.current = Some(tb);
-                let (tv, tt) = self.transfer_expr(then_value, expected)?;
-                let result = self.temp(tt.clone(), e.span)?;
-                self.store(result, tv, e.span)?;
-                self.terminate(Terminator::Jump(join));
-                self.current = Some(eb);
-                let (ev, et) = self.transfer_expr(else_value, Some(&tt))?;
-                self.same(&et, &tt, else_value.span)?;
-                self.store(result, ev, e.span)?;
-                self.terminate(Terminator::Jump(join));
-                self.current = Some(join);
-                (
-                    self.value(
-                        if self.affine_type(&tt) || matches!(tt, Type::Managed(_)) {
-                            InstructionKind::TakeLocal { local: result }
-                        } else {
-                            InstructionKind::Load(result)
-                        },
-                        tt.clone(),
-                        e.span,
-                    )?,
-                    tt,
-                )
-            }
-            CoreExprKind::Sequence { bindings, value } => {
-                self.push_scope(e.span)?;
-                let mut hints = self.sequence_hints(value);
-                for (name, v) in bindings {
-                    if hints.is_empty() {
-                        hints = self.sequence_hints(value);
-                    }
-                    let (id, ty) = if hints
-                        .get(name)
-                        .is_some_and(|ty| matches!(ty, Type::Closure(_)))
-                    {
-                        self.owned_array_input(v, hints.get(name))?
-                    } else {
-                        self.expr(v, hints.get(name))?
-                    };
-                    let l = self.local(name, ty, false, v.span)?;
-                    self.sequenced_values.insert(l);
-                    self.store(l, id, v.span)?
-                }
-                let result = self.expr(value, expected)?;
-                self.end_scopes(self.scopes.len() - 1, e.span)?;
-                self.pop_scope();
-                result
-            }
+            CoreExprKind::Call { .. } => return self.expr_call_body(e, expected),
+            CoreExprKind::If { .. } => return self.expr_if_body(e, expected),
+            CoreExprKind::Sequence { .. } => return self.expr_sequence_body(e, expected),
             CoreExprKind::Closure {
                 move_capture,
                 parameters,
@@ -1949,6 +1748,243 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         Ok(result)
     }
+    #[inline(never)]
+    fn expr_call_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Call { callee, arguments } = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let result = {
+            if let CoreExprKind::TypeApply {
+                callee: target,
+                type_arguments,
+            } = &callee.kind
+            {
+                return self.call_type_template(
+                    target,
+                    type_arguments,
+                    arguments,
+                    expected,
+                    e.span,
+                );
+            }
+            if let Some(name) = dynamic_store::primitive(callee) {
+                return self.dynamic_store_call(name, arguments, expected, e.span);
+            }
+            if let Some(name) = byte_buffer::primitive(callee) {
+                return self.byte_buffer_call(name, arguments, expected, e.span);
+            }
+            if let CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } = &callee.kind
+                && member == "len"
+                && self
+                    .known_type(object)
+                    .is_some_and(|ty| ty.is_slice_address())
+            {
+                if !arguments.is_empty() {
+                    return Err(error(
+                        "E-CALL-ARITY",
+                        e.span,
+                        "slice len requires no arguments",
+                    ));
+                }
+                let (address, ty) = self.expr(object, None)?;
+                if !ty.is_slice_address() {
+                    return Err(error(
+                        "E-SLICE-TYPE",
+                        object.span,
+                        "slice len requires a borrowed slice",
+                    ));
+                }
+                self.member_owner(&ty, owner.as_ref(), callee.span)?;
+                let value =
+                    self.value(InstructionKind::SliceLength { address }, Type::I64, e.span)?;
+                if let Some(expected) = expected {
+                    self.same(&Type::I64, expected, e.span)?;
+                }
+                return Ok((value, Type::I64));
+            }
+            if matches!(&callee.kind,CoreExprKind::Name(name) if name=="thread_scope") {
+                return self.with_scoped_thread(arguments, expected, e.span);
+            }
+            if matches!(&callee.kind,CoreExprKind::Name(name) if name=="c_with_callback") {
+                return self.with_foreign_callback(arguments, expected, e.span);
+            }
+            if foreign::callback_constructor(callee) {
+                return self.foreign_callback(arguments, e.span);
+            }
+            if let Some((ty, variant)) = self.enum_constructor(callee)? {
+                return self.make_variant(&ty, variant, arguments, expected, e.span);
+            }
+            if let CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } = &callee.kind
+                && let Some(signature) = self.method_signature(object, member).cloned()
+            {
+                return self.method_call(
+                    object,
+                    arguments,
+                    &signature,
+                    owner.as_ref(),
+                    expected,
+                    e.span,
+                );
+            }
+            let direct = match &callee.kind {
+                CoreExprKind::Name(name) => self.lookup(name).is_none(),
+                CoreExprKind::Member { object, .. } => matches!(
+                    &object.kind,
+                    CoreExprKind::Name(name) if self.lookup(name).is_none()
+                ),
+                _ => false,
+            };
+            if !direct {
+                return self.call_closure(callee, arguments, expected, e.span);
+            }
+            let signature = self.resolve_callee(callee)?.clone();
+            if signature.type_parameter.is_some() {
+                return self.call_inferred_type_template(signature, arguments, expected, e.span);
+            }
+            if signature.callable_return.is_some()
+                && signature.callable.is_empty()
+                && matches!(signature.result, Type::Opaque { .. })
+            {
+                return Err(unsupported(
+                    e.span,
+                    "callable factory result identity has not been resolved",
+                ));
+            }
+            if !signature.callable.is_empty() {
+                return self.call_helper(&signature, arguments, expected, e.span);
+            }
+            if arguments.len() != signature.parameters.len() {
+                return Err(error(
+                    "E-CALL-ARITY",
+                    e.span,
+                    format!(
+                        "{} arguments required, {} supplied",
+                        signature.parameters.len(),
+                        arguments.len()
+                    ),
+                ));
+            }
+            let mut values = vec![];
+            for (a, t) in arguments.iter().zip(&signature.parameters) {
+                let (v, actual) = self.argument_expr(a, t)?;
+                self.same(&actual, t, a.span)?;
+                values.push(self.stage_argument(v, &actual, a.span)?)
+            }
+            let values = self.commit_arguments(values, e.span)?;
+            let call = self.direct_call(&signature, values, e.span)?;
+            if signature.result == Type::Unit {
+                self.emit(call, None, e.span)?;
+                self.constant(Constant::Unit, e.span)?
+            } else {
+                let id = self.value(call, signature.result.clone(), e.span)?;
+                (id, signature.result)
+            }
+        };
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, e.span)?;
+        }
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_if_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::If {
+            condition,
+            then_value,
+            else_value,
+        } = &e.kind
+        else {
+            unreachable!("expression dispatcher variant")
+        };
+        let result = {
+            let condition_temps = self.resource_temps.len();
+            let (c, t) = self.expr(condition, Some(&Type::Bool))?;
+            self.same(&t, &Type::Bool, condition.span)?;
+            // The condition has its own temporary scope. A preceding
+            // argument of the enclosing call must remain alive until that
+            // call completes.
+            self.finish_resource_temps_from(condition_temps, condition.span)?;
+            let tb = self.block_id()?;
+            let eb = self.block_id()?;
+            let join = self.block_id()?;
+            self.terminate(Terminator::Branch {
+                condition: c,
+                then_block: tb,
+                else_block: eb,
+            });
+            self.current = Some(tb);
+            let (tv, tt) = self.transfer_expr(then_value, expected)?;
+            let result = self.temp(tt.clone(), e.span)?;
+            self.store(result, tv, e.span)?;
+            self.terminate(Terminator::Jump(join));
+            self.current = Some(eb);
+            let (ev, et) = self.transfer_expr(else_value, Some(&tt))?;
+            self.same(&et, &tt, else_value.span)?;
+            self.store(result, ev, e.span)?;
+            self.terminate(Terminator::Jump(join));
+            self.current = Some(join);
+            (
+                self.value(
+                    if self.affine_type(&tt) || matches!(tt, Type::Managed(_)) {
+                        InstructionKind::TakeLocal { local: result }
+                    } else {
+                        InstructionKind::Load(result)
+                    },
+                    tt.clone(),
+                    e.span,
+                )?,
+                tt,
+            )
+        };
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, e.span)?;
+        }
+        Ok(result)
+    }
+
+    #[inline(never)]
+    fn expr_sequence_body(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        let CoreExprKind::Sequence { bindings, value } = &e.kind else {
+            unreachable!("expression dispatcher variant")
+        };
+        let result = {
+            self.push_scope(e.span)?;
+            let mut hints = self.sequence_hints(value);
+            for (name, v) in bindings {
+                if hints.is_empty() {
+                    hints = self.sequence_hints(value);
+                }
+                let (id, ty) = if hints
+                    .get(name)
+                    .is_some_and(|ty| matches!(ty, Type::Closure(_)))
+                {
+                    self.owned_array_input(v, hints.get(name))?
+                } else {
+                    self.expr(v, hints.get(name))?
+                };
+                let l = self.local(name, ty, false, v.span)?;
+                self.sequenced_values.insert(l);
+                self.store(l, id, v.span)?
+            }
+            let result = self.expr(value, expected)?;
+            self.end_scopes(self.scopes.len() - 1, e.span)?;
+            self.pop_scope();
+            result
+        };
+        if let Some(expected) = expected {
+            self.same(&result.1, expected, e.span)?;
+        }
+        Ok(result)
+    }
+
     /// An owning capture still reads a Copy leaf without taking its inline
     /// Product prefixes. The whole environment retains its original cleanup.
     fn captured_product_copy_projection(
