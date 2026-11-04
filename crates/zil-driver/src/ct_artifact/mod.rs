@@ -2,6 +2,7 @@
 //! verification authority; the verifier checks them against frozen source.
 mod authority;
 mod compiler;
+mod contextual_key;
 mod execute;
 mod hygiene;
 mod input;

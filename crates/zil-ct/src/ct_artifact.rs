@@ -52,6 +52,10 @@ impl CtExecutionBudget {
             value_bytes(value).saturating_add(std::mem::size_of::<CtValue>() as u64),
         );
     }
+    /// Drop the returned normalization buffer after its data consumer finishes.
+    pub fn release_type(&mut self, ty: &CtTypeRef) {
+        self.release_temporary_bytes(crate::anonymous_type::retained_bytes(ty));
+    }
     /// Release the separately owned receipt returned by an invocation after use.
     pub fn release_usage_receipt(&mut self, receipt: &CtUsageReceipt) {
         self.release_temporary_bytes(
