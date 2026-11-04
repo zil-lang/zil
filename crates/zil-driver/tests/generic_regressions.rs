@@ -712,7 +712,7 @@ fn thread325_source_and_worker_boundaries() {
     let report = zil_driver::compile_project(&private, &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Unsupported,
         "{}",
         report.to_json()
     );
@@ -795,7 +795,7 @@ fn thread325_source_and_worker_boundaries() {
     let report = compile_source(&source(&text), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
@@ -4513,3 +4513,38 @@ mod general_task343;
 
 #[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
 mod cas343;
+
+#[test]
+fn g841_retained_registration_cannot_inherit_closed_task_drop_permission() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/343/task-registration-current-boundary.zil"
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let core = expand(text, &limits).unwrap().core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&typed, &limits).unwrap_err();
+    eprintln!("G8.4.1 current Analyze boundary: {errors:?}");
+    assert!(
+        errors.iter().any(|d| d.message.contains("task")
+            && (d.message.contains("frame") || d.message.contains("closed"))),
+        "{errors:?}"
+    );
+    // This is a current source/producer boundary reproduction, not independent
+    // Verify admission evidence for the proposed external-draining successor.
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.phase == zil_base::Phase::Analyze),
+        "{}",
+        report.to_json()
+    );
+}
