@@ -6,7 +6,7 @@ use super::*;
 enum Ctor {
     Tuple,
     Bool(bool),
-    Integer(i64),
+    Integer(i128),
     Variant(String),
     Opaque,
 }
@@ -634,7 +634,7 @@ fn specialize(rows: &[Vec<Pat>], c: &Ctor, arity: usize) -> Vec<Vec<Pat>> {
         })
         .collect()
 }
-fn integer_value(text: &str, ty: &TypeRef, span: Span) -> R<i64> {
+fn integer_value(text: &str, ty: &TypeRef, span: Span) -> R<i128> {
     let (actual, value) = checked_integer(text, Some(ty), false, span)?;
     if type_key_bounded(&actual)? != type_key_bounded(ty)? {
         return Err(error(

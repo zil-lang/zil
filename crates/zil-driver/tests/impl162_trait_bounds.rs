@@ -449,6 +449,19 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
     );
     native_both(&[("main", associated_source)]);
+    let unsigned_source = include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+    let ct_source = include_str!("../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil");
+    for text in [unsigned_source, ct_source] {
+        native_both(&[("main", text)]);
+        let unit = source(text);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &ast).unwrap();
+        let typed = zil_types::check(&core, &zil_base::TargetProfile::default(), &Limits::default()).unwrap();
+        let plan = zil_analyze::analyze(&typed, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &typed.target, &Limits::default()).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(&wire, &typed.target, &Limits::default()).unwrap();
+    }
     native_both(&[
         (
             "main",
@@ -644,6 +657,8 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         ("generic-impl", impl_source),
         ("symbolic-trait-arguments", symbolic_source),
         ("associated-types", associated_source),
+        ("unsigned-const", unsigned_source),
+        ("ct-generic-type-syntax-reflection", ct_source),
     ] {
         let unit = source(text);
         for ledger in ["work", "nodes"] {

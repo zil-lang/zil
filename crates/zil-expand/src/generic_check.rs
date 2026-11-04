@@ -562,9 +562,9 @@ fn checked_integer(
     expected: Option<&TypeRef>,
     negative: bool,
     span: Span,
-) -> R<(TypeRef, i64)> {
+) -> R<(TypeRef, i128)> {
     let clean = text.replace('_', "");
-    let suffix = ["u8", "u16", "i32", "i64"]
+    let suffix = ["u8", "u16", "u64", "usize", "i32", "i64"]
         .into_iter()
         .find(|name| clean.ends_with(name));
     let expected_name = expected.and_then(|ty| match &group(ty).kind {
@@ -576,6 +576,8 @@ fn checked_integer(
     let name = suffix.unwrap_or(match expected_name {
         Some("u8") => "u8",
         Some("u16") => "u16",
+        Some("u64") => "u64",
+        Some("usize") => "usize",
         Some("i64") => "i64",
         _ => "i32",
     });
@@ -592,19 +594,20 @@ fn checked_integer(
     let value = i128::from_str_radix(digits, radix)
         .map_err(|_| error(span, "generic integer literal is invalid or too large"))?;
     let value = if negative { -value } else { value };
-    let value = match name {
-        "u8" => u8::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit u8"))?,
-        "u16" => u16::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit u16"))?,
-        "i32" => i32::try_from(value)
-            .map(i64::from)
-            .map_err(|_| error(span, "generic integer literal does not fit i32"))?,
-        _ => i64::try_from(value)
-            .map_err(|_| error(span, "generic integer literal does not fit i64"))?,
+    let fits = match name {
+        "u8" => u8::try_from(value).is_ok(),
+        "u16" => u16::try_from(value).is_ok(),
+        "u64" | "usize" => u64::try_from(value).is_ok(),
+        "i32" => i32::try_from(value).is_ok(),
+        "i64" => i64::try_from(value).is_ok(),
+        _ => unreachable!(),
     };
+    if !fits {
+        return Err(error(
+            span,
+            format!("generic integer literal does not fit {name}"),
+        ));
+    }
     Ok((named(name, span), value))
 }
 fn boolean(ty: &TypeRef) -> bool {

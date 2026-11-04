@@ -9,6 +9,78 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 #[test]
+fn terminal341_unsigned_const_domains_keep_full_target_bits() {
+    let positive =
+        include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+    for text in [
+        positive,
+        "fn value<#N:usize>()->usize{return N}fn main()->i32{if value::<18446744073709551615usize>()==18446744073709551615usize{return 0}return 1}",
+        "fn unused<T:Copy>(x:T)->u64{return 18446744073709551615u64}fn main(){}",
+        "fn unused<T:Copy>(x:T,v:u64)->i32{match v{18446744073709551615u64=>{return 0},_=>{return 1}}}fn main()->i32{return unused(true,18446744073709551615u64)}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for target in [zil_base::TargetProfile::default(), zil_base::TargetProfile::windows_x64_llvm()] {
+        let report = compile_source(&source(positive), &CompileOptions { target, ..CompileOptions::default() });
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    }
+    let mut unsupported = zil_base::TargetProfile::default();
+    unsupported.pointer_width = 32;
+    let report = compile_source(&source(positive), &CompileOptions { target: unsupported, ..CompileOptions::default() });
+    assert_eq!(report.status, ResultCategory::Unsupported, "{}", report.to_json());
+    for text in [
+        "fn value<#N:u64>(){}fn main(){value::<18446744073709551616u64>()}",
+        "fn value<#N:usize>(){}fn main(){value::<18446744073709551616usize>()}",
+        "fn value<#N:usize>(){}fn main(){value::<3u64>()}",
+        "fn bad<T:Copy>(x:T)->u64{return 18446744073709551616u64}fn main(){}",
+        "fn bad<T:Copy>(x:T)->u64{return -1u64}fn main(){}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
+    for text in [
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil"),
+        include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
+        "struct Box<T:Copy>{value:T}fn select<T:Copy>(x:T)->Type{return T}fn main()->i32{let value:#(select(Box::<i32>{value:7}))=Box::<i32>{value:7};return value.value-7}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected()->Type{return meta.field_type(meta.field(Box::<i64>,\"value\"))}fn main()->i32{let n:#(selected())=3000000000;return i32(n-3000000000)}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected<T:Copy>(x:T)->Type{return meta.field_type(meta.field(T,\"value\"))}fn main()->i32{let n:#(selected(Box::<i64>{value:7}))=3000000000;return i32(n-3000000000)}",
+        include_str!("../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{text}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        "import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn expression<T:Copy>(x:Config<T,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main(){}",
+        "fn invalid<T:Copy>(x:T)->Type{let n=x+1;return T}fn main(){}",
+        "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected()->Type{return meta.field_type(meta.field(Box::<i64>,\"absent\"))}fn main(){let n:#(selected())=7}",
+        "import std.syntax as syntax;struct Box<T:Copy,P:Copy>{value:T}fn selected<T:Copy>(x:T)->Syntax<Type>{return syntax.type_ref(T)}fn main(){let value:#splice(selected(Box::<i32,bool>{value:7}))=Box::<i32,u8>{value:7}}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::SafeReject, "{text}: {}", report.to_json());
+    }
+}
+
+#[test]
 fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_values() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/341/const-functions.zil"),
