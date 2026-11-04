@@ -10,15 +10,15 @@
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
-| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / g10_1_review | 局部 Store 元素字段替换已[合入][e41]；G1.3.2 跨 helper 失效及借入闭包修正已独审，正与异步候选共同验收。 |
+| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / g10_1_review | 局部 Store 替换已[合入][e41]；G1.3.2 与异步共同验收，双配置全量通过、release 待收齐；G1.3.3 借入 ErrorUnion 活动臂替换已独审，待集成。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
-| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | g8_4_front | G2.3.1 已打通有限Self依赖常量的真实CT求值，源码正反例通过；预算、缓存及机器结果继续验证，一般投影和泛型组合仍缺。 |
+| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | g8_4_front | G2.3.1 有限 Self 依赖常量的实际 CT、预算/缓存和四种机器配置已验证，准备独审；一般投影、泛型及 Drop 组合仍缺。 |
 | G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
-| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 标量捕获、Once责任及实际life类修复已[合入][e41]；G3.3.2 已定位真实输入捕获缺口；Source上下文、Analyze/Types及Verify分工施工，尚未验收。 |
+| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 标量捕获/Once 已[合入][e41]；G3.3.2 真实 Source 上下文施工中，独审发现 FnOnce helper 两核记账不一致正在修复；有限 Typed 结果不代表 Source 完成。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
@@ -41,7 +41,7 @@
 | G8.1 | 结构化pthread、密封MutexI32/AtomicI32、稳定TaskI32帧和有限静态Suspend child | 已合入 | — | — | [已合入证据][e37]；限密封 I32 及有限静态任务。 |
 | G8.2 | 静态拥有Task/child、保存SSA、Unit/有限Copy错误结果及清理 | 已合入 | — | — | [本批验收][e41]；有限静态拥有 Task/child 已通过共同验收；通用 frame port/拥有 Sum 仍另列。 |
 | G8.3 | CAS41真实源码→Types→两核/Wire→机器及争用/错误次序控制 | 已合入 | — | — | [本批验收][e41]；源码 CAS、两核/Wire、原生争用与错误次序控制已通过共同验收。 |
-| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 实现待验 | P1 | root | A/B及原组合已独审；加入G1.3.2后发现无Task清理多计297步，正修复并复核，随后跑完整双配置及release验收。 |
+| G8.4 | 通用PendingExit、挂起/取消排空、外部waker及晚通知 | 实现待验 | P1 | root | 297步回归及旧夹具/Task控制已修正并独审；共同源码69a756a默认4641/0、参考4529/0，release消费者验收进行中。首轮10个失败保留。 |
 | G8.5 | 一般Mutex<T>/Guard、Transfer/Share、原子位宽和拥有同步构造 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；从密封 I32 扩展到一般拥有类型。 |
 | G8.6 | 一般拥有Sum/result、借入frame port、部分责任、ticket/defer的任务组合 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.1、G6.2、G8.2、G8.4。 |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
