@@ -242,7 +242,8 @@ impl Rewriter<'_> {
         match &mut e.kind {
             // Internal projection was rewritten before entering this nested scope.
             CoreExprKind::Member { member, .. } if member == FIELD => {}
-            CoreExprKind::Ascribed { value, .. }
+            CoreExprKind::MakeDynBorrow { source: value, .. }
+            | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
@@ -253,7 +254,10 @@ impl Rewriter<'_> {
                 self.expr(left, shadow, depth + 1)?;
                 self.expr(right, shadow, depth + 1)?
             }
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(callee, shadow, depth + 1)?;
                 for a in arguments {
                     self.expr(a, shadow, depth + 1)?
@@ -497,7 +501,8 @@ impl BindingScan {
     fn expr(&mut self, e: &CoreExpr, d: usize) -> R<()> {
         self.charge(1, d, e.span)?;
         match &e.kind {
-            CoreExprKind::Ascribed { value, .. }
+            CoreExprKind::MakeDynBorrow { source: value, .. }
+            | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::NumericConvert { value, .. }
             | CoreExprKind::TypeApply { callee: value, .. }
@@ -508,7 +513,10 @@ impl BindingScan {
                 self.expr(left, d + 1)?;
                 self.expr(right, d + 1)?
             }
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(callee, d + 1)?;
                 for a in arguments {
                     self.expr(a, d + 1)?

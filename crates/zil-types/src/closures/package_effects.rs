@@ -428,7 +428,10 @@ impl Scan<'_> {
                 self.expr(state, operand, depth + 1)?;
                 self.borrow_depth -= 1;
             }
-            CoreExprKind::Unary { operand, .. }
+            CoreExprKind::MakeDynBorrow {
+                source: operand, ..
+            }
+            | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }
             | CoreExprKind::NumericConvert { value: operand, .. }
@@ -453,7 +456,10 @@ impl Scan<'_> {
                     self.expr(state, right, depth + 1)?;
                 }
             }
-            CoreExprKind::Call { callee, arguments } => {
+            CoreExprKind::Call { callee, arguments }
+            | CoreExprKind::CallDynSlot {
+                callee, arguments, ..
+            } => {
                 self.expr(state, callee, depth + 1)?;
                 if let CoreExprKind::Member { object, member, .. } = &callee.kind
                     && let Some(package) = self.named(object)?

@@ -761,6 +761,12 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
     match ty {
+        Type::Dyn { .. } => {
+            return Err(unsupported(
+                span,
+                "dyn type consumer is not yet implemented",
+            ));
+        }
         Type::BorrowedStorage { .. } => {
             return Err(unsupported(
                 span,
@@ -1037,6 +1043,15 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
+    if matches!(
+        e.kind,
+        CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. }
+    ) {
+        return Err(unsupported(
+            e.span,
+            "dyn expression consumer is not yet implemented",
+        ));
+    }
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(_)) => {
