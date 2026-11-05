@@ -104,7 +104,7 @@ impl Materializer<'_, '_> {
             for node in &graph.nodes {
                 self.environment.budget.reserve_analysis_work(1)?;
                 if let CtTypeNode::Nominal { symbol, .. } = node {
-                    self.prepay_source_lookup()?;
+                    self.prepay_source_lookup(symbol)?;
                     let item = self.source_declaration(symbol, span)?;
                     let name = match &item.kind {
                         s::ItemKind::Aggregate(a) => &a.name,
@@ -147,7 +147,7 @@ impl Materializer<'_, '_> {
             }
             Ok(&declaration.fields)
         }
-        self.prepay_source_lookup()?;
+        self.prepay_source_lookup(symbol)?;
         let bytes = fields(self, symbol, count, span)?
             .iter()
             .try_fold(0u64, |bytes, field| {
@@ -161,6 +161,7 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(bytes.saturating_add((count as u64).saturating_mul(24)))?;
+        self.prepay_source_lookup(symbol)?;
         Ok(fields(self, symbol, count, span)?
             .iter()
             .map(|field| field.name.clone())
@@ -191,7 +192,7 @@ impl Materializer<'_, '_> {
                 .get(tag as usize)
                 .ok_or_else(|| runtime("returned enum variant is missing", span))
         }
-        self.prepay_source_lookup()?;
+        self.prepay_source_lookup(symbol)?;
         let value = variant(self, symbol, tag, span)?;
         let (arity, bytes) = match &value.fields {
             s::VariantFields::Unit => (0, 0),
@@ -211,6 +212,7 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(bytes.saturating_add((count as u64).saturating_mul(24)))?;
+        self.prepay_source_lookup(symbol)?;
         let value = variant(self, symbol, tag, span)?;
         Ok((
             value.name.clone(),
