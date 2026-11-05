@@ -509,3 +509,13 @@ new raw machine recipe fee is a component measurement, not a whole-pipeline
 codegen threshold. These improve usable ownership and callable composition;
 Rust same-semantics runtime/RSS/compile and framework maintenance comparisons
 remain unmeasured, with no complete-language or product cost-advantage claim.
+
+The same composition includes original nongeneric static CT factories with
+mixed Type/Const/Life arguments. Removing CT-only members preserves actual
+original member identity, including same-name hosts and imported modules.
+Independent review checks immutable-AST deletion events, forged lineage,
+full native results and semantic project-cache reuse; physical source-context
+headers and allocated copy capacity have current-request charges. This is an
+expressibility and identity-correctness gain, with no new runtime environment.
+Generic hosts, generated lineage and runtime generic CT phases remain outside
+this slice; no same-semantics Rust cost advantage has been measured.
