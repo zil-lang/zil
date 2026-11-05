@@ -221,8 +221,35 @@ impl<'a> Engine<'a> {
             function.span,
         )?;
         if callable_data_profile && callable_receivers == callable_parameters.len() {
+            // Preserve the original unique-binder path and its paid template
+            // schedule. Only repeated runtime positions need an extra selector.
             for &parameter in callable_parameters {
-                self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
+                self.prepare_callable_context(
+                    function,
+                    &contract,
+                    &fixed,
+                    &invocation,
+                    parameter,
+                    None,
+                )?;
+            }
+        } else if callable_data_profile && !callable_parameters.is_empty() {
+            let selected = callable::template(function, &mut self.budget)?;
+            if let Some(selected) = selected
+                && callable_receivers == selected.roles.len()
+            {
+                self.budget
+                    .identity_work(selected.roles.len(), function.span)?;
+                for role in selected.roles {
+                    self.prepare_callable_context(
+                        function,
+                        &contract,
+                        &fixed,
+                        &invocation,
+                        role.source_generic_parameter as usize,
+                        Some(role.index),
+                    )?;
+                }
             }
         }
         self.budget.text(&function.name, function.span)?;

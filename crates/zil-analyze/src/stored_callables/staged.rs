@@ -27,7 +27,14 @@ pub(super) fn parameter(
         return Err(closed());
     }
     let (d, _) = called(module, f, kind).ok_or_else(closed)?;
-    if d.kind != zil_ir::CallableKind::FnOnce || d.storage_life.is_none() {
+    if d.storage_life.is_none()
+        || !(d.kind == zil_ir::CallableKind::FnOnce
+            || matches!(
+                d.kind,
+                zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+            ) && scalar(&d.result)
+                && d.lending_captures.is_empty())
+    {
         return Err(closed());
     }
     b.spend(d.captures.len(), "staged actual owning capture inventory")?;

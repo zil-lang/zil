@@ -131,6 +131,16 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
     for (case, text, expected) in [
         ("before", include_str!("loop-before.zil"), "45\n"),
         (
+            "same-generic-qualified",
+            include_str!("same-generic-qualified.zil"),
+            "0\n",
+        ),
+        (
+            "once-adapt-managed",
+            include_str!("once-adapt-managed.zil"),
+            "AABB15\n0\n",
+        ),
+        (
             "nonconsuming-managed",
             include_str!("nonconsuming-managed.zil"),
             "ABC52\n0\n",
@@ -319,6 +329,8 @@ fn g339_completion_exact_two_kernel_budgets() {
         ("give-companion", include_str!("managed-companion.zil")),
         ("drop", include_str!("two-role-user-drop.zil")),
         ("lending", include_str!("qualified-lending-mut.zil")),
+        ("same-generic", include_str!("same-generic-qualified.zil")),
+        ("once-adapt-managed", include_str!("once-adapt-managed.zil")),
     ] {
         let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
@@ -715,4 +727,151 @@ fn g339_scalar_foreign_actual_declaration_and_region_are_independent() {
             );
         }
     }
+}
+
+#[test]
+fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
+    let text = include_str!("same-generic-qualified.zil");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    // Run shared/mutable same-F independently of the additional Once adaptation.
+    let shared_mutable = text
+        .replace("all_once(a,b,c,left)+", "")
+        .replace("setup(&x)-387", "setup(&x)-261");
+    let separate = compile_source(
+        &source(&shared_mutable),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        separate.status,
+        ResultCategory::Success,
+        "{}",
+        separate.to_json()
+    );
+    let core = g334_core(text);
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut roles_seen = 0;
+    for contract in typed
+        .functions
+        .iter()
+        .filter_map(|f| f.callable_contract.as_ref())
+    {
+        if contract.roles.len() == 3 {
+            assert!(
+                contract
+                    .roles
+                    .iter()
+                    .all(|r| r.closure == contract.roles[0].closure)
+            );
+            assert_ne!(contract.roles[0].parameter, contract.roles[1].parameter);
+            assert_ne!(contract.roles[1].parameter, contract.roles[2].parameter);
+            roles_seen += 1;
+        }
+    }
+    assert_eq!(roles_seen, 3);
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let mut false_ordinal = core;
+    let role = false_ordinal
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.callable_parameters)
+        .find(|role| role.source_life.is_some())
+        .unwrap();
+    role.source_life.as_mut().unwrap().generic_parameter = 0;
+    assert!(zil_types::check(&false_ordinal, &target, &limits).is_err());
+
+    let aliased_mutable = text.replace(
+        "all_mut(&mut d,&mut e,&mut f,left)",
+        "all_mut(&mut d,&mut d,&mut f,left)",
+    );
+    let rejected = compile_source(
+        &source(&aliased_mutable),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    eprintln!(
+        "G339 qualified same-F mutable alias rejection: {}",
+        rejected.to_json()
+    );
+}
+
+#[test]
+fn g339_once_adaptation_retains_actual_owned_environment_cleanup() {
+    let text = include_str!("once-adapt-managed.zil");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
+        assert!(typed.closures.iter().any(|d| {
+            d.kind == kind
+                && d.storage_life.is_some()
+                && d.captures
+                    .iter()
+                    .any(|ty| matches!(ty, zil_ir::Type::Managed(_)))
+        }));
+    }
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let double = text.replace("return f(x)", "return f(x)+f(x)");
+    let rejected = compile_source(
+        &source(&double),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    eprintln!(
+        "G339 adapted owning environment double call: {}",
+        rejected.to_json()
+    );
 }

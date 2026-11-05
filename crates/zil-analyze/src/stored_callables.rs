@@ -303,10 +303,13 @@ pub(super) fn types(
         && let Some(d) = module.closures.get(id.0 as usize)
         && d.storage_life.is_some()
         && d.kind != CallableKind::FnOnce
+        && (!matches!(d.kind, CallableKind::Fn | CallableKind::FnMut)
+            || !scalar(&d.result)
+            || !d.lending_captures.is_empty())
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
-            "captured Fixed Once adaptation needs its actual environment consumption ledger",
+            "captured Fixed Once adaptation requires an actual nonlending scalar entry",
             Some(i.span),
         )]);
     }
