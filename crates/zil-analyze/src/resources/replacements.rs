@@ -33,6 +33,7 @@ pub(super) struct Program {
     definitions: Vec<Definitions>,
     retirement_pairs: RefCell<Vec<retirement::Pairs>>,
     exact_retirement: bool,
+    whole_helpers: BTreeSet<FunctionId>,
 }
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "actual replacement origin transfer")
@@ -176,6 +177,7 @@ impl Program {
         fee(b, module.functions.len())?;
         let mut definitions = Vec::with_capacity(module.functions.len());
         let mut packages = false;
+        let mut whole_helpers = BTreeSet::new();
         for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
             let d = Definitions::new(module, f, b)?;
             if f.foreign.is_none() {
@@ -209,7 +211,15 @@ impl Program {
                         if matches!(definition.ty, Type::Enum { .. }) {
                             whole_enum::local(f, target, b)?;
                         } else {
-                            package::local(f, target, b)?;
+                            if matches!(target.root, origins::Root::Local(_)) {
+                                package::local(f, target, b)?;
+                            } else {
+                                package::borrowed(f, target, b)?;
+                                b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
+                                if f.blocks.len() == 1 {
+                                    whole_helpers.insert(f.id);
+                                }
+                            }
                         }
                     }
                 }
@@ -237,7 +247,11 @@ impl Program {
             definitions,
             retirement_pairs: RefCell::new(retirement_pairs),
             exact_retirement,
+            whole_helpers,
         })
+    }
+    pub(super) fn whole_helper(&self, id: FunctionId) -> bool {
+        self.whole_helpers.contains(&id)
     }
     pub(super) fn extend_shapes(
         &self,
@@ -525,6 +539,10 @@ impl Program {
         live: Option<&Live>,
         b: &mut Budget,
     ) -> CompileResult<()> {
+        if let Some(rows) = &mut state.whole_commits {
+            must_cost(Some(rows), b)?;
+            rows.clear();
+        }
         let ty = self.actual_type(flow.module, flow.function, target, b)?;
         if !closed(ty, b)? {
             return Err(error(
@@ -715,6 +733,23 @@ impl Program {
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
+        if let Some(rows) = &flow.effects[callee].whole_commits {
+            fee(b, rows.len())?;
+            for (target, birth) in rows {
+                let selected = origins::substitute(
+                    &BTreeSet::from([target.clone()]), arguments, captures,
+                    &self.routes[flow.function.id.0 as usize].values,
+                    &self.routes[flow.function.id.0 as usize].slots, b,
+                )?;
+                if selected.len() != 1 {
+                    return Err(error("whole Package must-Commit requires one actual destination"));
+                }
+                let incoming = self.substitute_birth(state, arguments, birth, b)?;
+                for at in selected {
+                    package::postcondition(flow, state, &at, &incoming, check, b)?;
+                }
+            }
+        }
         let invalidations = &flow.effects[callee].invalidated_stores;
         fee(b, invalidations.len())?;
         if sealed && !invalidations.is_empty() {
@@ -794,7 +829,20 @@ impl Program {
                         retirement::check(flow, state, &target, point, b)?;
                     }
                     if matches!(d.ty, Type::Package { .. }) {
-                        package::apply(flow, state, &target, *value, point, b)?;
+                        if matches!(target.root, origins::Root::Local(_)) {
+                            package::apply(flow, state, &target, *value, point, b)?;
+                        } else {
+                            let index = package::borrowed(f, &target, b)?;
+                            let mut leaf = target.clone();
+                            fee(b, leaf.path.len().saturating_add(1))?;
+                            leaf.path.push(PlaceProjection::Field(index));
+                            retirement::check(flow, state, &leaf, point, b)?;
+                            let incoming = product::birth(state, product::Carrier::Value(*value), &[index], b)?;
+                            self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
+                            if let Some(rows) = &mut state.whole_commits {
+                                add(rows, &leaf, &incoming, b)?;
+                            }
+                        }
                     } else if matches!(d.ty, Type::Enum { .. }) {
                         whole_enum::apply(flow, state, &target, *value, point, b)?;
                     } else {
@@ -931,6 +979,7 @@ pub(super) fn infer(
     // against the current summaries, then validate only after convergence.
     loop {
         let mut changed = false;
+        let mut musts = Vec::new();
         for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
             fee(b, 1)?;
             let found = analyze_function_program(
@@ -943,9 +992,17 @@ pub(super) fn infer(
                 None,
                 Some(program),
             )?;
+            if program.whole_helper(f.id) {
+                fee(b, 1)?;
+                must_cost(found.whole_commits.as_ref(), b)?;
+                musts.push((f.id, found.whole_commits.clone()));
+            }
             changed |= grow_effect(&mut effects[f.id.0 as usize], found, b)?;
         }
         if !changed {
+            for (id, rows) in musts {
+                effects[id.0 as usize].whole_commits = rows;
+            }
             return Ok(effects);
         }
     }
@@ -953,3 +1010,39 @@ pub(super) fn infer(
 
 #[cfg(test)]
 mod tests;
+
+// A normal-return must relation is distinct from the monotone may-write ledger.
+pub(super) fn must_cost(rows: Option<&Effects>, b: &mut Budget) -> CompileResult<()> {
+    if let Some(rows) = rows {
+        fee(b, rows.len())?;
+        for (target, birth) in rows {
+            fee(b, target.path.len().saturating_add(birth.len()).saturating_add(1))?;
+        }
+    }
+    Ok(())
+}
+pub(super) fn must_join(to: &mut Option<Effects>, from: &Option<Effects>, b: &mut Budget) -> CompileResult<bool> {
+    let (Some(to), Some(from)) = (to, from) else { return Ok(false); };
+    must_cost(Some(to), b)?;
+    must_cost(Some(from), b)?;
+    let mut changed = false;
+    let mut remove = Vec::new();
+    for (target, birth) in to.iter_mut() {
+        row_fee(from, target, b)?;
+        if let Some(other) = from.get(target) {
+            fee(b, birth.len().saturating_add(other.len()))?;
+            let old = birth.len();
+            birth.extend(other);
+            changed |= birth.len() != old;
+        } else {
+            fee(b, target.path.len().saturating_add(1))?;
+            remove.push(target.clone());
+        }
+    }
+    for target in remove {
+        row_fee(to, &target, b)?;
+        to.remove(&target);
+        changed = true;
+    }
+    Ok(changed)
+}
