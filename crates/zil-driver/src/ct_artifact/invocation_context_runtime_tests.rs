@@ -108,7 +108,6 @@ fn fixture() -> Fixture {
     };
     let source = RuntimeEntrySource {
         parents: Vec::new(),
-        parents: Vec::new(),
         definition: definition.clone(),
         caller,
         call_site: site(call),
