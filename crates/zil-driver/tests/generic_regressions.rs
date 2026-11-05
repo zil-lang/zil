@@ -6534,7 +6534,22 @@ fn g334_malformed_context_clone_budget_and_fresh_warm_requests() {
 fn g334_actual_source_native_clang_api_o0_o2_full_results() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let mut runs = 0;
-    for (case, text) in [("simple", G334_SIMPLE), ("reverse", G334_REVERSE)] {
+    for (case, text) in [
+        ("simple", G334_SIMPLE),
+        ("reverse", G334_REVERSE),
+        (
+            "ordered-f-before",
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-before-data.zil"
+            ),
+        ),
+        (
+            "ordered-f-after",
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-after-data.zil"
+            ),
+        ),
+    ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
                 continue;
@@ -6583,4 +6598,69 @@ fn g334_actual_source_native_clang_api_o0_o2_full_results() {
     eprintln!(
         "G334 real Source native runs={runs}; stdout42 newline, empty stderr, exit0, selected backend and no fallback checked"
     );
+}
+
+#[test]
+fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
+    let prefix = G334_SIMPLE.split("fn apply").next().unwrap();
+    for replacement in [
+        "F:ClosedEnvironment+Fn(&Tag<'s>)->i32",
+        "F:Fn(&Tag<'s>)->i32+ClosedEnvironment",
+        "F:Fn(&Tag<'s>)->i32,G:Fn(&Tag<'s>)->i32",
+    ] {
+        let mut text = prefix.replace("F:Fn(&Tag<'s>)->i32", replacement);
+        if replacement.contains(",G:") {
+            text = text.replace("f:&F,x:", "f:&F,g:&G,x:");
+        }
+        text.push_str("fn main()->i32{return 0}");
+        let core = g334_core(&text);
+        assert!(
+            core.functions
+                .iter()
+                .flat_map(|f| &f.callable_parameters)
+                .all(|r| r.source_life.is_none())
+        );
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{replacement}: {}",
+            report.to_json()
+        );
+    }
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-call.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-unused.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-before-data.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-after-data.zil"
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(g334_role(&g334_core(text)).source_life.is_some());
+    }
 }

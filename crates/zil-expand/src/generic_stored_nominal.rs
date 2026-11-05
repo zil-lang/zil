@@ -71,18 +71,22 @@ impl<'a> Engine<'a> {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.life_scope.clear();
                 let mut callable_parameter = None;
+                let mut callable_profile = function.where_clause.is_empty();
                 for (index, parameter) in function.generics.iter().enumerate() {
                     self.budget.node(parameter.span, 0)?;
-                    if callable_parameter.is_none()
-                        && matches!(parameter.kind, GenericParamKind::Type(_))
-                    {
-                        callable_parameter = Some(index);
+                    match parameter.kind {
+                        GenericParamKind::Type(_) if callable_parameter.is_none() => {
+                            callable_parameter = Some(index)
+                        }
+                        GenericParamKind::Lifetime => {}
+                        _ => callable_profile = false,
                     }
                     if matches!(parameter.kind, GenericParamKind::Lifetime) {
                         self.budget.text(&parameter.name, parameter.span)?;
                         self.life_scope.push(parameter.name.clone());
                     }
                 }
+                let callable_parameter = callable_profile.then_some(callable_parameter).flatten();
                 self.with_origin(pending.origin, |engine| {
                     if engine.stored_signature_context(function, callable_parameter)? {
                         engine.budget.function_snapshot(function)?;
