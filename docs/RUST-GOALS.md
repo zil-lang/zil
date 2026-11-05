@@ -519,3 +519,14 @@ headers and allocated copy capacity have current-request charges. This is an
 expressibility and identity-correctness gain, with no new runtime environment.
 Generic hosts, generated lineage and runtime generic CT phases remain outside
 this slice; no same-semantics Rust cost advantage has been measured.
+
+Finite owning FnOnce helpers now keep their actual by-value parameter identity
+through temporary local transfers. Analyze and Verify independently reconstruct
+the unique transfer chain and reject ambiguous writes, duplicate consumption
+and escaped addresses without changing evaluation order. Full i32 native
+results and the LLVM move/live-flag chain are checked; the admitted capture has
+no user teardown, so these are not destructor-count measurements. Existing
+direct/borrowed fast paths keep their exact boundaries, and new traversal work
+is charged to the current request. This adds useful owning callback composition
+without an implicit heap box, RC or lock. Broader environments and lending,
+and same-semantics Rust runtime/RSS/compile/maintenance costs, remain unproven.
