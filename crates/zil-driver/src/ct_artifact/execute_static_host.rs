@@ -10,6 +10,60 @@ pub(super) struct Invocation {
     calls: Vec<compiler::SourceInstanceCall>,
     scopes: Vec<CtAmbientLifeScope>,
     context: Arc<FrozenInvocationContext>,
+    completed_calls: Vec<zil_ct::CtCompletedCall>,
+}
+
+fn meter_item(
+    item: &s::Item,
+    budget: &mut zil_ct::CtExecutionBudget,
+    max_depth: usize,
+    copy: bool,
+) -> CompileResult<u64> {
+    struct Meter<'a> {
+        budget: &'a mut zil_ct::CtExecutionBudget,
+        max_depth: usize,
+        copy: bool,
+        bytes: u64,
+    }
+    impl zil_expand::ct_selection::Visitor for Meter<'_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.reserve_analysis_work(1)?;
+            if depth > self.max_depth {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "CT namespace source depth exhausted",
+                    Some(span),
+                )]);
+            }
+            if self.copy {
+                let bytes = (std::mem::size_of::<s::Item>()
+                    + std::mem::size_of::<s::Stmt>()
+                    + std::mem::size_of::<s::Expr>()
+                    + std::mem::size_of::<s::TypeRef>()
+                    + std::mem::size_of::<s::Pattern>()) as u64;
+                self.budget.reserve_generated_nodes(1)?;
+                self.budget.reserve_temporary_bytes(bytes)?;
+                self.bytes = self.bytes.saturating_add(bytes);
+            }
+            Ok(())
+        }
+        fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
+            self.budget.reserve_analysis_work(text.len() as u64)?;
+            if self.copy {
+                self.budget.reserve_temporary_bytes(text.len() as u64)?;
+                self.bytes = self.bytes.saturating_add(text.len() as u64);
+            }
+            Ok(())
+        }
+    }
+    let mut meter = Meter {
+        budget,
+        max_depth,
+        copy,
+        bytes: 0,
+    };
+    zil_expand::ct_selection::Visitor::item(&mut meter, item, 0)?;
+    Ok(meter.bytes)
 }
 
 impl Environment<'_> {
@@ -22,6 +76,7 @@ impl Environment<'_> {
         calls: Vec<compiler::SourceInstanceCall>,
         scopes: Vec<CtAmbientLifeScope>,
         context: Arc<FrozenInvocationContext>,
+        completed_calls: Vec<zil_ct::CtCompletedCall>,
     ) -> CompileResult<()> {
         // Payloads move from the already prepaid successful producer request.
         // Reserve the entire replacement backing before Vec can grow.
@@ -36,6 +91,7 @@ impl Environment<'_> {
             calls,
             scopes,
             context,
+            completed_calls,
         });
         Ok(())
     }
@@ -75,6 +131,8 @@ impl Environment<'_> {
                     &symbol,
                     &self.index,
                     &mut self.budget,
+                    &invocation.completed_calls,
+                    &invocation.calls,
                 )? {
                     let identity_work = super::super::invocation_context::identity_cost(
                         identity,
@@ -126,37 +184,23 @@ impl Environment<'_> {
                 Some(actual.span),
             )]
         })?;
-        let limits = self.remaining_limits_for_input();
-        let cost = zil_expand::ct_selection::item_cost(source, &limits)?;
-        let actual_cost = zil_expand::ct_selection::item_cost(actual, &limits)?;
-        self.budget
-            .reserve_analysis_work(cost.work.saturating_add(actual_cost.work) as u64)?;
-        let bytes = cost
-            .nodes
-            .saturating_mul(
-                std::mem::size_of::<s::Item>()
-                    + std::mem::size_of::<s::Stmt>()
-                    + std::mem::size_of::<s::Expr>()
-                    + std::mem::size_of::<s::TypeRef>()
-                    + std::mem::size_of::<s::Pattern>(),
-            )
-            .saturating_add(cost.work) as u64;
-        self.budget.reserve_temporary_bytes(bytes)?;
-        self.budget.reserve_generated_nodes(cost.nodes as u64)?;
+        let max_depth = self.remaining_limits_for_input().max_call_depth;
+        let bytes = meter_item(source, &mut self.budget, max_depth, true)?;
         let mut syntax = zil_syntax::GeneratedSyntax::ItemList(vec![source.clone()]);
         if definition.origin.generated.is_some() {
-            let work = zil_expand::remap_generated_spans(
+            let limits = self.remaining_limits_for_input();
+            zil_expand::remap_generated_spans_metered(
                 &mut syntax,
                 actual.span,
-                &self.remaining_limits_for_input(),
+                &limits,
+                &mut |work| self.budget.reserve_analysis_work(work as u64),
             )?;
-            self.budget.reserve_analysis_work(work as u64)?;
         }
         let zil_syntax::GeneratedSyntax::ItemList(expected) = syntax else {
             unreachable!()
         };
-        self.budget
-            .reserve_analysis_work(cost.work.saturating_add(actual_cost.work) as u64)?;
+        meter_item(&expected[0], &mut self.budget, max_depth, false)?;
+        meter_item(actual, &mut self.budget, max_depth, false)?;
         if expected[0] != *actual {
             return Err(error(
                 "CT namespace retained whole host differs from its actual frozen source",

@@ -1221,10 +1221,40 @@ impl Check<'_, '_, '_> {
                 }
             }
             (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, caller, depth + 1),
-            (GenericParamKind::Const(_), GenericArg::Const(_)) => Err(unsupported(
-                span,
-                "source member const actual needs its complete domain proof",
-            )),
+            (GenericParamKind::Const(domain), actual) => {
+                let wanted = consts::domain(domain)?;
+                // A written identifier is resolved in the actual caller's
+                // member-first, host-second lexical binder scope. A Type
+                // binder or same-spelled global is never a scalar actual.
+                let name = match actual {
+                    GenericArg::Const(Expr{kind:ExprKind::Name(name),..}) => Some(name.as_str()),
+                    GenericArg::Type(ty) => trait_bounds::plain(ty),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    let Some((binder,false)) = self.binder(caller,name,span)? else {
+                        return Err(unsupported(span,"source member Const actual has no actual caller binder"));
+                    };
+                    let parameter = if binder.0==caller.owner {
+                        caller.parameters.get(binder.1)
+                    } else {
+                        caller.host.and_then(|host|self.records[host].generics.get(binder.1))
+                    }.ok_or_else(||error(span,"source member Const binder ordinal absent"))?;
+                    let GenericParamKind::Const(source_domain) = &parameter.kind else {
+                        return Err(unsupported(span,"source member Const actual names another binder kind"));
+                    };
+                    if consts::domain(source_domain)?!=wanted {
+                        return Err(error(span,"source member Const actual domain differs from original formal"));
+                    }
+                    return Ok(Fact::Parameter(binder));
+                }
+                let carrier = consts::argument(actual,Some(formal),self.budget)?;
+                consts::normalize(formal,&carrier,self.budget)?;
+                // This pass tracks life/class relations only. No Const value
+                // identity or namespace permission follows from Unknown; CT's
+                // source actual checker still compares the complete value.
+                Ok(Fact::Unknown)
+            }
             _ => Err(unsupported(
                 span,
                 "source member actual kind differs from full ordinal",

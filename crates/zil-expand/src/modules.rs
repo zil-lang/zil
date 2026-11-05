@@ -702,12 +702,18 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
                 }
             }
             let input = selected.ok_or_else(||error("E-SOURCE-IDENTITY",actual.span,"CT namespace input has no actual source correspondence"))?;
-            let cost = crate::ct_selection::item_cost(input,&budget.remaining_limits()).map_err(|mut errors|errors.remove(0))?;
-            budget.lineage_bytes(cost.nodes.saturating_mul(
-                std::mem::size_of::<Item>()+std::mem::size_of::<Stmt>()+std::mem::size_of::<Expr>()+
-                std::mem::size_of::<TypeRef>()+std::mem::size_of::<Pattern>()
-            ).saturating_add(cost.work),actual.span)?;
-            budget.item(input)?;
+            struct CopyMeter<'a,'b>(&'a mut Budget<'b>);
+            impl crate::ct_selection::Visitor for CopyMeter<'_,'_> {
+                fn node(&mut self,span:Span,depth:usize)->CompileResult<()> {
+                    self.0.node(span,depth).map_err(|e|vec![e])?;
+                    self.0.lineage_bytes(std::mem::size_of::<Item>()+std::mem::size_of::<Stmt>()+std::mem::size_of::<Expr>()+std::mem::size_of::<TypeRef>()+std::mem::size_of::<Pattern>(),span).map_err(|e|vec![e])
+                }
+                fn text(&mut self,text:&str,span:Span)->CompileResult<()> {
+                    self.0.text(text,span).map_err(|e|vec![e])?;
+                    self.0.lineage_bytes(text.len(),span).map_err(|e|vec![e])
+                }
+            }
+            crate::ct_selection::Visitor::item(&mut CopyMeter(&mut budget),input,0).map_err(|mut errors|errors.remove(0))?;
             let mut expected = input.clone();
             let mut visitor = Visitor{default_nominal:None,const_scope:Names::new(),mode:Mode::Normalize(self.index),module:definition.module,budget:&mut budget};
             visitor.item(&mut expected,&Names::new(),true,0)?;

@@ -445,9 +445,11 @@ impl Builder<'_, '_> {
         )?;
         let callee = self.compiler.item_symbol(d.module, d.item)?;
         let site = self.compiler.current_expression_site(span)?;
+        let execution = self.execution_call_position(span)?;
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
+                execution: Some(execution),
                 occurrence: None,
                 caller: self.function_id(),
                 caller_definition: self.definition.clone(),
@@ -552,9 +554,11 @@ impl Builder<'_, '_> {
         )?;
         let callee = self.compiler.item_symbol(d.module, d.item)?;
         let site = self.compiler.current_expression_site(span)?;
+        let execution = self.execution_call_position(span)?;
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
+                execution: Some(execution),
                 occurrence: None,
                 caller: self.function_id(),
                 caller_definition: self.definition.clone(),

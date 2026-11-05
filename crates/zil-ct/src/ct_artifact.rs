@@ -380,15 +380,57 @@ fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
         .ok_or_else(|| error("CT index is outside its bounds"))
 }
 
+/// An actual Call which returned normally in this VM invocation. Instruction
+/// position also distinguishes Unit calls and repeated calls to one instance.
+/// This is an execution observation, never source or artifact authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CtCompletedCall {
+    pub caller: CtFunctionId,
+    pub block: CtBlockId,
+    pub instruction: u32,
+    pub callee: CtFunctionId,
+    pub result: Option<CtValueId>,
+}
+
 pub fn evaluate_ct_artifact(
     program: &VerifiedCTArtifactProgram,
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
+    evaluate_ct_artifact_retaining_calls(program, arguments, reader, budget, None)
+}
+
+/// Retain bounded, actual normal-return events. A trap or failed whole request
+/// returns no events. The old evaluator has no collection or collection fees.
+pub fn evaluate_ct_artifact_with_completed_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtValue, CtUsageReceipt, Vec<CtCompletedCall>)> {
+    let mut calls = Vec::new();
+    let (value, usage) =
+        evaluate_ct_artifact_retaining_calls(program, arguments, reader, budget, Some(&mut calls))?;
+    Ok((value, usage, calls))
+}
+
+fn evaluate_ct_artifact_retaining_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
+) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let before = budget.live_temporary_bytes;
     let query_capacity = budget.usage.queries.capacity();
-    let result = evaluate_ct_artifact_inner(program, arguments, reader, budget);
+    let result = evaluate_ct_artifact_inner(
+        program,
+        arguments,
+        reader,
+        budget,
+        completed_calls.as_deref_mut(),
+    );
     let query_bytes = (budget
         .usage
         .queries
@@ -404,11 +446,35 @@ pub fn evaluate_ct_artifact(
                     receipt.queries.capacity() as u64
                         * std::mem::size_of::<CtQueryDependency>() as u64,
                 )
+                .saturating_add(completed_calls.as_ref().map_or(0, |calls| {
+                    calls.capacity() as u64 * std::mem::size_of::<CtCompletedCall>() as u64
+                }))
         })
         .saturating_add(query_bytes);
     let added = budget.live_temporary_bytes.saturating_sub(before);
     budget.release_temporary_bytes(added.saturating_sub(keep));
     result
+}
+fn push_call_event(
+    calls: &mut Vec<CtCompletedCall>,
+    event: CtCompletedCall,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<()> {
+    if calls.len() == calls.capacity() {
+        let old = calls.capacity();
+        let new = calls
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| limit("CT completed-call inventory overflow"))?;
+        budget.reserve_analysis_work(old as u64 + 1)?;
+        budget
+            .reserve_temporary_bytes(new as u64 * std::mem::size_of::<CtCompletedCall>() as u64)?;
+        calls.reserve_exact(new - calls.len());
+        budget.release_temporary_bytes(old as u64 * std::mem::size_of::<CtCompletedCall>() as u64);
+    }
+    budget.reserve_analysis_work(1)?;
+    calls.push(event);
+    Ok(())
 }
 fn reserve_frame<'a>(
     frames: &mut Vec<Frame<'a>>,
@@ -431,6 +497,7 @@ fn evaluate_ct_artifact_inner(
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
     budget.constrain_to_program(raw.budget)?;
@@ -459,6 +526,7 @@ fn evaluate_ct_artifact_inner(
     let mut live_cells = (entry.locals.len() + entry.values.len()) as u64;
     budget.observe_live_cells(live_cells)?;
     let mut frames = Vec::new();
+    let mut pending_calls = Vec::new();
     let mut frame_vector_bytes = 0u64;
     reserve_frame(&mut frames, &mut frame_vector_bytes, budget)?;
     frames.push(Frame::new(
@@ -482,6 +550,19 @@ fn evaluate_ct_artifact_inner(
             } = &inst.kind
             {
                 let target = &raw.functions[function.0 as usize];
+                if completed_calls.is_some() {
+                    // Save the actual caller location BEFORE entering the
+                    // callee. Never infer it from a later mutable PC.
+                    let event = CtCompletedCall {
+                        caller: frame.function.id,
+                        block: block.id,
+                        instruction: u32::try_from(frame.instruction - 1)
+                            .map_err(|_| limit("CT call instruction ordinal overflow"))?,
+                        callee: *function,
+                        result: inst.result,
+                    };
+                    push_call_event(&mut pending_calls, event, budget)?;
+                }
                 budget.observe_depth(current_depth + 1)?;
                 let incoming_cells = (target.locals.len() + target.values.len()) as u64;
                 budget.observe_live_cells(live_cells.saturating_add(incoming_cells))?;
@@ -559,6 +640,7 @@ fn evaluate_ct_artifact_inner(
                     live_cells -=
                         (completed.function.locals.len() + completed.function.values.len()) as u64;
                     let destination = completed.destination;
+                    let callee = completed.function.id;
                     completed.release(budget);
                     if let Some(parent) = frames.last_mut() {
                         if let Some(id) = destination {
@@ -567,7 +649,28 @@ fn evaluate_ct_artifact_inner(
                             parent.value_bytes[id.0 as usize] = bytes;
                             parent.values[id.0 as usize] = Some(output);
                         }
+                        if let Some(calls) = completed_calls.as_deref_mut() {
+                            let event = pending_calls.pop().ok_or_else(|| {
+                                error("CT completed call lost its actual caller frame")
+                            })?;
+                            if event.caller != parent.function.id
+                                || event.callee != callee
+                                || event.result != destination
+                            {
+                                return Err(error(
+                                    "CT completed call differs from its saved actual caller",
+                                ));
+                            }
+                            push_call_event(calls, event, budget)?;
+                        }
                     } else {
+                        if !pending_calls.is_empty() {
+                            return Err(error("CT completed-call frame stack is not empty"));
+                        }
+                        budget.release_temporary_bytes(
+                            pending_calls.capacity() as u64
+                                * std::mem::size_of::<CtCompletedCall>() as u64,
+                        );
                         budget.release_temporary_bytes(frame_vector_bytes);
                         budget.reserve_temporary_bytes(
                             budget.usage.queries.len() as u64
@@ -756,11 +859,17 @@ fn type_ref_matches(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<bool> {
     if !reference.ambient_classes.is_empty()
-        || matches!(reference.nodes.get(reference.root.0 as usize), Some(CtTypeNode::BorrowedStorage { .. }))
+        || matches!(
+            reference.nodes.get(reference.root.0 as usize),
+            Some(CtTypeNode::BorrowedStorage { .. })
+        )
     {
         // New contextual values can only reuse complete graphs independently
         // admitted at actual source Type sites in this verified program.
-        for instruction in raw.functions.iter().flat_map(|function| &function.blocks)
+        for instruction in raw
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
             .flat_map(|block| &block.instructions)
         {
             budget.reserve_analysis_work(1)?;
@@ -774,9 +883,8 @@ fn type_ref_matches(
                     limits.max_source_bytes = raw.budget.max_temporary_bytes as usize;
                     limits.max_call_depth = raw.budget.max_call_depth as usize;
                     limits.max_analysis_steps = budget.remaining().max_analysis_work as usize;
-                    let mut meter = zil_verify::CtVerificationMeter::new(
-                        budget.remaining().max_analysis_work,
-                    );
+                    let mut meter =
+                        zil_verify::CtVerificationMeter::new(budget.remaining().max_analysis_work);
                     let checked = zil_verify::verify_ct_type_graph_metered(
                         reference, raw, &limits, &mut meter,
                     );

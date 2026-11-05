@@ -12,6 +12,8 @@ impl FrozenInvocationContext {
         target: &CtSymbolId,
         index: &SourceIndex,
         budget: &mut CtExecutionBudget,
+        completed_calls: &[zil_ct::CtCompletedCall],
+        source_calls: &[SourceInstanceCall],
     ) -> CompileResult<Option<(&'a s::Item, &'a LifeDeclarationIdentity)>> {
         let Some(enclosing) = call.enclosing else {
             return Ok(None);
@@ -42,23 +44,44 @@ impl FrozenInvocationContext {
                 "CT namespace call definition differs from the successful artifact",
             ));
         }
-        let mut found = 0;
-        for block in &caller.blocks {
-            budget.reserve_analysis_work(block.instructions.len() as u64 + 1)?;
-            for instruction in &block.instructions {
-                if matches!(&instruction.kind, CtInstructionKind::Call{function,..} if *function == call.instance)
-                    && call
-                        .occurrence
-                        .is_none_or(|(b, v)| b == block.id && instruction.result == Some(v))
-                {
-                    found += 1;
-                }
-            }
-        }
-        if found == 0 || call.occurrence.is_some() && found != 1 {
+        let (block, position) = call
+            .execution
+            .ok_or_else(|| unsupported("CT namespace needs its exact source execution position"))?;
+        budget.reserve_analysis_work(source_calls.len() as u64)?;
+        if source_calls.iter().any(|other| {
+            !std::ptr::eq(other, call)
+                && other.caller == call.caller
+                && other.execution == call.execution
+        }) {
             return Err(unsupported(
-                "CT namespace has no exact successful call occurrence",
+                "CT namespace source execution occurrence is repeated",
             ));
+        }
+        budget.reserve_analysis_work(caller.blocks.len() as u64 + 1)?;
+        let actual = caller
+            .blocks
+            .iter()
+            .find(|row| row.id == block)
+            .and_then(|row| row.instructions.get(position as usize))
+            .ok_or_else(|| unsupported("CT namespace exact source instruction is absent"))?;
+        if !matches!(&actual.kind,CtInstructionKind::Call{function,..} if *function==call.instance)
+            || call
+                .occurrence
+                .is_some_and(|(b, v)| b != block || actual.result != Some(v))
+        {
+            return Err(unsupported(
+                "CT namespace source execution position is not its actual Call",
+            ));
+        }
+        budget.reserve_analysis_work(completed_calls.len() as u64)?;
+        if !completed_calls.iter().any(|event| {
+            event.caller == call.caller
+                && event.block == block
+                && event.instruction == position
+                && event.callee == call.instance
+                && event.result == actual.result
+        }) {
+            return Ok(None);
         }
         // Independently recover the callee's real lexical parent, including
         // the generated catalog's local-to-global declaration correspondence.

@@ -11,12 +11,32 @@ pub fn remap_generated_spans(
     insertion: Span,
     limits: &Limits,
 ) -> CompileResult<usize> {
+    remap_with_meter(syntax, insertion, limits, None)
+}
+
+/// Debit the caller's shared remainder before each preflight operation. Failed
+/// traversals retain spent work; the mutating pass remains fully prepaid.
+pub fn remap_generated_spans_metered(
+    syntax: &mut GeneratedSyntax,
+    insertion: Span,
+    limits: &Limits,
+    pay: &mut dyn FnMut(usize) -> CompileResult<()>,
+) -> CompileResult<usize> {
+    remap_with_meter(syntax, insertion, limits, Some(pay))
+}
+fn remap_with_meter(
+    syntax: &mut GeneratedSyntax,
+    insertion: Span,
+    limits: &Limits,
+    pay: Option<&mut dyn FnMut(usize) -> CompileResult<()>>,
+) -> CompileResult<usize> {
     let mut pass = Mapper {
         insertion,
         limits,
         work: 0,
         nodes: 0,
         apply: false,
+        pay,
     };
     pass.syntax(syntax)?;
     let work = pass.work;
@@ -24,14 +44,15 @@ pub fn remap_generated_spans(
     pass.syntax(syntax)?;
     Ok(work)
 }
-struct Mapper<'a> {
+struct Mapper<'a, 'b> {
     insertion: Span,
     limits: &'a Limits,
     work: usize,
     nodes: usize,
     apply: bool,
+    pay: Option<&'b mut dyn FnMut(usize) -> CompileResult<()>>,
 }
-impl Mapper<'_> {
+impl Mapper<'_, '_> {
     fn syntax(&mut self, syntax: &mut GeneratedSyntax) -> CompileResult<()> {
         match syntax {
             GeneratedSyntax::Expr(e) => self.expression(e, 0),
@@ -54,6 +75,9 @@ impl Mapper<'_> {
         if self.apply {
             return Ok(());
         }
+        if let Some(pay) = self.pay.as_deref_mut() {
+            pay(amount)?;
+        }
         self.work = self
             .work
             .checked_add(amount)
@@ -68,7 +92,7 @@ impl Mapper<'_> {
         Ok(())
     }
 }
-impl Visitor for Mapper<'_> {
+impl Visitor for Mapper<'_, '_> {
     fn node(&mut self, span: &mut Span, depth: usize) -> CompileResult<()> {
         if self.apply {
             *span = self.insertion;

@@ -130,3 +130,61 @@ fn g4462_real_ct_use_does_not_authorize_runtime_nominal_instances() {
         );
     }
 }
+
+#[test]
+fn g4462_unexecuted_host_call_has_no_successful_namespace_use() {
+    let text = "struct Host<life a>{fn make()->i32{return 1/0}}fn query<life a>(p:&'a i32)->i32{return #(if false {Host::<'a>.make()}else{7})}fn main()->i32{let n=0;return query(&n)}";
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("generic resource or methods require capability resolution")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g4462_successful_unit_call_uses_its_exact_instruction() {
+    assert_source(
+        "struct Host<life a>{fn touch(){return}}fn query<life a>(p:&'a i32)->i32{#(Host::<'a>.touch());return 42}fn main()->i32{let n=0;return query(&n)}",
+    );
+}
+
+#[test]
+fn g4462_failed_whole_request_does_not_publish_completed_host_calls() {
+    let bad = "struct Host<life a>{fn make()->i32{return 42}}fn fail<life a>()->i32{let n=Host::<'a>.make();return 1/0}fn query<life a>(p:&'a i32)->i32{return #(fail::<'a>())}fn main()->i32{let n=0;return query(&n)}";
+    let mut session = zil_driver::CompilationSession::default();
+    let report = session.compile_source(&source(bad), &CompileOptions::default());
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_ne!(
+        report.status,
+        ResultCategory::ResourceLimit,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(session.active_query_count(), 0);
+    let fresh = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+    );
+    let report = session.compile_source(&source(fresh), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(session.active_query_count(), 0);
+}
