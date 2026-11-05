@@ -1620,8 +1620,46 @@ impl FrozenInvocationContext {
         index: &SourceIndex,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
-        if facts.bindings.is_empty() && facts.type_sites.is_empty() {
+        if facts.bindings.is_empty()
+            && facts.type_sites.is_empty()
+            && raw.ambient_life_scopes.is_empty()
+        {
             return Ok(());
+        }
+        // Omitting the producer ledger cannot turn a contextual schema into
+        // an unexamined closed value. Every actual schema context needs one
+        // independently checked source event, including when all events were
+        // removed together. Closed scalar programs retain the early return.
+        budget.reserve_analysis_work((raw.record_schemas.len() + raw.enum_schemas.len()) as u64)?;
+        for (enumeration, schema, contextual) in raw
+            .record_schemas
+            .iter()
+            .enumerate()
+            .map(|(id, schema)| (false, id, schema.life_context.is_some()))
+            .chain(
+                raw.enum_schemas
+                    .iter()
+                    .enumerate()
+                    .map(|(id, schema)| (true, id, schema.life_context.is_some())),
+            )
+        {
+            if !contextual {
+                continue;
+            }
+            budget.reserve_analysis_work(facts.bindings.len() as u64)?;
+            if facts
+                .bindings
+                .iter()
+                .filter(|binding| {
+                    binding.enumeration == enumeration && binding.schema as usize == schema
+                })
+                .count()
+                != 1
+            {
+                return Err(unsupported(
+                    "CT contextual schema requires one independently authenticated source event",
+                ));
+            }
         }
         budget.reserve_analysis_work((facts.bindings.len() + facts.type_sites.len()) as u64)?;
         for binding in &facts.bindings {
