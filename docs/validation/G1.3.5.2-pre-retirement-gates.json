@@ -1,0 +1,226 @@
+{
+  "task": "G1.3.5.2",
+  "decision": "HoldPendingConfirmedHelperRetirementCorrection",
+  "tested_source": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+  "tested_tree": "d56c59bb1d01fd608f1381907c71917b61dd33c2",
+  "default": {
+    "source": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+    "source_after": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 430.96,
+    "groups": 422,
+    "passed": 4785,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "4ebe57cac32be0f7c105f139f46b705e5934143d3c7b5a842d4c6e637e7b4b5f",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 15370144992
+  },
+  "reference": {
+    "source": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+    "source_after": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast",
+      "--no-default-features"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 344.66,
+    "groups": 422,
+    "passed": 4673,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "09b378e248ae96e64387b853a72609e600115b9ea7a758d414b59fe35f5c6acd",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14675599008
+  },
+  "stages": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 5.45,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 36.33,
+      "log_sha256": "fc000ddce68794e50f22db5668707db2c56f32f5c9bb136643fd5f1666f4c5d7"
+    },
+    {
+      "name": "default-runner",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/G1.3.5.2-formal-run.py",
+        "/workspace/.zil-env/G1.3.5.2-common-run",
+        "default"
+      ],
+      "exit_code": 0,
+      "seconds": 431.02,
+      "log_sha256": "a168fa121e6a9a9dd4a74e5cc5c927fb75d3bafbb0513db6f866c1bf70b8fb7c"
+    },
+    {
+      "name": "default-completed-output-cleanup",
+      "command": [
+        "python3",
+        "tools/ci/compact_results.py",
+        "cleanup",
+        "/workspace/.zil-env/G1.3.5.2-common-run",
+        "workspace"
+      ],
+      "exit_code": 0,
+      "seconds": 1.79,
+      "log_sha256": "a45d7b61ee7c8e5a4409b8e283cdf6ad76065f4f971037e690a07decae8f70ad"
+    },
+    {
+      "name": "reference-runner",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/G1.3.5.2-formal-run.py",
+        "/workspace/.zil-env/G1.3.5.2-common-run",
+        "reference"
+      ],
+      "exit_code": 0,
+      "seconds": 344.73,
+      "log_sha256": "23e6e7cc6976db27596bff6e749f4f4df9614d4e1d723a36f8d6a8ce828ba83a"
+    },
+    {
+      "name": "reference-completed-output-cleanup",
+      "command": [
+        "python3",
+        "tools/ci/compact_results.py",
+        "cleanup",
+        "/workspace/.zil-env/G1.3.5.2-common-run",
+        "reference"
+      ],
+      "exit_code": 0,
+      "seconds": 1.6,
+      "log_sha256": "7785025d730e5bfda028b0d253a0809103c1a44416dff40f19dae77ce0ce5df6"
+    },
+    {
+      "name": "reference-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 18.32,
+      "log_sha256": "01c056de3f6e80331a1cff1c2559e84e6db11aede391993c54486d5aec5bbc99"
+    },
+    {
+      "name": "text-reference",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-llvm-api",
+        "--features",
+        "text-reference"
+      ],
+      "exit_code": 0,
+      "seconds": 3.42,
+      "log_sha256": "77d3747a5b88367a5ed7df2c2a8b904a61a6fd23b10cb46b97ca468c6eae1e34"
+    },
+    {
+      "name": "release-build",
+      "command": [
+        "cargo",
+        "build",
+        "--locked",
+        "--release",
+        "-p",
+        "zil-cli"
+      ],
+      "exit_code": 0,
+      "seconds": 107.82,
+      "log_sha256": "d3b85fbf4433e03140625ee6bb96f18dcd42126f09b028b14044f5d1102a0db8"
+    },
+    {
+      "name": "consumer209",
+      "command": [
+        "python3",
+        "tools/research/208/validate.py",
+        "--repo",
+        ".",
+        "--cli",
+        "/workspace/.zil-env/target-release-G1.3.5.2/release/zil",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "--out",
+        "/workspace/.zil-env/G1.3.5.2-common-run/consumer209"
+      ],
+      "exit_code": 0,
+      "seconds": 1.91,
+      "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+    },
+    {
+      "name": "engineering",
+      "command": [
+        "python3",
+        "/workspace/.zil-env/G10.1-engineering-checks.py",
+        "/workspace/.zil-env/G1.3.5.2-common-run"
+      ],
+      "exit_code": 0,
+      "seconds": 6.6,
+      "log_sha256": "0f2b87975ed55459ecedbdf5127b598fe657bb6302222145f8fcde42eeae35d4"
+    }
+  ],
+  "cli_sha256": "7fabe5c13a644a75146b7a04aaf82f684f97e1baff7b5f6f74c839e3169643ed",
+  "blocking_finding": {
+    "scope": "Existing mutable field-helper retirement leaves caller old resource Desc usable; independent accepted-main reproduction, not introduced by the current Enum/FnMut changes.",
+    "accepted_main": "88cb9277932e910b26b97084e9c42dd7a0d1e234",
+    "accepted_compiler_source": "fbe572f0474ad4a4665dfd49f628ae3abc5bc03a",
+    "accepted_cli_sha256": "ede696f21d47d43407c621cbd42ba4c44976a394a4500268da097b49e1d78f30",
+    "source_sha256": "c543fe078f02c9d57fb41c351dd6481d0caaf0f7881ef3b770d6523e3d7e523e",
+    "observed": "Success/Verify1; no invalid native code executed",
+    "accepted_main_probe_sha256": "29fdf2877a3d4b5be18fd7bbab1dc107a96e764bd09c716a439318fbeb97a466",
+    "same_body_control": "Inline replacement Analyze succeeds but independent Verify rejects invalidation of live description; Analyze local check is also being corrected.",
+    "correction_tasks": [
+      "G1.3.6 Analyze",
+      "G1.3.6.1 independent Verify"
+    ],
+    "next_gate": "Freeze source/necessary controls and non-author review, then rerun applicable formal gates for actual safety-kernel changes."
+  },
+  "interpretation": "All recorded commands passed at this exact source. This is not acceptance of the newly exposed invalid Source or a claim of complete language safety."
+}

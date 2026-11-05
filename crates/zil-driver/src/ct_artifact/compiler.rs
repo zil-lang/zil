@@ -10,6 +10,8 @@ mod domain;
 mod expr;
 #[path = "compiler_generics.rs"]
 mod generics;
+#[path = "compiler_members.rs"]
+mod members;
 #[path = "compiler_mixed_generics.rs"]
 mod mixed_generics;
 #[path = "compiler_quote.rs"]
@@ -313,6 +315,7 @@ struct SourceLifeScope {
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
+    member_hosts: Vec<members::MemberLocation<'a>>,
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
@@ -369,6 +372,7 @@ impl<'a> Compiler<'a> {
         Self {
             modules,
             declarations: Vec::new(),
+            member_hosts: Vec::new(),
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
             generic_metadata_selected: Vec::new(),
@@ -408,7 +412,8 @@ impl<'a> Compiler<'a> {
         Ok(compiler)
     }
     fn index(&mut self) -> R<()> {
-        for (module, input) in self.modules.iter().enumerate() {
+        let modules = self.modules;
+        for (module, input) in modules.iter().enumerate() {
             self.budget.work(1, input.syntax.span)?;
             if input.source.module_id != input.syntax.id
                 || !input.syntax.span.is_valid_for(input.source)
@@ -489,6 +494,7 @@ impl<'a> Compiler<'a> {
                         function,
                     });
                 }
+                self.index_members(module, item)?;
             }
         }
         Ok(())
@@ -503,18 +509,29 @@ impl<'a> Compiler<'a> {
                 .saturating_add(self.modules[module].symbols.len()),
             item.span,
         )?;
-        let ordinal = self.modules[module]
+        let top = self.modules[module]
             .syntax
             .items
             .iter()
-            .position(|actual| std::ptr::eq(actual, item))
-            .ok_or_else(|| error(item.span, "CT declaration is not an actual original item"))?;
-        let symbol = CtSymbolId {
-            module: self.modules[module].source.module_id,
-            declaration: zil_base::NodeId(
+            .position(|actual| std::ptr::eq(actual, item));
+        let declaration = if let Some(ordinal) = top {
+            zil_base::NodeId(
                 u32::try_from(ordinal)
                     .map_err(|_| error(item.span, "CT original declaration ordinal overflow"))?,
-            ),
+            )
+        } else {
+            source_scope::original_item(
+                self.modules[module].syntax,
+                item,
+                self.budget.limits.max_call_depth,
+                |work| self.budget.work(work, item.span),
+            )?
+            .ok_or_else(|| error(item.span, "CT declaration is not an actual original item"))?
+            .declaration
+        };
+        let symbol = CtSymbolId {
+            module: self.modules[module].source.module_id,
+            declaration,
             generation_path: None,
         };
         if !self.modules[module]
@@ -569,11 +586,26 @@ impl<'a> Compiler<'a> {
         Err(error(span, "CT source import is unresolved"))
     }
     fn function(&mut self, current: usize, path: &[String], span: Span) -> R<usize> {
+        if let Some(index) = self.member_function(current, path, span)? {
+            return Ok(index);
+        }
         let (module, name) = self.resolve_path(current, path, span)?;
         let mut found = None;
+        self.budget.work(
+            self.member_hosts
+                .len()
+                .saturating_mul(self.declarations.len()),
+            span,
+        )?;
         for (index, declaration) in self.declarations.iter().enumerate() {
             self.budget.work(1, span)?;
-            if declaration.module == module && declaration.function.name == name {
+            if declaration.module == module
+                && declaration.function.name == name
+                && !self
+                    .member_hosts
+                    .iter()
+                    .any(|member| member.declaration == index)
+            {
                 if found.is_some() {
                     return Err(error(span, "duplicate CT function declaration"));
                 }

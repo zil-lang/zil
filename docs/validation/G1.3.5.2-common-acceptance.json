@@ -1,0 +1,607 @@
+{
+  "status": "AcceptedLimitedComposition",
+  "date": "2026-11-05 Asia/Shanghai",
+  "integrator": "/root",
+  "main_before": "88cb9277932e910b26b97084e9c42dd7a0d1e234",
+  "reviewed_delivery": "88ca4f256e94db9159bbc84c8efcd1b68b55dc08",
+  "reviewed_tree": "911a72c2e34eb13b559bb43cda5d149df2d96a68",
+  "scope": [
+    "G1.3.5 complete local Enum replacement: actual RHS origin, branch ownership, ordinary tickets, cleanup and singleton root; limited supported payloads.",
+    "G3.3.5 stateful FnMut free-helper: actual mutable environment and physical shared capture relationships, complete two-call machine values.",
+    "G3.3.6 finite owning FnOnce free-helper: exact staged parameter origin and independent unique consumption, scalar resource plus shared Tag, no user Drop or lending.",
+    "G4.4.3 original nongeneric static mixed CT member factories: retained-member lineage authenticated against actual immutable source; physical capacity/scan work paid.",
+    "G1.3.6 cross-helper retirement: both kernels independently reconstruct actual root/projection/capture pairs; reject later use of retired descriptions, preserve legal distinct objects and sibling fields."
+  ],
+  "independent_reviews": [
+    {
+      "path": "docs/validation/G1.3.5-review.json",
+      "sha256": "a28e2787f779cf33405413495869d3c4dea3ddab875d608d41bec88bcdc32543"
+    },
+    {
+      "path": "docs/validation/G3.3.5-review.json",
+      "sha256": "b0997f61616245cd2cb4ae5494447f7d68a94318373203074fde7e146f541885"
+    },
+    {
+      "path": "docs/validation/G3.3.6-independent-review.json",
+      "sha256": "83d0b81d3efbe7809151c14771e647b314a5d4b25f7082b4053c16aaa3a82185"
+    },
+    {
+      "path": "docs/validation/G4.4.3-independent-review.json",
+      "sha256": "edc30ae0547488d60ab92c025291eb138d603871dfe340b34a667b9a7e094fca"
+    },
+    {
+      "path": "docs/validation/G1.3.6-independent-review.json",
+      "sha256": "f02118d52d5788bfe04afef760c28201f13ce5d35e72454c2ea649cb7d83d58f"
+    }
+  ],
+  "default": {
+    "status": "RevalidatedSameScopePass",
+    "source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "original_full_source": "c715215e505b17239190a9d1c3dc4ea8e2fafe64",
+    "original_full_result": {
+      "source": "c715215e505b17239190a9d1c3dc4ea8e2fafe64",
+      "source_after": "c715215e505b17239190a9d1c3dc4ea8e2fafe64",
+      "worktree_after": "",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 101,
+      "status": "Fail",
+      "elapsed_seconds": 351.3,
+      "groups": 422,
+      "passed": 4819,
+      "failed": 2,
+      "ignored": 0,
+      "log_sha256": "ba1111d46825e761a4816a5b3f0caa43db52dce601819d86e1bb9db4720570e0",
+      "failures": [
+        "test owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries ... FAILED",
+        "test owning_store_descriptor_arguments_preserve_actual_entry_apart_checks ... FAILED",
+        "error: test failed, to rerun pass `-p zil-driver --test impl180_store_mut`",
+        "error: 1 target failed:"
+      ],
+      "reclaimed_cache_files": 408,
+      "reclaimed_cache_bytes": 15490506600
+    },
+    "changed_rust_source": "crates/zil-driver/tests/impl180_store_mut.rs",
+    "scope_proof_sha256": "2ceae12b6119af371a75e312261e8dc58ec1bbdd7f25d74f153fb842fdd0a516",
+    "affected_target": {
+      "name": "impl180_store_mut",
+      "passed": 32,
+      "failed": 0,
+      "executable_matches_original_workspace_selection": true,
+      "log_sha256": "298bb59eb21ea2828024196fbf3d8354bfd2b95df2c4aa3f650d49ea575e7d88"
+    },
+    "reused_unchanged_passing_tests": 4789,
+    "passed": 4821,
+    "failed": 0,
+    "ignored": 0,
+    "groups": 422,
+    "interpretation": "Original full Fail is preserved. This records equivalent complete scope after exact source/dependency comparison and full affected-target rerun, not a fictitious successful second full command."
+  },
+  "default_revalidation_scope": {
+    "original_full_source": "c715215e505b17239190a9d1c3dc4ea8e2fafe64",
+    "revalidated_source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "changed_files": [
+      "changes/G1.3.6-helper-retirement.md",
+      "crates/zil-driver/tests/impl180_store_mut.rs",
+      "docs/validation/G1.3.6-independent-review.json"
+    ],
+    "unchanged_production_and_other_test_sources": true,
+    "cargo_manifests_lock_config_unchanged": true,
+    "only_rust_target_dependency": "impl180_store_mut",
+    "matching_actual_rustc_dep_info": [
+      {
+        "path": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/impl180_store_mut-ad9c7ce1543fb8dc.d",
+        "sha256": "36036c9dffa356252b186e3dc6b2e3ebf134751f82a776f6d60df6f4469c7d72"
+      },
+      {
+        "path": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/impl180_store_mut-b63e34b576444b42.d",
+        "sha256": "f1b081b0cbdc2ee244f5a48cb7d869ae9bc144926f981d7f03c522d37c633847"
+      },
+      {
+        "path": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/impl180_store_mut-d9585d0c4c3bb079.d",
+        "sha256": "9c78a791b5efdb8523abe2c2e2dbe86c1fe29d5539fff45c908dec9dc41c8e14"
+      },
+      {
+        "path": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/impl180_store_mut-6164261634516f28.d",
+        "sha256": "c38706a20a93ae5e86b1b3c80c4e6e11ee98870ff70dae811d6df71fadc1e9af"
+      }
+    ],
+    "basis": "Complete original workspace execution; only this target owns the changed Rust source. Preserve original failure, rerun the complete workspace-selected affected target, and reuse other unchanged passing groups only."
+  },
+  "reference": {
+    "source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "source_after": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast",
+      "--no-default-features"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 355.23,
+    "groups": 422,
+    "passed": 4709,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "0d8966f274555400a17282d0c59d36afe135f6cba532a3074338f864fa905ed1",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14791354208
+  },
+  "post_gate_test_strengthening": {
+    "scope": {
+      "full_gate_source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+      "post_gate_source": "0b9cb0a8ee3360116655d2abd82891aea534e149",
+      "changed_files": [
+        ".task/G1.3.6.md",
+        ".task/G3.3.6.2.md",
+        "changes/G1.3.6-helper-retirement.md",
+        "docs/validation/G1.3.6-helper-retirement.json",
+        "tests/language-readiness/terminal/340/helper_retirement_verify.rs"
+      ],
+      "production_config_and_other_tests_unchanged": true,
+      "only_assertion_additions_in_existing_tests": [
+        "g1361_verify_current_raw_wire_and_source_limits",
+        "g1361_verify_nonlocal_desc_alias_and_read_before_retirement"
+      ],
+      "patch_sha256": "1609e5120c14cf955c1f9146f36c0faeb1f94f6b652dd5420d9e7de781067adc",
+      "release_compiler_kept_from_full_gate_source": true,
+      "patch_sha256_serialization": "UTF-8 of git diff --unified=0 fa1cb955f966cd66aea13dbfacc5a100ed5a53c1 0b9cb0a8ee3360116655d2abd82891aea534e149 -- tests/language-readiness/terminal/340/helper_retirement_verify.rs, with Python str.strip() applied before hashing (1160 bytes)."
+    },
+    "result": {
+      "source": "0b9cb0a8ee3360116655d2abd82891aea534e149",
+      "full_gate_source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+      "status": "Pass",
+      "stages": [
+        {
+          "name": "default-g1361_verify_current_raw_wire_and_source_limits",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--workspace",
+            "--test",
+            "aggregates",
+            "helper_retirement_verify::g1361_verify_current_raw_wire_and_source_limits",
+            "--",
+            "--exact",
+            "--nocapture"
+          ],
+          "exit_code": 0,
+          "seconds": 3.51,
+          "log_sha256": "e954855af2f763509c51b1205a29ad809e588f9c17a49e92ed35d7a07585ab8b"
+        },
+        {
+          "name": "default-g1361_verify_nonlocal_desc_alias_and_read_before_retirement",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--workspace",
+            "--test",
+            "aggregates",
+            "helper_retirement_verify::g1361_verify_nonlocal_desc_alias_and_read_before_retirement",
+            "--",
+            "--exact",
+            "--nocapture"
+          ],
+          "exit_code": 0,
+          "seconds": 0.12,
+          "log_sha256": "83465fc5effdb093a67beb73d1ea759656b0c6395f613c8046c711dd24f9a215"
+        },
+        {
+          "name": "reference-g1361_verify_current_raw_wire_and_source_limits",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--workspace",
+            "--test",
+            "aggregates",
+            "--no-default-features",
+            "helper_retirement_verify::g1361_verify_current_raw_wire_and_source_limits",
+            "--",
+            "--exact",
+            "--nocapture"
+          ],
+          "exit_code": 0,
+          "seconds": 3.06,
+          "log_sha256": "1b6bcce759e8c8c0968ea57b45295ece517dc020faed2e96618509998d7b6717"
+        },
+        {
+          "name": "reference-g1361_verify_nonlocal_desc_alias_and_read_before_retirement",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "--workspace",
+            "--test",
+            "aggregates",
+            "--no-default-features",
+            "helper_retirement_verify::g1361_verify_nonlocal_desc_alias_and_read_before_retirement",
+            "--",
+            "--exact",
+            "--nocapture"
+          ],
+          "exit_code": 0,
+          "seconds": 0.1,
+          "log_sha256": "b3beeca18edfbb8c9add7487258aeb776b3989422e2218894965b3face7ea908"
+        },
+        {
+          "name": "fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 5.36,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 0,
+          "seconds": 1.53,
+          "log_sha256": "1fe32735b4cd4da7b480593ffb863a8e930a75a4c0c710f9d139923132dceb90"
+        },
+        {
+          "name": "reference-clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--no-default-features",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 0,
+          "seconds": 1.7,
+          "log_sha256": "331accd8b6a9705050d05e4f576b0d35c5b3b867c7d66d8470cfb676d552e05a"
+        },
+        {
+          "name": "engineering",
+          "command": [
+            "python3",
+            "/workspace/.zil-env/G10.1-engineering-checks.py",
+            "/workspace/.zil-env/G1.3.5.2-retirement-post-gates"
+          ],
+          "exit_code": 0,
+          "seconds": 6.79,
+          "log_sha256": "d2bd65bccb75c61572f2152b8af91bc249ffb50311d7f53fe64a2d10cb7a7b0a"
+        }
+      ]
+    },
+    "interpretation": "Only additions to two existing test bodies after full-gate source. Both exact tests reran under default and reference; test count unchanged. No production/config/other-test change. This is not another whole-workspace invocation."
+  },
+  "text_reference": {
+    "passed": 70,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "8b22f7ef186491d1db6fa4e38042848bc9faf4ecc986a2520ee75a9b62009621"
+  },
+  "release_consumer": {
+    "status": "Pass",
+    "source_commit": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "cli_sha256": "cdaaf611d424f2c7b829e90bf74ef51e19d368f52faa206e062fae9b4c2e5ad1",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+    "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "commands": 145,
+    "summary_sha256": "4e03d6af965e9f3b3cd6da382db5f0fdf50526f255d00af1fb59ee9347290af5",
+    "builds": 16,
+    "observations": 128
+  },
+  "fresh_release_retirement_matrix": {
+    "compiler_source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "compiler_sha256": "cdaaf611d424f2c7b829e90bf74ef51e19d368f52faa206e062fae9b4c2e5ad1",
+    "checks": [
+      {
+        "name": "original_same_root",
+        "source_sha256": "c543fe078f02c9d57fb41c351dd6481d0caaf0f7881ef3b770d6523e3d7e523e",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "apart_relay",
+        "source_sha256": "fc627a9ed2ef63f1f96ad6f7a375ee33ef4c4d18996bdcd507fed2f77d87d876",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      {
+        "name": "alias_relay",
+        "source_sha256": "5b1cf200212d02f47f854ab36ed62ac363fa5bebf9db58d315b4983e7b88389e",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "same_host_sibling",
+        "source_sha256": "63c6bcef067910888e2eb8238938feba51dd40d750fa6007692d998134db31c7",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      },
+      {
+        "name": "same_host_retired",
+        "source_sha256": "2783245ac13e9d29ddec60ca125a2208d7e24682d2997aa3d4006e71acb2b6ee",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "nested_same_root",
+        "source_sha256": "338f8d27754a99cd6501cd0fde25ebed8729ba2f0c4ef8fae16fc5572dfd20c9",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "captured_old_desc",
+        "source_sha256": "201614357d690f38308d6157db5b78d259ebb0b5aada0dba432cffdd4eb2657f",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "analyze",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ]
+      },
+      {
+        "name": "pre_retirement_last_use",
+        "source_sha256": "6453a019b276d92fdda5c121d4f5c7466a04891042c5ed99f25f31b1c6d4dd14",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": []
+      }
+    ],
+    "status": "Pass",
+    "native_executions": 0,
+    "scope": "Actual fresh release compiler checks the same eight source byte identities as the independently captured accepted-main baseline. This does not relabel Analyze rejection as a Verify consumer."
+  },
+  "engineering": {
+    "source": "88ca4f256e94db9159bbc84c8efcd1b68b55dc08",
+    "results": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "9600c84f06ace28cb0c0cf85fe4f8de5270ff582e3457fe907eeb315b928e357"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G1.3.5.2-final-engineering/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "3994d35b818c1ba0fe4178a1e61d5b5e7cd3322f2187fcac9e52d74d29720002"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "15bc89173eaa451feafd2f4c1c73c64891b204a52511c5d38120b67f839931ed"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "8e24f9a19ffe0976fc60eeb83a17e15e2c241aaac66bbb017905778b52bb2029"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "533f7b1350bf950d9c60b76d41fd04c35067df3fe76da3057265fa42a4237271"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e94e95b92e720584480685278cb6d0d8087f003ef0a94479d86952c4439faa8d"
+      }
+    ]
+  },
+  "documentation_seal": {
+    "source": "88ca4f256e94db9159bbc84c8efcd1b68b55dc08",
+    "changed_since_post_gate": [
+      ".task/G1.3.6.1.md",
+      "changes/G1.3.6.1-call-retirement-verify.md",
+      "docs/validation/G1.3.6.1-verify.json"
+    ],
+    "production_tests_config_unchanged": true,
+    "subsequent_changes": "Only this compact acceptance record and Rust-goals delivery reflection; final documentation checks run before push."
+  },
+  "failed_attempts": [
+    {
+      "source": "53401e157c050e1408f54fc8cf9c46a3095ebfac",
+      "status": "PassedEarlierScopeHeld",
+      "record": "docs/validation/G1.3.5.2-pre-retirement-gates.json",
+      "reason": "Independent review reproduced old live-Desc helper escape; earlier gates are not validation of the corrected candidate."
+    },
+    {
+      "source_prefix": "c0d4",
+      "status": "StrictLintFailedBeforeFullTests",
+      "reason": "Two equivalent if-let Clippy corrections applied in Analyze before frozen production."
+    },
+    {
+      "source_prefix": "a563",
+      "status": "DiskExhaustedBeforeTests",
+      "groups": 0,
+      "reason": "LLVM link SIGBUS at disk exhaustion; failed result retained. Reclaimed only verified inactive build caches and added space preflight."
+    },
+    {
+      "source": "c715215e505b17239190a9d1c3dc4ea8e2fafe64",
+      "status": "Fail",
+      "passed": 4819,
+      "failed": 2,
+      "reason": "Old Store-helper exact-budget and diagnostic assertions corrected in one test file. Full affected target reran with32/0; unchanged production/config/dependencies proved. Original Fail preserved above."
+    },
+    {
+      "source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+      "status": "EngineeringTwoFailed",
+      "reason": "Noncanonical .task/G3.3.6-review.md failed plan/docs. Renamed G3.3.6.2; all10 engineering checks subsequently passed. Original wrapper exit0 not treated as success."
+    }
+  ],
+  "github_ci": {
+    "status": "NotStartedBilling",
+    "observed_source": "fa1cb955f966cd66aea13dbfacc5a100ed5a53c1",
+    "job": 127045354163,
+    "url": "https://github.com/zil-lang/zil/actions/runs/41966733689/job/127045354163",
+    "steps": [],
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased. Please check the 'Billing & plans' section in your settings",
+    "counted_as_pass": false,
+    "bypass": false
+  },
+  "not_completed": [
+    "Whole/nonlocal Package helper replacement and must-Fresh postconditions (G1.3.7 preflight backed up separately).",
+    "General Sum/partial/capture/Store responsibility combinations; existing known-single-arm freshness precision.",
+    "General lending, giving F, user Drop and multi-F/CFG helper combinations.",
+    "Generic host/member/generated CT scopes and runtime generic CT phase.",
+    "General owned Task results, borrowed frame ports, cross-thread closure drain and generic synchronization.",
+    "Complete dyn/state/library/ZUI; native Windows and same-semantics Rust product costs."
+  ],
+  "product_scope": "No public Typed/Wire schema, default budget, ABI or product gate changed; finite delivery does not complete parent goals or B0. Actual post-merge main handoff checked separately."
+}

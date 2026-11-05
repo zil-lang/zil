@@ -30,7 +30,7 @@ pub(crate) struct Program {
 fn fail(text: &str) -> Diagnostic {
     bad(None, text)
 }
-fn charge_set(targets: &Targets, b: &mut Budget) -> Check<()> {
+pub(crate) fn charge_set(targets: &Targets, b: &mut Budget) -> Check<()> {
     b.spend(targets.len())?;
     for target in targets {
         b.spend(target.steps.len().saturating_add(1))?;
@@ -55,7 +55,7 @@ fn insert(to: &mut Targets, target: &Target, b: &mut Budget) -> Check<bool> {
     b.spend(target.steps.len().saturating_add(1))?;
     Ok(to.insert(target.clone()))
 }
-fn merge(to: &mut Targets, from: &Targets, b: &mut Budget) -> Check<bool> {
+pub(crate) fn merge(to: &mut Targets, from: &Targets, b: &mut Budget) -> Check<bool> {
     b.spend(from.len())?;
     let mut changed = false;
     for target in from {
@@ -63,7 +63,7 @@ fn merge(to: &mut Targets, from: &Targets, b: &mut Budget) -> Check<bool> {
     }
     Ok(changed)
 }
-fn merge_captures(to: &mut Captures, from: &Captures, b: &mut Budget) -> Check<bool> {
+pub(crate) fn merge_captures(to: &mut Captures, from: &Captures, b: &mut Budget) -> Check<bool> {
     b.spend(from.len())?;
     let mut changed = false;
     for (index, row) in from {
@@ -552,12 +552,12 @@ impl Program {
                 "replacement has no independently reconstructed actual target",
             ));
         }
-        // Exact whole-Package transfer retires one concrete old instance.
+        // Exact whole-Package/Enum transfer retires one concrete old instance.
         // A may-target set cannot strongly replace every alternative. The
         // original Managed endpoint lane retains its conservative transfer.
-        if matches!(place.ty, Type::Package { .. }) && targets.len() != 1 {
+        if matches!(place.ty, Type::Package { .. } | Type::Enum { .. }) && targets.len() != 1 {
             return Err(unsupported(
-                "whole Package replacement requires one independently reconstructed actual target",
+                "whole Package/Enum replacement requires one independently reconstructed actual target",
                 None,
             ));
         }

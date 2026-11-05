@@ -2,12 +2,19 @@
 //! owning position. The old destination has no second invented local debt.
 use super::*;
 use crate::place_replacements::{Inventory, actual};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+mod retirement;
+pub(super) use retirement::Sources;
 pub(super) struct Plan {
     actual: actual::Program,
     inventories: Vec<Inventory>,
     written: Vec<BTreeSet<Root>>,
     targets: BTreeMap<usize, Vec<actual::Target>>,
+    retirements: BTreeMap<usize, Vec<actual::Target>>,
+    active_pairs: bool,
+    pairs: RefCell<Vec<retirement::Pairs>>,
+    calls: RefCell<Vec<Vec<retirement::Call>>>,
 }
 #[derive(Clone, Copy)]
 struct Point {
@@ -16,12 +23,14 @@ struct Point {
     validate: bool,
     span: Span,
     sealed: bool,
+    output: Option<usize>,
 }
 struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
     carrier: Option<usize>,
+    sources: Option<usize>,
 }
 fn nested_descriptor_boundary(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.closures.len())?;
@@ -70,6 +79,7 @@ impl Plan {
         graphs: &[FunctionGraph],
         writes: &[BTreeSet<Root>],
         targets: &BTreeMap<usize, Vec<actual::Target>>,
+        retirements: &BTreeMap<usize, Vec<actual::Target>>,
         b: &mut Budget,
     ) -> Check<Self> {
         nested_descriptor_boundary(module, b)?;
@@ -88,11 +98,36 @@ impl Plan {
                 b.spend(target.steps.len().saturating_add(1))?;
             }
         }
+        if !retirements.is_empty() {
+            b.spend(retirements.len())?;
+            for row in retirements.values() {
+                b.spend(row.len())?;
+                for target in row {
+                    b.spend(target.steps.len().saturating_add(1))?;
+                }
+            }
+        }
+        let active_pairs = !targets.is_empty() || !retirements.is_empty();
+        if active_pairs {
+            b.spend(module.functions.len().saturating_mul(2))?;
+        }
         Ok(Self {
+            active_pairs,
+            pairs: RefCell::new(if active_pairs {
+                vec![retirement::Pairs::new(); module.functions.len()]
+            } else {
+                vec![]
+            }),
+            calls: RefCell::new(if active_pairs {
+                (0..module.functions.len()).map(|_| Vec::new()).collect()
+            } else {
+                vec![]
+            }),
             actual,
             inventories,
             written: writes.to_vec(),
             targets: targets.clone(),
+            retirements: retirements.clone(),
         })
     }
     pub(super) fn extend_slots(
@@ -101,6 +136,7 @@ impl Plan {
         slots: &mut Slots,
         b: &mut Budget,
     ) -> Check<()> {
+        slots.retirement = self.active_pairs;
         let routes = &self.actual.functions[f.id.0 as usize].values;
         for (value, row) in routes.iter().enumerate() {
             b.spend(row.len().saturating_add(1))?;
@@ -147,6 +183,42 @@ impl Plan {
         b.spend(row.len())?;
         Ok(row.clone())
     }
+    fn retire(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &State,
+        target: &actual::Target,
+        point: Point,
+        b: &mut Budget,
+    ) -> Check<()> {
+        if !point.validate || !self.active_pairs {
+            return Ok(());
+        }
+        retirement::observe(self, transfer, state, target, point, b)
+    }
+    pub(super) fn seed_sources(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        slots: &Slots,
+        state: &mut State,
+        b: &mut Budget,
+    ) -> Check<()> {
+        retirement::seed(self, module, f, slots, state, b)
+    }
+    pub(super) fn source_step(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &mut State,
+        instruction: &Instruction,
+        b: &mut Budget,
+    ) -> Check<()> {
+        retirement::step(self, transfer, state, instruction, b)
+    }
+    pub(super) fn close_pairs(&self, module: &TypedModule, b: &mut Budget) -> Check<()> {
+        retirement::close(self, module, b)
+    }
+
     fn invalidate_store(
         &self,
         transfer: &Transfer<'_>,
@@ -247,6 +319,9 @@ impl Plan {
     ) -> Check<()> {
         let f = transfer.f;
         let callee = &transfer.module.functions[invocation.entry];
+        if point.validate && self.active_pairs {
+            retirement::call(self, transfer, state, &invocation, point, b)?;
+        }
         // A checked public envelope does not authorize looking at private rows.
         // Actual Store invalidation in such a body is independently closed by
         // invalidate_store, rather than importing a private effect at the call.
@@ -294,6 +369,29 @@ impl Plan {
                         description_live(state, transfer.slots, parent, point.span, b)?;
                     }
                     self.invalidate_store(transfer, state, &state.desc[parent], written, point, b)?;
+                } else {
+                    self.retire(transfer, state, &target, point, b)?;
+                }
+            }
+        }
+        // Empty on historical local-only/Store paths. This paid target ledger
+        // is derived solely from real possible Commits, including nested calls.
+        if !self.retirements.is_empty() {
+            b.spend(self.retirements.len())?;
+            if let Some(rows) = self.retirements.get(&invocation.entry) {
+                b.spend(rows.len())?;
+                for target in rows {
+                    b.spend(target.steps.len().saturating_add(1))?;
+                    let selected = actual::substitute(
+                        &BTreeSet::from([target.clone()]),
+                        invocation.arguments,
+                        invocation.captures,
+                        &self.actual.functions[f.id.0 as usize],
+                        b,
+                    )?;
+                    for target in selected {
+                        self.retire(transfer, state, &target, point, b)?;
+                    }
                 }
             }
         }
@@ -359,6 +457,9 @@ impl Plan {
             validate,
             span: instruction.span,
             sealed: false,
+            output: instruction
+                .result
+                .and_then(|value| transfer.slots.desc_value[value.0 as usize]),
         };
         let facts = &self.actual.functions[f.id.0 as usize];
         let scoped = match instruction.kind {
@@ -387,6 +488,7 @@ impl Plan {
                     arguments: &[],
                     captures: Some(&facts.captures[value.0 as usize]),
                     carrier: transfer.slots.desc_value[value.0 as usize],
+                    sources: transfer.slots.desc_value[value.0 as usize],
                 },
                 b,
             )?;
@@ -400,6 +502,7 @@ impl Plan {
                 arguments,
                 captures: None,
                 carrier: None,
+                sources: None,
             }),
             InstructionKind::CallClosureShared { callee, arguments }
             | InstructionKind::CallClosureMut { callee, arguments } => {
@@ -413,6 +516,7 @@ impl Plan {
                     arguments,
                     captures: facts.local_captures.get(callee),
                     carrier: transfer.slots.desc_local[callee.0 as usize],
+                    sources: transfer.slots.desc_local[callee.0 as usize],
                 })
             }
             InstructionKind::CallClosure { callee, arguments }
@@ -428,6 +532,7 @@ impl Plan {
                 arguments,
                 captures: Some(&facts.captures[callee.0 as usize]),
                 carrier: transfer.slots.desc_value[callee.0 as usize],
+                sources: transfer.slots.desc_value[callee.0 as usize],
             }),
             _ => None,
         };
@@ -549,10 +654,12 @@ impl Plan {
                     // and lexical cleanup age; the old value is replaced once.
                 }
                 actual::Base::Input(p) | actual::Base::InputCapture(p, _) => {
+                    self.retire(transfer, state, &target, point, b)?;
                     b.spend(written.len().saturating_add(1))?;
                     written.insert(Root::Parameter(p));
                 }
                 actual::Base::Environment(c) => {
+                    self.retire(transfer, state, &target, point, b)?;
                     if f.environment.is_some_and(|id| {
                         transfer.module.closures[id.0 as usize].kind == CallableKind::Fn
                     }) {

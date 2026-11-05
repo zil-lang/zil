@@ -60,9 +60,16 @@ fn merge_leaf(to: &mut Content, from: &Content, b: &mut Budget) -> Check<bool> {
     b.spend(work)?;
     to.merge(from, b)
 }
-// Only the new, flat whole-Package profile reaches Product endpoints. Keep
-// the old Managed leaf transfer and its metering unchanged.
+// Whole endpoints replace one actual instance, not its historic alternatives.
+// Keep the old Managed leaf transfer and its metering unchanged.
 fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<bool> {
+    if matches!((&*to, from), (Content::Sum(..), Content::Sum(..))) {
+        to.cost(b)?;
+        from.cost(b)?;
+        let changed = to != from;
+        *to = from.clone();
+        return Ok(changed);
+    }
     if let (Content::Product(old), Content::Product(incoming)) = (&mut *to, from) {
         b.spend(old.len().saturating_add(incoming.len()))?;
         if old.len() != incoming.len() {
@@ -125,6 +132,45 @@ pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
         }
     }
     Ok(owner)
+}
+/// Finite whole-Enum endpoint, not ordinary Sum qualification. Each owning
+/// arm has one direct canonical Copy-record leaf and scalar/Unit companions.
+fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
+    let Type::Enum { variants, .. } = ty else {
+        return Ok(false);
+    };
+    b.spend(variants.len())?;
+    let mut owns = false;
+    for (_, fields) in variants {
+        b.spend(fields.len())?;
+        let mut arm_owns = false;
+        for ty in fields {
+            match ty {
+                Type::Managed(payload)
+                    if matches!(payload.as_ref(), Type::Record { .. })
+                        && payload.is_copy_value() =>
+                {
+                    if arm_owns {
+                        return Ok(false);
+                    }
+                    arm_owns = true;
+                }
+                Type::Unit
+                | Type::Bool
+                | Type::I32
+                | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
+                | Type::U8
+                | Type::U16 => {}
+                _ => return Ok(false),
+            }
+        }
+        owns |= arm_owns;
+    }
+    Ok(owns)
 }
 fn merge_row(
     rows: &mut Rows,
@@ -231,7 +277,7 @@ pub(crate) fn at_type<'a>(
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
-        if !whole_local || package_owner(ty, b)?.is_none() {
+        if !whole_local || (package_owner(ty, b)?.is_none() && !enum_endpoint(ty, b)?) {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",
                 None,
@@ -242,7 +288,7 @@ pub(crate) fn at_type<'a>(
             && f.parameters.contains(&local)
         {
             return Err(unsupported(
-                "whole Package replacement requires a body-owned nonparameter local",
+                "whole Package/Enum replacement requires a body-owned nonparameter local",
                 None,
             ));
         }
@@ -382,6 +428,13 @@ impl Context<'_> {
                     validate,
                     b,
                 )?;
+                if target.steps.is_empty()
+                    && matches!(flow.f.locals[local.0 as usize].ty, Type::Enum { .. })
+                {
+                    // The old observation belongs to the retired instance.
+                    // The incoming Content alone carries the new tag set.
+                    flow.kill(state, local, b)?;
+                }
             }
             // An actual borrowed Store element is complete and retained by the
             // parent Store prefix. Replacement neither constructs an element
@@ -474,6 +527,9 @@ impl Context<'_> {
             InstructionKind::CommitPlaceReplace { reservation, value } => {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
                 let incoming = state.values[value.0 as usize].duplicate(b)?;
+                if validate && matches!(place.ty, Type::Enum { .. }) && !incoming.complete(b)? {
+                    return Err(invalid("whole Enum replacement RHS is not complete"));
+                }
                 for target in self.actual.selected(f, place, b)? {
                     self.apply(flow, state, &target, &incoming, validate, b)?;
                 }
@@ -654,9 +710,11 @@ pub(super) fn check(
     let mut replacement_writes = Vec::with_capacity(effects.len());
     let needed = store_calls.into_inner();
     let mut replacement_targets = BTreeMap::new();
+    let mut retirement_targets = BTreeMap::new();
     for (entry, effect) in effects.into_iter().enumerate() {
         let mut writes = BTreeSet::new();
         let mut targets = Vec::new();
+        let mut retired = Vec::new();
         b.spend(needed.len())?;
         let transfer = needed.contains(&entry);
         b.spend(effect.len())?;
@@ -674,6 +732,11 @@ pub(super) fn check(
                 if transfer {
                     b.spend(1)?;
                     targets.push(target);
+                } else {
+                    // The exact input/capture ordinal and full route survive
+                    // the boundary. Ordinary write roots lose this identity.
+                    b.spend(target.steps.len().saturating_add(1))?;
+                    retired.push(target);
                 }
             }
         }
@@ -682,11 +745,16 @@ pub(super) fn check(
             b.spend(replacement_targets.len().saturating_add(1))?;
             replacement_targets.insert(entry, targets);
         }
+        if !retired.is_empty() {
+            b.spend(retirement_targets.len().saturating_add(1))?;
+            retirement_targets.insert(entry, retired);
+        }
     }
     Ok(Proofs {
         rows,
         replacement_writes,
         replacement_targets,
+        retirement_targets,
     })
 }
 
@@ -756,5 +824,34 @@ mod package_tests {
         ] {
             assert!(merge_endpoint(&mut old.clone(), &bad, &mut budget).is_err());
         }
+    }
+}
+
+#[cfg(test)]
+mod enum_tests {
+    use super::*;
+
+    #[test]
+    fn complete_enum_replacement_retires_old_arms_and_preserves_only_rhs_origins() {
+        let limits = Limits::default();
+        let mut b = Budget::new(&limits);
+        let fresh = Content::Leaf(BTreeSet::from([Source::Fresh]));
+        let input = Content::Leaf(BTreeSet::from([Source::Input(0, vec![1, 1, 1])]));
+        let old = Content::Sum(
+            BTreeMap::from([(0, vec![fresh.clone(), Content::Copy])]),
+            None,
+        );
+        let incoming = Content::Sum(
+            BTreeMap::from([(1, vec![Content::Copy, input])]),
+            Some((0, vec![])),
+        );
+        let mut value = old.clone();
+        update(&mut value, &[], &incoming, true, &mut b).unwrap();
+        assert_eq!(value, incoming);
+        update(&mut value, &[], &old, true, &mut b).unwrap();
+        assert_eq!(value, old);
+        let empty = Content::Sum(BTreeMap::from([(2, vec![])]), None);
+        update(&mut value, &[], &empty, true, &mut b).unwrap();
+        assert_eq!(value, empty);
     }
 }

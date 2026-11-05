@@ -1,0 +1,97 @@
+{
+  "task": "G3.3.6 independent finite owning FnOnce helper review",
+  "reviewer": "async_impl_high (non-author of reviewed Expand/Types/Analyze/Verify code)",
+  "status": "PassLimited",
+  "reviewed_candidate": "b1112415b28cf61ebd1e8cee567eaf3d1f14da5d",
+  "components": {
+    "front_end": "472bffd881f913a0d0b5be93098a964168121324",
+    "Analyze": "a0325eb772fdefcdb5525cb73be56c5afe7a231b",
+    "Verify": "3f5d3ced13d33e66a3016f8448b6ddc773b4bb2f",
+    "source_tests": "51f97aa825723fbba6a5955d05c6d1bda8da1440",
+    "first_rejection_anchors": "7fcc8422d291ce0343f6717e2a596900180aed9f"
+  },
+  "binding": "b111 is normal merge of both test successors. Relative to 51f it adds exactly 21 test assertion lines; all production and Source fixtures byte-equal. Earlier passing checks bind the same production and preserved test bodies; repeats are not counted again.",
+  "environment": {
+    "fresh_cache": "/workspace/.zil-env/target-review-G3.3.6",
+    "jobs": 1,
+    "incremental": false,
+    "debug": 0,
+    "strip": "symbols",
+    "driver_feature": "llvm-api",
+    "full_suite": false
+  },
+  "results": {
+    "unique_targeted_tests": 14,
+    "incidental_existing_package_staged_test": 1,
+    "kernel_local_identity_tests": 4,
+    "driver_g336_tests": 7,
+    "old_g334_g335_context_and_None_controls": 3,
+    "native_processes": 12,
+    "native_matrix": "3 actual Source cases x Clang/LLVM API x O0/O2; stdout exactly 42 newline, exit0, empty stderr, current Verify, selected backend, no fallback"
+  },
+  "budgets": {
+    "local_Analyze": 66,
+    "local_Verify": 126,
+    "old_direct_role_each_kernel": 10,
+    "whole_Source_Types": 8386,
+    "whole_Source_Analyze": 46231,
+    "whole_Source_Verify_raw_and_Wire": 44081,
+    "old_shared_Fn_Types": 8344,
+    "old_FnMut_Types": 8601,
+    "checks": "N/N-1/fresh checked; V raw/Wire repeated/retry checked; local depth controls independent. No common cross-kernel depth threshold claim."
+  },
+  "reviewed_boundaries": [
+    "actual parameter identity, not equal ClosureId; unique acyclic Store/Take transfers; actual call order; repeated/ambiguous Store, address exposure, early Drop/Dead, StorageLive rebinding and CFG self-loop close",
+    "raw and Wire seven neighboring failures have precise first-message anchors; full source helper double invocation, caller second consume, wrong class, phantom and user Drop remain rejected; direct owning control accepted",
+    "old direct and borrowed role branches and pre-existing charges remain ahead of fallback; historical shared/FnMut Type N values unchanged",
+    "actual LLVM helper parameter0 -> stage2 -> once environment, with origin/stage live flags cleared on moves; TakeCapture clears environment owner flag before payload load; taken managed local has its own cleanup; post-call closure drop reads cleared capture flag"
+  ],
+  "cleanup_limit": "teardown=None: observed full value and inspected actual ownership flags, not an observable user destructor counter or general trap-unwinding proof.",
+  "artifact": {
+    "directory": "/workspace/.zil-env/G3.3.6-review-tmp/zil-g336-2983077-owned-Clang-O0",
+    "sha256": {
+      "program.ll": "4be33e49ce1067453c00a504e7193fc5908f9636bb1dc927beaad1b0f5e621e8",
+      "ir/lir.txt": "8b8c59e466215b1cf529f3357bd18aa798f86eeaa7f2b6e641f4c0484b37a8be",
+      "ir/typed.txt": "069a682b7239228e51e54248f986eeb9691f5539729970e06214d8d45f5e4275",
+      "program": "0dff7eb1447d7547549d9d86a51cb020b3dfe08672cf5e8bedcb08592d6a3398"
+    }
+  },
+  "quality": "kernel Analyze/Verify lib strict clippy; final driver generic_regressions +llvm-api strict clippy; final workspace fmt check pass. No formal workspace/all-target/full acceptance run.",
+  "logs": {
+    "kernel": {
+      "path": "/tmp/g336-review-kernel.log",
+      "sha256": "36006068a446a7cc5bb22b92440602ad5e02147d6955d5116087a2fdbb869a8f"
+    },
+    "source": {
+      "path": "/tmp/g336-review-source.log",
+      "sha256": "9bc837640a8abbfd87923e4f7659cf25e23700e3cf2fdf70a3a4fb5072b669a5"
+    },
+    "first-rejection": {
+      "path": "/tmp/g336-review-first-rejection.log",
+      "sha256": "8e7479bcf28767c928f563f38f9b125d59dab347b78589e19d951bfd58374783"
+    },
+    "analyze-request": {
+      "path": "/tmp/g336-review-analyze-request.log",
+      "sha256": "0e16ea0014132f28e7a49bea917c7de26278feb8f7fe71653c7f097bbd13319f"
+    },
+    "final-source-native": {
+      "path": "/tmp/g336-review-final-source-native.log",
+      "sha256": "5b4a215466b9d95583a8158cec92018ef811b5d07ac41cd456b1c2c04436d4c7"
+    },
+    "kernel-clippy": {
+      "path": "/tmp/g336-review-kernel-clippy.log",
+      "sha256": "c4c511d99cca04ad4489ae5eafee8c258919c32566b26411db78bfb292b4655d"
+    },
+    "final-clippy": {
+      "path": "/tmp/g336-review-final-clippy.log",
+      "sha256": "9de382950c531119e9d864cce40e54704f43111f45100f7be8e140b18c9136ef"
+    },
+    "final-fmt": {
+      "path": "/tmp/g336-review-final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    }
+  },
+  "findings": "No remaining blocking finding. Pre-freeze call-order/depth/reactivation/freehelper precision and distinct input oracle were corrected before the reviewed candidate. Test first-rejection anchors retained through merge.",
+  "rust_goals": "Finite ordinary owning helper expression and independently checked actual identity improve the demonstrated API lane. Complete safety, same-semantics Rust runtime/RSS, framework maintenance and compile-cost superiority are not established; product gates and parent Done unchanged.",
+  "scope_limit": "Single genuine FnOnce, finite scalar-record Managed owner with teardownNone and physical shared Tag; no give-F, user Drop, general lending/escape/multiple-F/CFG support. Root owns integration/formal acceptance."
+}

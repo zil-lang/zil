@@ -37,10 +37,24 @@ pub enum ClosureSiteLineage {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
+pub struct RetainedMemberOrigins {
+    /// Original direct-method count from the same immutable source host.
+    pub original_count: u32,
+    /// One original ordinal per actual retained direct method, in source order.
+    /// This is untrusted identity data, not proof of the source inventory.
+    pub positions: Vec<u32>,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclarationOrigin {
     pub closure_sites: ClosureSiteLineage,
     pub declaration: NodeId,
     pub identity: LifeDeclarationIdentity,
+    /// A checked producer's deletion-only correspondence for original struct
+    /// methods. None records an unchanged vector, never unknown/generated
+    /// lineage. Consumers still validate shape and actual host eligibility;
+    /// original-event truth is checked where the immutable source AST exists.
+    pub retained_members: Option<RetainedMemberOrigins>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

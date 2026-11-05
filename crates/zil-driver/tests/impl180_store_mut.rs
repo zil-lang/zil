@@ -1096,7 +1096,9 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
         "store-replacement-budget.zil",
         &text,
     );
-    for (stage, expected_n) in [(Stage::Analyze, 19754), (Stage::Verify, 54842)] {
+    // G1.3.6: previous Analyze19754; paid retirement profile/empty-shape
+    // forwarding exclusions add71 without granting a new Store operation.
+    for (stage, expected_n) in [(Stage::Analyze, 19825), (Stage::Verify, 54842)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -1367,36 +1369,47 @@ fn owning_store_call_raw_and_wire_recompute_instance_invalidation() {
 
 #[test]
 fn owning_store_descriptor_arguments_preserve_actual_entry_apart_checks() {
-    for body in [
-        "let v=store_at_mut(s,0);let old=v.owner;return inspect(v,old)",
-        "return 0",
+    for (inspect, message) in [
+        (
+            "replace(v);return old.code",
+            "actual replacement may retire a resource instance whose description is required later",
+        ),
+        // No Commit is reachable from this inspect: retain an independent
+        // Source witness of the older simultaneous-argument apart consumer.
+        ("return old.code", "simultaneous actual head arguments"),
     ] {
-        let source = format!(
-            "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn inspect(v:&mut Cell,old:R)->i32{{replace(v);return old.code}}fn main()->i32{{{SETUP}{body}}}"
-        );
-        let report = check(&source);
-        if body == "return 0" {
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
+        for body in [
+            "let v=store_at_mut(s,0);let old=v.owner;return inspect(v,old)",
+            "return 0",
+        ] {
+            let source = format!(
+                "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn inspect(v:&mut Cell,old:R)->i32{{{inspect}}}fn main()->i32{{{SETUP}{body}}}"
             );
-        } else {
-            assert_eq!(
-                report.status,
-                ResultCategory::SafeReject,
-                "{}",
-                report.to_json()
-            );
-            assert!(
-                report
-                    .diagnostics
-                    .iter()
-                    .any(|d| d.message.contains("simultaneous actual head arguments")),
-                "{}",
-                report.to_json()
-            );
+            let report = check(&source);
+            if body == "return 0" {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains(message)),
+                    "{}",
+                    report.to_json()
+                );
+            }
         }
     }
 }
@@ -1525,7 +1538,10 @@ fn owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries() 
         "store-call-invalidation-budget.zil",
         &text,
     );
-    for (stage, expected_n) in [(Stage::Analyze, 23731), (Stage::Verify, 63080)] {
+    // G1.3.6: previous A23731/V63080; the actual external Commit helper
+    // requires independent exact origins/point-state/retirement routing:
+    // Analyze +450 and Verify +740, with unchanged source/default limits.
+    for (stage, expected_n) in [(Stage::Analyze, 24181), (Stage::Verify, 63820)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {

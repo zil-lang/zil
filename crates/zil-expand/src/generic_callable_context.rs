@@ -163,9 +163,12 @@ impl Engine<'_> {
         let TypeKind::Named { path, args } = &bound.kind else {
             return Ok(());
         };
-        if !matches!(path.as_slice(), [name] if name == "Fn") {
-            return Ok(());
-        }
+        let kind = match path.as_slice() {
+            [name] if name == "Fn" => CallableKind::Fn,
+            [name] if name == "FnMut" => CallableKind::FnMut,
+            [name] if name == "FnOnce" => CallableKind::FnOnce,
+            _ => return Ok(()),
+        };
         let candidate = matches!(args.as_slice(), [GenericArg::Type(parameters), GenericArg::Type(_)]
             if matches!(&parameters.kind, TypeKind::Tuple(parameters) if matches!(parameters.as_slice(), [parameter]
                 if matches!(&parameter.kind, TypeKind::Reference { mutable:false,inner,.. }
@@ -198,14 +201,21 @@ impl Engine<'_> {
         };
         if selected_role.source_generic_parameter != generic_parameter as u32
             || selected_role.source_bound_ordinal != 0
-            || selected_role.kind != CallableKind::Fn
-            || callable::parameter_mode(&function.params[selected_role.index].ty, &parameter.name)
-                != Some(Some(false))
+            || selected_role.kind != kind
         {
             return Err(unavailable(
                 function.span,
                 "source helper selected bound differs from its actual receiver",
             ));
+        }
+        if callable::parameter_mode(&function.params[selected_role.index].ty, &parameter.name)
+            != Some(if kind == CallableKind::FnOnce {
+                None
+            } else {
+                Some(kind == CallableKind::FnMut)
+            })
+        {
+            return Ok(());
         }
         let role_parameter = selected_role.index as u32;
         let role_generic = selected_role.generic_index;

@@ -1,0 +1,1 @@
+extern "C" fn putchar(code:i32)->i32;resource R{code:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.code);}}}enum E{Left(manages R,i32),Right(i32,manages R),Empty}fn main()->i32{var value=E.Left(R{code:65},1);let target=&mut value;*target=E.Empty();match value{E.Left(_,_)=>{return 91;},E.Right(_,_)=>{return 92;},E.Empty()=>{return 43;}}}

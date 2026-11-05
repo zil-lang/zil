@@ -107,8 +107,33 @@ impl FunctionEmitter<'_> {
         } else {
             false
         };
+        let complete_enum = if let Type::Enum { variants, .. } = &ty {
+            let mut owning = false;
+            let mut admitted = true;
+            for (_, fields) in variants {
+                let mut owners = 0;
+                for field in fields {
+                    match field {
+                        Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. })
+                                && payload.is_copy_value() =>
+                        {
+                            owners += 1;
+                            owning = true;
+                        }
+                        field if field.is_b0_scalar() => {}
+                        _ => admitted = false,
+                    }
+                }
+                admitted &= owners <= 1;
+            }
+            owning && admitted
+        } else {
+            false
+        };
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
+            && !complete_enum
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",
@@ -155,6 +180,75 @@ mod fixture;
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn whole_enum_replacement_machine_recipe_precharges_actual_tree() {
+        // Raw metering only: no executable permission/ownership claim. Actual
+        // Source/native controls separately establish the admitted recipe.
+        let mut module = fixture::module();
+        let owner = Type::Managed(Box::new(module.resources[0].payload.clone()));
+        let minimum = |f: &TypedFunction| {
+            let run = |work| {
+                let limits = zil_base::Limits {
+                    max_analysis_steps: work,
+                    ..zil_base::Limits::default()
+                };
+                reserve(f, &module.resources, &limits, &tasks::Meter::new(work))
+            };
+            let (mut low, mut high) = (1, zil_base::Limits::default().max_analysis_steps);
+            while low < high {
+                let mid = low + (high - low) / 2;
+                if run(mid).is_ok() {
+                    high = mid
+                } else {
+                    low = mid + 1
+                }
+            }
+            run(low).unwrap();
+            assert!(
+                run(low - 1)
+                    .unwrap_err()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+            );
+            run(low).unwrap();
+            low
+        };
+        let mut measured = Vec::new();
+        for variants in [
+            vec![
+                ("Own".into(), vec![owner.clone()]),
+                ("Empty".into(), vec![]),
+            ],
+            vec![
+                ("Left".into(), vec![owner.clone(), Type::I32]),
+                ("Right".into(), vec![Type::I32, owner]),
+                ("Empty".into(), vec![]),
+            ],
+        ] {
+            let f = &mut module.functions[0];
+            let address = Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Enum {
+                    name: "RecipeEnum".into(),
+                    variants,
+                }),
+            };
+            f.locals[0].ty = address.clone();
+            f.values[0] = address;
+            for i in &mut f.blocks[0].instructions {
+                if let InstructionKind::ReservePlaceAddress { path, .. } = &mut i.kind {
+                    path.clear();
+                }
+            }
+            measured.push(minimum(f));
+        }
+        assert!(measured[1] > measured[0], "{measured:?}");
+        assert_eq!(measured, [1_890, 2_805]);
+        println!(
+            "G1.3.5 raw machine recipe narrow/full Enum N={measured:?}; N-1/fresh retry; no source permission claim"
+        );
+    }
 
     #[test]
     fn owning_replacement_machine_recipe_charges_repeated_settlements() {

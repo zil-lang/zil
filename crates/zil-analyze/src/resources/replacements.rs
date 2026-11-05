@@ -6,10 +6,14 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
+mod retirement;
+mod whole_enum;
 #[derive(Clone, Copy)]
 pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
     pub(super) live: Option<&'a Live>,
+    pub(super) output: Option<ValueId>,
+    pub(super) position: Option<(usize, usize)>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum StoreInvalidation {
@@ -27,6 +31,8 @@ pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
     definitions: Vec<Definitions>,
+    retirement_pairs: RefCell<Vec<retirement::Pairs>>,
+    exact_retirement: bool,
 }
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "actual replacement origin transfer")
@@ -116,7 +122,8 @@ fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
-            || package::field(ty, b)?.is_some(),
+            || package::field(ty, b)?.is_some()
+            || whole_enum::admitted(ty, b)?,
     )
 }
 impl Program {
@@ -164,7 +171,8 @@ impl Program {
                 }
             }
         }
-        let routes = origins::module(module, graphs, b)?;
+        let exact_retirement = retirement::needed(module, b)?;
+        let routes = origins::module(module, graphs, exact_retirement, b)?;
         fee(b, module.functions.len())?;
         let mut definitions = Vec::with_capacity(module.functions.len());
         let mut packages = false;
@@ -174,7 +182,7 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
-                if matches!(definition.ty, Type::Package { .. }) {
+                if matches!(definition.ty, Type::Package { .. } | Type::Enum { .. }) {
                     packages = true;
                     fee(b, definition.path.len().saturating_add(1))?;
                     let targets = match &definition.base {
@@ -193,12 +201,16 @@ impl Program {
                     if targets.len() != 1 {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
-                            "Package replacement requires one actual local root",
+                            "complete replacement requires one actual local root",
                             None,
                         )]);
                     }
                     for target in &targets {
-                        package::local(f, target, b)?;
+                        if matches!(definition.ty, Type::Enum { .. }) {
+                            whole_enum::local(f, target, b)?;
+                        } else {
+                            package::local(f, target, b)?;
+                        }
                     }
                 }
                 if !closed(&definition.ty, b)? {
@@ -214,9 +226,17 @@ impl Program {
         if packages {
             package::definitions(module, b)?;
         }
+        let retirement_pairs = if exact_retirement {
+            fee(b, module.functions.len())?;
+            vec![retirement::Pairs::new(); module.functions.len()]
+        } else {
+            Vec::new()
+        };
         Ok(Self {
             routes,
             definitions,
+            retirement_pairs: RefCell::new(retirement_pairs),
+            exact_retirement,
         })
     }
     pub(super) fn extend_shapes(
@@ -407,6 +427,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         if parents.is_empty() {
             return Err(error(
@@ -595,6 +616,8 @@ impl Program {
                     CheckPoint {
                         validate: check,
                         live,
+                        output: None,
+                        position: None,
                     },
                     b,
                 )?;
@@ -657,6 +680,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         let rows = &flow.effects[callee].replacements;
         fee(b, rows.len())?;
@@ -684,6 +708,10 @@ impl Program {
                         None,
                     )]);
                 }
+                // The actual Commit keys form a may-retire projection. Their
+                // birth rows remain conservative may-write unions; presence
+                // neither proves must-Commit nor grants a fresh origin.
+                retirement::check(flow, state, &at, point, b)?;
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
@@ -731,6 +759,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         let f = flow.function;
         match &i.kind {
@@ -759,8 +788,15 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
+                    // The old local path had the same missing consumer as a
+                    // call. Check actual leaf retirement independently here.
+                    if matches!(d.ty, Type::Managed(_)) {
+                        retirement::check(flow, state, &target, point, b)?;
+                    }
                     if matches!(d.ty, Type::Package { .. }) {
                         package::apply(flow, state, &target, *value, point, b)?;
+                    } else if matches!(d.ty, Type::Enum { .. }) {
+                        whole_enum::apply(flow, state, &target, *value, point, b)?;
                     } else {
                         self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
                     }

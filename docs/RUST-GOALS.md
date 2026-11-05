@@ -1,5 +1,11 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-05：Enum、真实 helper、CT 成员与资源退休
+
+实际局部 Enum 替换、有状态 FnMut/拥有 FnOnce helper 和静态 CT 成员形成新的源码组合；两核独立修复跨 helper 后继续使用旧资源描述的漏洞，并保留合法分离对象调用。默认完整范围复验4821/0、参考全量4709/0、text70/0、双配置严格检查及 release145命令通过，原失败与补验范围见[共同验收](validation/G1.3.5.2-common-acceptance.json)。
+
+安全实证限于已复核的来源、消费和清理范围；未增加隐式 Box/RC/锁。运行/内存、编译及维护成本的同语义 Rust 比较未测。可重放的表达能力与安全修复增量已建立，产品级净突破及四目标合取未建立；完整语言、一般借用/异步、ZUI 和原产品门保持未完成。
+
 ## 2026-11-04：G2.3.2 Self 常量与错误联合替换限定交付
 
 真实 Self 依赖关联常量经现 CT 编译器、独立 Verify 和 VM 求值，预算/默认义务/缓存与机器值有非作者复核；借入 ErrorUnion 活动臂替换保持原实例与失败清理责任。默认4651/0、reference4539/0、text70/0、双配置严格Clippy和release145命令通过。可重放增量是普通 trait 常量表达及拥有替换组合；同语义Rust运行/RSS、编译、维护成本与产品净突破未测，原产品条件及完整语言/B0/ZUI不升级。精确源码4cd866与工程工具修正见[共同验收](validation/G2.3.2-common-acceptance.json)。
@@ -496,3 +502,46 @@ expressibility and correctness gains; same-semantics Rust time/RSS/compile
 cost and framework-maintenance comparisons remain unmeasured, so no product
 cost advantage or complete-language acceptance is inferred. Broader scopes
 remain in the goal board and the bound slice reviews.
+
+
+G1.3.5.2 adds actual local owning Enum replacement through ordinary tickets and
+stateful qualified FnMut helpers through the existing inline environment.
+Runtime variants, exact RHS origins, old-shell cleanup age, complete returned
+values and failure cleanup have Source/native consumers and independent
+raw/Wire validation. Two helper calls independently check values 42 and 43;
+a pure Fn adaptation is a separate control. No implicit runtime box, RC or lock
+was added. Current request limits and old exact controls remain explicit; the
+new raw machine recipe fee is a component measurement, not a whole-pipeline
+codegen threshold. These improve usable ownership and callable composition;
+Rust same-semantics runtime/RSS/compile and framework maintenance comparisons
+remain unmeasured, with no complete-language or product cost-advantage claim.
+
+The same composition includes original nongeneric static CT factories with
+mixed Type/Const/Life arguments. Removing CT-only members preserves actual
+original member identity, including same-name hosts and imported modules.
+Independent review checks immutable-AST deletion events, forged lineage,
+full native results and semantic project-cache reuse; physical source-context
+headers and allocated copy capacity have current-request charges. This is an
+expressibility and identity-correctness gain, with no new runtime environment.
+Generic hosts, generated lineage and runtime generic CT phases remain outside
+this slice; no same-semantics Rust cost advantage has been measured.
+
+Finite owning FnOnce helpers now keep their actual by-value parameter identity
+through temporary local transfers. Analyze and Verify independently reconstruct
+the unique transfer chain and reject ambiguous writes, duplicate consumption
+and escaped addresses without changing evaluation order. Full i32 native
+results and the LLVM move/live-flag chain are checked; the admitted capture has
+no user teardown, so these are not destructor-count measurements. Existing
+direct/borrowed fast paths keep their exact boundaries, and new traversal work
+is charged to the current request. This adds useful owning callback composition
+without an implicit heap box, RC or lock. Broader environments and lending,
+and same-semantics Rust runtime/RSS/compile/maintenance costs, remain unproven.
+
+The resource correction closes an accepted-main stale-description case across
+a mutating helper. Each kernel reconstructs actual Commit retirement and
+checks complete source pairs through real calls and captures. The safety
+condition preserves separate objects and sibling fields instead of treating
+different symbolic inputs as either automatically disjoint or always aliased.
+It adds no runtime ownership mechanism and grants no new Fresh/must-Commit
+capability. This is a concrete safety correction; broad-language safety and
+same-semantics Rust cost comparisons still require their existing product gates.

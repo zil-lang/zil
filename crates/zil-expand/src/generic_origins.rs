@@ -76,6 +76,31 @@ impl Origin {
     }
 }
 impl Origins {
+    pub(crate) fn aggregate_member(
+        &self,
+        parent: Origin,
+        output: usize,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Origin> {
+        let ordinal = if self.identities.is_empty() {
+            output
+        } else {
+            let captured = self.identity(parent.declaration, budget, span)?;
+            budget.identity_work(1, span)?;
+            if let Some(retained) = &captured.retained_members {
+                *retained
+                    .positions
+                    .get(output)
+                    .ok_or_else(|| error(span, "retained member output ordinal is absent"))?
+                    as usize
+            } else {
+                output
+            }
+        };
+        parent.member(ordinal, span)
+    }
+
     pub(crate) fn single(
         module: &Module,
         inserted_option: bool,
@@ -243,6 +268,7 @@ impl Origins {
             let captured = if let Some(supplied) = supplied {
                 let captured = &supplied.items[ordinal];
                 pay_identity(&captured.identity, budget, item.span)?;
+                validate_retained_members(item, captured, budget)?;
                 budget.text(&context.package, item.span)?;
                 if captured.identity.package != context.package {
                     return Err(error(
@@ -303,6 +329,7 @@ impl Origins {
                 if !seen_identities.insert(&captured.identity) {
                     return Err(error(item.span, "duplicate aligned declaration identity"));
                 }
+                pay_declaration_copy(captured, budget, item.span)?;
                 captured.clone()
             } else {
                 let (kind, actual_name) = declaration_shape(item);
@@ -323,8 +350,10 @@ impl Origins {
                     }
                     ordinal.to_string()
                 };
+                budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), item.span)?;
                 DeclarationOrigin {
                     closure_sites: crate::source_context::ClosureSiteLineage::Original,
+                    retained_members: None,
                     declaration: NodeId(
                         u32::try_from(ordinal).map_err(|_| {
                             error(item.span, "source declaration identity exhausted")
@@ -359,9 +388,63 @@ impl Origins {
         for identity in self.identities.values() {
             budget.node(span, 0)?;
             pay_identity(&identity.identity, budget, span)?;
+            pay_declaration_copy(identity, budget, span)?;
         }
         Ok(self.identities.clone())
     }
+}
+
+pub(crate) fn pay_declaration_copy(
+    row: &DeclarationOrigin,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<()> {
+    budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), span)?;
+    if let Some(members) = &row.retained_members {
+        budget.identity_work(members.positions.len().saturating_add(1), span)?;
+        budget.lineage_bytes(
+            members
+                .positions
+                .len()
+                .saturating_mul(std::mem::size_of::<u32>()),
+            span,
+        )?;
+    }
+    Ok(())
+}
+
+fn validate_retained_members(
+    item: &Item,
+    row: &DeclarationOrigin,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let Some(members) = &row.retained_members else {
+        return Ok(());
+    };
+    let ItemKind::Aggregate(host) = &item.kind else {
+        return Err(error(
+            item.span,
+            "retained members require a nongeneric original struct",
+        ));
+    };
+    budget.identity_work(members.positions.len().saturating_add(1), item.span)?;
+    if host.kind != AggregateKind::Struct
+        || !host.generics.is_empty()
+        || !row.identity.generation_path.is_empty()
+        || members.positions.len() != host.methods.len()
+        || members.original_count as usize <= members.positions.len()
+        || members
+            .positions
+            .iter()
+            .any(|position| *position >= members.original_count)
+        || members.positions.windows(2).any(|pair| pair[0] >= pair[1])
+    {
+        return Err(error(
+            item.span,
+            "retained member table is not a complete deletion-only struct correspondence",
+        ));
+    }
+    Ok(())
 }
 
 pub(super) fn pay_identity(
@@ -471,5 +554,128 @@ fn declaration_shape(item: &Item) -> (&'static str, Option<&str>) {
         ItemKind::Impl(_) => ("impl", None),
         ItemKind::Import(_) => ("import", None),
         ItemKind::Meta(_) => ("meta", None),
+    }
+}
+
+#[cfg(test)]
+mod retained_member_tests {
+    use super::*;
+    use crate::source_context::{RetainedMemberOrigins, SourceIdentityContext, capture_original};
+    use zil_base::{FileId, Limits, SourceUnit};
+
+    #[test]
+    fn g443_aligned_member_shapes_and_original_lookup_are_bounded() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "member-shapes.zil",
+            "fn erased()->Type{return i32}struct Tag<life a>{n:i32}struct Maker{fn gone()->i32{return 0}fn left()->i32{return 7}fn right()->i32{return 35}}fn main()->i32{return 0}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty());
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let (rows, _) = capture_original(
+            std::slice::from_ref(&source),
+            &[&parsed.module],
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut rows = rows.unwrap();
+        let mut actual = parsed.module.clone();
+        let ItemKind::Aggregate(host) = &mut actual.items[2].kind else {
+            unreachable!()
+        };
+        host.methods.remove(0);
+        actual.items.remove(0);
+        rows[0].items.remove(0);
+        rows[0].items[1].retained_members = Some(RetainedMemberOrigins {
+            original_count: 3,
+            positions: vec![1, 2],
+        });
+        let load = |actual: &Module, rows: &[crate::source_context::ModuleDeclarationOrigins]| {
+            let mut budget = Budget::new(&limits);
+            let context = SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Aligned(rows),
+            };
+            let resolved = context.resolve(std::slice::from_ref(&source), &mut budget)?;
+            let mut origins = Origins::single(actual, false, &mut budget)?;
+            origins.capture_identities(actual, false, &resolved, &mut budget)?;
+            Ok::<_, Diagnostic>(origins)
+        };
+        let origins = load(&actual, &rows).unwrap();
+        let mut budget = Budget::new(&limits);
+        let parent = origins.get(1, actual.span).unwrap();
+        let first = origins
+            .aggregate_member(parent, 0, &mut budget, actual.span)
+            .unwrap();
+        let second = origins
+            .aggregate_member(parent, 1, &mut budget, actual.span)
+            .unwrap();
+        assert_eq!((first.member, second.member), (Some(1), Some(2)));
+        // The table-placement ordinal is deliberately different from the
+        // captured original host. Canonical identities use the latter.
+        assert_eq!(parent.declaration.ordinal, 1);
+        assert_eq!(
+            origins
+                .identity(parent.declaration, &mut budget, actual.span)
+                .unwrap()
+                .declaration
+                .0,
+            2
+        );
+        for positions in [vec![1], vec![1, 1], vec![2, 1], vec![1, 3], vec![0, 1, 2]] {
+            let mut raw = rows.clone();
+            raw[0].items[1].retained_members.as_mut().unwrap().positions = positions;
+            assert!(load(&actual, &raw).is_err());
+        }
+        let mut generated = rows.clone();
+        generated[0].items[1].identity.generation_path.push(0);
+        assert!(load(&actual, &generated).is_err());
+        let mut generic = actual.clone();
+        let extra = zil_syntax::parse(&SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "generic.zil",
+            "struct Generic<X:Copy>{}",
+        ));
+        let ItemKind::Aggregate(template) = &extra.module.items[0].kind else {
+            unreachable!()
+        };
+        let ItemKind::Aggregate(host) = &mut generic.items[1].kind else {
+            unreachable!()
+        };
+        host.generics = template.generics.clone();
+        assert!(load(&generic, &rows).is_err());
+        let mut resource = actual.clone();
+        let ItemKind::Aggregate(host) = &mut resource.items[1].kind else {
+            unreachable!()
+        };
+        host.kind = AggregateKind::Resource;
+        assert!(load(&resource, &rows).is_err());
+        for text in [
+            "trait Other{fn a()->i32;}",
+            "impl Other{fn a()->i32{return 0}}",
+        ] {
+            let parsed_kind = zil_syntax::parse(&SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "unsupported.zil",
+                text,
+            ));
+            assert!(parsed_kind.diagnostics.is_empty());
+            let mut unsupported = actual.clone();
+            unsupported.items[1].kind = parsed_kind.module.items[0].kind.clone();
+            assert!(load(&unsupported, &rows).is_err());
+        }
+        // In-range false history is tested against immutable AST events in
+        // Driver. This bare public Aligned reader proves structural validity.
     }
 }
