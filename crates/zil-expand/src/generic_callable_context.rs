@@ -109,13 +109,12 @@ impl Ledger {
                     && r.parameter == parameter
                     && r.generic_index == generic
                     && r.context.bound_ordinal == bound
-            }) {
-                if selected.replace(index).is_some() {
-                    return Err(unavailable(
-                        span,
-                        "source helper selected bound is ambiguous",
-                    ));
-                }
+            }) && selected.replace(index).is_some()
+            {
+                return Err(unavailable(
+                    span,
+                    "source helper selected bound is ambiguous",
+                ));
             }
         }
         if selected.is_some() {
