@@ -340,3 +340,89 @@ fn g10111_two_role_replacement_source_raw_wire() {
 fn g10111_two_role_replacement_native() {
     native_complete_consumers(COMPOSED);
 }
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g10111_ct_ambient_type_preserves_outer_nominal_inventory() {
+    let text = include_str!(
+        "../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+    );
+    let directory = super::Temp::new();
+    let cache = directory.0.join("cache");
+    let report = zil_driver::compile_project(
+        &super::review329_project(&[("main", text)]),
+        &CompileOptions {
+            stop_after: Stage::Build,
+            backend: NativeBackend::Clang,
+            entry: Some("main".into()),
+            output: Some(directory.0.join("program")),
+            semantic_cache: Some(cache.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let store = cache.join("semantic-v4");
+    let mut decoded = 0;
+    for entry in std::fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path
+            .extension()
+            .is_none_or(|extension| extension != "candidate")
+        {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("actual semantic cache candidate missing")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(&payload[12..12 + length], &Limits::default())
+                .unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        let declaration = typed
+            .life_declarations
+            .iter()
+            .find(|declaration| {
+                declaration
+                    .identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == "Wrap")
+            })
+            .expect("outer Wrap must retain its actual Type argument's lifetime identity");
+        let instance = typed
+            .life_instances
+            .iter()
+            .find(|instance| instance.declaration == declaration.id)
+            .unwrap();
+        assert!(matches!(
+            instance.arguments.first(),
+            Some(zil_ir::LifeNominalActual::Type(
+                zil_ir::Type::BorrowedStorage { .. }
+            ))
+        ));
+        let zil_ir::Type::BorrowedStorage { life, .. } = &instance.ty else {
+            panic!("outer nominal erased the nested fixed class")
+        };
+        assert_eq!(life.binder_count, 1);
+        assert!(
+            life.nominal_arguments
+                .iter()
+                .any(|row| row.path.first() == Some(&zil_ir::LifeTypeProjection::TypeArgument(0)))
+        );
+        decoded += 1;
+    }
+    assert_eq!(decoded, 1);
+}
