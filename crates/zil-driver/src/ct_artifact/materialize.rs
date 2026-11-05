@@ -3486,6 +3486,22 @@ mod scoped_tests {
         }
     }
     #[test]
+    fn closed_generic_integer_keeps_its_actual_unsigned_receiving_domain() {
+        // This exceeds the default i32 domain. Dispatch must not evaluate it
+        // under a default CT domain or force the unrelated callable to Copy.
+        let text = "fn helper<F:FnMut(i32)->i32>(f:&mut F)->u64{return #(2147483648)}fn unrelated<#N:i32>()->i32{return #(N)}fn main()->i32{var n=0;var f=move(x:i32)->i32=>{n+=x;return n};let v=helper(&mut f);if v==2147483648{return 0}return 1}";
+        let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "receiving-u64.zil", text);
+        let report = crate::CompilationSession::default()
+            .compile_source(&source, &crate::CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    #[test]
     fn mixed_native_and_deferred_roots_keep_every_original_meta_ordinal() {
         for body in ["let x=#(42);return #(N)", "let x=#(N);return #(42)"] {
             let text = format!(
