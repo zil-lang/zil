@@ -299,3 +299,44 @@ fn g10110_ownership_native() {
 fn g10110_callable_native() {
     native_complete_consumers(&INPUTS[7..]);
 }
+
+// Cross-slice consumer: the public role mapping must preserve two distinct
+// captured Package roots through a loop and each leaf's actual Drop sequence.
+const COMPOSED: &[(&str, &str, &[u8])] = &[(
+    "two-role-captured-replacement",
+    include_str!("../G10.1.11-inputs/two-role-captured-replacement.zil"),
+    b"ABEFCDGHEF91\n",
+)];
+
+#[test]
+fn g10111_two_role_replacement_source_raw_wire() {
+    source_and_honest_raw_wire(COMPOSED);
+    let aliased = replace_once(
+        COMPOSED[0].1,
+        "dispatch(&mut f,&mut g);",
+        "dispatch(&mut f,&mut f);",
+    );
+    let report = compile_source(
+        &input("two-role-replacement-alias", &aliased),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(matches!(
+        report.phase,
+        Phase::Types | Phase::Analyze | Phase::Verify
+    ));
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g10111_two_role_replacement_native() {
+    native_complete_consumers(COMPOSED);
+}
