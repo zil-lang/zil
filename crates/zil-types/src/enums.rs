@@ -756,12 +756,6 @@ impl Builder<'_, '_> {
         if let Some(expected) = expected {
             self.same(ty, expected, span)?;
         }
-        if matches!(ty, Type::BorrowedStorage { .. }) {
-            // The qualified result is copied into both the returned semantic
-            // type and the actual SSA MakeVariant result.
-            self.closures.snapshot_type(ty, 2, 0, span)?;
-        }
-        let output_ty = ty.clone();
         if owned_shapes::enumeration(ty) {
             let work = inference::type_snapshot_work(ty, span, self.limits)?;
             self.closures
@@ -775,10 +769,15 @@ impl Builder<'_, '_> {
             let fields = self.commit_arguments(staged, span)?;
             let value = self.value(
                 InstructionKind::MakeVariant { variant, fields },
-                output_ty.clone(),
+                ty.clone(),
                 span,
             )?;
-            return Ok((value, output_ty));
+            return Ok((value, ty.clone()));
+        }
+        if matches!(ty, Type::BorrowedStorage { .. }) {
+            // The qualified result is copied into both the returned semantic
+            // type and the actual SSA MakeVariant result.
+            self.closures.snapshot_type(ty, 2, 0, span)?;
         }
         let mut values = Vec::new();
         for (expression, expected) in expressions.iter().zip(fields) {
@@ -792,10 +791,10 @@ impl Builder<'_, '_> {
                     variant,
                     fields: values,
                 },
-                output_ty.clone(),
+                ty.clone(),
                 span,
             )?,
-            output_ty,
+            ty.clone(),
         ))
     }
     pub(super) fn match_statement(
