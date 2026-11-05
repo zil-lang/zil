@@ -155,7 +155,7 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
         (
             "give-companion",
             include_str!("managed-companion.zil"),
-            "45\n",
+            "AS45\n0\n",
         ),
         (
             "consume-break",
