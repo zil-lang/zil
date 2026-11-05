@@ -22,7 +22,7 @@
 | ├─ G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 已合入 | — | — | [PR42 验收][e-pr42]；两核按实际根/字段/捕获独立检查，拒绝旧描述后用并保留合法分离调用。原误拒、旧断言失败及修正记录保留。 |
 | ├─ G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 已合入 | — | — | [PR43 验收][e-pr43]；两核及独审 Source/raw/Wire/机器消费者通过。首片 Direct Unit，Fresh 限单块单 Commit 无调用，保留实际来源、旧描述失效与 caller 清理年龄。 |
 | ├─ G1.3.8 | 整体 Package helper 的非 Unit/错误返回、失败时旧值保留与清理 | 已合入 | — | — | [PR44 验收][e-pr44]；Direct helper 有限普通 Copy/错误返回已到 Source/raw/Wire/双后端；实际 Commit/Abort、旧值及临时清理成立，非 Unit 不授 Fresh。 |
-| └─ G1.3.9 | 拥有值替换剩余组合：非局部 Package/Enum、capture/Store、loan/pin 与失败清理 | 进行中 | P0 | sol · 拥有替换 | [c4cf8764](https://github.com/zil-lang/zil/commit/c4cf8764d2d614abf9ab355ba9d09399dd8c745b) 的 7 组 Source、2 最近反例与 28 原生运行已独立通过；公共 callable 角色捕获替换继续验证。实施：[task/G1.3.9](https://github.com/zil-lang/zil/tree/task/G1.3.9)；父项仍待完整验收。 |
+| └─ G1.3.9 | 拥有值替换剩余组合：非局部 Package/Enum、capture/Store、loan/pin 与失败清理 | 实现待验 | P0 | sol · 拥有替换 | 联合源码 `be526bdf` 的 11 项已全过，含 Source/raw/Wire、Clang/API O0/O2；整体 ErrorUnion 清理函数漏生成已复现并修复。现有合法组合和最近 loan/责任反例闭合，正式共同验收待执行。实施：[task/G1.3.9](https://github.com/zil-lang/zil/tree/task/G1.3.9)；父项仍待完整验收。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -47,7 +47,7 @@
 | ├─ G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
 | ├─ G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
 | ├─ G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 已合入 | — | — | [PR44 验收][e-pr44]；消费前分支、一般无环合流、合法 Drop 分支的实际参数/Local/SSA 来源由两核独立证明；旧快路预算保持。循环、lending、多 F/用户 Drop 仍另缺。 |
-| ├─ G3.3.9 | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 进行中 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；作者限定 13/0、双后端 O0/O2 共 44 次原生运行通过，旧预算控制及独立集成复核仍在进行。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
+| ├─ G3.3.9 | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
 | └─ G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | [365235ae](https://github.com/zil-lang/zil/commit/365235ae94785e63daedbdd48cbcbc0fbd5c436c)：真实源码目标 20/0、三层来源等价 6/0；正在与 G3.3.9 的 lending/Drop 合并验证，不把分支通过数相加。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
@@ -68,9 +68,10 @@
 | │　├─ G4.4.5.3 | 带life的Type值构造与跨工厂返回的声明归属 | 进行中 | P0 | sol · CT | 实施 TypeInContext 完整图生产、真实源码 Type/Call 端点独核、CT6 编码及 ValueContext 返回；astra 复核公共认证边界。实施：[task/G4.4.5.3](https://github.com/zil-lang/zil/tree/task/G4.4.5.3)，尚未验收。 |
 | │　└─ G4.4.5.4 | 非标量纯字段跨工厂返回：Tuple/Array/Record/Enum 递归重构 | 进行中 | P0 | sol · CT | 接续 G4.4.5.1；原始 Tuple/Array/Record/Enum 组合已到实际 Source/机器完整 u64 结果，新增带 life 嵌套字段、最近反例与独立预算控制仍在复核。与 G4.4.5.3 同分支，保留旧标量费用快路。 |
 | ├─ **G4.4.6** | ambient Type 实参、泛型宿主/成员及生成作用域的实际归属 | 进行中 | P0 | sol · CT / 生成 | G4.4.5.3 接 host/member 完整上下文；[task/G4.4.6](https://github.com/zil-lang/zil/tree/task/G4.4.6) 接实际生成树、发射位置与独立来源核验；生成片 3 组真实源码、6 次 Clang 原生运行和 9 个预算边界已限定通过。ambient Type 完整元数据与运行时相位组合继续验证，父项未验收。 |
-| │　└─ G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。原 ambient Type Source/native/semantic-cache 完整身份已在联合提交 `612117d5` 复核通过；物理子字段复制及最近 raw/Wire 反例继续验证，不把首例通过当作子项全验收。 |
-| └─ **G4.4.7** | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 既有矩阵 10/0 已通过真实 Source/project/Clang O0/O2 及四类预算边界；带 life nominal 的 Type 实参接续由 G4.4.7.1 补齐。[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
-| 　　└─ G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：真实 `leaf<Phantom<life,T,N>>` 尚停在 Expand；保留完整原实参和 caller life 关系，接现有 canonical storage 路径，不能以删 key 检查或物理名取代语义身份。 |
+| │　├─ G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。原 ambient Type Source/native/semantic-cache 完整身份已在联合提交 `612117d5` 复核通过；物理子字段复制及最近 raw/Wire 反例继续验证，不把首例通过当作子项全验收。 |
+| │　└─ G4.4.6.2 | CT 显式调用后泛型静态宿主的定义与后继消费 | 进行中 | P0 | sol · 生成/宿主 | [task/G4.4.6.2](https://github.com/zil-lang/zil/tree/task/G4.4.6.2)：完整 host/member 源码已越过 life annotation，仍被 Expand 泛型宿主方法门阻断；保留普通方法、原源与未用定义义务，区分 CT 归属消费和普通 runtime 方法资格。 |
+| └─ **G4.4.7** | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 联合矩阵 12/0 已通过真实 Source/project/Clang O0/O2 及四类预算边界；包括带 life nominal 的 Type 实参与 CT Type 值消费。[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
+| 　　└─ G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：原 `leaf<Phantom<life,T,N>>` 与 CT Type 值两源在冻结 `c7b63633` 已 Source/project/native8 通过，并在联合 runtime 12 项重放通过；修正定义期 Copy 先行键和过早实参正规化，完整原实参仍由原 Call 独核。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
