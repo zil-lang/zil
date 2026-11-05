@@ -557,9 +557,21 @@ pub(super) fn uses(
     parameters: &[(String, CtTy)],
     limits: &mut Limits,
 ) -> R<bool> {
+    uses_with_catalog(modules, module, expression, parameters, limits, None)
+}
+pub(super) fn uses_with_catalog<'a>(
+    modules: &'a [SourceModule<'a>],
+    module: ModuleId,
+    expression: &s::Expr,
+    parameters: &[(String, CtTy)],
+    limits: &mut Limits,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<bool> {
     let mut compiler = Compiler::unindexed(modules, limits);
+    compiler.generated_catalog = catalog;
     let result = (|| {
         compiler.index()?;
+        compiler.index_generated()?;
         let owner = compiler.module_index(module, expression.span)?;
         let mut selection = Selection {
             compiler: &mut compiler,

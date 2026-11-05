@@ -658,8 +658,7 @@ fn validate_retained_members(
     };
     budget.identity_work(members.positions.len().saturating_add(1), item.span)?;
     if host.kind != AggregateKind::Struct
-        || !host.generics.is_empty()
-        || !row.identity.generation_path.is_empty()
+        || (!row.identity.generation_path.is_empty() && row.generated.is_none())
         || members.positions.len() != host.methods.len()
         || members.original_count as usize <= members.positions.len()
         || members

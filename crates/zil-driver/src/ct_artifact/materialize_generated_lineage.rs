@@ -197,6 +197,17 @@ impl Materializer<'_, '_> {
                 span,
             ));
         };
+        let parent_len = match &emitter.tree {
+            SourceTreeIdentity::Original(_) => 0,
+            SourceTreeIdentity::Generated { event_path, .. } => event_path.len(),
+        };
+        let path_payload = (parent_len * 2 + emitter.event_path.len() * 2 + 1) as u64 * 4;
+        self.environment
+            .budget
+            .reserve_analysis_work(path_payload / 4 + 1)?;
+        self.environment
+            .budget
+            .reserve_temporary_bytes(path_payload)?;
         let mut event_path = match &emitter.tree {
             SourceTreeIdentity::Original(_) => vec![0],
             SourceTreeIdentity::Generated { event_path, .. } => {
@@ -352,11 +363,12 @@ impl Materializer<'_, '_> {
         let identity = tree
             .root_identity(root as u32, template)
             .ok_or_else(|| category("generated source root identity absent", span))?;
+        let retained_members = self.take_generated_member_retention(tree, declaration)?;
         Ok(DeclarationOrigin {
             closure_sites: ClosureSiteLineage::Unavailable,
             declaration,
             identity,
-            retained_members: None,
+            retained_members,
             generated: Some(GeneratedDeclarationOrigin {
                 tree: tree.clone(),
                 root: root as u32,
