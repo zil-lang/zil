@@ -147,7 +147,7 @@ pub(super) fn pattern_variant<'a>(
             )),
         };
     }
-    let Type::Enum { variants, .. } = expected else {
+    let Type::Enum { variants, .. } = stored::physical(expected) else {
         return Err(error(
             "E-MATCH-TYPE",
             span,
@@ -535,7 +535,7 @@ impl Coverage<'_> {
             return self.useful(&rows, &next, &types, depth + 1);
         }
         self.reserve_copies(&[], &[], types, depth)?;
-        let constructors = match &types[0] {
+        let constructors = match stored::physical(&types[0]) {
             Type::Unit => vec![Constructor::Unit],
             Type::Bool => vec![Constructor::Bool(false), Constructor::Bool(true)],
             Type::Tuple(_) => vec![Constructor::Tuple],
@@ -572,7 +572,7 @@ impl Coverage<'_> {
     }
 }
 fn constructor_fields(constructor: &Constructor, ty: &Type) -> Vec<Type> {
-    match (constructor, ty) {
+    match (constructor, stored::physical(ty)) {
         (Constructor::Tuple, Type::Tuple(fields)) => fields.clone(),
         (Constructor::Variant(index), Type::ErrorUnion { error, result }) => {
             vec![if *index == 1 { error } else { result }.as_ref().clone()]
@@ -600,7 +600,9 @@ impl Builder<'_, '_> {
     /// Check one conditional pattern without requiring coverage of the input.
     /// The returned flag means no valid input can take its failure edge.
     pub(super) fn conditional_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
-        if !ty.is_copy_value() {
+        if !ty.is_copy_value()
+            && !stored::pure_value(ty, &mut self.match_work_left, self.limits, pattern.span)?
+        {
             return Err(unsupported(
                 pattern.span,
                 "pattern condition requires a finite Copy value",
@@ -667,7 +669,7 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let Type::Enum { variants, .. } = ty else {
+        let Type::Enum { variants, .. } = stored::physical(ty) else {
             unreachable!()
         };
         let fields = &variants[variant as usize].1;
@@ -678,9 +680,18 @@ impl Builder<'_, '_> {
                 "enum variant payload arity mismatch",
             ));
         }
-        if let Some(expected) = expected {
-            self.same(ty, expected, span)?;
-        }
+        let output_ty = if let Some(expected) = expected {
+            if stored::physical(expected) == ty
+                && stored::pure_value(expected, &mut self.match_work_left, self.limits, span)?
+            {
+                expected.clone()
+            } else {
+                self.same(ty, expected, span)?;
+                ty.clone()
+            }
+        } else {
+            ty.clone()
+        };
         if owned_shapes::enumeration(ty) {
             let work = inference::type_snapshot_work(ty, span, self.limits)?;
             self.closures
@@ -694,10 +705,10 @@ impl Builder<'_, '_> {
             let fields = self.commit_arguments(staged, span)?;
             let value = self.value(
                 InstructionKind::MakeVariant { variant, fields },
-                ty.clone(),
+                output_ty.clone(),
                 span,
             )?;
-            return Ok((value, ty.clone()));
+            return Ok((value, output_ty));
         }
         let mut values = Vec::new();
         for (expression, expected) in expressions.iter().zip(fields) {
@@ -711,10 +722,10 @@ impl Builder<'_, '_> {
                     variant,
                     fields: values,
                 },
-                ty.clone(),
+                output_ty.clone(),
                 span,
             )?,
-            ty.clone(),
+            output_ty,
         ))
     }
     pub(super) fn match_statement(
@@ -756,7 +767,9 @@ impl Builder<'_, '_> {
         if owned_shapes::enumeration(&ty) {
             return self.owned_enum_match_value(value, ty, arms, span);
         }
-        if !ty.is_copy_value() {
+        if !ty.is_copy_value()
+            && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, span)?
+        {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }
         self.finish_resource_temps(expression.span)?;

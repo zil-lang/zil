@@ -1,6 +1,8 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
 #[path = "../../../.task/G4.4.6.1-inputs/nominal_controls.rs"]
 mod g4461_nominal_controls;
+#[path = "../../../.task/G4.4.6.3-inputs/enum_controls.rs"]
+mod g4463_enum_controls;
 use std::{
     fs,
     path::PathBuf,

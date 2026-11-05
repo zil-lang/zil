@@ -7,10 +7,71 @@ use zil_ir::{
 };
 
 pub(super) fn has_life(item: &Item) -> bool {
-    matches!(&item.kind, ItemKind::Aggregate(a) if a.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)))
+    match &item.kind {
+        ItemKind::Aggregate(a) => a.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)),
+        ItemKind::Enum(e) => e.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)),
+        _ => false,
+    }
 }
 
 impl<'a> Engine<'a> {
+    fn stored_physical_field(
+        &mut self,
+        physical: &mut TypeRef,
+        original: &TypeRef,
+        formals: &[GenericParam],
+        qualified_formals: &BTreeMap<usize, stored_types::QualifiedActual>,
+        path: &mut Vec<zil_ir::LifeTypeProjection>,
+        direct: &mut BTreeMap<Vec<zil_ir::LifeTypeProjection>, stored_types::QualifiedActual>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(physical.span, depth)?;
+        if let TypeKind::Group(inner) = &original.kind {
+            return self.stored_physical_field(physical, inner, formals, qualified_formals, path, direct, depth + 1);
+        }
+        if let TypeKind::Named { path: name, args } = &original.kind
+            && name.len() == 1 && args.is_empty()
+        {
+            for (ordinal, formal) in formals.iter().enumerate() {
+                self.budget.text(&formal.name, original.span)?;
+                self.budget.text(&name[0], original.span)?;
+                if formal.name == name[0] && qualified_formals.contains_key(&ordinal) {
+                    return Ok(());
+                }
+            }
+        }
+        match (&mut physical.kind, &original.kind) {
+            (TypeKind::Tuple(fields), TypeKind::Tuple(source)) if fields.len() == source.len() => {
+                for (index, (field, original)) in fields.iter_mut().zip(source).enumerate() {
+                    let step = zil_ir::PlaceProjection::Field(u32::try_from(index)
+                        .map_err(|_| error(field.span, "tuple field ordinal overflow"))?);
+                    path.push(zil_ir::LifeTypeProjection::Place(step));
+                    self.stored_physical_field(field, original, formals, qualified_formals, path, direct, depth + 1)?;
+                    path.pop();
+                }
+                Ok(())
+            }
+            (TypeKind::Array { element, .. }, TypeKind::Array { element: source, .. }) => {
+                path.push(zil_ir::LifeTypeProjection::Element);
+                self.stored_physical_field(element, source, formals, qualified_formals, path, direct, depth + 1)?;
+                path.pop();
+                Ok(())
+            }
+            _ => {
+                if let TypeKind::Named { path: name, args } = &original.kind
+                    && name.len() == 1 && args.iter().any(|a| matches!(a, GenericArg::Lifetime(_)))
+                {
+                    if let Some(actual) = self.qualified_type_actual(physical, depth + 1)? {
+                        self.budget.lineage_bytes(std::mem::size_of::<(Vec<zil_ir::LifeTypeProjection>, stored_types::QualifiedActual)>(), physical.span)?;
+                        direct.insert(path.clone(), actual);
+                        return Ok(());
+                    }
+                    return Err(unsupported(physical.span, "direct qualified field lacks actual scoped nominal"));
+                }
+                self.ty(physical, depth + 1)
+            }
+        }
+    }
     pub(super) fn stored_lookup_fee(&mut self, entries: usize, bytes: usize, span: Span) -> R<()> {
         self.budget.identity_work(
             entries
@@ -27,8 +88,8 @@ impl<'a> Engine<'a> {
         let Some(item) = self.templates.get(name) else {
             return Ok(false);
         };
-        if let ItemKind::Aggregate(aggregate) = &item.kind {
-            for _ in &aggregate.generics {
+        if let ItemKind::Aggregate(_) | ItemKind::Enum(_) = &item.kind {
+            for _ in params(item) {
                 self.budget.node(span, 0)?;
             }
             Ok(has_life(item))
@@ -416,6 +477,13 @@ impl<'a> Engine<'a> {
         }
     }
     pub(super) fn source_life(&mut self, name: &str, span: Span) -> R<LexicalLife> {
+        for (formal, _) in &self.nominal_life_bindings {
+            self.budget.text(formal, span)?;
+            self.budget.text(name, span)?;
+        }
+        if let Some((_, life)) = self.nominal_life_bindings.iter().find(|(formal, _)| formal == name) {
+            return Ok(*life);
+        }
         for binder in &self.life_scope {
             self.budget.text(binder, span)?;
             self.budget.text(name, span)?;
@@ -445,16 +513,15 @@ impl<'a> Engine<'a> {
             .get(template)
             .copied()
             .ok_or_else(|| error(span, "stored nominal declaration is absent"))?;
-        let ItemKind::Aggregate(aggregate) = &item.kind else {
-            return Err(error(
-                span,
-                "stored nominal application requires an aggregate",
-            ));
+        let formals = match &item.kind {
+            ItemKind::Aggregate(a) => a.generics.as_slice(),
+            ItemKind::Enum(e) => e.generics.as_slice(),
+            _ => return Err(error(span, "stored nominal application requires an actual declaration")),
         };
-        for _ in &aggregate.generics {
+        for _ in formals {
             self.budget.node(span, depth)?;
         }
-        if aggregate.generics.len() != arguments.len() {
+        if formals.len() != arguments.len() {
             return Err(error(
                 span,
                 "stored nominal requires its full ordered argument list",
@@ -501,8 +568,7 @@ impl<'a> Engine<'a> {
         let mut keys = Vec::new();
         let mut local_classes = Vec::new();
         let mut qualified_actuals = BTreeMap::new();
-        for (ordinal, (formal, actual)) in aggregate
-            .generics
+        for (ordinal, (formal, actual)) in formals
             .iter()
             .zip(arguments.iter_mut())
             .enumerate()
@@ -586,7 +652,7 @@ impl<'a> Engine<'a> {
         }
         self.with_origin(Some(origin), |engine| {
             engine.traits.check_arguments(
-                &aggregate.generics,
+                formals,
                 &substitution,
                 (
                     &trait_bounds::Bounds::new(),
@@ -636,42 +702,75 @@ impl<'a> Engine<'a> {
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
         substitute_item(&mut instance, &substitution)?;
-        let ItemKind::Aggregate(physical) = &mut instance.kind else {
-            unreachable!()
-        };
-        physical.name.clone_from(&generated);
-        for field in &mut physical.fields {
-            self.ty(&mut field.ty, depth + 1)?;
+        for (name, _) in &lives {
+            self.budget.text(name, span)?;
+            self.budget.lineage_bytes(std::mem::size_of::<(String, LexicalLife)>(), span)?;
         }
+        let previous_lives = std::mem::replace(&mut self.nominal_life_bindings, lives.clone());
+        let mut direct_fields = BTreeMap::new();
+        match (&mut instance.kind, &item.kind) {
+            (ItemKind::Aggregate(physical), ItemKind::Aggregate(source)) => {
+                physical.name.clone_from(&generated);
+                for (index, (field, original)) in physical.fields.iter_mut().zip(&source.fields).enumerate() {
+                    let step = zil_ir::PlaceProjection::Field(u32::try_from(index).map_err(|_| error(field.span, "stored field ordinal overflow"))?);
+                    self.stored_physical_field(&mut field.ty, &original.ty, formals, &qualified_actuals,
+                        &mut vec![zil_ir::LifeTypeProjection::Place(step)], &mut direct_fields, depth + 1)?;
+                }
+            }
+            (ItemKind::Enum(physical), ItemKind::Enum(source)) => {
+                physical.name.clone_from(&generated);
+                if physical.variants.len() != source.variants.len() { return Err(error(span, "stored enum variant count differs")); }
+                for (variant_index, (variant, original)) in physical.variants.iter_mut().zip(&source.variants).enumerate() {
+                    if variant.name != original.name { return Err(error(variant.span, "stored enum variant order differs")); }
+                    let variant_ordinal = u32::try_from(variant_index).map_err(|_| error(variant.span, "stored variant ordinal overflow"))?;
+                    match (&mut variant.fields, &original.fields) {
+                        (VariantFields::Unit, VariantFields::Unit) => {}
+                        (VariantFields::Tuple(fields), VariantFields::Tuple(source_fields)) if fields.len()==source_fields.len() => {
+                            for (index, (field, original)) in fields.iter_mut().zip(source_fields).enumerate() {
+                                let step = zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection { variant: variant_ordinal,
+                                    index: u32::try_from(index).map_err(|_| error(field.span, "stored variant field ordinal overflow"))? });
+                                self.stored_physical_field(&mut field.ty, &original.ty, formals, &qualified_actuals,
+                                    &mut vec![zil_ir::LifeTypeProjection::Place(step)], &mut direct_fields, depth + 1)?;
+                            }
+                        }
+                        (VariantFields::Record(fields), VariantFields::Record(source_fields)) if fields.len()==source_fields.len() => {
+                            for (index, (field, original)) in fields.iter_mut().zip(source_fields).enumerate() {
+                                if field.name != original.name { return Err(error(field.span, "stored variant record field order differs")); }
+                                let step = zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection { variant: variant_ordinal,
+                                    index: u32::try_from(index).map_err(|_| error(field.span, "stored variant field ordinal overflow"))? });
+                                self.stored_physical_field(&mut field.ty, &original.ty, formals, &qualified_actuals,
+                                    &mut vec![zil_ir::LifeTypeProjection::Place(step)], &mut direct_fields, depth + 1)?;
+                            }
+                        }
+                        _ => return Err(error(variant.span, "stored enum variant physical fields differ")),
+                    }
+                }
+            }
+            _ => unreachable!(),
+        }
+        self.nominal_life_bindings = previous_lives;
         let declaration = LifeNominalDeclaration {
             id: declaration_id,
             identity: stable_identity,
-            kind: LifeNominalKind::Record,
+            kind: if matches!(item.kind, ItemKind::Enum(_)) { LifeNominalKind::Enum } else { LifeNominalKind::Record },
             parameters,
         };
-        let produced = if qualified_actuals.is_empty() {
-            stored_types::instantiate(
-                physical,
-                declaration,
-                actuals,
-                &lives,
-                &mut self.budget,
-                span,
-            )?
-        } else {
-            stored_types::instantiate_joint(
-                physical,
-                declaration,
-                actuals,
-                &lives,
-                Some((aggregate, &qualified_actuals)),
-                &mut self.budget,
-                span,
-            )?
+        let produced = match (&instance.kind, &item.kind) {
+            (ItemKind::Aggregate(physical), ItemKind::Aggregate(original)) => stored_types::instantiate_joint_with_fields(
+                physical, declaration, actuals, &lives, Some((original, &qualified_actuals)), &direct_fields, &mut self.budget, span,
+            )?,
+            (ItemKind::Enum(physical), ItemKind::Enum(original)) => stored_types::instantiate_enum_joint(
+                physical, original, declaration, actuals, &lives, &qualified_actuals, &direct_fields, &mut self.budget, span,
+            )?,
+            _ => unreachable!(),
         };
         let classes = produced.classes;
         if existing.is_none() {
-            physical.generics.clear();
+            match &mut instance.kind {
+                ItemKind::Aggregate(physical) => physical.generics.clear(),
+                ItemKind::Enum(physical) => physical.generics.clear(),
+                _ => unreachable!(),
+            }
             self.traits
                 .register_copy_shape(&instance, &mut self.budget)?;
             self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
@@ -706,7 +805,7 @@ impl<'a> Engine<'a> {
                     for instance in &self.products.storage.instances {
                         self.budget.node(ty.span, depth)?;
                         if let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
-                            && let zil_ir::Type::Record { name, .. } = storage.as_ref()
+                            && let zil_ir::Type::Record { name, .. } | zil_ir::Type::Enum { name, .. } = storage.as_ref()
                         {
                             self.budget.text(name, ty.span)?;
                             self.budget.text(&path[0], ty.span)?;

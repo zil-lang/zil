@@ -682,20 +682,30 @@ fn resolve_indexed(
         let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             unreachable!("checked stored inventory");
         };
-        let Type::Record { name, .. } = storage.as_ref() else {
-            unreachable!("checked stored inventory");
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } | Type::Enum { name, .. } => name,
+            _ => unreachable!("checked stored inventory"),
         };
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let actual = stored::aggregate(
-            &core.aggregates,
-            core.module_id,
-            name,
-            &mut resolver.remaining,
-        )
-        .map_err(|e| vec![e])?;
+        let actual_name = match storage.as_ref() {
+            Type::Record { .. } => stored::aggregate(
+                &core.aggregates,
+                core.module_id,
+                name,
+                &mut resolver.remaining,
+            )
+            .map_err(|e| vec![e])?
+            .name
+            .as_str(),
+            Type::Enum { .. } => stored::enum_declaration(&core, name, &mut resolver.remaining)
+                .map_err(|e| vec![e])?
+                .name
+                .as_str(),
+            _ => unreachable!("checked stored inventory"),
+        };
         let ty = resolver
-            .ty(&Type::Named(actual.name.clone()), 0, Span::default())
+            .ty(&Type::Named(actual_name.to_owned()), 0, Span::default())
             .map_err(|e| vec![e])?;
         let mut arguments = Vec::new();
         for argument in &instance.arguments {
@@ -1986,7 +1996,10 @@ impl<'a> Builder<'a, '_> {
         if let Type::Array { element, length } = &ty {
             self.check_owned_array_closure(element, *length, e.span)?;
         }
-        if !owned && !ty.is_copy_value() {
+        if !owned
+            && !ty.is_copy_value()
+            && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+        {
             return Err(unsupported(
                 e.span,
                 "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
@@ -2083,7 +2096,9 @@ impl<'a> Builder<'a, '_> {
             types.push(t);
         }
         let ty = Type::Tuple(types);
-        if !ty.is_copy_value() {
+        let pure = ty.is_copy_value()
+            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+        if !pure {
             owned_shapes::validate(
                 &ty,
                 &mut self.match_work_left,
@@ -2092,7 +2107,7 @@ impl<'a> Builder<'a, '_> {
             )?;
         }
         let fields = self.commit_arguments(staged, e.span)?;
-        let kind = if ty.is_copy_value() {
+        let kind = if pure {
             InstructionKind::MakeAggregate { fields }
         } else {
             InstructionKind::MakeOwnedTuple { fields }

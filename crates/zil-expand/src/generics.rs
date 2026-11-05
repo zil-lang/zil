@@ -499,6 +499,7 @@ struct Engine<'a> {
     original_module: &'a Module,
     closure_recording: Option<closure_context::Recording>,
     life_scope: Vec<String>,
+    nominal_life_bindings: Vec<(String, crate::stored_types::LexicalLife)>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
@@ -598,6 +599,7 @@ impl<'a> Engine<'a> {
             original_module: module,
             closure_recording: None,
             life_scope: Vec::new(),
+            nominal_life_bindings: Vec::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
@@ -746,7 +748,7 @@ impl<'a> Engine<'a> {
                     }
                 }
                 if matches!(parameter.kind, GenericParamKind::Lifetime)
-                    && matches!(item.kind, ItemKind::Aggregate(_))
+                    && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_))
                 {
                     continue;
                 }

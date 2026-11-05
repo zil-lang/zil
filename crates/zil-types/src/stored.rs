@@ -58,6 +58,34 @@ pub(super) fn aggregate<'a>(
     ))
 }
 
+pub(super) fn enum_declaration<'a>(
+    core: &'a CoreModule,
+    name: &str,
+    left: &mut usize,
+) -> R<&'a CoreEnum> {
+    for declaration in &core.enums {
+        fee(
+            left,
+            declaration
+                .name
+                .len()
+                .saturating_add(name.len())
+                .saturating_add(40),
+            declaration.span,
+        )?;
+        if name == declaration.name
+            || name == format!("@module{}:{}", core.module_id.0, declaration.name)
+        {
+            return Ok(declaration);
+        }
+    }
+    Err(error(
+        "E-STORED-IDENTITY",
+        Span::default(),
+        "stored Enum has no actual declaration",
+    ))
+}
+
 pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
     if core.life_instances.is_empty() && core.life_declarations.is_empty() {
         return Ok(());
@@ -147,21 +175,23 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance is unqualified",
             ));
         };
-        let Type::Record { name, fields } = storage.as_ref() else {
-            return Err(unsupported(
-                span,
-                "stored nominal kind requires its consumer",
-            ));
-        };
-        if declaration.kind != LifeNominalKind::Record
-            || declaration.parameters.len() != instance.arguments.len()
-        {
+        if declaration.parameters.len() != instance.arguments.len() {
             return Err(error(
                 "E-STORED-IDENTITY",
                 span,
                 "stored instance kind or full argument arity differs",
             ));
         }
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } if declaration.kind == LifeNominalKind::Record => name,
+            Type::Enum { name, .. } if declaration.kind == LifeNominalKind::Enum => name,
+            _ => {
+                return Err(unsupported(
+                    span,
+                    "stored nominal kind requires its actual consumer",
+                ));
+            }
+        };
         fee(
             left,
             name.len()
@@ -176,37 +206,91 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "multiple stored instances claim the same actual declaration layout",
             ));
         }
-        let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
-        if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
-            return Err(error(
-                "E-STORED-TYPE",
-                actual.span,
-                "stored instance differs from actual aggregate kind or layout",
-            ));
-        }
-        for ((name, ty), field) in fields.iter().zip(&actual.fields) {
+        if let Type::Enum { variants, .. } = storage.as_ref() {
+            let actual = enum_declaration(core, name, left)?;
             fee(
                 left,
-                name.len().saturating_add(field.name.len()),
-                field.span,
+                actual.variants.len().saturating_add(variants.len()),
+                actual.span,
             )?;
-            for checked in [ty, &field.ty] {
-                let cost = inference::type_snapshot_work(
-                    checked,
-                    field.span,
-                    &Limits {
-                        max_analysis_steps: *left,
-                        ..limits.clone()
-                    },
-                )?;
-                fee(left, cost, field.span)?;
-            }
-            if name != &field.name || ty != &field.ty {
+            if actual.variants.len() != variants.len() {
                 return Err(error(
                     "E-STORED-TYPE",
-                    field.span,
-                    "stored instance physical fields differ from actual declaration",
+                    actual.span,
+                    "stored Enum variant count differs from actual declaration",
                 ));
+            }
+            for ((name, fields), (decl_name, decl_fields)) in variants.iter().zip(&actual.variants)
+            {
+                fee(
+                    left,
+                    name.len()
+                        .saturating_add(decl_name.len())
+                        .saturating_add(fields.len())
+                        .saturating_add(decl_fields.len()),
+                    actual.span,
+                )?;
+                if name != decl_name || fields.len() != decl_fields.len() {
+                    return Err(error(
+                        "E-STORED-TYPE",
+                        actual.span,
+                        "stored Enum variant differs from actual declaration",
+                    ));
+                }
+                for (field, declared) in fields.iter().zip(decl_fields) {
+                    for ty in [field, declared] {
+                        let work = inference::type_snapshot_work(
+                            ty,
+                            actual.span,
+                            &Limits {
+                                max_analysis_steps: *left,
+                                ..limits.clone()
+                            },
+                        )?;
+                        fee(left, work, actual.span)?;
+                    }
+                    if field != declared {
+                        return Err(error(
+                            "E-STORED-TYPE",
+                            actual.span,
+                            "stored Enum payload differs from actual declaration",
+                        ));
+                    }
+                }
+            }
+        } else if let Type::Record { fields, .. } = storage.as_ref() {
+            let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
+            if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
+                return Err(error(
+                    "E-STORED-TYPE",
+                    actual.span,
+                    "stored instance differs from actual aggregate kind or layout",
+                ));
+            }
+            for ((name, ty), field) in fields.iter().zip(&actual.fields) {
+                fee(
+                    left,
+                    name.len().saturating_add(field.name.len()),
+                    field.span,
+                )?;
+                for checked in [ty, &field.ty] {
+                    let cost = inference::type_snapshot_work(
+                        checked,
+                        field.span,
+                        &Limits {
+                            max_analysis_steps: *left,
+                            ..limits.clone()
+                        },
+                    )?;
+                    fee(left, cost, field.span)?;
+                }
+                if name != &field.name || ty != &field.ty {
+                    return Err(error(
+                        "E-STORED-TYPE",
+                        field.span,
+                        "stored instance physical fields differ from actual declaration",
+                    ));
+                }
             }
         }
         nominal::rows(core, instance, limits, left, InventoryPhase::Core)?;
@@ -363,6 +447,36 @@ pub(super) fn pure_value(ty: &Type, left: &mut usize, limits: &Limits, span: Spa
     Ok(true)
 }
 
+/// Finite inline products may contain independently qualified pure children.
+/// Reconstruct every child boundary; this grants no physical slot or loan.
+pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if !retained::pure(ty, span, left)? {
+        return Ok(false);
+    }
+    // ErrorUnion has a separate sum consumer. Its qualified descendants need
+    // ErrorArm metadata paths before an inline Copy constructor may use them.
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        fee(left, 1, span)?;
+        match ty {
+            Type::ErrorUnion { .. } => return Ok(false),
+            Type::BorrowedStorage { storage, .. } => pending.push(storage),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(left, 1, span)?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Array { element, .. } => pending.push(element),
+            _ => {}
+        }
+    }
+    retained::expected(ty, limits.max_call_depth, span, left)?;
+    Ok(true)
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }
@@ -377,8 +491,10 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if !matches!(storage.as_ref(), Type::Record { .. })
+    if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
         || (!life.retained.is_empty() && !life.slots.is_empty())
+        || (matches!(storage.as_ref(), Type::Enum { .. })
+            && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
     {
         return Err(unsupported(
             span,
@@ -440,6 +556,48 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         self.ty(field, path, depth + 1)?;
                         path.pop();
                     }
+                }
+                Type::Enum { name, variants } => {
+                    fee(self.left, name.len(), self.span)?;
+                    if name.is_empty() {
+                        return Err(error(
+                            "E-STORED-TYPE",
+                            self.span,
+                            "stored Enum has empty identity",
+                        ));
+                    }
+                    for (variant, (variant_name, fields)) in variants.iter().enumerate() {
+                        fee(
+                            self.left,
+                            variant_name.len().saturating_add(fields.len()),
+                            self.span,
+                        )?;
+                        if variant_name.is_empty() {
+                            return Err(error(
+                                "E-STORED-TYPE",
+                                self.span,
+                                "stored Enum variant has empty name",
+                            ));
+                        }
+                        for (index, field) in fields.iter().enumerate() {
+                            path.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            }));
+                            self.ty(field, path, depth + 1)?;
+                            path.pop();
+                        }
+                    }
+                }
+                Type::Array { element, .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "stored Array has a real address or ownership leaf",
+                        ));
+                    }
+                    // Element is a type-class path, never a physical slot.
+                    self.ty(element, path, depth + 1)?;
                 }
                 Type::BorrowedStorage { .. } => {
                     if !retained::pure(ty, self.span, self.left)? {

@@ -199,51 +199,51 @@ impl Catalog {
                     "stored producer lost qualified instance",
                 ));
             };
-            let Type::Record { name, fields } = storage.as_ref() else {
-                return Err(invalid(
-                    Span::default(),
-                    "stored producer lost record layout",
-                ));
-            };
-            for aggregate in &core.aggregates {
-                budget.text(&aggregate.name, aggregate.span)?;
-                budget.text(name, aggregate.span)?;
-            }
-            let Some(aggregate) = core
-                .aggregates
-                .iter_mut()
-                .find(|aggregate| aggregate.name == *name)
-            else {
-                continue;
-            };
-            spend(
-                budget,
-                aggregate.span,
-                fields.len().saturating_add(aggregate.fields.len()),
-            )?;
-            if aggregate.fields.len() != fields.len() {
-                return Err(invalid(
-                    aggregate.span,
-                    "stored instance field count changed during lowering",
-                ));
-            }
-            // The source field lowering retained labels until this point; the
-            // complete scoped shape, rather than a bare Address, is published
-            // together with each actual physical field type.
-            for (field, (name, ty)) in aggregate.fields.iter_mut().zip(fields) {
-                budget.text(&field.name, field.span)?;
-                budget.text(name, field.span)?;
-                if field.name != *name {
-                    return Err(invalid(
-                        field.span,
-                        "stored instance field order changed during lowering",
-                    ));
+            let owner_span = match storage.as_ref() {
+                Type::Record { name, fields } => {
+                    for aggregate in &core.aggregates {
+                        budget.text(&aggregate.name, aggregate.span)?;
+                        budget.text(name, aggregate.span)?;
+                    }
+                    let Some(aggregate) = core.aggregates.iter_mut().find(|aggregate| aggregate.name == *name) else { continue };
+                    spend(budget, aggregate.span, fields.len().saturating_add(aggregate.fields.len()))?;
+                    if aggregate.fields.len() != fields.len() {
+                        return Err(invalid(aggregate.span, "stored instance field count changed during lowering"));
+                    }
+                    for (field, (name, ty)) in aggregate.fields.iter_mut().zip(fields) {
+                        budget.text(&field.name, field.span)?;
+                        budget.text(name, field.span)?;
+                        if field.name != *name { return Err(invalid(field.span, "stored instance field order changed during lowering")); }
+                        pay_type(ty, budget, field.span, 0)?;
+                        field.ty = ty.clone();
+                    }
+                    aggregate.span
                 }
-                pay_type(ty, budget, field.span, 0)?;
-                field.ty = ty.clone();
-            }
-            pay_instance(produced, budget, aggregate.span)?;
-            spend(budget, aggregate.span, core.life_declarations.len())?;
+                Type::Enum { name, variants } => {
+                    for item in &core.enums {
+                        budget.text(&item.name, item.span)?;
+                        budget.text(name, item.span)?;
+                    }
+                    let Some(item) = core.enums.iter_mut().find(|item| item.name == *name) else { continue };
+                    spend(budget, item.span, variants.len().saturating_add(item.variants.len()))?;
+                    if variants.len() != item.variants.len() { return Err(invalid(item.span, "stored enum variant count changed during lowering")); }
+                    for ((name, fields), (physical_name, physical_fields)) in variants.iter().zip(&mut item.variants) {
+                        budget.text(name, item.span)?;
+                        budget.text(physical_name, item.span)?;
+                        if name != physical_name || fields.len()!=physical_fields.len() {
+                            return Err(invalid(item.span, "stored enum variant or payload order changed during lowering"));
+                        }
+                        for (field, output) in fields.iter().zip(physical_fields.iter_mut()) {
+                            pay_type(field, budget, item.span, 0)?;
+                            *output = field.clone();
+                        }
+                    }
+                    item.span
+                }
+                _ => return Err(invalid(Span::default(), "stored producer lost nominal physical layout")),
+            };
+            pay_instance(produced, budget, owner_span)?;
+            spend(budget, owner_span, core.life_declarations.len())?;
             if !core
                 .life_declarations
                 .iter()
@@ -354,6 +354,14 @@ pub(super) fn pay_type(
             for (name, ty) in fields {
                 budget.text(name, span)?;
                 pay_type(ty, budget, span, depth + 1)?;
+            }
+            Ok(())
+        }
+        Type::Enum { name, variants } => {
+            budget.text(name, span)?;
+            for (variant, fields) in variants {
+                budget.text(variant, span)?;
+                for field in fields { pay_type(field, budget, span, depth + 1)?; }
             }
             Ok(())
         }
@@ -596,9 +604,59 @@ struct Shape<'a, 'l> {
     retained: Vec<StorageRetainedBinding>,
     qualified: &'a BTreeMap<usize, QualifiedActual>,
     original: Option<&'a s::Aggregate>,
+    enum_formals: Option<&'a [s::GenericParam]>,
+    direct: &'a BTreeMap<Vec<LifeTypeProjection>, QualifiedActual>,
+    direct_nominal_arguments: Vec<NominalLifeArgument>,
 }
 
 impl Shape<'_, '_> {
+    fn qualified_child(
+        &mut self,
+        actual: &QualifiedActual,
+        path: &[PlaceProjection],
+        type_path: &[LifeTypeProjection],
+        span: Span,
+        depth: usize,
+    ) -> R<Type> {
+        let Type::BorrowedStorage { life, .. } = &actual.ty else {
+            return Err(invalid(span, "qualified child lacks storage relation"));
+        };
+        if life.binder_count as usize != actual.classes.len() {
+            return Err(invalid(span, "qualified child class vector incomplete"));
+        }
+        if type_path.contains(&LifeTypeProjection::Element) && !life.slots.is_empty() {
+            return Err(Diagnostic::unsupported(Phase::Expand,
+                "qualified array child with physical borrow slots needs element place projection", Some(span)));
+        }
+        for slot in &life.slots {
+            let lexical = *actual.classes.get(slot.binder as usize)
+                .ok_or_else(|| invalid(span, "qualified child slot class absent"))?;
+            let binder = self.class(lexical, span)?;
+            spend(self.budget, span, path.len().saturating_add(slot.path.len()).saturating_add(1))?;
+            let mut physical_path = path.to_vec();
+            physical_path.extend_from_slice(&slot.path);
+            self.slots.push(StorageLifeSlot { path: physical_path, binder, mode: slot.mode });
+        }
+        for (class, lexical) in actual.classes.iter().enumerate() {
+            let binder = self.class(*lexical, span)?;
+            spend(self.budget, span, type_path.len().saturating_add(1))?;
+            self.retained.push(StorageRetainedBinding { path: type_path.to_vec(),
+                class: u32::try_from(class).map_err(|_| invalid(span, "qualified child class overflow"))?, binder });
+        }
+        for row in &life.nominal_arguments {
+            let lexical = *actual.classes.get(row.binder as usize)
+                .ok_or_else(|| invalid(span, "qualified child nominal class absent"))?;
+            let binder = self.class(lexical, span)?;
+            spend(self.budget, span, type_path.len().saturating_add(row.path.len()).saturating_add(1))?;
+            let mut row_path = type_path.to_vec();
+            row_path.extend_from_slice(&row.path);
+            self.direct_nominal_arguments.push(NominalLifeArgument { path: row_path,
+                declaration: row.declaration, argument: row.argument, binder });
+        }
+        pay_type(&actual.ty, self.budget, span, depth + 1)?;
+        Ok(actual.ty.clone())
+    }
+
     fn class(&mut self, actual: LexicalLife, span: Span) -> R<u32> {
         // The complete scan and the eventual new row are paid before either
         // comparison or allocation. No global cache gives a cheaper request.
@@ -629,13 +687,28 @@ impl Shape<'_, '_> {
         source: &s::TypeRef,
         original: Option<&s::TypeRef>,
         path: &mut Vec<PlaceProjection>,
+        type_path: &mut Vec<LifeTypeProjection>,
         depth: usize,
     ) -> R<Type> {
         self.budget.node(source.span, depth)?;
+        if let Some(actual) = self.direct.get(type_path) {
+            let mut physical = source;
+            while let s::TypeKind::Group(inner) = &physical.kind {
+                self.budget.node(physical.span, depth)?;
+                physical = inner;
+            }
+            self.budget.text(&actual.name, source.span)?;
+            if !matches!(&physical.kind, s::TypeKind::Named {path,args}
+                if path.as_slice()==[actual.name.as_str()] && args.is_empty()) {
+                return Err(invalid(source.span, "direct physical child differs from original scoped application"));
+            }
+            return self.qualified_child(actual, path, type_path, source.span, depth);
+        }
         // Resolve the original formal occurrence before looking at the physical
         // specialization. Two source Type formals may have identical layouts
         // while carrying distinct caller classes.
-        let selected = if let (Some(aggregate), Some(original)) = (self.original, original) {
+        let formals = self.original.map(|aggregate| aggregate.generics.as_slice()).or(self.enum_formals);
+        let selected = if let (Some(formals), Some(original)) = (formals, original) {
             let mut original = original;
             while let s::TypeKind::Group(inner) = &original.kind {
                 self.budget.node(original.span, depth)?;
@@ -646,7 +719,7 @@ impl Shape<'_, '_> {
                 && args.is_empty()
             {
                 let mut ordinal = None;
-                for (index, formal) in aggregate.generics.iter().enumerate() {
+                for (index, formal) in formals.iter().enumerate() {
                     self.budget.text(&formal.name, source.span)?;
                     self.budget.text(&path[0], source.span)?;
                     if formal.name == path[0] {
@@ -675,22 +748,7 @@ impl Shape<'_, '_> {
                     "physical field differs from its original Type formal substitution",
                 ));
             }
-            for (class, lexical) in actual.classes.iter().enumerate() {
-                let binder = self.class(*lexical, source.span)?;
-                spend(self.budget, source.span, path.len().saturating_add(1))?;
-                self.retained.push(StorageRetainedBinding {
-                    path: path
-                        .iter()
-                        .copied()
-                        .map(LifeTypeProjection::Place)
-                        .collect(),
-                    class: u32::try_from(class)
-                        .map_err(|_| invalid(source.span, "retained class overflow"))?,
-                    binder,
-                });
-            }
-            pay_type(&actual.ty, self.budget, source.span, depth + 1)?;
-            return Ok(actual.ty.clone());
+            return self.qualified_child(actual, path, type_path, source.span, depth);
         }
         match &source.kind {
             s::TypeKind::Group(inner) => self.field(
@@ -703,6 +761,7 @@ impl Shape<'_, '_> {
                     }
                 }),
                 path,
+                type_path,
                 depth + 1,
             ),
             s::TypeKind::Reference {
@@ -710,6 +769,10 @@ impl Shape<'_, '_> {
                 mutable,
                 inner,
             } => {
+                if type_path.contains(&LifeTypeProjection::Element) {
+                    return Err(Diagnostic::unsupported(Phase::Expand,
+                        "array element physical borrow needs an actual element place projection", Some(source.span)));
+                }
                 let name = lifetime.as_deref().ok_or_else(|| {
                     invalid(
                         source.span,
@@ -752,6 +815,7 @@ impl Shape<'_, '_> {
                         .map_err(|_| invalid(field.span, "field ordinal overflow"))?;
                     self.budget.node(field.span, depth)?;
                     path.push(PlaceProjection::Field(index));
+                    type_path.push(LifeTypeProjection::Place(PlaceProjection::Field(index)));
                     let source_field = if let Some(mut original) = original {
                         let mut nesting = depth;
                         while let s::TypeKind::Group(inner) = &original.kind {
@@ -767,11 +831,28 @@ impl Shape<'_, '_> {
                     } else {
                         None
                     };
-                    let ty = self.field(field, source_field, path, depth + 1)?;
+                    let ty = self.field(field, source_field, path, type_path, depth + 1)?;
                     path.pop();
+                    type_path.pop();
                     types.push(ty);
                 }
                 Ok(Type::Tuple(types))
+            }
+            s::TypeKind::Array { element, length: Some(length) } => {
+                let mut original_element = None;
+                if let Some(original) = original {
+                    if let s::TypeKind::Array { element, .. } = &original.kind { original_element = Some(element.as_ref()); }
+                }
+                type_path.push(LifeTypeProjection::Element);
+                let child = self.field(element, original_element, path, type_path, depth + 1)?;
+                type_path.pop();
+                self.budget.const_expression(length)?;
+                let s::ExprKind::Literal(s::Literal::Integer(text)) = &length.kind else {
+                    return Err(invalid(source.span, "stored array length needs normalized constant"));
+                };
+                let length = text.replace('_', "").parse::<u32>()
+                    .map_err(|_| invalid(source.span, "stored array length invalid"))?;
+                Ok(Type::Array { element: Box::new(child), length })
             }
             _ => {
                 self.budget.ty_depth(source, depth)?;
@@ -835,6 +916,20 @@ pub(super) fn instantiate_joint(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<Instance> {
+    instantiate_joint_with_fields(aggregate, declaration, arguments, lifetime_arguments, joint,
+        &BTreeMap::new(), budget, span)
+}
+
+pub(super) fn instantiate_joint_with_fields(
+    aggregate: &s::Aggregate,
+    declaration: LifeNominalDeclaration,
+    arguments: Vec<LifeNominalActual>,
+    lifetime_arguments: &[(String, LexicalLife)],
+    joint: Option<(&s::Aggregate, &BTreeMap<usize, QualifiedActual>)>,
+    direct: &BTreeMap<Vec<LifeTypeProjection>, QualifiedActual>,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<Instance> {
     if aggregate.kind != s::AggregateKind::Struct || declaration.kind != LifeNominalKind::Record {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
@@ -887,6 +982,9 @@ pub(super) fn instantiate_joint(
         retained: vec![],
         qualified,
         original,
+        enum_formals: None,
+        direct,
+        direct_nominal_arguments: Vec::new(),
     };
     for (index, (name, _)) in lifetime_arguments.iter().enumerate() {
         for (prior, _) in &lifetime_arguments[..index] {
@@ -962,6 +1060,7 @@ pub(super) fn instantiate_joint(
             &field.ty,
             original_field,
             &mut vec![PlaceProjection::Field(index)],
+            &mut vec![LifeTypeProjection::Place(PlaceProjection::Field(index))],
             0,
         )?;
         fields.push((field.name.clone(), ty));
@@ -985,6 +1084,7 @@ pub(super) fn instantiate_joint(
         }
     }
     nominal_arguments.extend(nested_nominal_arguments);
+    nominal_arguments.append(&mut shape.direct_nominal_arguments);
     shape.budget.text(&aggregate.name, span)?;
     let binder_count =
         u32::try_from(shape.classes.len()).map_err(|_| invalid(span, "life class overflow"))?;
@@ -1009,6 +1109,129 @@ pub(super) fn instantiate_joint(
         declaration,
         classes: shape.classes,
     })
+}
+
+pub(super) fn instantiate_enum_joint(
+    physical: &s::EnumDecl,
+    original: &s::EnumDecl,
+    declaration: LifeNominalDeclaration,
+    mut arguments: Vec<LifeNominalActual>,
+    lifetime_arguments: &[(String, LexicalLife)],
+    qualified: &BTreeMap<usize, QualifiedActual>,
+    direct: &BTreeMap<Vec<LifeTypeProjection>, QualifiedActual>,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<Instance> {
+    if declaration.kind != LifeNominalKind::Enum
+        || declaration.parameters.len() != arguments.len()
+        || physical.variants.len() != original.variants.len()
+    {
+        return Err(invalid(span, "stored enum declaration or full actual shape differs"));
+    }
+    spend(budget, span, arguments.len().saturating_add(lifetime_arguments.len()))?;
+    let mut life_count = 0;
+    for (formal, actual) in declaration.parameters.iter().zip(&arguments) {
+        match (formal, actual) {
+            (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(_)) => life_count += 1,
+            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (LifeParameterKind::Const(domain), LifeNominalActual::Const(value)) if *domain == value.ty() => {}
+            _ => return Err(invalid(span, "stored enum actual kind or scalar domain differs")),
+        }
+    }
+    if life_count != lifetime_arguments.len() {
+        return Err(invalid(span, "stored enum lifetime actual vector is incomplete"));
+    }
+    let mut shape = Shape {
+        budget,
+        formals: lifetime_arguments,
+        classes: Vec::new(),
+        slots: Vec::new(),
+        retained: Vec::new(),
+        qualified,
+        original: None,
+        enum_formals: Some(&original.generics),
+        direct,
+        direct_nominal_arguments: Vec::new(),
+    };
+    for (index, (name, actual)) in lifetime_arguments.iter().enumerate() {
+        for (prior, _) in &lifetime_arguments[..index] {
+            shape.budget.text(name, span)?;
+            shape.budget.text(prior, span)?;
+            if name == prior { return Err(invalid(span, "duplicate lifetime formal in stored enum")); }
+        }
+        shape.class(*actual, span)?;
+    }
+    let mut nested_arguments = Vec::new();
+    for (ordinal, actual) in qualified {
+        let Some(LifeNominalActual::Type(ty)) = arguments.get(*ordinal) else {
+            return Err(invalid(span, "qualified enum Type actual ordinal differs"));
+        };
+        pay_type(ty, shape.budget, span, 0)?;
+        if ty != &actual.ty { return Err(invalid(span, "qualified enum Type actual metadata differs")); }
+        let Type::BorrowedStorage { life, .. } = ty else {
+            return Err(invalid(span, "qualified enum Type actual has no storage relation"));
+        };
+        if life.binder_count as usize != actual.classes.len() {
+            return Err(invalid(span, "qualified enum Type actual class mapping incomplete"));
+        }
+        for row in &life.nominal_arguments {
+            let lexical = *actual.classes.get(row.binder as usize)
+                .ok_or_else(|| invalid(span, "qualified enum Type actual class absent"))?;
+            let binder = shape.class(lexical, span)?;
+            spend(shape.budget, span, row.path.len().saturating_add(2))?;
+            let mut path = vec![LifeTypeProjection::TypeArgument(*ordinal as u32)];
+            path.extend_from_slice(&row.path);
+            nested_arguments.push(NominalLifeArgument { path, declaration: row.declaration, argument: row.argument, binder });
+        }
+    }
+    let mut variants = Vec::new();
+    for (variant_index, (actual, source)) in physical.variants.iter().zip(&original.variants).enumerate() {
+        shape.budget.text(&actual.name, actual.span)?;
+        shape.budget.text(&source.name, source.span)?;
+        if actual.name != source.name { return Err(invalid(span, "stored enum variant order differs")); }
+        let physical_fields: Vec<&s::TypeRef> = match &actual.fields {
+            s::VariantFields::Unit => Vec::new(),
+            s::VariantFields::Tuple(fields) => fields.iter().map(|field| &field.ty).collect(),
+            s::VariantFields::Record(fields) => fields.iter().map(|field| &field.ty).collect(),
+        };
+        let source_fields: Vec<&s::TypeRef> = match &source.fields {
+            s::VariantFields::Unit => Vec::new(),
+            s::VariantFields::Tuple(fields) => fields.iter().map(|field| &field.ty).collect(),
+            s::VariantFields::Record(fields) => fields.iter().map(|field| &field.ty).collect(),
+        };
+        if std::mem::discriminant(&actual.fields) != std::mem::discriminant(&source.fields)
+            || physical_fields.len() != source_fields.len() {
+            return Err(invalid(span, "stored enum variant payload shape differs"));
+        }
+        let mut fields = Vec::new();
+        for (field_index, (field, source_field)) in physical_fields.iter().zip(source_fields).enumerate() {
+            let variant = u32::try_from(variant_index).map_err(|_| invalid(span, "variant ordinal overflow"))?;
+            let index = u32::try_from(field_index).map_err(|_| invalid(span, "variant field ordinal overflow"))?;
+            let place = PlaceProjection::Variant(zil_ir::VariantProjection { variant, index });
+            fields.push(shape.field(field, Some(source_field), &mut vec![place],
+                &mut vec![LifeTypeProjection::Place(place)], 0)?);
+        }
+        variants.push((actual.name.clone(), fields));
+    }
+    let mut nominal_arguments = Vec::new();
+    let mut lives = lifetime_arguments.iter();
+    for (ordinal, actual) in arguments.iter_mut().enumerate() {
+        if let LifeNominalActual::Lifetime(class) = actual {
+            let (_, lexical) = lives.next().ok_or_else(|| invalid(span, "stored enum life actual missing"))?;
+            *class = shape.class(*lexical, span)?;
+            nominal_arguments.push(NominalLifeArgument { path: Vec::new(), declaration: declaration.id,
+                argument: u32::try_from(ordinal).map_err(|_| invalid(span, "enum argument ordinal overflow"))?, binder: *class });
+        }
+    }
+    nominal_arguments.extend(nested_arguments);
+    nominal_arguments.append(&mut shape.direct_nominal_arguments);
+    shape.budget.text(&physical.name, span)?;
+    let binder_count = u32::try_from(shape.classes.len()).map_err(|_| invalid(span, "enum class overflow"))?;
+    let ty = Type::BorrowedStorage {
+        storage: Box::new(Type::Enum { name: physical.name.clone(), variants }),
+        life: StorageLifeShape { binder_count, slots: shape.slots, retained: shape.retained, nominal_arguments },
+    };
+    Ok(Instance { instance: LifeNominalInstance { declaration: declaration.id, ty, arguments }, declaration, classes: shape.classes })
 }
 
 #[cfg(test)]

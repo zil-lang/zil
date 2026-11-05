@@ -309,8 +309,12 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_))
-        || (!shape.retained.is_empty() && !shape.slots.is_empty())
+    if !matches!(
+        storage,
+        Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
+    ) || (!shape.retained.is_empty() && !shape.slots.is_empty())
+        || (matches!(storage, Type::Enum { .. })
+            && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(unsupported(
             "nested retained/nominal stored carrier needs its independent consumer",
@@ -364,6 +368,40 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     p.push(PlaceProjection::Field(i as u32));
                     todo.push((child, p));
                 }
+            }
+            Type::Enum { name, variants } => {
+                b.spend(name.len())?;
+                if name.is_empty() {
+                    return Err(err("stored Enum lacks actual nominal identity"));
+                }
+                let mut names = Vec::<&str>::new();
+                for (variant, (variant_name, fields)) in variants.iter().enumerate().rev() {
+                    b.spend(amount(
+                        names.len().saturating_add(1),
+                        variant_name.len().saturating_add(1),
+                    )?)?;
+                    if variant_name.is_empty() || names.contains(&variant_name.as_str()) {
+                        return Err(err(
+                            "stored actual Enum variants have duplicate or empty names",
+                        ));
+                    }
+                    names.push(variant_name);
+                    for (index, child) in fields.iter().enumerate().rev() {
+                        b.spend(path.len().saturating_add(1))?;
+                        let mut p = path.clone();
+                        p.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        }));
+                        todo.push((child, p));
+                    }
+                }
+            }
+            Type::Array { element, .. } => {
+                if !retained::pure(t, b)? {
+                    return Err(err("stored Array contains an address or ownership leaf"));
+                }
+                todo.push((element, path));
             }
             Type::BorrowedStorage { .. } => {
                 if !retained::pure(t, b)? {
@@ -660,6 +698,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         if !matches!(
             (d.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             return Err(unsupported(
                 "nominal kind has no actual physical stored consumer",

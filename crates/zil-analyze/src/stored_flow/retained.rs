@@ -51,8 +51,27 @@ fn scan(
                 path.pop();
             }
         }
-        // Compound qualified carriers remain closed until their physical
-        // shape consumer can prove the corresponding layout selectors.
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                fee(b, 1)?;
+                for (index, child) in fields.iter().enumerate() {
+                    fee(b, 1)?;
+                    path.push(LifeTypeProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        },
+                    )));
+                    scan(child, path, depth + 1, b, out)?;
+                    path.pop();
+                }
+            }
+        }
+        Type::Array { element, .. } => {
+            path.push(LifeTypeProjection::Element);
+            scan(element, path, depth + 1, b, out)?;
+            path.pop();
+        }
         _ => {}
     }
     Ok(())

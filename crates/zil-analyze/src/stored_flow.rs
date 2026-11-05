@@ -544,6 +544,7 @@ pub(super) fn inventory(
         if !matches!(
             (decl.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -826,8 +827,12 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_))
-        || (!life.retained.is_empty() && !life.slots.is_empty())
+    if !matches!(
+        storage,
+        Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
+    ) || (!life.retained.is_empty() && !life.slots.is_empty())
+        || (matches!(storage, Type::Enum { .. })
+            && (!life.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
@@ -878,6 +883,37 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     walk(t, path, out, b)?;
                     path.pop();
                 }
+            }
+            Type::Enum { name, variants } => {
+                fee(b, name.len())?;
+                if name.is_empty() {
+                    return Err(failure("stored Enum has empty nominal identity"));
+                }
+                let mut names = BTreeSet::new();
+                for (variant, (variant_name, fields)) in variants.iter().enumerate() {
+                    ordered(b, names.len(), variant_name.len())?;
+                    if variant_name.is_empty() || !names.insert(variant_name) {
+                        return Err(failure(
+                            "stored Enum variants require unique nonempty names",
+                        ));
+                    }
+                    for (index, field) in fields.iter().enumerate() {
+                        path.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        }));
+                        walk(field, path, out, b)?;
+                        path.pop();
+                    }
+                }
+            }
+            Type::Array { element, .. } => {
+                if !retained::pure(ty, b)? {
+                    return Err(failure(
+                        "stored Array contains an address or ownership leaf",
+                    ));
+                }
+                walk(element, path, out, b)?;
             }
             Type::BorrowedStorage { .. } => {
                 if !retained::pure(ty, b)? {
