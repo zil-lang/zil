@@ -232,6 +232,86 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                 ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
+                    "tuple-store-local",
+                    include_str!("tuple-store-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "enum-package-helper",
+                    include_str!("enum-package-helper.zil"),
+                    b"ABCDABEF42,43\n".as_slice(),
+                ),
+                (
+                    "enum-package-local",
+                    include_str!("enum-package-local.zil"),
+                    b"ABCDABEF42,43\n".as_slice(),
+                ),
+                (
+                    "whole-store-local",
+                    include_str!("whole-store-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "whole-store-apart",
+                    include_str!("whole-store-apart.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "whole-store-abort",
+                    include_str!("whole-store-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "tuple-helper",
+                    include_str!("tuple-whole-helper.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "tuple-local",
+                    include_str!("tuple-whole-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "tuple-abort",
+                    include_str!("tuple-whole-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "error-helper",
+                    include_str!("error-whole-helper.zil"),
+                    b"ABA42,42\n".as_slice(),
+                ),
+                (
+                    "error-abort",
+                    include_str!("error-whole-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "owning-result",
+                    include_str!("owning-result-helper.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "owning-give-result",
+                    include_str!("owning-result-give.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "owning-result-abort",
+                    include_str!("owning-result-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "owning-error-abort",
+                    include_str!("owning-error-abort.zil"),
+                    b"BCA42\n".as_slice(),
+                ),
+                (
+                    "store-owning-result",
+                    include_str!("store-owning-result.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
                     "two-leaf",
                     include_str!("two-leaf-helper.zil"),
                     b"ABCD42\n".as_slice(),
@@ -322,7 +402,7 @@ fn g139_public_role_capture_current_contract_probe() {
         }
     }
     let result = zil_analyze::analyze(&module, &Limits::default());
-    println!("G139 public-role actual Analyze result {result:?}");
+    println!("G139 public-role actual Analyze success={}", result.is_ok());
     if result.is_err() {
         for function in &module.functions {
             println!(
@@ -373,6 +453,191 @@ fn g139_public_role_trace_cannot_hide_actual_invocation() {
                 .iter()
                 .any(|d| d.category == ResultCategory::SafeReject),
             "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn g139_owned_result_helper_responsibility_and_failure() {
+    for text in [
+        include_str!("owning-result-helper.zil"),
+        include_str!("owning-result-give.zil"),
+        include_str!("owning-result-abort.zil"),
+        include_str!("owning-error-abort.zil"),
+        include_str!("store-owning-result.zil"),
+    ] {
+        check(text);
+    }
+    for text in [
+        include_str!("owning-result-old-desc.zil"),
+        include_str!("owning-result-no-must.zil"),
+        include_str!("owning-result-false-create.zil"),
+    ] {
+        let module = typed(text);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+    let safe = typed(include_str!("owning-result-give.zil"));
+    let plan = zil_analyze::analyze(&safe, &Limits::default()).unwrap();
+    let mut false_create = safe.clone();
+    false_create
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "reset")
+        .unwrap()
+        .result_mode = zil_ir::PassingMode::Create;
+    verify_reject(&false_create, &plan, "E-VERIFY-RESOURCE");
+
+    let module = typed(include_str!("owning-result-helper.zil"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut unpaid_result = module;
+    let work = unpaid_result
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "work")
+        .unwrap();
+    let mut removed = 0;
+    let extra = work
+        .locals
+        .iter()
+        .find(|local| local.name == "extra")
+        .unwrap()
+        .id;
+    for block in &mut work.blocks {
+        block.instructions.retain(|i| {
+            if matches!(i.kind, InstructionKind::DropManaged { local } if local == extra) {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+    }
+    assert!(removed > 0);
+    verify_reject(&unpaid_result, &plan, "E-VERIFY-RESOURCE");
+}
+
+#[test]
+fn g139_whole_sum_responsibility_and_failure() {
+    for text in [
+        include_str!("tuple-store-local.zil"),
+        include_str!("enum-package-helper.zil"),
+        include_str!("enum-package-local.zil"),
+        include_str!("tuple-whole-helper.zil"),
+        include_str!("tuple-whole-local.zil"),
+        include_str!("tuple-whole-abort.zil"),
+        include_str!("error-whole-helper.zil"),
+        include_str!("error-whole-abort.zil"),
+    ] {
+        check(text);
+    }
+    for text in [
+        include_str!("tuple-whole-old-desc.zil"),
+        include_str!("tuple-whole-partial.zil"),
+        include_str!("enum-package-old-desc.zil"),
+        include_str!("enum-package-no-must.zil"),
+    ] {
+        let module = typed(text);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+    for text in [
+        include_str!("tuple-whole-abort.zil"),
+        include_str!("error-whole-abort.zil"),
+    ] {
+        let module = typed(text);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let mut missing_abort = module;
+        let mut removed = 0;
+        for f in &mut missing_abort.functions {
+            for block in &mut f.blocks {
+                block.instructions.retain(|i| {
+                    if matches!(i.kind, InstructionKind::AbortPlaceReservation { .. }) {
+                        removed += 1;
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        }
+        assert!(removed > 0);
+        verify_reject(&missing_abort, &plan, "E-VERIFY-PLACE-REPLACE");
+    }
+}
+
+#[test]
+fn g139_whole_store_responsibility_and_failure() {
+    for text in [
+        include_str!("whole-store-local.zil"),
+        include_str!("whole-store-apart.zil"),
+        include_str!("whole-store-abort.zil"),
+    ] {
+        check(text);
+    }
+    let module = typed(include_str!("whole-store-old-desc.zil"));
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    let report = compile_source(
+        &source(include_str!("whole-store-helper.zil")),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+}
+
+#[test]
+fn g139_enum_store_declaration_keeps_existing_qualification_boundary() {
+    // The declaration itself is outside the current ordinary owned shape:
+    // Store<P> is a bare header type here, unlike an inferred Managed<Store<P>>
+    // result inside the admitted Tuple source tested above.
+    for text in [
+        include_str!("enum-store-helper.zil"),
+        "resource R{n:i32} package P{manages owner:R;n:i32} enum E{Left(Store<P>),Right(Store<P>)} fn main(){}",
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d
+                .message
+                .contains("enum payload requires finite Copy or an ordinary complete owned value")),
+            "{}",
+            report.to_json()
         );
     }
 }

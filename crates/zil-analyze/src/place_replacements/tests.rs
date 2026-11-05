@@ -11,7 +11,7 @@ fn replacement_protocol_retains_real_base_and_rejects_stale_activations() {
     let schedule = definitions.schedule(f, &[true], &mut b).unwrap();
     assert_eq!(schedule.uses[0][2], vec![ValueId(0)]);
     assert_eq!(schedule.uses[0][3], vec![ValueId(0)]);
-    for case in 0..5 {
+    for case in 0..7 {
         let mut module = fixture::module();
         let f = &mut module.functions[0];
         match case {
@@ -28,7 +28,7 @@ fn replacement_protocol_retains_real_base_and_rejects_stale_activations() {
             3 => {
                 f.blocks[0].instructions[1].result = Some(ValueId(1));
             }
-            _ => {
+            4 => {
                 let InstructionKind::ReservePlaceAddress { path, .. } =
                     &mut f.blocks[0].instructions[1].kind
                 else {
@@ -36,11 +36,35 @@ fn replacement_protocol_retains_real_base_and_rejects_stale_activations() {
                 };
                 path[0] = PlaceProjection::Field(9);
             }
+            _ => f.blocks[0].instructions.insert(
+                2,
+                Instruction {
+                    result: None,
+                    kind: if case == 5 {
+                        InstructionKind::TaskYield
+                    } else {
+                        InstructionKind::SuspendCall {
+                            function: f.id,
+                            arguments: vec![],
+                        }
+                    },
+                    span: zil_base::Span::default(),
+                },
+            ),
         }
         let mut b = Budget::new(&limits);
         let result = Definitions::new(&module, &module.functions[0], &mut b)
             .and_then(|d| d.schedule(&module.functions[0], &[true], &mut b));
-        assert!(result.is_err(), "case{case}");
+        if case >= 5 {
+            assert!(
+                result.unwrap_err().iter().any(|d| d
+                    .message
+                    .contains("prepared owning replacement cannot suspend")),
+                "case{case}"
+            );
+        } else {
+            assert!(result.is_err(), "case{case}");
+        }
     }
 }
 

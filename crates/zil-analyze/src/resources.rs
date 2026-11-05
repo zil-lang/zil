@@ -1248,6 +1248,23 @@ impl Flow<'_> {
                     {
                         return Err(error("Sum observation needs a live local"));
                     }
+                    if out_shape.is_some_and(|shape| shape.description)
+                        && matches!(
+                            i.kind,
+                            InstructionKind::BorrowFieldLocal { .. }
+                                | InstructionKind::BorrowPlaceLocal { .. }
+                                | InstructionKind::BorrowVariantLocal { .. }
+                        )
+                    {
+                        // The Sum plan below independently checks the complete
+                        // actual selected child. Resource lifetime belongs to
+                        // its containing live shell; the replacement origin
+                        // pass separately retains the precise inline path.
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::Head(*local)]),
+                            ..Fact::default()
+                        });
+                    }
                 }
                 InstructionKind::TakeTupleField { local, .. }
                 | InstructionKind::TakeVariantField { local, .. } => {

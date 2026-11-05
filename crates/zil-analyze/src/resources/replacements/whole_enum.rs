@@ -2,7 +2,19 @@
 //! The local shell's debt and cleanup age stay in the ordinary resource state.
 use super::*;
 
-pub(super) fn admitted(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    b.type_work(ty, true, "whole ordinary Sum endpoint")?;
+    if !sums::owned(ty) || !package::ordinary_result(module, ty, b)? {
+        return Ok(false);
+    }
+    sums::admit(module, ty, b)?;
+    Ok(true)
+}
+
+pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        return ordinary(module, ty, b);
+    }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
     };
@@ -15,11 +27,11 @@ pub(super) fn admitted(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         for field in fields {
             if let Type::Managed(payload) = field {
                 if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
-                    return Ok(false);
+                    return ordinary(module, ty, b);
                 }
                 owners += 1;
             } else if !field.is_b0_scalar() {
-                return Ok(false);
+                return ordinary(module, ty, b);
             }
         }
         owning |= owners != 0;
@@ -109,7 +121,11 @@ pub(super) fn borrowed(
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || f.storage_life.is_some()
-        || !package::copy_result(&f.return_type, b)?
+        || !(if f.environment.is_some() {
+            package::copy_result(&f.return_type, b)?
+        } else {
+            package::ordinary_result(module, &f.return_type, b)?
+        })
     {
         return Err(unsupported());
     }
@@ -138,7 +154,7 @@ pub(super) fn borrowed(
     else {
         return Err(unsupported());
     };
-    if !admitted(inner, b)? {
+    if !admitted(module, inner, b)? {
         return Err(unsupported());
     }
     fee(b, f.parameters.len())?;

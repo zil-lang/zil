@@ -25,6 +25,7 @@ pub(super) struct Budget {
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
+    pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
@@ -69,6 +70,7 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             replacement_functions: BTreeSet::new(),
+            replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),

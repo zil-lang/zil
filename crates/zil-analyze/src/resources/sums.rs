@@ -649,7 +649,10 @@ impl Facts {
     ) -> CompileResult<()> {
         let incoming = self.value(rhs, budget)?;
         let old = self.local(local, budget)?;
-        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.node, Node::Sum(_)) {
+        if !matches!(
+            (&old.node, &incoming.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
             return Err(error(
                 "whole Enum replacement requires actual tagged contents",
             ));
@@ -766,7 +769,10 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<()> {
         let old = self.local(local, budget)?;
-        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.0.node, Node::Sum(_)) {
+        if !matches!(
+            (&old.node, &incoming.0.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
             return Err(error(
                 "tagged replacement may effect requires actual Sum contents",
             ));
@@ -803,7 +809,37 @@ impl Plan {
             .copied()
             .unwrap_or(false)
         {
-            return Ok(None);
+            if !budget.replacement_error_sums {
+                return Ok(None);
+            }
+            // A complete ErrorUnion replacement also needs this kernel's
+            // actual old/RHS tree on legacy ordinary-error callers. Preserve
+            // their old lane unless such an endpoint really exists.
+            budget.spend(
+                f.locals
+                    .len()
+                    .saturating_add(f.values.len())
+                    .saturating_add(1),
+                "replacement ErrorUnion facts qualification",
+            )?;
+            let mut needs = false;
+            for ty in std::iter::once(&f.return_type)
+                .chain(f.locals.iter().map(|l| &l.ty))
+                .chain(&f.values)
+            {
+                let inner = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if matches!(inner, Type::ErrorUnion { .. }) {
+                    budget.type_work(inner, true, "replacement ErrorUnion owning tree")?;
+                    needs |= owned(inner);
+                }
+            }
+            if !needs {
+                return Ok(None);
+            }
         }
         budget.spend(f.values.len() + f.locals.len(), "Sum plan inventory")?;
         let mut partial = false;

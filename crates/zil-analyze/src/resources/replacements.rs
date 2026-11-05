@@ -134,12 +134,12 @@ fn endpoint<'a>(
     }
     Ok(ty)
 }
-fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
             || package::field(ty, b)?.is_some()
-            || whole_enum::admitted(ty, b)?,
+            || whole_enum::admitted(module, ty, b)?,
     )
 }
 impl Program {
@@ -199,7 +199,14 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
-                if matches!(definition.ty, Type::Package { .. } | Type::Enum { .. }) {
+                b.replacement_error_sums |= matches!(definition.ty, Type::ErrorUnion { .. });
+                if matches!(
+                    definition.ty,
+                    Type::Package { .. }
+                        | Type::Enum { .. }
+                        | Type::Tuple(_)
+                        | Type::ErrorUnion { .. }
+                ) {
                     packages = true;
                     fee(b, definition.path.len().saturating_add(1))?;
                     let targets = match &definition.base {
@@ -223,7 +230,10 @@ impl Program {
                         )]);
                     }
                     for target in &targets {
-                        if matches!(definition.ty, Type::Enum { .. }) {
+                        if matches!(
+                            definition.ty,
+                            Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                        ) {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 whole_enum::local(f, target, b)?;
                             } else {
@@ -247,7 +257,7 @@ impl Program {
                         }
                     }
                 }
-                if !closed(&definition.ty, b)? {
+                if !closed(module, &definition.ty, b)? {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
                         "replacement endpoint cleanup/hold bridge is under construction",
@@ -575,7 +585,7 @@ impl Program {
             rows.clear();
         }
         let ty = self.actual_type(flow.module, flow.function, target, b)?;
-        if !closed(ty, b)? {
+        if !closed(flow.module, ty, b)? {
             return Err(error(
                 "actual replacement endpoint differs from closed owning leaf",
             ));
@@ -967,7 +977,10 @@ impl Program {
                                 }
                             }
                         }
-                    } else if matches!(d.ty, Type::Enum { .. }) {
+                    } else if matches!(
+                        d.ty,
+                        Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                    ) {
                         if matches!(target.root, origins::Root::Local(_)) {
                             whole_enum::apply(flow, state, &target, *value, point, b)?;
                         } else {
