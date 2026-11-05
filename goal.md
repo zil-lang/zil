@@ -16,6 +16,7 @@
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
 | G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / Verify | Store/helper [已合入][e42]，ErrorUnion 字段替换[已合入][e39]；完整 Done 仍需整体 Sum，以及非局部/helper/capture/Store 的真实来源、loan/pin 和失败责任组合；当前交付见 G1.3.4。 |
 | G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 实现待验 | P0 | g1_3 / Verify | 已修复多根目标误接受，独审通过；[PR41][p41] 共同验收中。 |
+| G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 进行中 | P0 | g1_3 / g4_verify | 基于本批冻结源码独立施工；首批真实 Source 与 Types/Analyze、独立 Verify 并行。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -24,7 +25,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
-| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | g8_4_front | G2.3.1 有限 Self 依赖常量已由 PR39 [合入][e39]；一般投影、泛型及 Drop 组合仍缺。 |
+| G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | 待派 | G2.3.1 有限 Self 依赖常量已由 PR39 [合入][e39]；一般投影、泛型及 Drop 组合仍缺。 |
 | G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
 
 ## G3 · 借用、拥有与生命周期
@@ -35,7 +36,8 @@
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 真实捕获已合入，见 G3.3.2；完整 Done 仍需 qualified FnMut/FnOnce helper 的真实环境、来源与调用模式贯通，当前共享桥见 G3.3.4。 |
 | G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
-| G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 进行中 | P0 | g3_3 / 独审 | [PR41][p41]；phantom 实参误接受已由两方复现，正收紧资格并复核，修复前不验收。 |
+| G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 实现待验 | P0 | root | phantom 误接受已修复；最终源码独审通过，[PR41][p41] 正式共同验收中。 |
+| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 进行中 | P0 | g3_3 | 新树继续 Expand/Types；首批用例断言两次调用的完整结果，并核实际环境与错误来源。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
