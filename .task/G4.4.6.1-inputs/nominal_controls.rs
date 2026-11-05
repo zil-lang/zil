@@ -30,8 +30,8 @@ fn g4461_same_child_distinct_outer_relations_coexist() {
 #[test]
 fn g4461_actual_pure_fields_retained_source_raw_wire() {
     for text in [
-        "struct Phantom<life a,T:Copy,#N:i32>{n:i32}struct Wrap<T:Copy>{value:T}fn result<life s>(p:&'s i32)->i32{let w=Wrap::<Phantom<'s,i32,42>>{value:Phantom::<'s,i32,42>{n:42}};return w.value.n}fn main()->i32{let n=0;return result(&n)}",
-        "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};return w.left.n+w.right.n}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
+        "struct Phantom<life a,T:Copy,#N:i32>{n:i32}struct View<life a>{p:&'a i32}struct Wrap<T:Copy>{value:T}fn result<life s>(p:&'s i32)->i32{let borrowed=View::<'s>{p:p};let w=Wrap::<Phantom<'s,i32,42>>{value:Phantom::<'s,i32,42>{n:42}};let copied=w.value;return copied.n+*borrowed.p}fn main()->i32{let n=0;return result(&n)}",
+        "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};let left=w.left;let right=w.right;return left.n+right.n}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
     ] {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
@@ -71,6 +71,92 @@ fn g4461_actual_pure_fields_retained_source_raw_wire() {
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        for (f, proof) in raw.functions.iter().zip(&plan.functions) {
+            for i in f.blocks.iter().flat_map(|b| &b.instructions) {
+                let (zil_ir::InstructionKind::ReadAddress { address }, Some(value)) =
+                    (&i.kind, i.result)
+                else {
+                    continue;
+                };
+                let Type::BorrowedStorage { life, .. } = &f.values[value.0 as usize] else {
+                    continue;
+                };
+                assert!(life.slots.is_empty());
+                assert!(
+                    matches!(&f.values[address.0 as usize], Type::Address {inner,..} if inner.as_ref()==&f.values[value.0 as usize])
+                );
+                assert!(
+                    proof.holds[value.0 as usize].roots.is_empty(),
+                    "phantom result must not acquire its storage root"
+                );
+            }
+        }
+        assert!(
+            raw.functions
+                .iter()
+                .any(|f| f
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(
+                        |i| matches!(i.kind, zil_ir::InstructionKind::ReadAddress { .. })
+                            && i.result.is_some_and(|v| f
+                                .values
+                                .get(v.0 as usize)
+                                .is_some_and(|ty| matches!(ty, Type::BorrowedStorage { .. })))
+                    )),
+            "actual Source must exercise whole qualified child reads"
+        );
+        // Insert an unsafe ordinary read of a real View with a physical
+        // Address slot. Its input and result types agree and all inventory is
+        // untouched; the narrow read proof itself must reject this copy.
+        let location = raw.functions.iter().enumerate().find_map(|(fi, f)| {
+            f.blocks.iter().enumerate().find_map(|(bi, b)| {
+                b.instructions.iter().enumerate().find_map(|(ii, i)| {
+                    let zil_ir::InstructionKind::LoadStoredBorrow { storage, .. } = &i.kind else {
+                        return None;
+                    };
+                    Some((fi, bi, ii, *storage, i.span))
+                })
+            })
+        });
+        if let Some((fi, bi, ii, address, span)) = location {
+            let mut hostile = raw.clone();
+            let f = &mut hostile.functions[fi];
+            let Type::Address { inner, .. } = &f.values[address.0 as usize] else {
+                unreachable!()
+            };
+            let payload = inner.as_ref().clone();
+            assert!(matches!(&payload,Type::BorrowedStorage{life,..} if !life.slots.is_empty()));
+            let value = zil_ir::ValueId(f.values.len() as u32);
+            f.values.push(payload);
+            f.blocks[bi].instructions.insert(
+                ii,
+                zil_ir::Instruction {
+                    result: Some(value),
+                    kind: zil_ir::InstructionKind::ReadAddress { address },
+                    span,
+                },
+            );
+            let errors = zil_analyze::analyze(&hostile, &limits)
+                .expect_err("ordinary read copied an actual borrowed View");
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.message.contains("ordinary read cannot copy")),
+                "{errors:?}"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = hostile.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&hostile, &claim, &limits).unwrap();
+            let error = zil_verify::verify_module(hostile, claim, &target, &limits)
+                .expect_err("Verify copied an actual borrowed View");
+            assert!(
+                error.iter().any(|e| e.message.contains("ReadAddress")),
+                "{error:?}"
+            );
+            assert!(zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err());
+        }
         let outer = raw
             .life_instances
             .iter()
@@ -228,10 +314,16 @@ fn g4461_actual_core_nested_type_metadata_controls() {
             }
             _ => unreachable!(),
         }
-        assert!(
-            zil_types::check(&hostile, &target, &limits).is_err(),
-            "Types accepted mutation {mutation}"
-        );
+        let errors = zil_types::check(&hostile, &target, &limits)
+            .expect_err("Types accepted hostile actual metadata");
+        if mutation == 6 {
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.message.contains("one complete nominal actual vector")),
+                "{errors:?}"
+            );
+        }
     }
 }
 
@@ -306,7 +398,7 @@ fn g4461_actual_nested_type_nominal_source_raw_wire() {
             .iter()
             .position(|d| d.id == raw.life_instances[child].declaration)
             .unwrap();
-        for mutation in 0..14 {
+        for mutation in 0..16 {
             let mut hostile = raw.clone();
             match mutation {
                 0..=5 => {
@@ -369,12 +461,33 @@ fn g4461_actual_nested_type_nominal_source_raw_wire() {
                     *actual = LifeNominalActual::Const(zil_ir::Constant::I32(43));
                     hostile.life_instances.push(alternate);
                 }
+                14 => {
+                    hostile.life_instances[outer].arguments[0] =
+                        LifeNominalActual::Type(hostile.life_instances[outer].ty.clone());
+                }
+                15 => {
+                    hostile.life_declarations.remove(child_decl);
+                }
                 _ => unreachable!(),
             }
-            assert!(
-                zil_analyze::analyze(&hostile, &limits).is_err(),
-                "Analyze accepted mutation {mutation}"
-            );
+            let errors = zil_analyze::analyze(&hostile, &limits)
+                .expect_err("Analyze accepted hostile actual metadata");
+            if mutation == 12 {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("duplicate complete nominal instance")),
+                    "{errors:?}"
+                );
+            }
+            if mutation == 14 {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("cyclic nominal Type argument")),
+                    "{errors:?}"
+                );
+            }
             let mut claim = plan.clone();
             claim.module_fingerprint = hostile.fingerprint();
             let bytes = zil_ir::wire::encode_module_candidate(&hostile, &claim, &limits).unwrap();

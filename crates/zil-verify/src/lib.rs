@@ -2382,7 +2382,11 @@ fn check_instruction(
             Some(Type::I64)
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
-            Type::Address { inner, .. } if inner.is_copy_value() => Some(inner.as_ref().clone()),
+            Type::Address { inner, .. }
+                if inner.is_copy_value() || stored_flow::pure_read(module, inner, budget)? =>
+            {
+                Some(inner.as_ref().clone())
+            }
             _ => {
                 return Err(reject(
                     "E-VERIFY-ADDRESS",
