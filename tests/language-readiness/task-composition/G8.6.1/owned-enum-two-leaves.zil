@@ -7,7 +7,7 @@ fn worker(give a:Token,give b:Token)->i32 {
     task_yield();
     match packet {
         Packet.Empty()=>{return 0;},
-        Packet.Pair(left,right)=>{return left.code+right.code;}
+        Packet.Pair(left,right)=>{return left.code*10+right.code;}
     }
 }
 fn drive(task:&mut Task<i32>)->TaskPollState!i32 {

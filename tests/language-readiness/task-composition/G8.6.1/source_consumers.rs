@@ -1,5 +1,7 @@
 //! Actual complete Enum continuation source, machine and request controls.
 use super::*;
+#[path = "analyze_frames.rs"]
+mod analyze_frames;
 const OWNED_ENUM861: &str = include_str!("owned-enum-saved.zil");
 
 #[test]
@@ -17,6 +19,8 @@ fn g861_complete_enum_real_source_reaches_analyze() {
         &empty,
         include_str!("owned-enum-failed-prepare.zil"),
         include_str!("owned-enum-prepared.zil"),
+        include_str!("owned-enum-view-same-poll.zil"),
+        include_str!("owned-enum-view-across-yield.zil"),
     ] {
         let report = compile_source(
             &source(input),
@@ -78,6 +82,17 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let pair = include_str!("owned-enum-two-leaves.zil");
     let prepared = include_str!("owned-enum-prepared.zil");
+    let child = include_str!("owned-enum-child-local.zil");
+    let direct = OWNED_ENUM861
+        .replace("    task_yield();\n", "")
+        .replace(
+            "    var task=task_create(worker,give input)?;",
+            "    let ordinary=Token{code:66};let direct=worker(give ordinary);if direct!=66{unsafe{putchar(88);}return 91;}\n    var task=task_create(worker,give input)?;",
+        )
+        .replace(
+            "    drive(&mut task);\n    drive(&mut task);",
+            "    drive(&mut task);",
+        );
     let empty = OWNED_ENUM861
         .replace(
             "fn worker(give token:Token)->i32 {",
@@ -89,6 +104,17 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
         );
     let inputs = [
         ("complete", OWNED_ENUM861.to_owned(), "PAR", 0),
+        ("direct-body-and-adapter", direct, "BAR", 0),
+        ("child-local-complete", child.to_owned(), "PAR", 0),
+        (
+            "child-local-cancel",
+            child.replace(
+                "    drive(&mut task);\n    drive(&mut task);",
+                "    drive(&mut task);",
+            ),
+            "PA",
+            0,
+        ),
         (
             "cancel",
             OWNED_ENUM861.replace(
@@ -162,13 +188,36 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             for (case, input, expected, exit) in &inputs {
+                // Consume every poll result: Pending is zero, the final Ready
+                // carries the actual worker result. Bad values print X and fail.
+                let ready = match *case {
+                    "complete" | "child-local-complete" | "direct-body-and-adapter" => Some(65),
+                    "empty-complete" => Some(1),
+                    "pair-complete" => Some(716),
+                    "prepared-complete" => Some(6542),
+                    _ => None,
+                };
+                let polls = input.matches("    drive(&mut task);").count();
+                let mut checked = input.clone();
+                for ordinal in 0..polls {
+                    let expected_value = if ordinal + 1 == polls {
+                        ready.unwrap_or(0)
+                    } else {
+                        0
+                    };
+                    checked = checked.replacen(
+                        "    drive(&mut task);",
+                        &format!("    match drive(&mut task){{.ok(value)=>{{if value!={expected_value}{{unsafe{{putchar(88);}}return 91;}}}},.err(_)=>{{unsafe{{putchar(88);}}return 92;}}}}"),
+                        1,
+                    );
+                }
                 let dir = std::env::temp_dir().join(format!(
                     "zil861-enum-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
                 let report = compile_source(
-                    &source(input),
+                    &source(&checked),
                     &CompileOptions {
                         backend,
                         optimization,
@@ -193,6 +242,92 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
                 assert_eq!(actual.status.code(), Some(*exit), "{case}: {actual:?}");
                 assert_eq!(actual.stdout, expected.as_bytes(), "{case}: {actual:?}");
                 std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+
+#[test]
+fn g861_complete_enum_internal_view_real_source_native() {
+    use std::io::Write;
+    use std::process::{Command, Stdio};
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for (case, input) in [
+        ("same-poll", include_str!("owned-enum-view-same-poll.zil")),
+        (
+            "across-yield",
+            include_str!("owned-enum-view-across-yield.zil"),
+        ),
+    ] {
+        for cancel in [false, true] {
+            let input = if cancel {
+                input.replace("    match drive(&mut task){.ok(value)=>{if value!=answer{unsafe{putchar(88);}return 91;}},.err(_)=>{return 92;}}\n", "")
+            } else {
+                input.to_owned()
+            };
+            for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+                if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                    continue;
+                }
+                for optimization in [Optimization::O0, Optimization::O2] {
+                    let dir = std::env::temp_dir().join(format!(
+                        "zil861-view-{}-{case}-{cancel}-{backend:?}-{optimization:?}",
+                        std::process::id()
+                    ));
+                    std::fs::create_dir_all(&dir).unwrap();
+                    let report = compile_source(
+                        &source(&input),
+                        &CompileOptions {
+                            backend,
+                            optimization,
+                            stop_after: Stage::Build,
+                            output: Some(dir.join("program")),
+                            emit_dir: Some(dir.join("phases")),
+                            ..CompileOptions::default()
+                        },
+                    );
+                    assert_eq!(
+                        report.status,
+                        ResultCategory::Success,
+                        "{case}/{cancel}: {}",
+                        report.to_json()
+                    );
+                    assert_eq!(report.verification_runs, 1);
+                    assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                    // A real unknown input chooses either same-typed payload/tag.
+                    for flag in [b'L', b'R'] {
+                        let mut child = Command::new(&report.artifacts["executable"])
+                            .stdin(Stdio::piped())
+                            .stdout(Stdio::piped())
+                            .stderr(Stdio::piped())
+                            .spawn()
+                            .unwrap();
+                        child.stdin.take().unwrap().write_all(&[flag]).unwrap();
+                        let actual = child.wait_with_output().unwrap();
+                        assert_eq!(
+                            actual.status.code(),
+                            Some(0),
+                            "{case}/{cancel}/{flag}: {actual:?}"
+                        );
+                        assert_eq!(
+                            actual.stdout,
+                            if cancel {
+                                b"PA".as_slice()
+                            } else if case == "across-yield" {
+                                b"PQAR".as_slice()
+                            } else {
+                                b"PAR".as_slice()
+                            },
+                            "{case}/{cancel}/{flag}: {actual:?}"
+                        );
+                    }
+                    if std::env::var_os("ZIL_G861_KEEP_VIEW_ARTIFACTS").is_some() {
+                        std::fs::write(dir.join("source.zil"), &input).unwrap();
+                        eprintln!("G8.6.1 internal view artifact {}", dir.display());
+                    } else {
+                        std::fs::remove_dir_all(dir).unwrap();
+                    }
+                }
             }
         }
     }
@@ -278,8 +413,12 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
     .into_iter()
     .enumerate()
     {
-        let report = session.compile_source(
-            &source(text),
+        let report = session.compile_project(
+            &zil_driver::ProjectSources {
+                root: ModuleId(0),
+                modules: vec![source(text)],
+                paths: std::collections::BTreeMap::new(),
+            },
             &CompileOptions {
                 backend: zil_driver::NativeBackend::Clang,
                 stop_after: Stage::Build,
@@ -295,6 +434,14 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+        if matches!(ordinal, 1 | 4) {
+            assert_eq!(
+                report.disk_cache,
+                zil_driver::DiskCacheStatus::Hit,
+                "{}",
+                report.to_json()
+            );
+        }
         assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
         let observed = std::process::Command::new(&report.artifacts["executable"])
             .output()

@@ -11,7 +11,7 @@ fn worker(give token:Token)->i32 {
     match packet {
         Outer.Empty()=>{return 0;},
         Outer.Pair(Inner.Empty(),_)=>{return 1;},
-        Outer.Pair(Inner.Item(value),n)=>{return n;}
+        Outer.Pair(Inner.Item(value),n)=>{return value.code*100+n;}
     }
 }
 fn drive(task:&mut Task<i32>)->TaskPollState!i32 {
