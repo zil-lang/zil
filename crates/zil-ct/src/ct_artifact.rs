@@ -756,11 +756,17 @@ fn type_ref_matches(
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<bool> {
     if !reference.ambient_classes.is_empty()
-        || matches!(reference.nodes.get(reference.root.0 as usize), Some(CtTypeNode::BorrowedStorage { .. }))
+        || matches!(
+            reference.nodes.get(reference.root.0 as usize),
+            Some(CtTypeNode::BorrowedStorage { .. })
+        )
     {
         // New contextual values can only reuse complete graphs independently
         // admitted at actual source Type sites in this verified program.
-        for instruction in raw.functions.iter().flat_map(|function| &function.blocks)
+        for instruction in raw
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
             .flat_map(|block| &block.instructions)
         {
             budget.reserve_analysis_work(1)?;
@@ -769,14 +775,15 @@ fn type_ref_matches(
                     .saturating_add(storage::graph(ty, Some(budget))?);
                 budget.reserve_analysis_work(cost)?;
                 if ty == reference {
-                    let mut limits = zil_base::Limits::default();
-                    limits.max_nodes = raw.budget.max_generated_nodes as usize;
-                    limits.max_source_bytes = raw.budget.max_temporary_bytes as usize;
-                    limits.max_call_depth = raw.budget.max_call_depth as usize;
-                    limits.max_analysis_steps = budget.remaining().max_analysis_work as usize;
-                    let mut meter = zil_verify::CtVerificationMeter::new(
-                        budget.remaining().max_analysis_work,
-                    );
+                    let limits = zil_base::Limits {
+                        max_nodes: raw.budget.max_generated_nodes as usize,
+                        max_source_bytes: raw.budget.max_temporary_bytes as usize,
+                        max_call_depth: raw.budget.max_call_depth as usize,
+                        max_analysis_steps: budget.remaining().max_analysis_work as usize,
+                        ..zil_base::Limits::default()
+                    };
+                    let mut meter =
+                        zil_verify::CtVerificationMeter::new(budget.remaining().max_analysis_work);
                     let checked = zil_verify::verify_ct_type_graph_metered(
                         reference, raw, &limits, &mut meter,
                     );
