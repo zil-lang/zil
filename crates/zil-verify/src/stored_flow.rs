@@ -472,6 +472,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                             | InstructionKind::MakeAggregate { .. }
                             | InstructionKind::ExtractField { .. }
                             | InstructionKind::Call { .. }
+                            | InstructionKind::ForeignCall { .. }
+                            | InstructionKind::UnsafeEnter { .. }
+                            | InstructionKind::UnsafeExit { .. }
                             | InstructionKind::Unary { .. }
                             | InstructionKind::Binary { .. }
                             | InstructionKind::ConvertInteger { .. }

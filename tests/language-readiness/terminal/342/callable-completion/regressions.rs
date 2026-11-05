@@ -44,10 +44,12 @@ fn g339_source_loop_origins_raw_wire() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 0);
-    assert!(report
-        .diagnostics
-        .iter()
-        .any(|d| d.message.contains("generic loop must preserve")));
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("generic loop must preserve"))
+    );
 }
 
 #[test]
@@ -107,10 +109,12 @@ fn g339_qualified_environment_lending_actual_source_raw_wire() {
         );
         assert_eq!(report.verification_runs, 1);
         let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
-        assert!(typed
-            .closures
-            .iter()
-            .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty()));
+        assert!(
+            typed
+                .closures
+                .iter()
+                .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty())
+        );
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
         zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -338,10 +342,12 @@ fn g339_completion_exact_two_kernel_budgets() {
                 if n == low {
                     check(n).unwrap();
                 } else {
-                    assert!(check(n)
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.category == ResultCategory::ResourceLimit));
+                    assert!(
+                        check(n)
+                            .unwrap_err()
+                            .iter()
+                            .any(|d| d.category == ResultCategory::ResourceLimit)
+                    );
                 }
             }
             eprintln!(
@@ -375,10 +381,12 @@ fn g339_merged_five_real_roles_mixed_cfg_drop_and_single_role_lending() {
             .as_ref()
             .is_some_and(|c| c.roles.len() == 5)
     }));
-    assert!(typed
-        .closures
-        .iter()
-        .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty()));
+    assert!(
+        typed
+            .closures
+            .iter()
+            .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty())
+    );
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -531,7 +539,9 @@ fn g339_lending_live_exclusive_call_is_rejected_independently_from_source_plan()
             "{errors:?}"
         );
         assert!(
-            errors.iter().any(|d| d.message.contains("overlap")),
+            errors
+                .iter()
+                .any(|d| d.message.contains("live incompatible loan")),
             "{errors:?}"
         );
         eprintln!(
@@ -570,7 +580,7 @@ fn g339_actual_cycle_reentering_owner_consumption_is_rejected_by_both_kernels() 
         .find(|b| {
             b.instructions
                 .iter()
-                .any(|i| matches!(i.kind, zil_ir::InstructionKind::CallClosure { .. }))
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::CallClosureOnce { .. }))
         })
         .unwrap();
     block.terminator = zil_ir::Terminator::Jump(block.id);
