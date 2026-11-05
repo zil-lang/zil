@@ -349,7 +349,11 @@ impl<'a> Environment<'a> {
         let mut limits = self.remaining_limits();
         let before = self.budget.remaining();
         let catalog = (!self.generated_catalog.trees.is_empty()).then_some(&self.generated_catalog);
-        let result = compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog);
+        let result = if catalog.is_some() {
+            compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog)
+        } else {
+            compiler::definitions_entry(&modules, &mut limits)
+        };
         self.budget.reserve_analysis_work(
             before
                 .max_analysis_work
@@ -384,9 +388,15 @@ impl<'a> Environment<'a> {
         })?;
         let input_tokens = self.empty_input(span)?;
         let selected_limits = self.remaining_limits();
-        let mut expected = compiler::compile_scoped_with_catalog(CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
+        let request = CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
             source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
-            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }, catalog).map(|(program, _)| program).map_err(|mut errors| {
+            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits };
+        let compiled = if catalog.is_some() {
+            compiler::compile_scoped_with_catalog(request, catalog).map(|(program, _)| program)
+        } else {
+            compiler::compile(request)
+        };
+        let mut expected = compiled.map_err(|mut errors| {
                 for error in &mut errors {
                     if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
                         error.code = "E-CT-RUNTIME".into();
