@@ -232,6 +232,16 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                 ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
+                    "enum-store-helper",
+                    include_str!("enum-store-helper.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "tuple-store-local",
+                    include_str!("tuple-store-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
                     "enum-package-helper",
                     include_str!("enum-package-helper.zil"),
                     b"ABCDABEF42,43\n".as_slice(),
@@ -520,6 +530,8 @@ fn g139_owned_result_helper_responsibility_and_failure() {
 #[test]
 fn g139_whole_sum_responsibility_and_failure() {
     for text in [
+        include_str!("enum-store-helper.zil"),
+        include_str!("tuple-store-local.zil"),
         include_str!("enum-package-helper.zil"),
         include_str!("enum-package-local.zil"),
         include_str!("tuple-whole-helper.zil"),
