@@ -164,6 +164,8 @@ fn select_from_node<'a>(
         },
     )
 }
+// Keep the source, candidate, scope and request meter explicit at this proof boundary.
+#[allow(clippy::too_many_arguments)]
 fn walk_source_nodes<'a>(
     module_id: zil_base::ModuleId,
     module: Option<&'a s::Module>,

@@ -104,6 +104,10 @@ fn constant(
     result(function, instruction, &CtTy::Scalar(ty), budget)
 }
 
+// Keep the source, candidate, scope and request meter explicit at this proof boundary.
+
+#[allow(clippy::too_many_arguments)]
+
 fn fields_trace(
     function: &CtFunction,
     raw: &CtArtifactProgram,
@@ -153,6 +157,8 @@ fn fields_trace(
     }
     Ok(fields)
 }
+// Keep the source, candidate, scope and request meter explicit at this proof boundary.
+#[allow(clippy::too_many_arguments)]
 fn copy_trace(
     function: &CtFunction,
     raw: &CtArtifactProgram,

@@ -62,12 +62,10 @@ impl FrozenInvocationContext {
                 continue;
             }
             for (local, output) in tree.declarations.iter().enumerate() {
-                if *output == symbol.declaration {
-                    if selected.replace((row, tree, local)).is_some() {
-                        return Err(unsupported(
-                            "CT generated semantic declaration identity is ambiguous",
-                        ));
-                    }
+                if *output == symbol.declaration && selected.replace((row, tree, local)).is_some() {
+                    return Err(unsupported(
+                        "CT generated semantic declaration identity is ambiguous",
+                    ));
                 }
             }
         }
@@ -192,12 +190,13 @@ pub(super) fn validate_catalog(
                     };
                     budget
                         .reserve_analysis_work(path.len().min(parent_identity.len()) as u64 + 1)?;
-                    if actual == module && path == parent_identity {
-                        if parent.replace(candidate).is_some() {
-                            return Err(unsupported(
-                                "CT generated emitter parent tree identity is ambiguous",
-                            ));
-                        }
+                    if actual == module
+                        && path == parent_identity
+                        && parent.replace(candidate).is_some()
+                    {
+                        return Err(unsupported(
+                            "CT generated emitter parent tree identity is ambiguous",
+                        ));
                     }
                 }
                 let parent = parent.ok_or_else(|| {
@@ -208,12 +207,12 @@ pub(super) fn validate_catalog(
                 budget.reserve_analysis_work(parent.declarations.len() as u64)?;
                 let mut local = None;
                 for (position, global) in parent.declarations.iter().enumerate() {
-                    if *global == tree.emitter.declaration {
-                        if local.replace(zil_base::NodeId(position as u32)).is_some() {
-                            return Err(unsupported(
-                                "CT generated emitter declaration placement is ambiguous",
-                            ));
-                        }
+                    if *global == tree.emitter.declaration
+                        && local.replace(zil_base::NodeId(position as u32)).is_some()
+                    {
+                        return Err(unsupported(
+                            "CT generated emitter declaration placement is ambiguous",
+                        ));
                     }
                 }
                 (

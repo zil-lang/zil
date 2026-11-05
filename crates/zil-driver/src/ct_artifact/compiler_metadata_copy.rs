@@ -134,13 +134,14 @@ impl Compiler<'_> {
                     let mut source = None;
                     for row in &graph.ambient_classes {
                         self.budget.work(1, span)?;
-                        if row.owner == value.owner && row.class == class {
-                            if source.replace(row.source).is_some() {
-                                return Err(error(
-                                    span,
-                                    "Copy nominal life actual has duplicate external sources",
-                                ));
-                            }
+                        if row.owner == value.owner
+                            && row.class == class
+                            && source.replace(row.source).is_some()
+                        {
+                            return Err(error(
+                                span,
+                                "Copy nominal life actual has duplicate external sources",
+                            ));
                         }
                     }
                     lifetimes.push((
@@ -160,10 +161,7 @@ impl Compiler<'_> {
         let old_data = std::mem::take(&mut self.bindings);
         let old_scalar = std::mem::replace(&mut self.scalar_bindings, scalars);
         let old_lifetimes = if self.metadata_graph_only {
-            Some(std::mem::replace(
-                &mut self.metadata_life_bindings,
-                Some(lifetimes),
-            ))
+            Some(self.metadata_life_bindings.replace(lifetimes))
         } else {
             None
         };

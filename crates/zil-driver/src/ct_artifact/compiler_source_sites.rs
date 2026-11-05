@@ -144,12 +144,11 @@ impl<'a> Compiler<'a> {
         args: &[s::GenericArg],
         span: Span,
     ) -> R<SourceSite> {
-        if !args.is_empty() {
-            if let Some(site) =
+        if !args.is_empty()
+            && let Some(site) =
                 self.select_source_site(module, Selection::Arguments(args.as_ptr() as usize), span)?
-            {
-                return Ok(site);
-            }
+        {
+            return Ok(site);
         }
         self.current_expression_site(span)
     }

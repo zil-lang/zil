@@ -259,6 +259,8 @@ impl FrozenInvocationContext {
         }
         Ok(false)
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     fn check_nominal_field(
         &self,
         source: &s::TypeRef,
@@ -296,6 +298,8 @@ impl FrozenInvocationContext {
         result?;
         self.check_nominal_children(actual, env, raw, view, index, budget, stack, depth + 1)
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     fn check_nominal_children(
         &self,
         actual: &CtTy,
@@ -358,6 +362,8 @@ impl FrozenInvocationContext {
             _ => Ok(()),
         }
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     fn check_nominal_storage(
         &self,
         id: SourceSchemaId,
@@ -477,6 +483,8 @@ impl FrozenInvocationContext {
         stack.pop();
         result
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn validate_nominal_field_source(
         &self,
         binding: &SourceLifeBinding,

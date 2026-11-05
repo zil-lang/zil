@@ -375,12 +375,11 @@ impl FrozenInvocationContext {
                     s::ItemKind::TypeAlias(a) => Some(&a.name),
                     _ => None,
                 };
-                if let Some(original_name) = original_name {
-                    if eq_text(name, original_name, budget)? {
-                        if selected.replace((ordinal, item, syntax, tree)).is_some() {
-                            return Err(unsupported("CT source declaration path is ambiguous"));
-                        }
-                    }
+                if let Some(original_name) = original_name
+                    && eq_text(name, original_name, budget)?
+                    && selected.replace((ordinal, item, syntax, tree)).is_some()
+                {
+                    return Err(unsupported("CT source declaration path is ambiguous"));
                 }
             }
             Ok(())
@@ -404,12 +403,11 @@ impl FrozenInvocationContext {
             let mut member = None;
             for candidate in &host.methods {
                 budget.reserve_analysis_work(1)?;
-                if let s::ItemKind::Function(f) = &candidate.kind {
-                    if eq_text(&path[1], &f.name, budget)? {
-                        if member.replace(candidate).is_some() {
-                            return Err(unsupported("CT source member path is ambiguous"));
-                        }
-                    }
+                if let s::ItemKind::Function(f) = &candidate.kind
+                    && eq_text(&path[1], &f.name, budget)?
+                    && member.replace(candidate).is_some()
+                {
+                    return Err(unsupported("CT source member path is ambiguous"));
                 }
             }
             item = member.ok_or_else(|| unsupported("CT source path has no original member"))?;
@@ -628,12 +626,11 @@ impl FrozenInvocationContext {
         let mut found = None;
         for row in &graph.ambient_classes {
             budget.reserve_analysis_work(1)?;
-            if row.owner == life.owner && row.class == class {
-                if found.replace(row.source).is_some() {
-                    return Err(unsupported(
-                        "CT source lifetime has repeated ambient binding",
-                    ));
-                }
+            if row.owner == life.owner && row.class == class && found.replace(row.source).is_some()
+            {
+                return Err(unsupported(
+                    "CT source lifetime has repeated ambient binding",
+                ));
             }
         }
         found.ok_or_else(|| unsupported("CT source lifetime has no ambient binding"))
@@ -655,6 +652,8 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn source_type(
         &self,
         source: &s::TypeRef,
@@ -747,6 +746,8 @@ impl FrozenInvocationContext {
             )),
         }
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     fn source_named(
         &self,
         path: &[String],
@@ -803,28 +804,21 @@ impl FrozenInvocationContext {
                         )),
                     };
                 }
-            } else if let Ok((ordinal, p, actual_scope, _)) = parameter(env, &path[0], budget) {
-                if matches!(p.kind, s::GenericParamKind::Type(_)) {
-                    let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
-                        return Err(unsupported(
-                            "CT source Type parameter lacks an actual instance",
-                        ));
-                    };
-                    let Some(CtScopeActual::Type(actual)) = actuals.get(ordinal) else {
-                        return Err(unsupported("CT source Type actual full ordinal differs"));
-                    };
-                    if id == graph.root {
-                        return self.graph_equal(graph, actual, budget);
-                    }
-                    return self.graph_subtype_equal(
-                        graph,
-                        id,
-                        actual,
-                        actual.root,
-                        budget,
-                        depth + 1,
-                    );
+            } else if let Ok((ordinal, p, actual_scope, _)) = parameter(env, &path[0], budget)
+                && matches!(p.kind, s::GenericParamKind::Type(_))
+            {
+                let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
+                    return Err(unsupported(
+                        "CT source Type parameter lacks an actual instance",
+                    ));
+                };
+                let Some(CtScopeActual::Type(actual)) = actuals.get(ordinal) else {
+                    return Err(unsupported("CT source Type actual full ordinal differs"));
+                };
+                if id == graph.root {
+                    return self.graph_equal(graph, actual, budget);
                 }
+                return self.graph_subtype_equal(graph, id, actual, actual.root, budget, depth + 1);
             }
         }
         let declaration = env
@@ -960,7 +954,7 @@ impl FrozenInvocationContext {
                 ));
             }
         }
-        return Ok(());
+        Ok(())
     }
     fn source_scalar_expr(
         &self,
@@ -1221,6 +1215,8 @@ impl FrozenInvocationContext {
             )),
         }
     }
+    // Keep the source, candidate, scope and request meter explicit at this proof boundary.
+    #[allow(clippy::too_many_arguments)]
     fn source_expression_type(
         &self,
         e: &s::Expr,
@@ -1942,12 +1938,12 @@ impl FrozenInvocationContext {
             for block in &function.blocks {
                 budget.reserve_analysis_work(block.instructions.len() as u64 + 1)?;
                 for instruction in &block.instructions {
-                    if instruction.result == Some(event.value) {
-                        if selected.replace(instruction).is_some() {
-                            return Err(unsupported(
-                                "CT source Type output has repeated definitions",
-                            ));
-                        }
+                    if instruction.result == Some(event.value)
+                        && selected.replace(instruction).is_some()
+                    {
+                        return Err(unsupported(
+                            "CT source Type output has repeated definitions",
+                        ));
                     }
                 }
             }

@@ -281,18 +281,17 @@ impl<'a> Compiler<'a> {
             s::ExprKind::TypeApply { arguments, .. } => Some(arguments.as_slice()),
             _ => None,
         };
-        if let Some(arguments) = arguments {
-            if arguments.len()
+        if let Some(arguments) = arguments
+            && arguments.len()
                 != parameters
                     .iter()
                     .filter(|p| !matches!(p.kind, s::GenericParamKind::Lifetime))
                     .count()
-            {
-                return Err(error(
-                    span,
-                    "runtime CT original explicit Type/Const vector arity differs",
-                ));
-            }
+        {
+            return Err(error(
+                span,
+                "runtime CT original explicit Type/Const vector arity differs",
+            ));
         }
         if arguments.is_none() && value_arguments.len() != original.function.params.len() {
             return Err(error(
@@ -534,13 +533,13 @@ pub(crate) fn check_runtime_definition_expression<'a>(
         let mut declaration = None;
         for index in 0..compiler.declarations.len() {
             let row = compiler.declarations[index];
-            if compiler.item_symbol(row.module, row.item)? == *definition {
-                if declaration.replace(index).is_some() {
-                    return Err(error(
-                        expression.span,
-                        "runtime CT definition identity repeats",
-                    ));
-                }
+            if compiler.item_symbol(row.module, row.item)? == *definition
+                && declaration.replace(index).is_some()
+            {
+                return Err(error(
+                    expression.span,
+                    "runtime CT definition identity repeats",
+                ));
             }
         }
         let declaration = declaration.ok_or_else(|| {

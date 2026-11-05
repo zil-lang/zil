@@ -92,6 +92,10 @@ fn arguments_pair(
     Ok(left == right)
 }
 
+// Keep the source, candidate, scope and request meter explicit at this proof boundary.
+
+#[allow(clippy::too_many_arguments)]
+
 fn pure_pair(
     left: &CtTy,
     right: &CtTy,
