@@ -552,12 +552,12 @@ impl Program {
                 "replacement has no independently reconstructed actual target",
             ));
         }
-        // Exact whole-Package transfer retires one concrete old instance.
+        // Exact whole-Package/Enum transfer retires one concrete old instance.
         // A may-target set cannot strongly replace every alternative. The
         // original Managed endpoint lane retains its conservative transfer.
-        if matches!(place.ty, Type::Package { .. }) && targets.len() != 1 {
+        if matches!(place.ty, Type::Package { .. } | Type::Enum { .. }) && targets.len() != 1 {
             return Err(unsupported(
-                "whole Package replacement requires one independently reconstructed actual target",
+                "whole Package/Enum replacement requires one independently reconstructed actual target",
                 None,
             ));
         }
