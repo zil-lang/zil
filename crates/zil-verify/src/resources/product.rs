@@ -146,6 +146,28 @@ impl Plan {
         }
     }
 
+    // A flat replacement may coexist with an already supported nested
+    // Product elsewhere in this body, which activates these optional lanes.
+    pub(super) fn replace_whole(
+        &self,
+        local: LocalId,
+        value: ValueId,
+        state: &mut State,
+        budget: &mut Budget,
+    ) -> Check<()> {
+        if let Some(target) = self.local(local) {
+            let source = self.value(value).ok_or_else(|| {
+                reject(
+                    "E-VERIFY-RESOURCE",
+                    None,
+                    "replacement RHS Product lanes absent",
+                )
+            })?;
+            Self::copy(state, source.whole.clone(), target.whole.clone(), budget)?;
+        }
+        Ok(())
+    }
+
     pub(super) fn apply(
         &self,
         f: &TypedFunction,
