@@ -1,0 +1,178 @@
+{
+  "review": "G1.3.5 complete whole local Enum replacement / G1.3.5.1 independent Verify: non-author limited review",
+  "result": "LimitedPass",
+  "tested_commit": "d214fb5ff9e682ee5f81de988b711fbacf5c16f4",
+  "baseline": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+  "producer_production": "e390bdce50568ffd83b69c18e91a0eee6e72793d",
+  "machine_admission": "714d76433 (full commit in tested ancestry)",
+  "verify_production": "64a081b253553480eb0120a988de1efa16fef132",
+  "verify_tests": "43368313273d89d21ee2914550740f05e1f3e86e",
+  "verify_docs": "4b18d31851dfc01fc5d8e534b5489297bed2aada",
+  "reviewer": "g8_3; non-author, no tracked code changes",
+  "binding": {
+    "review_tree": "/workspace/zil-G1.3.5-review",
+    "clean": true,
+    "actual_head": "d214fb5ff9e682ee5f81de988b711fbacf5c16f4",
+    "source_test_frozen_before_build": true,
+    "production": {
+      "crates/zil-types/src/owning_place_replace.rs": "4c780c91adb93196c6f8f3936d5b30ee880eea6dab4f7e4fe767c012c525c5a3",
+      "crates/zil-analyze/src/resources/replacements.rs": "4a7074f7e5c4e7379e709145ecac1ac7cba3c478212feef52e505d885c9eb4e1",
+      "crates/zil-analyze/src/resources/replacements/whole_enum.rs": "9448dbc4b726874d649c5445dcf8103a1e6c9c30e72fe7fe39025e5e5a190509",
+      "crates/zil-analyze/src/resources/sums.rs": "8eb5fe8ee436013dc28e0b55c86d6570669b4d0ea510f8332007192f9b77fe75",
+      "crates/zil-verify/src/place_replacements/actual.rs": "4cfb7811c72e724295da3253c6b063859bb89ab2bade9112e8dace7f3d198267",
+      "crates/zil-verify/src/sums/replacements.rs": "df9817f6a7d2afc7cc7fe904d17e50b8a943bb63c57a336e118b3ed7a8ba962a",
+      "crates/zil-backend-llvm/src/emit/replacements.rs": "7f29f8b666045fb015fac47aad99c0785c3407d911e1a4e5cb880a8fd5816c1e"
+    },
+    "tests": {
+      "tests/language-readiness/terminal/340/enum_terminal.rs": "7529c527de22593c6d4b96e47ef267ac268f35c84d99a95709f2a6eb92c2ac8b",
+      "tests/language-readiness/terminal/340/enum_replacement_verify.rs": "82f4a48f96b2aee854938f69b87a06e7c2dfe3fcc035777b9de80a2f2d2cf92b",
+      "crates/zil-driver/tests/aggregates.rs": "3a5131ddb19a5bd6811f8d2a6ab81418bebc17baf5e9c24991f9a0ceec139e27"
+    },
+    "source_witnesses": {
+      "tests/language-readiness/terminal/340/replace-enum-terminal-failure.zil": "b915ffc6c87f7dd1ef199bee069a5a090603f00152389336f463131ac862d62d",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-fresh-rhs.zil": "4f18d0347e009b4966a8f61c0edc39b426c806fa076acd539bf527c91f7b3f82",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-fresh-runtime.zil": "aebc452ca521cab0d0d704c61ba36d43c7f56837ea24effaf9f264af285995f7",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-from-empty.zil": "0843300591b7b95a0ab245423917404c91726b5a50689067d7606a8152f041e9",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-incoming-rhs.zil": "88e33f2b91790a95073d4beeb6024a11e30c9b8fe0f729cbc7a6d5c3a6d89d05",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-into-empty.zil": "d5dcf034c6e8365c2f0c0c7f6cbf958184d134f2c08da3291a909f96c493395d",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-pending.zil": "a86e09bdc93b7622e69655593cceb41eec12813459344f3cf6025b826f3902f7",
+      "tests/language-readiness/terminal/340/replace-enum-terminal-shell-age.zil": "fe40c3334dfe1aa548a04119b05105f10d64cb4ce353e4bf3b20ce63848fa17c"
+    }
+  },
+  "build": {
+    "target": "/workspace/.zil-env/target-review-G1.3.5",
+    "target_absent_before_build": true,
+    "no_author_cache_reuse": true,
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-review-G1.3.5 TMPDIR=/workspace/.zil-env/G1.3.5-review-tmp cargo test --locked --offline -p zil-driver --test aggregates --features llvm-api --no-run -j2",
+    "result": "all actual dependencies freshly compiled from exact independent tree; exit0 in32.26s",
+    "aggregate_binary": "/workspace/.zil-env/target-review-G1.3.5/debug/deps/aggregates-e68efd3bca6e242d",
+    "aggregate_binary_sha256": "584ce352f051730d740c175ff812579c8df3837d92df0622b73af8a97fbe3a83",
+    "jobs": 2
+  },
+  "executed": {
+    "aggregates": [
+      {
+        "filter": "terminal340_enum_terminal::",
+        "exit": 0,
+        "log": "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-0.log"
+      },
+      {
+        "filter": "enum_replacement_verify::",
+        "exit": 0,
+        "log": "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-1.log"
+      },
+      {
+        "filter": "terminal340_owner_replacement_error_arm_alias_budget",
+        "exit": 0,
+        "log": "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-2.log"
+      },
+      {
+        "filter": "terminal340_package_terminal_exact_request_budget",
+        "exit": 0,
+        "log": "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-3.log"
+      }
+    ],
+    "module_counts": {
+      "terminal340_enum_terminal": 8,
+      "enum_replacement_verify": 10,
+      "old_Managed_budget": 1,
+      "old_Package_budget": 1
+    },
+    "other_tests": [
+      {
+        "command": "cargo test --locked --offline -p zil-backend-llvm --lib --features llvm-api -j2 whole_enum_replacement_machine_recipe_precharges_actual_tree -- --nocapture",
+        "passed": 1,
+        "failed": 0
+      },
+      {
+        "command": "cargo test --locked --offline -p zil-driver --test impl180_store_mut --features llvm-api -j2 owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries -- --nocapture",
+        "passed": 1,
+        "failed": 0
+      }
+    ],
+    "total_unique_harness_tests": 22,
+    "failed": 0,
+    "native_actual_processes": 36,
+    "native_breakdown": "32 strict complete-value/lifecycle processes (8 runtime scenarios x Clang/API x O0/O2) plus4 independent shell-age executions; no earlier author runs added",
+    "clippy": "cargo clippy --locked --offline -p zil-types -p zil-analyze -p zil-verify -p zil-backend-llvm --lib --features zil-backend-llvm/llvm-api -j2 -- -D warnings; exit0",
+    "fmt": "cargo fmt --all -- --check; exit0",
+    "git_diff_check": "exit0"
+  },
+  "independent_evidence": [
+    "Real original Source produces ReservePlaceAddress with empty path, CommitPlaceReplace carrying actual Enum SSA, and actual Abort on failed RHS argument preparation; no fallback WriteAddress. Source pipeline reaches independent Verify with verification_runs1. Raw/Wire attacks are separately identified as mutations of real Typed/plan candidates.",
+    "Both kernels reconstruct actual singleton whole mutable body-local root and exact actual endpoint Type. Direct formal/input, projected/nonlocal/Store/capture/helper and nested profiles do not inherit permission. Same-root CFG selection remains legal; a genuine different-root address selection with honest Holds independently rejects instead of strongly updating every may-target.",
+    "Analyze whole_enum copies the actual prepared RHS tagged tree and its Created/Incoming leaf alternatives, invalidates old local observations, and preserves old shell liveness/order. Verify independently replaces actual complete Content, checks complete old/RHS responsibility, consumes staged RHS once, preserves canonical shell debt/age, and kills retired-instance tag facts. Neither core calls the other proof implementation.",
+    "Actual Incoming Enum moved into new body local then replaced by fresh runtime Left/Right supports create leaf result. Actual input/given leaf wrapped in fresh-looking Enum remains incoming; give succeeds, promote-to-create independently raw/Wire rejects RESOURCE. New tag/type shape alone grants no origin.",
+    "Runtime old/new independent tags with equal-payload ownership prove correct full scalar/field ordinal and dispatch: L AB266, R CD168. Runtime fresh alternatives AB662/AD682; given leaf AB42. Clang and LLVM API O0/O2 each enforce complete stdout/result, exit0, one Verify and no fallback.",
+    "Managed-to-Empty A43 and Empty-to-Managed B366 independently execute both backends/optimizations. Actual Source-derived raw/Wire controls also cover scalar-only arms both ways. No debt is invented for an inactive arm.",
+    "Age source creates old A root before independent C neighbor, replaces it with B, and returns full266. Four backend/optimization executions produce ACB266: old A retires at Commit, C still cleans before new B at the original shell age.",
+    "Backend Commit reuses the existing owned-Sum cleanup helper, which dispatches on actual old tag, then stores the full prepared Enum once with actual LLVM layout/alignment. No recoverable operation occurs between old cleanup and publication; reservation IDs have no added runtime storage/allocation.",
+    "Failed RHS prepares a complete temporary Enum B before a later failing argument; real Abort/error edge cleans B then unchanged old A once: BA42. Independent Verify raw/Wire rejects missing Abort at PLACE-REPLACE and missing staged temporary Drop at RESOURCE.",
+    "Stale old tag observations across Commit reject SUM in actual generic PlaceTag route and equivalent specialized VariantTag route; same-type wrong Unpack tag rejects SUM. Attempting RHS Take old root/leaf is rejected earlier at replacement PIN, not claimed as an execution of late complete-old validation.",
+    "Old ref-pattern address held across whole Commit reaches actual Analyze active-window BORROW rejection. Explicit injected weak Desc route is already closed: Analyze before/after rejects claimed resource-kind producer; Verify before rejects RESOURCE ungrounded-source and after rejects BORROW-CONFLICT inherited actual active address window. None is claimed as new no_later_use/no_live_description epoch consumer evidence.",
+    "Semantic cache cold/warm/change/variant-declaration-reorder/revert makes5 actual Project requests, required warm/revert hits each still run Verify1 and drain active query count. Three actual candidate payloads independently decode and reverify through raw and verify_module_bytes. This cache test does not execute native programs.",
+    "New fixed work/raw/Wire and four Source ledger limits are tested at N/N-1, fresh/warm/retry with current request state. Old Managed/Package/Store exact budgets all unchanged. Whole Source emit N-1 was Verify-dominated and is not misreported as a tight Codegen-only result; separate machine tree preflight component checks actual reservation metering only."
+  ],
+  "budget_results": {
+    "Verify_raw_Wire_actual_Source": 152448,
+    "whole_Source_Verify": {
+      "work": 152448,
+      "nodes": 349,
+      "source_bytes": 669,
+      "depth": 11
+    },
+    "machine_component_only": {
+      "narrow_tree": 1890,
+      "full_tree": 2805,
+      "N_minus_1": "ResourceLimit",
+      "fresh_retry": true
+    },
+    "old_Managed": {
+      "Analyze": 46908,
+      "Verify": 97818
+    },
+    "old_Package": {
+      "Analyze": 13945,
+      "Verify": 28743
+    },
+    "old_Store": {
+      "Analyze": 19754,
+      "Verify": 54842
+    },
+    "Source_through_Analyze_work": 111234,
+    "Analyze_work_scope": "111234 is real compile_source stop_after Analyze fullrequest threshold, not an independently measured standalone zil_analyze::analyze kernel threshold."
+  },
+  "scope_and_limits": [
+    "Finite complete ordinary Enum whole body-local replacement only: at most one direct Managed<CopyRecord> per owning arm plus scalar/Unit, at least one owning arm. Not all Sum/ErrorUnion, partial endpoints, ordinary formal/helper replacement summaries, Store/capture/nested endpoints or parent G1.3 completion.",
+    "Known single-constructor exhaustive-match create/ref projection precision has an existing ordinary no-replacement fence. It remains a documented conservative refusal, not a claimed new supported positive or unsafe bypass.",
+    "Failure BA42 observes error exit, staged cleanup then original old cleanup. No claim that actual Source resumes in the same function body after Abort and continues using old value/old Desc.",
+    "Weak Desc transport probes close at producer/active-window guards; no claim that a new admitted weak descriptor carrier retirement path has been implemented or tested.",
+    "Raw machine preflight1890/2805 is metering component evidence only; no executable permission or independent Source emission-budget claim.",
+    "No full workspace/lib suite or formal product gate rerun by reviewer. Author382 Verify library and other repeated execution counts are not included. No Rust same-semantics performance/memory/compile/maintenance advantage or net product breakthrough established.",
+    "Only review worktrees and local logs/receipt created; no author production/Source/test files edited, no schema/norm/default budget changes, no main merge."
+  ],
+  "early_review_observations": [
+    {
+      "kind": "scope_precision_resolved_without_permission_expansion",
+      "detail": "Generic payload-address weak-Desc grounding was explicitly probed rather than assuming ordinary loan proof. Before/after actual rejection layers differ; initial author after-result stated before execution was corrected and final tests assert real different diagnostics."
+    },
+    {
+      "kind": "consumer_evidence_strengthened",
+      "detail": "At reviewer request runtime final values distinguish old/new arm and field ordinal, actual Empty directions and independent shell-age neighbor were added before freeze. First known-constructor age fixture hit existing SUM precision; final actual bool RHS source passes without widening core."
+    }
+  ],
+  "blocking_findings": [],
+  "logs": {
+    "/workspace/.zil-env/G1.3.5-review-tmp/build.log": "ea93239213e1e37c166e09101df8e5fb266ba9fd38a3a4bfec047d0476fad63e",
+    "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-0.log": "12b81db600e27c4a2543d7bb5a2cbaf5f7dad71c634ddbf56c36884ec24c8b02",
+    "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-1.log": "8ab2cd72a10b75fe18048a6e4555e8b6e8d4cedc1a8f8353cc4821a317cdbebc",
+    "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-2.log": "0369ed5a39845882a22457c1353c459d0be055f97476f5b720a0e68fddf7c3fb",
+    "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-3.log": "ee089ae4f0400435e12d66ee596ebca95486c9db11e04ad4a4ec6a911cb86adf",
+    "/workspace/.zil-env/G1.3.5-review-tmp/aggregate-runs.json": "72db569d03177e8df0dfae7010863c3eca6a9994cc42b340b2df1f67d3f9885f",
+    "/workspace/.zil-env/G1.3.5-review-tmp/machine-preflight.log": "039f8c680b736ed0aa7099f87f0043d5763683b81fb9fa289829d6d781eb8c12",
+    "/workspace/.zil-env/G1.3.5-review-tmp/old-store-budget.log": "0bd9e61d0db3bd78c64c7aedac1961664da2570b9fd42c50d3743a51338625d6",
+    "/workspace/.zil-env/G1.3.5-review-tmp/clippy.log": "e5a89098c6ddd8b48472308acf05d190fd2a115918d70193cc4a1cebdb023642",
+    "/workspace/.zil-env/G1.3.5-review-tmp/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "final_doc_seal": "pending; tested code identity fixed; supplement only byte-equal docs final when provided"
+}

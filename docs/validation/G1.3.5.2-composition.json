@@ -1,0 +1,61 @@
+{
+  "task": "G1.3.5.2",
+  "base": "88cb9277932e910b26b97084e9c42dd7a0d1e234",
+  "scope": [
+    "G1.3.5 complete local Enum replacement",
+    "G3.3.5 qualified stateful FnMut free helper"
+  ],
+  "docs_seals": [
+    {
+      "tested": "d214fb5ff9e682ee5f81de988b711fbacf5c16f4",
+      "delivery": "b3d6a86c7d132e8fb102854c93a9fc576a7cd27d",
+      "documentation_only_changes": [
+        ".task/G1.3.5.md",
+        "docs/validation/G1.3.5-local-enum-terminal.json"
+      ]
+    },
+    {
+      "tested": "bfd84b224a4b5089a7b8bd1c1503be5b80505faf",
+      "delivery": "a061dd71425d924f30affa151f6fdb0a45728ee4",
+      "documentation_only_changes": [
+        ".task/G3.3.5.md",
+        "changes/G3.3.5-qualified-fnmut-helper.md",
+        "docs/validation/G3.3.5-stateful-helper.json"
+      ]
+    }
+  ],
+  "fnmut_source_test_manifest_sha256": "2f80b762def30eaec52071e6b60b51af2bbf1bab630bd8fa6dca59518403a680",
+  "all_fnmut_manifest_files_byte_equal_except_combined_test_module": true,
+  "whole_enum_changed_source_tests_byte_equal": [
+    "crates/zil-analyze/src/resources/replacements.rs",
+    "crates/zil-analyze/src/resources/replacements/whole_enum.rs",
+    "crates/zil-analyze/src/resources/sums.rs",
+    "crates/zil-backend-llvm/src/emit/replacements.rs",
+    "crates/zil-driver/tests/aggregates.rs",
+    "crates/zil-types/src/owning_place_replace.rs",
+    "crates/zil-verify/src/place_replacements/actual.rs",
+    "crates/zil-verify/src/sums/replacements.rs",
+    "tests/language-readiness/terminal/340/enum_replacement_verify.rs",
+    "tests/language-readiness/terminal/340/enum_terminal.rs",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-failure.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-fresh-rhs.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-fresh-runtime.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-from-empty.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-incoming-rhs.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-into-empty.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-pending.zil",
+    "tests/language-readiness/terminal/340/replace-enum-terminal-shell-age.zil"
+  ],
+  "combined_test_module_all_parent_functions_retained": true,
+  "reviews": [
+    {
+      "path": "docs/validation/G1.3.5-review.json",
+      "sha256": "a28e2787f779cf33405413495869d3c4dea3ddab875d608d41bec88bcdc32543"
+    },
+    {
+      "path": "docs/validation/G3.3.5-review.json",
+      "sha256": "b0997f61616245cd2cb4ae5494447f7d68a94318373203074fde7e146f541885"
+    }
+  ],
+  "formal_acceptance": "Pending on clean frozen composition; author/reviewer native runs not added to formal suite counts"
+}

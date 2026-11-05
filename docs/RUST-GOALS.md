@@ -496,3 +496,16 @@ expressibility and correctness gains; same-semantics Rust time/RSS/compile
 cost and framework-maintenance comparisons remain unmeasured, so no product
 cost advantage or complete-language acceptance is inferred. Broader scopes
 remain in the goal board and the bound slice reviews.
+
+
+G1.3.5.2 adds actual local owning Enum replacement through ordinary tickets and
+stateful qualified FnMut helpers through the existing inline environment.
+Runtime variants, exact RHS origins, old-shell cleanup age, complete returned
+values and failure cleanup have Source/native consumers and independent
+raw/Wire validation. Two helper calls independently check values 42 and 43;
+a pure Fn adaptation is a separate control. No implicit runtime box, RC or lock
+was added. Current request limits and old exact controls remain explicit; the
+new raw machine recipe fee is a component measurement, not a whole-pipeline
+codegen threshold. These improve usable ownership and callable composition;
+Rust same-semantics runtime/RSS/compile and framework maintenance comparisons
+remain unmeasured, with no complete-language or product cost-advantage claim.
