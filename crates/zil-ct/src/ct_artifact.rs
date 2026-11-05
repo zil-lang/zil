@@ -56,11 +56,13 @@ impl CtExecutionBudget {
     pub fn release_type(&mut self, ty: &CtTypeRef) {
         self.release_temporary_bytes(crate::anonymous_type::retained_bytes(ty));
     }
-    /// Release the separately owned receipt returned by an invocation after use.
-    pub fn release_usage_receipt(&mut self, receipt: &CtUsageReceipt) {
-        self.release_temporary_bytes(
-            receipt.queries.capacity() as u64 * std::mem::size_of::<CtQueryDependency>() as u64,
-        );
+    /// Consume the separately owned receipt before making its allocation's
+    /// allowance available to a later consumer.
+    pub fn release_usage_receipt(&mut self, receipt: CtUsageReceipt) {
+        let bytes =
+            receipt.queries.capacity() as u64 * std::mem::size_of::<CtQueryDependency>() as u64;
+        drop(receipt);
+        self.release_temporary_bytes(bytes);
     }
     fn constrain_to_program(&mut self, declared: CtDeclaredBudget) -> CompileResult<()> {
         self.remaining.max_steps = self.remaining.max_steps.min(declared.max_steps);
@@ -2222,7 +2224,7 @@ mod tests {
             "complete descriptors need actual inline cells and all three graphs"
         );
         probe.release_value(&output);
-        probe.release_usage_receipt(&usage);
+        probe.release_usage_receipt(usage);
         assert_eq!(probe.live_temporary_bytes(), 0);
         for (bytes, good) in [(peak, true), (peak - 1, false), (peak, true)] {
             let mut budget = CtExecutionBudget::new(CtDeclaredBudget {
@@ -2239,7 +2241,7 @@ mod tests {
                 let (output, usage) = result.unwrap();
                 assert_eq!(output, value);
                 budget.release_value(&output);
-                budget.release_usage_receipt(&usage);
+                budget.release_usage_receipt(usage);
             } else {
                 assert_eq!(result.unwrap_err()[0].code, "E-RESOURCE-LIMIT");
             }
