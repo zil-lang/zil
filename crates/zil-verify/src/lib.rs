@@ -2404,7 +2404,9 @@ fn check_instruction(
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
             Type::Address { inner, .. }
-                if inner.is_copy_value() || stored_flow::pure_read(module, inner, budget)? =>
+                if inner.is_copy_value()
+                    || stored_flow::pure_read(module, inner, budget)?
+                    || stored_flow::pure_inline(module, inner, budget)? =>
             {
                 Some(inner.as_ref().clone())
             }

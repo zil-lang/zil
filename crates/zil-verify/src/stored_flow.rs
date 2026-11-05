@@ -511,7 +511,7 @@ pub(super) fn qualification(
 /// This admits only a qualified pure value, retaining its complete semantic
 /// type. The ordinary read's actual pointer/loan proof remains mandatory.
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. }))
+    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
