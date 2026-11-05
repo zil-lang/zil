@@ -15,6 +15,11 @@ impl Visitor for Discovery<'_, '_> {
         self.0.text(text, span).map_err(|error| vec![error])
     }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        if matches!(item.kind, s::ItemKind::Meta(s::MetaItem::Emit(_))) {
+            // A future ItemList can introduce nominal/life declarations. Its
+            // source namespace must be frozen before the first event runs.
+            self.0.note_source_identity();
+        }
         if let s::ItemKind::Function(function) = &item.kind
             && function.generics.len() >= 3
         {
