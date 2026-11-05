@@ -1,0 +1,27 @@
+{
+  "task": "G10.1.11 / CT execution lifetimes",
+  "reviewer": "legacy_acceptance_review (independent delegated reviewer)",
+  "implementation_commit": "6ab712e55a091c1c962672ca75d7be97aa98a979",
+  "merged_fix": "9d9e4ffef5de15b819c537b0b31fe8cf1ba47471",
+  "verdict": "BothReportedLifetimeFindingsClosedByStaticReview",
+  "scope": "Actual integrated merge result, including conflict resolution; no build/test/native execution or formal acceptance claim.",
+  "prior_review": "docs/validation/G10.1.11-host-and-final-legacy-independent.json at 0b3a5e11550730faae127d6acd7e356c93f39325",
+  "closed_findings": [
+    {
+      "id": "HOST-FINAL-RECEIPT-LIFETIME",
+      "finding": "Closed at exact 6ab712e55. CtExecutionBudget::release_usage_receipt now takes the owned CtUsageReceipt, saves its queries capacity, drops the receipt, then releases its byte charge. The driver passes _usage by value before later capture or host-retention allocation. All four repository call sites use the consuming form; no borrowed-release caller remains."
+    },
+    {
+      "id": "HOST-FINAL-VERIFIED-COPY-LIFETIME",
+      "finding": "Closed at exact 6ab712e55. ValueContext::capture completes as an owned Result while verified and its copied_bytes charge remain live. The driver then drops verified, releases copied_bytes, and only afterward propagates context?. Both capture success and capture error therefore destroy the candidate before reclaiming its charge. ValueContext owns copied metadata and authentic context, not a borrow of the dropped candidate; later host retention moves expected/source bindings/context/completed calls only."
+    }
+  ],
+  "merge_preservation": [
+    "has_host_calls still selects evaluate_ct_artifact_with_completed_calls; the nonobserver path still uses the ordinary evaluator and an empty event vector. No completed-call producer was lost in the execute.rs merge conflict.",
+    "Exact caller/block/instruction/callee event matching and completed_calls transfer to retain_static_host_invocation remain intact. Actual source/Frozen authority/Verify and normal-return checks inspected in the prior review are not replaced by a passing request flag.",
+    "The no-host branch saves completed capacity, drops completed_calls, then releases that charge before later cleanup. It no longer releases live completed-vector backing.",
+    "No default quota, source acceptance, public Wire permission or prior negative assertion changes in this fix. The merged CT VM retains its existing actual completed-call implementation and tests."
+  ],
+  "verification": "Independent git-show/diff inspection of both changed production files, repository-wide release_usage_receipt caller search, and diff --check. No compiler command was run; existing f47 root passes are not relabeled as execution of 6ab712e55.",
+  "limits": "This closes precisely the two reported lifetime defects and the adjacent completed-vector release ordering. It is not a comprehensive allocator audit or a formal temporary-byte/default/reference acceptance result. Earlier historical failures, root test ownership and product/Rust comparison limitations remain unchanged."
+}
