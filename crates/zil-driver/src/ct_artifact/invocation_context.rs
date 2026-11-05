@@ -118,9 +118,39 @@ impl FrozenInvocationContext {
         source_site: Option<super::compiler::source_sites::SourceSite>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Option<Arc<Self>>> {
+        Self::freeze_at_source_force(
+            entry,
+            parsed,
+            index,
+            origins,
+            catalog,
+            source_site,
+            false,
+            budget,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn freeze_at_source_force(
+        entry: &Entry<'_>,
+        parsed: &[Arc<ParseResult>],
+        index: &SourceIndex,
+        origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
+        catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
+        source_site: Option<super::compiler::source_sites::SourceSite>,
+        force_complete_scope: bool,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<Arc<Self>>> {
         let before = budget.live_temporary_bytes();
-        let result =
-            Self::freeze_inner(entry, parsed, index, origins, catalog, source_site, budget);
+        let result = Self::freeze_inner(
+            entry,
+            parsed,
+            index,
+            origins,
+            catalog,
+            source_site,
+            force_complete_scope,
+            budget,
+        );
         let keep = result
             .as_ref()
             .ok()
@@ -130,6 +160,7 @@ impl FrozenInvocationContext {
         budget.release_temporary_bytes(added.saturating_sub(keep));
         result
     }
+    #[allow(clippy::too_many_arguments)]
     fn freeze_inner(
         entry: &Entry<'_>,
         parsed: &[Arc<ParseResult>],
@@ -137,6 +168,7 @@ impl FrozenInvocationContext {
         origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
         catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
         source_site: Option<super::compiler::source_sites::SourceSite>,
+        force_complete_scope: bool,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Option<Arc<Self>>> {
         let definition = match entry {
@@ -205,10 +237,11 @@ impl FrozenInvocationContext {
         }
         let function = original.function;
         budget.reserve_analysis_work(function.generics.len() as u64)?;
-        if !function
-            .generics
-            .iter()
-            .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
+        if !force_complete_scope
+            && !function
+                .generics
+                .iter()
+                .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
         {
             return Ok(None);
         }
