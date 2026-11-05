@@ -3152,10 +3152,15 @@ fn analyze_function_program(
         Vec::new()
     };
     let (package_values, product_births) = package_value_shapes(f, budget)?;
+    let whole_helper = if let Some(program) = replacements {
+        program.whole_helper(f.id, budget)?
+    } else {
+        false
+    };
     let mut initial = State {
         package_values,
         product_births,
-        whole_commits: replacements.and_then(|p| p.whole_helper(f.id).then(BTreeMap::new)),
+        whole_commits: whole_helper.then(BTreeMap::new),
         sums: sums
             .as_ref()
             .map(|p| p.initial(f, budget))
@@ -3290,7 +3295,7 @@ fn analyze_function_program(
     // becomes empty. At fixed effects, rerunning the exact transfer on those
     // same final states can add no new summary fact. The validation pass is
     // still mandatory and unchanged when `check` is true.
-    if replacements.is_some_and(|p| p.whole_helper(f.id)) {
+    if whole_helper {
         // Collect only final fixed-point states at actual normal returns.
         // Transient worklist visits and abort exits cannot establish a must fact.
         let mut returns = None;

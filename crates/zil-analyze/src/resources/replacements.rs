@@ -250,8 +250,15 @@ impl Program {
             whole_helpers,
         })
     }
-    pub(super) fn whole_helper(&self, id: FunctionId) -> bool {
-        self.whole_helpers.contains(&id)
+    pub(super) fn whole_helper(&self, id: FunctionId, b: &mut Budget) -> CompileResult<bool> {
+        if self.whole_helpers.is_empty() {
+            return Ok(false);
+        }
+        b.lookup(
+            self.whole_helpers.len(),
+            "whole Package helper proof lookup",
+        )?;
+        Ok(self.whole_helpers.contains(&id))
     }
     pub(super) fn extend_shapes(
         &self,
@@ -1002,7 +1009,7 @@ pub(super) fn infer(
                 None,
                 Some(program),
             )?;
-            if program.whole_helper(f.id) {
+            if program.whole_helper(f.id, b)? {
                 fee(b, 1)?;
                 must_cost(found.whole_commits.as_ref(), b)?;
                 musts.push((f.id, found.whole_commits.clone()));
