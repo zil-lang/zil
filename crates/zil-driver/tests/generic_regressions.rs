@@ -7817,3 +7817,218 @@ fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
         "G336 isolated whole Types N={low}/N-1/fresh; Named owned-F huge preflight and actual Phantom source/raw gates checked, no whole Source acceptance claim"
     );
 }
+
+#[test]
+fn g336_analyze_actual_owning_source_request_budget_is_reproducible() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let raw = zil_types::check(&g334_core(G336_OWNED), &target, &limits).unwrap();
+    let expected = zil_analyze::analyze(&raw, &limits).unwrap();
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let n = low + (high - low) / 2;
+        match zil_analyze::analyze(
+            &raw,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        ) {
+            Ok(actual) => {
+                assert_eq!(actual, expected);
+                high = n
+            }
+            Err(errors)
+                if errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = n + 1
+            }
+            Err(errors) => panic!("{errors:?}"),
+        }
+    }
+    for n in [low, low - 1, low] {
+        let actual = zil_analyze::analyze(
+            &raw,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        );
+        if n == low {
+            assert_eq!(actual.unwrap(), expected)
+        } else {
+            assert!(
+                actual
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit)
+            )
+        }
+    }
+    eprintln!(
+        "G336 whole Analyze actual owning Source N={low}/N-1/fresh; exact honest CandidatePlan stable"
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g336_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let mut runs = 0;
+    for (case, text) in [
+        ("owned", G336_OWNED),
+        ("reverse", G336_REVERSE),
+        (
+            "distinct-inputs",
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/actual-caller-good.zil"
+            ),
+        ),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-g336-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(dir.join("program")),
+                        emit_dir: Some(dir.join("ir")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let result = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{case}/{backend:?}/{optimization:?}: {result:?}"
+                );
+                assert_eq!(result.stdout, b"42\n");
+                assert!(result.stderr.is_empty());
+                // Retain one compact actual lowering/codegen artifact for the
+                // independent owner flag/TakeCapture inspection, not all runs.
+                if case == "owned"
+                    && backend == NativeBackend::Clang
+                    && optimization == Optimization::O0
+                {
+                    eprintln!("G336 owner artifact retained {}", dir.display());
+                } else {
+                    std::fs::remove_dir_all(dir).unwrap();
+                }
+                runs += 1;
+            }
+        }
+    }
+    eprintln!(
+        "G336 {runs} native processes; full stdout42 newline/exit0/empty stderr/currentVerify/no fallback, real owned transfer not a Fn/Mut adapter; teardown=None has no observable user Drop counter"
+    );
+}
+
+#[test]
+fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage() {
+    use zil_base::Phase;
+    for (text, phase, message) in [
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/helper-double-invoke-byvalue.zil"
+            ),
+            Phase::Expand,
+            "environment was consumed",
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/second-consume-byvalue.zil"
+            ),
+            Phase::Analyze,
+            "not initialized",
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/wrong-class-byvalue.zil"
+            ),
+            Phase::Analyze,
+            "actual retained classes",
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase);
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(message)),
+            "{}",
+            report.to_json()
+        );
+    }
+    let report = compile_source(
+        &source(include_str!(
+            "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/direct-owned-control.zil"
+        )),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let drop = G336_OWNED.replace(
+        "resource Mark{n:i32}",
+        "resource Mark{n:i32}impl Drop for Mark{fn drop(self:Self){}}",
+    );
+    let report = compile_source(
+        &source(&drop),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+}
