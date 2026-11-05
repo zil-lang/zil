@@ -16,6 +16,8 @@ mod members;
 mod mixed_generics;
 #[path = "compiler_quote.rs"]
 mod quote;
+#[path = "compiler_record_relocation.rs"]
+mod record_relocation;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_source_scope.rs"]
@@ -289,6 +291,16 @@ pub(crate) struct SourceCompilation {
     pub bindings: Vec<SourceLifeBinding>,
     pub calls: Vec<SourceInstanceCall>,
     pub scopes: Vec<CtAmbientLifeScope>,
+    pub relocations: Vec<SourceRecordRelocation>,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SourceRecordRelocation {
+    pub caller: CtFunctionId,
+    pub block: CtBlockId,
+    pub input: CtValueId,
+    pub source: CtRecordSchemaId,
+    pub target: CtRecordSchemaId,
+    pub output: CtValueId,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
@@ -330,6 +342,7 @@ struct Compiler<'a> {
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     source_instance_calls: Vec<SourceInstanceCall>,
+    record_relocations: Vec<SourceRecordRelocation>,
     active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
     abstract_scalars: Vec<(String, symbolic_nominal::ScalarArgument)>,
@@ -387,6 +400,7 @@ impl<'a> Compiler<'a> {
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             source_instance_calls: Vec::new(),
+            record_relocations: Vec::new(),
             active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
             abstract_scalars: Vec::new(),
@@ -826,6 +840,7 @@ pub(crate) fn compile_scoped(
         bindings: std::mem::take(&mut compiler.source_life_bindings),
         calls: std::mem::take(&mut compiler.source_instance_calls),
         scopes,
+        relocations: std::mem::take(&mut compiler.record_relocations),
     };
     Ok((
         CtArtifactProgram {

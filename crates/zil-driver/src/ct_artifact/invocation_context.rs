@@ -3,6 +3,8 @@
 use super::{compiler::Entry, source_index::SourceIndex};
 #[path = "invocation_context_calls.rs"]
 mod calls;
+#[path = "invocation_context_relocations.rs"]
+mod relocations;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ct::CtExecutionBudget;

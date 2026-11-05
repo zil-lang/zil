@@ -279,6 +279,7 @@ impl Builder<'_, '_> {
         declaration: usize,
         explicit: Option<&[s::GenericArg]>,
         arguments: &[s::Argument],
+        expected: Option<&CtTy>,
         depth: usize,
         span: Span,
     ) -> R<Value> {
@@ -381,14 +382,15 @@ impl Builder<'_, '_> {
             )?;
             self.constant(CtConstant::Scalar(Constant::Unit), result, span)
         } else {
-            self.emit(
+            let value = self.emit(
                 CtInstructionKind::Call {
                     function,
                     arguments: values,
                 },
                 result,
                 span,
-            )
+            )?;
+            self.relocate_record_result(value, expected, span)
         }
     }
 }

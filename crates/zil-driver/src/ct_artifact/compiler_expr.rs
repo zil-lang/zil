@@ -1172,7 +1172,14 @@ impl Builder<'_, '_> {
                 &self.compiler.declarations[declaration].function.generics,
             )
         {
-            return self.mixed_generic_call(declaration, explicit, arguments, depth, span);
+            return self.mixed_generic_call(
+                declaration,
+                explicit,
+                arguments,
+                expected,
+                depth,
+                span,
+            );
         }
         if !self.compiler.checking_generics {
             return self.metadata_generic_call(

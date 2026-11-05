@@ -4,6 +4,379 @@
 use super::*;
 use zil_verify::{CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage};
 
+#[test]
+fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
+    for (text, separated) in [
+        (
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
+            ),
+            false,
+        ),
+        (
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+            ),
+            true,
+        ),
+    ] {
+        let sources = vec![SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "actual-return.zil",
+            text,
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(parsed[0].diagnostics.is_empty());
+        let syntax = vec![&parsed[0].module];
+        let paths = BTreeMap::new();
+        let imports = vec![Vec::new()];
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &imports,
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        let definition = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(4),
+            generation_path: None,
+        };
+        let original = compiler::source_scope::original_function(
+            &parsed[0].module,
+            definition.declaration,
+            limits.max_call_depth,
+            |_| Ok(()),
+        )
+        .unwrap()
+        .unwrap();
+        let zil_syntax::ast::FunctionBody::Block(block) = &original.function.body else {
+            unreachable!()
+        };
+        let zil_syntax::ast::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
+            unreachable!()
+        };
+        let input = environment.empty_input(expression.span).unwrap();
+        let modules = environment.index.modules(&sources, &syntax);
+        let (expected, facts) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: 64,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: Entry::Expression {
+                module: ModuleId(0),
+                expression,
+                definition: definition.clone(),
+                lexical_owner: Some(definition.clone()),
+                expected: None,
+                parameters: &[],
+            },
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .unwrap();
+        assert_eq!(expected.record_schemas.len(), 3);
+        assert_eq!(facts.calls.len(), 3);
+        assert_eq!(facts.bindings.len(), 3);
+        assert_eq!(facts.relocations.len(), 2);
+        assert_eq!(facts.scopes.len(), 4);
+        assert_ne!(facts.bindings[0].definition, facts.bindings[1].definition);
+        assert_eq!(
+            facts
+                .bindings
+                .iter()
+                .map(|row| row.parameters.clone())
+                .collect::<Vec<_>>(),
+            [vec![1], vec![0], vec![2]]
+        );
+        let (origins, _) = zil_expand::source_context::capture_original(
+            &sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let origins = Arc::new(origins.unwrap());
+        let entry = || Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: Some(definition.clone()),
+            expected: None,
+            parameters: &[],
+        };
+        let mut invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
+            &entry(),
+            &parsed,
+            &environment.index,
+            Some(&origins),
+            &mut CtExecutionBudget::new(expected.budget),
+        )
+        .unwrap()
+        .unwrap();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .extend_calls(
+                &facts.calls,
+                &facts.scopes,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
+        invocation
+            .validate_record_relocations(
+                &facts.relocations,
+                &facts.calls,
+                &expected,
+                &mut environment.budget,
+            )
+            .unwrap();
+        let authority = FrozenAuthority {
+            source_fingerprint: sources[0].fingerprint(),
+            snapshot: &environment.snapshot,
+            input: &input,
+            index: &environment.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: Some(&invocation),
+        };
+        let wire = |raw: &CtArtifactProgram| {
+            zil_ir::ct_wire::decode_program(
+                &zil_ir::ct_wire::encode_program(raw, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+        };
+        for raw in [expected.clone(), wire(&expected)] {
+            invocation
+                .validate_record_relocations(
+                    &facts.relocations,
+                    &facts.calls,
+                    &raw,
+                    &mut CtExecutionBudget::new(expected.budget),
+                )
+                .unwrap();
+            let verified = zil_verify::verify_ct_artifact(raw, &limits, &authority).unwrap();
+            let reader = FrozenReadView {
+                record_schemas: &expected.record_schemas,
+                enum_schemas: &expected.enum_schemas,
+                ambient_life_scopes: &expected.ambient_life_scopes,
+                invocation_context: Some(&invocation),
+                index: &environment.index,
+                sources: &sources,
+                syntax: &syntax,
+                shape: environment.shape.as_ref(),
+                impl_index: environment.impl_index.as_ref(),
+                shape_failure: environment.shape_failure.as_deref(),
+                input: None,
+                limits: &limits,
+                target: &target,
+                snapshot: &environment.snapshot,
+            };
+            let (value, _) = zil_ct::evaluate_ct_artifact(
+                &verified,
+                &[],
+                &reader,
+                &mut CtExecutionBudget::new(expected.budget),
+            )
+            .unwrap();
+            assert!(matches!(value, CtValue::Record { fields, .. }
+            if fields == [CtValue::Scalar(zil_ir::Constant::I32(42))]));
+        }
+        let context = value_context::ValueContext::capture(
+            &expected,
+            &facts.bindings,
+            Some(invocation.clone()),
+            &mut CtExecutionBudget::new(expected.budget),
+        )
+        .unwrap();
+        let (_, sources) = context
+            .type_with_scopes(&context.ty, &mut CtExecutionBudget::new(expected.budget))
+            .unwrap();
+        assert_eq!(sources.len(), 1);
+        assert_eq!(sources[0].definition, definition);
+        assert_eq!(sources[0].parameters, [0]);
+        for attack in 0..5 {
+            let mut rows = facts.relocations.clone();
+            match attack {
+                0 => rows[0].input = rows[0].output,
+                1 => rows[0].target = rows[0].source,
+                2 => rows[0].caller = CtFunctionId(0),
+                3 => rows[0].output = rows[0].input,
+                _ => rows.push(rows[0]),
+            }
+            assert!(
+                invocation
+                    .validate_record_relocations(
+                        &rows,
+                        &facts.calls,
+                        &expected,
+                        &mut CtExecutionBudget::new(expected.budget)
+                    )
+                    .is_err(),
+                "private relocation attack {attack}"
+            );
+        }
+        for attack in 0..3 {
+            let mut raw = expected.clone();
+            let row = facts.relocations[0];
+            let function = &mut raw.functions[row.caller.0 as usize];
+            let block = function
+                .blocks
+                .iter_mut()
+                .find(|block| block.id == row.block)
+                .unwrap();
+            let at = block
+                .instructions
+                .iter()
+                .position(|instruction| instruction.result == Some(row.input))
+                .unwrap();
+            match attack {
+                0 => {
+                    let CtInstructionKind::ExtractField { index, .. } =
+                        &mut block.instructions[at + 1].kind
+                    else {
+                        unreachable!()
+                    };
+                    *index = 1;
+                }
+                1 => {
+                    let CtInstructionKind::MakeRecord { fields, .. } =
+                        &mut block.instructions[at + 2].kind
+                    else {
+                        unreachable!()
+                    };
+                    fields.clear();
+                }
+                _ => {
+                    let CtInstructionKind::MakeRecord { fields, .. } =
+                        &mut block.instructions[at + 2].kind
+                    else {
+                        unreachable!()
+                    };
+                    fields[0] = row.input;
+                }
+            }
+            for raw in [raw.clone(), wire(&raw)] {
+                assert!(
+                    invocation
+                        .validate_record_relocations(
+                            &facts.relocations,
+                            &facts.calls,
+                            &raw,
+                            &mut CtExecutionBudget::new(expected.budget)
+                        )
+                        .is_err(),
+                    "raw relocation attack {attack}"
+                );
+            }
+        }
+        if separated {
+            let row = facts.relocations[0];
+            for target in [false, true] {
+                let mut raw = expected.clone();
+                let schema = if target { row.target } else { row.source };
+                raw.record_schemas[schema.0 as usize]
+                    .life_context
+                    .as_mut()
+                    .unwrap()
+                    .ambient_classes[0]
+                    .source
+                    .parameter = if target { 2 } else { 1 };
+                // Another genuine Life ordinal in the same authentic caller or
+                // callee instance, without changing any full type/value argument.
+                for raw in [raw.clone(), wire(&raw)] {
+                    let errors = invocation
+                        .validate_record_relocations(
+                            &facts.relocations,
+                            &facts.calls,
+                            &raw,
+                            &mut CtExecutionBudget::new(expected.budget),
+                        )
+                        .unwrap_err();
+                    assert!(
+                        errors
+                            .iter()
+                            .any(|d| d.message.contains("original life source or full ordinal")),
+                        "{errors:?}"
+                    );
+                }
+            }
+        }
+        for type_actual in [false, true] {
+            let mut calls = facts.calls.clone();
+            if type_actual {
+                let CtScopeActual::Type(graph) =
+                    &mut calls[1].actuals[if separated { 3 } else { 2 }]
+                else {
+                    unreachable!()
+                };
+                graph.nodes[graph.root.0 as usize] = CtTypeNode::Primitive(CtScalarTy::Bool);
+            } else {
+                calls[1].actuals[if separated { 2 } else { 1 }] =
+                    CtScopeActual::Scalar(zil_ir::Constant::I32(43));
+            }
+            let errors = invocation
+                .validate_record_relocations(
+                    &facts.relocations,
+                    &calls,
+                    &expected,
+                    &mut CtExecutionBudget::new(expected.budget),
+                )
+                .unwrap_err();
+            assert!(
+                errors.iter().any(|d| d
+                    .message
+                    .contains("source full instance differs from actual call")),
+                "{errors:?}"
+            );
+        }
+
+        for attack in 0..2 {
+            let mut raw = expected.clone();
+            let row = facts.relocations[0];
+            let schema = &mut raw.record_schemas[row.target.0 as usize];
+            if attack == 0 {
+                schema.arguments[2] = CtSchemaArgument::Scalar(zil_ir::Constant::I32(43));
+            } else {
+                schema.life_context.as_mut().unwrap().nodes[0] =
+                    CtTypeNode::Primitive(CtScalarTy::Bool);
+            }
+            for raw in [raw.clone(), wire(&raw)] {
+                let errors = invocation
+                    .validate_record_relocations(
+                        &facts.relocations,
+                        &facts.calls,
+                        &raw,
+                        &mut CtExecutionBudget::new(expected.budget),
+                    )
+                    .unwrap_err();
+                assert!(
+                    errors.iter().any(|d| d
+                        .message
+                        .contains("complete nominal arguments or context shape")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
 struct InventoryOnly<'a> {
     source: &'a FrozenAuthority<'a>,
 }
