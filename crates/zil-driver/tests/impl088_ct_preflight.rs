@@ -104,6 +104,7 @@ fn public_headers_are_bounded_before_any_type_clone() {
             1 => core.functions[0].return_type = callback(32),
             _ => {
                 core.functions[0].callable_parameters = vec![CoreCallableParameter {
+                    source_life: None,
                     life: None,
                     closed_environment: false,
                     index: 0,

@@ -26,6 +26,7 @@ pub(super) struct Catalog {
     project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
     pub(super) pointers: BTreeMap<String, Type>,
     pub(super) borrowed_signatures: bool,
+    pub(super) source_helpers: bool,
 }
 
 impl Catalog {

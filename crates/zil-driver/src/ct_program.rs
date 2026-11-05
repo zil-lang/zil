@@ -1,7 +1,7 @@
 //! Raw CT query compilation reuses the ordinary type/CFG pipeline. No operation
 //! executes here; the CT crate independently verifies the result before its VM.
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
-use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, NodeId, Phase, TargetProfile};
+use zil_base::{CompileResult, Diagnostic, Limits, ModuleId, NodeId, Phase, Span, TargetProfile};
 use zil_ir::*;
 
 const QUERY: &str = "$ct_query";
@@ -781,6 +781,16 @@ impl Collector<'_> {
         }
         for contract in &function.callable_parameters {
             self.charge(0)?;
+            if let Some(context) = &contract.source_life {
+                if self.query {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "source helper context cannot execute in a pure CT query",
+                        Some(function.span),
+                    )]);
+                }
+                self.callable_source_context(context, function.span)?;
+            }
             if let Some(life) = &contract.life {
                 if life.bindings.len() > self.limits.max_locals
                     || life.classes.len() > self.limits.max_nodes
@@ -823,6 +833,65 @@ impl Collector<'_> {
             for _ in &foreign.noescape_parameters {
                 self.charge(0)?;
             }
+        }
+        Ok(())
+    }
+    fn callable_source_context(
+        &mut self,
+        context: &CoreCallableLifeContext,
+        span: Span,
+    ) -> CompileResult<()> {
+        self.charge(0)?;
+        for count in [
+            context.parameters.len(),
+            context.named_fixed.len(),
+            context.inputs.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > self.limits.max_nodes {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "source helper context vector exceeded",
+                    Some(span),
+                )]);
+            }
+            self.text_len(count)?;
+        }
+        if context.declaration.compiler
+            || !context.identity.generation_path.is_empty()
+            || context
+                .parameters
+                .iter()
+                .any(|p| matches!(p, LifeParameterKind::Const(_)))
+        {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Ct,
+                "source helper context requires original life/one-F scope",
+                Some(span),
+            )]);
+        }
+        for text in std::iter::once(&context.identity.package)
+            .chain(&context.identity.module_path)
+            .chain(&context.identity.declaration_path)
+        {
+            self.text(text)?;
+        }
+        for input in &context.inputs {
+            self.charge(0)?;
+            let depth = match &input.position {
+                CoreClosureHeaderPosition::Borrow(p) => p.path.len(),
+                CoreClosureHeaderPosition::Class(p) => p.path.len(),
+            };
+            if depth > self.limits.max_call_depth {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "source helper context path exceeded",
+                    Some(span),
+                )]);
+            }
+            self.text_len(depth)?;
         }
         Ok(())
     }
@@ -1520,6 +1589,74 @@ mod tests {
     use super::*;
     use zil_base::{FileId, ResultCategory, SourceUnit};
     use zil_ct::SourceCompiler;
+
+    #[test]
+    fn g334_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
+        use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+        let input = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "helper-ct.zil",
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+            ),
+        );
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let helper = core
+            .functions
+            .iter()
+            .find(|f| {
+                f.callable_parameters
+                    .iter()
+                    .any(|r| r.source_life.is_some())
+            })
+            .unwrap();
+        let query = core.functions.iter().flat_map(|f| &f.body.statements).find_map(|statement| {
+            if let CoreStatementKind::Return(Some(expression))=&statement.kind
+                && matches!(&expression.kind,CoreExprKind::Call {callee,..} if matches!(&callee.kind,CoreExprKind::Name(name) if name==&helper.name)) {
+                Some(expression.clone())
+            } else { None }
+        }).expect("actual source helper call");
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let errors = Compiler {
+            program: &program,
+            module: program.root,
+            target: &target,
+        }
+        .compile(&query, None, &limits)
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::Unsupported
+                    && d.message
+                        .contains("source helper context cannot execute in a pure CT query")),
+            "{errors:?}"
+        );
+    }
 
     #[test]
     fn scoped_foreign_role_selection_work_is_prepaid_without_changing_none() {

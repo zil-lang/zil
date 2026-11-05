@@ -1270,6 +1270,9 @@ impl<'a> Walker<'a> {
             }
             for contract in &f.callable_parameters {
                 self.charge(0, f.span)?;
+                if let Some(context) = &contract.source_life {
+                    self.callable_source_context(context, contract.life.as_ref(), f.span)?;
+                }
                 self.text(&contract.generic_name, Some(f.span))?;
                 self.parameters(&contract.parameters, &contract.result, f.span)?;
             }
@@ -1334,6 +1337,82 @@ impl<'a> Walker<'a> {
                     )]
                 })?;
             self.text(&feature.feature, feature.span)?;
+        }
+        Ok(())
+    }
+    fn callable_source_context(
+        &mut self,
+        context: &CoreCallableLifeContext,
+        life: Option<&StorageLifeContract>,
+        span: Span,
+    ) -> CompileResult<()> {
+        let limit = || {
+            vec![Diagnostic::limit(
+                Phase::Ct,
+                "source helper metadata copy budget exceeded",
+                Some(span),
+            )]
+        };
+        for count in [
+            context.parameters.len(),
+            context.named_fixed.len(),
+            context.inputs.len(),
+            context.identity.module_path.len(),
+            context.identity.declaration_path.len(),
+            context.identity.generation_path.len(),
+        ] {
+            if count > self.limits.max_nodes {
+                return Err(limit());
+            }
+            self.work_left = self.work_left.checked_sub(count).ok_or_else(limit)?;
+        }
+        if context.declaration.compiler
+            || !context.identity.generation_path.is_empty()
+            || context
+                .parameters
+                .iter()
+                .any(|p| matches!(p, LifeParameterKind::Const(_)))
+        {
+            return Err(unsupported(
+                span,
+                "source helper metadata requires original life/one-F scope",
+            ));
+        }
+        for text in std::iter::once(&context.identity.package)
+            .chain(&context.identity.module_path)
+            .chain(&context.identity.declaration_path)
+        {
+            self.text(text, Some(span))?;
+        }
+        for input in &context.inputs {
+            self.charge(0, span)?;
+            let depth = match &input.position {
+                CoreClosureHeaderPosition::Borrow(p) => p.path.len(),
+                CoreClosureHeaderPosition::Class(p) => p.path.len(),
+            };
+            if depth > self.limits.max_call_depth {
+                return Err(limit());
+            }
+            self.work_left = self.work_left.checked_sub(depth).ok_or_else(limit)?;
+        }
+        if let Some(life) = life {
+            for count in [life.bindings.len(), life.classes.len()] {
+                if count > self.limits.max_nodes {
+                    return Err(limit());
+                }
+                self.work_left = self.work_left.checked_sub(count).ok_or_else(limit)?;
+            }
+            for depth in life
+                .bindings
+                .iter()
+                .map(|r| r.position.path.len())
+                .chain(life.classes.iter().map(|r| r.position.path.len()))
+            {
+                if depth > self.limits.max_call_depth {
+                    return Err(limit());
+                }
+                self.work_left = self.work_left.checked_sub(depth).ok_or_else(limit)?;
+            }
         }
         Ok(())
     }

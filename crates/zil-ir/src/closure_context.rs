@@ -51,3 +51,25 @@ pub struct CoreClosureLifeContext {
     pub named_fixed: Vec<CoreClosureNamedFixed>,
     pub inputs: Vec<CoreClosureInputAnchor>,
 }
+
+/// Untrusted original source bridge for one selected shared Fn helper bound.
+/// Its owner is the actual containing CoreFunction, and bound Parameter/Result
+/// rows live in the containing CoreCallableParameter.life (never Capture rows).
+/// A source producer must preserve this before erasing lexical life names;
+/// Types must validate actual header selectors and the concrete environment
+/// before jointly forming the existing complete Typed header/role contracts.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreCallableLifeContext {
+    pub declaration: LifeDeclarationId,
+    pub identity: LifeDeclarationIdentity,
+    /// Complete original declaration order, including the callable Type slot.
+    pub parameters: Vec<LifeParameterKind>,
+    /// Full ordinal of F, distinct from the role's filtered generic_index.
+    pub generic_parameter: u32,
+    /// Selected bound position, including intervening noncallable bounds.
+    pub bound_ordinal: u32,
+    /// Bound Fixed ordinal -> full original source life parameter ordinal.
+    pub named_fixed: Vec<CoreClosureNamedFixed>,
+    /// Actual helper data-header selectors; no guessed capture slots.
+    pub inputs: Vec<CoreClosureInputAnchor>,
+}

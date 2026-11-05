@@ -200,6 +200,12 @@ fn signatures(
             errors.push(diagnostic);
         }
         for bound in &f.callable_parameters {
+            if let Err(diagnostic) =
+                helpers::source_life::reserve_function(f, bound, limits, &mut foreign_work, 2)
+            {
+                errors.push(diagnostic);
+                continue 'function;
+            }
             if let Some(life) = &bound.life {
                 let cost = borrowed_fp::metadata_work(life);
                 foreign_work = match foreign_work.checked_sub(cost) {
@@ -613,6 +619,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
         let first_closure = closures.pending.len();
+        let helper_bounds = closures.source_helper_bounds(f)?;
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
@@ -638,7 +645,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 entry: BlockId(0),
                 span: f.span,
             },
-            helper_bounds: f.callable_parameters.clone(),
+            helper_bounds,
             state_callable_mode: None,
             state_uses: None,
             factory_bound: f.callable_return.clone(),
