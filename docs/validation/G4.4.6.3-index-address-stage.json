@@ -1,6 +1,6 @@
 {
   "task": "G4.4.6.3-index-address",
-  "status": "RootAddressRepresentationImplementedNoLinkPassSourcePending",
+  "status": "JointQualifiedSnapshotSourceNativePassLargeParameterAnalyzePending",
   "date": "2026-11-05",
   "implementation_commit": "fb6c63757c2d5b84beaf23286fc33186689161cc",
   "base": "cd0223df6bfada6c0711044db387455745abd447",
@@ -29,11 +29,10 @@
     "sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d"
   },
   "new_private_tests": "CompiledNotExecuted: Lower 14-level shared/mutable root-address pure-pointee N/N-1/fresh versus embedded target/Managed rejection; LLVM root pointer representation/alignment and not-snapshot versus ReadAddress result snapshot, embedded-address rejection.",
-  "source_native_result": "NotExecutedByAuthor",
+  "source_native_result": "QualifiedArraySnapshotPassClangO0O2;LargeParameterEarlierPhasePending",
   "remaining": [
-    "Root joint source/native and private unit batch.",
-    "Large parameter Analyze class-row issue remains independently assigned; no claim this Lower/backend delta fixes it.",
-    "Independent review and affected budget/final parent acceptance."
+    "Actual large parameter class-row/carrier consumer and recursive resource-Sum Analyze failures remain independently assigned before Lower.",
+    "Affected complete budgets, independent acceptance and final parent gates by root."
   ],
   "rust_goals": {
     "safety": "Physical root address only after independent Verify root/loan proof; embedded targets remain excluded.",
@@ -41,5 +40,55 @@
     "machine": "Actual length/index and pointer layout preserved, large ReadAddress retains snapshot.",
     "boundary": "Lower and LLVM only, full semantic types retained; no new raw authority.",
     "breakthrough_and_limit": "Bridges the actual checked Array-index pointer shape; evidence still no-link only."
+  },
+  "joint_replay_by_root": {
+    "source_commit": "5f16b9deb1fcd101f329ba1bb7b783b43ba4c09c",
+    "source_dirty": false,
+    "source_evidence": "/workspace/.zil-env/G10.1.11-fifth-targeted/results.json",
+    "reuse_basis": "fb6c63757 is an ancestor of the joint source. git diff of zil-lower and zil-backend-llvm between implementation and joint source is empty.",
+    "runs": [
+      {
+        "command": "cargo test --locked -p zil-lower --lib -j2 g4463_lower_ -- --nocapture",
+        "passed": 3,
+        "failed": 0,
+        "log": "/workspace/.zil-env/G10.1.11-fifth-targeted/lower-private.log",
+        "sha256": "d941214cae2a48a74f7244f56ebf1319911bd1c8ed5410a22559478b3ece3c04",
+        "bounds": {
+          "pure_qualified_array_workN": 18,
+          "nodesN": 10,
+          "shared_index_root_workN": 32,
+          "mutable_index_root_workN": 32,
+          "controls": "N/N-1/fresh and shared ledger; physical-only synthetic controls"
+        }
+      },
+      {
+        "command": "cargo test --locked -p zil-backend-llvm --lib -j2 g4463_ -- --nocapture",
+        "passed": 5,
+        "failed": 0,
+        "log": "/workspace/.zil-env/G10.1.11-fifth-targeted/backend-private.log",
+        "sha256": "9339f44e099d2d16ed1c8e4181e10cced744cea3cb1a5768899592864728dd5f",
+        "controls": "Qualified layout, every inactive payload, no embedded address, snapshot N/N-1, canonical store single fee, root pointer not snapshot"
+      },
+      {
+        "command": "cargo test --locked -p zil-driver --test aggregates -j2 --features llvm-api g4463_qualified_pure_backend -- --nocapture",
+        "passed": 2,
+        "failed": 1,
+        "log": "/workspace/.zil-env/G10.1.11-fifth-targeted/enum-backend.log",
+        "sha256": "9464974c8ca12933988ff07240169ccb387ab713670120b4f95af157c5bb0e8a",
+        "passed_cases": [
+          "qualified_array_snapshot_preserves_every_u64_bit",
+          "old_ordinary_large_array_keeps_snapshot_and_abi"
+        ],
+        "actual_machine": "Qualified snapshot case explicitly selects Clang O0/O2, each Source verification_runs1, actual complete stdout18446744073709551557; private snapshot/memcpy/no heap asserted. Feature llvm-api enabled does not itself prove API backend execution for that case. Old a18 ordinary case unchanged and passed.",
+        "failed_case": {
+          "name": "qualified_array_large_parameter_and_result_copy_in",
+          "phase": "Analyze",
+          "verification_runs": 0,
+          "category": "SafeReject",
+          "message": "qualified class has no actual carrier position",
+          "scope": "Before Lower/backend; assigned to independent semantic consumer author, not claimed repaired by this delta."
+        }
+      }
+    ]
   }
 }
