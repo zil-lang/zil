@@ -56,8 +56,11 @@ fn replacement_protocol_retains_real_base_and_rejects_stale_activations() {
         let result = Definitions::new(&module, &module.functions[0], &mut b)
             .and_then(|d| d.schedule(&module.functions[0], &[true], &mut b));
         if case >= 5 {
+            let Err(errors) = result else {
+                panic!("invalid suspension must be rejected");
+            };
             assert!(
-                result.unwrap_err().iter().any(|d| d
+                errors.iter().any(|d| d
                     .message
                     .contains("prepared owning replacement cannot suspend")),
                 "case{case}"
