@@ -874,7 +874,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         let ty = &f.locals[p.0 as usize].ty;
         type_work(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
-        if matches!(ty, Type::Array { .. }) && !ty.is_copy_value() {
+        if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || matches!(ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+        {
             type_work(ty, &b.limits.clone(), b)?;
         }
         if f.callable_contract.is_some()
@@ -888,7 +891,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
-    if matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value() {
+    if (matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value())
+        || matches!(&f.return_type, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+    {
         type_work(&f.return_type, &b.limits.clone(), b)?;
     }
     if let Some(id) = f.environment {

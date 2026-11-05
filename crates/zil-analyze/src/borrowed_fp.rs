@@ -191,7 +191,10 @@ pub(super) fn qualified_array_relation_work(
     budget: &mut Budget,
 ) -> CompileResult<()> {
     for ty in parameters.iter().chain(std::iter::once(result)) {
-        if matches!(ty, Type::Array { .. }) && !ty.is_copy_value() {
+        if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || matches!(ty, Type::Address { inner, .. }
+                if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+        {
             budget.type_work(ty, false, "qualified Array relation physical/class walk")?;
             budget.type_work(ty, false, "qualified Array relation class path work")?;
         }
