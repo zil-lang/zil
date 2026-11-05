@@ -861,7 +861,8 @@ impl<'a> Index<'a> {
         )
     }
 
-    // Source scope is an independent input to Copy qualification, not an inferred label.
+    // Bounds, lexical source, retained callable roles and callback policy are
+    // independent inputs to this scoped qualification check.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn check_arguments_scoped(
         &self,

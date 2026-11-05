@@ -18,6 +18,8 @@ enum Pat {
     Ctor(Ctor, Vec<Pat>),
 }
 
+type ScopedEnumActuals = Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>;
+
 // This read is covered by the explicit Type actual traversal paid in
 // mixed_enum_actuals. It observes original source syntax before any nominal
 // type erasure; a generated name never supplies a caller class.
@@ -49,28 +51,46 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         span: Span,
         prepaid_explicit: &mut bool,
-    ) -> R<Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>> {
+        prepaid_context: &mut Option<BTreeMap<String, TypeRef>>,
+    ) -> R<ScopedEnumActuals> {
         let all_type = decl
             .generics
             .iter()
             .all(|p| matches!(p.kind, GenericParamKind::Type(_)));
         if all_type {
-            let Some(explicit) = explicit else {
-                return Ok(None);
-            };
-            let mut scoped = false;
-            for argument in explicit {
-                let GenericArg::Type(ty) = argument else {
+            if let Some(explicit) = explicit {
+                let mut scoped = false;
+                for argument in explicit {
+                    let GenericArg::Type(ty) = argument else {
+                        return Ok(None);
+                    };
+                    // Reuse the payment in the legacy explicit branch.
+                    self.budget.ty(ty)?;
+                    scoped |= scoped_nominal_actual(ty);
+                }
+                *prepaid_explicit = true;
+                if !scoped {
+                    return Ok(None);
+                }
+            } else {
+                let Some(source) = expected else {
                     return Ok(None);
                 };
-                // The legacy explicit branch pays exactly this traversal. If
-                // no scoped actual occurs, it will reuse the payment below.
-                self.budget.ty(ty)?;
-                scoped |= scoped_nominal_actual(ty);
-            }
-            *prepaid_explicit = true;
-            if !scoped {
-                return Ok(None);
+                let TypeKind::Named { path, .. } = &group(source).kind else {
+                    return Ok(None);
+                };
+                if path.as_slice() != [decl.name.as_str()] {
+                    return Ok(None);
+                }
+                // Context's original unify traverses and pays every actual.
+                // Keep its result so a closed all-Type request pays it once.
+                let mut found = BTreeMap::new();
+                syntax_enum::context(decl, expected, &mut found, self.budget)?;
+                let scoped = found.values().any(scoped_nominal_actual);
+                if !scoped {
+                    *prepaid_context = Some(found);
+                    return Ok(None);
+                }
             }
         }
         let context = expected.and_then(|expected| match &group(expected).kind {
@@ -154,9 +174,15 @@ impl Check<'_, '_, '_> {
             ));
         }
         let mut prepaid_explicit = false;
-        if let Some((full, found)) =
-            self.mixed_enum_actuals(decl, explicit, expected, e.span, &mut prepaid_explicit)?
-        {
+        let mut prepaid_context = None;
+        if let Some((full, found)) = self.mixed_enum_actuals(
+            decl,
+            explicit,
+            expected,
+            e.span,
+            &mut prepaid_explicit,
+            &mut prepaid_context,
+        )? {
             self.traits.check_arguments_scoped(
                 &decl.generics,
                 &found,
@@ -199,7 +225,8 @@ impl Check<'_, '_, '_> {
             .iter()
             .map(|p| p.name.clone())
             .collect::<BTreeSet<_>>();
-        let mut found = BTreeMap::new();
+        let already_context = prepaid_context.is_some();
+        let mut found = prepaid_context.take().unwrap_or_default();
         if let Some(explicit) = explicit {
             if explicit.len() != decl.generics.len() {
                 return Err(error(
@@ -217,7 +244,9 @@ impl Check<'_, '_, '_> {
                 found.insert(p.name.clone(), t.clone());
             }
         }
-        syntax_enum::context(decl, expected, &mut found, self.budget)?;
+        if !already_context {
+            syntax_enum::context(decl, expected, &mut found, self.budget)?;
+        }
         for (arg, field) in args.iter().zip(fields) {
             if arg.spread {
                 return Err(unsupported(arg.span, "enum payload tuple spread"));
@@ -285,12 +314,14 @@ impl Check<'_, '_, '_> {
             self.budget,
         )?;
         let mut prepaid_explicit = false;
+        let mut prepaid_context = None;
         if let Some((full, found)) = self.mixed_enum_actuals(
             declaration,
             explicit,
             expected,
             e.span,
             &mut prepaid_explicit,
+            &mut prepaid_context,
         )? {
             self.traits.check_arguments_scoped(
                 &declaration.generics,
@@ -339,7 +370,8 @@ impl Check<'_, '_, '_> {
             return Ok(Some(actual));
         }
         let variables = record_enums::variables(declaration, self.budget)?;
-        let mut found = BTreeMap::new();
+        let already_context = prepaid_context.is_some();
+        let mut found = prepaid_context.take().unwrap_or_default();
         if let Some(explicit) = explicit {
             if explicit.len() != declaration.generics.len() {
                 return Err(error(e.span, "record enum type argument arity mismatch"));
@@ -355,7 +387,9 @@ impl Check<'_, '_, '_> {
                 found.insert(parameter.name.clone(), ty.clone());
             }
         }
-        syntax_enum::context(declaration, expected, &mut found, self.budget)?;
+        if !already_context {
+            syntax_enum::context(declaration, expected, &mut found, self.budget)?;
+        }
         for (supplied, index) in supplied.iter().zip(order) {
             let shorthand;
             let value = if let Some(value) = &supplied.value {
