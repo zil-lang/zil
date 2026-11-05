@@ -424,6 +424,18 @@ pub(super) fn profile(
         for i in &b.instructions {
             budget.spend(1)?;
             match &i.kind {
+                InstructionKind::PlaceTagLocal { local, path } if enum_frame => {
+                    let ty = local_type(f, *local, Some(i.span))?;
+                    resources::charge_payload(ty, budget)?;
+                    if !path.is_empty() || !sums::owned_enum(ty) {
+                        return Err(unsupported(
+                            "Enum continuation tag view requires a complete owning Enum local and empty path",
+                            Some(i.span),
+                        ));
+                    }
+                    // Actual current-tag, initialization and loan permission
+                    // remain obligations of the ordinary independent kernels.
+                }
                 InstructionKind::VariantTagLocal { .. }
                 | InstructionKind::ReadVariantLocal { .. }
                 | InstructionKind::UnpackVariant { .. }
