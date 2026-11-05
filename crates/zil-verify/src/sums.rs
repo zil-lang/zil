@@ -983,6 +983,9 @@ pub(super) struct Proofs {
     pub(super) rows: Vec<Vec<Vec<Bridge>>>,
     pub(super) replacement_writes: Vec<BTreeSet<resources::Root>>,
     pub(super) replacement_targets: BTreeMap<usize, Vec<crate::place_replacements::actual::Target>>,
+    // Actual may-Commit positions not already retained for Store transfer.
+    // These are retirement effects only, never must-write/fresh authority.
+    pub(super) retirement_targets: BTreeMap<usize, Vec<crate::place_replacements::actual::Target>>,
 }
 type FieldFresh = Vec<(usize, u8)>;
 type UnpackedFresh = (LocalId, u8, FieldFresh);

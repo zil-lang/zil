@@ -2734,6 +2734,7 @@ pub(super) fn check_module(
             graphs,
             &sum_proofs.replacement_writes,
             &sum_proofs.replacement_targets,
+            &sum_proofs.retirement_targets,
             budget,
         )?)
     } else {
