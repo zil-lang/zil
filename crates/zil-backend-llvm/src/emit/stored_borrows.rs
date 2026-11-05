@@ -17,7 +17,7 @@ fn pay(work: &mut usize, n: usize) -> CompileResult<()> {
     *work = work.checked_sub(n).ok_or_else(exhausted)?;
     Ok(())
 }
-fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
+pub(super) fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
     pay(
         work,
         life.slots
@@ -240,7 +240,7 @@ pub(super) fn representation_type(t: &Type) -> bool {
 // including inactive ones; no address or owning/resource leaf enters this new
 // physical-only path. Existing Record/Tuple borrow representations above keep
 // their separately verified profile.
-fn pure_composite(t: &Type) -> bool {
+pub(super) fn pure_composite(t: &Type) -> bool {
     match t {
         Type::BorrowedStorage { storage, life } => life.slots.is_empty() && pure_composite(storage),
         Type::Tuple(fields) => fields.iter().all(pure_composite),
@@ -475,6 +475,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
 pub(super) fn reserve_emission(
     lir: &LirView<'_>,
     limits: &Limits,
+    snapshots: &BTreeMap<FunctionId, copy_aggregates::Plan>,
     work: &mut usize,
 ) -> CompileResult<()> {
     pay(work, lir.functions.len())?;
@@ -540,7 +541,13 @@ pub(super) fn reserve_emission(
                 && !f.values[result.0 as usize].is_copy_value()
                 && pure_composite(&f.values[result.0 as usize])
             {
+                let snapshot = snapshots.get(&f.id);
                 for field in fields {
+                    if snapshot
+                        .is_some_and(|plan| plan.contains_key(&result) && plan.contains_key(field))
+                    {
+                        continue;
+                    }
                     pay(
                         work,
                         copy_aggregates::canonical_payload_work(&f.values[field.0 as usize])

@@ -10187,3 +10187,6 @@ fn g4453_ordinary_static_member_preserves_actual_module_privacy() {
     assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
     assert_eq!(report.verification_runs, 0);
 }
+
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_pure_backend.rs"]
+mod g4463_qualified_pure_backend;
