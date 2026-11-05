@@ -1220,6 +1220,7 @@ impl Flow<'_> {
                     replacements::CheckPoint {
                         validate: check,
                         live: self.after.get(b).and_then(|row| row.get(position)),
+                        output: i.result,
                     },
                     budget,
                 )?;
@@ -3130,7 +3131,10 @@ fn analyze_function_program(
     if let Some(program) = replacements {
         program.extend_shapes(f, &mut shapes, budget)?;
     }
-    if shapes.is_empty() && sums.is_none() {
+    if shapes.is_empty()
+        && sums.is_none()
+        && !(replacements.is_some() && forwards_replacement_effect(f, reachable, effects, budget)?)
+    {
         return Ok(Effect::default());
     }
     // Summary inference never consumes description liveness: all uses of
@@ -3288,6 +3292,40 @@ fn analyze_function_program(
         }
     }
     Ok(effect)
+}
+
+/// An address-only forwarding helper has no local resource debt cells, but
+/// still transports actual Commit/retirement keys. Empty shape tables cannot
+/// turn such a call into an effect-free operation. The outer fixed point
+/// revisits it when a reachable Direct callee acquires replacement rows.
+fn forwards_replacement_effect(
+    f: &TypedFunction,
+    reachable: &[bool],
+    effects: &[Effect],
+    budget: &mut Budget,
+) -> CompileResult<bool> {
+    budget.spend(f.blocks.len(), "replacement-only forwarding CFG")?;
+    for block in &f.blocks {
+        if !reachable[block.id.0 as usize] {
+            continue;
+        }
+        budget.spend(
+            block.instructions.len(),
+            "replacement-only forwarding calls",
+        )?;
+        for i in &block.instructions {
+            if let InstructionKind::Call { function, .. } = i.kind {
+                budget.spend(1, "replacement-only callee row lookup")?;
+                let effect = effects
+                    .get(function.0 as usize)
+                    .ok_or_else(|| error("replacement forwarding callee absent"))?;
+                if !effect.replacements.is_empty() {
+                    return Ok(true);
+                }
+            }
+        }
+    }
+    Ok(false)
 }
 // Summary consumers are an input dependency, not an authority claim. Build
 // them from this phase's actual Call/Closure read sites. The verifier has its
