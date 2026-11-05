@@ -1,0 +1,23 @@
+{
+  "task": "G1.3.7.1",
+  "baseline": "ead7412ce9c44a128e5ff1a861d3892a428f7810",
+  "production_commit": "3b6fc57aabf2de76d0ed89a1071018dcad9b70bb",
+  "test_commit": "6352303be",
+  "test_binary_sha256": "851c3671b335e7e39bd2934d0d54697a6ced5f6ea5405e8c5a6421d7c7d4af1c",
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/tmp/zil-g137-verify-target; CARGO_BUILD_JOBS=2",
+  "command": "cargo test -p zil-verify whole_helper --lib",
+  "result": {
+    "passed": 3,
+    "failed": 0,
+    "filtered": 384
+  },
+  "tests": [
+    "resources::replacements::tests::whole_helper_broader_or_conditional_cfg_does_not_export_fresh",
+    "resources::replacements::tests::whole_helper_caller_shell_and_old_fields_must_still_be_live",
+    "resources::replacements::tests::whole_helper_requires_actual_must_commit_and_preserves_rhs_leaf_origin"
+  ],
+  "scope": "Independent resource/Content components; not public Verify/Wire, Source or native acceptance. Root/reviewer integration controls are separate.",
+  "default_limits_changed": false,
+  "cargo_target_added": false,
+  "formal_full_suite_run": false
+}
