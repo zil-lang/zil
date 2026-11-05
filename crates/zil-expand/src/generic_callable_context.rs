@@ -166,6 +166,7 @@ impl Engine<'_> {
         let kind = match path.as_slice() {
             [name] if name == "Fn" => CallableKind::Fn,
             [name] if name == "FnMut" => CallableKind::FnMut,
+            [name] if name == "FnOnce" => CallableKind::FnOnce,
             _ => return Ok(()),
         };
         let candidate = matches!(args.as_slice(), [GenericArg::Type(parameters), GenericArg::Type(_)]
@@ -208,7 +209,11 @@ impl Engine<'_> {
             ));
         }
         if callable::parameter_mode(&function.params[selected_role.index].ty, &parameter.name)
-            != Some(Some(kind == CallableKind::FnMut))
+            != Some(if kind == CallableKind::FnOnce {
+                None
+            } else {
+                Some(kind == CallableKind::FnMut)
+            })
         {
             return Ok(());
         }

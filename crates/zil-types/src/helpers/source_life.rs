@@ -58,7 +58,10 @@ pub(crate) fn reserve(
     }
     if context.declaration.compiler
         || !context.identity.generation_path.is_empty()
-        || !matches!(bound.kind, CallableKind::Fn | CallableKind::FnMut)
+        || !matches!(
+            bound.kind,
+            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+        )
         || bound.closed_environment
         || bound.generic_index != 0
         || context.bound_ordinal != 0
@@ -264,9 +267,13 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
         || function.foreign.is_some()
         || function.callable_return.is_some()
         || !scalar(&function.return_type)
-        || !matches!(function.parameters.get(bound.index as usize).map(|p|&p.ty),
-            Some(Type::Address {mutable,inner}) if *mutable == (bound.kind == CallableKind::FnMut)
-                && matches!(inner.as_ref(),Type::Named(name) if name == &bound.generic_name))
+        || !function.parameters.get(bound.index as usize).is_some_and(|p| match &p.ty {
+            Type::Named(name) => bound.kind == CallableKind::FnOnce && name == &bound.generic_name,
+            Type::Address {mutable,inner} => bound.kind != CallableKind::FnOnce
+                && *mutable == (bound.kind == CallableKind::FnMut)
+                && matches!(inner.as_ref(), Type::Named(name) if name == &bound.generic_name),
+            _ => false,
+        })
     {
         return Err(unsupported(
             span,
@@ -459,13 +466,33 @@ pub(crate) fn form(
             "source helper actual environment differs from its declared Fn signature",
         ));
     }
-    borrowed_fp_qualified::capture_relation(
-        &definition.parameters,
-        &definition.captures,
-        &definition.result,
-        actual,
-        span,
-    )?;
+    if definition.kind == CallableKind::FnOnce && bound.kind == CallableKind::FnOnce {
+        // The new owner classifier visits captures twice and scalar Record
+        // fields twice, independently of the already-paid definition clone.
+        pay(left, definition.captures.len().saturating_mul(3), span)?;
+        for capture in &definition.captures {
+            if let Type::Managed(payload) = capture
+                && let Type::Record { fields, .. } = payload.as_ref()
+            {
+                pay(left, fields.len().saturating_mul(2), span)?;
+            }
+        }
+        borrowed_fp_qualified::source_capture_relation(
+            &definition.parameters,
+            &definition.captures,
+            &definition.result,
+            actual,
+            span,
+        )?;
+    } else {
+        borrowed_fp_qualified::capture_relation(
+            &definition.parameters,
+            &definition.captures,
+            &definition.result,
+            actual,
+            span,
+        )?;
+    }
     pay(
         left,
         borrowed_fp::metadata_work(actual)
@@ -565,7 +592,11 @@ pub(crate) fn form(
                 writer.classes.push(SignatureLifeClassBinding {
                     position: SignatureLifeClass {
                         base,
-                        path: vec![LifeTypeProjection::Pointee],
+                        path: if bound.kind == CallableKind::FnOnce {
+                            vec![]
+                        } else {
+                            vec![LifeTypeProjection::Pointee]
+                        },
                         class,
                     },
                     binder,
