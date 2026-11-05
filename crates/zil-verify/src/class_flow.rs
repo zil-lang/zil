@@ -159,12 +159,15 @@ impl Equations {
             self.track_grounding(b)?;
         }
         let mut keys = Vec::new();
+        let mut direct = false;
         if let Type::Closure(id) = ty {
             let count = module
                 .closures
                 .get(id.0 as usize)
                 .and_then(|d| d.storage_life.as_ref())
                 .map_or(0, |c| c.fixed_binder_count);
+            b.spend(count as usize)?;
+            direct = true;
             for class in 0..count {
                 keys.push((
                     if outer.is_some() {
@@ -175,7 +178,26 @@ impl Equations {
                     class,
                 ));
             }
-        } else if !ty.is_copy_value() {
+        } else if let Type::BorrowedStorage { life, .. } = ty {
+            b.spend(life.binder_count as usize)?;
+            direct = true;
+            for class in 0..life.binder_count {
+                keys.push((
+                    if outer.is_some() {
+                        vec![LifeTypeProjection::Pointee]
+                    } else {
+                        Vec::new()
+                    },
+                    class,
+                ));
+            }
+        } else if !module.life_instances.is_empty()
+            && matches!(
+                ty,
+                Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+            )
+        {
+            b.spend(usize::from(outer.is_some()))?;
             let mut path = if outer.is_some() {
                 vec![LifeTypeProjection::Pointee]
             } else {
@@ -184,7 +206,9 @@ impl Equations {
             pure_class_keys(ty, &mut path, &mut keys, b)?;
         }
         let count = keys.len();
-        b.spend(count)?;
+        if !direct {
+            b.spend(count)?;
+        }
         let mut classes = Vec::with_capacity(count);
         for _ in 0..count {
             classes.push(self.fresh(false, b)?);
@@ -256,6 +280,10 @@ fn link_projection(
     e: &mut Equations,
     b: &mut Budget,
 ) -> Check<()> {
+    if child.keys.is_empty() {
+        return Ok(());
+    }
+    b.spend(usize::from(matches!(parent_ty, Type::Address { .. })))?;
     let (physical, prefix) = if let Type::Address { inner, .. } = parent_ty {
         (inner.as_ref(), vec![LifeTypeProjection::Pointee])
     } else {
@@ -740,7 +768,9 @@ fn check_with(
                                 )?;
                             }
                         }
-                        if let (Some(out), Some(id)) = (out, i.result) {
+                        if let (Some(out), Some(id)) = (out, i.result)
+                            && !out.classes.is_empty()
+                        {
                             let parent_ty = &f.values[id.0 as usize];
                             for (index, field) in fields.iter().enumerate() {
                                 let step = if matches!(parent_ty, Type::Array { .. }) {
@@ -816,7 +846,9 @@ fn check_with(
                         }
                     }
                     InstructionKind::MakeVariant { variant, fields } => {
-                        if let (Some(out), Some(id)) = (out, i.result) {
+                        if let (Some(out), Some(id)) = (out, i.result)
+                            && !out.classes.is_empty()
+                        {
                             for (index, field) in fields.iter().enumerate() {
                                 link_projection(
                                     &f.values[id.0 as usize],
