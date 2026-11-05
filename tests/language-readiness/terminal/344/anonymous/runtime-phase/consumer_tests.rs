@@ -1,40 +1,16 @@
 use super::*;
 
-#[test]
-fn g447_runtime_ct_source_project_and_native() {
-    for (text, expected) in [
-        (
-            include_str!("../ct5-mixed-runtime-instance.zil"),
-            b"42\n".as_slice(),
-        ),
-        (
-            include_str!("../ct6-runtime-multiple-instances.zil"),
-            b"16\n".as_slice(),
-        ),
-        (
-            include_str!("../ct6-runtime-const-without-life.zil"),
-            b"8\n".as_slice(),
-        ),
-    ] {
-        let input = source(text);
-        let project = zil_driver::ProjectSources {
-            root: input.module_id,
-            paths: std::collections::BTreeMap::from([(vec!["main".into()], input.module_id)]),
-            modules: vec![input.clone()],
-        };
-        let options = CompileOptions::default();
-        let mut session = zil_driver::CompilationSession::default();
-        for _ in 0..2 {
-            let report = session.compile_source(&input, &options);
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.verification_runs, 1);
-        }
-        let report = zil_driver::compile_project(&project, &options);
+fn runtime_source_project_native(text: &str, expected: &[u8]) {
+    let input = source(text);
+    let project = zil_driver::ProjectSources {
+        root: input.module_id,
+        paths: std::collections::BTreeMap::from([(vec!["main".into()], input.module_id)]),
+        modules: vec![input.clone()],
+    };
+    let options = CompileOptions::default();
+    let mut session = zil_driver::CompilationSession::default();
+    for _ in 0..2 {
+        let report = session.compile_source(&input, &options);
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -42,8 +18,37 @@ fn g447_runtime_ct_source_project_and_native() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        review329_native_entry_output(&[("main", text)], "main", expected);
     }
+    let report = zil_driver::compile_project(&project, &options);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", expected);
+}
+
+#[test]
+fn g447_runtime_ct_mixed_life_source_project_native() {
+    runtime_source_project_native(include_str!("../ct5-mixed-runtime-instance.zil"), b"42\n");
+}
+
+#[test]
+fn g447_runtime_ct_multiple_instances_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-multiple-instances.zil"),
+        b"16\n",
+    );
+}
+
+#[test]
+fn g447_runtime_ct_const_without_life_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-const-without-life.zil"),
+        b"8\n",
+    );
 }
 
 #[test]
