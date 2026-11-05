@@ -1,0 +1,157 @@
+{
+  "review": "G8.6.1.1 independent finite Verify/frame and internal-read-view review",
+  "reviewer": "g8_3 (non-author of this Enum-frame production/test slice)",
+  "result": "LimitedPass",
+  "tested_commit": "a516dcbbc68608269f51ba1adc5dba598891faae",
+  "final_docs_commit": "c3a1b606171124a37511a96466cb60bd75c6fcb1",
+  "production_source_checkpoint": "85a3f6dceeb4698e59f1401bf63ace1bb712536e",
+  "verify_production": "c602238b14d785c78dfd7831a8796e9c19cf6826",
+  "verify_tests": "77acbf4365fa4682557764dfd9f57278b61adeb4",
+  "binding": {
+    "review_tree": "/workspace/zil-G8.6.1.1-review",
+    "tree_clean": true,
+    "docs_seal_diff": [
+      ".task/G8.6.1.md"
+    ],
+    "production_and_zil_source_byte_equal_to_85a3": true,
+    "files": {
+      "crates/zil-verify/src/tasks/owned.rs": "36f6241877990d561b6cbbb666f5357a6aac06110a9176f7ac158012301d70ff",
+      "crates/zil-verify/src/resources/task_frames.rs": "9c8711454b963760f1b7fe230e9b5fe3c1fc1cdd0ea2b06daa3326f85f6cf47b",
+      "crates/zil-analyze/src/tasks/owned.rs": "12c38a5fa96f50694eefe4cdec8cecb69989a445a1b1fe62d6108cdbcb37e7ab",
+      "tests/language-readiness/task-composition/G8.6.1/verify_frames.rs": "0a4ff6f762c39c7d76467145746ba55edf551ce6c4540e08b8500ba33e25bdd3",
+      "tests/language-readiness/task-composition/G8.6.1/source_consumers.rs": "d3f3d0bd37a439f074a971330d3be0c94c4d499e69990c831fa91c96cc291cce",
+      "tests/language-readiness/task-composition/G8.6.1/analyze_frames.rs": "c2802337c950a4c1ea6274c76345c23a54320dde39418f5d0d6bcd33ba65f5a1",
+      "tests/language-readiness/task-composition/G8.6.1/owned-enum-view-same-poll.zil": "f70c04b7f29eeb5b87e5ca6b31bd80e27dc871759d51a5efa71e43c5ac56c271",
+      "tests/language-readiness/task-composition/G8.6.1/owned-enum-view-across-yield.zil": "c610d9e53af4be1d03c279cc9e472c03238802efd97682071da4bef1d91c9ec0"
+    }
+  },
+  "build": {
+    "target": "/workspace/.zil-env/target-review-G8.6.1.1",
+    "target_absent_before_build": true,
+    "fresh_review_worktree": true,
+    "jobs": 2,
+    "source": "/workspace/zil-G8.6.1.1-review",
+    "command": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-review-G8.6.1.1 TMPDIR=/workspace/.zil-env/G8.6.1.1-review-tmp cargo test --locked --offline -p zil-driver --test generic_regressions --features llvm-api --no-run -j2",
+    "result": "exit0; all language crates compiled in this fresh namespace; no mutable author cache used",
+    "binary": "/workspace/.zil-env/target-review-G8.6.1.1/debug/deps/generic_regressions-6ecdb24ac684ead8",
+    "binary_sha256": "5c8931ddbae0ea17fe546af7e8484cb74340d91f92d678ad9758a17158dffda1"
+  },
+  "execution": {
+    "main_command": "<fresh binary> g861 --skip g861_complete_enum_native_whole_slot_lifecycle --skip g861_complete_enum_actual_backend_growth --nocapture --test-threads=1",
+    "main_tests": 18,
+    "main_failed": 0,
+    "breakdown": {
+      "independent_Verify_source_derived_raw_wire": 11,
+      "Analyze_actual_source_and_resource_neighbors": 2,
+      "whole_Source_native_request_cache_kernel_fences": 5
+    },
+    "old_exact_budget_tests": [
+      {
+        "filter": "general_task343::owned_task343_exact_kernel_ledger_covers_frame_obligations",
+        "exit": 0
+      },
+      {
+        "filter": "general_task343::general_task343_exact_kernel_work_boundary",
+        "exit": 0
+      },
+      {
+        "filter": "general_task343::owned_child343_actual_frame_result_width_and_kernel_work_boundaries",
+        "exit": 0
+      }
+    ],
+    "total_unique_harness_tests": 21,
+    "failed": 0,
+    "strict_clippy": "cargo clippy --locked --offline -p zil-verify --lib -j2 -- -D warnings; exit0",
+    "fmt": "cargo fmt --all -- --check; exit0",
+    "diff_check": "git diff --check; exit0"
+  },
+  "independent_evidence": [
+    "Source-derived actual Suspend Typed, original SSA/Holds, and restored current module fingerprint are untrusted candidates: Verify separately reconstructs full actual resource/current-tag/loan and TaskOwnership responsibilities. Ordinary Direct+Unit Analyze/Verify construction is not a Source-to-native proof.",
+    "Whole Enum Local/Value remains exactly one actual root owner debt. Full covered inventory is checked; duplicate canonical owner rejected. Make consumes prepared fields; Unpack unlinks whole root then links actual owning destinations in reverse field initialization order, not LocalId order.",
+    "New PlaceTagLocal admission is only in the independently qualified enum_frame path, after paid payload traversal, on actual owning Enum local and empty path. It grants no tag/loan authority by type. No generic global projection or storage whitelist expansion.",
+    "Three actual view shapes (same-poll, cross-yield, runtime-selected equal-payload tags) pass both original SourceTag and equivalent rawTag routes under raw and Wire with one complete root owner retained.",
+    "Runtime-selected wrongtag and missing actual guard each raw/Wire reject at E-VERIFY-SUM; live-view parent Drop/Move and prepared parent retag raw/Wire reject at E-BORROW-CONFLICT. No invalid candidate is compiled or executed.",
+    "Actual Drop entry wrong resource and foreign reject RESOURCE; Suspend cleanup rejects TASK. Duplicate/missing debt, initialization, and repeated target controls retain exact independent errors.",
+    "Real original Source reaches Analyze for eight completion/cancel/prepare/view shapes; two live-view root move/drop Sources reject Analyze. Source fences preserve owning input/results and non-i32 new profile limits. Source retag remains earlier Types rejection and is not counted as an Analyze retag proof.",
+    "Internal read-view native function ran 16 actual build configurations and 32 subprocesses: two Sources x complete/cancel x Clang/LLVM API x O0/O2, each runtime L/R. Both Ready165/265 and lifecycle trace/exit/post-close rejection checked; samepoll PAR, crossyield PQAR, cancel PA. No backend fallback.",
+    "Separate semantic cache sequence made eight actual Build requests and ran eight executables; verified outputs plus required warm/revert disk hits, verification_runs=1 each, and five actual disk candidates decoded then independently checked through raw and Wire. These repeated/cache runs are reported separately from the 32 view matrix executions.",
+    "Known-constructor no-observation guard probe fails existing generic-place current-tag contract even in ordinary Direct; final test records exact SUM rejection, not a positive and not a new Task regression."
+  ],
+  "budgets": {
+    "verify_pair_raw_and_wire": 55574,
+    "whole_actual_source_kernel": {
+      "Types": 2859,
+      "Analyze": 38128,
+      "Verify": 72399
+    },
+    "internal_view_actual_source_kernel": {
+      "Types": 9375,
+      "Analyze": 574279,
+      "Verify": 531871
+    },
+    "whole_request": {
+      "work": 72399,
+      "nodes": 1968,
+      "bytes": 888,
+      "depth": 11
+    },
+    "internal_view_request": {
+      "work": 574279,
+      "nodes": 3696,
+      "bytes": 1448,
+      "depth": 13
+    },
+    "new_boundary_checks": "actual N success / N-1 ResourceLimit / fresh retry; whole request four ledgers also cold/warm/fresh/current request",
+    "old_owned_task": {
+      "Analyze": 15417,
+      "Verify": 34458
+    },
+    "old_general_task": {
+      "Analyze": 13646,
+      "Verify": 41459
+    },
+    "old_child": {
+      "width8": [
+        28407,
+        71406,
+        347962
+      ],
+      "width16": [
+        42706,
+        119577,
+        445698
+      ],
+      "width0": [
+        31795,
+        95937,
+        347559
+      ]
+    },
+    "static_accounting": "Type traversal and clone/coverage/action reorder preflight use current Budget; no reset or metadata-created authority observed. Old Task controls exact unchanged."
+  },
+  "scope_and_limits": [
+    "Limited to complete finite ordinary owning Enum local/SSA closed Task<i32> frames and actual internal shared read views; not full G8.6, language safety, Rust parity or product net breakthrough.",
+    "External borrowed Sum frame ports, incoming owning Enum, partial Sum ownership, owning/non-i32 new results, embedded unsupported Package/Store/Closure/pollable roots remain closed. Mutable internal views untested.",
+    "Live-view retag is rejected; this does not prohibit otherwise legal full Drop/Store reinitialization after the ordinary loan ends.",
+    "g1 independent physical-frame/Analyze+machine review is separate. This review statically checked Verify canonical owner responsibility and independently exercised source/native, but does not replace g1 stable-heap-frame LLVM pointer-chain audit with runtime success.",
+    "Original whole-slot 60-native matrix and backend-growth filter were deliberately skipped; author results are not counted as independently rerun. No full workspace/lib suite or formal gate was run. Author Verify377/library and whole20 counts are not included.",
+    "No tracked author source was edited, no schema/ABI/default budget changed, no production commit was created by reviewer."
+  ],
+  "observations": [
+    {
+      "kind": "resolved_scope_precision",
+      "detail": "Initial real Source samepoll/crossyield both stopped at PlaceTagLocal whitelist, not demonstrated loan error. Equivalent raw VariantTagLocal path passed. Root-authorized c602 narrowly admits actual whole root empty-path tag reads; real Source/native and exact wrongtag/lifetime controls now independently pass."
+    }
+  ],
+  "blocking_findings": [],
+  "artifacts": {
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/build.log": "c5743a40fd99a7134aef9fb0bb3dec9d27e8b3bf9d068f513ccab3fa706af5df",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/g861.log": "0ca470c0365be45eb5c57cb3d97338d17383dcd59feaaee87ab86449c7af1b0e",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/old-budget-0.log": "ceb3e0aedb06b06bfec0ffdaa834308ad5db5687e7e20f6e8fb6a90b752ac94b",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/old-budget-1.log": "95ee7cdb21cd06224e6a4894e7d4c0c14182c45e49afd82cd27fd6be6753e852",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/old-budget-2.log": "05ac7cd78e68b33066129700274545578234e01a761224e59d3498e02eb8c94a",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/old-budgets.json": "091b268947c3710a1ecf08d59359efc62b747f93dcbcde7ea15bb9f5df2decd5",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/clippy-verify.log": "c33f70ee4c4cc288ad4e1e41424ffa28f30f0f4b79816a74df6971d8159218b4",
+    "/workspace/.zil-env/G8.6.1.1-review-tmp/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  }
+}

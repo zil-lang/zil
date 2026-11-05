@@ -264,5 +264,7 @@
     "only_production_delta": "Ledger.consume nested if -> equivalent short-circuit &&; matching row still updates selected in the same order and second match rejects. Exact diff statically reviewed.",
     "tests_changed": false,
     "final_rebuild": "actual expand and Driver rebuilt from final review tree; all four test executables final-bound and rerun"
-  }
+  },
+  "current_disposition": "SupersededPendingRevision: author and non-author reproduced actual Source phantom-data lifetime false acceptance after this limited review. Original run results retained; this receipt does not authorize final integration.",
+  "blocking_source": "G3.3.4-tmp/phantom-data-frontier.zil; independent phantom-before-fix.log"
 }

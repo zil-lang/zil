@@ -1,0 +1,29 @@
+{
+  "task": "G4.4.2.1",
+  "composition_head": "e975481b3d7f0ae211d5d64e1f5eb18da33f7b60",
+  "source_test_commit": "a516dcbbc68608269f51ba1adc5dba598891faae",
+  "delivery": "c3a1b606171124a37511a96466cb60bd75c6fcb1",
+  "verify_author_docs": "8dbd881a0871d4d20b55740e5953c29a1482c618",
+  "independent_reviews": [
+    {
+      "path": "G8.6.1-independent-review.json",
+      "sha256": "0c2dedca0b738f9db820a56b9c486452cf975acff8c14af6cf52081eb68114b1"
+    },
+    {
+      "path": "G8.6.1-physical-review.json",
+      "sha256": "99b41603524e5e5f1ad6d5128f059a5c9bec3d3600dc589eead843a1aef54aad"
+    }
+  ],
+  "reviewed_files_byte_equal": {
+    "crates/zil-verify/src/tasks/owned.rs": "36f6241877990d561b6cbbb666f5357a6aac06110a9176f7ac158012301d70ff",
+    "crates/zil-verify/src/resources/task_frames.rs": "9c8711454b963760f1b7fe230e9b5fe3c1fc1cdd0ea2b06daa3326f85f6cf47b",
+    "crates/zil-analyze/src/tasks/owned.rs": "12c38a5fa96f50694eefe4cdec8cecb69989a445a1b1fe62d6108cdbcb37e7ab",
+    "tests/language-readiness/task-composition/G8.6.1/verify_frames.rs": "0a4ff6f762c39c7d76467145746ba55edf551ce6c4540e08b8500ba33e25bdd3",
+    "tests/language-readiness/task-composition/G8.6.1/source_consumers.rs": "d3f3d0bd37a439f074a971330d3be0c94c4d499e69990c831fa91c96cc291cce",
+    "tests/language-readiness/task-composition/G8.6.1/analyze_frames.rs": "c2802337c950a4c1ea6274c76345c23a54320dde39418f5d0d6bcd33ba65f5a1",
+    "tests/language-readiness/task-composition/G8.6.1/owned-enum-view-same-poll.zil": "f70c04b7f29eeb5b87e5ca6b31bd80e27dc871759d51a5efa71e43c5ac56c271",
+    "tests/language-readiness/task-composition/G8.6.1/owned-enum-view-across-yield.zil": "c610d9e53af4be1d03c279cc9e472c03238802efd97682071da4bef1d91c9ec0"
+  },
+  "scope": "Complete ordinary owning Enum local/SSA Task<i32> frames and internal shared read views; general owned results, external borrowed frame ports and partial Sum remain incomplete.",
+  "root_acceptance": "Pending common gates; independent slice counts not added to formal suite counts"
+}
