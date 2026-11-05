@@ -46,10 +46,11 @@ impl CtArtifactAuthority for FrozenAuthority<'_> {
     }
     fn authorized_runtime_scope_root(
         &self,
+        index: usize,
         scope: &zil_ir::ct_artifact::CtAmbientLifeScope,
     ) -> bool {
         self.invocation_context
-            .is_some_and(|context| context.authorized_runtime_scope_root(scope))
+            .is_some_and(|context| context.authorized_runtime_scope_root(index, scope))
     }
     fn type_context_count(&self) -> Option<usize> {
         self.invocation_context

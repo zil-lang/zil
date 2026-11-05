@@ -146,6 +146,47 @@ impl<'a> Compiler<'a> {
         Ok(id)
     }
 
+    fn runtime_literal_argument_type(
+        &mut self,
+        expression: &s::Expr,
+        depth: usize,
+    ) -> R<CtTypeRef> {
+        self.budget.depth(depth, expression.span)?;
+        self.budget.node(expression.span)?;
+        let scalar = match &expression.kind {
+            s::ExprKind::Group(inner) => {
+                return self.runtime_literal_argument_type(inner, depth + 1);
+            }
+            s::ExprKind::Literal(s::Literal::Bool(_)) => CtScalarTy::Bool,
+            s::ExprKind::Literal(s::Literal::Integer(text)) => {
+                self.budget.text(text, expression.span)?;
+                let constant =
+                    zil_types::parse_integer_literal(text, None, false, expression.span)?;
+                let CtTy::Scalar(scalar) = expr::scalar_constant(&constant) else {
+                    unreachable!()
+                };
+                scalar
+            }
+            _ => {
+                return Err(forbidden(
+                    expression.span,
+                    "runtime CT inference requires an independently typed original source argument",
+                ));
+            }
+        };
+        Budget::take(
+            &mut self.budget.bytes,
+            std::mem::size_of::<CtTypeNode>(),
+            expression.span,
+            "runtime CT inferred literal graph exhausted",
+        )?;
+        Ok(CtTypeRef {
+            nodes: vec![CtTypeNode::Primitive(scalar)],
+            root: CtTypeNodeId(0),
+            ambient_classes: Vec::new(),
+        })
+    }
+
     fn bind_runtime_frame(
         &mut self,
         definition: &CtSymbolId,
@@ -205,24 +246,39 @@ impl<'a> Compiler<'a> {
         let source_sites::SourceNode::Expr(call_expression) = call.node else {
             return Err(error(span, "runtime CT call site is not an expression"));
         };
-        let s::ExprKind::Call { callee, .. } = &call_expression.kind else {
+        let s::ExprKind::Call {
+            callee,
+            arguments: value_arguments,
+        } = &call_expression.kind
+        else {
             return Err(error(span, "runtime CT actual source site is not a call"));
         };
-        let s::ExprKind::TypeApply { arguments, .. } = &callee.kind else {
-            return Err(error(
-                span,
-                "runtime CT requires an explicit original source vector",
-            ));
+        let mut callee = callee.as_ref();
+        while let s::ExprKind::Group(inner) = &callee.kind {
+            self.budget.node(inner.span)?;
+            callee = inner;
+        }
+        let arguments = match &callee.kind {
+            s::ExprKind::TypeApply { arguments, .. } => Some(arguments.as_slice()),
+            _ => None,
         };
-        if arguments.len()
-            != parameters
-                .iter()
-                .filter(|p| !matches!(p.kind, s::GenericParamKind::Lifetime))
-                .count()
-        {
+        if let Some(arguments) = arguments {
+            if arguments.len()
+                != parameters
+                    .iter()
+                    .filter(|p| !matches!(p.kind, s::GenericParamKind::Lifetime))
+                    .count()
+            {
+                return Err(error(
+                    span,
+                    "runtime CT original explicit Type/Const vector arity differs",
+                ));
+            }
+        }
+        if arguments.is_none() && value_arguments.len() != original.function.params.len() {
             return Err(error(
                 span,
-                "runtime CT original explicit Type/Const vector arity differs",
+                "inferred runtime CT original value argument arity differs",
             ));
         }
         let caller_module = self.module_index(caller.module, span)?;
@@ -264,7 +320,7 @@ impl<'a> Compiler<'a> {
             "runtime CT pending actual vector exhausted",
         )?;
         actuals.reserve_exact(parameters.len());
-        let mut explicit = arguments.iter();
+        let mut explicit = arguments.unwrap_or(&[]).iter();
         for (ordinal, (parameter, recipe)) in parameters.iter().zip(recipes).enumerate() {
             self.budget.node(span)?;
             if let s::GenericParamKind::Lifetime = parameter.kind {
@@ -276,6 +332,51 @@ impl<'a> Compiler<'a> {
                     ));
                 }
                 actuals.push(None);
+                continue;
+            }
+            if arguments.is_none() {
+                let s::GenericParamKind::Type(_) = parameter.kind else {
+                    return Err(error(
+                        span,
+                        "inferred runtime CT const slots require an independently reconstructed source rule",
+                    ));
+                };
+                if !matches!(recipe, A::Type(_)) {
+                    return Err(error(span, "inferred runtime CT recipe kind differs"));
+                }
+                self.generic_names(std::slice::from_ref(parameter), &[], parameter.span)?;
+                let mut inferred = None;
+                for (formal, actual) in original.function.params.iter().zip(value_arguments) {
+                    self.budget.node(actual.span)?;
+                    if actual.spread {
+                        return Err(error(
+                            span,
+                            "inferred runtime CT spread arguments require original binding reconstruction",
+                        ));
+                    }
+                    let s::TypeKind::Named { path, args } = &formal.ty.kind else {
+                        continue;
+                    };
+                    if path.len() != 1 || !args.is_empty() || path[0] != parameter.name {
+                        continue;
+                    }
+                    let graph = self.runtime_literal_argument_type(&actual.value, 0)?;
+                    self.metadata_copy(&graph, 0, span)?;
+                    if let Some(previous) = &inferred {
+                        self.budget.metadata(previous, span)?;
+                        self.budget.metadata(&graph, span)?;
+                        if previous != &graph {
+                            return Err(error(
+                                span,
+                                "inferred runtime CT source Type constraints disagree",
+                            ));
+                        }
+                    } else {
+                        inferred = Some(graph);
+                    }
+                }
+                let inferred = inferred.ok_or_else(|| error(span,"runtime CT Type binder has no independently inferred original source constraint"))?;
+                actuals.push(Some(CtScopeActual::Type(inferred)));
                 continue;
             }
             let argument = explicit

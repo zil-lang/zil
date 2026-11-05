@@ -1378,7 +1378,7 @@ CT6 的 `CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>` 显式保留实
 
 带上下文 Type 的执行、调用返回、缓存运输和重实体化必须保留共同 ValueContext，沿已核真实来源保持关系，不将抽出的节点重新命名为自由 life。VM 对入口、构造及结果继续调用独立受计费图核验；不能仅删除 ambient 拒绝条件。完整图扫描、源码定位、比较、克隆、参数替换、失败和容量增长在执行前使用同一请求剩余额度计费；旧无上下文路径不因新指令额外构造账本。
 
-运行时泛型体的 CT 入口只可由独立冻结消费者在实际原始 Call、callee 原 Definition、完整 Type/Const/Life 实参及原 CT 子表达式根全部核验后，授予精确的 Definition/Instantiated scope 根。`authorized_runtime_scope_root` 默认拒绝，计数接口只提供比较费用上界；同形图和生产者 recipe 不授予权限。无 life 参数的真实实例仍须同样认证。授权根不豁免参数种类、完整向量、有限无环依赖、first-use 或 unused-row 检查；额外无关行、声明/ordinal 替换及重排均须拒绝，完整图比较和遍历预付。
+运行时泛型体的 CT 入口只可由独立冻结消费者在实际原始 Call、callee 原 Definition、完整 Type/Const/Life 实参及原 CT 子表达式根全部核验后，授予绑定完整行及原始行位置的精确 Definition/Instantiated scope 根。已核父链根先于入口 Type 图建立 first-use，不能仅按未核 raw 顺序授信。`authorized_runtime_scope_root` 默认拒绝，计数接口只提供比较费用上界；同形图和生产者 recipe 不授予权限。无 life 参数的真实实例仍须同样认证。授权根不豁免参数种类、完整向量、有限无环依赖、first-use 或 unused-row 检查；额外无关行、声明/ordinal 替换及重排均须拒绝，完整图比较和遍历预付。
 
 CT6 的 artifact/program/provider/dependency/function/value 版本域和专用封包同步迁移，拒绝旧 CT5 字节作为新版输入；运行时 schema/Wire 不因这条 CT 专用指令变更。上述为后继实施合同，公共表示可运输不代表泛型宿主、生成声明、运行时泛型体 CT 相位或完整语言已经验收；各项仍须真实源码、独立反例、预算边界及机器消费者证据。
 

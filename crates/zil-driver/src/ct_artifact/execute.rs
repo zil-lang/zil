@@ -814,7 +814,13 @@ impl<'a> Environment<'a> {
                 .as_mut()
                 .and_then(Arc::get_mut)
                 .ok_or_else(|| error("runtime CT requires its frozen original invocation", span))?
-                .extend_runtime_entry(source, &expected, &self.index, &mut self.budget)?;
+                .extend_runtime_entry(
+                    source,
+                    &source_bindings.runtime_frames,
+                    &expected,
+                    &self.index,
+                    &mut self.budget,
+                )?;
         }
         if !source_bindings.calls.is_empty() || !source_bindings.relocations.is_empty() {
             let context = invocation_context

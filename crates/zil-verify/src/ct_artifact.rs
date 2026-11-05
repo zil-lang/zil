@@ -43,7 +43,7 @@ pub trait CtArtifactAuthority {
     }
     /// Permit only complete rows reconstructed from the frozen runtime call.
     /// This does not waive kind, full-vector, dependency or first-use checks.
-    fn authorized_runtime_scope_root(&self, _scope: &CtAmbientLifeScope) -> bool {
+    fn authorized_runtime_scope_root(&self, _index: usize, _scope: &CtAmbientLifeScope) -> bool {
         false
     }
     /// Request-local inventory bound for the source authority's scope lookup.

@@ -246,7 +246,7 @@ pub(super) fn check(
                     .saturating_mul(root_bound),
                 None,
             )?;
-            roots[index] = authority.authorized_runtime_scope_root(scope);
+            roots[index] = authority.authorized_runtime_scope_root(index, scope);
         }
         for (prior_index, prior) in raw.ambient_life_scopes[..index].iter().enumerate() {
             meter.charge(
@@ -356,6 +356,17 @@ pub(super) fn check(
         weights,
         lookup_bound,
     };
+    // Runtime entry execution first establishes its independently checked
+    // parent-chain roots. Their exact row IDs are authenticated as well as
+    // their complete graphs; arbitrary raw order cannot replace that order.
+    if let Some(roots) = runtime_roots {
+        visit.meter.charge(count, None)?;
+        for (index, authorized) in roots.into_iter().enumerate() {
+            if authorized && visit.state[index] != 2 {
+                visit.scope(index, 0)?;
+            }
+        }
+    }
     for (arguments, context) in raw
         .record_schemas
         .iter()
@@ -398,14 +409,6 @@ pub(super) fn check(
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
                 visit.graph(ty, 0)?;
-            }
-        }
-    }
-    if let Some(roots) = runtime_roots {
-        visit.meter.charge(count, None)?;
-        for (index, authorized) in roots.into_iter().enumerate() {
-            if authorized && visit.state[index] != 2 {
-                visit.scope(index, 0)?;
             }
         }
     }
