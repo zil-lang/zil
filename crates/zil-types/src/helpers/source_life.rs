@@ -206,7 +206,8 @@ fn tag(ty: &Type) -> Option<&StorageLifeShape> {
     };
     (matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
         && life.binder_count == 1
-        && life.retained.is_empty())
+        && life.retained.is_empty()
+        && matches!(life.slots.as_slice(),[slot] if slot.binder==0 && slot.mode==StoredBorrowMode::SharedAddress))
     .then_some(life)
 }
 
