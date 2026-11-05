@@ -741,6 +741,23 @@ fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
         "{}",
         report.to_json()
     );
+    // Run shared/mutable same-F independently of the additional Once adaptation.
+    let shared_mutable = text
+        .replace("all_once(a,b,c,left)+", "")
+        .replace("setup(&x)-387", "setup(&x)-261");
+    let separate = compile_source(
+        &source(&shared_mutable),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        separate.status,
+        ResultCategory::Success,
+        "{}",
+        separate.to_json()
+    );
     let core = g334_core(text);
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let mut roles_seen = 0;

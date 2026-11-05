@@ -383,9 +383,14 @@ pub(super) fn types(
     if d.storage_life.is_some()
         && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
         && d.kind != zil_ir::CallableKind::FnOnce
+        && (!matches!(
+            d.kind,
+            zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+        ) || !scalar(&d.result)
+            || !d.lending_captures.is_empty())
     {
         return Err(unsupported(
-            "captured Fixed Once adaptation requires actual owning mode accounting",
+            "captured Fixed Once adaptation requires an actual nonlending scalar entry",
             Some(i.span),
         ));
     }
