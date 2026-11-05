@@ -3,7 +3,7 @@ fn peek<life s,life env,F:Fn(&Tag<'s>)->&i32>(f:&'env F,x:&Tag<'s>)->&'env i32{r
 fn apply<life s>(left:&Tag<'s>)->i32{
     let zero=0;
     var saved=&zero;
-    {
+    if true {
         let value=42;
         let first=move(p:&Tag<'s>)=>{let observed=*p.p+*left.p;observed;return &value};
         saved=peek(&first,left);
