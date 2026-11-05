@@ -53,24 +53,28 @@ fn g447_runtime_ct_const_without_life_source_project_native() {
 
 #[test]
 fn g447_runtime_ct_checks_unused_definitions() {
-    let capture = include_str!("../ct6-runtime-unused-ct-capture-reject.zil");
-    let report = compile_source(&source(capture), &CompileOptions::default());
-    assert_eq!(
-        report.status,
-        ResultCategory::SafeReject,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.code == "E-CT-SOURCE" || d.code == "E-CT-RUNTIME"),
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 0);
+    for capture in [
+        include_str!("../ct6-runtime-unused-ct-capture-reject.zil"),
+        "fn helper(n:i32)->i32{let address=&n;return n}fn unused<T:Copy,#N:i32>(marker:T)->i32{return #(helper(7))}fn main()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(capture), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-CT-SOURCE" || d.code == "E-CT-RUNTIME"),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
 
     // CT result typing does not excuse the surrounding parametric body.
     let ordinary = "fn unused<T:Copy,#N:i32>(marker:T)->T{let n=#(N+1);return marker+marker}fn main()->i32{return 0}";
@@ -145,4 +149,20 @@ fn g447_runtime_ct_instances_share_all_request_ledgers() {
             "G4.4.7 runtime multiple instances {ledger} N={boundary}; N-1/cold/warm/fresh agree"
         );
     }
+}
+
+#[test]
+fn g447_runtime_ct_qualified_type_actual_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-qualified-type-actual.zil"),
+        b"8\n",
+    );
+}
+
+#[test]
+fn g447_runtime_ct_qualified_type_value_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-qualified-type-value.zil"),
+        b"8\n",
+    );
 }

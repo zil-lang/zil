@@ -19,7 +19,14 @@ pub(super) struct AuthenticatedSchemaSite {
     schema: u32,
     graph: CtTypeRef,
 }
+struct NominalEnvironment<'a> {
+    definition: &'a CtSymbolId,
+    parameters: &'a [s::GenericParam],
+    arguments: &'a [CtSchemaArgument],
+    graph: Option<&'a CtTypeRef>,
+}
 pub(super) struct SourceEnvironment<'a> {
+    nominal: Option<NominalEnvironment<'a>>,
     function: &'a s::Function,
     scope: &'a CtAmbientLifeScope,
     scope_id: CtAmbientScopeId,
@@ -262,6 +269,7 @@ impl FrozenInvocationContext {
             None
         };
         Ok(SourceEnvironment {
+            nominal: None,
             function,
             scope,
             scope_id,
@@ -471,6 +479,9 @@ impl FrozenInvocationContext {
             _ => None,
         };
         if let Some(name) = binder {
+            if env.nominal.is_some() {
+                return self.nominal_scalar(name, domain, env, budget);
+            }
             let (ordinal, p, actual_scope, _) = parameter(env, name, budget)?;
             let s::GenericParamKind::Const(ty) = &p.kind else {
                 return Err(unsupported(
@@ -526,6 +537,25 @@ impl FrozenInvocationContext {
         env: &SourceEnvironment<'_>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtAmbientLifeReference> {
+        if let Some(nominal) = &env.nominal {
+            let (parameter, actual) =
+                self.nominal_parameter(name, nominal, budget)?
+                    .ok_or_else(|| {
+                        unsupported("CT nominal field life is not an original complete parameter")
+                    })?;
+            if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                return Err(unsupported(
+                    "CT nominal field life selects another complete generic kind",
+                ));
+            }
+            let CtSchemaArgument::Lifetime(actual) = actual else {
+                return Err(unsupported("CT nominal field life actual has another kind"));
+            };
+            let graph = nominal.graph.ok_or_else(|| {
+                unsupported("CT nominal field life has no authentic parent graph")
+            })?;
+            return self.graph_lifetime(graph, *actual, budget);
+        }
         let (ordinal, p, _, scope_id) = parameter(env, name, budget)?;
         if !matches!(p.kind, s::GenericParamKind::Lifetime) {
             return Err(unsupported(
@@ -536,6 +566,55 @@ impl FrozenInvocationContext {
             scope: scope_id,
             parameter: ordinal as u32,
         })
+    }
+    fn nominal_parameter<'a>(
+        &self,
+        name: &str,
+        nominal: &'a NominalEnvironment<'a>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<(&'a s::GenericParam, &'a CtSchemaArgument)>> {
+        for (ordinal, parameter) in nominal.parameters.iter().enumerate().rev() {
+            if eq_text(name, &parameter.name, budget)? {
+                let actual = nominal.arguments.get(ordinal).ok_or_else(|| {
+                    unsupported("CT nominal field actual loses its original full ordinal")
+                })?;
+                return Ok(Some((parameter, actual)));
+            }
+        }
+        Ok(None)
+    }
+    fn nominal_scalar(
+        &self,
+        name: &str,
+        domain: CtScalarTy,
+        env: &SourceEnvironment<'_>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<zil_ir::Constant> {
+        let nominal = env.nominal.as_ref().ok_or_else(|| {
+            unsupported("CT nominal scalar has no authentic parameter environment")
+        })?;
+        let (parameter, actual) =
+            self.nominal_parameter(name, nominal, budget)?
+                .ok_or_else(|| {
+                    unsupported("CT nominal field scalar is not an original complete parameter")
+                })?;
+        let s::GenericParamKind::Const(ty) = &parameter.kind else {
+            return Err(unsupported(
+                "CT nominal field scalar selects another complete generic kind",
+            ));
+        };
+        if scalar_domain(ty, budget)? != domain {
+            return Err(unsupported(
+                "CT nominal field scalar domain differs from its original parameter",
+            ));
+        }
+        let CtSchemaArgument::Scalar(value) = actual else {
+            return Err(unsupported(
+                "CT nominal field scalar actual has another kind",
+            ));
+        };
+        budget.reserve_analysis_work(32)?;
+        Ok(value.clone())
     }
     fn graph_lifetime(
         &self,
@@ -693,7 +772,38 @@ impl FrozenInvocationContext {
                 }
                 return Err(unsupported("CT source primitive Type differs"));
             }
-            if let Ok((ordinal, p, actual_scope, _)) = parameter(env, &path[0], budget) {
+            if let Some(nominal) = &env.nominal {
+                if let Some((parameter, actual)) =
+                    self.nominal_parameter(&path[0], nominal, budget)?
+                {
+                    if !matches!(parameter.kind, s::GenericParamKind::Type(_)) {
+                        return Err(unsupported(
+                            "CT nominal field Type name selects another complete generic kind",
+                        ));
+                    }
+                    return match actual {
+                        CtSchemaArgument::Type(actual) => self.graph_subtype_equal(
+                            graph,
+                            id,
+                            actual,
+                            actual.root,
+                            budget,
+                            depth + 1,
+                        ),
+                        CtSchemaArgument::TypeInContext(actual) => {
+                            let parent = nominal.graph.ok_or_else(|| {
+                                unsupported(
+                                    "CT nominal field Type actual has no authentic parent context",
+                                )
+                            })?;
+                            self.graph_subtype_equal(graph, id, parent, *actual, budget, depth + 1)
+                        }
+                        _ => Err(unsupported(
+                            "CT nominal field Type actual has another complete generic kind",
+                        )),
+                    };
+                }
+            } else if let Ok((ordinal, p, actual_scope, _)) = parameter(env, &path[0], budget) {
                 if matches!(p.kind, s::GenericParamKind::Type(_)) {
                     let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
                         return Err(unsupported(
@@ -717,13 +827,12 @@ impl FrozenInvocationContext {
                 }
             }
         }
-        let (symbol, item) = self.source_symbol(
-            &env.scope.declaration,
-            env.scope.declaration.module,
-            path,
-            index,
-            budget,
-        )?;
+        let declaration = env
+            .nominal
+            .as_ref()
+            .map_or(&env.scope.declaration, |nominal| nominal.definition);
+        let (symbol, item) =
+            self.source_symbol(declaration, declaration.module, path, index, budget)?;
         if let s::ItemKind::TypeAlias(alias) = &item.kind {
             if !alias.generics.is_empty() || !args.is_empty() {
                 return Err(unsupported(
@@ -867,6 +976,9 @@ impl FrozenInvocationContext {
         match &e.kind {
             s::ExprKind::Group(e) => self.source_scalar_expr(e, domain, env, budget, depth + 1),
             s::ExprKind::Name(name) => {
+                if env.nominal.is_some() {
+                    return self.nominal_scalar(name, domain, env, budget);
+                }
                 let (ordinal, p, actual_scope, _) = parameter(env, name, budget)?;
                 let s::GenericParamKind::Const(ty) = &p.kind else {
                     return Err(unsupported("CT source scalar name has another kind"));
@@ -1520,11 +1632,13 @@ impl FrozenInvocationContext {
             step(budget, 0)?;
             callee = inner;
         }
-        let s::ExprKind::TypeApply { callee, arguments } = &callee.kind else {
-            return Err(unsupported(
-                "CT source call omits its original complete explicit actuals",
-            ));
+        let (callee, explicit) = match &callee.kind {
+            s::ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee, None),
         };
+        let arguments = explicit.unwrap_or(&[]);
         let before = budget.live_temporary_bytes();
         let mut path = Vec::new();
         let result = (|| {
@@ -1550,6 +1664,11 @@ impl FrozenInvocationContext {
             budget.reserve_analysis_work(
                 (declaration.generics.len() + arguments.len() + call.actuals.len()) as u64,
             )?;
+            if explicit.is_none() && !declaration.generics.is_empty() {
+                return Err(unsupported(
+                    "CT source call omits its original complete explicit actuals",
+                ));
+            }
             if declaration.generics.len() != arguments.len()
                 || arguments.len() != call.actuals.len()
             {
@@ -1756,7 +1875,7 @@ impl FrozenInvocationContext {
             }
         }
         budget.reserve_analysis_work((facts.bindings.len() + facts.type_sites.len()) as u64)?;
-        for binding in &facts.bindings {
+        for (position, binding) in facts.bindings.iter().enumerate() {
             let graph = if binding.enumeration {
                 raw.enum_schemas
                     .get(binding.schema as usize)
@@ -1767,26 +1886,35 @@ impl FrozenInvocationContext {
                     .and_then(|s| s.life_context.as_ref())
             }
             .ok_or_else(|| unsupported("CT source nominal binding has no actual schema context"))?;
-            let site = binding.site.ok_or_else(|| {
-                unsupported("CT source nominal binding has no original structural site")
-            })?;
-            self.validate_entry_slice(site, &binding.definition, budget)?;
-            let location = self.source_location(site, budget)?;
-            let caller = binding.caller.ok_or_else(|| {
-                unsupported("CT source nominal binding lacks its actual function instance event")
-            })?;
-            let function = raw
-                .functions
-                .get(caller.0 as usize)
-                .ok_or_else(|| unsupported("CT source nominal function placement is absent"))?;
-            budget.reserve_analysis_work(32)?;
-            if function.definition != binding.definition {
-                return Err(unsupported(
-                    "CT source nominal function original owner differs",
-                ));
+            if binding.parent.is_some() {
+                self.validate_nominal_field_source(
+                    binding, position, facts, graph, raw, index, budget,
+                )?;
+            } else {
+                let site = binding.site.ok_or_else(|| {
+                    unsupported("CT source nominal binding has no original structural site")
+                })?;
+                self.validate_entry_slice(site, &binding.definition, budget)?;
+                let location = self.source_location(site, budget)?;
+                let caller = binding.caller.ok_or_else(|| {
+                    unsupported(
+                        "CT source nominal binding lacks its actual function instance event",
+                    )
+                })?;
+                let function = raw
+                    .functions
+                    .get(caller.0 as usize)
+                    .ok_or_else(|| unsupported("CT source nominal function placement is absent"))?;
+                budget.reserve_analysis_work(32)?;
+                if function.definition != binding.definition {
+                    return Err(unsupported(
+                        "CT source nominal function original owner differs",
+                    ));
+                }
+                let environment = self.function_environment(function, facts, raw, budget)?;
+                self.match_location(location, graph, &environment, raw, index, budget)?;
             }
-            let environment = self.function_environment(function, facts, raw, budget)?;
-            self.match_location(location, graph, &environment, raw, index, budget)?;
+            self.validate_nominal_schema_fields(binding, facts, raw, index, budget)?;
             let cost = super::super::execute::value_context::graph_cost(graph, budget)?
                 .saturating_add(std::mem::size_of::<AuthenticatedSchemaSite>() as u64);
             budget.reserve_temporary_bytes(cost)?;
@@ -1913,3 +2041,6 @@ impl FrozenInvocationContext {
 #[cfg(test)]
 #[path = "invocation_context_source_tests.rs"]
 mod tests;
+
+#[path = "invocation_context_schema_fields.rs"]
+mod schema_fields;

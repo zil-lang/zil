@@ -150,6 +150,20 @@ impl Compiler<'_> {
     }
 
     pub(super) fn ambient_actual(&mut self, name: &str, span: Span) -> R<CtAmbientLifeReference> {
+        if let Some(bindings) = &self.metadata_life_bindings {
+            for (bound, reference) in bindings {
+                self.budget
+                    .work(bound.len().min(name.len()).saturating_add(1), span)?;
+                if bound == name {
+                    return Ok(*reference);
+                }
+            }
+            return Err(error(
+                span,
+                "Copy field lifetime is absent from its original nominal declaration",
+            ));
+        }
+
         let scope = self.source_life_scope.as_ref().ok_or_else(|| {
             error(
                 span,
