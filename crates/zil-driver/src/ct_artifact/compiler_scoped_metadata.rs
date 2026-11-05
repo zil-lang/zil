@@ -106,8 +106,62 @@ impl<'a> Compiler<'a> {
         depth: usize,
         span: Span,
     ) -> R<CtTy> {
-        self.budget.depth(depth, span)?;
         let site = self.source_site_for_arguments(module, args, span)?;
+        let (context, actual_parameters, sources) =
+            self.source_scoped_nominal_graph(module, owner, item, args, depth, span)?;
+        let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
+        else {
+            unreachable!()
+        };
+        let CtTypeNode::Nominal { arguments, .. } = &context.nodes[storage.0 as usize] else {
+            unreachable!()
+        };
+        let mut schema_args = Vec::new();
+        for argument in arguments {
+            self.budget.node(span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtSchemaArgument>(),
+                span,
+                "CT scoped schema argument bytes exhausted",
+            )?;
+            schema_args.push(match argument {
+                CtTypeArgument::Type(id) => CtSchemaArgument::TypeInContext(*id),
+                CtTypeArgument::Scalar(value) => CtSchemaArgument::Scalar(value.clone()),
+                CtTypeArgument::Lifetime(value) => CtSchemaArgument::Lifetime(*value),
+            });
+        }
+        // Pay both the instance table and later private source-binding capture.
+        self.budget.metadata(&context, span)?;
+        self.budget.work(actual_parameters.len() + 32, span)?;
+        Budget::take(
+            &mut self.budget.bytes,
+            std::mem::size_of::<SourceLifeBinding>() + actual_parameters.len() * 4,
+            span,
+            "CT scoped source binding bytes exhausted",
+        )?;
+        let previous_site = self.current_nominal_site.replace(site);
+        let result = self.closed_nominal_context(
+            owner,
+            item,
+            schema_args,
+            Some((context, actual_parameters, sources)),
+            depth + 1,
+            span,
+        );
+        self.current_nominal_site = previous_site;
+        result
+    }
+    pub(super) fn source_scoped_nominal_graph(
+        &mut self,
+        module: usize,
+        owner: usize,
+        item: &'a s::Item,
+        args: &[s::GenericArg],
+        depth: usize,
+        span: Span,
+    ) -> R<(CtTypeRef, Vec<u32>, Option<Vec<CtAmbientLifeReference>>)> {
+        self.budget.depth(depth, span)?;
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(a) => &a.generics,
             s::ItemKind::Enum(e) => &e.generics,
@@ -120,7 +174,8 @@ impl<'a> Compiler<'a> {
             .source_life_scope
             .as_ref()
             .ok_or_else(|| error(span, "nominal lifetime has no actual lexical source owner"))?;
-        if scope.tree == source_sites::SourceTreeId::Original
+        if self.metadata_life_bindings.is_none()
+            && scope.tree == source_sites::SourceTreeId::Original
             && (scope.span.file != span.file
                 || span.start < scope.span.start
                 || span.end > scope.span.end)
@@ -346,48 +401,7 @@ impl<'a> Compiler<'a> {
             span,
         )?;
         self.budget.metadata(&context, span)?;
-        let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
-        else {
-            unreachable!()
-        };
-        let CtTypeNode::Nominal { arguments, .. } = &context.nodes[storage.0 as usize] else {
-            unreachable!()
-        };
-        let mut schema_args = Vec::new();
-        for argument in arguments {
-            self.budget.node(span)?;
-            Budget::take(
-                &mut self.budget.bytes,
-                std::mem::size_of::<CtSchemaArgument>(),
-                span,
-                "CT scoped schema argument bytes exhausted",
-            )?;
-            schema_args.push(match argument {
-                CtTypeArgument::Type(id) => CtSchemaArgument::TypeInContext(*id),
-                CtTypeArgument::Scalar(value) => CtSchemaArgument::Scalar(value.clone()),
-                CtTypeArgument::Lifetime(value) => CtSchemaArgument::Lifetime(*value),
-            });
-        }
-        // Pay both the instance table and later private source-binding capture.
-        self.budget.metadata(&context, span)?;
-        self.budget.work(actual_parameters.len() + 32, span)?;
-        Budget::take(
-            &mut self.budget.bytes,
-            std::mem::size_of::<SourceLifeBinding>() + actual_parameters.len() * 4,
-            span,
-            "CT scoped source binding bytes exhausted",
-        )?;
-        let previous_site = self.current_nominal_site.replace(site);
-        let result = self.closed_nominal_context(
-            owner,
-            item,
-            schema_args,
-            Some((context, actual_parameters, sources)),
-            depth + 1,
-            span,
-        );
-        self.current_nominal_site = previous_site;
-        result
+        Ok((context, actual_parameters, sources))
     }
     pub(super) fn registered_scoped_data_type(&mut self, graph: &CtTypeRef, span: Span) -> R<CtTy> {
         for (enumeration, count) in [(false, self.records.len()), (true, self.enums.len())] {

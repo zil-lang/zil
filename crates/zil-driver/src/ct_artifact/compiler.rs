@@ -339,8 +339,15 @@ pub(crate) struct SourceInstanceCall {
     pub enclosing: Option<CtAmbientScopeId>,
     pub site: source_sites::SourceSite,
 }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SourceSchemaId {
+    Record(CtRecordSchemaId),
+    Enum(CtEnumSchemaId),
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SourceLifeBinding {
+    /// Locator only: consumer replays this actual parent's original field Type.
+    pub parent: Option<SourceSchemaId>,
     pub enumeration: bool,
     pub schema: u32,
     pub caller: Option<CtFunctionId>,
@@ -387,7 +394,10 @@ struct Compiler<'a> {
     current_source_expr: Option<(usize, usize)>,
     current_source_type: Option<(usize, usize)>,
     current_nominal_site: Option<source_sites::SourceSite>,
+    source_nominal_parent: Option<SourceSchemaId>,
     metadata_ambient: Vec<CtAmbientClassBinding>,
+    metadata_graph_only: bool,
+    metadata_life_bindings: Option<Vec<(String, CtAmbientLifeReference)>>,
     generated_catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
     entry_source_site: Option<source_sites::SourceSite>,
     entry_source_expression: Option<&'a s::Expr>,
@@ -456,7 +466,10 @@ impl<'a> Compiler<'a> {
             current_source_expr: None,
             current_source_type: None,
             current_nominal_site: None,
+            source_nominal_parent: None,
             metadata_ambient: Vec::new(),
+            metadata_graph_only: false,
+            metadata_life_bindings: None,
             generated_catalog: None,
             entry_source_site: None,
             entry_source_expression: None,
