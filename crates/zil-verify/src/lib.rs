@@ -1334,7 +1334,18 @@ fn check_function_signature_type(
     budget: &mut Budget,
 ) -> Check<()> {
     if matches!(ty, Type::BorrowedStorage { .. }) {
-        return stored_flow::qualification(module, ty, &budget.limits.clone(), budget);
+        // The paid stored_flow::qualifications pass checks this same complete
+        // signature type after all local/value shape preflights. Do not repeat
+        // its deep nominal scan at every signature occurrence.
+        return if budget.stored_borrows {
+            Ok(())
+        } else {
+            Err(reject(
+                "E-VERIFY-STORED",
+                span,
+                "stored nominal type lacks its instance inventory",
+            ))
+        };
     }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
@@ -1381,8 +1392,15 @@ fn check_local_type(
     budget: &mut Budget,
 ) -> Check<bool> {
     if matches!(ty, Type::BorrowedStorage { .. }) {
-        stored_flow::qualification(module, ty, &budget.limits.clone(), budget)?;
-        return Ok(false);
+        return if budget.stored_borrows {
+            Ok(false)
+        } else {
+            Err(reject(
+                "E-VERIFY-STORED",
+                span,
+                "stored nominal type lacks its instance inventory",
+            ))
+        };
     }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(false);

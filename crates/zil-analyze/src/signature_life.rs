@@ -554,7 +554,9 @@ mod tests {
                 binder: StorageBinder::Invocation(0),
             }],
         };
-        assert!(capture_relation(&[], &[child.clone()], &Type::Unit, &contract).is_err());
+        assert!(
+            capture_relation(&[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+        );
         contract.fixed_binder_count = 1;
         contract.invocation_binder_count = 0;
         contract.classes[0].binder = StorageBinder::Fixed(0);
