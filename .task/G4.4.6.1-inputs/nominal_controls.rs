@@ -31,7 +31,7 @@ fn g4461_same_child_distinct_outer_relations_coexist() {
 fn g4461_actual_pure_fields_retained_source_raw_wire() {
     for text in [
         "struct Phantom<life a,T:Copy,#N:i32>{n:i32}struct View<life a>{p:&'a i32}struct Wrap<T:Copy>{value:T}fn result<life s>(p:&'s i32)->i32{let borrowed=View::<'s>{p:p};let w=Wrap::<Phantom<'s,i32,42>>{value:Phantom::<'s,i32,42>{n:42}};let copied=w.value;return copied.n+*borrowed.p}fn main()->i32{let n=0;return result(&n)}",
-        "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};let left=w.left;let right=w.right;return left.n+right.n}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
+        "struct Phantom<life a>{n:i32}struct View<life a>{p:&'a i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let borrowed=View::<'a>{p:p};let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};let left=w.left;let right=w.right;return left.n+right.n+*borrowed.p}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
     ] {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
@@ -119,8 +119,9 @@ fn g4461_actual_pure_fields_retained_source_raw_wire() {
                     Some((fi, bi, ii, *storage, i.span))
                 })
             })
-        });
-        if let Some((fi, bi, ii, address, span)) = location {
+        }).expect("each real field source must contain the borrowed View slot load used by the hostile ordinary-read control");
+        {
+            let (fi, bi, ii, address, span) = location;
             let mut hostile = raw.clone();
             let f = &mut hostile.functions[fi];
             let Type::Address { inner, .. } = &f.values[address.0 as usize] else {

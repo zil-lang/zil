@@ -159,14 +159,12 @@ fn walk(
                 },
             )?;
             fee(left, work, span)?;
-            if child.ty == *ty {
-                if selected.replace(child).is_some() {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        span,
-                        "Type actual has ambiguous complete nominal instances",
-                    ));
-                }
+            if child.ty == *ty && selected.replace(child).is_some() {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "Type actual has ambiguous complete nominal instances",
+                ));
             }
         }
         let child = selected.ok_or_else(|| {
