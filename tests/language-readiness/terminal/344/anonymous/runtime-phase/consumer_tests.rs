@@ -154,3 +154,11 @@ fn g447_runtime_ct_qualified_type_actual_source_project_native() {
         b"8\n",
     );
 }
+
+#[test]
+fn g447_runtime_ct_qualified_type_value_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-qualified-type-value.zil"),
+        b"8\n",
+    );
+}
