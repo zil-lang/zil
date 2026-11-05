@@ -2,7 +2,7 @@
   "task": "G4.4.6.3-backend",
   "date": "2026-11-05",
   "status": "ImplementationStageSourceNativePending",
-  "implementation_commit": "cbcef62ae",
+  "implementation_commit": "cbcef62ae46c6532071c156f07200035a655d268",
   "base": "a207ce8ee5b837455ad5cd35898941d0a77ba276",
   "source_dirty": false,
   "branch": "task/G4.4.6.3-backend",
@@ -38,7 +38,7 @@
     {
       "command": "cargo check -p zil-backend-llvm --tests -j1",
       "kind": "NoLinkCompileOnly",
-      "source_commit": "cbcef62ae",
+      "source_commit": "cbcef62ae46c6532071c156f07200035a655d268",
       "source_dirty": false,
       "result": "Pass",
       "log": "/workspace/.zil-env/G4.4.6.3-backend-tmp/qualified-canonical-single-charge-frozen-check.log",
