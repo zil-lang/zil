@@ -914,6 +914,15 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
+                    if f.callable_contract.is_some()
+                        && !matches!(target.root, origins::Root::Local(_))
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "public callable helper cannot publish its own nonlocal Commit",
+                            Some(i.span),
+                        )]);
+                    }
                     // The old local path had the same missing consumer as a
                     // call. Check actual leaf retirement independently here.
                     if matches!(d.ty, Type::Managed(_)) {
@@ -979,6 +988,7 @@ impl Program {
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
                 if let Some(contract) = &callee.callable_contract {
+                    public_roles::helper_effects(&flow.effects[function.0 as usize], b)?;
                     for (entry, value) in
                         public_roles::invoked(flow.module, f, contract, arguments, b)?
                     {
@@ -1004,6 +1014,27 @@ impl Program {
                     return Ok(());
                 }
                 let summary = &flow.effects[function.0 as usize].replacements;
+                if f.callable_contract.is_some() {
+                    let called = &flow.effects[function.0 as usize];
+                    fee(
+                        b,
+                        called
+                            .replacements
+                            .len()
+                            .saturating_add(called.tagged_replacements.len())
+                            .saturating_add(called.invalidated_stores.len()),
+                    )?;
+                    if !called.replacements.is_empty()
+                        || !called.tagged_replacements.is_empty()
+                        || !called.invalidated_stores.is_empty()
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "public callable helper cannot publish an ordinary callee's private replacement effects",
+                            Some(i.span),
+                        )]);
+                    }
+                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !summary.is_empty()
                 {

@@ -2,6 +2,31 @@
 //! The helper's private replacement rows never cross its public boundary.
 use super::*;
 
+pub(super) fn helper_effects(effect: &Effect, b: &mut Budget) -> CompileResult<()> {
+    fee(
+        b,
+        effect
+            .replacements
+            .len()
+            .saturating_add(effect.tagged_replacements.len())
+            .saturating_add(effect.invalidated_stores.len()),
+    )?;
+    if effect
+        .replacements
+        .keys()
+        .chain(effect.tagged_replacements.keys())
+        .any(|target| !matches!(target.root, origins::Root::ParameterCapture(..)))
+        || !effect.invalidated_stores.is_empty()
+    {
+        return Err(vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "public callable helper has an unpublished replacement or Store effect",
+            None,
+        )]);
+    }
+    Ok(())
+}
+
 pub(super) fn invoked(
     module: &TypedModule,
     f: &TypedFunction,

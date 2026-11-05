@@ -456,6 +456,14 @@ pub(crate) fn at_type<'a>(
             && match target.base {
                 actual::Base::Input(p) => package_helper(f, ty, Some(p), b)?,
                 actual::Base::Environment(_) => package_helper(f, ty, None, b)?,
+                actual::Base::InputCapture(p, c) => {
+                    f.foreign.is_none()
+                        && f.callable_return_contract.is_none()
+                        && f.reference_return_bound.is_none()
+                        && f.storage_life.is_none()
+                        && helper_copy_result(&f.return_type, b)?
+                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
+                }
                 actual::Base::Element(_) => {
                     matches!(ty, Type::Package { .. }) && package_helper(f, ty, None, b)?
                 }
@@ -749,6 +757,14 @@ impl Context<'_> {
                     return Err(invalid("whole replacement RHS is not complete"));
                 }
                 for target in self.actual.selected(f, place, b)? {
+                    if f.callable_contract.is_some()
+                        && !matches!(target.base, actual::Base::Local(_))
+                    {
+                        return Err(unsupported(
+                            "public callable helper cannot publish its own nonlocal Commit",
+                            Some(i.span),
+                        ));
+                    }
                     self.apply(flow, state, &target, &incoming, true, validate, b)?;
                 }
             }
@@ -758,6 +774,16 @@ impl Context<'_> {
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
                 if let Some(contract) = &callee.callable_contract {
+                    b.spend(self.summaries[function.0 as usize].len())?;
+                    if self.summaries[function.0 as usize]
+                        .keys()
+                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
+                    {
+                        return Err(unsupported(
+                            "public callable helper has an unpublished replacement effect",
+                            Some(i.span),
+                        ));
+                    }
                     for (entry, value) in
                         resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
                     {
@@ -784,6 +810,13 @@ impl Context<'_> {
                         )?;
                     }
                     return Ok(None);
+                }
+                if f.callable_contract.is_some() && !self.summaries[function.0 as usize].is_empty()
+                {
+                    return Err(unsupported(
+                        "public callable helper cannot publish an ordinary callee's private replacement effects",
+                        Some(i.span),
+                    ));
                 }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()

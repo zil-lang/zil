@@ -2,6 +2,53 @@
 //! Actual callback bodies and actual argument captures supply their effects.
 use super::*;
 
+pub(crate) fn mutable_capture(
+    module: &TypedModule,
+    f: &TypedFunction,
+    parameter: u32,
+    capture: u32,
+    b: &mut Budget,
+) -> Check<bool> {
+    let Some(contract) = &f.callable_contract else {
+        return Ok(false);
+    };
+    let local = *f
+        .parameters
+        .get(parameter as usize)
+        .ok_or_else(|| bad(Span::default(), "public role parameter absent"))?;
+    let ty = &f.locals[local.0 as usize].ty;
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Ok(false);
+    };
+    let definition = module
+        .closures
+        .get(id.0 as usize)
+        .ok_or_else(|| bad(Span::default(), "public role actual environment absent"))?;
+    if !matches!(
+        definition.captures.get(capture as usize),
+        Some(Type::Address { mutable: true, .. })
+    ) {
+        return Ok(false);
+    }
+    b.spend(contract.roles.len())?;
+    for role in &contract.roles {
+        b.spend(role.writes.len())?;
+        if role.parameter == parameter
+            && role.closure == *id
+            && role.kind != CallableKind::Fn
+            && role.writes.contains(&capture)
+        {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 pub(crate) fn invoked(
     module: &TypedModule,
     f: &TypedFunction,
