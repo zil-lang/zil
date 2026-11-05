@@ -138,7 +138,7 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
         (
             "once-adapt-managed",
             include_str!("once-adapt-managed.zil"),
-            "AB15\n0\n",
+            "AABB15\n0\n",
         ),
         (
             "nonconsuming-managed",
