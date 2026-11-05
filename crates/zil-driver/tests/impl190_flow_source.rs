@@ -428,8 +428,18 @@ fn actual_capture_and_explicit_address_still_must_be_separate() {
 fn a_zero_event_once_cycle_keeps_the_actual_owner_unconsumed() {
     let source = "fn run<F:FnOnce()->i32>(f:F,n:i32)->i32{var i=0;while i<n{i+=1}return i}fn main()->i32{let f=move()=>7;return run(f,2)-2}";
     let dir = directory("zero-call-once");
-    let report = compile("zero-call-once", &[("main", source)], CompileOptions::default(), &dir);
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let report = compile(
+        "zero-call-once",
+        &[("main", source)],
+        CompileOptions::default(),
+        &dir,
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.phase, Phase::Verify);
     assert_eq!(report.verification_runs, 1);
 }

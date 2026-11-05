@@ -5884,16 +5884,21 @@ fn g3326_captured_source_native_full_results_and_budget() {
                 low = mid + 1;
             }
         }
+        // Complete nominal-row proofs and retained-boundary inventories now
+        // run independently in each kernel. These are measured actual source
+        // counts, separate from the unchanged local callable solver fees.
+        let (old, nominal, retained_scans) = match case {
+            "fn" => (24_224, 178, 37),
+            "fnmut-two-calls" => (34_804, 178, 39),
+            "fnonce" => (36_926, 98, 22),
+            _ => unreachable!(),
+        };
         assert_eq!(
             low,
-            match case {
-                "fn" => 24_224,
-                "fnmut-two-calls" => 34_804,
-                "fnonce" => 36_926,
-                _ => unreachable!(),
-            },
+            old + nominal + retained_scans * 3,
             "{case} actual Source work changed"
         );
+        assert_eq!(check(old).status, ResultCategory::ResourceLimit);
         assert_eq!(check(low).status, ResultCategory::Success);
         let short = check(low - 1);
         assert_eq!(short.status, ResultCategory::ResourceLimit);

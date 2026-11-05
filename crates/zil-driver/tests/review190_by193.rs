@@ -351,7 +351,12 @@ fn finite_once_zero_or_one_calls_keeps_its_original_trace_domain() {
     );
     fs::write(dir.join("report.json"), report.to_json()).unwrap();
     assert_eq!(report.phase, Phase::Verify);
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     assert_eq!(report.verification_runs, 1);
 }
 

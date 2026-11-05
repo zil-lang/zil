@@ -3213,8 +3213,17 @@ mod tests {
             }
         }
         assert_eq!(
-            low, 14_077,
+            // Two complete nominal rows add 74; fifteen actual retained
+            // boundary scans add 45. The prior N remains a limit control.
+            low,
+            14_077 + 74 + 15 * 3,
             "bounded actual identity/ownership work changed"
+        );
+        assert!(
+            super::super::analyze(&m, &limits(14_077))
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
         );
         let mut session = super::super::AnalysisSession::default();
         for warm in [false, true] {

@@ -179,10 +179,25 @@ fn g338_actual_dag_budget_boundaries_and_old_tail_fees() {
                         .iter()
                         .any(|d| d.category == ResultCategory::ResourceLimit)
                 );
-                assert_eq!(low, known[phase] + physical_delta, "{label}/{phase}");
+                // G4's complete nominal graph checks add 98/178 work in
+                // these independent kernels. Actual retained-boundary scans
+                // add 25*3 / 41*3 respectively; neither is staged CFG work.
+                let nominal_delta = if phase == 0 { 98 } else { 178 };
+                let retained_delta = if phase == 0 { 25 * 3 } else { 41 * 3 };
+                assert_eq!(
+                    low,
+                    known[phase] + physical_delta + nominal_delta + retained_delta,
+                    "{label}/{phase}"
+                );
+                assert!(
+                    check(known[phase] + physical_delta)
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
+                );
                 eprintln!(
-                    "G338 old-tail phase{phase} prior N={} now ResourceLimit; {slots} actual Origin slots require +{physical_delta} physical units",
-                    known[phase]
+                    "G338 old-tail phase{phase} prior N={} now ResourceLimit; Origin +{physical_delta}, nominal graph +{nominal_delta}, retained scans +{retained_delta}",
+                    known[phase],
                 );
             }
             eprintln!("G338 {label} phase{phase} N={low}/N-1/fresh/retry");
