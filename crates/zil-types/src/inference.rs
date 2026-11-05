@@ -288,7 +288,7 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         table
     };
     validate_module_metadata(core, &mut budget).map_err(|e| vec![e])?;
-    let enum_types = enums::definitions(core);
+    let enum_types = enums::definitions(core, limits, &mut budget.work).map_err(|e| vec![e])?;
     let mut functions = Vec::new();
     for (function, flag) in core.functions.iter().zip(flags) {
         functions.push(

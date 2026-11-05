@@ -64,6 +64,7 @@ fn walk(
         || !matches!(
             (decl.kind, storage.as_ref()),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Enum, Type::Enum { .. })
         )
         || decl.parameters.len() != instance.arguments.len()
     {
@@ -435,6 +436,16 @@ fn physical_instances(
             Type::Tuple(fields) => {
                 fee(left, fields.len(), span)?;
                 todo.extend(fields);
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(left, fields.len().saturating_add(1), span)?;
+                    todo.extend(fields);
+                }
+            }
+            Type::Array { element, .. } => {
+                fee(left, 1, span)?;
+                todo.push(element);
             }
             _ => {}
         }

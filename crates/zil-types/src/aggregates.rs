@@ -427,9 +427,10 @@ fn resolve_indexed(
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
     let mut stored_instances = BTreeMap::new();
-    for (inventory, aggregates, module) in std::iter::once((
+    for (inventory, aggregates, enums, module) in std::iter::once((
         core.life_instances.as_slice(),
         core.aggregates.as_slice(),
+        core.enums.as_slice(),
         core.module_id,
     ))
     .chain(
@@ -441,6 +442,7 @@ fn resolve_indexed(
                 (
                     source.life_instances.as_slice(),
                     source.aggregates.as_slice(),
+                    source.enums.as_slice(),
                     source.module_id,
                 )
             }),
@@ -449,8 +451,9 @@ fn resolve_indexed(
             let Type::BorrowedStorage { storage, .. } = &instance.ty else {
                 continue;
             };
-            let Type::Record { name, .. } = storage.as_ref() else {
-                continue;
+            let name = match storage.as_ref() {
+                Type::Record { name, .. } | Type::Enum { name, .. } => name,
+                _ => continue,
             };
             aggregate_templates::spend(
                 remaining,
@@ -460,12 +463,18 @@ fn resolve_indexed(
                 Span::default(),
             )
             .map_err(|e| vec![e])?;
-            let actual =
-                stored::aggregate(aggregates, module, name, remaining).map_err(|e| vec![e])?;
-            if stored_instances
-                .insert(actual.name.as_str(), instance)
-                .is_some()
-            {
+            let actual_name = match storage.as_ref() {
+                Type::Record { .. } => stored::aggregate(aggregates, module, name, remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str(),
+                Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str(),
+                _ => unreachable!(),
+            };
+            if stored_instances.insert(actual_name, instance).is_some() {
                 return Err(vec![error(
                     "E-STORED-IDENTITY",
                     Span::default(),
@@ -682,20 +691,30 @@ fn resolve_indexed(
         let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             unreachable!("checked stored inventory");
         };
-        let Type::Record { name, .. } = storage.as_ref() else {
-            unreachable!("checked stored inventory");
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } | Type::Enum { name, .. } => name,
+            _ => unreachable!("checked stored inventory"),
         };
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let actual = stored::aggregate(
-            &core.aggregates,
-            core.module_id,
-            name,
-            &mut resolver.remaining,
-        )
-        .map_err(|e| vec![e])?;
+        let actual_name = match storage.as_ref() {
+            Type::Record { .. } => stored::aggregate(
+                &core.aggregates,
+                core.module_id,
+                name,
+                &mut resolver.remaining,
+            )
+            .map_err(|e| vec![e])?
+            .name
+            .as_str(),
+            Type::Enum { .. } => stored::enum_declaration(&core, name, &mut resolver.remaining)
+                .map_err(|e| vec![e])?
+                .name
+                .as_str(),
+            _ => unreachable!("checked stored inventory"),
+        };
         let ty = resolver
-            .ty(&Type::Named(actual.name.clone()), 0, Span::default())
+            .ty(&Type::Named(actual_name.to_owned()), 0, Span::default())
             .map_err(|e| vec![e])?;
         let mut arguments = Vec::new();
         for argument in &instance.arguments {
@@ -990,13 +1009,30 @@ impl Resolver<'_> {
                 }
                 self.active.insert(name.clone());
                 let result = if let Some(declaration) = self.enum_declarations.get(name).copied() {
+                    if !self.stored_instances.is_empty() {
+                        aggregate_templates::spend(
+                            &mut self.remaining,
+                            name.len()
+                                .saturating_add(1)
+                                .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                            span,
+                        )?;
+                    }
+                    let stored_instance = self.stored_instances.get(name.as_str()).copied();
                     let mut variants = Vec::new();
                     let mut owns = false;
                     for (variant, raw_fields) in &declaration.variants {
                         let mut fields = Vec::new();
                         for field in raw_fields {
                             let ty = self.ty(field, depth + 1, declaration.span)?;
-                            let copy = ty.is_copy_value();
+                            let copy = ty.is_copy_value()
+                                || (stored_instance.is_some()
+                                    && stored::pure_inline(
+                                        &ty,
+                                        &mut self.remaining,
+                                        &self.generic_limits,
+                                        declaration.span,
+                                    )?);
                             owns |= !copy;
                             if !copy && !owned_shapes::value(&ty) {
                                 return Err(unsupported(
@@ -1038,7 +1074,28 @@ impl Resolver<'_> {
                     if owns {
                         owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
                     }
-                    ty
+                    if let Some(instance) = stored_instance {
+                        let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                            unreachable!()
+                        };
+                        let work = inference::type_snapshot_work(
+                            &instance.ty,
+                            span,
+                            &Limits {
+                                max_analysis_steps: self.remaining,
+                                ..self.generic_limits.clone()
+                            },
+                        )?;
+                        aggregate_templates::spend(&mut self.remaining, work, span)?;
+                        let qualified = Type::BorrowedStorage {
+                            storage: Box::new(ty),
+                            life: life.clone(),
+                        };
+                        stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                        qualified
+                    } else {
+                        ty
+                    }
                 } else {
                     let d = self.declarations[name];
                     if !self.stored_instances.is_empty() {
@@ -1986,7 +2043,10 @@ impl<'a> Builder<'a, '_> {
         if let Type::Array { element, length } = &ty {
             self.check_owned_array_closure(element, *length, e.span)?;
         }
-        if !owned && !ty.is_copy_value() {
+        if !owned
+            && !ty.is_copy_value()
+            && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+        {
             return Err(unsupported(
                 e.span,
                 "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
@@ -2083,7 +2143,9 @@ impl<'a> Builder<'a, '_> {
             types.push(t);
         }
         let ty = Type::Tuple(types);
-        if !ty.is_copy_value() {
+        let pure = ty.is_copy_value()
+            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+        if !pure {
             owned_shapes::validate(
                 &ty,
                 &mut self.match_work_left,
@@ -2092,7 +2154,7 @@ impl<'a> Builder<'a, '_> {
             )?;
         }
         let fields = self.commit_arguments(staged, e.span)?;
-        let kind = if ty.is_copy_value() {
+        let kind = if pure {
             InstructionKind::MakeAggregate { fields }
         } else {
             InstructionKind::MakeOwnedTuple { fields }

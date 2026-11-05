@@ -48,6 +48,15 @@ fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
                 }
             }
         }
+        Type::BorrowedStorage { .. } => {
+            physical(ty, &b.limits.clone(), b)?;
+            if !retained::pure(ty, b)? {
+                return Err(unsupported(
+                    "pure Copy operation contains a real borrowing or ownership leaf",
+                    None,
+                ));
+            }
+        }
         _ => {
             return Err(unsupported(
                 "pure Copy operation contains an Address, borrowed carrier, capability or nonordinary payload",
@@ -67,7 +76,9 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
     ordinary(output, b, 0)?;
     let projected = match &i.kind {
         InstructionKind::MakeVariant { variant, fields } => {
-            let Type::Enum { variants, .. } = output else {
+            let Type::Enum { variants, .. } =
+                super::qualified(output).map_or(output, |(storage, _)| storage)
+            else {
                 return Err(err("ordinary variant output has no enum layout"));
             };
             let payload = &variants
@@ -97,7 +108,9 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
         } => {
             let aggregate = vt(f, *value)?;
             ordinary(aggregate, b, 0)?;
-            let Type::Enum { variants, .. } = aggregate else {
+            let Type::Enum { variants, .. } =
+                super::qualified(aggregate).map_or(aggregate, |(storage, _)| storage)
+            else {
                 return Err(err("ordinary variant projection has no enum owner"));
             };
             variants
@@ -108,7 +121,10 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
         InstructionKind::VariantTag { value } => {
             let aggregate = vt(f, *value)?;
             ordinary(aggregate, b, 0)?;
-            if !matches!(aggregate, Type::Enum { .. }) {
+            if !matches!(
+                super::qualified(aggregate).map_or(aggregate, |(storage, _)| storage),
+                Type::Enum { .. }
+            ) {
                 return Err(err("ordinary tag source is not an enum"));
             }
             &Type::I32
