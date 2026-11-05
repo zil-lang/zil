@@ -745,6 +745,7 @@ pub(crate) struct Pending {
     pub(crate) item: Item,
     pub(crate) origin: Option<Origin>,
     pub(crate) member_calls: BTreeMap<usize, trait_instances::CallTargets>,
+    pub(crate) runtime_calls: Option<BTreeMap<usize, u32>>,
 }
 impl Engine<'_> {
     pub(crate) fn enqueue(&mut self, item: Item, origin: Option<Origin>) -> R<()> {
@@ -758,6 +759,7 @@ impl Engine<'_> {
             item,
             origin,
             member_calls: BTreeMap::new(),
+            runtime_calls: None,
         });
         Ok(())
     }

@@ -209,12 +209,12 @@ pub(super) fn symbolic_types(
 }
 
 impl Engine<'_> {
-    pub(super) fn runtime_bind_calls(&mut self, item: &Item) -> R<()> {
+    pub(super) fn runtime_call_anchors(&mut self, item: &Item) -> R<BTreeMap<usize, u32>> {
+        let mut anchors = BTreeMap::new();
         if self.runtime_ct.is_none() {
-            return Ok(());
+            return Ok(anchors);
         }
-        self.runtime_calls.clear();
-        crate::runtime_ct::observe_explicit_calls(item, self.limits.max_call_depth, |event| {
+        crate::runtime_ct::observe_runtime_calls(item, self.limits.max_call_depth, |event| {
             match event {
                 crate::runtime_ct::RuntimeCallEvent::Work(work) => {
                     self.budget.identity_work(work, item.span)
@@ -229,14 +229,14 @@ impl Engine<'_> {
                     let ExprKind::Call { callee, .. } = &expression.kind else {
                         unreachable!("runtime call visitor emits calls")
                     };
-                    self.runtime_calls
-                        .insert(callee.as_ref() as *const Expr as usize, ordinal);
+                    anchors.insert(callee.as_ref() as *const Expr as usize, ordinal);
                     Ok(())
                 }
             }
             .map_err(|e| vec![e])
         })
-        .map_err(|mut e| e.remove(0))
+        .map_err(|mut e| e.remove(0))?;
+        Ok(anchors)
     }
 
     fn runtime_definition(
@@ -287,13 +287,18 @@ impl Engine<'_> {
         };
         crate::ct_selection::Visitor::item(&mut visitor, template, 0)
             .map_err(|mut e| e.remove(0))?;
-        if !visitor.has_ct {
+        let has_ct = visitor.has_ct;
+        let origin = self.template_origin(template)?;
+        if !has_ct
+            && (self.runtime_call.is_none()
+                || origin.is_none_or(|o| o.compiler || o.provider)
+                || self.current_origin.is_none_or(|o| o.compiler || o.provider))
+        {
             return Ok(());
         }
-        let origin = self.template_origin(template)?;
         let definition = self.runtime_definition(origin, template.span)?;
         let caller = self.runtime_definition(self.current_origin, template.span)?;
-        let explicit_call_ordinal = self
+        let call_ordinal = self
             .runtime_call
             .ok_or_else(|| error(template.span, "runtime CT actual call site is absent"))?;
         let mut arguments = Vec::new();
@@ -308,12 +313,15 @@ impl Engine<'_> {
                     })?,
                 },
                 GenericParamKind::Type(_) => {
-                    let ty = substitution.get(&parameter.name).ok_or_else(|| {
-                        unsupported(
+                    let Some(ty) = substitution.get(&parameter.name) else {
+                        if !has_ct {
+                            return Ok(());
+                        }
+                        return Err(unsupported(
                             parameter.span,
                             "runtime CT retained type binder needs a concrete instance",
-                        )
-                    })?;
+                        ));
+                    };
                     self.budget.ty(ty)?;
                     RuntimeArgument::Type(ty.clone())
                 }
@@ -343,14 +351,22 @@ impl Engine<'_> {
             call: RuntimeCallSite {
                 caller,
                 parent_instance: self.runtime_instance,
-                explicit_call_ordinal,
+                call_ordinal,
             },
         };
-        let mut remaining = self.budget.remaining_limits();
-        callback
-            .instantiated(&recipe, template, instance, &mut remaining)
-            .map_err(|mut e| e.remove(0))?;
-        self.budget.adopt_remaining(&remaining);
+        if has_ct {
+            let mut remaining = self.budget.remaining_limits();
+            callback
+                .instantiated(
+                    &recipe,
+                    &self.products.runtime_instances,
+                    template,
+                    instance,
+                    &mut remaining,
+                )
+                .map_err(|mut e| e.remove(0))?;
+            self.budget.adopt_remaining(&remaining);
+        }
         let mut visitor = Expressions {
             budget: &mut self.budget,
             nodes: BTreeMap::new(),

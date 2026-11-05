@@ -660,12 +660,13 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
     fn instantiated(
         &self,
         instance: &crate::runtime_ct::RuntimeInstance,
+        ledger: &[crate::runtime_ct::RuntimeInstance],
         template: &Item,
         output: &mut Item,
         remaining: &mut Limits,
     ) -> CompileResult<()> {
         self.callback
-            .instantiated(instance, template, output, remaining)?;
+            .instantiated(instance, ledger, template, output, remaining)?;
         let mut budget = Budget::new(remaining);
         let mut visitor = Visitor {
             default_nominal: None,

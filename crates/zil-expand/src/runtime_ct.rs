@@ -23,13 +23,13 @@ pub struct RuntimeDefinition {
     pub member: Option<u32>,
 }
 
-/// Call ordinal counts explicit runtime generic calls in source order, excluding
+/// Call ordinal counts runtime calls in source order, excluding
 /// type syntax and CT subtrees. Normalizing a type cannot insert a call event.
 #[derive(Clone, Debug)]
 pub struct RuntimeCallSite {
     pub caller: RuntimeDefinition,
     pub parent_instance: Option<u32>,
-    pub explicit_call_ordinal: u32,
+    pub call_ordinal: u32,
 }
 
 #[derive(Clone, Debug)]
@@ -58,6 +58,7 @@ pub trait RuntimeCt {
     fn instantiated(
         &self,
         instance: &RuntimeInstance,
+        ledger: &[RuntimeInstance],
         template: &ast::Item,
         output: &mut ast::Item,
         remaining: &mut Limits,
@@ -74,7 +75,7 @@ pub enum RuntimeCallEvent<'a> {
 
 /// Shared structural selector. This selects an untrusted source address only;
 /// the CT consumer still resolves the callee and all actuals independently.
-pub fn observe_explicit_calls(
+pub fn observe_runtime_calls(
     item: &ast::Item,
     max_depth: usize,
     mut observe: impl FnMut(RuntimeCallEvent<'_>) -> CompileResult<()>,
@@ -108,7 +109,7 @@ pub fn observe_explicit_calls(
             match &expression.kind {
                 ast::ExprKind::MetaEval(_) | ast::ExprKind::MetaBlock(_) => Ok(()),
                 ast::ExprKind::Call { callee, arguments } => {
-                    if matches!(callee.kind, ast::ExprKind::TypeApply { .. }) {
+                    {
                         let ordinal = self.next;
                         self.next = self.next.checked_add(1).ok_or_else(|| {
                             vec![zil_base::Diagnostic::limit(
@@ -121,9 +122,8 @@ pub fn observe_explicit_calls(
                             expression,
                             ordinal,
                         })?;
-                    } else {
-                        self.expression(callee, depth + 1)?;
                     }
+                    self.expression(callee, depth + 1)?;
                     for argument in arguments {
                         self.expression(&argument.value, depth + 1)?;
                     }

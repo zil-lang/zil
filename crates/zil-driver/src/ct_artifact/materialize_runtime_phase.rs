@@ -241,7 +241,7 @@ impl Declaration {
     ) -> CompileResult<SourceSite> {
         let item = self.item(environment)?;
         let mut address = None;
-        zil_expand::runtime_ct::observe_explicit_calls(
+        zil_expand::runtime_ct::observe_runtime_calls(
             item,
             environment.remaining_limits_for_input().max_call_depth,
             |event| match event {
@@ -308,6 +308,7 @@ pub(super) struct RuntimeBinding<'a> {
     definition: Declaration,
     caller: CtSymbolId,
     call_site: SourceSite,
+    parents: Vec<compiler::runtime_context::RuntimeEntryFrame>,
     roots: Vec<SourceSite>,
     cursor: usize,
 }
@@ -347,22 +348,63 @@ impl RuntimeCt for RuntimePhase<'_> {
     fn instantiated(
         &self,
         instance: &RuntimeInstance,
+        ledger: &[RuntimeInstance],
         _: &s::Item,
         output: &mut s::Item,
         remaining: &mut Limits,
     ) -> CompileResult<()> {
-        if instance.call.parent_instance.is_some() {
-            return Err(category(
-                "runtime CT nested specialization requires an authenticated parent instance",
-                output.span,
-            ));
-        }
         let mut environment = self.environment.borrow_mut();
         synchronize(&mut environment, remaining)?;
         let declaration = self.declaration(&instance.definition, &mut environment)?;
         let caller = self.declaration(&instance.call.caller, &mut environment)?;
-        let call_site =
-            caller.runtime_call(instance.call.explicit_call_ordinal, &mut environment)?;
+        let call_site = caller.runtime_call(instance.call.call_ordinal, &mut environment)?;
+        let mut parent_ids = Vec::new();
+        let mut parent = instance.call.parent_instance;
+        let mut child = instance.id;
+        while let Some(id) = parent {
+            environment.budget.reserve_analysis_work(1)?;
+            environment
+                .budget
+                .reserve_temporary_bytes(std::mem::size_of::<u32>() as u64)?;
+            if id >= child || parent_ids.len() >= remaining.max_call_depth {
+                return Err(category(
+                    "runtime CT parent instance chain is not bounded and topological",
+                    output.span,
+                ));
+            }
+            let frame = ledger
+                .get(id as usize)
+                .filter(|frame| frame.id == id)
+                .ok_or_else(|| {
+                    category("runtime CT actual parent instance is absent", output.span)
+                })?;
+            parent_ids.push(id);
+            child = id;
+            parent = frame.call.parent_instance;
+        }
+        let mut parents = Vec::new();
+        for id in parent_ids.into_iter().rev() {
+            let frame = &ledger[id as usize];
+            let definition = self.declaration(&frame.definition, &mut environment)?;
+            let caller = self.declaration(&frame.call.caller, &mut environment)?;
+            let call_site = caller.runtime_call(frame.call.call_ordinal, &mut environment)?;
+            environment
+                .budget
+                .reserve_temporary_bytes(std::mem::size_of::<
+                    compiler::runtime_context::RuntimeEntryFrame,
+                >() as u64)?;
+            let arguments = copy_runtime_arguments(
+                &frame.arguments,
+                &mut environment.budget,
+                remaining.max_call_depth,
+            )?;
+            parents.push(compiler::runtime_context::RuntimeEntryFrame {
+                definition: definition.symbol,
+                caller: caller.symbol,
+                call_site,
+                arguments,
+            });
+        }
         let original = declaration.item(&mut environment)?;
         let mut scan = Scan {
             max_depth: remaining.max_call_depth,
@@ -387,6 +429,7 @@ impl RuntimeCt for RuntimePhase<'_> {
             definition: declaration,
             caller: caller.symbol,
             call_site,
+            parents,
             roots,
             cursor: 0,
         };
@@ -481,20 +524,6 @@ impl<'a, 'b> Materializer<'a, 'b> {
         &mut self,
         span: Span,
     ) -> CompileResult<super::super::execute::EvaluatedData> {
-        struct Copy<'a>(&'a mut zil_ct::CtExecutionBudget, usize);
-        impl zil_expand::ct_selection::Visitor for Copy<'_> {
-            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
-                if depth > self.1 {
-                    return Err(category("runtime CT actual clone depth exhausted", span));
-                }
-                self.0.reserve_analysis_work(1)?;
-                self.0.reserve_temporary_bytes(256)
-            }
-            fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
-                self.0.reserve_analysis_work(text.len() as u64)?;
-                self.0.reserve_temporary_bytes(text.len() as u64)
-            }
-        }
         let binding = self
             .runtime_binding
             .as_mut()
@@ -511,30 +540,37 @@ impl<'a, 'b> Materializer<'a, 'b> {
             .reserve_temporary_bytes(std::mem::size_of::<
                 compiler::runtime_context::RuntimeEntrySource,
             >() as u64)?;
-        for argument in &binding.instance.arguments {
+        let arguments = copy_runtime_arguments(
+            &binding.instance.arguments,
+            &mut self.environment.budget,
+            self.max_depth,
+        )?;
+        let mut parents = Vec::new();
+        for frame in &binding.parents {
+            self.environment.budget.reserve_analysis_work(1)?;
             self.environment
                 .budget
-                .reserve_temporary_bytes(
-                    std::mem::size_of::<zil_expand::runtime_ct::RuntimeArgument>() as u64,
-                )?;
-            let mut copy = Copy(&mut self.environment.budget, self.max_depth);
-            match argument {
-                zil_expand::runtime_ct::RuntimeArgument::Type(ty) => {
-                    zil_expand::ct_selection::Visitor::ty(&mut copy, ty, 0)?
-                }
-                zil_expand::runtime_ct::RuntimeArgument::Const(expression) => {
-                    zil_expand::ct_selection::Visitor::expression(&mut copy, expression, 0)?
-                }
-                zil_expand::runtime_ct::RuntimeArgument::LifeDefinition { .. } => {}
-            }
+                .reserve_temporary_bytes(std::mem::size_of::<
+                    compiler::runtime_context::RuntimeEntryFrame,
+                >() as u64)?;
+            parents.push(compiler::runtime_context::RuntimeEntryFrame {
+                definition: frame.definition.clone(),
+                caller: frame.caller.clone(),
+                call_site: frame.call_site,
+                arguments: copy_runtime_arguments(
+                    &frame.arguments,
+                    &mut self.environment.budget,
+                    self.max_depth,
+                )?,
+            });
         }
         let descriptor = compiler::runtime_context::RuntimeEntrySource {
-            parents: Vec::new(),
             definition: binding.definition.symbol.clone(),
             caller: binding.caller.clone(),
             call_site: binding.call_site,
             expression_site: site,
-            arguments: binding.instance.arguments.clone(),
+            arguments,
+            parents,
         };
         let source = binding.definition.source.clone();
         let located = compiler::source_sites::select_in_tree(
@@ -564,4 +600,41 @@ impl<'a, 'b> Materializer<'a, 'b> {
         self.environment
             .evaluate_runtime_data_at_source(entry, &input, span, &descriptor)
     }
+}
+
+fn copy_runtime_arguments(
+    arguments: &[zil_expand::runtime_ct::RuntimeArgument],
+    budget: &mut zil_ct::CtExecutionBudget,
+    max_depth: usize,
+) -> CompileResult<Vec<zil_expand::runtime_ct::RuntimeArgument>> {
+    struct Copy<'a>(&'a mut zil_ct::CtExecutionBudget, usize);
+    impl zil_expand::ct_selection::Visitor for Copy<'_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            if depth > self.1 {
+                return Err(category("runtime CT actual clone depth exhausted", span));
+            }
+            self.0.reserve_analysis_work(1)?;
+            self.0.reserve_temporary_bytes(256)
+        }
+        fn text(&mut self, text: &str, _: Span) -> CompileResult<()> {
+            self.0.reserve_analysis_work(text.len() as u64)?;
+            self.0.reserve_temporary_bytes(text.len() as u64)
+        }
+    }
+    for argument in arguments {
+        budget.reserve_temporary_bytes(
+            std::mem::size_of::<zil_expand::runtime_ct::RuntimeArgument>() as u64,
+        )?;
+        let mut copy = Copy(budget, max_depth);
+        match argument {
+            zil_expand::runtime_ct::RuntimeArgument::Type(ty) => {
+                zil_expand::ct_selection::Visitor::ty(&mut copy, ty, 0)?;
+            }
+            zil_expand::runtime_ct::RuntimeArgument::Const(expression) => {
+                zil_expand::ct_selection::Visitor::expression(&mut copy, expression, 0)?;
+            }
+            zil_expand::runtime_ct::RuntimeArgument::LifeDefinition { .. } => {}
+        }
+    }
+    Ok(arguments.to_vec())
 }
