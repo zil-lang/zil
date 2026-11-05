@@ -6774,3 +6774,74 @@ fn g334_private_project_wrapper_cold_warm_change_revert_always_verifies() {
     }
     std::fs::remove_dir_all(dir).unwrap();
 }
+
+#[test]
+fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let wrong = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-data-wrong-class.zil"
+    );
+    let mut core = g334_core(wrong);
+    assert!(
+        core.functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .all(|role| role.source_life.is_none())
+    );
+    let report = compile_source(
+        &source(wrong),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let unused = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-unused.zil"
+    );
+    assert!(
+        g334_core(unused)
+            .functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .all(|role| role.source_life.is_none())
+    );
+    let report = compile_source(
+        &source(unused),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    // Adversarial Core attaches a well-shaped real context to a phantom
+    // signature. Types must independently enforce its physical profile.
+    let real = g334_core(G334_SIMPLE);
+    let source_role = g334_role(&real);
+    let helper = core
+        .functions
+        .iter_mut()
+        .find(|f| !f.callable_parameters.is_empty())
+        .unwrap();
+    helper.callable_parameters[0].source_life = source_role.source_life.clone();
+    helper.callable_parameters[0].life = source_role.life.clone();
+    let errors = zil_types::check(&core, &target, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::Unsupported
+                && d.message.contains("source helper first profile")),
+        "{errors:?}"
+    );
+}

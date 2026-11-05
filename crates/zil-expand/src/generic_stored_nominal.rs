@@ -141,7 +141,7 @@ impl<'a> Engine<'a> {
         for (index, parameter) in function.params.iter_mut().enumerate() {
             let before = occurrences.len();
             let mut parameter_stored = false;
-            self.storage_header(
+            let physical_witness = self.storage_header(
                 &mut parameter.ty,
                 zil_ir::StorageBase::Parameter(
                     u32::try_from(index)
@@ -163,7 +163,8 @@ impl<'a> Engine<'a> {
                         ..
                     } if matches!(inner.kind, TypeKind::Named { .. }) => {
                         if parameter_stored {
-                            callable_data_profile &= occurrences.len() - before == 2;
+                            callable_data_profile &=
+                                occurrences.len() - before == 2 && physical_witness;
                         } else {
                             callable_receivers += 1;
                         }
@@ -251,7 +252,7 @@ impl<'a> Engine<'a> {
         stored: &mut bool,
         next_elided: &mut u32,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<bool> {
         self.budget.node(ty.span, depth)?;
         match &mut ty.kind {
             TypeKind::Group(inner) => self.storage_header(
@@ -305,7 +306,7 @@ impl<'a> Engine<'a> {
             }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_declaration(&name[0], ty.span)? {
-                    return Ok(());
+                    return Ok(false);
                 }
                 let (generated, classes) =
                     self.stored_nominal(&name[0], args, ty.span, depth + 1)?;
@@ -352,12 +353,16 @@ impl<'a> Engine<'a> {
                         fixed_input,
                     });
                 }
+                let physical_witness = life.binder_count == 1
+                    && matches!(life.slots.as_slice(),[slot]
+                    if slot.binder==0 && slot.mode==zil_ir::StoredBorrowMode::SharedAddress);
                 *stored = true;
                 *name = vec![generated];
                 args.clear();
-                Ok(())
+                Ok(physical_witness)
             }
             TypeKind::Tuple(fields) => {
+                let mut physical_witness = false;
                 for (index, field) in fields.iter_mut().enumerate() {
                     let index = u32::try_from(index)
                         .map_err(|_| error(field.span, "tuple field ordinal overflow"))?;
@@ -367,7 +372,7 @@ impl<'a> Engine<'a> {
                     type_path.push(zil_ir::LifeTypeProjection::Place(
                         zil_ir::PlaceProjection::Field(index),
                     ));
-                    self.storage_header(
+                    physical_witness |= self.storage_header(
                         field,
                         base,
                         path,
@@ -380,9 +385,9 @@ impl<'a> Engine<'a> {
                     path.pop();
                     type_path.pop();
                 }
-                Ok(())
+                Ok(physical_witness)
             }
-            _ => Ok(()),
+            _ => Ok(false),
         }
     }
     pub(super) fn source_life(&mut self, name: &str, span: Span) -> R<LexicalLife> {

@@ -356,7 +356,7 @@ impl Engine<'_> {
         for (index, ty) in arguments.iter().enumerate() {
             self.budget.ty(ty)?;
             let mut ty = ty.clone();
-            self.storage_header(
+            let physical_witness = self.storage_header(
                 &mut ty,
                 StorageBase::Parameter(index as u32),
                 &mut Vec::new(),
@@ -366,6 +366,9 @@ impl Engine<'_> {
                 &mut next,
                 0,
             )?;
+            if !physical_witness {
+                return Ok(());
+            }
             actual_parameters.push(self.products.storage.pointer_parameter_type(
                 &ty,
                 &self.nominals,
