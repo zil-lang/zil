@@ -429,12 +429,12 @@ fn g139_public_role_trace_cannot_hide_actual_invocation() {
     let mut forged = module.clone();
     let mut changed = 0;
     for f in &mut forged.functions {
-        if let Some(contract) = &mut f.callable_contract {
-            if let zil_ir::CallableTraces::Finite(paths) = &mut contract.traces {
-                for path in paths {
-                    changed += path.calls.len();
-                    path.calls.clear();
-                }
+        if let Some(contract) = &mut f.callable_contract
+            && let zil_ir::CallableTraces::Finite(paths) = &mut contract.traces
+        {
+            for path in paths {
+                changed += path.calls.len();
+                path.calls.clear();
             }
         }
     }
