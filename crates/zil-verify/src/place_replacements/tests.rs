@@ -67,7 +67,8 @@ fn independent_replacement_protocol_holds_base_until_commit_and_checks_tickets()
         if case >= 5 {
             assert!(
                 result
-                    .unwrap_err()
+                    .err()
+                    .expect("invalid suspension must be rejected")
                     .message
                     .contains("prepared replacement cannot suspend"),
                 "case{case}"
