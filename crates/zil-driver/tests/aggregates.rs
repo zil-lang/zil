@@ -9758,21 +9758,111 @@ fn g444_symbolic_forwarding_checks_definitions_before_matching_instances() {
         );
         assert_eq!(report.verification_runs, 0);
     }
-    // Valid universal forwarding is now checked, but scoped nominal results
-    // across factories still require a distinct context relocation operation.
+    // G4.4.5 now preserves both authentic contexts and explicitly reconstructs
+    // the pure result into the caller's return schema.
     let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn g445_original_context_record_returns_reach_native_full_values() {
+    let reordered = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
+    );
+    let separated = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+    );
+    let two_sources = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-two-source-lives.zil"
+    );
+    let fields = reordered
+        .replace("{n:i32}", "{n:i32;m:i32}")
+        .replace("{n:N}", "{n:N,m:N+1}")
+        .replace("return value.n", "return value.n+value.m");
+    for (text, output) in [
+        (reordered, b"42\n".as_slice()),
+        (separated, b"42\n"),
+        (two_sources, b"49\n"),
+        (fields.as_str(), b"85\n"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", output);
+    }
+}
+
+#[test]
+fn g445_relocation_keeps_symbolic_life_and_closed_type_identities() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+    );
+    let bad = text.replace("make::<U,M,'b,'spare>", "make::<U,M,'spare,'b>");
+    for input in [
+        bad.clone(),
+        bad.replace(
+            "fn main()->i32{let n=0;return result(&n,&n)}",
+            "fn main()->i32{return 42}",
+        ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual expected type"))
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+    // Closed Type forwarding already worked in G4.4.4; keep its precise
+    // nominal identity as a control without claiming a new scoped-Type value.
+    let control = "struct First{n:i32}struct Second{n:i32}fn selected<T:Copy,#N:i32,life a>(marker:Type)->Type{return T}fn relay<T:Copy,#N:i32,life a>(marker:Type)->Type{return selected::<T,N,'a>(marker)}fn result<life s>(p:&'s i32)->i32{let value:#(relay::<First,42,'s>(i32))=First{n:42};return value.n}fn main()->i32{let n=0;return result(&n)}";
+    let report = compile_source(&source(control), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let report = compile_source(
+        &source(&control.replace("=First{n:42}", "=Second{n:42}")),
+        &CompileOptions::default(),
+    );
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("actual expected type"))
+    assert_eq!(report.phase, Phase::Types);
+}
+
+#[test]
+fn g445_real_record_relocations_pay_all_request_ledgers() {
+    let input = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
     );
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let n = g44_source_request_boundary(input, ledger);
+        eprintln!("G4.4.5 real record relocation {ledger} N={n}; N-1/cold/warm/fresh agree");
+    }
 }
 
 #[test]
