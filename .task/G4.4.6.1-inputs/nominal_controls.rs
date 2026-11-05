@@ -228,10 +228,16 @@ fn g4461_actual_core_nested_type_metadata_controls() {
             }
             _ => unreachable!(),
         }
-        assert!(
-            zil_types::check(&hostile, &target, &limits).is_err(),
-            "Types accepted mutation {mutation}"
-        );
+        let errors = zil_types::check(&hostile, &target, &limits)
+            .expect_err("Types accepted hostile actual metadata");
+        if mutation == 6 {
+            assert!(
+                errors
+                    .iter()
+                    .any(|e| e.message.contains("one complete nominal actual vector")),
+                "{errors:?}"
+            );
+        }
     }
 }
 
@@ -306,7 +312,7 @@ fn g4461_actual_nested_type_nominal_source_raw_wire() {
             .iter()
             .position(|d| d.id == raw.life_instances[child].declaration)
             .unwrap();
-        for mutation in 0..14 {
+        for mutation in 0..16 {
             let mut hostile = raw.clone();
             match mutation {
                 0..=5 => {
@@ -369,12 +375,33 @@ fn g4461_actual_nested_type_nominal_source_raw_wire() {
                     *actual = LifeNominalActual::Const(zil_ir::Constant::I32(43));
                     hostile.life_instances.push(alternate);
                 }
+                14 => {
+                    hostile.life_instances[outer].arguments[0] =
+                        LifeNominalActual::Type(hostile.life_instances[outer].ty.clone());
+                }
+                15 => {
+                    hostile.life_declarations.remove(child_decl);
+                }
                 _ => unreachable!(),
             }
-            assert!(
-                zil_analyze::analyze(&hostile, &limits).is_err(),
-                "Analyze accepted mutation {mutation}"
-            );
+            let errors = zil_analyze::analyze(&hostile, &limits)
+                .expect_err("Analyze accepted hostile actual metadata");
+            if mutation == 12 {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("duplicate complete nominal instance")),
+                    "{errors:?}"
+                );
+            }
+            if mutation == 14 {
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.message.contains("cyclic nominal Type argument")),
+                    "{errors:?}"
+                );
+            }
             let mut claim = plan.clone();
             claim.module_fingerprint = hostile.fingerprint();
             let bytes = zil_ir::wire::encode_module_candidate(&hostile, &claim, &limits).unwrap();
