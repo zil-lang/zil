@@ -11,18 +11,6 @@ pub(super) struct BoundSites {
 fn key(node: SourceNode<'_>) -> (bool, usize) {
     (matches!(node, SourceNode::Type(_)), node.address())
 }
-enum Frozen {
-    Original(Arc<ParseResult>),
-    Generated(Arc<zil_expand::source_context::GeneratedSourceTree>),
-}
-impl Frozen {
-    fn module(&self) -> &s::Module {
-        match self {
-            Self::Original(parsed) => &parsed.module,
-            Self::Generated(tree) => &tree.module,
-        }
-    }
-}
 struct Clear<'a> {
     nodes: &'a mut BTreeMap<(bool, usize), SourceSite>,
     budget: &'a mut zil_ct::CtExecutionBudget,
@@ -49,166 +37,172 @@ impl zil_expand::ct_selection::Visitor for Clear<'_> {
     }
 }
 impl Materializer<'_, '_> {
-    pub(super) fn bind_item_source_sites(
+    /// Called only at the trusted first clone boundary, before any rewrite.
+    pub(super) fn bind_source_items(
         &mut self,
-        owner: &CtSymbolId,
-        item: &s::Item,
+        source: &s::Module,
+        items: &[s::Item],
+        tree: SourceTreeId,
     ) -> CompileResult<()> {
-        let (frozen, tree_id, row, local) = if let Some(fingerprint) = owner.generation_path {
-            self.environment.budget.reserve_analysis_work(
-                self.environment
-                    .generated_catalog
-                    .trees
-                    .iter()
-                    .fold(1u64, |work, tree| {
-                        work.saturating_add(tree.identity_path_len() as u64 + 1)
-                    }),
-            )?;
-            let (row, tree) = self
-                .environment
-                .generated_catalog
-                .trees
-                .iter()
-                .enumerate()
-                .find(|(_, tree)| {
-                    tree.module.id == owner.module
-                        && tree.generation_fingerprint() == Some(fingerprint)
-                })
-                .ok_or_else(|| category("clone source generated tree absent", item.span))?;
-            self.environment
-                .budget
-                .reserve_analysis_work(tree.declarations.len() as u64)?;
-            let local = tree
-                .declarations
-                .iter()
-                .position(|id| *id == owner.declaration)
-                .ok_or_else(|| category("clone source generated declaration absent", item.span))?;
-            (
-                Frozen::Generated(tree.clone()),
-                SourceTreeId::Generated(row as u32),
-                Some(row as u32),
-                zil_base::NodeId(local as u32),
-            )
-        } else {
-            self.environment
-                .budget
-                .reserve_analysis_work(self.parsed.len() as u64 + 1)?;
-            let parsed = self
-                .parsed
-                .iter()
-                .find(|parsed| parsed.module.id == owner.module)
-                .ok_or_else(|| category("clone source original module absent", item.span))?;
-            (
-                Frozen::Original(parsed.clone()),
-                SourceTreeId::Original,
-                None,
-                owner.declaration,
-            )
-        };
-        let module = frozen.module();
-        self.environment.budget.reserve_analysis_work(
-            1 + self.indexed_source_trees.len().checked_ilog2().unwrap_or(0) as u64,
-        )?;
-        if !self.indexed_source_trees.contains(&(module.id, row)) {
-            let budget = &mut self.environment.budget;
-            let inventory = &mut self.canonical_source_sites;
-            compiler::source_sites::observe(module, tree_id, self.max_depth, |event| {
+        let budget = &mut self.environment.budget;
+        let mut count = 0usize;
+        compiler::source_sites::observe(source, tree, self.max_depth, |event| {
+            match event {
+                SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
+                SiteEvent::Node(_) => count += 1,
+            }
+            Ok(())
+        })?;
+        let bytes = count as u64 * std::mem::size_of::<(bool, SourceSite)>() as u64;
+        budget.reserve_temporary_bytes(bytes)?;
+        let mut canonical = Vec::with_capacity(count);
+        compiler::source_sites::observe(source, tree, self.max_depth, |event| {
+            match event {
+                SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
+                SiteEvent::Node(node) => canonical.push((key(node.node).0, node.site)),
+            }
+            Ok(())
+        })?;
+        let mut ordinal = 0;
+        let bound = &mut self.bound_source_sites;
+        for item in items {
+            compiler::source_sites::observe_item(item, source.id, tree, self.max_depth, |event| {
                 match event {
                     SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
                     SiteEvent::Node(node) => {
-                        budget.reserve_analysis_work(
-                            1 + inventory.len().checked_ilog2().unwrap_or(0) as u64,
-                        )?;
-                        budget.reserve_temporary_bytes(96)?;
-                        if inventory.insert(key(node.node), node.site).is_some() {
+                        let Some((tag, site)) = canonical.get(ordinal) else {
+                            return Err(category("clone has extra source nodes", item.span));
+                        };
+                        if *tag != key(node.node).0 {
                             return Err(category(
-                                "frozen source node inventory repeats",
+                                "clone source node kind/order differs",
                                 item.span,
                             ));
                         }
+                        budget.reserve_analysis_work(
+                            1 + bound.nodes.len().checked_ilog2().unwrap_or(0) as u64,
+                        )?;
+                        budget.reserve_temporary_bytes(96)?;
+                        bound.bytes += 96;
+                        if bound.nodes.insert(key(node.node), *site).is_some() {
+                            return Err(category("clone source node repeats", item.span));
+                        }
+                        ordinal += 1;
                     }
                 }
                 Ok(())
             })?;
-            self.environment.budget.reserve_temporary_bytes(64)?;
-            self.indexed_source_trees.insert((module.id, row));
         }
-        let source =
-            compiler::source_scope::original_declaration(module, local, self.max_depth, |work| {
-                self.environment.budget.reserve_analysis_work(work as u64)
-            })?
-            .ok_or_else(|| category("clone source is not an actual declaration", item.span))?;
+        budget.release_temporary_bytes(bytes);
+        if ordinal != canonical.len() {
+            return Err(category("clone omits frozen source nodes", source.span));
+        }
+        Ok(())
+    }
+    /// Moving a source-shaped item cannot mint provenance. Serialize the
+    /// current mapping, including holes left by actual substitutions, then
+    /// restore precisely those sites at the receiving addresses.
+    pub(super) fn take_item_sites(
+        &mut self,
+        item: &s::Item,
+    ) -> CompileResult<Vec<Option<SourceSite>>> {
+        let mut count = 0usize;
         let budget = &mut self.environment.budget;
-        let mut source_count = 0usize;
         compiler::source_sites::observe_item(
-            source.item,
-            module.id,
-            tree_id,
+            item,
+            ModuleId(0),
+            SourceTreeId::Original,
             self.max_depth,
             |event| {
                 match event {
                     SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
-                    SiteEvent::Node(_) => source_count += 1,
+                    SiteEvent::Node(_) => count += 1,
                 }
                 Ok(())
             },
         )?;
-        let temporary = source_count as u64 * std::mem::size_of::<(bool, SourceSite)>() as u64;
-        budget.reserve_temporary_bytes(temporary)?;
-        let mut canonical = Vec::with_capacity(source_count);
-        let inventory = &self.canonical_source_sites;
+        budget.reserve_temporary_bytes(
+            count as u64 * std::mem::size_of::<Option<SourceSite>>() as u64,
+        )?;
+        let mut sites = Vec::with_capacity(count);
+        let bound = &mut self.bound_source_sites;
         compiler::source_sites::observe_item(
-            source.item,
-            module.id,
-            tree_id,
+            item,
+            ModuleId(0),
+            SourceTreeId::Original,
             self.max_depth,
             |event| {
                 match event {
                     SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
                     SiteEvent::Node(node) => {
                         budget.reserve_analysis_work(
-                            1 + inventory.len().checked_ilog2().unwrap_or(0) as u64,
+                            1 + bound.nodes.len().checked_ilog2().unwrap_or(0) as u64,
                         )?;
-                        canonical.push((
-                            matches!(node.node, SourceNode::Type(_)),
-                            *inventory.get(&key(node.node)).ok_or_else(|| {
-                                category("frozen source canonical site absent", item.span)
-                            })?,
-                        ));
+                        let site = bound.nodes.remove(&key(node.node));
+                        if site.is_some() {
+                            bound.bytes -= 96;
+                            budget.release_temporary_bytes(96);
+                        }
+                        sites.push(site);
                     }
                 }
                 Ok(())
             },
         )?;
+        Ok(sites)
+    }
+    pub(super) fn restore_item_sites(
+        &mut self,
+        item: &s::Item,
+        sites: Vec<Option<SourceSite>>,
+    ) -> CompileResult<()> {
+        let budget = &mut self.environment.budget;
+        let bound = &mut self.bound_source_sites;
         let mut ordinal = 0;
-        let mut bound = BoundSites::default();
-        compiler::source_sites::observe_item(item, module.id, tree_id, self.max_depth, |event| {
-            match event {
-                SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
-                SiteEvent::Node(node) => {
-                    let Some((tag, site)) = canonical.get(ordinal) else {
-                        return Err(category("clone has extra source nodes", item.span));
-                    };
-                    if *tag != matches!(node.node, SourceNode::Type(_)) {
-                        return Err(category("clone source node kind/order differs", item.span));
+        compiler::source_sites::observe_item(
+            item,
+            ModuleId(0),
+            SourceTreeId::Original,
+            self.max_depth,
+            |event| {
+                match event {
+                    SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
+                    SiteEvent::Node(node) => {
+                        let site = sites
+                            .get(ordinal)
+                            .ok_or_else(|| category("moved source shape differs", item.span))?;
+                        if let Some(site) = site {
+                            budget.reserve_analysis_work(
+                                1 + bound.nodes.len().checked_ilog2().unwrap_or(0) as u64,
+                            )?;
+                            budget.reserve_temporary_bytes(96)?;
+                            bound.bytes += 96;
+                            if bound.nodes.insert(key(node.node), *site).is_some() {
+                                return Err(category("moved source address repeats", item.span));
+                            }
+                        }
+                        ordinal += 1;
                     }
-                    budget.reserve_analysis_work(
-                        1 + bound.nodes.len().checked_ilog2().unwrap_or(0) as u64,
-                    )?;
-                    budget.reserve_temporary_bytes(96)?;
-                    bound.bytes += 96;
-                    bound.nodes.insert(key(node.node), *site);
-                    ordinal += 1;
                 }
-            }
-            Ok(())
-        })?;
-        budget.release_temporary_bytes(temporary);
-        if ordinal != canonical.len() {
-            return Err(category("clone omits frozen source nodes", item.span));
+                Ok(())
+            },
+        )?;
+        if ordinal != sites.len() {
+            return Err(category("moved source omits nodes", item.span));
         }
-        self.bound_source_sites = bound;
+        budget.release_temporary_bytes(
+            sites.capacity() as u64 * std::mem::size_of::<Option<SourceSite>>() as u64,
+        );
         Ok(())
+    }
+    pub(super) fn discard_item_sites(&mut self, item: &s::Item) -> CompileResult<()> {
+        use zil_expand::ct_selection::Visitor;
+        Clear {
+            nodes: &mut self.bound_source_sites.nodes,
+            budget: &mut self.environment.budget,
+            max_depth: self.max_depth,
+        }
+        .item(item, 0)
     }
     pub(super) fn expression_source_site(
         &mut self,

@@ -31,6 +31,7 @@ struct Scan<'a> {
     address: Option<usize>,
     roots: Vec<usize>,
     roots_only: bool,
+    has_dependent_root: bool,
 }
 impl zil_expand::ct_selection::Visitor for Scan<'_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
@@ -53,6 +54,9 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
             self.address = Some(expression as *const s::Expr as usize);
         }
         if let s::ExprKind::MetaEval(inner) = &expression.kind {
+            if self.roots_only && !closed_scalar(inner, self.budget, self.max_depth, depth + 1)? {
+                self.has_dependent_root = true;
+            }
             self.budget
                 .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
             self.roots.push(inner.as_ref() as *const s::Expr as usize);
@@ -62,6 +66,36 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
         }
         zil_expand::ct_selection::walk_expression(self, expression, depth)
     }
+}
+// Closed scalar syntax has no binding lookup, so it is safe to evaluate in
+// the original definition even when unrelated native generic binders are not
+// CT Copy types. Every such root still uses the ordinary verified CT pipeline.
+fn closed_scalar(
+    expression: &s::Expr,
+    budget: &mut zil_ct::CtExecutionBudget,
+    max_depth: usize,
+    depth: usize,
+) -> CompileResult<bool> {
+    budget.reserve_analysis_work(1)?;
+    if depth > max_depth {
+        return Err(category(
+            "closed CT expression depth exhausted",
+            expression.span,
+        ));
+    }
+    Ok(match &expression.kind {
+        s::ExprKind::Literal(
+            s::Literal::Bool(_) | s::Literal::Integer(_) | s::Literal::Float(_),
+        ) => true,
+        s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
+            closed_scalar(inner, budget, max_depth, depth + 1)?
+        }
+        s::ExprKind::Binary { left, right, .. } => {
+            closed_scalar(left, budget, max_depth, depth + 1)?
+                && closed_scalar(right, budget, max_depth, depth + 1)?
+        }
+        _ => false,
+    })
 }
 pub(super) fn deferred(
     function: &s::Function,
@@ -83,6 +117,7 @@ pub(super) fn deferred(
         address: None,
         roots: Vec::new(),
         roots_only: true,
+        has_dependent_root: false,
     };
     match &function.body {
         s::FunctionBody::Block(body) => {
@@ -93,7 +128,7 @@ pub(super) fn deferred(
         }
         s::FunctionBody::Declaration => {}
     }
-    Ok(!scan.roots.is_empty())
+    Ok(scan.has_dependent_root)
 }
 
 pub(crate) struct RuntimePhase<'a> {
@@ -354,6 +389,7 @@ impl RuntimeCt for RuntimePhase<'_> {
             address: None,
             roots: Vec::new(),
             roots_only: false,
+            has_dependent_root: false,
         };
         zil_expand::ct_selection::Visitor::item(&mut scan, item, 0)?;
         let address = *scan.roots.get(ordinal as usize).ok_or_else(|| {
@@ -436,6 +472,7 @@ impl RuntimeCt for RuntimePhase<'_> {
             address: None,
             roots: Vec::new(),
             roots_only: true,
+            has_dependent_root: false,
         };
         zil_expand::ct_selection::Visitor::item(&mut scan, original, 0)?;
         let mut roots = Vec::new();
@@ -530,8 +567,6 @@ impl<'a, 'b> Materializer<'a, 'b> {
             item_path: Vec::new(),
             next_generated_declaration: BTreeMap::new(),
             source_namespaces: BTreeMap::new(),
-            canonical_source_sites: BTreeMap::new(),
-            indexed_source_trees: BTreeSet::new(),
             bound_source_sites: Default::default(),
             generated_context: false,
             closure_site_revision: 0,
