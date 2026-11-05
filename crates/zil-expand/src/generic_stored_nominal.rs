@@ -598,6 +598,38 @@ impl<'a> Engine<'a> {
                 if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
                 }
+                if matches!(base, zil_ir::StorageBase::Result) && type_path.is_empty() {
+                    self.budget.text(&name[0], ty.span)?;
+                    self.stored_lookup_fee(self.enums.len(), name[0].len(), ty.span)?;
+                    if self.enums.contains_key(&name[0]) {
+                        // A return body must see the actual source application,
+                        // including its caller-life Type actuals. Capture it only
+                        // after the stored proof is known, before name erasure.
+                        self.budget.node(ty.span, depth)?;
+                        self.budget.lineage_bytes(
+                            std::mem::size_of::<TypeRef>()
+                                .saturating_add(std::mem::size_of::<String>())
+                                .saturating_add(
+                                    args.len().saturating_mul(std::mem::size_of::<GenericArg>()),
+                                ),
+                            ty.span,
+                        )?;
+                        for argument in args.iter() {
+                            match argument {
+                                GenericArg::Type(actual) => self.budget.ty(actual)?,
+                                GenericArg::Lifetime(life) => self.budget.text(life, ty.span)?,
+                                GenericArg::Const(value) => self.budget.const_expression(value)?,
+                            }
+                        }
+                        self.source_enum_return = Some(TypeRef {
+                            span: ty.span,
+                            kind: TypeKind::Named {
+                                path: name.clone(),
+                                args: args.clone(),
+                            },
+                        });
+                    }
+                }
                 let (generated, classes) =
                     self.stored_nominal(&name[0], args, ty.span, depth + 1)?;
                 for item in &self.products.storage.instances {
