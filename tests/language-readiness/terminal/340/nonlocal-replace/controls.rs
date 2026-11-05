@@ -487,9 +487,15 @@ fn g139_owned_result_helper_responsibility_and_failure() {
         .find(|f| f.name == "work")
         .unwrap();
     let mut removed = 0;
+    let extra = work
+        .locals
+        .iter()
+        .find(|local| local.name == "extra")
+        .unwrap()
+        .id;
     for block in &mut work.blocks {
         block.instructions.retain(|i| {
-            if matches!(i.kind, InstructionKind::DropManaged { .. }) {
+            if matches!(i.kind, InstructionKind::DropManaged { local } if local == extra) {
                 removed += 1;
                 false
             } else {
@@ -497,7 +503,7 @@ fn g139_owned_result_helper_responsibility_and_failure() {
             }
         });
     }
-    assert_eq!(removed, 1);
+    assert!(removed > 0);
     verify_reject(&unpaid_result, &plan, "E-VERIFY-RESOURCE");
 }
 

@@ -199,6 +199,7 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
+                b.replacement_error_sums |= matches!(definition.ty, Type::ErrorUnion { .. });
                 if matches!(
                     definition.ty,
                     Type::Package { .. }
