@@ -534,8 +534,13 @@ impl FrozenInvocationContext {
             {
                 continue;
             }
-            let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
-                continue;
+            let actuals = match &scope.instance {
+                CtScopeInstance::Instantiated(actuals) => actuals.as_slice(),
+                // An own header with zero parameters may be a Definition under
+                // its actual instantiated host. The source call has already
+                // independently established this exact empty header/vector.
+                CtScopeInstance::Definition if call.actuals.is_empty() => &[],
+                CtScopeInstance::Definition => continue,
             };
             let cost = super::super::execute::value_context::ambient_cost(
                 std::slice::from_ref(scope),
@@ -548,7 +553,7 @@ impl FrozenInvocationContext {
                     budget.reserve_analysis_work(cost)?;
                 }
             }
-            if actuals == &call.actuals
+            if actuals == call.actuals.as_slice()
                 && self.relocation_scope_admits(
                     reference,
                     CtAmbientScopeId(index as u32),
