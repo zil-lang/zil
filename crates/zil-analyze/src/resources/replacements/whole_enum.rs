@@ -2,14 +2,18 @@
 //! The local shell's debt and cleanup age stay in the ordinary resource state.
 use super::*;
 
+fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    b.type_work(ty, true, "whole ordinary Sum endpoint")?;
+    if !sums::owned(ty) || !package::ordinary_result(module, ty, b)? {
+        return Ok(false);
+    }
+    sums::admit(module, ty, b)?;
+    Ok(true)
+}
+
 pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
-        b.type_work(ty, true, "whole ordinary Sum endpoint")?;
-        if !sums::owned(ty) || !package::ordinary_result(module, ty, b)? {
-            return Ok(false);
-        }
-        sums::admit(module, ty, b)?;
-        return Ok(true);
+        return ordinary(module, ty, b);
     }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
@@ -23,11 +27,11 @@ pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
         for field in fields {
             if let Type::Managed(payload) = field {
                 if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
-                    return Ok(false);
+                    return ordinary(module, ty, b);
                 }
                 owners += 1;
             } else if !field.is_b0_scalar() {
-                return Ok(false);
+                return ordinary(module, ty, b);
             }
         }
         owning |= owners != 0;

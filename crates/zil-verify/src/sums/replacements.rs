@@ -368,13 +368,16 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
 /// Finite whole-Enum endpoint, not ordinary Sum qualification. Each owning
 /// arm has one direct canonical Copy-record leaf and scalar/Unit companions.
 fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+    fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
         resources::charge_payload(ty, b)?;
         if !owned(ty) || !helper_owned_result(module, ty, b)? {
             return Ok(false);
         }
         check_type_for(module, ty, None, b)?;
-        return Ok(true);
+        Ok(true)
+    }
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        return ordinary(module, ty, b);
     }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
@@ -384,8 +387,8 @@ fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool>
     for (_, fields) in variants {
         b.spend(fields.len())?;
         let mut arm_owns = false;
-        for ty in fields {
-            match ty {
+        for field in fields {
+            match field {
                 Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. })
                         && payload.is_copy_value() =>
@@ -402,7 +405,7 @@ fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool>
                 | Type::F64
                 | Type::U8
                 | Type::U16 => {}
-                _ => return Ok(false),
+                _ => return ordinary(module, ty, b),
             }
         }
         owns |= arm_owns;

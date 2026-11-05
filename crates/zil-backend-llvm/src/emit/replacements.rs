@@ -129,8 +129,6 @@ impl FunctionEmitter<'_> {
         // This is the currently verified producer profile. Other owning trees
         // retain their explicit independent Hold/debt consumer boundary.
         let complete_package = package_endpoint(&ty);
-        let complete_sum =
-            matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) && ordinary_sum_endpoint(&ty);
         let complete_enum = if let Type::Enum { variants, .. } = &ty {
             let mut owning = false;
             let mut admitted = true;
@@ -152,6 +150,9 @@ impl FunctionEmitter<'_> {
         } else {
             false
         };
+        let complete_sum = (matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. })
+            || (matches!(ty, Type::Enum { .. }) && !complete_enum))
+            && ordinary_sum_endpoint(&ty);
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
             && !complete_enum

@@ -277,7 +277,8 @@ impl Builder<'_, '_> {
                 self.closures.snapshot_type(at, 2, 0, target.span)?;
                 self.closures.snapshot(variants.len(), target.span)?;
                 let mut owning = false;
-                for (_, fields) in variants {
+                let mut ordinary = false;
+                'variants: for (_, fields) in variants {
                     self.closures.snapshot(fields.len(), target.span)?;
                     let mut owners = 0;
                     for field in fields {
@@ -285,16 +286,22 @@ impl Builder<'_, '_> {
                             if !matches!(payload.as_ref(), Type::Record { .. })
                                 || !payload.is_copy_value()
                             {
-                                return Ok(false);
+                                ordinary = true;
+                                break 'variants;
                             }
                             owners += 1;
                         } else if !field.is_b0_scalar() {
-                            return Ok(false);
+                            ordinary = true;
+                            break 'variants;
                         }
                     }
                     owning |= owners != 0;
                 }
-                if !owning {
+                if ordinary {
+                    if !path.is_empty() || !whole_sum_endpoint(at, self.closures, target.span)? {
+                        return Ok(false);
+                    }
+                } else if !owning {
                     return Ok(false);
                 }
             }
