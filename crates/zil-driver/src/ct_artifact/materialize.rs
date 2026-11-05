@@ -25,6 +25,8 @@ mod member_lineage;
 mod self_constant_coverage;
 #[path = "self_constants.rs"]
 mod self_constants;
+#[path = "materialize_source_sites.rs"]
+mod source_sites;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -232,6 +234,9 @@ struct Materializer<'a, 'b> {
     item_path: Vec<u32>,
     next_generated_declaration: BTreeMap<ModuleId, u32>,
     source_namespaces: BTreeMap<ModuleId, zil_ir::LifeDeclarationIdentity>,
+    canonical_source_sites: BTreeMap<(bool, usize), compiler::source_sites::SourceSite>,
+    indexed_source_trees: BTreeSet<(ModuleId, Option<u32>)>,
+    bound_source_sites: source_sites::BoundSites,
     generated_context: bool,
     // The revision is sampled at the actual original top-level item visit.
     // Changed rows move with retained original ordinals, never with spans.
@@ -251,6 +256,20 @@ impl super::hygiene::Context for Materializer<'_, '_> {
         self.environment.budget.reserve_generated_nodes(1)?;
         self.environment.budget.reserve_temporary_bytes(bytes)
     }
+}
+
+fn take_statement(statement: &mut s::Stmt) -> s::Stmt {
+    let span = statement.span;
+    std::mem::replace(
+        statement,
+        s::Stmt {
+            span,
+            kind: s::StmtKind::Expr(s::Expr {
+                span,
+                kind: s::ExprKind::Literal(s::Literal::Bool(false)),
+            }),
+        },
+    )
 }
 
 fn float_expression(
@@ -896,18 +915,44 @@ impl Materializer<'_, '_> {
         let input = self.environment.empty_input(expression.span)?;
         self.reject_runtime_capture(expression)?;
         let has_receiving_category = expected.is_some();
-        self.environment.evaluate_data(Entry::Expression { module, expression, definition: owner.clone(), lexical_owner: (!self.generated_context).then(|| owner.clone()), expected, parameters: &[] },
-            &input, None, &[], expression.span).map_err(|mut errors| {
-                if has_receiving_category {
-                    for error in &mut errors {
-                        if error.code == "E-CT-SOURCE" && error.message == "CT expression type does not match its actual expected type" {
-                            error.code = "E-CT-CATEGORY".into();
-                            error.message = "compile-time value category differs from its receiving syntax slot".into();
-                        }
+        let site = self.expression_source_site(expression)?;
+        let entry = Entry::Expression {
+            module,
+            expression,
+            definition: owner.clone(),
+            lexical_owner: Some(owner.clone()),
+            expected,
+            parameters: &[],
+        };
+        let result = if let Some(site) = site {
+            self.environment.evaluate_data_at_source(
+                entry,
+                &input,
+                None,
+                &[],
+                expression.span,
+                site,
+            )
+        } else {
+            self.environment
+                .evaluate_data(entry, &input, None, &[], expression.span)
+        };
+        result.map_err(|mut errors| {
+            if has_receiving_category {
+                for error in &mut errors {
+                    if error.code == "E-CT-SOURCE"
+                        && error.message
+                            == "CT expression type does not match its actual expected type"
+                    {
+                        error.code = "E-CT-CATEGORY".into();
+                        error.message =
+                            "compile-time value category differs from its receiving syntax slot"
+                                .into();
                     }
                 }
-                errors
-            })
+            }
+            errors
+        })
     }
     fn uses_ct_domain(&mut self, module: ModuleId, expression: &s::Expr) -> CompileResult<bool> {
         let syntax = self
@@ -1392,6 +1437,8 @@ impl Materializer<'_, '_> {
                 self.item_path.truncate(path_len);
                 continue;
             }
+            let previous_bound_sites = std::mem::take(&mut self.bound_source_sites);
+            self.bind_item_source_sites(&owner, &item)?;
             let previous_generated = self.generated_context;
             self.generated_context |= generated;
             match &mut item.kind {
@@ -1495,6 +1542,8 @@ impl Materializer<'_, '_> {
                     output.push(item);
                 }
             }
+            self.release_bound_source_sites();
+            self.bound_source_sites = previous_bound_sites;
             self.generated_context = previous_generated;
             self.item_path.truncate(path_len);
         }
@@ -1643,7 +1692,8 @@ impl Materializer<'_, '_> {
             statements.first().map_or(Span::default(), |stmt| stmt.span),
         )?;
         let mut output = Vec::new();
-        for mut stmt in std::mem::take(statements) {
+        let mut input_statements = std::mem::take(statements);
+        for stmt in &mut input_statements {
             // Even MetaIf/For left for Engine can later select/unroll sites.
             if matches!(stmt.kind, s::StmtKind::Meta(_)) {
                 self.closure_sites_changed(stmt.span)?;
@@ -1664,6 +1714,7 @@ impl Materializer<'_, '_> {
                             stmt.span,
                         ));
                     };
+                    self.clear_statement_source_sites(stmt)?;
                     self.statements(module, &mut generated, owner, depth + 1)?;
                     output.extend(generated);
                 }
@@ -1676,15 +1727,18 @@ impl Materializer<'_, '_> {
                     if let Some(body) = else_body {
                         self.block(module, body, owner, depth + 1)?;
                     }
-                    output.push(stmt);
+                    self.clear_statement_source_sites(stmt)?;
+                    output.push(take_statement(stmt));
                 }
                 s::StmtKind::Meta(s::MetaStatement::For { body, .. }) => {
                     self.block(module, body, owner, depth + 1)?;
-                    output.push(stmt);
+                    self.clear_statement_source_sites(stmt)?;
+                    output.push(take_statement(stmt));
                 }
                 _ => {
-                    self.statement(module, &mut stmt, owner, depth + 1)?;
-                    output.push(stmt);
+                    self.statement(module, stmt, owner, depth + 1)?;
+                    self.clear_statement_source_sites(stmt)?;
+                    output.push(take_statement(stmt));
                 }
             }
         }
@@ -1850,20 +1904,34 @@ impl Materializer<'_, '_> {
                 };
                 if !value.ambient_classes.is_empty() {
                     let context = output.context.as_ref().ok_or_else(|| {
-                        runtime("contextual Type result lost its actual source context", ty.span)
+                        runtime(
+                            "contextual Type result lost its actual source context",
+                            ty.span,
+                        )
                     })?;
-                    let scopes = context.source_scopes_for_graph(&value, &mut self.environment.budget)?;
+                    let scopes =
+                        context.source_scopes_for_graph(&value, &mut self.environment.budget)?;
                     let mut name_bytes = 0u64;
                     for node in &value.nodes {
                         self.environment.budget.reserve_analysis_work(1)?;
                         if let CtTypeNode::Nominal { symbol, .. } = node {
                             let (_, parsed) = self.parsed_source(symbol.module)?;
-                            let item = parsed.module.items.get(symbol.declaration.0 as usize)
-                                .ok_or_else(|| runtime("Type result nominal declaration is absent", ty.span))?;
+                            let item = parsed
+                                .module
+                                .items
+                                .get(symbol.declaration.0 as usize)
+                                .ok_or_else(|| {
+                                    runtime("Type result nominal declaration is absent", ty.span)
+                                })?;
                             let name = match &item.kind {
                                 s::ItemKind::Aggregate(a) => &a.name,
                                 s::ItemKind::Enum(e) => &e.name,
-                                _ => return Err(runtime("Type result has no nominal declaration", ty.span)),
+                                _ => {
+                                    return Err(runtime(
+                                        "Type result has no nominal declaration",
+                                        ty.span,
+                                    ));
+                                }
                             };
                             name_bytes = name_bytes.saturating_add(name.len() as u64);
                         }
@@ -1873,10 +1941,13 @@ impl Materializer<'_, '_> {
                         name_bytes.saturating_add((value.nodes.len() as u64).saturating_mul(256)),
                     )?;
                     let previous = std::mem::replace(&mut self.data_source_scopes, scopes);
-                    let replacement = self.owner_node(&value, value.root, module, ty.span, depth + 1);
+                    let replacement =
+                        self.owner_node(&value, value.root, module, ty.span, depth + 1);
                     self.data_source_scopes = previous;
                     self.environment.budget.release_value(&CtValue::Type(value));
-                    self.environment.budget.release_temporary_bytes(context.bytes);
+                    self.environment
+                        .budget
+                        .release_temporary_bytes(context.bytes);
                     *ty = replacement?;
                     return Ok(());
                 }
@@ -2230,6 +2301,9 @@ pub(crate) fn materialize(
         item_path: Vec::new(),
         next_generated_declaration: BTreeMap::new(),
         source_namespaces,
+        canonical_source_sites: BTreeMap::new(),
+        indexed_source_trees: BTreeSet::new(),
+        bound_source_sites: Default::default(),
         generated_context: false,
         closure_site_revision: 0,
         changed_closure_sites: BTreeSet::new(),
@@ -2694,6 +2768,9 @@ mod scoped_tests {
                 item_path: Vec::new(),
                 next_generated_declaration: BTreeMap::new(),
                 source_namespaces: BTreeMap::new(),
+                canonical_source_sites: BTreeMap::new(),
+                indexed_source_trees: BTreeSet::new(),
+                bound_source_sites: Default::default(),
                 generated_context: false,
                 closure_site_revision: 0,
                 changed_closure_sites: BTreeSet::new(),
