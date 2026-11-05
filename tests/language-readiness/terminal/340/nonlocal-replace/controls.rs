@@ -467,6 +467,38 @@ fn g139_owned_result_helper_responsibility_and_failure() {
             "{errors:?}"
         );
     }
+    let safe = typed(include_str!("owning-result-give.zil"));
+    let plan = zil_analyze::analyze(&safe, &Limits::default()).unwrap();
+    let mut false_create = safe.clone();
+    false_create
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "reset")
+        .unwrap()
+        .result_mode = zil_ir::PassingMode::Create;
+    verify_reject(&false_create, &plan, "E-VERIFY-RESOURCE");
+
+    let module = typed(include_str!("owning-result-helper.zil"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut unpaid_result = module;
+    let work = unpaid_result
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "work")
+        .unwrap();
+    let mut removed = 0;
+    for block in &mut work.blocks {
+        block.instructions.retain(|i| {
+            if matches!(i.kind, InstructionKind::DropManaged { .. }) {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+    }
+    assert_eq!(removed, 1);
+    verify_reject(&unpaid_result, &plan, "E-VERIFY-RESOURCE");
 }
 
 #[test]
@@ -492,6 +524,29 @@ fn g139_whole_sum_responsibility_and_failure() {
                 .any(|d| d.category == ResultCategory::SafeReject),
             "{errors:?}"
         );
+    }
+    for text in [
+        include_str!("tuple-whole-abort.zil"),
+        include_str!("error-whole-abort.zil"),
+    ] {
+        let module = typed(text);
+        let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let mut missing_abort = module;
+        let mut removed = 0;
+        for f in &mut missing_abort.functions {
+            for block in &mut f.blocks {
+                block.instructions.retain(|i| {
+                    if matches!(i.kind, InstructionKind::AbortPlaceReservation { .. }) {
+                        removed += 1;
+                        false
+                    } else {
+                        true
+                    }
+                });
+            }
+        }
+        assert!(removed > 0);
+        verify_reject(&missing_abort, &plan, "E-VERIFY-PLACE-REPLACE");
     }
 }
 

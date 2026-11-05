@@ -201,6 +201,7 @@ fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check
     if helper_copy_result(ty, b)? {
         return Ok(true);
     }
+    resources::charge_payload(ty, b)?;
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         b.spend(1)?;
