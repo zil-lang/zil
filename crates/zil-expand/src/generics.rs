@@ -1506,8 +1506,19 @@ impl<'a> Engine<'a> {
                         self.expr(value, &mut Env::new(), 0)?;
                     }
                 }
-                for item in &mut a.methods {
-                    self.item(item)?;
+                for (ordinal, item) in a.methods.iter_mut().enumerate() {
+                    let parent = self.current_origin;
+                    let member = match (self.origins, parent) {
+                        (Some(origins), Some(parent)) => Some(origins.aggregate_member(
+                            parent,
+                            ordinal,
+                            &mut self.budget,
+                            item.span,
+                        )?),
+                        (_, Some(parent)) => Some(parent.member(ordinal, item.span)?),
+                        _ => None,
+                    };
+                    self.with_origin(member, |engine| engine.item(item))?;
                 }
                 (
                     self.product_owner,

@@ -172,6 +172,38 @@ impl<'a> Environment<'a> {
         }
         Ok(())
     }
+    pub(super) fn validate_original_host_origin(
+        &mut self,
+        host: &CtSymbolId,
+        row: &zil_expand::source_context::DeclarationOrigin,
+    ) -> CompileResult<()> {
+        let origins = self
+            .source_origins
+            .as_ref()
+            .ok_or_else(|| error("original member host inventory absent", Span::default()))?;
+        self.budget
+            .reserve_analysis_work(origins.len() as u64 + 1)?;
+        let original = origins
+            .iter()
+            .find(|module| module.module == host.module)
+            .and_then(|module| module.items.get(host.declaration.0 as usize))
+            .ok_or_else(|| error("original member host row absent", Span::default()))?;
+        super::invocation_context::identity_cost(&original.identity, &mut self.budget)?;
+        super::invocation_context::identity_cost(&row.identity, &mut self.budget)?;
+        if host.generation_path.is_some()
+            || original.declaration != host.declaration
+            || row.declaration != original.declaration
+            || row.identity != original.identity
+            || original.retained_members.is_some()
+            || row.retained_members.is_some()
+        {
+            return Err(error(
+                "retained member host differs from the original source inventory",
+                Span::default(),
+            ));
+        }
+        Ok(())
+    }
     fn remaining_limits(&self) -> Limits {
         let remaining = self.budget.remaining();
         let mut limits = self.limits.clone();
