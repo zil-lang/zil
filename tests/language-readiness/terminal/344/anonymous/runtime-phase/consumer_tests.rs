@@ -146,3 +146,11 @@ fn g447_runtime_ct_instances_share_all_request_ledgers() {
         );
     }
 }
+
+#[test]
+fn g447_runtime_ct_qualified_type_actual_source_project_native() {
+    runtime_source_project_native(
+        include_str!("../ct6-runtime-qualified-type-actual.zil"),
+        b"8\n",
+    );
+}
