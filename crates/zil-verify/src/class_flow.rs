@@ -317,7 +317,7 @@ fn link_projection(
         } else {
             path.as_slice()
         };
-        let mut full = vec![step.clone()];
+        let mut full = vec![step];
         full.extend_from_slice(tail);
         let parent_class = if let Type::BorrowedStorage { life, .. } = physical {
             let row = life
