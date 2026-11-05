@@ -1,0 +1,230 @@
+{
+  "scope": "Existing accepted release CLI preflight only; no build, no new-implementation acceptance, no native runs. Original prepared source commit afaa8b44dd13611ee9cf7401c71c2d162d5678c5.",
+  "utc": "2026-11-05T09:41:01.843933+00:00",
+  "binary": "/workspace/.zil-env/target-release-G4.4.5.1/release/zil",
+  "binary_sha256": "91ba589a33517724e20f4ab9645389850effb9dfef86cf641b08ad4b7e4bbccf",
+  "binary_source": "0fee93aa7eb7fa0fe2f1fe9e86fb3f63f019566b",
+  "provenance_receipt": "/workspace/.zil-env/G4.4.5.1-common-run/complete.json",
+  "production_comparison": "git diff --stat 0fee93aa7eb7fa0fe2f1fe9e86fb3f63f019566b fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95 -- crates: empty",
+  "command_template": [
+    "/workspace/.zil-env/target-release-G4.4.5.1/release/zil",
+    "check",
+    "SOURCE",
+    "--stop-after",
+    "verify",
+    "--json"
+  ],
+  "TMPDIR": "/workspace/.zil-env/G10.1.10-tmp",
+  "results": [
+    {
+      "source": "captured-whole-package.zil",
+      "source_sha256": "bfb5e242f70a06ab274f2d2d50da7b6d861cc431b8f45fc96767c21030850021",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "mutable Product capture is not implemented",
+          "span": {
+            "file": 0,
+            "start": 262,
+            "end": 268
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "nested-package-helper.zil",
+      "source_sha256": "611ae3d4a574f42b8a229c8141eababb60a54b51d1ca0c6e903c1cf1cb3f3c5e",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: normal return leaves a responsibility unpaid",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "nonlocal-enum-abort.zil",
+      "source_sha256": "3b0ecd62cd80c1ba05f2ad5e2cd2e536ef2b45eca57ba0d58a92849db5cc4c98",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: normal return leaves a responsibility unpaid",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "nonlocal-enum-helper.zil",
+      "source_sha256": "410a7a93282eb501015d2aae793903a75853f560ad128708eac020d8fed7f343",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "complete Enum replacement requires this body's exact whole local owner",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "qualified-lending-mut.zil",
+      "source_sha256": "4e2ba487e5b982674db3a35b2e4fdc31507ecfaec383c9f4225be5f8deea5c1d",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic borrowed return requires a static helper with an explicit life relation",
+          "span": {
+            "file": 0,
+            "start": 104,
+            "end": 108
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "qualified-lending.zil",
+      "source_sha256": "0ec964af32289f9e72451fb1eafc25cd361e23f2ee98f50a3195cf65047241b3",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic borrowed return requires a static helper with an explicit life relation",
+          "span": {
+            "file": 0,
+            "start": 97,
+            "end": 101
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "store-whole-package-abort.zil",
+      "source_sha256": "fcf234f1c0749ada1c7eddf5e17fbebc33d478f870782fd8563b12dc3cd71f29",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "complete Package replacement requires this body's exact whole local owner",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "store-whole-package.zil",
+      "source_sha256": "644efdafff525b5d64598f16175d4325ece16ac71dd3ffb8f50d948398053fad",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "complete Package replacement requires this body's exact whole local owner",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "two-leaf-package-helper.zil",
+      "source_sha256": "b0aa42599a1cb11c0b6f63c3f4d7b01ed1cb62f9a424d999eae25cc8e52fa348",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: normal return leaves a responsibility unpaid",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "two-role-fnmut-loop.zil",
+      "source_sha256": "ad271d9273a94f6aa04e5bd215636d919d163d1d412375b42c5b96dcd6e2e25a",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "signature omits actual closure free Fixed domain",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "two-role-user-drop.zil",
+      "source_sha256": "2b52d169671e9516ed9d2d4e07d8fe7ccac168cf4dee8832aa08931b48fb3970",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "signature omits actual closure free Fixed domain",
+          "span": null,
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

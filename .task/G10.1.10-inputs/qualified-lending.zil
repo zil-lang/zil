@@ -1,5 +1,5 @@
 struct Tag<life s>{p:&'s i64}
-fn peek<life s,F:Fn(&Tag<'s>)->&i32>(f:&F,x:&Tag<'s>)->&i32{return f(x)}
+fn peek<life s,life env,F:Fn(&Tag<'s>)->&i32>(f:&'env F,x:&Tag<'s>)->&'env i32{return f(x)}
 fn apply<life s>(left:&Tag<'s>)->i32{
     let first_value=17;
     let second_value=25;

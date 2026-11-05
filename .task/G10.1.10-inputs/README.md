@@ -1,9 +1,23 @@
-# Prepared independent Source consumers (not executed)
+# Independent Source consumers (early accepted-baseline preflight)
 
 All inputs are derived from real existing source paths, not handwritten IR.
-They have **no observed acceptance result yet**. They must be run against the
+They have **no new-implementation acceptance result yet**. They must be run against the
 exact frozen G1.3.9/G3.3.9 delivery, and a failure before the intended consumer
 must retain its actual phase/diagnostic rather than count as a passing negative.
+
+Accepted-release baseline preflight is now recorded in
+`early-preflight-release-original.json`, binding CLI SHA256 `91ba589a...` to
+the existing PR45 source `0fee93aa7...`; its crates tree equals fd261b22.
+All eleven original sources pass parsing, then stop at actual Expand/Types/
+Analyze implementation gates. The two lending helper headers were subsequently
+made explicit as `f:&'env F -> &'env i32` and the mutable counterpart, so the
+returned environment field is tied to the receiver's real life rather than an
+elided relationship. Original bytes remain in input commit afaa8b44d and the
+original receipt preserves their first rejection. Revised results and ordinary
+lending control are in `early-preflight-release-revised.json`. These are stage
+observations, not source admission or native results for the new implementation.
+An earlier debug-CLI run is separately retained with its unproved source
+provenance; it does not inherit the release binary's identity.
 
 | Input | New obligation | Intended native observation |
 |---|---|---|
