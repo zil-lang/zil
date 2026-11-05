@@ -160,7 +160,7 @@ pub(super) fn start(
                 }
             } else if matches!(
                 local.ty,
-                Type::Managed(_) | Type::Tuple(_) | Type::Closure(_)
+                Type::Managed(_) | Type::Tuple(_) | Type::Enum { .. } | Type::Closure(_)
             ) {
                 owners.push(TaskOwner {
                     slot: TaskOwnerSlot::Local(local.id),
@@ -181,7 +181,11 @@ pub(super) fn start(
             charge_payload(ty, budget)?;
             if !matches!(
                 ty,
-                Type::Managed(_) | Type::Package { .. } | Type::Tuple(_) | Type::Closure(_)
+                Type::Managed(_)
+                    | Type::Package { .. }
+                    | Type::Tuple(_)
+                    | Type::Enum { .. }
+                    | Type::Closure(_)
             ) {
                 return Err(unsupported(
                     "continuation aggregate SSA debt requires canonical partial-owner frame mapping",
@@ -198,7 +202,13 @@ pub(super) fn start(
     }
     let mut covered = vec![false; slots.debt_count];
     for owner in &owners {
-        covered[owner.debt] = true;
+        if std::mem::replace(&mut covered[owner.debt], true) {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "continuation responsibility has more than one canonical owner slot",
+            ));
+        }
     }
     // This is a conservation test, not an inference that all typed locals are
     // live. Captures/partial fields need their own canonical mapping first.
@@ -355,6 +365,28 @@ pub(super) fn finish(
                     .saturating_mul(12),
             ),
     )?;
+    let enum_fields = match &f.blocks[block].instructions[instruction].kind {
+        InstructionKind::UnpackVariant { fields, .. } => Some(fields),
+        _ => None,
+    };
+    if let Some(fields) = enum_fields {
+        // Count and prepay the actual new Link row before borrowing the
+        // retained plan mutably or allocating the reordered row.
+        budget.spend(old.len())?;
+        let links = budget.task_ownership[&f.id]
+            .owners
+            .iter()
+            .enumerate()
+            .filter(|(i, owner)| old[*i] & LIVE == 0 && state.debt[owner.debt] & LIVE != 0)
+            .count();
+        budget.spend(
+            fields
+                .len()
+                .saturating_mul(links.saturating_add(1))
+                .saturating_mul(3)
+                .saturating_add(links.saturating_mul(2)),
+        )?;
+    }
     let plan = budget
         .task_ownership
         .get_mut(&f.id)
@@ -377,6 +409,28 @@ pub(super) fn finish(
                 TaskOwnerAction::Link(index)
             });
         }
+    }
+    if let Some(fields) = enum_fields {
+        // Ordinary Unpack initializes the actual fields in reverse order.
+        // LocalId/owner inventory order does not establish their cleanup age.
+        let mut ordered = Vec::with_capacity(after.len());
+        for &local in fields.iter().rev() {
+            let Some(at) = after.iter().position(|action| {
+                matches!(action, TaskOwnerAction::Link(slot)
+                    if plan.owners[*slot].slot == TaskOwnerSlot::Local(local))
+            }) else {
+                continue;
+            };
+            ordered.push(after.remove(at));
+        }
+        if !after.is_empty() {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.blocks[block].instructions[instruction].span),
+                "whole Enum Unpack has a noncanonical destination frame action",
+            ));
+        }
+        after = ordered;
     }
     // TakeLocal forgets ordinary local age. Its output is a successfully
     // prepared temporary, registered after remaining outer obligations.
