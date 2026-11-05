@@ -861,6 +861,9 @@ impl<'a> Index<'a> {
         )
     }
 
+    // Bounds, lexical source, retained callable roles and callback policy are
+    // independent inputs to this scoped qualification check.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn check_arguments_scoped(
         &self,
         parameters: &[GenericParam],

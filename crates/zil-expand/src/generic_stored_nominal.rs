@@ -110,6 +110,9 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
+    // The original and physical field, both source maps, both projection paths,
+    // and the recursion budget remain distinct proof inputs at this boundary.
+    #[allow(clippy::too_many_arguments)]
     fn stored_physical_field(
         &mut self,
         physical: &mut TypeRef,

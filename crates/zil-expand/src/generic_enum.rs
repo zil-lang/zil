@@ -356,6 +356,24 @@ pub(super) fn validate_declaration(
     layout(&ty, &variables, nominals, &mut BTreeSet::new(), budget, 0)
 }
 
+fn scoped_formal<'a>(
+    formals: &'a [GenericParam],
+    name: &str,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<Option<&'a GenericParam>> {
+    for formal in formals {
+        budget.node(formal.span, depth)?;
+        budget.text(&formal.name, formal.span)?;
+        budget.text(name, span)?;
+        if formal.name == name {
+            return Ok(Some(formal));
+        }
+    }
+    Ok(None)
+}
+
 fn scoped_shape(
     ty: &TypeRef,
     formals: &[GenericParam],
@@ -367,7 +385,7 @@ fn scoped_shape(
     match &ty.kind {
         TypeKind::Named { path, args } if path.len() == 1 => {
             let name = &path[0];
-            if let Some(formal) = formals.iter().find(|p| p.name == *name) {
+            if let Some(formal) = scoped_formal(formals, name, budget, ty.span, depth + 1)? {
                 if !matches!(formal.kind, GenericParamKind::Type(_)) || !args.is_empty() {
                     return Err(error(
                         ty.span,
@@ -385,6 +403,10 @@ fn scoped_shape(
                 }
                 return Ok(());
             }
+            budget.identity_work(
+                nominals.len().saturating_mul(name.len().saturating_add(1)),
+                ty.span,
+            )?;
             let item = nominals
                 .get(name)
                 .ok_or_else(|| error(ty.span, "unknown scoped enum payload nominal"))?;
@@ -400,9 +422,9 @@ fn scoped_shape(
                 match (&parameter.kind, actual) {
                     (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
                         budget.text(name, ty.span)?;
-                        if !formals.iter().any(|p| {
-                            p.name == *name && matches!(p.kind, GenericParamKind::Lifetime)
-                        }) {
+                        if !scoped_formal(formals, name, budget, ty.span, depth + 1)?
+                            .is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                        {
                             return Err(error(
                                 ty.span,
                                 "scoped enum payload lifetime is not a declaration binder",
@@ -418,7 +440,9 @@ fn scoped_shape(
                             unsupported(ty.span, "scoped enum payload const has no expression")
                         })?;
                         if let ExprKind::Name(name) = &value.kind {
-                            let Some(source) = formals.iter().find(|p| p.name == *name) else {
+                            let Some(source) =
+                                scoped_formal(formals, name, budget, ty.span, depth + 1)?
+                            else {
                                 return Err(error(
                                     ty.span,
                                     "scoped enum payload const lacks a source binder",
