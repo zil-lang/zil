@@ -25,7 +25,7 @@ pub(super) fn plan(
         let mut values = Plan::new();
         for (index, ty) in function.values.iter().enumerate() {
             if !matches!(
-                ty,
+                enums::storage_shape(ty),
                 Type::Array { .. }
                     | Type::Tuple(_)
                     | Type::Record { .. }
@@ -38,13 +38,13 @@ pub(super) fn plan(
             // metadata clones before examining or retaining the complete shape.
             let before = work;
             reserve(ty, &mut work, 0, limits)?;
-            if !ty.is_copy_value() {
+            if !ty.is_copy_value() && !stored_borrows::pure_composite(ty) {
                 continue;
             }
             let machine = llvm_type(ty)?;
             let (bytes, align) = layout(&machine)?;
             if bytes >= MIN_BYTES {
-                if matches!(ty, Type::Enum { .. }) {
+                if matches!(enums::storage_shape(ty), Type::Enum { .. }) {
                     // make_variant/read_variant clone the source enum as well
                     // as its machine layout. Source names are absent from the
                     // machine type; pay their bytes before retaining the slot,
@@ -163,6 +163,10 @@ pub(super) fn reserve_enum_metadata(
         Ok(())
     };
     match ty {
+        Type::BorrowedStorage { storage, life } => {
+            stored_borrows::shape(life, work)?;
+            reserve_enum_metadata(storage, work, depth + 1, limits)?;
+        }
         Type::Named(text) | Type::Unsupported(text) => name(text)?,
         Type::Record { name: text, fields } | Type::Package { name: text, fields } => {
             name(text)?;
@@ -266,6 +270,10 @@ pub(super) fn reserve(
         stored_borrows::contract(life, work)?;
     }
     match ty {
+        Type::BorrowedStorage { storage, life } => {
+            stored_borrows::shape(life, work)?;
+            reserve(storage, work, depth + 1, limits)?;
+        }
         Type::Array { element, .. } => reserve(element, work, depth + 1, limits)?,
         Type::Tuple(fields) => {
             for field in fields {
@@ -309,7 +317,7 @@ pub(super) fn classify(
     limits: &Limits,
 ) -> CompileResult<Option<Slot>> {
     if !matches!(
-        ty,
+        enums::storage_shape(ty),
         Type::Array { .. }
             | Type::Tuple(_)
             | Type::Record { .. }
@@ -320,7 +328,7 @@ pub(super) fn classify(
     }
     let before = *work;
     reserve(ty, work, 0, limits)?;
-    if !ty.is_copy_value() {
+    if !ty.is_copy_value() && !stored_borrows::pure_composite(ty) {
         return Ok(None);
     }
     let machine = llvm_type(ty)?;
@@ -466,8 +474,9 @@ pub(super) fn pointer(value: ValueId) -> m::Val {
 // reserve has already bounded/paid this complete type walk and its depth.
 // Estimate the existing canonical store's actual repeated field operations
 // without allocating aggregate_fields or expanding an array in the planner.
-fn canonical_payload_work(ty: &Type) -> usize {
+pub(super) fn canonical_payload_work(ty: &Type) -> usize {
     match ty {
+        Type::BorrowedStorage { storage, .. } => canonical_payload_work(storage),
         Type::Unit => 0,
         Type::Bool => 2,
         Type::Array { element, length } => canonical_payload_work(element)
@@ -681,7 +690,7 @@ impl FunctionEmitter<'_> {
         index: ValueId,
         update: Option<ValueId>,
     ) -> CompileResult<()> {
-        let Type::Array { length, .. } = self.value_type(aggregate)? else {
+        let Type::Array { length, .. } = enums::storage_shape(self.value_type(aggregate)?) else {
             unreachable!("verified array")
         };
         let length = *length;
@@ -778,5 +787,69 @@ impl FunctionEmitter<'_> {
             }
         }
         self.text.push(event);
+    }
+}
+
+#[cfg(test)]
+mod qualified_snapshot_tests {
+    use super::*;
+
+    #[test]
+    fn g4463_qualified_snapshot_classification_preserves_layout_and_full_metadata_fee() {
+        // Private physical planner probe only. Source nominal and borrowing
+        // authentication is performed before this planner in real requests.
+        let leaf = Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Leaf".into(),
+                fields: vec![("bits".into(), Type::U64)],
+            }),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let qualified = Type::Array {
+            element: Box::new(leaf.clone()),
+            length: 1024,
+        };
+        assert!(!qualified.is_copy_value());
+        let mut remaining = usize::MAX;
+        let slot = classify(&qualified, &mut remaining, &Limits::default())
+            .unwrap()
+            .unwrap();
+        assert_eq!((slot.bytes, slot.align), (8192, 8));
+        let cost = usize::MAX - remaining;
+        let mut exact = cost;
+        assert!(
+            classify(&qualified, &mut exact, &Limits::default())
+                .unwrap()
+                .is_some()
+        );
+        assert_eq!(exact, 0);
+        let errors = classify(&qualified, &mut (cost - 1), &Limits::default())
+            .err()
+            .expect("N-1 must exhaust the snapshot planner");
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+        let mut borrowed = leaf;
+        let Type::BorrowedStorage { life, .. } = &mut borrowed else {
+            unreachable!()
+        };
+        life.slots.push(zil_ir::StorageLifeSlot {
+            path: vec![],
+            binder: 0,
+            mode: zil_ir::StoredBorrowMode::SharedAddress,
+        });
+        let borrowed = Type::Array {
+            element: Box::new(borrowed),
+            length: 1024,
+        };
+        let mut available = usize::MAX;
+        assert!(
+            classify(&borrowed, &mut available, &Limits::default())
+                .unwrap()
+                .is_none()
+        );
     }
 }

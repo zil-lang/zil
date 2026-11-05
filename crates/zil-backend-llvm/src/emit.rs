@@ -122,7 +122,12 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
-        stored_borrows::reserve_emission(lir, verified.limits(), &mut copy_plans.remaining_work)?;
+        stored_borrows::reserve_emission(
+            lir,
+            verified.limits(),
+            &copy_plans.values,
+            &mut copy_plans.remaining_work,
+        )?;
     }
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
     let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
@@ -3264,7 +3269,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let result = instruction.result.expect("verified array operation result");
         let ty = &self.function.values[aggregate.0 as usize];
-        let Type::Array { element, length } = ty else {
+        let Type::Array { element, length } = enums::storage_shape(ty) else {
             return unsupported("verified index lost array type", Some(instruction.span));
         };
         let element = (**element).clone();

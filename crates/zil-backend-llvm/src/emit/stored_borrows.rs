@@ -17,7 +17,7 @@ fn pay(work: &mut usize, n: usize) -> CompileResult<()> {
     *work = work.checked_sub(n).ok_or_else(exhausted)?;
     Ok(())
 }
-fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
+pub(super) fn shape(life: &StorageLifeShape, work: &mut usize) -> CompileResult<()> {
     pay(
         work,
         life.slots
@@ -232,6 +232,35 @@ pub(super) fn reserve_callable_metadata(
 pub(super) fn representation_type(t: &Type) -> bool {
     matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_))))
+        || pure_composite(t)
+}
+
+// reserve_callable_metadata has already bounded and paid the complete type
+// walk before bind_lir calls this predicate. All variant payloads are visited,
+// including inactive ones; no address or owning/resource leaf enters this new
+// physical-only path. Existing Record/Tuple borrow representations above keep
+// their separately verified profile.
+pub(super) fn pure_composite(t: &Type) -> bool {
+    match t {
+        Type::BorrowedStorage { storage, life } => life.slots.is_empty() && pure_composite(storage),
+        Type::Tuple(fields) => fields.iter().all(pure_composite),
+        Type::Record { fields, .. } => fields.iter().all(|(_, t)| pure_composite(t)),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, fields)| fields.iter().all(pure_composite)),
+        Type::Array { element, .. } => pure_composite(element),
+        Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F32
+        | Type::F64
+        | Type::U8
+        | Type::U16 => true,
+        _ => false,
+    }
 }
 
 /// Pay comparison against separately allocated public LIR from the same
@@ -446,6 +475,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
 pub(super) fn reserve_emission(
     lir: &LirView<'_>,
     limits: &Limits,
+    snapshots: &BTreeMap<FunctionId, copy_aggregates::Plan>,
     work: &mut usize,
 ) -> CompileResult<()> {
     pay(work, lir.functions.len())?;
@@ -505,6 +535,25 @@ pub(super) fn reserve_emission(
                 let definition =
                     &lir.closures[f.environment.expect("verified capture entry").0 as usize];
                 type_work(&definition.captures[*index as usize], work, limits, 0)?;
+            }
+            if let InstructionKind::MakeVariant { fields, .. } = &i.kind
+                && let Some(result) = i.result
+                && !f.values[result.0 as usize].is_copy_value()
+                && pure_composite(&f.values[result.0 as usize])
+                && snapshots
+                    .get(&f.id)
+                    .is_none_or(|plan| !plan.contains_key(&result))
+            {
+                // Planned enum results already prepay each nonsnapshot field's
+                // canonical store in copy_aggregates::plan. Only an SSA enum
+                // result reaches this additional reservation.
+                for field in fields {
+                    pay(
+                        work,
+                        copy_aggregates::canonical_payload_work(&f.values[field.0 as usize])
+                            .saturating_mul(16),
+                    )?;
+                }
             }
             for v in operands(&i.kind).into_iter().chain(i.result) {
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;
@@ -619,6 +668,63 @@ impl FunctionEmitter<'_> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn g4463_pure_representation_checks_every_variant_and_array_element() {
+        let qualify = |storage| Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let mut sum = qualify(Type::Enum {
+            name: "Choice".into(),
+            variants: vec![("Empty".into(), vec![]), ("Value".into(), vec![Type::U64])],
+        });
+        assert!(representation_type(&sum));
+        let Type::BorrowedStorage { storage, .. } = &mut sum else {
+            unreachable!()
+        };
+        let Type::Enum { variants, .. } = storage.as_mut() else {
+            unreachable!()
+        };
+        variants.push((
+            "Inactive".into(),
+            vec![Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }],
+        ));
+        assert!(!representation_type(&sum));
+        let array = |element| Type::Array {
+            element: Box::new(element),
+            length: 2,
+        };
+        assert!(representation_type(&array(qualify(Type::Record {
+            name: "Leaf".into(),
+            fields: vec![("bits".into(), Type::U64)]
+        }))));
+        assert!(!representation_type(&array(Type::Managed(Box::new(
+            Type::ByteBuffer
+        )))));
+        let mut slotted = qualify(Type::Enum {
+            name: "Empty".into(),
+            variants: vec![("None".into(), vec![])],
+        });
+        let Type::BorrowedStorage { life, .. } = &mut slotted else {
+            unreachable!()
+        };
+        life.slots.push(zil_ir::StorageLifeSlot {
+            path: vec![],
+            binder: 0,
+            mode: zil_ir::StoredBorrowMode::SharedAddress,
+        });
+        assert!(!representation_type(&slotted));
+    }
     #[test]
     fn callable40_rich_relation_rows_paths_and_pointer_layout_are_metered() {
         use zil_ir::{
@@ -682,7 +788,6 @@ mod tests {
         assert!(growth[2] > growth[1] * 8);
     }
 
-    use super::*;
     use zil_ir::{BlockId, BlockPlan, CandidatePlan, FunctionPlan, HoldRoot, ValueHold};
     #[allow(dead_code)]
     mod fixture {
@@ -691,6 +796,83 @@ mod tests {
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
     }
+    #[test]
+    fn g4463_snapshot_enum_canonical_store_is_reserved_once() {
+        // Synthetic physical budgeting probe, not a verified source program.
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        let qualify = |storage| Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let input = qualify(Type::Record {
+            name: "Leaf".into(),
+            fields: vec![("bits".into(), Type::U64)],
+        });
+        let output = qualify(Type::Enum {
+            name: "Wide".into(),
+            variants: vec![
+                ("Small".into(), vec![input.clone()]),
+                (
+                    "Wide".into(),
+                    vec![Type::Array {
+                        element: Box::new(Type::U64),
+                        length: 1024,
+                    }],
+                ),
+            ],
+        });
+        let f = &mut module.functions[0];
+        f.parameters.clear();
+        f.locals.clear();
+        f.return_type = Type::Unit;
+        f.values = vec![input.clone(), output];
+        f.blocks.truncate(1);
+        f.blocks[0].instructions = vec![fixture::instruction(
+            Some(1),
+            InstructionKind::MakeVariant {
+                variant: 0,
+                fields: vec![ValueId(0)],
+            },
+        )];
+        f.blocks[0].terminator = Terminator::Return(None);
+        let view = LirView {
+            schema_version: module.schema_version,
+            module_id: module.module_id,
+            verified_fingerprint: zil_base::Fingerprint::ZERO,
+            target: &module.target,
+            functions: &module.functions,
+            closures: &[],
+            resources: &[],
+            layouts: std::borrow::Cow::Borrowed(&[]),
+        };
+        let limits = Limits::default();
+        let planned = copy_aggregates::plan(&view, &limits, usize::MAX).unwrap();
+        let snapshot = &planned.values[&module.functions[0].id];
+        assert!(snapshot.contains_key(&ValueId(1)));
+        assert!(!snapshot.contains_key(&ValueId(0)));
+        let mut with_snapshot = usize::MAX;
+        reserve_emission(&view, &limits, &planned.values, &mut with_snapshot).unwrap();
+        let mut without_snapshot = usize::MAX;
+        reserve_emission(&view, &limits, &BTreeMap::new(), &mut without_snapshot).unwrap();
+        assert_eq!(
+            with_snapshot - without_snapshot,
+            copy_aggregates::canonical_payload_work(&input) * 16
+        );
+        let needed = usize::MAX - with_snapshot;
+        let mut exact = needed;
+        reserve_emission(&view, &limits, &planned.values, &mut exact).unwrap();
+        assert_eq!(exact, 0);
+        let errors =
+            reserve_emission(&view, &limits, &planned.values, &mut (needed - 1)).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+    }
+
     fn verified() -> VerifiedModule {
         let module = fixture::wide_shared(64);
         let origins = vec![
