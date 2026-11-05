@@ -407,6 +407,13 @@ impl Builder<'_, '_> {
                         self.closures.snapshot(work.saturating_mul(2), e.span)?;
                     }
                 }
+                if let Type::Record { fields, .. } = stored::physical(&inner)
+                    && let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
+                    && !field.is_copy_value()
+                    && stored::pure_inline(field, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(field, 1, 0, e.span)?;
+                }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
                 let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
@@ -431,6 +438,12 @@ impl Builder<'_, '_> {
                     mutable,
                     inner: Box::new(field),
                 };
+                if let Type::Address { inner, .. } = &ty
+                    && !inner.is_copy_value()
+                    && stored::pure_inline(inner, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((
                     self.value(
                         InstructionKind::AddressField { address, index },
@@ -491,6 +504,12 @@ impl Builder<'_, '_> {
                     mutable,
                     inner: element,
                 };
+                if let Type::Address { inner, .. } = &ty
+                    && !inner.is_copy_value()
+                    && stored::pure_inline(inner, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((
                     self.value(
                         InstructionKind::AddressIndex { address, index },

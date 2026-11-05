@@ -7,6 +7,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
         kind,
         InstructionKind::ExtractField { .. }
             | InstructionKind::ExtractIndex { .. }
+            | InstructionKind::UpdateField { .. }
+            | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
@@ -108,6 +110,56 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
                 return Err(failure("pure Copy index requires a fixed array"));
             };
             element.as_ref()
+        }
+        InstructionKind::UpdateField {
+            aggregate,
+            index,
+            value,
+        } => {
+            let source = value_type(f, *aggregate)?;
+            if !pure(source, b, 0)? {
+                return Err(failure("pure field update source retains a real target"));
+            }
+            let physical = super::carrier(source).map_or(source, |(storage, _)| storage);
+            let field = match physical {
+                Type::Tuple(fields) => fields.get(*index as usize),
+                Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
+                _ => None,
+            }
+            .ok_or_else(|| failure("pure field update crosses actual inline layout"))?;
+            b.type_work(field, false, "pure field update actual child")?;
+            b.type_work(
+                value_type(f, *value)?,
+                false,
+                "pure field update actual input",
+            )?;
+            if value_type(f, *value)? != field {
+                return Err(failure("pure field update changes complete child type"));
+            }
+            source
+        }
+        InstructionKind::UpdateIndex {
+            aggregate,
+            index,
+            value,
+        } => {
+            let source = value_type(f, *aggregate)?;
+            if !pure(source, b, 0)? || !value_type(f, *index)?.is_integer() {
+                return Err(failure("pure index update source or index is invalid"));
+            }
+            let Type::Array { element, .. } = source else {
+                return Err(failure("pure index update requires actual fixed Array"));
+            };
+            b.type_work(element, false, "pure index update actual child")?;
+            b.type_work(
+                value_type(f, *value)?,
+                false,
+                "pure index update actual input",
+            )?;
+            if value_type(f, *value)? != element.as_ref() {
+                return Err(failure("pure index update changes complete element type"));
+            }
+            source
         }
         InstructionKind::MakeVariant { variant, fields } => {
             let Type::Enum { variants, .. } =

@@ -181,6 +181,21 @@ pub(super) fn signature_work(
     for ty in parameters.iter().chain(std::iter::once(result)) {
         budget.type_work(ty, true, "callback relation and exact actual signature")?;
     }
+    qualified_array_relation_work(parameters, result, budget)?;
+    Ok(())
+}
+
+pub(super) fn qualified_array_relation_work(
+    parameters: &[Type],
+    result: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for ty in parameters.iter().chain(std::iter::once(result)) {
+        if matches!(ty, Type::Array { .. }) && !ty.is_copy_value() {
+            budget.type_work(ty, false, "qualified Array relation physical/class walk")?;
+            budget.type_work(ty, false, "qualified Array relation class path work")?;
+        }
+    }
     Ok(())
 }
 

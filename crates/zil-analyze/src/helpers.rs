@@ -801,6 +801,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             None,
                         )]);
                     }
+                    super::borrowed_fp::qualified_array_relation_work(
+                        &definition.captures,
+                        &Type::Unit,
+                        budget,
+                    )?;
                     super::signature_life::capture_relation(
                         &definition.parameters,
                         &definition.captures,

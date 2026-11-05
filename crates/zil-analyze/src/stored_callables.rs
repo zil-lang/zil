@@ -179,6 +179,8 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     "actual captured closure entry relation differs from definition",
                 ));
             }
+            super::borrowed_fp::qualified_array_relation_work(&d.parameters, &d.result, b)?;
+            super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
             super::signature_life::capture_relation(
                 &d.parameters,
                 &d.captures,

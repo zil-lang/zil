@@ -343,14 +343,21 @@ pub(super) fn project_definitions(
                     _ => {}
                 }
             }
+            let physical_name = nominal_name(module.core.module_id.0, &e.name, &e.variants);
+            let actual_candidate = module.core.life_instances.iter().any(|instance| {
+                matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Enum { name, .. } if name == &physical_name))
+            });
             let mut qualified_payload = false;
-            for (_, fields) in &e.variants {
-                for field in fields {
-                    if !field.is_copy_value()
-                        && stored::pure_inline(field, remaining, limits, e.span)
-                            .map_err(|e| vec![e])?
-                    {
-                        qualified_payload = true;
+            if actual_candidate {
+                for (_, fields) in &e.variants {
+                    for field in fields {
+                        if !field.is_copy_value()
+                            && stored::pure_inline(field, remaining, limits, e.span)
+                                .map_err(|e| vec![e])?
+                        {
+                            qualified_payload = true;
+                        }
                     }
                 }
             }
@@ -369,7 +376,7 @@ pub(super) fn project_definitions(
                 }
             }
             let physical = Type::Enum {
-                name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
+                name: physical_name,
                 variants: e.variants.clone(),
             };
             let mut qualified = None;

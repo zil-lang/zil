@@ -513,6 +513,10 @@ struct Engine<'a> {
     resolved_method_calls: trait_instances::Calls,
     method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
+    // The original full enum result application, captured before a stored
+    // signature replaces it with its physical name. Only body checking reads
+    // this hint; the emitted function header remains physical.
+    source_enum_return: Option<TypeRef>,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
     active_callables: Option<callable::CallableTemplates>,
@@ -616,6 +620,7 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            source_enum_return: None,
             callable_name: None,
             callable_pair: None,
             active_callables: None,
@@ -1531,6 +1536,9 @@ impl<'a> Engine<'a> {
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
+                // A prior signature preparation may have visited another
+                // function. This body accepts only its own captured result.
+                self.source_enum_return = None;
                 if self.stored_signature(f)? {
                     self.budget.function_snapshot(f)?;
                     self.budget.text(&f.name, f.span)?;
@@ -1620,9 +1628,12 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
-                let saved_result = self
-                    .return_type
-                    .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
+                let body_result = self
+                    .source_enum_return
+                    .take()
+                    .or_else(|| f.return_type.clone())
+                    .unwrap_or_else(|| check::unit(f.span));
+                let saved_result = self.return_type.replace(body_result);
                 let saved_callables = std::mem::replace(&mut self.active_callables, callable);
                 match &mut f.body {
                     FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
