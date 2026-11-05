@@ -68,7 +68,7 @@ pub(super) fn check_definitions(
             signature_life::closure_relation(
                 &closure.parameters,
                 &closure.captures,
-                &closure.result,
+                stored_callables::life_result(closure),
                 life,
                 None,
             )?;
@@ -626,6 +626,8 @@ fn lending_environment(
             Type::Address { inner, .. } if owning_capture_address(ty) => {
                 sums::check_type_for(module, inner, None, budget)?;
             }
+            Type::Address { mutable:false, .. } if stored_callables::lending(closure)
+                && stored_callables::shared_input(ty) => {},
             Type::Closure(child) => self_contained(module, *child, budget)?,
             Type::Managed(_) | Type::Package { .. } => {}
             ty if ty.is_copy_value() => {}

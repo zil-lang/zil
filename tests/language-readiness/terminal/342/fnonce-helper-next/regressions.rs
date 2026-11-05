@@ -82,18 +82,33 @@ fn g337_actual_source_tail_and_raw_wire_hostile_neighbors() {
             }
         }
     }
-    for (text, phase, fragment) in [
-        (
-            include_str!("user-drop.zil"),
-            zil_base::Phase::Analyze,
-            "user-defined Drop",
-        ),
-        (
-            include_str!("give-f.zil"),
-            zil_base::Phase::Expand,
-            "callable parameter must",
-        ),
-    ] {
+    // G3.3.9 explicitly promotes the same registered user-Drop source. It
+    // retains actual teardown/resource proof and receives a fresh raw/Wire check.
+    let promoted = include_str!("user-drop.zil");
+    let report = compile_source(
+        &source(promoted),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let typed = zil_types::check(&g334_core(promoted), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    for (text, phase, fragment) in [(
+        include_str!("give-f.zil"),
+        zil_base::Phase::Expand,
+        "callable parameter must",
+    )] {
         let report = compile_source(
             &source(text),
             &CompileOptions {

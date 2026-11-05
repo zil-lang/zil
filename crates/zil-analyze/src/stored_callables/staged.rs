@@ -49,9 +49,10 @@ pub(super) fn parameter(
                 "staged declared owner payload comparison",
             )?;
             if resource.payload == **payload {
-                if matched || resource.teardown.is_some() {
+                if matched {
                     return Err(closed());
                 }
+                super::super::stored_flow::owned::teardown(module, resource, b)?;
                 matched = true;
             }
         }
@@ -472,7 +473,8 @@ mod tests {
                     .unwrap()
                     .kind;
                 assert!(
-                    super::super::role(&m, &changed, call, &mut Budget::new(&limits)).is_err(),
+                    super::super::role(&m, &changed, call, &mut Budget::new(&limits)).is_ok()
+                        == (name == "self-loop"),
                     "{name}"
                 );
             }

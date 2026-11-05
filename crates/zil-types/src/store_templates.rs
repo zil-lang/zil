@@ -199,7 +199,7 @@ pub(super) fn bound_elements(state: &mut closures::State) -> R<Vec<(Type, Span)>
 pub(super) fn resolve_argument(
     argument: &Type,
     bounds: &[CoreCallableParameter],
-    bindings: helpers::Bindings,
+    bindings: &helpers::Bindings,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,

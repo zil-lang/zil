@@ -343,7 +343,7 @@ pub(super) fn callable_life(function: &s::Function) -> bool {
             _=>return false,
         }
     }
-    lives > 0 && (1..=2).contains(&callables)
+    lives > 0 && callables > 0
 }
 
 fn failure(span: Span, text: &str) -> Diagnostic {

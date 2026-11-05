@@ -995,8 +995,7 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
                 if !super::stored_callables::capture(ty)
-                    && !(closure.kind == zil_ir::CallableKind::FnOnce
-                        && super::stored_callables::owned_capture(ty, budget)?)
+                    && !super::stored_callables::owned_capture(ty, budget)?
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,

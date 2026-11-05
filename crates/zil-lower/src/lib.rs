@@ -118,8 +118,10 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 .storage_life
                 .as_ref()
                 .is_some_and(|life| life.fixed_binder_count > 0)
-            && closure.lending_captures.is_empty()
-            && closure.result.is_b0_scalar();
+            && ((closure.lending_captures.is_empty() && closure.result.is_b0_scalar())
+                || (!closure.lending_captures.is_empty()
+                    && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())));
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(

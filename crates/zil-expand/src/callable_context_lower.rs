@@ -85,7 +85,7 @@ impl generics::products::Products {
                         )
                     })?;
                 if role.source_life.is_some()
-                    || role.generic_index != 0
+                    || role.generic_index != row.generic_index
                     || !matches!(
                         role.kind,
                         CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce

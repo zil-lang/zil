@@ -560,6 +560,20 @@ impl State {
         )?;
         helpers::source_life::validate(function, bound)
     }
+    pub(super) fn has_source_context(&self, id: ClosureId) -> bool {
+        self.pending
+            .get(id.0 as usize)
+            .is_some_and(|pending| pending.source_context.is_some())
+    }
+
+    pub(super) fn source_helper_joint(
+        &mut self,
+        original: &CoreFunction,
+        partials: &[(u32, StorageLifeContract)],
+        span: Span,
+    ) -> R<StorageLifeContract> {
+        helpers::source_life::joint_header(original, partials, &mut self.work_left, span)
+    }
     pub(super) fn source_helper_relation(
         &mut self,
         original: &CoreFunction,
@@ -1013,7 +1027,12 @@ impl State {
                     borrowed_fp_qualified::source_capture_relation(
                         &parameters,
                         &captures,
-                        &result,
+                        if matches!(&result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())
+                        {
+                            &Type::Unit
+                        } else {
+                            &result
+                        },
                         life,
                         pending.span,
                     )?;
