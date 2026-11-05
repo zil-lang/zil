@@ -9,6 +9,7 @@ enum Head {
     // A reference to the actual aggregate declaration in this borrowed source
     // inventory. This is never a name-based semantic identity or cache key.
     Declaration(usize),
+    Enum(usize),
     Plain(Vec<String>),
 }
 #[derive(Clone)]
@@ -32,6 +33,7 @@ struct Scope<'a> {
 struct Check<'a, 'b, 'l> {
     functions: Vec<&'a Function>,
     records: Vec<&'a Aggregate>,
+    enums: Vec<&'a EnumDecl>,
     hosts: Vec<Option<usize>>,
     standalone: Vec<bool>,
     fact_depth: usize,
@@ -322,6 +324,13 @@ impl Check<'_, '_, '_> {
                 return Ok(Head::Declaration(index));
             }
         }
+        for (index, declaration) in self.enums.iter().enumerate() {
+            self.budget.text(&spelling, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name == spelling {
+                return Ok(Head::Enum(index));
+            }
+        }
         Ok(Head::Plain(path.to_vec()))
     }
     fn compatible(&mut self, expected: &Fact, actual: &Fact, span: Span) -> R<()> {
@@ -349,6 +358,14 @@ impl Check<'_, '_, '_> {
                     for (x, y) in xs.iter().zip(ys) {
                         this.compatible(x, y, span)?;
                     }
+                }
+            }
+            (Fact::Named(Head::Enum(a), xs), Fact::Named(Head::Enum(b), ys)) => {
+                if expected.has_class() && (a != b || xs.len() != ys.len()) {
+                    return Err(error(span, "source enum class annotation differs from actual declaration"));
+                }
+                if a == b && xs.len() == ys.len() {
+                    for (x, y) in xs.iter().zip(ys) { this.compatible(x, y, span)?; }
                 }
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
@@ -1029,6 +1046,13 @@ impl Check<'_, '_, '_> {
                 };
                 let mut output = Fact::Unknown;
                 if root.is_none() {
+                    if let Some(variant) =
+                        self.variant_call_result(callee, &actuals, scope, e.span, depth + 1)?
+                    {
+                        return Ok(variant);
+                    }
+                }
+                if root.is_none() {
                     if let Some(member) =
                         self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
                     {
@@ -1057,17 +1081,39 @@ impl Check<'_, '_, '_> {
                         };
                         let mut map = Substitutions::new();
                         if let Some(args) = explicit {
-                            for ((ordinal, _), arg) in f
-                                .generics
+                            if f.generics
                                 .iter()
-                                .enumerate()
-                                .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                                .zip(args)
+                                .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
+                                && args.len() == f.generics.len()
                             {
-                                if let GenericArg::Type(t) = arg {
-                                    let fact = self.ty(t, scope, depth + 1)?;
+                                for (ordinal, (formal, arg)) in
+                                    f.generics.iter().zip(args).enumerate()
+                                {
+                                    let fact = self.full_free_actual(
+                                        formal,
+                                        arg,
+                                        scope,
+                                        e.span,
+                                        depth + 1,
+                                    )?;
                                     self.lookup(map.len(), 2, e.span)?;
                                     map.insert(Binder(owner, ordinal), fact);
+                                }
+                            } else {
+                                // Keep the old short and all-Type path's work
+                                // and ordinal behavior unchanged.
+                                for ((ordinal, _), arg) in f
+                                    .generics
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
+                                    .zip(args)
+                                {
+                                    if let GenericArg::Type(t) = arg {
+                                        let fact = self.ty(t, scope, depth + 1)?;
+                                        self.lookup(map.len(), 2, e.span)?;
+                                        map.insert(Binder(owner, ordinal), fact);
+                                    }
                                 }
                             }
                         }
@@ -1098,6 +1144,163 @@ impl Check<'_, '_, '_> {
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    fn variant_call_result(
+        &mut self,
+        callee: &Expr,
+        actuals: &[Fact],
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(variant_name),
+        } = &callee.kind
+        else {
+            return Ok(None);
+        };
+        let (object, explicit) = match &object.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (object.as_ref(), None),
+        };
+        let ExprKind::Name(enum_name) = &object.kind else {
+            return Ok(None);
+        };
+        for index in 0..self.enums.len() {
+            let declaration = self.enums[index];
+            self.budget.text(enum_name, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name != *enum_name {
+                continue;
+            }
+            for variant in &declaration.variants {
+                self.budget.text(variant_name, span)?;
+                self.budget.text(&variant.name, span)?;
+                if variant.name != *variant_name {
+                    continue;
+                }
+                let VariantFields::Tuple(fields) = &variant.fields else {
+                    return Err(unsupported(
+                        span,
+                        "scoped source enum constructor needs tuple payload evidence",
+                    ));
+                };
+                if fields.len() != actuals.len() {
+                    return Err(unsupported(
+                        span,
+                        "source enum variant payload arity differs",
+                    ));
+                }
+                let owner = self.functions.len() + self.records.len() + index;
+                let definition = Scope {
+                    owner,
+                    parameters: &declaration.generics,
+                    host: None,
+                };
+                let mut map = Substitutions::new();
+                if let Some(explicit) = explicit {
+                    if explicit.len() != declaration.generics.len() {
+                        return Err(unsupported(
+                            span,
+                            "source enum constructor needs full ordered actuals",
+                        ));
+                    }
+                    for (ordinal, (formal, actual)) in
+                        declaration.generics.iter().zip(explicit).enumerate()
+                    {
+                        let fact =
+                            self.full_free_actual(formal, actual, caller, span, depth + 1)?;
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), fact);
+                    }
+                }
+                for (field, actual) in fields.iter().zip(actuals) {
+                    let formal = self.ty(&field.ty, &definition, depth + 1)?;
+                    if explicit.is_some() {
+                        let expected = self.substitute(&formal, &map, span)?;
+                        self.compatible(&expected, actual, span)?;
+                    } else {
+                        self.infer(&formal, actual, &mut map, span, true)?;
+                    }
+                }
+                let mut classes = Vec::new();
+                for ordinal in 0..declaration.generics.len() {
+                    self.lookup(map.len(), 2, span)?;
+                    let Some(fact) = map.get(&Binder(owner, ordinal)) else {
+                        return Err(unsupported(
+                            span,
+                            "source enum variant cannot infer its complete actuals",
+                        ));
+                    };
+                    classes.push(self.copy(fact, span)?);
+                }
+                return Ok(Some(Fact::Named(Head::Enum(index), classes)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn full_free_actual(
+        &mut self,
+        formal: &GenericParam,
+        actual: &GenericArg,
+        scope: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        self.budget.node(span, depth)?;
+        match (&formal.kind, actual) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                match self.binder(scope, name, span)? {
+                    Some((binder, true)) => Ok(Fact::Class(binder)),
+                    _ => Err(unsupported(
+                        span,
+                        "free CT life actual has no original source binder",
+                    )),
+                }
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, scope, depth + 1),
+            (GenericParamKind::Const(domain), arg) => {
+                let carrier = consts::argument(arg, Some(formal), self.budget)?;
+                let value = consts::expression(&carrier).ok_or_else(|| {
+                    unsupported(span, "free CT const actual has no source expression")
+                })?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let binder = scope
+                        .parameters
+                        .iter()
+                        .find(|p| p.name == *name && matches!(p.kind, GenericParamKind::Const(_)));
+                    let binder = binder.or_else(|| {
+                        consts::symbolic_parameter(&self.functions[scope.owner], name)
+                            .map(|(_, p)| p)
+                    });
+                    let Some(GenericParam {
+                        kind: GenericParamKind::Const(actual_domain),
+                        ..
+                    }) = binder
+                    else {
+                        return Err(unsupported(
+                            span,
+                            "free CT symbolic const has no original source binder",
+                        ));
+                    };
+                    if type_key(domain, self.budget)? != type_key(actual_domain, self.budget)? {
+                        return Err(unsupported(span, "free CT symbolic const domain differs"));
+                    }
+                } else {
+                    consts::normalize(formal, &carrier, self.budget)?;
+                }
+                Ok(Fact::Unknown)
+            }
+            _ => Err(unsupported(
+                span,
+                "free CT actual kind differs from full ordinal",
+            )),
+        }
     }
 
     // Resolve a CT host/member call from the actual source AST and inventory.
@@ -1453,6 +1656,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     struct Inventory<'a> {
         functions: Vec<&'a Function>,
         records: Vec<&'a Aggregate>,
+        enums: Vec<&'a EnumDecl>,
         hosts: Vec<Option<usize>>,
         standalone: Vec<bool>,
     }
@@ -1477,6 +1681,13 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     let index = found.records.len();
                     found.records.push(a);
                     inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
+                }
+                ItemKind::Enum(e)
+                    if e.generics
+                        .iter()
+                        .any(|p| matches!(p.kind, GenericParamKind::Lifetime)) =>
+                {
+                    found.enums.push(e);
                 }
                 ItemKind::Impl(i) => {
                     budget.identity_work(i.generics.len(), item.span)?;
@@ -1512,6 +1723,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut found = Inventory {
         functions: Vec::new(),
         records: Vec::new(),
+        enums: Vec::new(),
         hosts: Vec::new(),
         standalone: Vec::new(),
     };
@@ -1519,6 +1731,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut check = Check {
         functions: found.functions,
         records: found.records,
+        enums: found.enums,
         hosts: found.hosts,
         standalone: found.standalone,
         fact_depth: 0,

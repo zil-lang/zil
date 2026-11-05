@@ -676,7 +676,16 @@ impl Engine<'_> {
                 }),
                 member: MemberName::Name(variant),
             };
-            return Ok(Some(named(&generated, span)));
+            // Keep the real source actuals in the expression environment for
+            // a later pattern. The AST callee already names the physical enum;
+            // a generated name alone cannot recover the caller's classes.
+            return Ok(Some(TypeRef {
+                span,
+                kind: TypeKind::Named {
+                    path: vec![decl.name.clone()],
+                    args: source_arguments,
+                },
+            }));
         }
         let mut found = BTreeMap::new();
         let vars = decl
@@ -890,6 +899,39 @@ impl Engine<'_> {
                 let raw = fields(decl, &variant, pattern.span)?;
                 if raw.len() != arguments.len() {
                     return Err(error(pattern.span, "enum pattern payload arity mismatch"));
+                }
+                if self.stored_nominals
+                    && decl
+                        .generics
+                        .iter()
+                        .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                {
+                    if args.len() != decl.generics.len() {
+                        return Err(error(
+                            pattern.span,
+                            "stored enum pattern needs full source actuals",
+                        ));
+                    }
+                    self.budget.ty(&written)?;
+                    let mut instance_args = args.clone();
+                    let (instance, _) = self.stored_nominal(
+                        &decl.name,
+                        &mut instance_args,
+                        pattern.span,
+                        depth + 1,
+                    )?;
+                    path[0] = instance;
+                    for (child, field) in arguments.iter_mut().zip(raw) {
+                        let mut actual = source_field_actuals(
+                            &decl.generics,
+                            args,
+                            &field.ty,
+                            &mut self.budget,
+                        )?;
+                        self.ty(&mut actual, depth + 1)?;
+                        self.enum_pattern(child, Some(&actual), env, depth + 1)?;
+                    }
+                    return Ok(());
                 }
                 let mut found = BTreeMap::new();
                 for (p, arg) in decl.generics.iter().zip(args) {
