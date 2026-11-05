@@ -10,6 +10,7 @@ struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
+    may_only: bool,
 }
 pub(super) struct Context<'a> {
     actual: &'a actual::Program,
@@ -455,6 +456,14 @@ pub(crate) fn at_type<'a>(
             && match target.base {
                 actual::Base::Input(p) => package_helper(f, ty, Some(p), b)?,
                 actual::Base::Environment(_) => package_helper(f, ty, None, b)?,
+                actual::Base::InputCapture(p, c) => {
+                    f.foreign.is_none()
+                        && f.callable_return_contract.is_none()
+                        && f.reference_return_bound.is_none()
+                        && f.storage_life.is_none()
+                        && helper_copy_result(&f.return_type, b)?
+                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
+                }
                 actual::Base::Element(_) => {
                     matches!(ty, Type::Package { .. }) && package_helper(f, ty, None, b)?
                 }
@@ -665,6 +674,7 @@ impl Context<'_> {
             entry,
             arguments,
             captures,
+            may_only,
         } = invocation;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
@@ -691,7 +701,9 @@ impl Context<'_> {
             }
             let strong = if whole {
                 lookup(b, self.whole_must.len())?;
-                matches!(payload, Content::Product(_)) && self.whole_must.contains(&entry)
+                !may_only
+                    && matches!(payload, Content::Product(_))
+                    && self.whole_must.contains(&entry)
             } else {
                 true
             };
@@ -745,6 +757,14 @@ impl Context<'_> {
                     return Err(invalid("whole replacement RHS is not complete"));
                 }
                 for target in self.actual.selected(f, place, b)? {
+                    if f.callable_contract.is_some()
+                        && !matches!(target.base, actual::Base::Local(_))
+                    {
+                        return Err(unsupported(
+                            "public callable helper cannot publish its own nonlocal Commit",
+                            Some(i.span),
+                        ));
+                    }
                     self.apply(flow, state, &target, &incoming, true, validate, b)?;
                 }
             }
@@ -753,6 +773,51 @@ impl Context<'_> {
                 arguments,
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
+                if let Some(contract) = &callee.callable_contract {
+                    b.spend(self.summaries[function.0 as usize].len())?;
+                    if self.summaries[function.0 as usize]
+                        .keys()
+                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
+                    {
+                        return Err(unsupported(
+                            "public callable helper has an unpublished replacement effect",
+                            Some(i.span),
+                        ));
+                    }
+                    for (entry, value) in
+                        resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
+                    {
+                        b.spend(self.summaries[entry].len())?;
+                        for target in self.summaries[entry].keys() {
+                            if !matches!(target.base, actual::Base::Environment(_)) {
+                                return Err(unsupported(
+                                    "callback replacement needs an actual captured destination; callback argument mapping is absent",
+                                    Some(i.span),
+                                ));
+                            }
+                        }
+                        self.call(
+                            flow,
+                            state,
+                            Invocation {
+                                entry,
+                                arguments: &[],
+                                captures: Some(&facts.captures[value.0 as usize]),
+                                may_only: true,
+                            },
+                            validate,
+                            b,
+                        )?;
+                    }
+                    return Ok(None);
+                }
+                if f.callable_contract.is_some() && !self.summaries[function.0 as usize].is_empty()
+                {
+                    return Err(unsupported(
+                        "public callable helper cannot publish an ordinary callee's private replacement effects",
+                        Some(i.span),
+                    ));
+                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()
                 {
@@ -768,6 +833,7 @@ impl Context<'_> {
                         entry: function.0 as usize,
                         arguments,
                         captures: None,
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -788,6 +854,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: facts.local_captures.get(callee),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -810,6 +877,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: Some(&facts.captures[callee.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -829,6 +897,7 @@ impl Context<'_> {
                             entry,
                             arguments: &[],
                             captures: Some(&facts.captures[value.0 as usize]),
+                            may_only: false,
                         },
                         validate,
                         b,
@@ -849,6 +918,7 @@ impl Context<'_> {
                         entry,
                         arguments: &[],
                         captures: Some(&facts.captures[body.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,

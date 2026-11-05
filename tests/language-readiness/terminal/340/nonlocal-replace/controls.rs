@@ -33,6 +33,10 @@ fn g139_nonlocal_complete_package_source_raw_wire() {
         include_str!("nested-package-helper.zil"),
         include_str!("nested-package-local.zil"),
         include_str!("multiple-leaves-abort.zil"),
+        include_str!("public-role-capture-probe.zil"),
+        include_str!("public-role-repeat.zil"),
+        include_str!("public-role-no-call.zil"),
+        include_str!("public-role-loop.zil"),
     ] {
         check(text);
     }
@@ -47,6 +51,7 @@ fn g139_nonlocal_replacement_source_safety_neighbors() {
         include_str!("pin-overlap.zil"),
         include_str!("nested-old-desc.zil"),
         include_str!("nested-partial.zil"),
+        include_str!("public-role-old-desc-probe.zil"),
     ] {
         let module = typed(text);
         let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
@@ -140,6 +145,10 @@ fn g139_independent_verify_captured_and_store_retirement() {
     for (text, code) in [
         (include_str!("captured-old-desc.zil"), "E-VERIFY-RESOURCE"),
         (include_str!("store-old-desc.zil"), "E-BORROW-CONFLICT"),
+        (
+            include_str!("public-role-old-desc-probe.zil"),
+            "E-VERIFY-RESOURCE",
+        ),
     ] {
         let module = typed(text);
         let mut safe = module.clone();
@@ -201,6 +210,26 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
         for optimization in [Optimization::O0, Optimization::O2] {
             for (name, text, expected) in [
                 ("capture", CAPTURE, b"AB42\n".as_slice()),
+                (
+                    "public-role-capture",
+                    include_str!("public-role-capture-probe.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "public-role-repeat",
+                    include_str!("public-role-repeat.zil"),
+                    b"ABB42\n".as_slice(),
+                ),
+                (
+                    "public-role-no-call",
+                    include_str!("public-role-no-call.zil"),
+                    b"A42\n".as_slice(),
+                ),
+                (
+                    "public-role-loop",
+                    include_str!("public-role-loop.zil"),
+                    b"ABB42\n".as_slice(),
+                ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
                     "two-leaf",
@@ -294,6 +323,15 @@ fn g139_public_role_capture_current_contract_probe() {
     }
     let result = zil_analyze::analyze(&module, &Limits::default());
     println!("G139 public-role actual Analyze result {result:?}");
+    if result.is_err() {
+        for function in &module.functions {
+            println!(
+                "G139 rejected actual function {} {:?}",
+                function.name, function.blocks
+            );
+        }
+    }
+    assert!(result.is_ok(), "{result:?}");
     assert!(
         module
             .functions
@@ -302,4 +340,39 @@ fn g139_public_role_capture_current_contract_probe() {
             .flat_map(|b| &b.instructions)
             .any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
     );
+}
+
+#[test]
+fn g139_public_role_trace_cannot_hide_actual_invocation() {
+    let module = typed(include_str!("public-role-capture-probe.zil"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut forged = module.clone();
+    let mut changed = 0;
+    for f in &mut forged.functions {
+        if let Some(contract) = &mut f.callable_contract {
+            if let zil_ir::CallableTraces::Finite(paths) = &mut contract.traces {
+                for path in paths {
+                    changed += path.calls.len();
+                    path.calls.clear();
+                }
+            }
+        }
+    }
+    assert!(changed > 0);
+    let mut claim = plan;
+    claim.module_fingerprint = forged.fingerprint();
+    let limits = Limits::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(forged.clone(), claim, &forged.target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &forged.target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
 }
