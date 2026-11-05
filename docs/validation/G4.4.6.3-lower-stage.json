@@ -1,0 +1,53 @@
+{
+  "task": "G4.4.6.3-lower",
+  "status": "ImplementationNoLinkPassActualSourcePending",
+  "date": "2026-11-05",
+  "implementation_commit": "b24edbc03ae66751533a02006a6822a7049dde3b",
+  "base": "f47e1bb5b977952eef5071281cbce83a5ae8133a",
+  "source_dirty": false,
+  "branch": "task/G4.4.6.3-lower",
+  "spec_hash": "e235b19010325a125338f764f9e75b8ab6dd612f75ea4915e4761edd4a7e0b7a",
+  "normative_hash": "e938daf9f797c6790549c578e25d474d6eafeba20bf50ee51b282fbaa653f80b",
+  "actual_input_failure": {
+    "source_commit": "f47e1bb5b977952eef5071281cbce83a5ae8133a",
+    "log": "/workspace/.zil-env/G10.1.11-third-targeted/enum-backend.log",
+    "case": "g4463_qualified_array_snapshot_preserves_every_u64_bit",
+    "verification_runs": 1,
+    "phase": "Lower",
+    "category": "Unsupported",
+    "shape": "Array { element: BorrowedStorage { storage: Record Leaf { bits:U64 }, life nominal full ordinal0 }, length:1 }"
+  },
+  "implementation": [
+    "Lower result, parameter and Local/SSA gates retain every prior successful branch before a new pure-composite fallback, preserving old successful path visits and fees.",
+    "Independent same-budget type/metadata walk admits scalars/Tuple/Record/Enum/Array, checks every variant payload and homogeneous Array element once, requires wrapper slots empty, rejects Address/Managed/capability leaves.",
+    "Immutable full qualified Type, nominal actuals and retained class metadata are borrowed unchanged into LIR; no physical erasure or permission/copy qualification is derived.",
+    "Downstream existing LLVM pure representation, storage layout, actual array length/index, snapshot planning and versioned LargeCopy ABI were inspected. They already cover this exact ordinary pure-value shape at the base; no LLVM production edit required."
+  ],
+  "check": {
+    "command": "cargo check -p zil-lower -p zil-backend-llvm --tests -j1",
+    "kind": "NoLinkCompileOnly",
+    "result": "Pass",
+    "log": "/workspace/.zil-env/G4.4.6.3-lower-tmp/qualified-array-lower-frozen-check.log",
+    "sha256": "d406543f224718b237022a6f718b7b5c4163f285ff7b447252247fd16fb99e75",
+    "target": "/workspace/.zil-env/target-G4.4.6.3-backend",
+    "initial_corrected_compile_seconds": 19.8
+  },
+  "first_check_command_error": "Repeated --tests flag caused cargo argument rejection only; corrected command above compiled successfully. Not a compiler/test pass.",
+  "compiled_not_executed": [
+    "Lower private pure qualified Array work/nodes N/N-1/fresh/shared-ledger and homogeneous metadata cardinality control.",
+    "Lower private rejection of inactive variant Address, Managed Array element and nonempty wrapper slots.",
+    "Existing aggregates Source tests unchanged: ordinary a18, qualified Array snapshot, qualified large parameter and result."
+  ],
+  "remaining": [
+    "Root-authorized actual Source/native replay of existing three controls after joint consumer update.",
+    "Independent review, affected exact budgets and parent acceptance."
+  ],
+  "source_native_result": "NotExecutedByThisStage",
+  "rust_goals": {
+    "semantic_safety": "No type erasure or new target permission; independent physical-only predicate after Verify.",
+    "predictable_cost": "Prior success fast paths unchanged; new actual type/metadata walks charge one shared Lower budget.",
+    "machine_control": "Existing LLVM snapshot and versioned large-value ABI retained.",
+    "engineering_boundary": "Two Lower production files only; no schema/dependency/ABI/default limit change.",
+    "breakthrough_and_limit": "Closes a transparent qualified-child Array representation omission with no-link evidence; real machine result remains pending."
+  }
+}
