@@ -20,14 +20,15 @@ pub(crate) struct Place {
 pub(crate) type Places = BTreeSet<Place>;
 pub(crate) type Slots = BTreeMap<u32, Places>;
 #[derive(Clone, Default, PartialEq, Eq)]
-struct State {
-    addresses: BTreeMap<LocalId, Places>,
-    environments: BTreeMap<LocalId, Slots>,
+pub(crate) struct State {
+    pub(crate) addresses: BTreeMap<LocalId, Places>,
+    pub(crate) environments: BTreeMap<LocalId, Slots>,
 }
 pub(crate) struct Facts {
     pub(crate) values: Vec<Places>,
     pub(crate) slots: Vec<Slots>,
     pub(crate) local_slots: BTreeMap<LocalId, Slots>,
+    pub(crate) positions: BTreeMap<(usize, usize), State>,
     returned: Places,
 }
 fn work(b: &mut Budget, n: usize) -> CompileResult<()> {
@@ -222,6 +223,7 @@ fn function(
     predecessors: &[Vec<usize>],
     reachable: &[bool],
     summaries: &[Places],
+    retirement: bool,
     b: &mut Budget,
 ) -> CompileResult<Facts> {
     work(
@@ -238,7 +240,7 @@ fn function(
     work(b, f.parameters.len())?;
     for (index, local) in f.parameters.iter().enumerate() {
         let ty = &f.locals[local.0 as usize].ty;
-        if matches!(ty, Type::Address { .. }) {
+        if matches!(ty, Type::Address { .. }) || retirement && matches!(ty, Type::Desc(_)) {
             initial.addresses.insert(
                 *local,
                 Places::from([Place {
@@ -253,7 +255,7 @@ fn function(
             work(b, captures.len())?;
             let mut row = Slots::new();
             for (capture, ty) in captures.iter().enumerate() {
-                if matches!(ty, Type::Address { .. }) {
+                if matches!(ty, Type::Address { .. }) || retirement && matches!(ty, Type::Desc(_)) {
                     b.lookup(row.len(), "replacement symbolic capture insertion")?;
                     row.insert(
                         capture as u32,
@@ -270,6 +272,7 @@ fn function(
     }
     state_cost(&initial, b)?;
     let mut local_slots = initial.environments.clone();
+    let mut positions = BTreeMap::new();
     loop {
         let mut changed = false;
         for (block_index, block) in f.blocks.iter().enumerate() {
@@ -288,12 +291,57 @@ fn function(
                     state_join(&mut state, &outputs[*predecessor], b)?;
                 }
             }
-            for instruction in &block.instructions {
+            for (position, instruction) in block.instructions.iter().enumerate() {
                 work(b, 1)?;
+                if retirement
+                    && matches!(
+                        instruction.kind,
+                        InstructionKind::CommitPlaceReplace { .. }
+                            | InstructionKind::Call { .. }
+                            | InstructionKind::CallClosure { .. }
+                            | InstructionKind::CallClosureOnce { .. }
+                            | InstructionKind::CallClosureBorrowed { .. }
+                            | InstructionKind::CallClosureShared { .. }
+                            | InstructionKind::CallClosureMut { .. }
+                            | InstructionKind::WithForeignCallback { .. }
+                            | InstructionKind::WithScopedThread { .. }
+                            | InstructionKind::WithSyncCell { .. }
+                    )
+                {
+                    state_cost(&state, b)?;
+                    b.lookup(positions.len(), "actual retirement point state")?;
+                    positions.insert((block_index, position), state.clone());
+                }
                 if let Some(result) = instruction.result {
                     let mut row = Places::new();
-                    if matches!(f.values[result.0 as usize], Type::Address { .. }) {
+                    if matches!(f.values[result.0 as usize], Type::Address { .. })
+                        || retirement && matches!(f.values[result.0 as usize], Type::Desc(_))
+                    {
                         match &instruction.kind {
+                            InstructionKind::DescribeLocal { local } => {
+                                row.insert(Place {
+                                    root: Root::Local(*local),
+                                    mutable: false,
+                                    path: vec![],
+                                });
+                            }
+                            InstructionKind::DescribePackageField { local, index } => {
+                                row.insert(Place {
+                                    root: Root::Local(*local),
+                                    mutable: false,
+                                    path: vec![PlaceProjection::Field(*index)],
+                                });
+                            }
+                            InstructionKind::DescribeAddress { address } => {
+                                join(&mut row, &values[address.0 as usize], b)?;
+                            }
+                            InstructionKind::DescribeCapture { index } => {
+                                row.insert(Place {
+                                    root: Root::Capture(*index),
+                                    mutable: false,
+                                    path: vec![],
+                                });
+                            }
                             InstructionKind::BorrowLocal { local }
                             | InstructionKind::BorrowLocalMut { local } => {
                                 row.insert(Place {
@@ -467,7 +515,9 @@ fn function(
                                     .zip(&module.closures[closure.0 as usize].captures)
                                     .enumerate()
                                 {
-                                    if matches!(ty, Type::Address { .. }) {
+                                    if matches!(ty, Type::Address { .. })
+                                        || retirement && matches!(ty, Type::Desc(_))
+                                    {
                                         b.lookup(
                                             row.len(),
                                             "replacement captured actual slot insert",
@@ -562,7 +612,8 @@ fn function(
         work(b, 1)?;
         if *live
             && let Terminator::Return(Some(value)) = block.terminator
-            && matches!(f.return_type, Type::Address { .. })
+            && (matches!(f.return_type, Type::Address { .. })
+                || retirement && matches!(f.return_type, Type::Desc(_)))
         {
             work(b, values[value.0 as usize].len())?;
             for place in &values[value.0 as usize] {
@@ -582,12 +633,14 @@ fn function(
         values,
         slots,
         local_slots,
+        positions,
         returned,
     })
 }
 pub(crate) fn module(
     module: &TypedModule,
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    retirement: bool,
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
     work(b, module.functions.len().saturating_mul(2))?;
@@ -599,7 +652,15 @@ pub(crate) fn module(
         for (index, (f, (predecessors, reachable))) in
             module.functions.iter().zip(graphs).enumerate()
         {
-            let found = function(module, f, predecessors, reachable, &summaries, b)?;
+            let found = function(
+                module,
+                f,
+                predecessors,
+                reachable,
+                &summaries,
+                retirement,
+                b,
+            )?;
             changed |= join(&mut summaries[index], &found.returned, b)?;
             all.push(found);
         }
