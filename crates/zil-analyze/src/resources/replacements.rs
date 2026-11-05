@@ -921,28 +921,37 @@ impl Program {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
                             let owners = package::borrowed(flow.module, f, &target, b)?.owners;
-                            let nested = product::nested(&d.ty);
-                            let paths = if nested {
-                                package::leaves(&d.ty, b)?
+                            let mut commit_leaf =
+                                |path: &[u32], b: &mut Budget| -> CompileResult<()> {
+                                    let mut leaf = target.clone();
+                                    fee(b, leaf.path.len().saturating_add(path.len()))?;
+                                    leaf.path
+                                        .extend(path.iter().copied().map(PlaceProjection::Field));
+                                    retirement::check(flow, state, &leaf, point, b)?;
+                                    let incoming = product::birth(
+                                        state,
+                                        product::Carrier::Value(*value),
+                                        path,
+                                        b,
+                                    )?;
+                                    self.update(
+                                        flow, state, effect, &leaf, &incoming, check, live, b,
+                                    )?;
+                                    if let Some(rows) = &mut state.whole_commits {
+                                        add(rows, &leaf, &incoming, b)?;
+                                    }
+                                    Ok(())
+                                };
+                            if product::nested(&d.ty) {
+                                let paths = package::leaves(&d.ty, b)?;
+                                fee(b, paths.len().saturating_sub(1))?;
+                                for path in paths {
+                                    commit_leaf(&path, b)?;
+                                }
                             } else {
-                                owners.into_iter().map(|index| vec![index]).collect()
-                            };
-                            fee(b, paths.len().saturating_sub(1))?;
-                            for path in paths {
-                                let mut leaf = target.clone();
-                                fee(b, leaf.path.len().saturating_add(path.len()))?;
-                                leaf.path
-                                    .extend(path.iter().copied().map(PlaceProjection::Field));
-                                retirement::check(flow, state, &leaf, point, b)?;
-                                let incoming = product::birth(
-                                    state,
-                                    product::Carrier::Value(*value),
-                                    &path,
-                                    b,
-                                )?;
-                                self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
-                                if let Some(rows) = &mut state.whole_commits {
-                                    add(rows, &leaf, &incoming, b)?;
+                                fee(b, owners.len().saturating_sub(1))?;
+                                for index in owners {
+                                    commit_leaf(&[index], b)?;
                                 }
                             }
                         }
