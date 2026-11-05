@@ -347,37 +347,40 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
             "source helper requires its actual free shared Fn parameter and scalar result",
         ));
     }
-    // Every Type ordinal in the complete original declaration must have one
-    // actual callable role; accepting another Type marker alone grants nothing.
+    // Every original Type ordinal has at least one actual role. Several runtime
+    // positions may share one F, but each role authenticates the same original
+    // declaration separately; their environment classes stay position scoped.
     for (ordinal, kind) in context.parameters.iter().enumerate() {
         if *kind != LifeParameterKind::Type {
             continue;
         }
-        let mut matching = function.callable_parameters.iter().filter(|role| {
+        let mut count = 0usize;
+        for role in function.callable_parameters.iter().filter(|role| {
             role.source_life
                 .as_ref()
                 .is_some_and(|other| other.generic_parameter as usize == ordinal)
-        });
-        let Some(role) = matching.next() else {
+        }) {
+            count += 1;
+            let other = role.source_life.as_ref().unwrap();
+            if other.parameters != context.parameters
+                || other.declaration != context.declaration
+                || other.identity != context.identity
+                || role.generic_index as usize
+                    != context.parameters[..ordinal]
+                        .iter()
+                        .filter(|kind| **kind == LifeParameterKind::Type)
+                        .count()
+            {
+                return Err(bad(
+                    span,
+                    "source helper callable role has a different original declaration",
+                ));
+            }
+        }
+        if count == 0 {
             return Err(bad(
                 span,
                 "source helper Type ordinal has no actual callable role",
-            ));
-        };
-        let other = role.source_life.as_ref().unwrap();
-        if matching.next().is_some()
-            || other.parameters != context.parameters
-            || other.declaration != context.declaration
-            || other.identity != context.identity
-            || role.generic_index as usize
-                != context.parameters[..ordinal]
-                    .iter()
-                    .filter(|kind| **kind == LifeParameterKind::Type)
-                    .count()
-        {
-            return Err(bad(
-                span,
-                "source helper callable role has a different original declaration",
             ));
         }
     }

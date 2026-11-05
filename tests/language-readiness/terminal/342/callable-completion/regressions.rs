@@ -131,6 +131,11 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
     for (case, text, expected) in [
         ("before", include_str!("loop-before.zil"), "45\n"),
         (
+            "same-generic-qualified",
+            include_str!("same-generic-qualified.zil"),
+            "0\n",
+        ),
+        (
             "nonconsuming-managed",
             include_str!("nonconsuming-managed.zil"),
             "ABC52\n0\n",
@@ -319,6 +324,7 @@ fn g339_completion_exact_two_kernel_budgets() {
         ("give-companion", include_str!("managed-companion.zil")),
         ("drop", include_str!("two-role-user-drop.zil")),
         ("lending", include_str!("qualified-lending-mut.zil")),
+        ("same-generic", include_str!("same-generic-qualified.zil")),
     ] {
         let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
@@ -715,4 +721,59 @@ fn g339_scalar_foreign_actual_declaration_and_region_are_independent() {
             );
         }
     }
+}
+
+#[test]
+fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
+    let text = include_str!("same-generic-qualified.zil");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let core = g334_core(text);
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut roles_seen = 0;
+    for contract in typed
+        .functions
+        .iter()
+        .filter_map(|f| f.callable_contract.as_ref())
+    {
+        if contract.roles.len() == 3 {
+            assert!(
+                contract
+                    .roles
+                    .iter()
+                    .all(|r| r.closure == contract.roles[0].closure)
+            );
+            assert_ne!(contract.roles[0].parameter, contract.roles[1].parameter);
+            assert_ne!(contract.roles[1].parameter, contract.roles[2].parameter);
+            roles_seen += 1;
+        }
+    }
+    assert_eq!(roles_seen, 2);
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let mut false_ordinal = core;
+    let role = false_ordinal
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.callable_parameters)
+        .find(|role| role.source_life.is_some())
+        .unwrap();
+    role.source_life.as_mut().unwrap().generic_parameter = 0;
+    assert!(zil_types::check(&false_ordinal, &target, &limits).is_err());
 }
