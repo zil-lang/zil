@@ -1,4 +1,0 @@
-resource Mark{n:i32}
-package Panel{manages mark:Mark;count:i32}
-fn render(panel:&Panel,give items:Store<Panel>)->i32{let body=()->i32=>panel.count;return body()}
-fn main()->i32{let items:Store<Panel>=store_new();store_reserve(items,1);store_push(items,Panel{mark:Mark{n:3},count:7});let other:Store<Panel>=store_new();return render(store_at(items,0),give other)-7}

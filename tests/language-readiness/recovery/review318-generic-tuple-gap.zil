@@ -1,1 +1,0 @@
-fn identity<T:Copy>(value:T)->T{let(x,_)=(value,());return x}fn result()->i32{return identity(42)}

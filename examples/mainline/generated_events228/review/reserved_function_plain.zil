@@ -1,1 +1,0 @@
-struct S{x:i32}fn bytes_len()->i32=>1;fn main()->i32=>bytes_len()-1

@@ -1,1 +1,0 @@
-package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn replace<F:Fn()->i32>(state:State<F>,replacement:F)->State<F>{return state}fn main(){}

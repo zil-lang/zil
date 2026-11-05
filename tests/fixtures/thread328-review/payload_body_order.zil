@@ -1,1 +1,0 @@
-fn bump(value:&mut i32)->i32{*value+=1;return *value} fn worker(value:i32)->i32{return value} fn main()->i32{var count=2;let(c,w,b)=thread_scope(worker,bump(&mut count),()->i32=>{count+=10;return count});if !c{return 2}if w!=3||b!=13||count!=13{return 3}return 0}

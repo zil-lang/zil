@@ -1,1 +1,0 @@
-import model;import user;fn main()->i32{let r=model.make(42);return user.inspect(&r)-42}

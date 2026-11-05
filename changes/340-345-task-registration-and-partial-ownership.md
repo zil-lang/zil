@@ -1,7 +1,0 @@
-# 持久任务外部ABI、登记根及部分拥有值合同
-
-对已分派终态补齐明确的公共传输与机器约束。语义TaskInterface仅携实际module/name/worker/参数结果mode+type/版本；每个核独立派生Suspend和worker资格。机器frame、导出符号与布局由已核程序和实际目标产生，不能回灌成证明位。外部poll用固定i64编码，源码二元结果不变。
-
-返回登记对象显式拥有稳定捕获环境，独立检查ClosedEnvironment实际捕获图及强关闭合同；不把FnMut或无当前活动callback当作自含或静止证明。Tuple保留结构类型，选择性取字段后保持剩余初始化与清理责任。新增标记仍是未核输入，所有遍历/路径/复制计入现有额度，不提高默认门。
-
-原有反例继续保留：普通Direct或薄指针进入Suspend、伪造Scalar接口、旧工具/目标命中布局缓存、返回栈借用的callback、close只等待active而允许未来入口、部分移动后整体Take、父替换跨子借用，以及CT匿名Sum凭名字或DAG编号混淆真实类型。
