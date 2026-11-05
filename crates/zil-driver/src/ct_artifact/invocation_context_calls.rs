@@ -98,7 +98,9 @@ impl FrozenInvocationContext {
                     CtScopeActual::Scalar(_) => {}
                 }
             }
-            let row = self.call_scope(call, budget)?;
+            self.extend_call_host(call, source_scopes, expected, index, budget)?;
+            self.validate_source_call_actuals(call, source_scopes, expected, index, budget)?;
+            let row = self.call_scope(call, source_scopes, budget)?;
             budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
             self.charge_instance_lookup(&row.raw, budget)?;
             if !self.active.iter().any(|active| active.raw == row.raw) {
@@ -156,6 +158,7 @@ impl FrozenInvocationContext {
     fn call_scope(
         &mut self,
         call: &SourceInstanceCall,
+        source_scopes: &[CtAmbientLifeScope],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<ActiveScope> {
         budget.reserve_analysis_work(self.modules.len() as u64)?;
@@ -171,7 +174,7 @@ impl FrozenInvocationContext {
             |work| budget.reserve_analysis_work(work as u64),
         )?
         .ok_or_else(|| unsupported("CT factory has no original function"))?;
-        if original.generic_host || !matches!(original.item.kind, s::ItemKind::Function(_)) {
+        if !matches!(original.item.kind, s::ItemKind::Function(_)) {
             return Err(unsupported(
                 "CT full instance requires an original nongenerated factory",
             ));
@@ -188,8 +191,7 @@ impl FrozenInvocationContext {
             for parameter in &function.params {
                 budget.reserve_analysis_work(parameter.name.len().min(4) as u64 + 1)?;
             }
-            if !aggregate.generics.is_empty()
-                || aggregate.kind != s::AggregateKind::Struct
+            if aggregate.kind != s::AggregateKind::Struct
                 || aggregate
                     .methods
                     .iter()
@@ -200,23 +202,34 @@ impl FrozenInvocationContext {
                     .params
                     .iter()
                     .any(|parameter| parameter.name == "self")
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Type(_)))
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Const(_)))
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
             {
                 return Err(unsupported(
                     "CT member factory requires an actual nongeneric struct, static entry and complete mixed parameters",
                 ));
             }
+        }
+        if original.generic_host {
+            let parent_id = call
+                .enclosing
+                .ok_or_else(|| unsupported("CT member instance has no actual lexical host"))?;
+            let parent = source_scopes
+                .get(parent_id.0 as usize)
+                .ok_or_else(|| unsupported("CT member enclosing scope placement is absent"))?;
+            self.validate_scope(parent, budget)?;
+            budget.reserve_analysis_work(64)?;
+            if parent.declaration.module != call.callee.module
+                || Some(parent.declaration.declaration) != original.lexical_parent
+                || parent.declaration.generation_path != call.callee.generation_path
+                || parent.enclosing.is_some()
+            {
+                return Err(unsupported(
+                    "CT member enclosing scope is not the actual lexical host",
+                ));
+            }
+        } else if call.enclosing.is_some() {
+            return Err(unsupported(
+                "CT free or nongeneric member instance has an unexpected enclosing host",
+            ));
         }
         if function.generics.len() != call.actuals.len() {
             return Err(unsupported("CT call ledger full actual arity differs"));
@@ -282,6 +295,7 @@ impl FrozenInvocationContext {
         }
         let raw = CtAmbientLifeScope {
             declaration: call.callee.clone(),
+            enclosing: call.enclosing,
             binder_site: Vec::new(),
             instance: CtScopeInstance::Instantiated(Vec::new()),
         };

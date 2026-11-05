@@ -5,6 +5,8 @@ use super::{compiler::Entry, source_index::SourceIndex};
 mod calls;
 #[path = "invocation_context_relocations.rs"]
 mod relocations;
+#[path = "invocation_context_source_types.rs"]
+mod source_types;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ct::CtExecutionBudget;
@@ -79,6 +81,10 @@ pub(super) struct FrozenInvocationContext {
     pub bytes: u64,
     origins: Option<Arc<Vec<ModuleDeclarationOrigins>>>,
     modules: Vec<Arc<ParseResult>>,
+    authenticated_types: Vec<source_types::AuthenticatedTypeSite>,
+    entry_site: Option<super::compiler::source_sites::SourceSite>,
+    entry_definition: CtSymbolId,
+    generated_catalog: Option<zil_expand::source_context::GeneratedSourceCatalog>,
 }
 impl FrozenInvocationContext {
     pub(super) fn freeze(
@@ -88,8 +94,31 @@ impl FrozenInvocationContext {
         origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Option<Arc<Self>>> {
+        Self::freeze_at_source(entry, parsed, index, origins, None, None, budget)
+    }
+    pub(super) fn freeze_with_catalog(
+        entry: &Entry<'_>,
+        parsed: &[Arc<ParseResult>],
+        index: &SourceIndex,
+        origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
+        catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<Arc<Self>>> {
+        Self::freeze_at_source(entry, parsed, index, origins, catalog, None, budget)
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn freeze_at_source(
+        entry: &Entry<'_>,
+        parsed: &[Arc<ParseResult>],
+        index: &SourceIndex,
+        origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
+        catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
+        source_site: Option<super::compiler::source_sites::SourceSite>,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<Arc<Self>>> {
         let before = budget.live_temporary_bytes();
-        let result = Self::freeze_inner(entry, parsed, index, origins, budget);
+        let result =
+            Self::freeze_inner(entry, parsed, index, origins, catalog, source_site, budget);
         let keep = result
             .as_ref()
             .ok()
@@ -104,6 +133,8 @@ impl FrozenInvocationContext {
         parsed: &[Arc<ParseResult>],
         index: &SourceIndex,
         origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
+        catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
+        source_site: Option<super::compiler::source_sites::SourceSite>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Option<Arc<Self>>> {
         let definition = match entry {
@@ -164,7 +195,15 @@ impl FrozenInvocationContext {
                 "CT ambient original declaration ordinal differs",
             ));
         }
-        let bytes = (std::mem::size_of::<Self>() + 2 * std::mem::size_of::<usize>()) as u64
+        let catalog_bytes = if let Some(catalog) = catalog {
+            budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+            catalog.trees.len() as u64
+                * std::mem::size_of::<Arc<zil_expand::source_context::GeneratedSourceTree>>() as u64
+        } else {
+            0
+        };
+        let bytes = catalog_bytes
+            + (std::mem::size_of::<Self>() + 2 * std::mem::size_of::<usize>()) as u64
             + (parsed.len() as u64) * std::mem::size_of::<Arc<ParseResult>>() as u64
             + identity_cost(&origin.identity, budget)?
             + std::mem::size_of::<ActiveScope>() as u64
@@ -197,10 +236,33 @@ impl FrozenInvocationContext {
                 }
             });
         }
+        let entry_site = match entry {
+            Entry::Expression { expression, .. } => Some(
+                super::compiler::source_sites::select(
+                    &module.module,
+                    match source_site {
+                        Some(site) => super::compiler::source_sites::Selection::Site(site),
+                        None => super::compiler::source_sites::Selection::Expr(
+                            *expression as *const s::Expr as usize,
+                        ),
+                    },
+                    max_depth,
+                    |work| budget.reserve_analysis_work(work as u64),
+                )?
+                .ok_or_else(|| {
+                    unsupported(
+                        "CT invocation expression is not the actual frozen original source root",
+                    )
+                })?
+                .site,
+            ),
+            Entry::Function(_) => None,
+        };
         Ok(Some(Arc::new(Self {
             active: vec![ActiveScope {
                 raw: CtAmbientLifeScope {
                     declaration: definition.clone(),
+                    enclosing: None,
                     binder_site: Vec::new(),
                     instance: CtScopeInstance::Definition,
                 },
@@ -210,6 +272,10 @@ impl FrozenInvocationContext {
             bytes,
             origins: Some(origins.clone()),
             modules: parsed.to_vec(),
+            authenticated_types: Vec::new(),
+            entry_site,
+            entry_definition: definition.clone(),
+            generated_catalog: catalog.cloned(),
         })))
     }
     pub(super) fn active_scope_count(&self) -> usize {

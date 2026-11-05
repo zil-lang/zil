@@ -613,7 +613,7 @@ fn common_retained40_and_ct5_transport_preserves_context_and_budgets() {
     old[8..12].copy_from_slice(&38u32.to_le_bytes());
     assert!(wire::decode_module_candidate(&old, &Limits::default()).is_err());
     use ct_artifact::*;
-    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 5);
+    assert_eq!(CT_ARTIFACT_SCHEMA_VERSION, 6);
     let value = CtValue::Type(CtTypeRef {
         ambient_classes: Vec::new(),
         nodes: vec![

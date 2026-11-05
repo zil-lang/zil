@@ -164,7 +164,7 @@ impl<'a> Compiler<'a> {
     ) -> R<CtTy> {
         self.budget.depth(depth, span)?;
         let s::ItemKind::Aggregate(declaration) = &item.kind else {
-            unreachable!()
+            return Err(forbidden(span, "CT abstract nominal requires a supported pure declaration"));
         };
         if declaration.kind != s::AggregateKind::Struct {
             return Err(forbidden(

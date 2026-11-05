@@ -46,6 +46,9 @@ impl Compiler<'_> {
                 }
             }
         }
+        if !self.source_type_sites.is_empty() {
+            return Ok(true);
+        }
         Ok(false)
     }
     pub(super) fn mixed_parameters(parameters: &[s::GenericParam]) -> bool {
@@ -86,7 +89,7 @@ impl Compiler<'_> {
         Ok(())
     }
 
-    fn ambient_actual(&mut self, name: &str, span: Span) -> R<CtAmbientLifeReference> {
+    pub(super) fn ambient_actual(&mut self, name: &str, span: Span) -> R<CtAmbientLifeReference> {
         let scope = self.source_life_scope.as_ref().ok_or_else(|| {
             error(
                 span,
@@ -116,6 +119,7 @@ impl Compiler<'_> {
         }
         let instance = self.source_life_scope.as_ref().unwrap().instance.clone();
         let raw = CtAmbientLifeScope {
+            enclosing: scope.enclosing,
             declaration: definition,
             binder_site: Vec::new(),
             instance,
@@ -165,6 +169,7 @@ impl Compiler<'_> {
         self.bindings.clear();
         self.metadata_bindings.clear();
         self.scalar_bindings.clear();
+        self.bind_host_instance(declaration)?;
         for (parameter, actual) in d.function.generics.iter().zip(actuals) {
             self.budget.text(&parameter.name, parameter.span)?;
             match (&parameter.kind, actual) {
@@ -249,8 +254,8 @@ impl Compiler<'_> {
             self.budget.work(32, span)?;
             self.mixed_actual_cost(actuals, span)?;
             Self::actual_cost(&mut self.budget, &self.mixed_selected[i].1, span)?;
-            let (old, arguments, function) = &self.mixed_selected[i];
-            if *old == declaration && arguments == actuals {
+            let (old, arguments, enclosing, function) = &self.mixed_selected[i];
+            if *old == declaration && arguments == actuals && *enclosing == self.active_host {
                 return Ok(*function);
             }
         }
@@ -266,9 +271,12 @@ impl Compiler<'_> {
         let id = CtFunctionId(self.functions.len() as u32);
         self.functions.push(None);
         self.mixed_selected
-            .push((declaration, actuals.to_vec(), id));
-        self.pending
-            .push_back((declaration, PendingTypes::Mixed(actuals.to_vec()), id));
+            .push((declaration, actuals.to_vec(), self.active_host, id));
+        self.pending.push_back((
+            declaration,
+            PendingTypes::Mixed(actuals.to_vec(), self.active_host),
+            id,
+        ));
         Ok(id)
     }
 }
@@ -315,6 +323,7 @@ impl Builder<'_, '_> {
             Compiler::actual_cost(&mut self.compiler.budget, actuals, span)?;
         }
         let caller_scope = CtAmbientLifeScope {
+            enclosing: scope.enclosing,
             declaration: scope.definition.clone(),
             binder_site: Vec::new(),
             instance: scope.instance.clone(),
@@ -361,6 +370,7 @@ impl Builder<'_, '_> {
             "CT actual call ledger bytes exhausted",
         )?;
         let callee = self.compiler.item_symbol(d.module, d.item)?;
+        let site = self.compiler.current_expression_site(span)?;
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
@@ -371,6 +381,8 @@ impl Builder<'_, '_> {
                 callee,
                 instance: function,
                 actuals,
+                enclosing: self.compiler.active_host,
+                site,
             });
         if result == CtTy::Scalar(CtScalarTy::Unit) {
             self.op(

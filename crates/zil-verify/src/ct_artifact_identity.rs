@@ -352,6 +352,23 @@ pub(super) fn check_argument_graphs(
     Ok(())
 }
 
+pub(super) fn check_graph(
+    graph: &CtTypeRef,
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> Check<()> {
+    Identity {
+        raw,
+        limits,
+        meter,
+        bytes: 0,
+        visiting: Vec::new(),
+    }
+    .graph(graph)
+    .map(|_| ())
+}
+
 /// Complete comparison bound for an untrusted scope query. Validate every
 /// variable Type payload before any structural equality or authority lookup.
 pub(super) fn scope_comparison_weight(

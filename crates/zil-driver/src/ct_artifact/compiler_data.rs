@@ -385,6 +385,7 @@ impl<'a> Compiler<'a> {
                 },
                 definition,
                 parameters,
+                site: self.current_nominal_site,
             });
         }
         let old_meta = std::mem::replace(&mut self.metadata_bindings, metadata_bindings);

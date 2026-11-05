@@ -581,7 +581,8 @@
       "source_authentication": "Independent immutable AST structural Type/Call site resolution, full original generic ordinals and actual instance vectors; source lifetimes cannot be authenticated by equality between producer graph and producer witness",
       "independent_consumers": "Physical graph, lexical owner, ambient first-use, scope/actual metadata, nominal visibility and complete type identity; VM uses the independent metered graph checker and retains ValueContext through Type results/materialization",
       "accounting": "Prepay scanning, source traversal, comparisons, copying, substitutions, failure and capacity growth from the same remaining request budget; preserve old closed paths",
-      "acceptance": "Actual Source producers/consumers, joint graph-and-witness and call-actual swaps, raw/Wire version and graph controls, N/N-1/fresh, cache identity, full native observations; transport/schema presence is not parent completion"
+      "acceptance": "Actual Source producers/consumers, joint graph-and-witness and call-actual swaps, raw/Wire version and graph controls, N/N-1/fresh, cache identity, full native observations; transport/schema presence is not parent completion",
+      "enclosing_scope": "CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>; authentic lexical host edge with independent Definition/Instantiated own actuals, bounded acyclic parent graph and full contextual identity; free scopes None"
     }
   },
   "schemas": [

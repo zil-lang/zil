@@ -1374,6 +1374,8 @@ CT5的源上下文与图内owner分域：CtTypeRef.ambient_classes把本图实�
 
 CT6 接续 CT4/CT5 的完整 Type 图与实际上下文契约，新增 `CtInstructionKind::TypeInContext { ty: CtTypeRef } -> CtTy::Type`。指令携带完整根图，不新增可独立制造的 Lifetime 值，不把 Type 加入普通常量表；数值节点、schema、生产者 witness 和 span 均不授予来源或访问资格。独立消费者核验物理 DAG、词法 owner、完整实参类别、名义声明/可见性和每个 ambient 端点；真实 Type 表达式及调用实参须从不可变源码结构位置和实际实例替换恢复，不能只比较同一生产者生成的两份字段。调用实参种类正确不等于所选 life 正确。
 
+CT6 的 `CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>` 显式保留实际词法宿主上下文；宿主与成员各自使用 Definition 或本声明完整有序 Instantiated 实参，成员向量不得混入宿主参数。父边须与原声明或经核生成声明的真实词法父链一致，有限、无环，且在完整上下文键中保留。无 life 的泛型宿主仍可携带真实 Type/Const 实参；它不凭空声明 life。原 free scope 的 enclosing 为 None，关系与费用保持既有路径。
+
 带上下文 Type 的执行、调用返回、缓存运输和重实体化必须保留共同 ValueContext，沿已核真实来源保持关系，不将抽出的节点重新命名为自由 life。VM 对入口、构造及结果继续调用独立受计费图核验；不能仅删除 ambient 拒绝条件。完整图扫描、源码定位、比较、克隆、参数替换、失败和容量增长在执行前使用同一请求剩余额度计费；旧无上下文路径不因新指令额外构造账本。
 
 CT6 的 artifact/program/provider/dependency/function/value 版本域和专用封包同步迁移，拒绝旧 CT5 字节作为新版输入；运行时 schema/Wire 不因这条 CT 专用指令变更。上述为后继实施合同，公共表示可运输不代表泛型宿主、生成声明、运行时泛型体 CT 相位或完整语言已经验收；各项仍须真实源码、独立反例、预算边界及机器消费者证据。

@@ -531,12 +531,12 @@ impl Wire for Span {
     }
 }
 
-const PROGRAM_MAGIC: &[u8; 8] = b"ZILCTP01";
-const VALUE_MAGIC: &[u8; 8] = b"ZILCTV01";
-const REGISTRY_MAGIC: &[u8; 8] = b"ZILCTR01";
-const FUNCTION_MAGIC: &[u8; 8] = b"ZILCTF01";
-const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v5";
-const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v5";
+const PROGRAM_MAGIC: &[u8; 8] = b"ZILCTP02";
+const VALUE_MAGIC: &[u8; 8] = b"ZILCTV02";
+const REGISTRY_MAGIC: &[u8; 8] = b"ZILCTR02";
+const FUNCTION_MAGIC: &[u8; 8] = b"ZILCTF02";
+const VALUE_DOMAIN: &[u8] = b"zil/ct-value/v6";
+const FUNCTION_DOMAIN: &[u8] = b"zil/ct-function/v6";
 fn fingerprint(domain: &[u8], body: &[u8]) -> Fingerprint {
     let mut hash = FingerprintBuilder::new();
     hash.update(domain);
@@ -784,7 +784,7 @@ pub fn token_tree_fingerprint_with_usage(
 ) -> WireResult<(Fingerprint, WireUsage)> {
     let (bytes, usage) = encode_enveloped(
         value,
-        b"ZILCTT01",
+        b"ZILCTT02",
         b"zil/ct-token-tree/v1",
         limits,
         remaining,
@@ -2992,6 +2992,10 @@ impl Wire for CtInstructionKind {
                     24u8.encode(e)?;
                     v0.encode(e)?;
                 }
+                Self::TypeInContext { ty } => {
+                    38u8.encode(e)?;
+                    ty.encode(e)?;
+                }
                 Self::TypeApply { nominal, arguments } => {
                     25u8.encode(e)?;
                     nominal.encode(e)?;
@@ -3137,6 +3141,9 @@ impl Wire for CtInstructionKind {
             22 => Ok(Self::TypePrimitive(<CtScalarTy as Wire>::decode(d)?)),
             23 => Ok(Self::TypeBuiltin(<CtBuiltinType as Wire>::decode(d)?)),
             24 => Ok(Self::TypeName(<CtSymbolId as Wire>::decode(d)?)),
+            38 => Ok(Self::TypeInContext {
+                ty: <CtTypeRef as Wire>::decode(d)?,
+            }),
             25 => Ok(Self::TypeApply {
                 nominal: <CtSymbolId as Wire>::decode(d)?,
                 arguments: <Vec<CtValueId> as Wire>::decode(d)?,

@@ -230,6 +230,10 @@ pub(super) fn program_copy_cost(
                 budget.reserve_analysis_work(1)?;
                 bytes = bytes.saturating_add(std::mem::size_of::<CtInstruction>() as u64);
                 let operands = match &instruction.kind {
+                    CtInstructionKind::TypeInContext { ty } => {
+                        bytes = bytes.saturating_add(graph_cost(ty, budget)?);
+                        0
+                    }
                     CtInstructionKind::MakeTuple(v)
                     | CtInstructionKind::MakeArray(v)
                     | CtInstructionKind::MakeList(v)
@@ -429,6 +433,14 @@ impl ValueContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<(CtTypeRef, Vec<ValueSourceScope>)> {
         let graph = self.type_ref(ty, budget)?;
+        let scopes = self.source_scopes_for_graph(&graph, budget)?;
+        Ok((graph, scopes))
+    }
+    pub(in crate::ct_artifact) fn source_scopes_for_graph(
+        &self,
+        graph: &CtTypeRef,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Vec<ValueSourceScope>> {
         budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
         let mut scopes: Vec<ValueSourceScope> = Vec::new();
         for row in &graph.ambient_classes {
@@ -462,7 +474,7 @@ impl ValueContext {
                 });
             }
         }
-        Ok((graph, scopes))
+        Ok(scopes)
     }
     pub fn type_ref(&self, ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         fn append(
