@@ -200,6 +200,12 @@ fn signatures(
             errors.push(diagnostic);
         }
         for bound in &f.callable_parameters {
+            if let Err(diagnostic) =
+                helpers::source_life::reserve(bound, limits, &mut foreign_work, 1, f.span)
+            {
+                errors.push(diagnostic);
+                continue 'function;
+            }
             if let Some(life) = &bound.life {
                 let cost = borrowed_fp::metadata_work(life);
                 foreign_work = match foreign_work.checked_sub(cost) {

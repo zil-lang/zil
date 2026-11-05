@@ -229,6 +229,8 @@ pub fn check_generated_function_name(name: &str, span: Span) -> CompileResult<()
     }
 }
 
+mod callable_context_lower;
+use callable_context_lower::CallableContextEmission;
 mod closure_context_lower;
 use closure_context_lower::ClosureContextEmission;
 
@@ -243,6 +245,7 @@ pub struct ExpandedModule {
     trait_method_names: BTreeMap<(usize, usize), String>,
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
+    callable_context_emissions: Vec<CallableContextEmission>,
     project_trait_work: usize,
     project_trait_nodes: usize,
     member_owner_work: usize,
@@ -318,7 +321,9 @@ fn expand_with_map_limits_target_impl(
     }
     products.bind_dynamic_targets(&specialized, &expanded, limits)?;
     products.bind_closure_contexts(&specialized, &mut expanded, limits)?;
+    products.bind_callable_contexts(&specialized, &mut expanded, limits)?;
     products.finish_closure_contexts(limits)?;
+    products.finish_callable_contexts(limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -379,7 +384,9 @@ pub fn expand_program_module_with_limits_target(
     }
     products.bind_dynamic_targets(module, &expanded, limits)?;
     products.bind_closure_contexts(module, &mut expanded, limits)?;
+    products.bind_callable_contexts(module, &mut expanded, limits)?;
     products.finish_closure_contexts(limits)?;
+    products.finish_callable_contexts(limits)?;
     products.publish(
         &mut [(&mut expanded.core, &mut expanded.source_map)],
         std::slice::from_ref(source),
@@ -680,10 +687,14 @@ fn expand_program_with_limits_target_impl(
                     Some(module.span),
                 )]
             })?;
-        if !products.dynamic.is_empty() || !expanded.closure_context_emissions.is_empty() {
+        if !products.dynamic.is_empty()
+            || !expanded.closure_context_emissions.is_empty()
+            || !expanded.callable_context_emissions.is_empty()
+        {
             products.allowance = Some(remaining);
             products.bind_dynamic_targets(module, &expanded, limits)?;
             products.bind_closure_contexts(module, &mut expanded, limits)?;
+            products.bind_callable_contexts(module, &mut expanded, limits)?;
             remaining = products
                 .allowance
                 .clone()
@@ -715,6 +726,7 @@ fn expand_program_with_limits_target_impl(
         products.allowance = Some(remaining);
     }
     products.finish_closure_contexts(limits)?;
+    products.finish_callable_contexts(limits)?;
     products.publish(&mut product_cores, sources, limits)?;
     Ok(result)
 }
@@ -920,6 +932,7 @@ fn expand_inner_project(
         trait_method_names: e.trait_method_names,
         dyn_method_emissions: e.dyn_method_emissions,
         closure_context_emissions: e.closure_context_emissions,
+        callable_context_emissions: e.callable_context_emissions,
         project_trait_work: e.project_trait_work,
         project_trait_nodes: e.project_trait_nodes,
         member_owner_work: e.member_owner_work,
@@ -952,6 +965,7 @@ struct Expander<'a> {
     storage_catalog: Option<&'a stored_types::Catalog>,
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
+    callable_context_emissions: Vec<CallableContextEmission>,
     named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
@@ -1007,6 +1021,7 @@ impl<'a> Expander<'a> {
             storage_catalog: None,
             dyn_method_emissions: Vec::new(),
             closure_context_emissions: Vec::new(),
+            callable_context_emissions: Vec::new(),
             named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),

@@ -186,7 +186,6 @@ pub(super) fn charge_type_snapshot(
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
     helpers::source_life::reserve(bound, budget.limits, &mut budget.work, 2, span)?;
-    helpers::source_life::pending_consumer(bound, span)?;
     if let Some(life) = &bound.life {
         budget.work(borrowed_fp::metadata_work(life), span)?;
     }
@@ -210,7 +209,11 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
         borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
             budget.work(work, span)
         })?;
-        borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        if bound.source_life.is_some() {
+            helpers::source_life::relation(bound, span)?;
+        } else {
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        }
     }
     Ok(())
 }
@@ -644,7 +647,6 @@ fn headers(
                 2,
                 function.span,
             )?;
-            helpers::source_life::pending_consumer(bound, function.span)?;
             budget.work(
                 bound
                     .generic_name
@@ -770,7 +772,6 @@ pub(super) fn snapshot_context_module(
         let mut callable_parameters = Vec::with_capacity(function.callable_parameters.len());
         for bound in &function.callable_parameters {
             helpers::source_life::reserve(bound, limits, left, 1, function.span)?;
-            helpers::source_life::pending_consumer(bound, function.span)?;
             callable_parameters.push(bound.clone());
         }
         functions.push(CoreFunction {

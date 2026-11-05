@@ -14,6 +14,8 @@ pub(crate) struct CallableTemplate {
     pub has_role_binders: bool,
     pub index: usize,
     pub generic_index: u32,
+    pub source_generic_parameter: u32,
+    pub source_bound_ordinal: u32,
     pub generic_name: String,
     pub closed_environment: bool,
     pub kind: CallableKind,
@@ -574,7 +576,7 @@ fn template_with_state(
     remaining: &mut usize,
     is_state: impl Fn(&TypeRef, &str, bool) -> bool,
 ) -> R<Option<CallableTemplates>> {
-    let callables: Vec<_> = function.generics.iter().filter(|p| matches!(&p.kind,
+    let callables: Vec<_> = function.generics.iter().enumerate().filter(|(_, p)| matches!(&p.kind,
         GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&bound_inner(b).kind,
             TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce"))))).collect();
     if callables.is_empty() {
@@ -584,14 +586,14 @@ fn template_with_state(
         .return_type
         .as_ref()
         .is_some_and(|ty| opaque_signature(ty).is_some());
-    let retained_registration = matches!(callables.as_slice(), [parameter] if function.return_type.as_ref().and_then(registration_environment).is_some_and(|environment| parameter_mode(environment, &parameter.name)==Some(None)));
+    let retained_registration = matches!(callables.as_slice(), [(_, parameter)] if function.return_type.as_ref().and_then(registration_environment).is_some_and(|environment| parameter_mode(environment, &parameter.name)==Some(None)));
     if retained_registration && (callables.len() != 1 || function.generics.len() != 1) {
         return Err(unsupported(
             function.span,
             "Registration return requires one concrete callable binder",
         ));
     }
-    let forwarded = matches!(callables.as_slice(), [parameter]
+    let forwarded = matches!(callables.as_slice(), [(_, parameter)]
         if function.return_type.as_ref().is_some_and(|ty|parameter_mode(ty,&parameter.name)==Some(None)));
     if forwarded && (callables.len() != 1 || function.generics.len() != 1) {
         return Err(unsupported(
@@ -620,7 +622,8 @@ fn template_with_state(
         ));
     }
     for ordinary in function.generics.iter().filter(|p| {
-        !matches!(p.kind, GenericParamKind::Lifetime) && !callables.iter().any(|c| c.name == p.name)
+        !matches!(p.kind, GenericParamKind::Lifetime)
+            && !callables.iter().any(|(_, c)| c.name == p.name)
     }) {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
             if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
@@ -636,7 +639,7 @@ fn template_with_state(
     let mut state_replacement = None;
     let dual = callables.len() == 2;
     let mut owned_state = false;
-    for (generic_index, parameter) in callables.iter().enumerate() {
+    for (generic_index, (source_generic_parameter, parameter)) in callables.iter().enumerate() {
         let GenericParamKind::Type(bounds) = &parameter.kind else {
             unreachable!()
         };
@@ -688,7 +691,7 @@ fn template_with_state(
                 "callable bound arguments are not a tuple",
             ));
         };
-        if callables.iter().any(|other| {
+        if callables.iter().any(|(_, other)| {
             parameters.iter().any(|t| refers(t, &other.name)) || refers(result, &other.name)
         }) {
             return Err(unsupported(
@@ -823,6 +826,8 @@ fn template_with_state(
                 ),
                 index,
                 generic_index: generic_index as u32,
+                source_generic_parameter: *source_generic_parameter as u32,
+                source_bound_ordinal: u32::from(closed_environment && closed_bound(&bounds[0])),
                 generic_name: parameter.name.clone(),
                 closed_environment,
                 kind,

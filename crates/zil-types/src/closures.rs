@@ -535,6 +535,86 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    pub(super) fn source_helper_context(
+        &mut self,
+        function: &CoreFunction,
+        bound: &CoreCallableParameter,
+    ) -> R<()> {
+        helpers::source_life::reserve(bound, &self.limits, &mut self.work_left, 1, function.span)?;
+        helpers::source_life::validate(function, bound)
+    }
+    pub(super) fn source_helper_relation(
+        &mut self,
+        original: &CoreFunction,
+        bound: &CoreCallableParameter,
+        id: ClosureId,
+        span: Span,
+    ) -> R<(StorageLifeContract, StorageLifeContract)> {
+        self.source_helper_context(original, bound)?;
+        let pending = self.pending.get(id.0 as usize).ok_or_else(|| {
+            error(
+                "E-CALLABLE-CONTEXT",
+                span,
+                "source helper actual environment is absent",
+            )
+        })?;
+        let typed = pending.typed.as_ref().ok_or_else(|| {
+            error(
+                "E-CALLABLE-CONTEXT",
+                span,
+                "source helper actual environment entry is unresolved",
+            )
+        })?;
+        for capture in &pending.captures {
+            inference::charge_type_snapshot(
+                &capture.ty,
+                span,
+                &self.limits,
+                &mut self.work_left,
+                3,
+            )?;
+        }
+        for local in &typed.parameters {
+            inference::charge_type_snapshot(
+                &typed.locals[local.0 as usize].ty,
+                span,
+                &self.limits,
+                &mut self.work_left,
+                3,
+            )?;
+        }
+        inference::charge_type_snapshot(
+            &typed.return_type,
+            span,
+            &self.limits,
+            &mut self.work_left,
+            3,
+        )?;
+        if let Some(life) = &typed.storage_life {
+            self.work_left = self
+                .work_left
+                .checked_sub(borrowed_fp::metadata_work(life).saturating_mul(3))
+                .ok_or_else(|| {
+                    limit("source helper environment relation snapshot exceeded", span)
+                })?;
+        }
+        let definition = ClosureDefinition {
+            storage_life: typed.storage_life.clone(),
+            id,
+            function: typed.id,
+            captures: pending.captures.iter().map(Capture::stored_type).collect(),
+            parameters: typed
+                .parameters
+                .iter()
+                .map(|local| typed.locals[local.0 as usize].ty.clone())
+                .collect(),
+            result: typed.return_type.clone(),
+            kind: pending.callable_kind(),
+            lending_captures: Vec::new(),
+        };
+        helpers::source_life::form(original, bound, &definition, &mut self.work_left, span)
+    }
+
     pub(super) fn snapshot_helper(
         &mut self,
         function: &CoreFunction,
