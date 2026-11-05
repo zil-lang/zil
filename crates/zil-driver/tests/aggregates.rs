@@ -10021,3 +10021,21 @@ fn g4453_contextual_type_and_pure_composite_results_keep_full_values() {
         review329_native_entry_output(&[("main", text)], "main", expected);
     }
 }
+
+#[test]
+fn g4453_ambient_type_actual_retains_nested_life_graph() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_generic_host_keeps_its_actual_type_binding() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-context.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}

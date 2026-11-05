@@ -152,7 +152,7 @@ fn source_schema_rejects_coordinated_life_and_witness_mutation() {
 }
 #[test]
 fn source_calls_reject_coordinated_full_actual_mutations() {
-    let source = "fn factory<T:Copy,const N:i32,life a>()->i32{return N} fn query<T:Copy,life a,life b>(p:&'a i32)->i32{let value=#(factory::<i32,42,'a>());return value}";
+    let source = "fn factory<T:Copy,#N:i32,life a>()->i32{return N} fn query<T:Copy,life a,life b>(p:&'a i32)->i32{let value=#(factory::<i32,42,'a>());return value}";
     for attack in 0..3 {
         let mut f = fixture(source, 1);
         f.context
