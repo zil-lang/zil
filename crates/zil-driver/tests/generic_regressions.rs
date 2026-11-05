@@ -6848,3 +6848,521 @@ fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
         "{errors:?}"
     );
 }
+
+const G335_STATEFUL: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/stateful-two-calls.zil"
+);
+const G335_REVERSE: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/reverse-stateful-two-calls.zil"
+);
+const G335_ADAPTED: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/fn-adapted-control.zil"
+);
+const G335_CALLER: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil"
+);
+
+#[test]
+fn g335_actual_stateful_definition_receiver_and_source_bound_are_preserved() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for (text, actual_kind) in [
+        (G335_STATEFUL, CallableKind::FnMut),
+        (G335_REVERSE, CallableKind::FnMut),
+        (G335_ADAPTED, CallableKind::Fn),
+    ] {
+        let core = g334_core(text);
+        let bound = g334_role(&core);
+        assert_eq!(bound.kind, CallableKind::FnMut);
+        let context = bound.source_life.as_ref().unwrap();
+        if text == G335_REVERSE {
+            assert_eq!(
+                (context.generic_parameter, bound.generic_index, bound.index),
+                (1, 0, 1)
+            );
+            assert_eq!(context.named_fixed[0].parameter, 2);
+        }
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let definition = &raw.closures[0];
+        assert_eq!(definition.kind, actual_kind);
+        let entry = &raw.functions[definition.function.0 as usize];
+        if actual_kind == CallableKind::FnMut {
+            assert!(
+                entry
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .any(|i| matches!(i.kind, InstructionKind::WriteCapture { index: 0, .. }))
+            );
+            assert_eq!(definition.captures[0], Type::I32);
+        }
+        let helper = raw
+            .functions
+            .iter()
+            .find(|f| f.callable_contract.is_some())
+            .unwrap();
+        let role = &helper.callable_contract.as_ref().unwrap().roles[0];
+        assert_eq!(role.kind, CallableKind::FnMut);
+        assert_eq!(role.life, definition.storage_life);
+        let local = &helper.locals[helper.parameters[role.parameter as usize].0 as usize];
+        assert!(
+            matches!(&local.ty, Type::Address { mutable:true, inner } if matches!(inner.as_ref(),Type::Closure(_)))
+        );
+        assert!(
+            helper
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(
+                    i.kind,
+                    InstructionKind::CallClosureBorrowed {
+                        kind: CallableKind::FnMut,
+                        ..
+                    }
+                ))
+        );
+        let header = helper.storage_life.as_ref().unwrap();
+        for class in 0..definition.storage_life.as_ref().unwrap().fixed_binder_count {
+            assert!(header.classes.iter().any(|row| row.position.base
+                == StorageBase::Parameter(role.parameter)
+                && row.position.path == [LifeTypeProjection::Pointee]
+                && row.position.class == class));
+        }
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    }
+    for (text, phase, message) in [
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/shared-receiver-reject.zil"
+            ),
+            zil_base::Phase::Types,
+            "passing mode",
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil"
+            ),
+            zil_base::Phase::Analyze,
+            "overlaps",
+        ),
+        (
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/wrong-actual-class.zil"
+            ),
+            zil_base::Phase::Analyze,
+            "actual retained classes",
+        ),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, phase, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(message)),
+            "{}",
+            report.to_json()
+        );
+    }
+    let wrong = include_str!(
+        "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/wrong-actual-class.zil"
+    );
+    for body in ["return 42", "return #(42)"] {
+        for (text, expected) in [
+            (G335_CALLER, ResultCategory::Success),
+            (wrong, ResultCategory::SafeReject),
+        ] {
+            let text = text.replace("return f(x)", body);
+            let report = compile_source(
+                &source(&text),
+                &CompileOptions {
+                    stop_after: zil_driver::Stage::Verify,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, expected, "{}", report.to_json());
+            if expected == ResultCategory::SafeReject {
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.message.contains("actual retained classes")),
+                    "{}",
+                    report.to_json()
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn g335_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let raw = zil_types::check(&g334_core(G335_CALLER), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let helper = raw
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let caller = raw
+        .functions
+        .iter()
+        .position(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind,InstructionKind::Call{function,..}if function==helper))
+        })
+        .unwrap();
+    let right = raw.functions[caller].parameters[1];
+    let right_value = raw.functions[caller]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Load(local) if local == right => i.result,
+            _ => None,
+        })
+        .unwrap();
+    for mutation in 0..3 {
+        let mut bad = raw.clone();
+        let mut changed = false;
+        for f in &mut bad.functions {
+            for i in f.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+                match &mut i.kind {
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } if mutation == 0 && *function == helper => {
+                        arguments[1] = right_value;
+                        changed = true;
+                    }
+                    InstructionKind::MakeClosure { captures, .. }
+                        if mutation == 1 && f.id == raw.functions[caller].id =>
+                    {
+                        captures[1] = right_value;
+                        changed = true;
+                    }
+                    InstructionKind::CallClosureBorrowed { kind, .. }
+                        if mutation == 2 && f.id == helper =>
+                    {
+                        *kind = CallableKind::Fn;
+                        changed = true;
+                    }
+                    _ => {}
+                }
+            }
+        }
+        assert!(changed);
+        let errors = zil_analyze::analyze(&bad, &limits).unwrap_err();
+        assert!(
+            errors.iter().any(|d| if mutation < 2 {
+                d.message.contains("class")
+            } else {
+                d.message.contains("kind")
+                    || d.message.contains("callable")
+                    || d.message.contains("mode")
+            }),
+            "{mutation}: {errors:?}"
+        );
+        // Adversarial current-module candidate: only its fingerprint is rebound,
+        // so independent Verify must reject semantics rather than stale identity.
+        let mut forged = plan.clone();
+        forged.module_fingerprint = bad.fingerprint();
+        let wire = wire::encode_module_candidate(&bad, &forged, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(bad, forged, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                !errors.iter().any(|d| d.message.contains("fingerprint")),
+                "{errors:?}"
+            );
+            assert!(
+                errors.iter().any(|d| if mutation < 2 {
+                    d.message.contains("class")
+                } else {
+                    // Verify rejects this forged instruction at its finite
+                    // stored-profile inventory, before the relation proof.
+                    d.category == ResultCategory::Unsupported
+                        && d.message.contains("outside the checked stored profile")
+                }),
+                "{mutation}: {errors:?}"
+            );
+        }
+    }
+    // Start with two actual same-type environments at disjoint physical locals.
+    // Redirect only the first receiver borrow onto the second actual local;
+    // SSA/CFG initialization facts remain unchanged, so Verify reaches loans.
+    let disjoint = include_str!("../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil")
+        .replace("let held=&mut f;", "var g=f;let held=&mut g;");
+    let mut bad = zil_types::check(&g334_core(&disjoint), &target, &limits).unwrap();
+    let mut forged = zil_analyze::analyze(&bad, &limits).unwrap();
+    zil_verify::verify_module(bad.clone(), forged.clone(), &target, &limits).unwrap();
+    let caller = bad.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::BorrowLocalMut {local} if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))))
+        .count() == 2).unwrap();
+    let receivers = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match i.kind {
+            InstructionKind::BorrowLocalMut { local }
+                if matches!(caller.locals[local.0 as usize].ty, Type::Closure(_)) =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(receivers[0], receivers[1]);
+    let instruction = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::BorrowLocalMut {local} if local==receivers[0]))
+        .unwrap();
+    instruction.kind = InstructionKind::BorrowLocalMut {
+        local: receivers[1],
+    };
+    assert!(
+        zil_analyze::analyze(&bad, &limits)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.message.contains("overlaps"))
+    );
+    forged.module_fingerprint = bad.fingerprint();
+    let wire = wire::encode_module_candidate(&bad, &forged, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(bad, forged, &target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("actual target intersects a live incompatible loan")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let core = g334_core(G335_STATEFUL);
+    let expected = zil_types::check(&core, &target, &limits).unwrap();
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: middle,
+                ..limits.clone()
+            },
+        ) {
+            Ok(_) => high = middle,
+            Err(errors)
+                if errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = middle + 1
+            }
+            Err(errors) => panic!("{errors:?}"),
+        }
+    }
+    for n in [low, low - 1, low] {
+        let result = zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        );
+        if n == low {
+            assert_eq!(result.unwrap(), expected)
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit)
+            )
+        }
+    }
+    let program = CoreProgram {
+        root: core.module_id,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule {
+            core: core.clone(),
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let mut session = zil_types::FunctionSession::default();
+    let mut prior = None;
+    for _ in 0..2 {
+        let prepared = zil_types::infer_program_for_ct(&program, &limits)
+            .unwrap()
+            .into_prepared();
+        let output = session
+            .check_prepared_program(&prepared, &target, &limits)
+            .unwrap();
+        if let Some(prior) = &prior {
+            assert_eq!(prior, &output)
+        }
+        prior = Some(output);
+    }
+    // Before this slice the shared Fn / exclusive receiver unused declaration
+    // was legal on None. Keep it off the paid new template formation lane.
+    let old_none = "struct Tag<life s>{p:&'s i64}fn helper<life s,F:Fn(&Tag<'s>)->i32>(f:&mut F,x:&Tag<'s>)->i32{return 42}fn main()->i32{return 42}";
+    assert!(
+        g334_core(old_none)
+            .functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .all(|r| r.source_life.is_none())
+    );
+    let report = compile_source(
+        &source(old_none),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let helper = core
+        .functions
+        .iter()
+        .position(|f| {
+            f.callable_parameters
+                .iter()
+                .any(|r| r.source_life.is_some())
+        })
+        .unwrap();
+    for mutation in 0..3 {
+        let mut bad = core.clone();
+        match mutation {
+            0 => bad.functions[helper].callable_parameters[0].kind = CallableKind::FnOnce,
+            1 => {
+                let function = &mut bad.functions[helper];
+                let role = &function.callable_parameters[0];
+                function.parameters[role.index as usize].ty = Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::Named(role.generic_name.clone())),
+                };
+            }
+            _ => {
+                let context = bad.functions[helper].callable_parameters[0]
+                    .source_life
+                    .as_mut()
+                    .unwrap();
+                context
+                    .inputs
+                    .iter_mut()
+                    .find(|i| matches!(i.position, CoreClosureHeaderPosition::Class(_)))
+                    .unwrap()
+                    .header_binder = StorageBinder::Fixed(99);
+            }
+        }
+        let errors = zil_types::check(&bad, &target, &limits).unwrap_err();
+        assert!(
+            !errors
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit),
+            "{mutation}: {errors:?}"
+        );
+    }
+    eprintln!(
+        "G335 Types N={low}/N-1/fresh and repeated actual FunctionSession requests; qualified profile has no scalar reuse claim"
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g335_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let mut runs = 0;
+    for (case, text, expected) in [
+        ("stateful", G335_STATEFUL, b"4243\n".as_slice()),
+        ("reverse", G335_REVERSE, b"4243\n".as_slice()),
+        ("adapted", G335_ADAPTED, b"42\n".as_slice()),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-g335-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let result = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(result.status.success(), "{result:?}");
+                assert_eq!(result.stdout, expected);
+                assert!(result.stderr.is_empty());
+                std::fs::remove_dir_all(dir).unwrap();
+                runs += 1;
+            }
+        }
+    }
+    eprintln!(
+        "G335 {runs} real Source native runs; stateful complete42 and43 individually checked before stdout4243, exit0/no fallback"
+    );
+}

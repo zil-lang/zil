@@ -136,6 +136,18 @@ impl<'a> Engine<'a> {
         let mut stored = false;
         let mut callable_data_profile = true;
         let mut callable_receivers = 0usize;
+        // Use only the actual selected bound's constant mode here. Unsupported
+        // receiver modes stay on the old None lane before paid template work.
+        let callable_receiver_mut = callable_parameter.is_some_and(|ordinal| {
+            let GenericParamKind::Type(bounds) = &function.generics[ordinal].kind else {
+                return false;
+            };
+            let [bound] = bounds.as_slice() else {
+                return false;
+            };
+            matches!(&bound.kind, TypeKind::Named {path,..}
+                if matches!(path.as_slice(), [name] if name == "FnMut"))
+        });
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
@@ -157,15 +169,14 @@ impl<'a> Engine<'a> {
             stored |= parameter_stored;
             if callable_parameter.is_some() {
                 match &parameter.ty.kind {
-                    TypeKind::Reference {
-                        mutable: false,
-                        inner,
-                        ..
-                    } if matches!(inner.kind, TypeKind::Named { .. }) => {
+                    TypeKind::Reference { mutable, inner, .. }
+                        if matches!(inner.kind, TypeKind::Named { .. }) =>
+                    {
                         if parameter_stored {
                             callable_data_profile &=
-                                occurrences.len() - before == 2 && physical_witness;
+                                !*mutable && occurrences.len() - before == 2 && physical_witness;
                         } else {
+                            callable_data_profile &= *mutable == callable_receiver_mut;
                             callable_receivers += 1;
                         }
                     }

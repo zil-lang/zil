@@ -1,0 +1,157 @@
+{
+  "task": "G3.3.5",
+  "kind": "author limited stateful qualified FnMut free-helper slice",
+  "source_and_tests_commit": "bfd84b224a4b5089a7b8bd1c1503be5b80505faf",
+  "baseline": "dd72e6b2e5a0a7d1f549f6feb95142300fe1d6ee",
+  "production_files_sha256": {
+    "crates/zil-expand/src/callable_context_lower.rs": "f9f9497a3e57355584cf0f5a87cb1a54ebc52f1473f8c93d02aa52107fde8c3c",
+    "crates/zil-expand/src/generic_callable_context.rs": "af2a692b730239b01cb595f3676ae5adfa276f1eecfda1c89cd901c69ece53ed",
+    "crates/zil-expand/src/generic_stored_nominal.rs": "efd66f4aed5c14dbc337c2267ad0de9128076cf212e170d28ce99070b176b0d9",
+    "crates/zil-types/src/helpers/source_life.rs": "8a66fabd088b2f0343e572c80de084ae6ec5cd0bc7db77d779be7095646563b4"
+  },
+  "tests_and_sources_sha256": {
+    "crates/zil-driver/tests/generic_regressions.rs": "da17c72fd74cb603ddbf88d73cd76810a7703307520f3996bec8899423fccbaa",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil": "98effe34b0efd69ee7a270cc4b919ee50cef204eb8707b649e88382966a55721",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/fn-adapted-control.zil": "f6b5cbe8b0cd253dbcef8f0e7b10ffd8bcea93432a2aeb4a00caf7b57c0c5349",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil": "f6ca88f8bf5e865d6a9e65d259baf5f74fec79583a0421410617a30090c2cee1",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/reverse-stateful-two-calls.zil": "29b92b9ec3ace090fdbdb77e0a968d94d2e958079b08a091150d6633686150e7",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/shared-receiver-reject.zil": "3df424d7d0806e6aedc5338488bed090a516e89755455edb574cd29a364c0688",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/stateful-two-calls.zil": "eb03f1d695173e35b21f18ea641aa9dfce434b6ac5e171f95a63c8943a6af3bf",
+    "tests/language-readiness/terminal/342/fnmut-helper-bridge/wrong-actual-class.zil": "41785f20178be914d6a17b3ed2732450b754b4dea2bce7c2ba9a912c52cc1bec"
+  },
+  "public_representation_changes": false,
+  "kernel_production_changes": false,
+  "fresh_target": "/workspace/.zil-env/target342-G3.3.5",
+  "author_execution": {
+    "g335_tests": 4,
+    "failed": 0,
+    "native": {
+      "processes": 12,
+      "cases": [
+        "stateful42_then43",
+        "reverse_stateful42_then43",
+        "Fn_adapted42"
+      ],
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimization": [
+        "O0",
+        "O2"
+      ],
+      "stateful_complete_results_individually_checked": true,
+      "stdout": [
+        "4243\\n",
+        "42\\n"
+      ],
+      "exit": 0,
+      "stderr": "empty",
+      "verification_runs_each": 1,
+      "fallback": null
+    },
+    "new_Types_boundary": {
+      "N": 8601,
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "identical Typed",
+      "FunctionSession": "two actual requests; qualified profile has no scalar reuse claim"
+    },
+    "old_boundaries": {
+      "Types_no_helper": 1611,
+      "Types_inventory": 668,
+      "Types_shared_Fn_helper": 8344,
+      "Source_to_Lower_quantified_helper": 21782,
+      "N_minus_1_and_fresh": "all checked; quantified whole request also warm"
+    },
+    "old_limited_regressions": 5,
+    "strict": [
+      "zil-expand/zil-types libs -D warnings",
+      "zil-driver lib+generic_regressions llvm-api -D warnings",
+      "cargo fmt --all --check",
+      "git diff --check"
+    ],
+    "final_g335_log": "g335-budget-revision.log;4/0+12native; Types8601/N-1/fresh unchanged",
+    "strict_revision_logs": [
+      "revision-strict-libs.log",
+      "revision-strict-driver.log",
+      "revision-fmt.log"
+    ]
+  },
+  "source_and_raw_scope": {
+    "actual_Typed": "FnMut definition, scalar capture0 WriteCapture, shared Tag capture1; exclusive Closure helper parameter, CallClosureBorrowed FnMut and complete full role/header",
+    "reverse": "full F ordinal1, filteredF0, source life ordinal2, runtime receiver1",
+    "actual_wrong_class": "Analyze SafeReject retained classes; body unused/CT42 does not remove declaration obligation",
+    "actual_shared_receiver": "Types SafeReject concrete environment mode",
+    "actual_overlap": "Analyze SafeReject stored actual target/parent loan",
+    "raw_and_Wire": [
+      "wrong actual helper data class: Analyze/Verify class reject",
+      "wrong actual capture class: Analyze/Verify class reject",
+      "borrowed-call kind change: Analyze mode reject; Verify Unsupported finite stored-profile inventory",
+      "disjoint same-type actual environments: honest good Analyze plan and Verify pass; change one BorrowLocalMut physical local only: Analyze overlap and Verify live incompatible loan rejection"
+    ],
+    "candidate_provenance": "adversarial raw/Wire plans only current module fingerprint rebound; not Source acceptance or one kernel endorsement of another"
+  },
+  "preserved_failures": {
+    "baseline": "exact9cb53776e fresh CLI d5ca442e26dca9c0d1d7658a6ed04f45ba551b0b9569d752d107cdd43897d825 Source SafeReject Analyze signature omits actual closure free Fixed domain, Verify0; source before individual result assertions",
+    "test_only": [
+      "g335-first/second: Rust test fields/borrows corrected, no production diagnosis",
+      "g335-third: Verify mode mutation reached Unsupported inventory, original expected text too narrow",
+      "g335-fourth: cross-Source candidate initialization mismatch masked overlap; replaced by actual same-IR disjoint-local control",
+      "g335-fifth: actual independent loan rejection text differed, final assertion binds that reason"
+    ],
+    "history_logs": {
+      "g335-second.log": "f818cfb65776f1b3cf2eee69d20da0c9360a030cfc810a24b6fa644b39ae285d",
+      "g335-third.log": "f6713a53fedcaee341cb483e83368b137a0c2a5152ba66e853377c6a92b1baa3",
+      "g335-fourth.log": "519396b02c21a0743ff8cc1a5055d28acbdc21aa0ec070f3bf798c7b568b94c2",
+      "g335-fifth.log": "0604771c97db53405e2e139ab482ed3fe9517fafc3add5b5fa5ac9940e763cba",
+      "g335-first.log": "6582a449225103829135442945517f59bf72f47d6e934acd1471699baa345177"
+    }
+  },
+  "frontier": [
+    "one Original free helper and one F",
+    "single qualified class backed by exactly one SharedAddress slot0",
+    "shared Tag data/captures and scalar result; real moved scalar FnMut state",
+    "no ordinary implicit mutable-reference counter, FnOnce, lending, escape, new CT header or multiple F support",
+    "Core/Typed/Wire and independent kernels unchanged; source identity is producer provenance, not permissions"
+  ],
+  "logs": {
+    "/workspace/.zil-env/G3.3.5-tmp/baseline-build.log": "38c51aa9d1e4eb37824c285931c64973f2da43f5db01d9745a01854760df463f",
+    "/workspace/.zil-env/G3.3.5-tmp/baseline-stateful.json": "16a46c7584ce3d118050f2ab2042deb6c0ba6575f90c6a79007d9965ae706e38",
+    "/workspace/.zil-env/G3.3.5-tmp/g335-sixth.log": "22144a278e848c21a57ca180f4017761f60f3d2830a119fe3d5590b687ab614c",
+    "/workspace/.zil-env/G3.3.5-tmp/old-fn8344.log": "bae0bfa450fd3ca43dd3d4748a51ce36363b2b11b3dcb51f33b568f2d964ddeb",
+    "/workspace/.zil-env/G3.3.5-tmp/old-phantom.log": "54d9717dc272d37965e33d11eb2b459870c27ce8ce6b811c0acbe39040ee52e0",
+    "/workspace/.zil-env/G3.3.5-tmp/old-none668.log": "f734af117a0ad0e5859ed4f397b1cab83bba50cf1aac0b25492c2548d8b3e700",
+    "/workspace/.zil-env/G3.3.5-tmp/old-none21782.log": "2821760e5559f661f52692bb304f999da979100f50cac1a5f824c27469fb51ba",
+    "/workspace/.zil-env/G3.3.5-tmp/old-direct1611.log": "4b6d9b4f7aab083ff1a535ee5b5fe8b24e92b743b353ae329468bd974b729160",
+    "/workspace/.zil-env/G3.3.5-tmp/strict-libs.log": "eafe2733c7840a8b7569f51d00d08c26c8a2410fe424d077dbb16e3e072284ac",
+    "/workspace/.zil-env/G3.3.5-tmp/strict-driver.log": "3b4428bf09ed75d6c118a7c504b0a6b633e853b16ff4a7d6906113eed588cdb4",
+    "/workspace/.zil-env/G3.3.5-tmp/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/.zil-env/G3.3.5-tmp/g335-budget-revision.log": "2bc5534158e3cf206171fc5538809ab47b53f355127f7abbf1237da2556f4d01",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-strict-libs.log": "8eb20303a7e57be5072023d55fb8ea4aff835c22412a2e25f0e5162e7d10ffc8",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-strict-driver.log": "6c0fc9d4215047a7193d8931d684e1d9d2545932d8333a1c62b56c26ad38ca84",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+  },
+  "test_executable": {
+    "path": "/workspace/.zil-env/target342-G3.3.5/debug/deps/generic_regressions-6ecdb24ac684ead8",
+    "sha256": "6006bdc7ed2264f111d2c3e174c27da43e5df0aaa1c601b9f54eeee80acc9274"
+  },
+  "independent_review": "pending exact non-author receipt; root formal acceptance separate",
+  "Rust_goals": {
+    "expression": "actual stateful helper produces complete42 and43 on one environment",
+    "safety": "source/raw/Wire physical class/receiver/loan controls; independent kernels unchanged",
+    "runtime": "no new carrier/allocation/RC/lock/table; no RSS or throughput benchmark claim",
+    "implementation": "four private production files; reuse actual fullordinal/header/fullrole formation; no compile-time advantage measured"
+  },
+  "superseded_pre_revision": {
+    "source_and_tests": "1e83849dd600e880f3dbc7cb3bc884d4dc745745",
+    "docs": "f7de024a0",
+    "status": "PendingBudgetRevision, superseded by receiver-mode prefilter; no runtime safety acceptance defect claimed",
+    "reason": "Fn bound with exclusive receiver unused old None could reach paid prepare template before returning None. Minimum threshold can be equal while an earlier phase has additional work."
+  },
+  "budget_revision": {
+    "scope": "one selected-bound constant-size mode read; no additional generic/header/name scan or allocation",
+    "static_fee_path": "existing parameter walk marks unsupported nonstored receiver mode profilefalse; callable_parameter.filter then yields None before prepare_callable_context. Its additional paid callable::template is not called; all existing ordinary AST/header work remains charged.",
+    "actual_old_None": "F:Fn(&Tag<s>)->i32 with &mut F, unused correct body, remains NoSome and Success/Verify1",
+    "old_boundaries_binding": "previous old668/1611/8344/21782 logs bind1e838; final revision independent review rebinds its own exact old limits; no relabeling of stale executable runs"
+  }
+}
