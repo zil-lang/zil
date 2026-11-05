@@ -412,6 +412,32 @@ impl<'c, 'a> Builder<'c, 'a> {
             self.compiler.budget.ty(ty, 0, span)?;
         }
         if expected.is_some_and(|t| *t != value.ty) {
+            #[cfg(test)]
+            {
+                eprintln!(
+                    "G445 mismatch symbolic={} actual={:?} expected={expected:?}",
+                    self.compiler.checking_generics, value.ty
+                );
+                for ty in [Some(&value.ty), expected].into_iter().flatten() {
+                    if let CtTy::Record(id) = ty {
+                        eprintln!(
+                            "G445 schema {:?}: {:?}",
+                            id,
+                            self.compiler.records.get(id.0 as usize)
+                        );
+                    }
+                }
+                eprintln!(
+                    "G445 bindings={:?} scopes={:?}",
+                    self.compiler.source_life_bindings, self.compiler.ambient_life_scopes
+                );
+                if let Some(scope) = &self.compiler.source_life_scope {
+                    eprintln!(
+                        "G445 current definition={:?} binders={:?} instance={:?}",
+                        scope.definition, scope.binders, scope.instance
+                    );
+                }
+            }
             return Err(error(
                 span,
                 "CT expression type does not match its actual expected type",

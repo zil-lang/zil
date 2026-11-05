@@ -4,6 +4,84 @@
 use super::*;
 use zil_verify::{CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage};
 
+#[test]
+fn g445_actual_source_context_gap() {
+    let text = include_str!(
+        "../../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
+    );
+    let sources = vec![SourceUnit::new(
+        zil_base::FileId(0),
+        ModuleId(0),
+        "actual-return.zil",
+        text,
+    )];
+    let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+    assert!(parsed[0].diagnostics.is_empty());
+    let syntax = vec![&parsed[0].module];
+    let paths = BTreeMap::new();
+    let imports = vec![Vec::new()];
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let environment = Environment::new(
+        &sources,
+        &parsed,
+        &paths,
+        &imports,
+        ModuleId(0),
+        sources[0].fingerprint(),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let definition = CtSymbolId {
+        module: ModuleId(0),
+        declaration: zil_base::NodeId(4),
+        generation_path: None,
+    };
+    let original = compiler::source_scope::original_function(
+        &parsed[0].module,
+        definition.declaration,
+        limits.max_call_depth,
+        |_| Ok(()),
+    )
+    .unwrap()
+    .unwrap();
+    let zil_syntax::ast::FunctionBody::Block(block) = &original.function.body else {
+        unreachable!()
+    };
+    let zil_syntax::ast::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+        unreachable!()
+    };
+    let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
+        unreachable!()
+    };
+    let input = environment.empty_input(expression.span).unwrap();
+    let modules = environment.index.modules(&sources, &syntax);
+    let errors = compiler::compile_scoped(CompileRequest {
+        target_pointer_width: 64,
+        modules: &modules,
+        source_fingerprint: sources[0].fingerprint(),
+        entry: Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: Some(definition),
+            expected: None,
+            parameters: &[],
+        },
+        input_tokens: &input,
+        snapshot: &environment.snapshot,
+        limits: &limits,
+    })
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("actual expected type")),
+        "{errors:?}"
+    );
+}
+
 struct InventoryOnly<'a> {
     source: &'a FrozenAuthority<'a>,
 }
