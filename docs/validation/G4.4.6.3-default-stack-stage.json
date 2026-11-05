@@ -1,0 +1,63 @@
+{
+  "task": "G4.4.6.3-default-stack",
+  "status": "ResolverFrameIsolationImplementedActualDefaultStackReplayPending",
+  "date": "2026-11-05",
+  "implementation_commit": "f39a1d48c8673ab127d849c0c6bc94c38db65aa9",
+  "base": "6276269a146473cf6ac2319d4443ecc61259ede3",
+  "merged_consumer": "9375b23731c54e6b1289b1c30e12c89e8b7545f0",
+  "source_dirty": false,
+  "failure": {
+    "log": "/workspace/.zil-env/G10.1.11-third-full/default.log",
+    "extracted": "/workspace/.zil-env/p0-completion-20261105/third-full-failures.json",
+    "test": "large_copy_enum_error_default_stack_api_reliability",
+    "profile": "frontend",
+    "observed": "Default spawned thread stack overflow abort; this child has no stack-size override and removes RUST_MIN_STACK. Individual phase/input markers absent; frontend runs only Parse/Core/Types/Analyze/Verify plus existing deep fixtures and raw/Wire checks, never Lower/LLVM."
+  },
+  "diagnosis": {
+    "scope": "Types aggregates::Resolver::ty common structural recursion frame",
+    "pre_fix_frame_bytes": 43784,
+    "array_depth": 48,
+    "frames_bytes_without_callers": 2101632,
+    "default_thread_stack_bytes": 2097152,
+    "artifact": "/workspace/.zil-env/G4.4.6.3-stack-diagnosis/aggregates-current.o",
+    "artifact_sha256": "72e81c53afe41e59b48237c5cdbac928741c70bffffd3cb95459077ba076534f",
+    "prolog": "/workspace/.zil-env/G4.4.6.3-default-stack-tmp/resolver-pre-fix-prolog.txt",
+    "prolog_sha256": "a9e7ce2829710013fba9002993d823a2bdbcedefcecf9a257d976dea528e9b27",
+    "method": "Read/extract existing linked Types rlib target object and disassemble only the named function section; no Source or native execution. No claim archived older object is a precise baseline."
+  },
+  "implementation": [
+    "Moves the complete Named nominal declaration/Enum/cache branch to inline(never) nominal_type; ordinary structural recursion no longer carries that branch temporary frame.",
+    "ty retains original charge and prechecks. Branch ordering, all validations, active/cache mutation ordering and semantic budget visits retained. No extra semantic charge in helper.",
+    "No stack override, heap boxing, limits/depth exception, assertion/test target or source input change."
+  ],
+  "movement_equivalence": {
+    "source_before": "dafbde743",
+    "source_after": "f39a1d48c",
+    "check": "Exact branch equality after String-to-str clone conversions, Result return and same rustfmt; quoted string-preserving token equality of the complete file after reverting helper move",
+    "result": "Pass",
+    "old_branch_sha256": "61230c761280b2d4bc0eb861b8d8dadffa4ebb67d583559f239c370cb02c9211",
+    "new_helper_sha256": "5f3d664598edc63c8f0b01dd91307568963f9b7ece510c8c474dfe8e918a7803"
+  },
+  "check": {
+    "command": "cargo check -p zil-types -p zil-driver --test aggregates -j1",
+    "kind": "NoLinkCompileOnly",
+    "result": "Pass",
+    "initial_compile_seconds": 29.38,
+    "frozen_followup_command": "cargo check -p zil-driver --test aggregates -j1",
+    "frozen_log": "/workspace/.zil-env/G4.4.6.3-default-stack-tmp/default-stack-resolver-frozen-check.log",
+    "frozen_log_sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d"
+  },
+  "remaining": [
+    "Root-authorized existing default-stack frontend and Clang/API O0/O2 isolated worker family.",
+    "Post-fix actual object/frame evidence if needed; no post-fix frame-size or actual stack-success claim from no-link check.",
+    "Original intersecting source/raw/Wire/budget controls and independent acceptance."
+  ],
+  "actual_default_stack_result": "NotExecutedByAuthor",
+  "rust_goals": {
+    "safety": "Preserves semantic checks and diagnostic ordering; no stack/limit bypass.",
+    "cost": "Separates nominal temporary stack cost from unrelated structural recursion while preserving budget visits.",
+    "machine": "Default worker stack contract unchanged, no implicit heap/ABI change.",
+    "engineering": "One Types production file, original regression target unchanged and producer/consumer frozen dependencies retained.",
+    "breakthrough_and_limit": "Concrete emitted 43,784-byte recursive frame explained the actual default-stack regression; repair compiles, actual existing regression awaits root."
+  }
+}

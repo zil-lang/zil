@@ -908,9 +908,18 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
                 return Err(err("stored signature requires complete class relation"));
             }
-            if !module.life_instances.is_empty() && nested_class(ty, 0, b)? {
+            let composite = |ty: &Type| {
+                matches!(
+                    ty,
+                    Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+                )
+            };
+            if !module.life_instances.is_empty()
+                && (composite(ty) || matches!(ty, Type::Address { inner, .. } if composite(inner)))
+                && nested_class(ty, 0, b)?
+            {
                 return Err(err(
-                    "nested qualified signature requires complete class relation",
+                    "nested stored qualified signature requires complete class relation",
                 ));
             }
         }
