@@ -1,6 +1,8 @@
 //! Qualified callbacks with inline scalar environments. Metadata is checked
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
+#[path = "stored_callables_staged.rs"]
+mod staged;
 fn bad(message: &str) -> Diagnostic {
     reject("E-VERIFY-QUALIFIED-CALLABLE", None, message)
 }
@@ -334,8 +336,10 @@ pub(super) fn types(
 }
 /// An ambiguous/rebound receiver cannot select a role merely by ClosureId.
 pub(super) fn role<'a>(
+    module: &TypedModule,
     f: &'a TypedFunction,
     kind: &InstructionKind,
+    definition: &ClosureDefinition,
     b: &mut Budget,
 ) -> Check<Option<&'a StorageLifeContract>> {
     let Some(contract) = &f.callable_contract else {
@@ -377,16 +381,28 @@ pub(super) fn role<'a>(
         _ => return Ok(None),
     };
     b.spend(f.parameters.len().saturating_add(contract.roles.len()))?;
-    let position = f
-        .parameters
-        .iter()
-        .position(|p| *p == local)
-        .ok_or_else(|| bad("callback role receiver is not an actual declared parameter"))?;
+    let direct = f.parameters.iter().position(|p| *p == local);
+    let position = match direct {
+        Some(position) => position,
+        None if matches!(kind, InstructionKind::CallClosureOnce { .. }) => {
+            staged::parameter(module, f, kind, definition, b)?
+        }
+        None => {
+            return Err(bad(
+                "callback role receiver is not an actual declared parameter",
+            ));
+        }
+    };
     let role = contract
         .roles
         .iter()
         .find(|r| r.parameter as usize == position)
         .ok_or_else(|| bad("callback receiver has no exact parameter role"))?;
+    if direct.is_none()
+        && (role.closure != definition.id || role.cleanup != CallableCleanup::Owned)
+    {
+        return Err(bad("staged callback requires the exact owned parameter role"));
+    }
     let mode = match kind {
         InstructionKind::CallClosureBorrowed { kind, .. } => *kind,
         InstructionKind::CallClosureMut { .. } => zil_ir::CallableKind::FnMut,
