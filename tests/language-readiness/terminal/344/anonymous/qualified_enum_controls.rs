@@ -204,7 +204,7 @@ fn g4463_array_signature_cannot_drop_its_complete_class_contract() {
             )
         };
         let text = format!(
-            "struct Leaf<life a>{{n:i32}}fn keep<life a>(token:&'a i32,value:{parameter})->{result}{{{body}}}fn read<life s>(token:&'s i32)->i32{{let values=[Leaf::<'s>{{n:42}}];return keep(token,{argument}){observe}}}fn main()->i32{{let token=0;return read(&token)}}"
+            "struct Leaf<life a>{{n:i32}}fn keep<life a>(token:&'a i32,value:{parameter})->{result}{{{body}}}fn read<life s>(token:&'s i32)->i32{{let values=[Leaf::<'s>{{n:42}}];let returned=keep(token,{argument});return returned{observe}}}fn main()->i32{{let token=0;return read(&token)}}"
         );
         let source = SourceUnit::new(FileId(0), ModuleId(0), "g4463-contract.zil", text);
         let limits = Limits::default();
@@ -256,9 +256,9 @@ fn g4463_array_signature_cannot_drop_its_complete_class_contract() {
         let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
         for errors in [analyzed, verified, decoded] {
             assert!(
-                errors.iter().any(|d| d
-                    .message
-                    .contains("stored signature requires complete class relation")),
+                errors.iter().any(|d| d.message.contains(
+                    "nested stored qualified signature requires complete class relation"
+                )),
                 "addressed={addressed}: {errors:?}"
             );
         }
