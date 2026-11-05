@@ -90,7 +90,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
                     "pure Copy field source contains a target-bearing payload",
                 ));
             }
-            match source {
+            match super::carrier(source).map_or(source, |(storage, _)| storage) {
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 _ => None,

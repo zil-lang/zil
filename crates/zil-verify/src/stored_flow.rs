@@ -511,7 +511,7 @@ pub(super) fn qualification(
 /// This admits only a qualified pure value, retaining its complete semantic
 /// type. The ordinary read's actual pointer/loan proof remains mandatory.
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. }))
+    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
@@ -2391,7 +2391,9 @@ pub(super) fn check(
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || super::stored_owned::owner(ty)
-                || super::stored_owned::description(ty))
+                || super::stored_owned::description(ty)
+                || pure_inline(module, ty, b)?
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",

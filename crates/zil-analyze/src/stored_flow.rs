@@ -425,7 +425,7 @@ pub(super) fn qualification(
 /// Copy only a fully qualified physical value without runtime borrowing or
 /// ownership leaves. The address is still checked by the CFG access proof.
 fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. }))
+    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
@@ -2673,7 +2673,9 @@ pub(super) fn infer(
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
-                || b.stored_owned_fixed && owned::data(ty, b)?)
+                || b.stored_owned_fixed && owned::data(ty, b)?
+                || pure_inline(module, ty, b)?
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -2965,7 +2967,10 @@ fn actual_instructions(
                         failure("actual field is absent or crosses non-inline storage")
                     })?;
                     b.type_work(child, true, "stored actual ordinary inline projection")?;
-                    if !child.is_copy_value() && !pure_read(module, child, b)? {
+                    if !child.is_copy_value()
+                        && !pure_read(module, child, b)?
+                        && !pure_inline(module, child, b)?
+                    {
                         return Err(failure(
                             "stored borrowed leaf must use actual slot-load protocol",
                         ));
@@ -3021,7 +3026,10 @@ fn actual_instructions(
                         return Err(failure("read base is not an Address"));
                     };
                     b.type_work(inner, true, "stored actual ordinary read payload")?;
-                    if !inner.is_copy_value() && !pure_read(module, inner, b)? {
+                    if !inner.is_copy_value()
+                        && !pure_read(module, inner, b)?
+                        && !pure_inline(module, inner, b)?
+                    {
                         return Err(failure(
                             "ordinary read cannot copy stored carrier/borrow leaf",
                         ));

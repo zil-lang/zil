@@ -132,7 +132,7 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
         InstructionKind::ExtractField { aggregate, index } => {
             let aggregate = vt(f, *aggregate)?;
             ordinary(aggregate, b, 0)?;
-            match aggregate {
+            match super::qualified(aggregate).map_or(aggregate, |(storage, _)| storage) {
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, field)| field),
                 Type::Tuple(fields) => fields.get(*index as usize),
                 _ => None,

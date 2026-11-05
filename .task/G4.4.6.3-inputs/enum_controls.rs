@@ -63,13 +63,32 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
     let mut missing = raw.clone();
     missing.life_instances.remove(enum_index);
+    let error = zil_analyze::analyze(&missing, &limits).unwrap_err();
     assert!(
-        zil_analyze::analyze(&missing, &limits).is_err(),
-        "Analyze accepted a qualified Enum with no complete instance"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
+    let error = zil_verify::verify_module(missing, plan.clone(), &target, &limits).unwrap_err();
     assert!(
-        zil_verify::verify_module(missing, plan.clone(), &target, &limits).is_err(),
-        "Verify accepted a qualified Enum with no complete instance"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
+    );
+    let mut no_directory = raw.clone();
+    no_directory.life_declarations.clear();
+    no_directory.life_instances.clear();
+    for function in &mut no_directory.functions {
+        function.storage_life = None;
+    }
+    let error = zil_analyze::analyze(&no_directory, &limits).unwrap_err();
+    assert!(
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
+    );
+    let error =
+        zil_verify::verify_module(no_directory, plan.clone(), &target, &limits).unwrap_err();
+    assert!(
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
@@ -99,18 +118,22 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
         .expect("array retained class")
         .path
         .pop();
+    let error = zil_analyze::analyze(&wrong_raw, &limits).unwrap_err();
     assert!(
-        zil_analyze::analyze(&wrong_raw, &limits).is_err(),
-        "Analyze accepted omitted Element class"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
+    let error =
+        zil_verify::verify_module(wrong_raw.clone(), plan.clone(), &target, &limits).unwrap_err();
     assert!(
-        zil_verify::verify_module(wrong_raw.clone(), plan.clone(), &target, &limits).is_err(),
-        "Verify accepted omitted Element class"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
     let wrong_bytes = zil_ir::wire::encode_module_candidate(&wrong_raw, &plan, &limits).unwrap();
+    let error = zil_verify::verify_module_bytes(&wrong_bytes, &target, &limits).unwrap_err();
     assert!(
-        zil_verify::verify_module_bytes(&wrong_bytes, &target, &limits).is_err(),
-        "Wire accepted omitted Element class"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
 
     for bad_field in [
@@ -129,13 +152,15 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
             unreachable!()
         };
         variants[1].1[0] = bad_field;
+        let error = zil_analyze::analyze(&hostile, &limits).unwrap_err();
         assert!(
-            zil_analyze::analyze(&hostile, &limits).is_err(),
-            "Analyze accepted a real borrowing or owning payload"
+            error.iter().any(|d| d.message.contains("stored")),
+            "{error:?}"
         );
+        let error = zil_verify::verify_module(hostile, plan.clone(), &target, &limits).unwrap_err();
         assert!(
-            zil_verify::verify_module(hostile, plan.clone(), &target, &limits).is_err(),
-            "Verify accepted a real borrowing or owning payload"
+            error.iter().any(|d| d.message.contains("stored")),
+            "{error:?}"
         );
     }
     let mut hidden = raw.clone();
@@ -152,12 +177,14 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
         }),
         length: 2,
     };
+    let error = zil_analyze::analyze(&hidden, &limits).unwrap_err();
     assert!(
-        zil_analyze::analyze(&hidden, &limits).is_err(),
-        "Analyze accepted a hidden Array Address"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
+    let error = zil_verify::verify_module(hidden, plan, &target, &limits).unwrap_err();
     assert!(
-        zil_verify::verify_module(hidden, plan, &target, &limits).is_err(),
-        "Verify accepted a hidden Array Address"
+        error.iter().any(|d| d.message.contains("stored")),
+        "{error:?}"
     );
 }

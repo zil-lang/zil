@@ -1418,7 +1418,7 @@ mod source_tests {
             "enum Empty<life a>{Only}fn read<life a>(p:&'a i32)->i32{let x:Empty<'a>=Empty::<'a>.Only();match x{Empty.Only()=>{return 1}}}fn main(){}",
             "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn read<life a>(p:&'a i32)->i32{let x:Boxed<Leaf<'a>>=Boxed::<Leaf<'a>>.V(Leaf::<'a>{n:3});match x{Boxed.V(v)=>{return v.n}}}fn main(){}",
         ] {
-            expand_text(source).unwrap();
+            expand_text(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
         }
     }
 

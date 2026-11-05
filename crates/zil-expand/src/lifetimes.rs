@@ -51,8 +51,13 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
-            if let s::ItemKind::Aggregate(aggregate) = &item.kind {
-                for parameter in &aggregate.generics {
+            let nominal_generics = match &item.kind {
+                s::ItemKind::Aggregate(aggregate) => Some(aggregate.generics.as_slice()),
+                s::ItemKind::Enum(declaration) => Some(declaration.generics.as_slice()),
+                _ => None,
+            };
+            if let Some(nominal_generics) = nominal_generics {
+                for parameter in nominal_generics {
                     if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
                         self.budget
                             .node(parameter.span, depth)
