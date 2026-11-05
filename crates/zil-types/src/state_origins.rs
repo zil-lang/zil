@@ -1091,6 +1091,7 @@ pub(super) fn bounds(function: &CoreFunction) -> Cow<'_, [CoreCallableParameter]
         .bindings
         .iter()
         .map(|binding| CoreCallableParameter {
+            source_life: None,
             life: None,
             index: state.index,
             generic_index: binding.generic_index,

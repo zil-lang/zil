@@ -70,15 +70,25 @@ impl<'a> Engine<'a> {
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.life_scope.clear();
-                for parameter in &function.generics {
+                let mut callable_parameter = None;
+                let mut callable_profile = function.where_clause.is_empty();
+                for (index, parameter) in function.generics.iter().enumerate() {
                     self.budget.node(parameter.span, 0)?;
+                    match parameter.kind {
+                        GenericParamKind::Type(_) if callable_parameter.is_none() => {
+                            callable_parameter = Some(index)
+                        }
+                        GenericParamKind::Lifetime => {}
+                        _ => callable_profile = false,
+                    }
                     if matches!(parameter.kind, GenericParamKind::Lifetime) {
                         self.budget.text(&parameter.name, parameter.span)?;
                         self.life_scope.push(parameter.name.clone());
                     }
                 }
+                let callable_parameter = callable_profile.then_some(callable_parameter).flatten();
                 self.with_origin(pending.origin, |engine| {
-                    if engine.stored_signature(function)? {
+                    if engine.stored_signature_context(function, callable_parameter)? {
                         engine.budget.function_snapshot(function)?;
                         engine.budget.text(&function.name, function.span)?;
                         engine.stored_lookup_fee(
@@ -105,6 +115,13 @@ impl<'a> Engine<'a> {
     }
 
     pub(super) fn stored_signature(&mut self, function: &mut Function) -> R<bool> {
+        self.stored_signature_context(function, None)
+    }
+    fn stored_signature_context(
+        &mut self,
+        function: &mut Function,
+        callable_parameter: Option<usize>,
+    ) -> R<bool> {
         if !self.stored_nominals {
             return Ok(false);
         }
@@ -117,10 +134,14 @@ impl<'a> Engine<'a> {
         }
         let mut occurrences = Vec::new();
         let mut stored = false;
+        let mut callable_data_profile = true;
+        let mut callable_receivers = 0usize;
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
-            self.storage_header(
+            let before = occurrences.len();
+            let mut parameter_stored = false;
+            let physical_witness = self.storage_header(
                 &mut parameter.ty,
                 zil_ir::StorageBase::Parameter(
                     u32::try_from(index)
@@ -129,10 +150,29 @@ impl<'a> Engine<'a> {
                 &mut Vec::new(),
                 &mut Vec::new(),
                 &mut occurrences,
-                &mut stored,
+                &mut parameter_stored,
                 &mut next_elided,
                 0,
             )?;
+            stored |= parameter_stored;
+            if callable_parameter.is_some() {
+                match &parameter.ty.kind {
+                    TypeKind::Reference {
+                        mutable: false,
+                        inner,
+                        ..
+                    } if matches!(inner.kind, TypeKind::Named { .. }) => {
+                        if parameter_stored {
+                            callable_data_profile &=
+                                occurrences.len() - before == 2 && physical_witness;
+                        } else {
+                            callable_receivers += 1;
+                        }
+                    }
+                    _ if callable_context::scalar_syntax(&parameter.ty) => {}
+                    _ => callable_data_profile = false,
+                }
+            }
         }
         if let Some(result) = &mut function.return_type {
             self.storage_header(
@@ -149,7 +189,17 @@ impl<'a> Engine<'a> {
         if !stored {
             return Ok(false);
         }
-        let contract = stored_types::contract(occurrences, &mut self.budget, function.span)?;
+        let (contract, fixed, invocation) = stored_types::contract_with_sources(
+            occurrences,
+            Vec::new(),
+            &mut self.budget,
+            function.span,
+        )?;
+        if let Some(parameter) =
+            callable_parameter.filter(|_| callable_data_profile && callable_receivers == 1)
+        {
+            self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
+        }
         self.budget.text(&function.name, function.span)?;
         self.stored_lookup_fee(
             self.products.storage.functions.len(),
@@ -202,7 +252,7 @@ impl<'a> Engine<'a> {
         stored: &mut bool,
         next_elided: &mut u32,
         depth: usize,
-    ) -> R<()> {
+    ) -> R<bool> {
         self.budget.node(ty.span, depth)?;
         match &mut ty.kind {
             TypeKind::Group(inner) => self.storage_header(
@@ -256,7 +306,7 @@ impl<'a> Engine<'a> {
             }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_declaration(&name[0], ty.span)? {
-                    return Ok(());
+                    return Ok(false);
                 }
                 let (generated, classes) =
                     self.stored_nominal(&name[0], args, ty.span, depth + 1)?;
@@ -303,12 +353,16 @@ impl<'a> Engine<'a> {
                         fixed_input,
                     });
                 }
+                let physical_witness = life.binder_count == 1
+                    && matches!(life.slots.as_slice(),[slot]
+                    if slot.binder==0 && slot.mode==zil_ir::StoredBorrowMode::SharedAddress);
                 *stored = true;
                 *name = vec![generated];
                 args.clear();
-                Ok(())
+                Ok(physical_witness)
             }
             TypeKind::Tuple(fields) => {
+                let mut physical_witness = false;
                 for (index, field) in fields.iter_mut().enumerate() {
                     let index = u32::try_from(index)
                         .map_err(|_| error(field.span, "tuple field ordinal overflow"))?;
@@ -318,7 +372,7 @@ impl<'a> Engine<'a> {
                     type_path.push(zil_ir::LifeTypeProjection::Place(
                         zil_ir::PlaceProjection::Field(index),
                     ));
-                    self.storage_header(
+                    physical_witness |= self.storage_header(
                         field,
                         base,
                         path,
@@ -331,9 +385,9 @@ impl<'a> Engine<'a> {
                     path.pop();
                     type_path.pop();
                 }
-                Ok(())
+                Ok(physical_witness)
             }
-            _ => Ok(()),
+            _ => Ok(false),
         }
     }
     pub(super) fn source_life(&mut self, name: &str, span: Span) -> R<LexicalLife> {

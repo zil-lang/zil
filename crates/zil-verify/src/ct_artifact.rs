@@ -7,6 +7,8 @@ use zil_ir::{BinaryOp, Constant, UnaryOp};
 
 #[path = "ct_artifact_identity.rs"]
 mod identity;
+#[path = "ct_artifact_scopes.rs"]
+mod scopes;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum CtSymbolUsage {
@@ -30,6 +32,14 @@ pub enum CtScopeParameterKind {
 /// The driver implements this using one immutable project/source snapshot.
 /// Implementations do not run inside a provider or supply verified code.
 pub trait CtArtifactAuthority {
+    /// Request-local inventory bound for the source authority's scope lookup.
+    /// This only prices comparisons; it cannot admit a scope or an actual.
+    /// Authorities without a count use the verifier's conservative artifact
+    /// function/scope inventory bound. The count must include private instances
+    /// that have no row in the emitted ambient scope table.
+    fn active_scope_count(&self) -> Option<usize> {
+        None
+    }
     fn scope_parameter_count(&self, _scope: &CtAmbientLifeScope) -> Option<usize> {
         None
     }
@@ -199,7 +209,7 @@ pub fn verify_ct_artifact_metered(
     }
 
     preflight(&raw, limits)?;
-    check_ambient_metadata(&raw, limits, authority, meter)?;
+    let scope_authentication_work = check_ambient_metadata(&raw, limits, authority, meter)?;
     check_type_metadata(&raw, limits, meter)?;
     for instruction in raw
         .functions
@@ -221,6 +231,7 @@ pub fn verify_ct_artifact_metered(
             )]);
         }
     }
+    meter.charge(scope_authentication_work, None)?;
     if !authority.authenticate_artifact(&raw)
         || raw.source_fingerprint != authority.source_fingerprint()
         || raw.snapshot != *authority.snapshot()
@@ -659,174 +670,8 @@ fn check_ambient_metadata(
     limits: &Limits,
     authority: &impl CtArtifactAuthority,
     meter: &mut CtVerificationMeter,
-) -> Check<()> {
-    let count = raw.ambient_life_scopes.len();
-    if count > limits.max_nodes || count as u64 > raw.budget.max_generated_nodes {
-        return Err(limit(None, "CT ambient scope inventory exceeds quota"));
-    }
-    meter.charge(count.saturating_mul(8).saturating_add(1), None)?;
-    if count as u64 > raw.budget.max_temporary_bytes {
-        return Err(limit(None, "CT ambient inventory scratch exceeds quota"));
-    }
-    let mut seen = vec![false; count];
-    for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
-        meter.charge(
-            scope
-                .binder_site
-                .len()
-                .saturating_add(count)
-                .saturating_add(32),
-            None,
-        )?;
-        if !matches!(scope.instance, CtScopeInstance::Definition) {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Ct,
-                "CT5 full specialization scope validation is not yet implemented",
-                None,
-            )]);
-        }
-        if scope.binder_site.len() > limits.max_call_depth {
-            return Err(limit(None, "CT binder-site depth exceeds quota"));
-        }
-        for prior in &raw.ambient_life_scopes[..index] {
-            meter.charge(
-                prior
-                    .binder_site
-                    .len()
-                    .saturating_add(scope.binder_site.len())
-                    .saturating_add(32),
-                None,
-            )?;
-            if prior == scope {
-                return Err(reject(None, "CT ambient scope is duplicated"));
-            }
-        }
-        let parameters = authority.scope_parameter_count(scope).ok_or_else(|| {
-            reject(
-                None,
-                "CT ambient scope is not an actual active source binder",
-            )
-        })?;
-        if parameters > limits.max_nodes {
-            return Err(limit(None, "CT ambient parameter inventory exceeds quota"));
-        }
-        meter.charge(
-            parameters.saturating_mul(
-                count
-                    .saturating_add(scope.binder_site.len())
-                    .saturating_add(32),
-            ),
-            None,
-        )?;
-        let mut lifetime = false;
-        for ordinal in 0..parameters {
-            let kind = authority
-                .scope_parameter_kind(scope, ordinal)
-                .ok_or_else(|| {
-                    reject(None, "CT ambient source parameter inventory is incomplete")
-                })?;
-            lifetime |= kind == CtScopeParameterKind::Lifetime;
-        }
-        if !lifetime {
-            return Err(reject(None, "CT ambient scope has no lifetime parameter"));
-        }
-    }
-    fn graph(
-        graph: &CtTypeRef,
-        raw: &CtArtifactProgram,
-        authority: &impl CtArtifactAuthority,
-        meter: &mut CtVerificationMeter,
-        seen: &mut [bool],
-        next: &mut usize,
-    ) -> Check<()> {
-        meter.charge(graph.ambient_classes.len().saturating_mul(32), None)?;
-        let mut previous = None;
-        for row in &graph.ambient_classes {
-            let key = (row.owner, row.class);
-            if previous.is_some_and(|old| old >= key) {
-                return Err(reject(
-                    None,
-                    "CT ambient class mappings repeat or are not ordered",
-                ));
-            }
-            previous = Some(key);
-            let index = row.source.scope.0 as usize;
-            let scope = raw
-                .ambient_life_scopes
-                .get(index)
-                .ok_or_else(|| reject(None, "CT ambient scope reference is outside inventory"))?;
-            meter.charge(
-                raw.ambient_life_scopes
-                    .len()
-                    .saturating_add(scope.binder_site.len())
-                    .saturating_add(32),
-                None,
-            )?;
-            if authority.scope_parameter_kind(scope, row.source.parameter as usize)
-                != Some(CtScopeParameterKind::Lifetime)
-            {
-                return Err(reject(
-                    None,
-                    "CT ambient reference does not name an actual lifetime ordinal",
-                ));
-            }
-            if !seen[index] {
-                if index != *next {
-                    return Err(reject(
-                        None,
-                        "CT ambient scope table is not in first actual use order",
-                    ));
-                }
-                seen[index] = true;
-                *next += 1;
-            }
-        }
-        Ok(())
-    }
-    let mut next = 0;
-    for (arguments, context) in raw
-        .record_schemas
-        .iter()
-        .map(|s| (&s.arguments, &s.life_context))
-        .chain(
-            raw.enum_schemas
-                .iter()
-                .map(|s| (&s.arguments, &s.life_context)),
-        )
-    {
-        meter.charge(arguments.len().saturating_add(1), None)?;
-        if let Some(context) = context {
-            graph(context, raw, authority, meter, &mut seen, &mut next)?;
-        }
-        for argument in arguments {
-            if let CtSchemaArgument::Type(value) = argument {
-                graph(value, raw, authority, meter, &mut seen, &mut next)?;
-            }
-        }
-    }
-    for template in &raw.templates {
-        meter.charge(template.syntax.nodes.len(), None)?;
-        for node in &template.syntax.nodes {
-            if let CtSyntaxNode::Token(CtToken {
-                name:
-                    Some(CtIdent {
-                        member_owner_type: Some(value),
-                        ..
-                    }),
-                ..
-            }) = node
-            {
-                graph(value, raw, authority, meter, &mut seen, &mut next)?;
-            }
-        }
-    }
-    if next != count {
-        return Err(reject(
-            None,
-            "CT ambient scope inventory contains unused rows",
-        ));
-    }
-    Ok(())
+) -> Check<usize> {
+    scopes::check(raw, limits, authority, meter)
 }
 
 fn check_type_metadata(

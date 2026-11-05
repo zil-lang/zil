@@ -78,17 +78,29 @@ impl<'a> Compiler<'a> {
     ) -> R<Vec<String>> {
         let mut names: Vec<String> = Vec::new();
         let mut copy = Vec::new();
-        for parameter in parameters {
+        let mixed = Self::mixed_parameters(parameters);
+        for (ordinal, parameter) in parameters.iter().enumerate() {
             self.budget.node(parameter.span)?;
             self.budget.text(&parameter.name, parameter.span)?;
-            for name in &names {
-                self.budget
-                    .work(parameter.name.len().min(name.len()) + 1, parameter.span)?;
+            for prior in &parameters[..ordinal] {
+                self.budget.work(
+                    parameter.name.len().min(prior.name.len()) + 1,
+                    parameter.span,
+                )?;
             }
-            if names.contains(&parameter.name) {
+            if parameters[..ordinal]
+                .iter()
+                .any(|prior| prior.name == parameter.name)
+            {
                 return Err(error(parameter.span, "duplicate CT generic type binder"));
             }
             let s::GenericParamKind::Type(bounds) = &parameter.kind else {
+                if self.checking_generics && mixed {
+                    if let s::GenericParamKind::Const(ty) = &parameter.kind {
+                        self.scalar_argument_type(ty, parameter.span)?;
+                    }
+                    continue;
+                }
                 return Err(error(
                     parameter.span,
                     "CT generics require ordinary Copy type binders",
@@ -473,6 +485,7 @@ impl<'a> Compiler<'a> {
         self.selected.clear();
         self.generic_selected.clear();
         self.generic_metadata_selected.clear();
+        self.mixed_selected.clear();
         self.functions.clear();
         self.constants.clear();
         self.records.clear();
@@ -482,6 +495,8 @@ impl<'a> Compiler<'a> {
         self.enum_sources.clear();
         self.templates.clear();
         self.symbolic.clear();
+        self.abstract_nominals.clear();
+        self.active_abstract_nominals.clear();
         Ok(definitions)
     }
     fn drain_symbolic(&mut self) -> R<()> {
@@ -493,7 +508,11 @@ impl<'a> Compiler<'a> {
                 ));
             };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
+            self.prepare_abstract_scope(declaration)?;
             cfg::function(self, id, declaration)?;
+            self.abstract_scalars.clear();
+            self.abstract_lives.clear();
+            self.source_life_scope = None;
             self.bindings.clear();
         }
         Ok(())

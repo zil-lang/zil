@@ -134,6 +134,60 @@ fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> Chec
         _ => storage(t, budget),
     }
 }
+// This is a whole root slot profile, not a recursive addition to storage():
+// Address<Enum>, a Product containing an owning Enum and pollable captures
+// must not inherit the new frame qualification.
+fn complete_enum(t: &Type, budget: &mut Budget) -> Check<bool> {
+    if !matches!(t, Type::Enum { .. }) {
+        return Ok(false);
+    }
+    resources::charge_payload(t, budget)?;
+    budget.spend(1)?;
+    let mut pending = vec![t];
+    while let Some(t) = pending.pop() {
+        budget.spend(1)?;
+        match t {
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Managed(payload) => {
+                if !record(payload, budget)? {
+                    return Ok(false);
+                }
+            }
+            _ if record(t, budget)? => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn enum_resources<'a>(t: &'a Type, budget: &mut Budget) -> Check<Vec<&'a Type>> {
+    budget.spend(1)?;
+    let mut pending = vec![t];
+    let mut leaves = Vec::new();
+    while let Some(t) = pending.pop() {
+        budget.spend(1)?;
+        match t {
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len())?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Managed(_) => {
+                budget.spend(1)?;
+                leaves.push(t);
+            }
+            _ => {}
+        }
+    }
+    Ok(leaves)
+}
 fn cleanup(
     module: &TypedModule,
     first: FunctionId,
@@ -314,18 +368,26 @@ pub(super) fn profile(
         }
     }
     let mut checked = BTreeSet::new();
+    let mut enum_frame = false;
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-        if !pollable_storage(module, t, budget)? {
+        // Preserve the exact former path for every already supported type.
+        let new_enum = !pollable_storage(module, t, budget)?;
+        if new_enum && !complete_enum(t, budget)? {
             return Err(reject(
                 "E-VERIFY-TASK",
                 span,
                 "task owner needs a complete canonical inline resource frame slot",
             ));
         }
-        let leaves = match t {
-            Type::Package { fields, .. } => fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
-            Type::Tuple(fields) => fields.iter().collect(),
-            _ => vec![t],
+        let leaves = if new_enum {
+            enum_frame = true;
+            enum_resources(t, budget)?
+        } else {
+            match t {
+                Type::Package { fields, .. } => fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
+                Type::Tuple(fields) => fields.iter().collect(),
+                _ => vec![t],
+            }
         };
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
@@ -351,11 +413,34 @@ pub(super) fn profile(
             }
         }
     }
+    if enum_frame && f.return_type != Type::I32 {
+        return Err(unsupported(
+            "complete Enum continuation slots currently require the existing i32 task result",
+            span,
+        ));
+    }
     let mut children = vec![];
     for b in &f.blocks {
         for i in &b.instructions {
             budget.spend(1)?;
             match &i.kind {
+                InstructionKind::PlaceTagLocal { local, path } if enum_frame => {
+                    let ty = local_type(f, *local, Some(i.span))?;
+                    resources::charge_payload(ty, budget)?;
+                    if !path.is_empty() || !sums::owned_enum(ty) {
+                        return Err(unsupported(
+                            "Enum continuation tag view requires a complete owning Enum local and empty path",
+                            Some(i.span),
+                        ));
+                    }
+                    // Actual current-tag, initialization and loan permission
+                    // remain obligations of the ordinary independent kernels.
+                }
+                InstructionKind::VariantTagLocal { .. }
+                | InstructionKind::ReadVariantLocal { .. }
+                | InstructionKind::UnpackVariant { .. }
+                | InstructionKind::DropEnum { .. }
+                    if enum_frame => {}
                 InstructionKind::Call { function, .. } => {
                     cleanup(module, *function, budget, Some(i.span))?
                 }

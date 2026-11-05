@@ -1,6 +1,8 @@
 //! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
+#[path = "../../task-composition/G8.6.1/source_consumers.rs"]
+mod g861;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -926,7 +928,7 @@ fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
             };
             let errors =
                 zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
-            let expected = if case == 0 || case == 3 {
+            let expected = if case != 1 {
                 "E-VERIFY-RESOURCE"
             } else {
                 "E-VERIFY-TASK"

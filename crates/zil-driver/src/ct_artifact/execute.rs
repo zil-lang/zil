@@ -428,7 +428,7 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
     ) -> CompileResult<EvaluatedData> {
-        let invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
+        let mut invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
             &entry,
             self.parsed,
             &self.index,
@@ -461,6 +461,25 @@ impl<'a> Environment<'a> {
         )?;
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
+        }
+        if !source_bindings.calls.is_empty() {
+            let context = invocation_context
+                .as_mut()
+                .and_then(std::sync::Arc::get_mut)
+                .ok_or_else(|| {
+                    vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "CT factory actuals require an authentic current invocation",
+                        Some(span),
+                    )]
+                })?;
+            context.extend_calls(
+                &source_bindings.calls,
+                &source_bindings.scopes,
+                &expected,
+                &self.index,
+                &mut self.budget,
+            )?;
         }
         let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(copied_bytes)?;
@@ -530,7 +549,7 @@ impl<'a> Environment<'a> {
             ) {
             Some(value_context::ValueContext::capture(
                 verified.program(),
-                &source_bindings,
+                &source_bindings.bindings,
                 invocation_context.clone(),
                 &mut self.budget,
             )?)
@@ -1989,20 +2008,21 @@ mod tests {
             assert_eq!(meter.live_temporary_bytes(), 37);
             (result, used)
         };
-        let (_, capture_work) = capture(&source_bindings, capture_budget.max_analysis_work);
+        let (_, capture_work) =
+            capture(&source_bindings.bindings, capture_budget.max_analysis_work);
         for (work, good) in [
             (capture_work, true),
             (capture_work - 1, false),
             (capture_work, true),
         ] {
-            let (result, _) = capture(&source_bindings, work);
+            let (result, _) = capture(&source_bindings.bindings, work);
             assert_eq!(result.is_ok(), good);
             if !good {
                 assert_eq!(result.err().unwrap()[0].code, "E-RESOURCE-LIMIT");
             }
         }
         for attack in 0..4 {
-            let mut bindings = source_bindings.clone();
+            let mut bindings = source_bindings.bindings.clone();
             match attack {
                 0 => bindings[0].schema = u32::MAX,
                 1 => bindings[0].enumeration = true,
@@ -2156,3 +2176,7 @@ pub(super) struct EvaluatedData {
     pub value: CtValue,
     pub context: Option<value_context::ValueContext>,
 }
+
+#[cfg(test)]
+#[path = "mixed_instance_tests.rs"]
+mod mixed_instance_tests;

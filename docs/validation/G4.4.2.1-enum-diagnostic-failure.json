@@ -1,0 +1,27 @@
+{
+  "source": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+  "source_after": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+  "worktree_after": "",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--workspace",
+    "--no-fail-fast"
+  ],
+  "exit_code": 101,
+  "status": "Fail",
+  "elapsed_seconds": 511.75,
+  "groups": 422,
+  "passed": 4760,
+  "failed": 1,
+  "ignored": 0,
+  "log_sha256": "031b7c7c7164b230e65b45ba78ac9c63cf4c800fede59cfc57d112eeaa71db1e",
+  "failures": [
+    "test g8611_verify_frames::g8611_verify_enum_leaf_drop_entry_uses_the_actual_nominal_payload ... FAILED",
+    "error: test failed, to rerun pass `-p zil-driver --test generic_regressions`",
+    "error: 1 target failed:"
+  ],
+  "reclaimed_cache_files": 408,
+  "reclaimed_cache_bytes": 15364211880
+}

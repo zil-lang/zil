@@ -60,6 +60,72 @@ fn merge_leaf(to: &mut Content, from: &Content, b: &mut Budget) -> Check<bool> {
     b.spend(work)?;
     to.merge(from, b)
 }
+// Only the new, flat whole-Package profile reaches Product endpoints. Keep
+// the old Managed leaf transfer and its metering unchanged.
+fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<bool> {
+    if let (Content::Product(old), Content::Product(incoming)) = (&mut *to, from) {
+        b.spend(old.len().saturating_add(incoming.len()))?;
+        if old.len() != incoming.len() {
+            return Err(invalid("replacement Product widths differ"));
+        }
+        let mut owned = 0usize;
+        let mut changed = false;
+        for (old, incoming) in old.iter_mut().zip(incoming) {
+            match (&*old, incoming) {
+                (Content::Copy, Content::Copy) => {}
+                (Content::Leaf(_), Content::Leaf(_)) => {
+                    owned += 1;
+                    old.cost(b)?;
+                    incoming.cost(b)?;
+                    changed |= old != incoming;
+                    // Commit replaces the old instance. Only the real staged
+                    // RHS leaf survives; old Incoming must not taint a fresh
+                    // replacement, nor old Fresh upgrade an incoming RHS.
+                    *old = incoming.clone();
+                }
+                _ => return Err(invalid("replacement needs a complete flat Product")),
+            }
+        }
+        if owned != 1 {
+            return Err(invalid("replacement Product needs exactly one owned leaf"));
+        }
+        Ok(changed)
+    } else {
+        merge_leaf(to, from, b)
+    }
+}
+/// Structural admission only; actual roots, debts, loans and epochs are checked
+/// independently. No full Product or nested owning profile is implied.
+pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
+    let Type::Package { fields, .. } = ty else {
+        return Ok(None);
+    };
+    b.spend(fields.len())?;
+    let mut owner = None;
+    for (index, (_, ty)) in fields.iter().enumerate() {
+        match ty {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
+            {
+                if owner.replace(index).is_some() {
+                    return Ok(None);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16 => {}
+            _ => return Ok(None),
+        }
+    }
+    Ok(owner)
+}
 fn merge_row(
     rows: &mut Rows,
     target: &actual::Target,
@@ -164,10 +230,22 @@ pub(crate) fn at_type<'a>(
     resources::charge_payload(ty, b)?;
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
     {
-        return Err(unsupported(
-            "owning replacement endpoint cleanup/hold bridge is under construction",
-            None,
-        ));
+        let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
+        if !whole_local || package_owner(ty, b)?.is_none() {
+            return Err(unsupported(
+                "owning replacement endpoint cleanup/hold bridge is under construction",
+                None,
+            ));
+        }
+        b.spend(f.parameters.len())?;
+        if let actual::Base::Local(local) = target.base
+            && f.parameters.contains(&local)
+        {
+            return Err(unsupported(
+                "whole Package replacement requires a body-owned nonparameter local",
+                None,
+            ));
+        }
     }
     Ok(ty)
 }
@@ -255,7 +333,7 @@ fn update(
         return Err(invalid("replacement writes a moved owner subtree"));
     }
     let Some((step, rest)) = path.split_first() else {
-        merge_leaf(value, incoming, b)?;
+        merge_endpoint(value, incoming, b)?;
         return Ok(());
     };
     let next = match (step, value) {
@@ -644,6 +722,39 @@ mod tests {
                 selected(&value, &path, true, &mut budget).unwrap(),
                 &Content::Leaf(BTreeSet::from([Source::Fresh, Source::Input(0, vec![]),]))
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod package_tests {
+    use super::*;
+    #[test]
+    fn complete_package_content_keeps_leaf_provenance_and_rejects_partial_subtrees() {
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let fresh = Content::Leaf(BTreeSet::from([Source::Fresh]));
+        let input = Content::Leaf(BTreeSet::from([Source::Input(0, vec![])]));
+        let old = Content::Product(vec![fresh.clone(), Content::Copy]);
+        let incoming = Content::Product(vec![input.clone(), Content::Copy]);
+        let mut combined = old.clone();
+        merge_endpoint(&mut combined, &incoming, &mut budget).unwrap();
+        assert_eq!(
+            combined,
+            Content::Product(vec![
+                Content::Leaf(BTreeSet::from([Source::Input(0, vec![])])),
+                Content::Copy
+            ])
+        );
+        for bad in [
+            Content::Product(vec![
+                Content::Missing(Box::new(input.clone())),
+                Content::Copy,
+            ]),
+            Content::Product(vec![input.clone()]),
+            Content::Product(vec![input, fresh]),
+        ] {
+            assert!(merge_endpoint(&mut old.clone(), &bad, &mut budget).is_err());
         }
     }
 }

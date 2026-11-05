@@ -185,6 +185,7 @@ pub(super) fn charge_type_snapshot(
 }
 
 fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Budget<'_>) -> R<()> {
+    helpers::source_life::reserve(bound, budget.limits, &mut budget.work, 2, span)?;
     if let Some(life) = &bound.life {
         budget.work(borrowed_fp::metadata_work(life), span)?;
     }
@@ -208,7 +209,11 @@ fn callable_snapshot(bound: &CoreCallableParameter, span: Span, budget: &mut Bud
         borrowed_fp::qualified_inputs(life, &bound.parameters, &bound.result, |work| {
             budget.work(work, span)
         })?;
-        borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        if bound.source_life.is_some() {
+            helpers::source_life::relation(bound, span)?;
+        } else {
+            borrowed_fp::relation(&bound.parameters, &bound.result, life, span)?;
+        }
     }
     Ok(())
 }
@@ -267,7 +272,10 @@ pub fn infer_source_closures(core: &CoreModule, limits: &Limits) -> CompileResul
         || !core.aggregate_templates.is_empty()
         || !core.aggregate_applications.is_empty()
     {
-        Some(aggregates::resolve(core.clone(), limits)?)
+        Some(aggregates::resolve(
+            snapshot_context_module(core, limits, &mut budget.work).map_err(|e| vec![e])?,
+            limits,
+        )?)
     } else {
         None
     };
@@ -635,6 +643,13 @@ fn headers(
                 )
             })?;
         for bound in &function.callable_parameters {
+            helpers::source_life::reserve(
+                bound,
+                budget.limits,
+                &mut budget.work,
+                2,
+                function.span,
+            )?;
             budget.work(
                 bound
                     .generic_name
@@ -747,6 +762,60 @@ fn copy_module_metadata(core: &CoreModule, functions: Vec<CoreFunction>) -> Core
         unsupported: core.unsupported.clone(),
     }
 }
+/// Clone the actual role in its existing function-vector traversal, paying
+/// attached context before that role is copied. No discovery scan or debit is
+/// introduced for None; the remaining original fields retain their old copy.
+pub(super) fn snapshot_callable_parameters(
+    bounds: &[CoreCallableParameter],
+    limits: &Limits,
+    left: &mut usize,
+    span: Span,
+) -> R<Vec<CoreCallableParameter>> {
+    let mut result = Vec::with_capacity(bounds.len());
+    for bound in bounds {
+        helpers::source_life::reserve(bound, limits, left, 1, span)?;
+        result.push(bound.clone());
+    }
+    Ok(result)
+}
+pub(super) fn snapshot_context_function(
+    function: &CoreFunction,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<CoreFunction> {
+    let callable_parameters =
+        snapshot_callable_parameters(&function.callable_parameters, limits, left, function.span)?;
+    Ok(CoreFunction {
+        storage_life: function.storage_life.clone(),
+        call_kind: function.call_kind,
+        life: function.life.clone(),
+        type_parameters: function.type_parameters.clone(),
+        state_parameters: function.state_parameters.clone(),
+        callable_return: function.callable_return.clone(),
+        id: function.id,
+        name: function.name.clone(),
+        callable_parameters,
+        foreign: function.foreign.clone(),
+        parameters: function.parameters.clone(),
+        return_type: function.return_type.clone(),
+        result_mode: function.result_mode,
+        body: function.body.clone(),
+        receiver: function.receiver.clone(),
+        span: function.span,
+    })
+}
+pub(super) fn snapshot_context_module(
+    core: &CoreModule,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<CoreModule> {
+    let mut functions = Vec::with_capacity(core.functions.len());
+    for function in &core.functions {
+        functions.push(snapshot_context_function(function, limits, left)?);
+    }
+    Ok(copy_module_metadata(core, functions))
+}
+
 pub(super) fn life_inventory_snapshot_work(core: &CoreModule, limits: &Limits) -> R<usize> {
     if core.closure_life_contexts.is_empty() {
         return life_table_snapshot_work(&core.life_declarations, &core.life_instances, limits);
@@ -5280,7 +5349,8 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 )
             })?;
         self.budget.work(normalization_work, function.span)?;
-        let mut result = function.clone();
+        let mut result =
+            snapshot_context_function(function, self.budget.limits, &mut self.budget.work)?;
         let mut expression = 0;
         let mut statement = 0;
         self.normalize_block(&mut result.body, &mut expression, &mut statement)?;

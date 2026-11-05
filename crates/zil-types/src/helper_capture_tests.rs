@@ -65,6 +65,7 @@ fn fixture(
         .into_iter()
         .enumerate()
         .map(|(index, kind)| CoreCallableParameter {
+            source_life: None,
             life: None,
             closed_environment: false,
             index: index as u32,

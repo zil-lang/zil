@@ -1,0 +1,37 @@
+{
+  "source": "002ba310584811c07efe4843c469eaeb51e9b738",
+  "source_after": "002ba310584811c07efe4843c469eaeb51e9b738",
+  "worktree_after": "",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--workspace",
+    "--no-fail-fast"
+  ],
+  "exit_code": 101,
+  "status": "Fail",
+  "elapsed_seconds": 460.65,
+  "groups": 422,
+  "passed": 4739,
+  "failed": 1,
+  "ignored": 0,
+  "log_sha256": "fa6f619d6b6fa2aec52d7d90493852a0e050bc40d124c136d9795243348d2972",
+  "failures": [
+    "test general_task343::owned_task343_raw_moves_effects_and_result_debt_are_independent ... FAILED",
+    "error: test failed, to rerun pass `-p zil-driver --test generic_regressions`",
+    "error: 1 target failed:"
+  ],
+  "reclaimed_cache_files": 408,
+  "reclaimed_cache_bytes": 15353900488,
+  "classification": "Retained failed formal attempt: old Task diagnostic expected TASK after mutating Drop to Suspend; new actual resource entry validation correctly rejects earlier at RESOURCE. Acceptance remains Fail.",
+  "correction": "57e5e8b43: only case2 first-error expectation changed; raw and Wire still require rejection; all other assertions unchanged.",
+  "independent_correction_review": "G4.4.2.1-diagnostic-review.json",
+  "root_composition_recheck": {
+    "source": "4c7d2cd771ec09702872a51d5658f38a53df9fff",
+    "filter": "general_task343::owned_task343_raw_moves_effects_and_result_debt_are_independent",
+    "passed": 1,
+    "failed": 0,
+    "note": "One targeted Cargo test at the same production/test bytes as 4c7d2cd77; docs were not yet committed. Not a formal full pass."
+  }
+}

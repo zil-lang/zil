@@ -10,12 +10,16 @@ mod domain;
 mod expr;
 #[path = "compiler_generics.rs"]
 mod generics;
+#[path = "compiler_mixed_generics.rs"]
+mod mixed_generics;
 #[path = "compiler_quote.rs"]
 mod quote;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_source_scope.rs"]
 pub(super) mod source_scope;
+#[path = "compiler_symbolic_nominal.rs"]
+mod symbolic_nominal;
 #[path = "compiler_types.rs"]
 mod types;
 use std::collections::{BTreeMap, VecDeque};
@@ -23,6 +27,10 @@ use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, 
 use zil_ir::ct_artifact::*;
 use zil_ir::{BinaryOp, Constant, UnaryOp};
 use zil_syntax::ast as s;
+
+pub(super) fn constant_type(value: &Constant) -> CtTy {
+    expr::scalar_constant(value)
+}
 
 pub(super) fn scalar_type(name: &str) -> Option<CtScalarTy> {
     types::scalar(name)
@@ -268,6 +276,25 @@ struct Declaration<'a> {
 enum PendingTypes {
     Data(Vec<CtTy>),
     Metadata(Vec<CtTypeRef>),
+    Mixed(Vec<CtScopeActual>),
+}
+/// Private fresh-compiler facts. Neither raw artifacts nor caches can supply
+/// this request-local event ledger to invocation authority.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct SourceCompilation {
+    pub bindings: Vec<SourceLifeBinding>,
+    pub calls: Vec<SourceInstanceCall>,
+    pub scopes: Vec<CtAmbientLifeScope>,
+}
+#[derive(Clone, Debug)]
+pub(crate) struct SourceInstanceCall {
+    pub caller: CtFunctionId,
+    pub caller_definition: CtSymbolId,
+    pub caller_scope: CtAmbientLifeScope,
+    pub caller_scope_id: CtAmbientScopeId,
+    pub callee: CtSymbolId,
+    pub instance: CtFunctionId,
+    pub actuals: Vec<CtScopeActual>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SourceLifeBinding {
@@ -281,6 +308,7 @@ struct SourceLifeScope {
     definition: CtSymbolId,
     span: Span,
     binders: Vec<(String, u32)>,
+    instance: CtScopeInstance,
 }
 struct Compiler<'a> {
     modules: &'a [SourceModule<'a>],
@@ -288,6 +316,7 @@ struct Compiler<'a> {
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
+    mixed_selected: Vec<(usize, Vec<CtScopeActual>, CtFunctionId)>,
     pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
@@ -295,8 +324,13 @@ struct Compiler<'a> {
     source_life_scope: Option<SourceLifeScope>,
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
+    source_instance_calls: Vec<SourceInstanceCall>,
     active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
+    abstract_scalars: Vec<(String, symbolic_nominal::ScalarArgument)>,
+    abstract_lives: Vec<(String, CtSymbolId, u32)>,
+    abstract_nominals: Vec<symbolic_nominal::Nominal>,
+    active_abstract_nominals: Vec<CtRecordSchemaId>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
     classification_binders: Vec<String>,
@@ -338,6 +372,7 @@ impl<'a> Compiler<'a> {
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
             generic_metadata_selected: Vec::new(),
+            mixed_selected: Vec::new(),
             pending: VecDeque::new(),
             bindings: Vec::new(),
             metadata_bindings: Vec::new(),
@@ -345,8 +380,13 @@ impl<'a> Compiler<'a> {
             source_life_scope: None,
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
+            source_instance_calls: Vec::new(),
             active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
+            abstract_scalars: Vec::new(),
+            abstract_lives: Vec::new(),
+            abstract_nominals: Vec::new(),
+            active_abstract_nominals: Vec::new(),
             checking_generics: false,
             checked_generics: Vec::new(),
             classification_binders: Vec::new(),
@@ -614,7 +654,7 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
 }
 pub(crate) fn compile_scoped(
     request: CompileRequest<'_>,
-) -> R<(CtArtifactProgram, Vec<SourceLifeBinding>)> {
+) -> R<(CtArtifactProgram, SourceCompilation)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
@@ -686,6 +726,9 @@ pub(crate) fn compile_scoped(
                 .map_or(1, |n| n as usize + 2),
             compiler.declarations[declaration].item.span,
         )?;
+        // A pending body owns its own lexical scope. It cannot inherit the
+        // expression caller's life binders, even when diagnostic spans coincide.
+        compiler.source_life_scope = None;
         match arguments {
             PendingTypes::Data(arguments) => {
                 compiler.bindings = compiler.instance_bindings(declaration, &arguments)?
@@ -693,6 +736,9 @@ pub(crate) fn compile_scoped(
             PendingTypes::Metadata(arguments) => {
                 compiler.metadata_bindings =
                     compiler.metadata_instance_bindings(declaration, &arguments)?
+            }
+            PendingTypes::Mixed(arguments) => {
+                compiler.bind_mixed_instance(declaration, &arguments)?;
             }
         }
         let body = cfg::function(&mut compiler, id, declaration)?;
@@ -713,11 +759,42 @@ pub(crate) fn compile_scoped(
             .first()
             .map_or(Span::new(zil_base::FileId(0), 0, 0), |m| m.syntax.span),
     )?;
-    let source_bindings = std::mem::take(&mut compiler.source_life_bindings);
+    let scopes = if compiler.source_instance_calls.is_empty() {
+        Vec::new()
+    } else {
+        compiler
+            .budget
+            .work(compiler.ambient_life_scopes.len(), Span::default())?;
+        Budget::take(
+            &mut compiler.budget.bytes,
+            compiler
+                .ambient_life_scopes
+                .len()
+                .saturating_mul(std::mem::size_of::<CtAmbientLifeScope>()),
+            Span::default(),
+            "CT private caller scope ledger bytes exhausted",
+        )?;
+        for scope in &compiler.ambient_life_scopes {
+            if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+                Compiler::actual_cost(&mut compiler.budget, actuals, Span::default())?;
+            }
+        }
+        compiler.ambient_life_scopes.clone()
+    };
+    let retain_scopes = compiler.has_ambient_use()?;
+    let source_compilation = SourceCompilation {
+        bindings: std::mem::take(&mut compiler.source_life_bindings),
+        calls: std::mem::take(&mut compiler.source_instance_calls),
+        scopes,
+    };
     Ok((
         CtArtifactProgram {
             schema_version: CT_ARTIFACT_SCHEMA_VERSION,
-            ambient_life_scopes: compiler.ambient_life_scopes,
+            ambient_life_scopes: if retain_scopes {
+                compiler.ambient_life_scopes
+            } else {
+                Vec::new()
+            },
             target_pointer_width: request.target_pointer_width,
             source_fingerprint: request.source_fingerprint,
             functions: compiler
@@ -734,7 +811,7 @@ pub(crate) fn compile_scoped(
             snapshot: request.snapshot.clone(),
             budget: compiler.budget.declared(),
         },
-        source_bindings,
+        source_compilation,
     ))
 }
 

@@ -7664,6 +7664,385 @@ fn ct5_member_own_life_context_reaches_native() {
 }
 
 #[test]
+fn g442_mixed_ct_scalar_call_actuals() {
+    let text = r#"
+struct Phantom<life a,T:Copy,#N:i32>{n:i32}
+fn choose<T:Copy,#N:i32,life a>(marker:Type)->i32{return N}
+fn score(a:i32,b:i32)->i32{if a!=7{return 1}if b!=35{return 2}return 42}
+fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{
+    let value:Phantom<'s,i32,7>=#(Phantom::<'s,i32,7>{
+        n:score(choose::<i32,7,'s>(i32),choose::<bool,35,'t>(bool))
+    });
+    return value.n
+}
+
+fn main()->i32{let n=0;let m=0;return result(&n,&m)}
+"#;
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    for (bad, expected) in [
+        (
+            text.replace("return N}", "return N+false}"),
+            "actual expected type",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,7,'other>"),
+            "authentic caller",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,7>"),
+            "arity differs",
+        ),
+        (
+            text.replace("choose::<i32,7,'s>", "choose::<i32,true,'s>"),
+            "scalar actual",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(expected)),
+            "{}",
+            report.to_json()
+        );
+    }
+    let unused = text.replace("return N}", "return N+false}").replace(
+        "n:score(choose::<i32,7,'s>(i32),choose::<bool,35,'t>(bool))",
+        "n:42",
+    );
+    let report = compile_source(&source(&unused), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual expected type"))
+    );
+}
+
+#[test]
+fn g442_mixed_ct_phantom_call_actuals() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+    );
+    let permuted = text
+        .replace(
+            "fn make<T:Copy,#N:i32,life a>",
+            "fn make<life a,#N:i32,T:Copy>",
+        )
+        .replace("make::<i32,7,'s>", "make::<'s,7,i32>")
+        .replace("make::<bool,35,'t>", "make::<'t,35,bool>");
+    for input in [text, permuted.as_str()] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", input)], "main", b"42\n");
+    }
+    // The concrete call already supplies i32/7. Those actuals cannot prove
+    // the generic equation for arbitrary T/N, including an unused definition.
+    let minimal = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+    );
+    for input in [
+        minimal.replace("return Phantom::<'a,T,N>", "return Phantom::<'a,i32,N>"),
+        minimal.replace("return Phantom::<'a,T,N>", "return Phantom::<'a,T,7>"),
+        minimal
+            .replace("return Phantom::<'a,T,N>", "return Phantom::<'a,i32,N>")
+            .replace(
+                "fn main()->i32{let n=0;return result(&n)}",
+                "fn main()->i32{return 0}",
+            ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual expected type")),
+            "{}",
+            report.to_json()
+        );
+    }
+    let wrong_life = minimal
+        .replace(
+            "fn make<T:Copy,#N:i32,life a>",
+            "fn make<life a,life b,T:Copy,#N:i32>",
+        )
+        .replace("make::<i32,7,'s>", "make::<'s,'s,i32,7>")
+        .replace("return Phantom::<'a,T,N>", "return Phantom::<'b,T,N>");
+    for input in [
+        wrong_life.clone(),
+        wrong_life.replace(
+            "fn main()->i32{let n=0;return result(&n)}",
+            "fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("actual expected type")),
+            "{}",
+            report.to_json()
+        );
+    }
+    let shadowed = minimal.replace(
+        "return Phantom::<'a,T,N>",
+        "let N=7;return Phantom::<'a,T,N>",
+    );
+    for input in [
+        shadowed.clone(),
+        shadowed.replace("let N=7", "var N=7"),
+        shadowed.replace(
+            "fn main()->i32{let n=0;return result(&n)}",
+            "fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(&source(&input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("scalar-generic shadowing")),
+            "{}",
+            report.to_json()
+        );
+    }
+    // Existing runtime const-generic local value shadowing keeps its ordinary
+    // accepted behavior; only the new CT mixed-instance profile is fenced.
+    for input in [
+        "fn scoped<#N:i32>()->i32{let N:i32=8;return N}fn main()->i32{return scoped::<7>()-8}",
+        "fn scoped<#N:i32>()->i32{let N:i32=8;let p=&N;return *p}fn main()->i32{return scoped::<7>()-8}",
+        "fn scoped<#N:i32>(N:i32)->i32{return N}fn main()->i32{return scoped::<7>(8)-8}",
+    ] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+}
+
+#[test]
+fn g442_source_budgets_cache_and_comparison_growth() {
+    use zil_driver::CompilationSession;
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+    );
+    let boundary = |input: &str, ledger: &str| {
+        let options = |n: usize| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                "steps" => options.limits.max_ct_steps = n as u64,
+                "bytes" => options.limits.max_source_bytes = n,
+                _ => unreachable!(),
+            }
+            options
+        };
+        let limits = Limits::default();
+        let mut low = 1;
+        let mut high = match ledger {
+            "work" => limits.max_analysis_steps,
+            "nodes" => limits.max_nodes,
+            "steps" => limits.max_ct_steps as usize,
+            "bytes" => limits.max_source_bytes,
+            _ => unreachable!(),
+        };
+        let input = source(input);
+        assert_eq!(
+            compile_source(&input, &options(high)).status,
+            ResultCategory::Success
+        );
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = compile_source(&input, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{ledger}/{n}: {}", report.to_json()),
+            }
+        }
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&input, &options(n)),
+                CompilationSession::default().compile_source(&input, &options(n)),
+            ] {
+                assert_eq!(
+                    report.status,
+                    expected,
+                    "{ledger}/N={low}: {}",
+                    report.to_json()
+                );
+                if expected == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        low
+    };
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let n = boundary(text, ledger);
+        eprintln!("G4.4.2 whole Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+    }
+    let deep = |calls: usize, width: usize| {
+        let ty = format!(
+            "({})",
+            (0..width)
+                .map(|i| if i % 2 == 0 { "i32" } else { "bool" })
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        let invocations = [7, 11, 35]
+            .iter()
+            .take(calls)
+            .enumerate()
+            .map(|(i, n)| {
+                let life = if i % 2 == 0 { "s" } else { "t" };
+                format!("make::<{ty},{n},'{life}>(i32)")
+            })
+            .collect::<Vec<_>>()
+            .join(",");
+        format!(
+            "struct Phantom<life a,T:Copy,#N:i32>{{n:i32}}fn make<T:Copy,#N:i32,life a>(marker:Type)->Phantom<'a,T,N>{{return Phantom::<'a,T,N>{{n:N}}}}fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{{let value:Phantom<'s,{ty},7>=#(({invocations}).0);return value.n}}fn main()->i32{{let n=0;let m=0;return result(&n,&m)}}"
+        )
+    };
+    let small = boundary(&deep(2, 2), "work");
+    let wide = boundary(&deep(2, 8), "work");
+    let many = boundary(&deep(3, 8), "work");
+    assert!(
+        small < wide && wide < many,
+        "comparison growth {small}/{wide}/{many}"
+    );
+    eprintln!(
+        "G4.4.2 complete graph/instance work growth: 2x2={small}, 2x8={wide}, 3x8={many}; each exact N-1/fresh/warm checked"
+    );
+    let directory = Temp::new();
+    let mut session = CompilationSession::default();
+    let changed = text
+        .replace("i32,7,'s", "i32,11,'s")
+        .replace("Phantom<'s,i32,7>", "Phantom<'s,i32,11>")
+        .replace("left.n!=7", "left.n!=11");
+    let reversed = text
+        .replace(
+            "make::<i32,7,'s>(i32),make::<bool,35,'t>(bool)",
+            "make::<bool,35,'t>(bool),make::<i32,7,'s>(i32)",
+        )
+        .replace(").0", ").saved")
+        .replace(").1", ").0")
+        .replace(").saved", ").1");
+    for (ordinal, input) in [text, text, changed.as_str(), reversed.as_str(), text]
+        .into_iter()
+        .enumerate()
+    {
+        let executable = directory.0.join(format!("warm-{ordinal}"));
+        let options = CompileOptions {
+            stop_after: Stage::Build,
+            entry: Some("main".into()),
+            output: Some(executable.clone()),
+            backend: zil_driver::NativeBackend::Clang,
+            semantic_cache: Some(directory.0.join("cache")),
+            ..CompileOptions::default()
+        };
+        let report = session.compile_source(&source(input), &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+        let observed = Command::new(executable).output().unwrap();
+        assert!(observed.status.success(), "{observed:?}");
+        assert_eq!(observed.stdout, b"42\n");
+    }
+    let store = directory.0.join("cache/semantic-v4");
+    let mut candidates = 0;
+    for entry in fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|x| x != "candidate") {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("missing actual semantic candidate")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        candidates += 1;
+    }
+    assert!(candidates > 0);
+    eprintln!(
+        "G4.4.2 actual warm/change/reorder/revert native outputs42 and {candidates} semantic candidates raw+Wire reverified"
+    );
+}
+
+#[test]
 fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil"
@@ -7996,5 +8375,1138 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
             assert_eq!(warm.active_query_count(), 0);
         }
         println!("G1.3.3 {stage:?} N={low}; N-1/fresh/warm/retry");
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_source_types_and_analyze() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    );
+    for (name, text, abort) in [
+        ("complete", text, false),
+        (
+            "failed preparation",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+            ),
+            true,
+        ),
+    ] {
+        let temp = Temp::new();
+        let typed = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Types,
+                emit_dir: Some(temp.0.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            typed.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            typed.to_json()
+        );
+        let ir = fs::read_to_string(&typed.artifacts["typed"]).unwrap();
+        assert!(
+            ir.contains("ReservePlaceAddress") && ir.contains("CommitPlaceReplace"),
+            "{name}: {ir}"
+        );
+        assert!(!ir.contains("WriteAddress"), "{name}: {ir}");
+        if abort {
+            assert!(ir.contains("AbortPlaceReservation"), "{name}: {ir}");
+        }
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+    let old = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+    );
+    let report = compile_source(
+        &source(old),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("description required later")),
+        "{}",
+        report.to_json()
+    );
+    let shared = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-shared.zil"
+    );
+    let report = compile_source(
+        &source(shared),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-ADDRESS-PERMISSION")
+    );
+    let partial = text
+        .replace("let target=", "let taken=give packet.owner;let target=")
+        .replace("packet.n+packet.owner.code-66", "taken.code");
+    let report = compile_source(
+        &source(&partial),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("Product borrow requires every owned child live")),
+        "{}",
+        report.to_json()
+    );
+    let prefix = "resource R{code:i32}package P{manages owner:R;n:i32}";
+    let nonlocal = format!(
+        "{prefix}fn replace(target:&mut P){{*target=P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var p=P{{owner:R{{code:65}},n:0}};replace(&mut p);return p.n}}"
+    );
+    let report = compile_source(
+        &source(&nonlocal),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("exact whole local owner")),
+        "{}",
+        report.to_json()
+    );
+    let pin = format!(
+        "{prefix}fn change(p:&mut P)->P{{p.n=9;return P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};let target=&mut packet;*target=change(target);return packet.n}}"
+    );
+    let report = compile_source(
+        &source(&pin),
+        &CompileOptions {
+            stop_after: Stage::Analyze,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT"),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn terminal340_package_terminal_resource_identity_raw_and_wire() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    for mode in 0..6 {
+        let mut raw = typed.clone();
+        match mode {
+            0 => {
+                raw.resources[0].name = "Other".into();
+                let Type::Record { name, .. } = &mut raw.resources[0].payload else {
+                    unreachable!()
+                };
+                *name = "Other".into();
+            }
+            1 => raw.resources.clear(),
+            2 => raw.resources.push(raw.resources[0].clone()),
+            3 => {
+                let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+                let mut local = f.locals[0].clone();
+                local.id = zil_ir::LocalId(f.locals.len() as u32);
+                local.name = "unused_other".into();
+                local.ty = Type::Managed(Box::new(Type::Record {
+                    name: "Other".into(),
+                    fields: vec![("code".into(), Type::I32)],
+                }));
+                f.locals.push(local);
+            }
+            4 => {
+                let Type::Record { fields, .. } = &mut raw.resources[0].payload else {
+                    unreachable!()
+                };
+                fields[0].1 = Type::I64;
+            }
+            _ => {
+                raw.resources[0].teardown =
+                    Some(raw.functions.iter().find(|f| f.name == "main").unwrap().id)
+            }
+        }
+        let result = zil_analyze::analyze(&raw, &limits);
+        assert!(
+            result.is_err(),
+            "Package resource neighbor {mode} was wrongly accepted"
+        );
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains("resource")),
+            "neighbor {mode}: {errors:?}"
+        );
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(raw, plan.clone(), &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                "neighbor {mode}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_native_old_drop_store_and_failure() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    );
+    let alias = text.replace(
+        "packet.n+packet.owner.code-66",
+        "target.n+target.owner.code-66",
+    );
+    let other = text
+        .replace(
+            "    let target=",
+            "    var other=P{owner:R{code:67},n:0};let old=other.owner;\n    let target=",
+        )
+        .replace("packet.n+packet.owner.code-66", "packet.n+old.code-67");
+    for (name, text, expected) in [
+        ("whole Package", text, b"AB42\n".as_slice()),
+        (
+            "parent address survives",
+            alias.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "different actual same-type local",
+            other.as_str(),
+            b"ACB42\n".as_slice(),
+        ),
+        (
+            "failed RHS preparation",
+            include_str!(
+                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+            ),
+            b"BA42\n".as_slice(),
+        ),
+    ] {
+        eprintln!("G1.3.4 native case {name}");
+        review329_native_entry_output(&[("main", text)], "main", expected);
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_exact_rhs_provenance() {
+    let fresh = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+    );
+    let incoming = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+    );
+    let given = incoming.replace("result(create)", "result(give)");
+    let reversed = fresh.replace(
+        "package P{manages owner:R;n:i32}",
+        "package P{n:i32;manages owner:R}",
+    );
+    let via_sum = fresh.replace("fn fresh", "enum Carrier{Wrap(P)}\nfn fresh")
+        .replace("return give packet.owner", "let wrapper=Carrier.Wrap(packet);match wrapper{Carrier.Wrap(child)=>{return give child.owner}}");
+    let via_product = fresh.replace("fn fresh", "package Outer{child:P;n:i32}\nfn fresh")
+        .replace("return give packet.owner", "let moved=packet;let outer=Outer{child:moved,n:0};let child=outer.child;return give child.owner");
+    let bad_sum = incoming.replace("fn incoming", "enum Carrier{Wrap(P)}\nfn incoming")
+        .replace("return give packet.owner", "let wrapper=Carrier.Wrap(packet);match wrapper{Carrier.Wrap(child)=>{return give child.owner}}");
+    let bad_product = incoming.replace("fn incoming", "package Outer{child:P;n:i32}\nfn incoming")
+        .replace("return give packet.owner", "let moved=packet;let outer=Outer{child:moved,n:0};let child=outer.child;return give child.owner");
+    for (name, text, expected) in [
+        (
+            "old incoming to actual fresh",
+            fresh,
+            ResultCategory::Success,
+        ),
+        (
+            "old created to incoming",
+            incoming,
+            ResultCategory::SafeReject,
+        ),
+        (
+            "incoming exact give result",
+            given.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "actual owner is second field",
+            reversed.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "fresh leaf through owning Sum",
+            via_sum.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "fresh leaf through owning Product",
+            via_product.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "incoming through owning Sum is not create",
+            bad_sum.as_str(),
+            ResultCategory::SafeReject,
+        ),
+        (
+            "incoming through owning Product is not create",
+            bad_product.as_str(),
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        for stage in [Stage::Analyze, Stage::Verify] {
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    stop_after: stage,
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                expected,
+                "{name} {stage:?}: {}",
+                report.to_json()
+            );
+            if expected == ResultCategory::SafeReject {
+                assert_eq!(report.phase, Phase::Analyze);
+                assert!(
+                    report.diagnostics.iter().any(|d| d
+                        .message
+                        .contains("create result forwards an incoming responsibility")),
+                    "{}",
+                    report.to_json()
+                );
+            } else if stage == Stage::Verify {
+                assert_eq!(report.verification_runs, 1);
+            }
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_desc_closure_carriers_remain_live() {
+    let old = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+    );
+    for borrowed in [false, true] {
+        let saved = if borrowed {
+            "let saved=()->i32=>old.code;let borrowed=&saved;"
+        } else {
+            "let saved=()->i32=>old.code;"
+        };
+        let text = old
+            .replace("    let target=", &format!("    {saved}let target="))
+            .replace(
+                "return old.code",
+                if borrowed {
+                    "return borrowed()"
+                } else {
+                    "return saved()"
+                },
+            );
+        let report = compile_source(
+            &source(&text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "borrowed={borrowed}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Analyze);
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains("description required later")),
+            "borrowed={borrowed}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_exact_request_budget() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    for stage in [Stage::Analyze, Stage::Verify] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&input, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert_eq!(
+            low,
+            if stage == Stage::Analyze {
+                13_945
+            } else {
+                28_743
+            },
+            "{stage:?}: actual Package work changed"
+        );
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&input, &options(work)),
+                warm.compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        }
+                    );
+                } else if stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("G1.3.4 whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_new_provenance_and_temporary_native() {
+    let fresh = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+    );
+    let reverse = fresh.replace(
+        "package P{manages owner:R;n:i32}",
+        "package P{n:i32;manages owner:R}",
+    );
+    let given = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+    )
+    .replace("result(create)", "result(give)");
+    let temporary = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+    )
+    .replace(
+        "assemble(give spare:R,n:i32)->P{return P{owner:R{code:n},n:42}}",
+        "assemble(spare:P,n:i32)->P{return spare}",
+    )
+    .replace(
+        "assemble(R{code:66},fail()?)",
+        "assemble(P{owner:R{code:66},n:42},fail()?)",
+    );
+    for (name, text, expected) in [
+        (
+            "fresh leaf replaces incoming body-local leaf",
+            fresh,
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "incoming RHS retains give origin",
+            given.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "owned field declared second",
+            reverse.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "whole Package temporary abort",
+            temporary.as_str(),
+            b"BA42\n".as_slice(),
+        ),
+    ] {
+        eprintln!("G1.3.4 new native case {name}");
+        review329_native_entry_output(&[("main", text)], "main", expected);
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_independent_verify_and_wire() {
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+        ),
+    ] {
+        let input = source(text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+        if !text.contains("enum F") {
+            for case in 0..4 {
+                let mut raw = typed.clone();
+                match case {
+                    0 => raw.resources.clear(),
+                    1 => {
+                        raw.resources[0].name = "Other".into();
+                        let Type::Record { name, .. } = &mut raw.resources[0].payload else {
+                            unreachable!()
+                        };
+                        *name = "Other".into();
+                    }
+                    2 => raw.resources.push(raw.resources[0].clone()),
+                    _ => {
+                        let drop = raw.resources[0].teardown.expect("real ordinary Drop entry");
+                        raw.functions[drop.0 as usize].call_kind = zil_ir::CallKind::Suspend;
+                    }
+                }
+                let mut claim = plan.clone();
+                claim.module_fingerprint = raw.fingerprint();
+                for wire in [false, true] {
+                    let errors = if wire {
+                        let bytes =
+                            zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+                    } else {
+                        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
+                            .unwrap_err()
+                    };
+                    assert!(
+                        errors.iter().any(|e| e.code == "E-VERIFY-RESOURCE"),
+                        "metadata{case} wire={wire}: {errors:?}"
+                    );
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_actual_description_epoch_and_equal_type_roots() {
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    for other in [false, true] {
+        let described = if other { "other" } else { "packet" };
+        let text = format!(
+            "resource R{{code:i32}}package P{{manages owner:R;n:i32}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};var other=P{{owner:R{{code:67}},n:1}};let old={described}.owner;let seen=old.code;let target=&mut packet;*target=P{{owner:R{{code:66}},n:42}};return seen}}"
+        );
+        let input = source(&text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+        let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        // Preserve the actual Source's read and SSA definitions; move only the
+        // real read/store after Commit. Type/layout equality grants no epoch.
+        let f = typed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        let seen = f.locals.iter().find(|l| l.name == "seen").unwrap().id;
+        let instructions = &mut f.blocks[0].instructions;
+        let start = instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+            .unwrap();
+        let end = instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::Store { local, .. } if local == seen))
+            .unwrap();
+        let moved: Vec<_> = instructions.drain(start..=end).collect();
+        let commit = instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+            .unwrap();
+        instructions.splice(commit + 1..commit + 1, moved);
+        plan.module_fingerprint = typed.fingerprint();
+        for wire in [false, true] {
+            let result = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+            };
+            if other {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|e| e.code == "E-VERIFY-RESOURCE"
+                            && e.message.contains("live description")),
+                    "wire={wire}: {errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_actual_parent_pin_is_not_type_apartness() {
+    let input = source(
+        "resource R{code:i32}package P{manages owner:R;n:i32}fn prepare(p:&mut P)->P{p.n=9;return P{owner:R{code:66},n:42}}fn main()->i32{var packet=P{owner:R{code:65},n:0};var other=P{owner:R{code:67},n:1};let spare=&mut other;let target=&mut packet;*target=prepare(spare);return packet.n}",
+    );
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let prepare = typed
+        .functions
+        .iter()
+        .find(|f| f.name == "prepare")
+        .unwrap()
+        .id;
+    let mut raw = typed.clone();
+    let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let parent = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::ReservePlaceAddress { address, .. } => Some(address),
+            _ => None,
+        })
+        .unwrap();
+    let argument = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            InstructionKind::Call {
+                function,
+                arguments,
+            } if *function == prepare => Some(arguments[0]),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(f.values[parent.0 as usize], f.values[argument.0 as usize]);
+    let actual = f
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| i.result == Some(argument))
+        .unwrap();
+    actual.kind = InstructionKind::ReborrowAddress {
+        address: parent,
+        mutable: true,
+    };
+    let mut claim = plan;
+    // Supply a matching untrusted Hold claim for the changed real child; the
+    // pin proof must reject even after coarse provenance has been corrected.
+    let row = &mut claim.functions[f.id.0 as usize].holds;
+    row[argument.0 as usize].roots = row[parent.0 as usize].roots.clone();
+    claim.module_fingerprint = raw.fingerprint();
+    for wire in [false, true] {
+        let errors = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+        } else {
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err()
+        };
+        assert!(
+            errors.iter().any(|e| e.code == "E-BORROW-REPLACEMENT-PIN"),
+            "wire={wire}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    for wire in [false, true] {
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            let result = if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+            };
+            match result {
+                Ok(verified) => Some(verified.fingerprint()),
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    None
+                }
+            }
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            if run(middle).is_some() {
+                high = middle;
+            } else {
+                low = middle + 1;
+            }
+        }
+        let fresh = run(low).unwrap();
+        for _ in 0..2 {
+            assert!(run(low - 1).is_none());
+            assert_eq!(run(low), Some(fresh));
+        }
+        println!(
+            "G1.3.4.1 Verify wire={wire} N={low} N-1=ResourceLimit fresh/retry=Pass fp={fresh}"
+        );
+    }
+    let options = |work| CompileOptions {
+        stop_after: Stage::Verify,
+        limits: Limits {
+            max_analysis_steps: work,
+            ..Limits::default()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match compile_source(&input, &options(middle)).status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            status => panic!("unexpected source boundary {status:?}"),
+        }
+    }
+    let mut warm = zil_driver::CompilationSession::default();
+    for (work, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(work)),
+            zil_driver::CompilationSession::default().compile_source(&input, &options(work)),
+        ] {
+            assert_eq!(report.status, expected, "{}", report.to_json());
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    println!("G1.3.4.1 whole Source->Verify N={low} N-1=ResourceLimit fresh/warm/retry=Pass");
+}
+
+#[test]
+fn terminal340_package_terminal_actual_tickets_complete_shell_and_rhs_once() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    )
+    .replace(
+        "    return packet.n",
+        "    *target=P{owner:R{code:67},n:43};\n    return packet.n",
+    );
+    let input = source(&text);
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    for mode in 0..6 {
+        let mut raw = typed.clone();
+        let f = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+        let packet = f.locals.iter().find(|l| l.name == "packet").unwrap().id;
+        let instructions = &mut f.blocks[0].instructions;
+        let reserve = instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }))
+            .unwrap();
+        let commits: Vec<_> = instructions
+            .iter()
+            .enumerate()
+            .filter_map(|(p, i)| {
+                matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }).then_some(p)
+            })
+            .collect();
+        assert_eq!(commits.len(), 2, "real producer must issue two tickets");
+        let InstructionKind::CommitPlaceReplace { reservation, value } =
+            instructions[commits[0]].kind
+        else {
+            unreachable!()
+        };
+        let expected = match mode {
+            0 => {
+                instructions.remove(reserve);
+                "E-VERIFY-PLACE-REPLACE"
+            }
+            1 => {
+                instructions.insert(commits[0] + 1, instructions[commits[0]].clone());
+                "E-VERIFY-PLACE-REPLACE"
+            }
+            2 => {
+                instructions[commits[0]].kind =
+                    InstructionKind::AbortPlaceReservation { reservation };
+                "E-VERIFY-RESOURCE"
+            }
+            3 => {
+                let mut drop = instructions[commits[0]].clone();
+                drop.kind = InstructionKind::DropPackageField {
+                    local: packet,
+                    index: 0,
+                };
+                instructions.insert(commits[0], drop);
+                // The real alias is retained through Commit: the ordinary
+                // loan check rejects this field cleanup before Content/debt.
+                "E-BORROW-CONFLICT"
+            }
+            4 => {
+                let InstructionKind::ReservePlaceAddress { path, .. } =
+                    &mut instructions[reserve].kind
+                else {
+                    unreachable!()
+                };
+                path.push(zil_ir::PlaceProjection::Field(0));
+                "E-VERIFY-PLACE-REPLACE"
+            }
+            _ => {
+                let InstructionKind::CommitPlaceReplace { value: second, .. } =
+                    &mut instructions[commits[1]].kind
+                else {
+                    unreachable!()
+                };
+                *second = value;
+                "E-VERIFY-RESOURCE"
+            }
+        };
+        let mut claim = plan.clone();
+        claim.module_fingerprint = raw.fingerprint();
+        for wire in [false, true] {
+            let errors = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+            } else {
+                zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err()
+            };
+            assert!(
+                errors.iter().any(|d| d.code.starts_with(expected)),
+                "mode={mode} wire={wire}: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_actual_same_type_wrong_root_with_matching_hold() {
+    let input = source(
+        "resource R{code:i32}package P{manages owner:R;n:i32}fn main()->i32{var packet=P{owner:R{code:65},n:0};var other=P{owner:R{code:67},n:0};let old=other.owner;let target=&mut packet;*target=P{owner:R{code:66},n:42};return old.code+packet.n}",
+    );
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let f = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let packet = f.locals.iter().find(|l| l.name == "packet").unwrap().id;
+    let other = f.locals.iter().find(|l| l.name == "other").unwrap().id;
+    assert_eq!(
+        f.locals[packet.0 as usize].ty,
+        f.locals[other.0 as usize].ty
+    );
+    let producer = f.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { local } if local == packet))
+        .unwrap();
+    producer.kind = InstructionKind::BorrowLocalMut { local: other };
+    // Correct even the untrusted coarse Hold claim. The old description's
+    // actual instance, rather than equal nominal/layout Type, must decide.
+    for hold in &mut plan.functions[f.id.0 as usize].holds {
+        for root in &mut hold.roots {
+            if *root == zil_ir::HoldRoot::Local(packet) {
+                *root = zil_ir::HoldRoot::Local(other);
+            }
+        }
+        hold.roots.sort();
+        hold.roots.dedup();
+    }
+    plan.module_fingerprint = typed.fingerprint();
+    for wire in [false, true] {
+        let errors = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+        } else {
+            zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap_err()
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.code == "E-VERIFY-RESOURCE" && d.message.contains("live description")),
+            "wire={wire}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_optional_product_lanes_keep_actual_rhs_origin() {
+    for fresh in [true, false] {
+        let (old, rhs) = if fresh {
+            ("give next", "R{code:66}")
+        } else {
+            ("R{code:65}", "give next")
+        };
+        let text = format!(
+            "resource R{{code:i32}}package P{{manages owner:R;n:i32}}package Outer{{child:P}}fn make(give next:R)->R contract{{result(give)}}{{let nested=Outer{{child:P{{owner:R{{code:1}},n:0}}}};var packet=P{{owner:{old},n:0}};let target=&mut packet;*target=P{{owner:{rhs},n:42}};let moved=packet;let wrap=Outer{{child:moved}};let child=wrap.child;return give child.owner}}fn main()->i32{{let v=make(R{{code:2}});return v.code}}"
+        );
+        let input = source(&text);
+        let target = TargetProfile::default();
+        let limits = Limits::default();
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+        let mut plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+        // The Source's valid give contract supplies the candidate; promote
+        // only the untrusted result claim and independently prove or reject it.
+        typed
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "make")
+            .unwrap()
+            .result_mode = zil_ir::PassingMode::Create;
+        plan.module_fingerprint = typed.fingerprint();
+        for wire in [false, true] {
+            let result = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+            };
+            if fresh {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|d| d.message.contains("fresh")),
+                    "{errors:?}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    for same in [true, false] {
+        let right = if same { "x" } else { "y" };
+        let text = format!(
+            "resource R{{code:i32}}package P{{manages owner:R;n:i32}}fn choose(flag:bool,give incoming:R)->R contract{{result(give)}}{{var x=P{{owner:give incoming,n:0}};var y=P{{owner:R{{code:2}},n:1}};let target=if flag{{&mut x}}else{{&mut {right}}};*target=P{{owner:R{{code:3}},n:3}};return give x.owner}}fn main()->i32{{let r=choose(false,R{{code:1}});return r.code}}"
+        );
+        let input = source(&text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        if same {
+            let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+            for create in [false, true] {
+                let mut raw = typed.clone();
+                if create {
+                    raw.functions
+                        .iter_mut()
+                        .find(|f| f.name == "choose")
+                        .unwrap()
+                        .result_mode = zil_ir::PassingMode::Create;
+                }
+                let mut claim = plan.clone();
+                claim.module_fingerprint = raw.fingerprint();
+                zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+                let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+            }
+            continue;
+        }
+        assert!(zil_analyze::analyze(&typed, &limits).is_err());
+        // Keep the real Source CFG, both address producers, all SSA values
+        // and their honest multi-root Holds. A definite direct-x reservation
+        // supplies the candidate without asking Analyze to authorize the
+        // distinct raw address-selected replacement that Verify must reject.
+        let mut direct = typed.clone();
+        let f = direct
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "choose")
+            .unwrap();
+        let x = f.locals.iter().find(|l| l.name == "x").unwrap().id;
+        let reserve = f
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }))
+            .unwrap();
+        let InstructionKind::ReservePlaceAddress { reservation, .. } = reserve.kind else {
+            unreachable!()
+        };
+        reserve.kind = InstructionKind::ReservePlaceLocal {
+            reservation,
+            local: x,
+            path: vec![],
+        };
+        let plan = zil_analyze::analyze(&direct, &limits).unwrap();
+        zil_verify::verify_module(direct.clone(), plan.clone(), &target, &limits).unwrap();
+        let mut outcomes = Vec::new();
+        for create in [false, true] {
+            let mut raw = typed.clone();
+            if create {
+                raw.functions
+                    .iter_mut()
+                    .find(|f| f.name == "choose")
+                    .unwrap()
+                    .result_mode = zil_ir::PassingMode::Create;
+            }
+            let mut claim = plan.clone();
+            claim.module_fingerprint = raw.fingerprint();
+            for wire in [false, true] {
+                let result = if wire {
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                    zil_verify::verify_module_bytes(&bytes, &target, &limits)
+                } else {
+                    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
+                };
+                println!(
+                    "whole Package branch join create={create} wire={wire} accepted={}",
+                    result.is_ok()
+                );
+                outcomes.push((create, wire, result.err()));
+            }
+        }
+        for (create, wire, errors) in outcomes {
+            let errors = errors.expect("multi-root whole Package replacement was accepted");
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::Unsupported
+                        && d.message
+                            .contains("one independently reconstructed actual target")),
+                "create={create} wire={wire}: {errors:?}"
+            );
+        }
     }
 }

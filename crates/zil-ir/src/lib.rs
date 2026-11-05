@@ -903,8 +903,11 @@ pub struct CoreCallableReturn {
 /// Raw bound for one retained, nonescaping callable template parameter.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreCallableParameter {
-    /// Invocation-local raw binder relation; fixed environment Hold is separate.
+    /// Invocation-local raw binder relation, or the source-bound P/R proposal
+    /// when source_life is present. Neither supplies environment Hold rights.
     pub life: Option<StorageLifeContract>,
+    /// Original bound-to-header bridge. Requires life=Some; not a proof.
+    pub source_life: Option<CoreCallableLifeContext>,
     pub index: u32,
     /// Position among callable generic declarations, independent of runtime role order.
     pub generic_index: u32,
