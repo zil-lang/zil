@@ -594,13 +594,8 @@ impl Builder<'_, '_> {
                     .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
                 {
                     if self.compiler.checking_generics {
-                        self.compiler.abstract_nominal(
-                            self.module,
-                            owner,
-                            item,
-                            arguments,
-                            depth + 1,
-                            span,
+                        self.compiler.check_abstract_type_application(
+                            self.module, item, arguments, depth + 1, span,
                         )?;
                         return self.emit(
                             CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
@@ -830,6 +825,14 @@ impl Builder<'_, '_> {
                 result
             }
             s::TypeKind::Named { path, args } => {
+                if self.compiler.checking_generics
+                    && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
+                    let (_, item) = self.compiler.named_item(module, path, ty.span)?;
+                    self.compiler.check_abstract_type_application(module, item, args, depth + 1, ty.span)?;
+                    return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, ty.span);
+                }
+
                 if !self.compiler.checking_generics
                     && args
                         .iter()
