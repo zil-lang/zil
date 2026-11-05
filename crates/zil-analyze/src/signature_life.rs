@@ -32,21 +32,33 @@ pub(super) fn relation(
     result: &Type,
     c: &StorageLifeContract,
 ) -> CompileResult<()> {
-    relation_inner(parameters, result, c, false)
+    relation_inner(parameters, None, result, c, false, &[])
 }
 pub(super) fn function_relation(
     parameters: &[Type],
     result: &Type,
     c: &StorageLifeContract,
     allow_callback: bool,
+    closures: &[ClosureDefinition],
 ) -> CompileResult<()> {
-    relation_inner(parameters, result, c, allow_callback)
+    relation_inner(parameters, None, result, c, allow_callback, closures)
+}
+
+pub(super) fn capture_relation(
+    parameters: &[Type],
+    captures: &[Type],
+    result: &Type,
+    c: &StorageLifeContract,
+) -> CompileResult<()> {
+    relation_inner(parameters, Some(captures), result, c, false, &[])
 }
 fn relation_inner(
     parameters: &[Type],
+    captures: Option<&[Type]>,
     result: &Type,
     c: &StorageLifeContract,
     allow_callback: bool,
+    closures: &[ClosureDefinition],
 ) -> CompileResult<()> {
     if c.fixed_binder_count == 0 && c.invocation_binder_count == 0 {
         return Err(bad(
@@ -61,7 +73,7 @@ fn relation_inner(
     let domains = (c.fixed_binder_count as usize)
         .checked_add(c.invocation_binder_count as usize)
         .ok_or_else(|| bad("signature domain count overflow"))?;
-    if domains > rows || c.fixed_binder_count as usize > c.classes.len() {
+    if domains > rows || captures.is_none() && c.fixed_binder_count as usize > c.classes.len() {
         return Err(bad("signature domain exceeds actual relation occurrences"));
     }
     let input_classes = c
@@ -69,7 +81,7 @@ fn relation_inner(
         .iter()
         .filter(|r| matches!(r.position.base, StorageBase::Parameter(_)))
         .count();
-    if c.fixed_binder_count as usize > input_classes {
+    if captures.is_none() && c.fixed_binder_count as usize > input_classes {
         return Err(bad("Fixed domain exceeds actual input class occurrences"));
     }
     struct Cursor<'a> {
@@ -81,6 +93,8 @@ fn relation_inner(
         grounded: Vec<bool>,
         inputs: Option<(u32, u32)>,
         allow_callback: bool,
+        captured: bool,
+        closures: &'a [ClosureDefinition],
     }
     impl Cursor<'_> {
         fn binder(&mut self, b: StorageBinder, retained: bool) -> CompileResult<()> {
@@ -110,6 +124,7 @@ fn relation_inner(
             Ok(())
         }
         fn ty(&mut self, ty: &Type, base: StorageBase) -> CompileResult<()> {
+            let capture = matches!(base, StorageBase::Capture(_));
             let (target, pointed) = if let Type::Address { inner, .. } = ty {
                 let row = self
                     .c
@@ -122,7 +137,12 @@ fn relation_inner(
                     ));
                 }
                 self.borrow += 1;
-                self.binder(row.binder, false)?;
+                if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                    return Err(bad(
+                        "captured Address must retain a Fixed environment class",
+                    ));
+                }
+                self.binder(row.binder, capture)?;
                 (inner.as_ref(), true)
             } else {
                 (ty, false)
@@ -157,7 +177,47 @@ fn relation_inner(
                         ));
                     }
                     self.class += 1;
-                    self.binder(row.binder, self.inputs.is_none())?;
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured qualified class must be Fixed"));
+                    }
+                    self.binder(
+                        row.binder,
+                        capture || !self.captured && self.inputs.is_none(),
+                    )?;
+                }
+            } else if self.allow_callback
+                && self.inputs.is_none()
+                && matches!(target, Type::Closure(_))
+            {
+                let Type::Closure(id) = target else {
+                    unreachable!()
+                };
+                let definition = self
+                    .closures
+                    .get(id.0 as usize)
+                    .ok_or_else(|| bad("closure class selector has no actual definition"))?;
+                if let Some(life) = &definition.storage_life {
+                    let count = life.fixed_binder_count as usize;
+                    if count > self.c.classes.len().saturating_sub(self.class) {
+                        return Err(bad("signature omits actual closure free Fixed domain"));
+                    }
+                    for class in 0..count {
+                        let row = &self.c.classes[self.class];
+                        if row.position.base != base
+                            || row.position.class as usize != class
+                            || if pointed {
+                                row.position.path.as_slice() != [LifeTypeProjection::Pointee]
+                            } else {
+                                !row.position.path.is_empty()
+                            }
+                        {
+                            return Err(bad(
+                                "closure class selector must name its actual free Fixed domain",
+                            ));
+                        }
+                        self.class += 1;
+                        self.binder(row.binder, self.inputs.is_none())?;
+                    }
                 }
             } else if pointed {
                 if !(target.is_address_pointee()
@@ -166,6 +226,10 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                // A direct owned field contributes no class/borrow position.
+                // Capture admission and the independent resource kernel still
+                // establish its finite payload, actual mode and responsibility.
+                || capture && matches!(target, Type::Managed(_))
                 || self.allow_callback
                     && self.inputs.is_none()
                     && matches!(target, Type::Closure(_)))
@@ -184,10 +248,18 @@ fn relation_inner(
         grounded: vec![false; c.fixed_binder_count as usize],
         inputs: None,
         allow_callback,
+        captured: captures.is_some(),
+        closures,
     };
     for (i, p) in parameters.iter().enumerate() {
         let i = u32::try_from(i).map_err(|_| bad("signature parameter ordinal overflow"))?;
         cursor.ty(p, StorageBase::Parameter(i))?;
+    }
+    if let Some(captures) = captures {
+        for (i, capture) in captures.iter().enumerate() {
+            let i = u32::try_from(i).map_err(|_| bad("capture ordinal overflow"))?;
+            cursor.ty(capture, StorageBase::Capture(i))?;
+        }
     }
     cursor.inputs = Some((cursor.fixed, cursor.invocation));
     cursor.ty(result, StorageBase::Result)?;

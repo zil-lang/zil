@@ -111,6 +111,15 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 sum_budget.borrowed(t, 0)?;
             }
         }
+        // Actual retained Fixed metadata is already independently proved. This
+        // only admits the existing shared pointer ABI after capability binding.
+        let captured_fixed_signature = verified.uses_stored_borrows()
+            && closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| life.fixed_binder_count > 0)
+            && closure.lending_captures.is_empty()
+            && closure.result.is_b0_scalar();
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(
@@ -142,7 +151,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                     | Type::F32
                     | Type::F64
             );
-        if qualified_signature {
+        if qualified_signature || captured_fixed_signature {
             for ty in &closure.parameters {
                 if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. }))
                 {
@@ -168,6 +177,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
+                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
@@ -181,7 +191,8 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                         && !package_array_fields(ty))
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                    || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
@@ -362,6 +373,14 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     package_type(ty, resources) || owned_product_type(ty, resources)
+}
+
+// Representation only: the caller has an immutable verified capability and
+// has already paid the complete captured/parameter type metadata inventory.
+fn shared_qualified_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, mutable: false }
+        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
 }
 
 fn package_capture_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {

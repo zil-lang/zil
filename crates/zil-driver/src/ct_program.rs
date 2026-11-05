@@ -80,6 +80,19 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 .iter()
                 .filter_map(|f| bodies.remove(&(module.core.module_id, f.id)))
                 .collect();
+            for context in &module.core.closure_life_contexts {
+                collector.text_len(functions.len().saturating_add(1))?;
+                if functions
+                    .iter()
+                    .any(|function| function.id == context.creator)
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Ct,
+                        "runtime closure context cannot execute in a pure CT query",
+                        None,
+                    )]);
+                }
+            }
             let exports: Vec<_> = module
                 .exports
                 .iter()
@@ -90,6 +103,9 @@ impl zil_ct::SourceCompiler for Compiler<'_> {
                 core: CoreModule {
                     life_declarations: module.core.life_declarations.clone(),
                     life_instances: module.core.life_instances.clone(),
+                    // Selected pure-query functions cannot contain these runtime
+                    // closure sites. Unselected creator rows retire with them.
+                    closure_life_contexts: Vec::new(),
                     dyn_declarations: module.core.dyn_declarations.clone(),
                     dyn_interfaces: module.core.dyn_interfaces.clone(),
                     dyn_vtables: module.core.dyn_vtables.clone(),
@@ -811,13 +827,16 @@ impl Collector<'_> {
         Ok(())
     }
     fn declarations(&mut self, core: &CoreModule) -> CompileResult<()> {
-        if !core.aggregate_templates.is_empty() || !core.aggregate_applications.is_empty() {
+        if !core.closure_life_contexts.is_empty()
+            || !core.aggregate_templates.is_empty()
+            || !core.aggregate_applications.is_empty()
+        {
             let metadata_limits = Limits {
                 max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
                 max_analysis_steps: self.work_left,
                 ..self.limits.clone()
             };
-            let (nodes, work) = zil_ct::preflight_aggregate_metadata(core, &metadata_limits)?;
+            let (nodes, work) = zil_ct::preflight_core_metadata(core, &metadata_limits)?;
             self.nodes += nodes;
             self.work_left -= work;
         }

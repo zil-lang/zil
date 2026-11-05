@@ -4890,6 +4890,7 @@ impl Check<'_, '_, '_> {
                 params,
                 return_type,
                 body,
+                ..
             } if self
                 .callable
                 .as_ref()

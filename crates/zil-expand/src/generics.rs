@@ -6,7 +6,64 @@ use zil_base::{CompileResult, Diagnostic, Limits, Phase, Span};
 use zil_syntax::ast::*;
 
 type R<T> = Result<T, Diagnostic>;
-type Env = BTreeMap<String, Option<TypeRef>>;
+// The real lexical binding carries its creator-input origin. Ordinary binding
+// insertion clears that origin even when the spelling and type are identical.
+#[derive(Clone, Default)]
+struct Env {
+    bindings: BTreeMap<String, EnvBinding>,
+    closure_depth: u32,
+}
+#[derive(Clone)]
+struct EnvBinding {
+    ty: Option<TypeRef>,
+    input: Option<u32>,
+    closure_depth: u32,
+}
+impl Env {
+    fn new() -> Self {
+        Self::default()
+    }
+    fn len(&self) -> usize {
+        self.bindings.len()
+    }
+    fn contains_key(&self, name: &str) -> bool {
+        self.bindings.contains_key(name)
+    }
+    fn get(&self, name: &str) -> Option<&Option<TypeRef>> {
+        self.bindings.get(name).map(|binding| &binding.ty)
+    }
+    fn values(&self) -> impl Iterator<Item = &Option<TypeRef>> {
+        self.bindings.values().map(|binding| &binding.ty)
+    }
+    fn insert(&mut self, name: String, ty: Option<TypeRef>) -> Option<Option<TypeRef>> {
+        self.bindings
+            .insert(
+                name,
+                EnvBinding {
+                    ty,
+                    input: None,
+                    closure_depth: self.closure_depth,
+                },
+            )
+            .map(|prior| prior.ty)
+    }
+    fn parameters(parameters: &[Param], span: Span) -> R<Self> {
+        let mut env = Self::new();
+        for (ordinal, parameter) in parameters.iter().enumerate() {
+            let input =
+                u32::try_from(ordinal).map_err(|_| error(span, "input ordinal exhausted"))?;
+            env.bindings.insert(
+                parameter.name.clone(),
+                EnvBinding {
+                    ty: Some(parameter.ty.clone()),
+                    input: Some(input),
+                    closure_depth: 0,
+                },
+            );
+        }
+        Ok(env)
+    }
+}
 #[path = "generic_budget.rs"]
 mod budget;
 pub(super) use budget::Budget;
@@ -16,6 +73,8 @@ mod aliases;
 mod bytes;
 #[path = "generic_callable.rs"]
 pub(super) mod callable;
+#[path = "generic_closure_context.rs"]
+pub(super) mod closure_context;
 #[path = "generic_constant_plan.rs"]
 pub(crate) mod constant_plan;
 #[path = "generic_const.rs"]
@@ -395,6 +454,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    original_module: &'a Module,
+    closure_recording: Option<closure_context::Recording>,
     life_scope: Vec<String>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
@@ -485,6 +546,8 @@ impl<'a> Engine<'a> {
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            original_module: module,
+            closure_recording: None,
             life_scope: Vec::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
@@ -1380,11 +1443,7 @@ impl<'a> Engine<'a> {
                 if let Some(t) = &mut f.return_type {
                     self.ty(t, 0)?;
                 }
-                let mut env: Env = f
-                    .params
-                    .iter()
-                    .map(|p| (p.name.clone(), Some(p.ty.clone())))
-                    .collect();
+                let mut env = Env::parameters(&f.params, f.span)?;
                 let saved_result = self
                     .return_type
                     .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
@@ -2249,6 +2308,7 @@ impl<'a> Engine<'a> {
             }
             ExprKind::Literal(Literal::Bool(_)) => Some(named("bool", e.span)),
             ExprKind::Name(name) => {
+                self.record_closure_input(name, env, e.span)?;
                 if let Some(Some(ty)) = env.get(name) {
                     self.budget.ty(ty)?;
                     Some(ty.clone())

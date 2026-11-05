@@ -420,6 +420,9 @@ pub fn check(
         })
         .count();
     let mut closure_state = closures::State::new(concrete_count, limits);
+    closure_state
+        .install_source_contexts(core, &signatures)
+        .map_err(|e| vec![e])?;
     let mut product_work = limits.max_analysis_steps;
     closure_state.products =
         aggregate_templates::origins(&[core], limits, &mut product_work).map_err(|e| vec![e])?;
@@ -2410,6 +2413,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         &mut self,
         input: closures::Input<'_>,
         expected: Option<&Type>,
+        source_expression: Option<zil_base::NodeId>,
     ) -> R<(ValueId, Type)> {
         let mut outer = BTreeMap::new();
         for scope in &self.scopes {
@@ -2446,6 +2450,11 @@ impl<'a, 'c> Builder<'a, 'c> {
             self.enums,
             self.factory_modes.as_ref().map(|modes| &modes.locals),
         )?;
+        if let Some(expression) = source_expression {
+            self.closures
+                .bind_source_context(id, &self.function, expression, span)?;
+        }
+        self.closures.require_source_context(id, span)?;
         if let Some(
             Type::FunctionPointer { parameters, result }
             | Type::BorrowedFunctionPointer {
@@ -2658,9 +2667,13 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(());
         }
         let (parameters, result) = pending.inference.resolve(true, pending.span)?;
+        let context_span = pending.span;
+        let storage_life =
+            self.closures
+                .form_source_contract(id, &parameters, &result, context_span)?;
         if closures::owned_signature_head(&result) && !result.is_copy_value() {
-            let span = pending.span;
-            let captures = pending.captures.len();
+            let span = context_span;
+            let captures = self.closures.pending[id.0 as usize].captures.len();
             self.closures.snapshot(captures.saturating_add(1), span)?;
             if self.closures.pending[id.0 as usize]
                 .captures
@@ -2692,7 +2705,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let captures = pending.captures.clone();
         let function_id = pending.function;
         let function = CoreFunction {
-            storage_life: None,
+            storage_life,
             call_kind: None,
             life: None,
             callable_return: None,
@@ -3264,6 +3277,7 @@ mod tests {
             dyn_vtables: Vec::new(),
             life_declarations: Vec::new(),
             life_instances: Vec::new(),
+            closure_life_contexts: Vec::new(),
             aggregate_templates: Vec::new(),
             aggregate_applications: Vec::new(),
             schema_version: SCHEMA_VERSION,

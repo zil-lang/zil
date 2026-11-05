@@ -21,9 +21,61 @@ pub(super) fn scalar(t: &Type) -> bool {
     )
 }
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
-    module.closures.get(id.0 as usize).is_some_and(|d| {
-        d.lending_captures.is_empty() && d.storage_life.is_none() && scalar(&d.result)
-    })
+    module
+        .closures
+        .get(id.0 as usize)
+        .is_some_and(|d| d.lending_captures.is_empty() && scalar(&d.result))
+}
+pub(super) fn shared_input(t: &Type) -> bool {
+    if scalar(t) {
+        return true;
+    }
+    let Type::Address {
+        mutable: false,
+        inner,
+    } = t
+    else {
+        return false;
+    };
+    match inner.as_ref() {
+        Type::BorrowedStorage { storage, life } => {
+            matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                && life.retained.is_empty()
+                && life
+                    .slots
+                    .iter()
+                    .all(|s| s.mode == StoredBorrowMode::SharedAddress)
+        }
+        t => t.is_address_pointee(),
+    }
+}
+pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
+    b.spend(d.captures.len().saturating_add(d.parameters.len()))?;
+    for ty in &d.parameters {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if !shared_input(ty) {
+            return Err(unsupported(
+                "captured Fixed requires shared/scalar parameters",
+                None,
+            ));
+        }
+    }
+    for ty in &d.captures {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if !(shared_input(ty) || d.kind == CallableKind::FnOnce && super::stored_owned::owner(ty)) {
+            return Err(unsupported(
+                "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
+                None,
+            ));
+        }
+    }
+    if !d.lending_captures.is_empty() || !scalar(&d.result) {
+        return Err(unsupported(
+            "captured Fixed requires a scalar nonlending result",
+            None,
+        ));
+    }
+    Ok(())
 }
 pub(super) fn value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -37,7 +89,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.closures.len())?;
     for d in &module.closures {
         b.spend(d.captures.len())?;
-        if !finite(module, d.id) || !d.captures.iter().all(scalar) {
+        if !finite(module, d.id) || d.storage_life.is_none() && !d.captures.iter().all(scalar) {
             return Err(unsupported(
                 "qualified callbacks require actual inline scalar environments and results",
                 None,
@@ -61,6 +113,26 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
             if f.locals.get(p.0 as usize).map(|p| &p.ty) != Some(t) {
                 return Err(bad("qualified callback parameter differs from entry"));
             }
+        }
+        if let Some(c) = &d.storage_life {
+            captured_profile(d, b)?;
+            super::signature_life::charge(c, b)?;
+            super::borrowed_fp::signature_work(&d.captures, &Type::Unit, b)?;
+            if let Some(entry) = &f.storage_life {
+                super::signature_life::charge(entry, b)?;
+            }
+            if f.storage_life.as_ref() != Some(c) {
+                return Err(bad(
+                    "captured Fixed definition and actual entry relation differ",
+                ));
+            }
+            super::signature_life::closure_relation(
+                &d.parameters,
+                &d.captures,
+                &d.result,
+                c,
+                Some(f.span),
+            )?;
         }
     }
     Ok(())
@@ -193,6 +265,12 @@ pub(super) fn types(
                 .get(*index as usize)
                 .ok_or_else(|| bad("qualified capture access lacks actual field"))?;
             if let InstructionKind::WriteCapture { value, .. } = &i.kind {
+                if d.storage_life.is_some() && !scalar(t) {
+                    return Err(unsupported(
+                        "captured Fixed mutation is limited to inline scalar fields",
+                        Some(i.span),
+                    ));
+                }
                 if d.kind == zil_ir::CallableKind::Fn
                     || i.result.is_some()
                     || f.values.get(value.0 as usize) != Some(t)
@@ -226,6 +304,15 @@ pub(super) fn types(
     }
     let (d, args) = called(module, f, &i.kind)
         .ok_or_else(|| bad("qualified callback call mode/entry is unsupported"))?;
+    if d.storage_life.is_some()
+        && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
+        && d.kind != zil_ir::CallableKind::FnOnce
+    {
+        return Err(unsupported(
+            "captured Fixed Once adaptation requires actual owning mode accounting",
+            Some(i.span),
+        ));
+    }
     b.spend(args.len())?;
     if args.len() != d.parameters.len() {
         return Err(bad("qualified callback argument arity differs"));
@@ -333,6 +420,22 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                 let needs=d.parameters.iter().any(|t|matches!(t,Type::BorrowedStorage{..})||matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..})));
                 if let Some(life) = &role.life {
                     let entry = &module.functions[d.function.0 as usize];
+                    if let Some(definition) = &d.storage_life {
+                        super::signature_life::charge(life, b)?;
+                        super::signature_life::closure_relation(
+                            &d.parameters,
+                            &d.captures,
+                            &d.result,
+                            life,
+                            Some(entry.span),
+                        )?;
+                        if life != definition {
+                            return Err(unsupported(
+                                "captured Fixed role adaptation requires its actual capture map",
+                                Some(entry.span),
+                            ));
+                        }
+                    }
                     super::class_flow::check_role(
                         module,
                         entry,
@@ -340,7 +443,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                         life,
                         b,
                     )?;
-                } else if needs {
+                } else if needs || d.storage_life.is_some() {
                     return Err(bad(
                         "qualified role omits its complete semantic class relation",
                     ));

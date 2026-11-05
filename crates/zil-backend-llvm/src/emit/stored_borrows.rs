@@ -300,7 +300,8 @@ pub(super) fn reserve_binding(
             for i in &block.instructions {
                 let n = match &i.kind {
                     InstructionKind::Call { arguments, .. }
-                    | InstructionKind::MakeAggregate { fields: arguments } => arguments.len(),
+                    | InstructionKind::MakeAggregate { fields: arguments }
+                    | InstructionKind::MakeManaged { fields: arguments } => arguments.len(),
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
                     | InstructionKind::CallClosureOnce { arguments, .. }
@@ -317,6 +318,11 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ReadCapture { .. }
                     | InstructionKind::WriteCapture { .. }
                     | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::TakeCapture { .. }
+                    | InstructionKind::DescribeLocal { .. }
+                    | InstructionKind::DescribeCapture { .. }
+                    | InstructionKind::ReadDesc { .. }
+                    | InstructionKind::DropManaged { .. }
                     | InstructionKind::DropClosure { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
@@ -360,6 +366,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
     match i {
         InstructionKind::Call { arguments, .. }
         | InstructionKind::MakeAggregate { fields: arguments }
+        | InstructionKind::MakeManaged { fields: arguments }
         | InstructionKind::MakeClosure {
             captures: arguments,
             ..
@@ -377,6 +384,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::ExtractField {
             aggregate: value, ..
         }
+        | InstructionKind::ReadDesc { desc: value, .. }
         | InstructionKind::Store { value, .. }
         | InstructionKind::WriteCapture { value, .. }
         | InstructionKind::Unary { operand: value, .. }
@@ -425,6 +433,7 @@ pub(super) fn reserve_emission(
             let count = match &i.kind {
                 InstructionKind::Call { arguments, .. }
                 | InstructionKind::MakeAggregate { fields: arguments }
+                | InstructionKind::MakeManaged { fields: arguments }
                 | InstructionKind::MakeClosure {
                     captures: arguments,
                     ..
@@ -452,14 +461,24 @@ pub(super) fn reserve_emission(
             if let InstructionKind::CallClosureShared { callee, .. }
             | InstructionKind::CallClosureMut { callee, .. }
             | InstructionKind::TakeLocal { local: callee }
+            | InstructionKind::DescribeLocal { local: callee }
+            | InstructionKind::DropManaged { local: callee }
             | InstructionKind::DropClosure { local: callee } = &i.kind
             {
                 type_work(&f.locals[callee.0 as usize].ty, work, limits, 0)?;
             }
+            if let InstructionKind::TakeCapture { index }
+            | InstructionKind::DescribeCapture { index } = &i.kind
+            {
+                let definition =
+                    &lir.closures[f.environment.expect("verified capture entry").0 as usize];
+                type_work(&definition.captures[*index as usize], work, limits, 0)?;
+            }
             for v in operands(&i.kind).into_iter().chain(i.result) {
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;
             }
-            if let InstructionKind::MakeAggregate { fields } = &i.kind
+            if let InstructionKind::MakeAggregate { fields }
+            | InstructionKind::MakeManaged { fields } = &i.kind
                 && let Some(v) = i.result
             {
                 for _ in fields {

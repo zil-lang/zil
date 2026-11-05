@@ -1173,3 +1173,603 @@ pub(super) fn qualified_fn_exclusive_call(alias: bool) -> TypedModule {
     arguments.push(ValueId(if alias { 2 } else { 4 }));
     m
 }
+
+/// Untrusted existing-public-Typed model, not a Source producer witness.
+/// Parameter and actual capture share Tag's retained class; the captured
+/// outer Address is a separate anonymous Fixed class.
+#[allow(dead_code)]
+pub(super) fn captured_fixed(kind: CallableKind, wrong_actual: bool) -> TypedModule {
+    let mut m = module();
+    let tag = address(storage(), false);
+    let i64ref = address(Type::I64, false);
+    let class = |base, binder| SignatureLifeClassBinding {
+        position: SignatureLifeClass {
+            base,
+            path: vec![LifeTypeProjection::Pointee],
+            class: 0,
+        },
+        binder,
+    };
+    let life = StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 1,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(StorageBase::Capture(0), vec![], StorageBinder::Fixed(1)),
+        ],
+        classes: vec![
+            class(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            class(StorageBase::Capture(0), StorageBinder::Fixed(0)),
+        ],
+    };
+    let mut entry = function(
+        0,
+        vec![tag.clone()],
+        Type::I64,
+        vec![
+            tag.clone(),
+            i64ref.clone(),
+            Type::I64,
+            tag.clone(),
+            i64ref,
+            Type::I64,
+            Type::I64,
+        ],
+        vec![
+            instruction(Some(0), InstructionKind::ReadCapture { index: 0 }),
+            instruction(
+                Some(1),
+                InstructionKind::LoadStoredBorrow {
+                    storage: ValueId(0),
+                    path: vec![PlaceProjection::Field(0)],
+                    mode: StoredBorrowLoad::CopyShared,
+                },
+            ),
+            instruction(
+                Some(2),
+                InstructionKind::ReadAddress {
+                    address: ValueId(1),
+                },
+            ),
+            instruction(Some(3), InstructionKind::Load(LocalId(0))),
+            instruction(
+                Some(4),
+                InstructionKind::LoadStoredBorrow {
+                    storage: ValueId(3),
+                    path: vec![PlaceProjection::Field(0)],
+                    mode: StoredBorrowLoad::CopyShared,
+                },
+            ),
+            instruction(
+                Some(5),
+                InstructionKind::ReadAddress {
+                    address: ValueId(4),
+                },
+            ),
+            instruction(
+                Some(6),
+                InstructionKind::Binary {
+                    op: BinaryOp::Add,
+                    left: ValueId(2),
+                    right: ValueId(5),
+                },
+            ),
+        ],
+        6,
+    );
+    entry.storage_life = Some(life.clone());
+    entry.environment = Some(ClosureId(0));
+    let mut caller = function(
+        1,
+        vec![tag.clone(), tag.clone()],
+        Type::I64,
+        vec![tag.clone(), tag, Type::Closure(ClosureId(0)), Type::I64],
+        vec![
+            instruction(Some(0), InstructionKind::Load(LocalId(0))),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(
+                Some(2),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(0)],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(2),
+                    value: ValueId(2),
+                },
+            ),
+            instruction(
+                Some(3),
+                match kind {
+                    CallableKind::FunctionPointer => {
+                        unreachable!("model requires actual environment")
+                    }
+                    CallableKind::Fn => InstructionKind::CallClosureShared {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                    CallableKind::FnMut => InstructionKind::CallClosureMut {
+                        callee: LocalId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                    CallableKind::FnOnce => InstructionKind::CallClosureOnce {
+                        callee: ValueId(2),
+                        arguments: vec![ValueId(if wrong_actual { 1 } else { 0 })],
+                    },
+                },
+            ),
+        ],
+        3,
+    );
+    if kind == CallableKind::FnOnce {
+        // Keep one real owner of the non-Copy environment; no duplicate Store.
+        caller.blocks[0].instructions.remove(3);
+    }
+    caller.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "environment".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: kind == CallableKind::FnMut,
+        span: s(),
+    });
+    caller.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: 2,
+        bindings: vec![
+            row(
+                StorageBase::Parameter(0),
+                vec![],
+                StorageBinder::Invocation(0),
+            ),
+            row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(1),
+            ),
+        ],
+        classes: vec![
+            class(StorageBase::Parameter(0), StorageBinder::Fixed(0)),
+            class(StorageBase::Parameter(1), StorageBinder::Fixed(1)),
+        ],
+    });
+    m.functions = vec![entry, caller];
+    m.closures = vec![ClosureDefinition {
+        storage_life: Some(life),
+        id: ClosureId(0),
+        function: FunctionId(0),
+        captures: vec![address(storage(), false)],
+        parameters: vec![address(storage(), false)],
+        result: Type::I64,
+        kind,
+        lending_captures: vec![],
+    }];
+    m
+}
+
+/// Same definition, two distinct actual environments; no identity by ClosureId.
+#[allow(dead_code)]
+pub(super) fn captured_fixed_instances(kind: CallableKind, wrong_second: bool) -> TypedModule {
+    let mut m = captured_fixed(kind, false);
+    let f = &mut m.functions[1];
+    f.values.extend([Type::Closure(ClosureId(0)), Type::I64]);
+    f.locals.push(LocalDecl {
+        id: LocalId(3),
+        name: "second".into(),
+        ty: Type::Closure(ClosureId(0)),
+        mutable: kind == CallableKind::FnMut,
+        span: s(),
+    });
+    let code = &mut f.blocks[0].instructions;
+    code.push(instruction(
+        Some(4),
+        InstructionKind::MakeClosure {
+            closure: ClosureId(0),
+            captures: vec![ValueId(1)],
+        },
+    ));
+    let arguments = vec![ValueId(if wrong_second { 0 } else { 1 })];
+    let call = match kind {
+        CallableKind::Fn => InstructionKind::CallClosureShared {
+            callee: LocalId(3),
+            arguments,
+        },
+        CallableKind::FnMut => InstructionKind::CallClosureMut {
+            callee: LocalId(3),
+            arguments,
+        },
+        CallableKind::FnOnce => InstructionKind::CallClosureOnce {
+            callee: ValueId(4),
+            arguments,
+        },
+        _ => unreachable!(),
+    };
+    if kind != CallableKind::FnOnce {
+        code.push(instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(3),
+                value: ValueId(4),
+            },
+        ));
+    }
+    code.push(instruction(Some(5), call));
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(5)));
+    m
+}
+
+/// An explicit helper keeps its own receiver/header relation and actual role.
+#[allow(dead_code)]
+pub(super) fn captured_fixed_helper(kind: CallableKind, wrong_actual: bool) -> TypedModule {
+    let mut m = captured_fixed(kind, false);
+    let once = kind == CallableKind::FnOnce;
+    let env = if once {
+        Type::Closure(ClosureId(0))
+    } else {
+        address(Type::Closure(ClosureId(0)), kind == CallableKind::FnMut)
+    };
+    let tag = address(storage(), false);
+    let mut helper = function(
+        2,
+        vec![env.clone(), tag.clone()],
+        Type::I64,
+        vec![env.clone(), tag.clone(), Type::I64],
+        vec![
+            instruction(
+                Some(0),
+                if once {
+                    InstructionKind::TakeLocal { local: LocalId(0) }
+                } else {
+                    InstructionKind::Load(LocalId(0))
+                },
+            ),
+            instruction(Some(1), InstructionKind::Load(LocalId(1))),
+            instruction(
+                Some(2),
+                if once {
+                    InstructionKind::CallClosureOnce {
+                        callee: ValueId(0),
+                        arguments: vec![ValueId(1)],
+                    }
+                } else {
+                    InstructionKind::CallClosureBorrowed {
+                        callee: ValueId(0),
+                        kind,
+                        arguments: vec![ValueId(1)],
+                    }
+                },
+            ),
+        ],
+        2,
+    );
+    helper.storage_life = Some(StorageLifeContract {
+        fixed_binder_count: 2,
+        invocation_binder_count: if once { 1 } else { 2 },
+        bindings: if once {
+            vec![row(
+                StorageBase::Parameter(1),
+                vec![],
+                StorageBinder::Invocation(0),
+            )]
+        } else {
+            vec![
+                row(
+                    StorageBase::Parameter(0),
+                    vec![],
+                    StorageBinder::Invocation(0),
+                ),
+                row(
+                    StorageBase::Parameter(1),
+                    vec![],
+                    StorageBinder::Invocation(1),
+                ),
+            ]
+        },
+        classes: vec![
+            SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(0),
+                    path: if once {
+                        vec![]
+                    } else {
+                        vec![LifeTypeProjection::Pointee]
+                    },
+                    class: 0,
+                },
+                binder: StorageBinder::Fixed(0),
+            },
+            SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(0),
+                    path: if once {
+                        vec![]
+                    } else {
+                        vec![LifeTypeProjection::Pointee]
+                    },
+                    class: 1,
+                },
+                binder: StorageBinder::Fixed(1),
+            },
+            SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Parameter(1),
+                    path: vec![LifeTypeProjection::Pointee],
+                    class: 0,
+                },
+                binder: StorageBinder::Fixed(0),
+            },
+        ],
+    });
+    helper.callable_contract = Some(CallableParameterContract {
+        roles: vec![CallableRole {
+            life: m.closures[0].storage_life.clone(),
+            parameter: 0,
+            closure: ClosureId(0),
+            kind,
+            hold: vec![0],
+            call: vec![0],
+            writes: vec![],
+            cleanup: if once {
+                CallableCleanup::Owned
+            } else {
+                CallableCleanup::Borrowed
+            },
+        }],
+        traces: CallableTraces::Finite(vec![CallableTrace {
+            calls: vec![CallEvent { parameter: 0, kind }],
+            exit: CallableExit::Return,
+        }]),
+    });
+    let caller = &mut m.functions[1];
+    if !once {
+        caller.values.push(env);
+    }
+    // Replace direct invocation with an actual ordinary helper Call.
+    caller.blocks[0].instructions.pop();
+    if !once {
+        caller.blocks[0].instructions.push(instruction(
+            Some(4),
+            if kind == CallableKind::FnMut {
+                InstructionKind::BorrowLocalMut { local: LocalId(2) }
+            } else {
+                InstructionKind::BorrowLocal { local: LocalId(2) }
+            },
+        ));
+    }
+    caller.blocks[0].instructions.push(instruction(
+        Some(3),
+        InstructionKind::Call {
+            function: FunctionId(2),
+            arguments: vec![
+                ValueId(if once { 2 } else { 4 }),
+                ValueId(if wrong_actual { 1 } else { 0 }),
+            ],
+        },
+    ));
+    m.functions.push(helper);
+    m
+}
+
+/// Local capture target destruction while the actual environment is live.
+#[allow(dead_code)]
+pub(super) fn captured_fixed_parent_end(end_before_call: bool) -> TypedModule {
+    let mut m = captured_fixed(CallableKind::Fn, false);
+    let tag = storage();
+    let mut f = function(
+        1,
+        vec![],
+        Type::I64,
+        vec![
+            Type::I64,
+            address(Type::I64, false),
+            tag.clone(),
+            address(tag.clone(), false),
+            Type::Closure(ClosureId(0)),
+            Type::I64,
+        ],
+        vec![
+            instruction(Some(0), InstructionKind::Constant(Constant::I64(21))),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(0),
+                    value: ValueId(0),
+                },
+            ),
+            instruction(Some(1), InstructionKind::BorrowLocal { local: LocalId(0) }),
+            instruction(
+                Some(2),
+                InstructionKind::MakeAggregate {
+                    fields: vec![ValueId(1)],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(2),
+                },
+            ),
+            instruction(Some(3), InstructionKind::BorrowLocal { local: LocalId(1) }),
+            instruction(
+                Some(4),
+                InstructionKind::MakeClosure {
+                    closure: ClosureId(0),
+                    captures: vec![ValueId(3)],
+                },
+            ),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(2),
+                    value: ValueId(4),
+                },
+            ),
+            instruction(
+                Some(5),
+                InstructionKind::CallClosureShared {
+                    callee: LocalId(2),
+                    arguments: vec![ValueId(3)],
+                },
+            ),
+        ],
+        5,
+    );
+    f.locals = vec![Type::I64, tag, Type::Closure(ClosureId(0))]
+        .into_iter()
+        .enumerate()
+        .map(|(i, ty)| LocalDecl {
+            id: LocalId(i as u32),
+            name: format!("local{i}"),
+            ty,
+            mutable: false,
+            span: s(),
+        })
+        .collect();
+    if end_before_call {
+        f.blocks[0].instructions.insert(
+            8,
+            instruction(None, InstructionKind::StorageDead(LocalId(1))),
+        );
+    }
+    m.functions[1] = f;
+    m
+}
+
+/// Untrusted Typed-only true owning FnOnce + Fixed model. Not Source evidence.
+/// Mark is class-free; only the shared View capture carries relation rows.
+#[allow(dead_code)]
+pub(super) fn captured_owned_fixed(wrong_actual: bool) -> TypedModule {
+    let mut m = captured_fixed(CallableKind::FnOnce, wrong_actual);
+    let payload = Type::Record {
+        name: "Mark".into(),
+        fields: vec![("n".into(), Type::I32)],
+    };
+    let owned = Type::Managed(Box::new(payload.clone()));
+    let desc = Type::Desc(Box::new(payload.clone()));
+    m.resources.push(ResourceDefinition {
+        name: "Mark".into(),
+        payload,
+        teardown: None,
+    });
+    let d = &mut m.closures[0];
+    d.captures.insert(0, owned.clone());
+    let life = d.storage_life.as_mut().unwrap();
+    for row in &mut life.bindings {
+        if row.position.base == StorageBase::Capture(0) {
+            row.position.base = StorageBase::Capture(1);
+        }
+    }
+    for row in &mut life.classes {
+        if row.position.base == StorageBase::Capture(0) {
+            row.position.base = StorageBase::Capture(1);
+        }
+    }
+    let life = life.clone();
+    let f = &mut m.functions[0];
+    f.storage_life = Some(life);
+    f.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "taken".into(),
+        ty: owned.clone(),
+        mutable: false,
+        span: s(),
+    });
+    f.values.extend([
+        owned.clone(),
+        desc,
+        Type::I32,
+        Type::I64,
+        Type::I64,
+        Type::I64,
+        Type::I64,
+    ]);
+    for i in &mut f.blocks[0].instructions {
+        if let InstructionKind::ReadCapture { index } = &mut i.kind {
+            *index = 1;
+        }
+    }
+    f.blocks[0].instructions.splice(
+        0..0,
+        [
+            instruction(Some(7), InstructionKind::TakeCapture { index: 0 }),
+            instruction(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(7),
+                },
+            ),
+        ],
+    );
+    f.blocks[0].instructions.extend([
+        instruction(
+            Some(8),
+            InstructionKind::DescribeLocal { local: LocalId(1) },
+        ),
+        instruction(
+            Some(9),
+            InstructionKind::ReadDesc {
+                desc: ValueId(8),
+                index: 0,
+            },
+        ),
+        instruction(
+            Some(10),
+            InstructionKind::ConvertInteger {
+                value: ValueId(9),
+                target: Type::I64,
+            },
+        ),
+        instruction(Some(11), InstructionKind::Constant(Constant::I64(1))),
+        instruction(
+            Some(12),
+            InstructionKind::Binary {
+                op: BinaryOp::Subtract,
+                left: ValueId(10),
+                right: ValueId(11),
+            },
+        ),
+        instruction(
+            Some(13),
+            InstructionKind::Binary {
+                op: BinaryOp::Add,
+                left: ValueId(6),
+                right: ValueId(12),
+            },
+        ),
+        instruction(None, InstructionKind::DropManaged { local: LocalId(1) }),
+        instruction(None, InstructionKind::StorageDead(LocalId(1))),
+    ]);
+    f.blocks[0].terminator = Terminator::Return(Some(ValueId(13)));
+    let caller = &mut m.functions[1];
+    caller.values.extend([Type::I32, owned]);
+    let code = &mut caller.blocks[0].instructions;
+    let at = code
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+        .unwrap();
+    code.splice(
+        at..at,
+        [
+            instruction(Some(4), InstructionKind::Constant(Constant::I32(1))),
+            instruction(
+                Some(5),
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(4)],
+                },
+            ),
+        ],
+    );
+    let InstructionKind::MakeClosure { captures, .. } = &mut code[at + 2].kind else {
+        unreachable!()
+    };
+    *captures = vec![ValueId(5), ValueId(0)];
+    m
+}

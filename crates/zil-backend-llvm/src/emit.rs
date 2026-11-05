@@ -757,6 +757,15 @@ fn bind_lir(
                 ty.is_copy_value()
                     || (callback_data_shape(ty) && drop_plan::value_type(ty, lir.resources))
             });
+        // Actual retained Fixed metadata is already independently proved. This
+        // only admits the existing shared pointer ABI after capability binding.
+        let captured_fixed_signature = verified.uses_stored_borrows()
+            && closure
+                .storage_life
+                .as_ref()
+                .is_some_and(|life| life.fixed_binder_count > 0)
+            && closure.lending_captures.is_empty()
+            && closure.result.is_b0_scalar();
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(
@@ -806,6 +815,7 @@ fn bind_lir(
                 ty.is_copy_value()
                     || matches!(ty, Type::Closure(_))
                     || ty.is_shared_sync_cell_address()
+                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     || sum_capture_address(ty)
                     // The exact capability/LIR comparison above already binds
@@ -819,7 +829,8 @@ fn bind_lir(
                     || packages::supported_capture_type(ty, lir.resources)
             })
             || !closure.parameters.iter().all(|ty| {
-                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address() || (qualified_signature
+                owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
+                    || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
                         && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::BorrowedStorage { .. })))
                     || ((closure.result.is_copy_value() || invocation_signature)
                         && matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee()))
@@ -3370,6 +3381,15 @@ fn value(id: ValueId) -> String {
 fn environment_type(id: ClosureId) -> m::Ty {
     m::Ty::Named(format!("zil_env_{}", id.0))
 }
+
+// Representation only: the caller has an immutable verified capability and
+// has already paid the complete captured/parameter type metadata inventory.
+fn shared_qualified_capture_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, mutable: false }
+        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))))
+}
+
 fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::BorrowedStorage { storage, .. } => llvm_type(storage),
@@ -3476,6 +3496,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
         _ if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
             || ty.is_shared_sync_cell_address()
+            || shared_qualified_capture_address(ty)
             || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
             || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
@@ -3570,6 +3591,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 if !field.is_copy_value()
                     && !matches!(field, Type::Closure(_))
                     && !field.is_shared_sync_cell_address()
+                    && !shared_qualified_capture_address(field)
                     && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
                     && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
