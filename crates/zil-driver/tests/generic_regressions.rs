@@ -7236,6 +7236,30 @@ fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
         }
         prior = Some(output);
     }
+    // Before this slice the shared Fn / exclusive receiver unused declaration
+    // was legal on None. Keep it off the paid new template formation lane.
+    let old_none = "struct Tag<life s>{p:&'s i64}fn helper<life s,F:Fn(&Tag<'s>)->i32>(f:&mut F,x:&Tag<'s>)->i32{return 42}fn main()->i32{return 42}";
+    assert!(
+        g334_core(old_none)
+            .functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .all(|r| r.source_life.is_none())
+    );
+    let report = compile_source(
+        &source(old_none),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
     let helper = core
         .functions
         .iter()
