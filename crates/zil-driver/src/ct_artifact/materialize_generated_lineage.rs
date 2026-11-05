@@ -260,14 +260,16 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(path_payload)?;
-        let mut event_path = match &emitter.tree {
-            SourceTreeIdentity::Original(_) => vec![0],
-            SourceTreeIdentity::Generated { event_path, .. } => {
-                let mut path = event_path.clone();
-                path.push(1);
-                path
+        let mut event_path = Vec::with_capacity(parent_len + emitter.event_path.len() + 1);
+        match &emitter.tree {
+            SourceTreeIdentity::Original(_) => event_path.push(0),
+            SourceTreeIdentity::Generated {
+                event_path: parent, ..
+            } => {
+                event_path.extend_from_slice(parent);
+                event_path.push(1);
             }
-        };
+        }
         event_path.extend_from_slice(&emitter.event_path);
         self.environment
             .budget
@@ -283,7 +285,17 @@ impl Materializer<'_, '_> {
                 )?)
                 .ok_or_else(|| category("generated declaration count overflow", span))?;
         }
+        self.environment.budget.reserve_analysis_work(
+            1 + self
+                .next_generated_declaration
+                .len()
+                .checked_ilog2()
+                .unwrap_or(0) as u64,
+        )?;
         if !self.next_generated_declaration.contains_key(&module) {
+            self.environment
+                .budget
+                .reserve_analysis_work(self.parsed.len() as u64)?;
             let source = self
                 .parsed
                 .iter()
@@ -300,6 +312,7 @@ impl Materializer<'_, '_> {
                     )?)
                     .ok_or_else(|| category("original declaration count overflow", span))?;
             }
+            self.environment.budget.reserve_temporary_bytes(64)?;
             self.next_generated_declaration.insert(
                 module,
                 u32::try_from(count)
@@ -359,9 +372,9 @@ impl Materializer<'_, '_> {
             declarations: (*next..end).map(zil_base::NodeId).collect(),
         });
         *next = end;
-        self.environment
-            .budget
-            .reserve_analysis_work(self.generated_trees.len() as u64 + 1)?;
+        self.environment.budget.reserve_analysis_work(
+            (self.generated_trees.len() as u64 + 1).saturating_mul(tree.identity_path_len() as u64),
+        )?;
         if self
             .generated_trees
             .iter()
@@ -369,9 +382,15 @@ impl Materializer<'_, '_> {
         {
             return Err(category("generated source event repeats", span));
         }
-        self.environment
-            .budget
-            .reserve_temporary_bytes(std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64)?;
+        if self.generated_trees.len() == self.generated_trees.capacity() {
+            let old_bytes = self.generated_trees.capacity() as u64
+                * std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64;
+            self.environment.budget.reserve_temporary_bytes(
+                old_bytes + std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64,
+            )?;
+            self.generated_trees.reserve_exact(1);
+            self.environment.budget.release_temporary_bytes(old_bytes);
+        }
         self.environment.register_generated_tree(tree.clone())?;
         self.generated_trees.push(tree.clone());
         self.pending_generated_tree = Some(tree);

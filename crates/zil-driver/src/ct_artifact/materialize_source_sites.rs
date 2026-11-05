@@ -106,6 +106,9 @@ impl Materializer<'_, '_> {
             )
         };
         let module = frozen.module();
+        self.environment.budget.reserve_analysis_work(
+            1 + self.indexed_source_trees.len().checked_ilog2().unwrap_or(0) as u64,
+        )?;
         if !self.indexed_source_trees.contains(&(module.id, row)) {
             let budget = &mut self.environment.budget;
             let inventory = &mut self.canonical_source_sites;
