@@ -38,8 +38,8 @@
 | G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 真实捕获已合入，见 G3.3.2；完整 Done 仍需 qualified FnMut/FnOnce helper 的真实环境、来源与调用模式贯通，当前共享桥见 G3.3.4。 |
 | G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
 | G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 已合入 | — | — | [PR41 验收][e-pr41]；phantom 错误来源已修复，源码、两核与机器消费者通过。 |
-| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 进行中 | P0 | g3_3 | 独审与组合双配置全量通过；旧 None 计费修正已闭合，随[PR42][p42] 等待资源退休修补验收。 |
-| G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 进行中 | P0 | g3_3 / 两核 | 前端实现已冻结；等待两核补齐真实临时槽到参数的来源检查，排在 G1.3.6 安全修补后。限单 F、有限 scalar resource 与共享 Tag，不扩 give 或用户 Drop。 |
+| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 实现待验 | P0 | root | 独审与组合双配置全量通过；旧 None 计费修正已闭合，随[PR42][p42] 等待资源退休修补验收。 |
+| G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 进行中 | P0 | g3_3 / g443_review_sol | 前端实现已冻结；两名 sol high 分别补齐 Analyze / Verify 的真实临时槽到参数来源检查，与 G1.3.6 分文件并行。限单 F、有限 scalar resource 与共享 Tag，不扩 give 或用户 Drop。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
@@ -52,7 +52,7 @@
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 已合入 | — | — | [本批验收][e41]；CT5 实际上下文、键与物理字节计费已通过共同验收。 |
 | G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root / CT | 成员 CT 和子值上下文已[合入][e41]；完整 Done 仍需泛型 host/member/generated 归属与重定位、运行时泛型体内 CT 相位及嵌套 mixed forwarding，见当前 G4.4.2。 |
 | G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 已合入 | — | — | [PR41 验收][e-pr41]；完整向量、作用域、复用深度计费及实际消费者通过。 |
-| G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 进行中 | P0 | async_impl_high / g443_review_sol | 作者 16 次真实原生执行通过；正在收齐成员身份、复制费用和缓存检查，sol high 独审已提前介入。公共接口的疑难架构点已由 astra 审读。 |
+| G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 实现待验 | P0 | root | 独审已通过真实原生执行、成员原身份、预算及语义缓存；两处费用问题已修正。源码已进入 [PR42][p42]，等待组合验收。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
