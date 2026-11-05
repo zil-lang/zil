@@ -17,7 +17,12 @@
     "jobs": 2,
     "dev_strip": "symbols",
     "test_strip": "symbols",
-    "setup": "source /workspace/.zil-env/env.sh"
+    "setup": "source /workspace/.zil-env/env.sh",
+    "toolchain": {
+      "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+      "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+      "llvm-config": "23.1.4"
+    }
   },
   "commands": [
     "cargo test --offline --locked -j2 -p zil-driver --features llvm-api --test generic_regressions g339_once_adapter_nearest_raw_wire_and_lending_rejections -- --nocapture --test-threads=1",
