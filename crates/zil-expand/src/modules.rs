@@ -271,7 +271,18 @@ pub(super) fn specialize_with_context(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits, products, context).map_err(|e| vec![e])
+    specialize_with_runtime(sources, modules, imports, limits, products, context, None)
+}
+pub(super) fn specialize_with_runtime(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(sources, modules, imports, limits, products, context, runtime_ct).map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
@@ -280,8 +291,10 @@ fn normalize(
     limits: &Limits,
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
+    if runtime_ct.is_some() { budget.note_source_identity(); }
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
         return Err(error(
             "E-MODULE-ID",
@@ -458,7 +471,7 @@ fn normalize(
         limits.clone()
     };
     products.origins = origins;
-    let specialized = match generics::specialize_products(&combined, &instance_limits, products)
+    let specialized = match generics::specialize_products_with_runtime(&combined, &instance_limits, products, None, runtime_ct)
         .map_err(|mut e| e.remove(0))?
     {
         // A borrowed result is the unchanged combined input. Keep that owned
