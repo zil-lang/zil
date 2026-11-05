@@ -295,6 +295,9 @@ fn relation_inner(
                             "signature Array child class differs from actual Element path",
                         ));
                     }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Array child class must be Fixed"));
+                    }
                     self.class += 1;
                     self.binder(
                         row.binder,
@@ -522,6 +525,31 @@ mod tests {
             classes: vec![],
         };
         assert!(relation(&[], &Type::I32, &impossible).is_err());
+    }
+    #[test]
+    fn captured_array_child_class_cannot_be_invocation_local() {
+        let child = Type::Array {
+            element: Box::new(tag()),
+            length: 2,
+        };
+        let mut contract = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: vec![],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Capture(0),
+                    path: vec![LifeTypeProjection::Element],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+        };
+        assert!(capture_relation(&[], &[child.clone()], &Type::Unit, &contract).is_err());
+        contract.fixed_binder_count = 1;
+        contract.invocation_binder_count = 0;
+        contract.classes[0].binder = StorageBinder::Fixed(0);
+        capture_relation(&[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {
