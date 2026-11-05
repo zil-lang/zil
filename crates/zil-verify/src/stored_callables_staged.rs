@@ -98,6 +98,11 @@ pub(super) fn parameter(
 ) -> Check<usize> {
     profile(module, d, b)?;
     b.spend(f.blocks.len().saturating_add(1))?;
+    if f.foreign.is_some() || f.environment.is_some() || f.call_kind != CallKind::Direct {
+        return Err(bad(
+            "staged callback requires an actual ordinary free helper",
+        ));
+    }
     let [block] = f.blocks.as_slice() else {
         return Err(bad("staged callback requires one acyclic actual block"));
     };
@@ -182,6 +187,7 @@ pub(super) fn parameter(
             }
         }
         let mut store = None;
+        let mut live = None;
         let mut takes = 0usize;
         b.spend(block.instructions.len())?;
         for (index, instruction) in block.instructions.iter().enumerate() {
@@ -200,6 +206,17 @@ pub(super) fn parameter(
                 InstructionKind::Load(target) if target == *local => {
                     return Err(bad("staged callback owner is also copied by Load"));
                 }
+                InstructionKind::StorageLive(target) if target == *local => {
+                    if live.replace(index).is_some() || index >= take_at {
+                        return Err(bad("staged callback local activation is repeated or late"));
+                    }
+                }
+                InstructionKind::StorageDead(target)
+                | InstructionKind::DropClosure { local: target }
+                    if target == *local && index < take_at =>
+                {
+                    return Err(bad("staged callback local is retired before its Take"));
+                }
                 _ => {}
             }
         }
@@ -216,7 +233,7 @@ pub(super) fn parameter(
         }
         let (store_at, source) =
             store.ok_or_else(|| bad("staged callback local has no unique Store"))?;
-        if store_at >= take_at {
+        if store_at >= take_at || live.is_some_and(|index| index >= store_at) {
             return Err(bad("staged callback Store does not precede its Take"));
         }
         current = source;
@@ -355,7 +372,7 @@ mod tests {
     fn g336_staged_verify_local_origin_and_hostile_neighbors() {
         let original = model();
         assert!(resolve(&original, &mut Budget::new(&Limits::default())).unwrap());
-        for case in 0..10 {
+        for case in 0..12 {
             let mut m = original.clone();
             let f = &mut m.functions[0];
             let instructions = &mut f.blocks[0].instructions;
@@ -399,6 +416,11 @@ mod tests {
                     f.callable_contract.as_mut().unwrap().roles[0].cleanup =
                         CallableCleanup::Borrowed
                 }
+                10 => instructions.insert(
+                    2,
+                    op(None, InstructionKind::DropClosure { local: LocalId(2) }),
+                ),
+                11 => instructions.insert(2, op(None, InstructionKind::StorageDead(LocalId(2)))),
                 _ => unreachable!(),
             }
             assert!(
