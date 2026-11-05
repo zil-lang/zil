@@ -129,6 +129,16 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for (case, text, expected) in [
         ("before", include_str!("loop-before.zil"), "45\n"),
+        (
+            "nonconsuming-managed",
+            include_str!("nonconsuming-managed.zil"),
+            "ABC52\n0\n",
+        ),
+        (
+            "five-role-composition",
+            include_str!("five-role-drop-lending.zil"),
+            "ABCCBA158\n0\n",
+        ),
         ("after", include_str!("loop-after.zil"), "45\n"),
         ("nested", include_str!("loop-transfer.zil"), "45\n"),
         (
@@ -345,4 +355,80 @@ fn g339_completion_exact_two_kernel_budgets() {
             );
         }
     }
+}
+
+#[test]
+fn g339_merged_five_real_roles_mixed_cfg_drop_and_single_role_lending() {
+    let text = include_str!("five-role-drop-lending.zil");
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    assert!(typed.functions.iter().any(|f| {
+        f.callable_contract
+            .as_ref()
+            .is_some_and(|c| c.roles.len() == 5)
+    }));
+    assert!(
+        typed
+            .closures
+            .iter()
+            .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty())
+    );
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    eprintln!(
+        "G339 merged five qualified roles: mixed Fn/FnMut/FnOnce cyclic CFG + user Drop + separate single-role lending actual Source/raw/Wire success"
+    );
+}
+
+#[test]
+fn g339_nonconsuming_managed_capture_actual_repeat_and_lending() {
+    let text = include_str!("nonconsuming-managed.zil");
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
+        assert!(typed.closures.iter().any(|d| {
+            d.kind == kind
+                && d.storage_life.is_some()
+                && d.captures
+                    .iter()
+                    .any(|t| matches!(t, zil_ir::Type::Managed(_)))
+        }));
+    }
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+    eprintln!(
+        "G339 nonconsuming Managed Fn/FnMut actual Source/raw/Wire repeat + separate single-role lending success"
+    );
 }

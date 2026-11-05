@@ -1,7 +1,9 @@
 //! Qualified callbacks with inline scalar environments. Metadata is checked
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
+mod foreign;
 mod staged;
+pub(super) use foreign::regions as foreign_regions;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(
@@ -102,7 +104,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
             admitted &= if d.storage_life.is_some() {
-                capture(t) || (d.kind == CallableKind::FnOnce && owned_capture(t, b)?)
+                capture(t) || owned_capture(t, b)?
             } else {
                 scalar(t)
             };

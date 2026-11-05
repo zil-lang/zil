@@ -195,7 +195,7 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
     let mut candidates = vec![false; module.closures.len()];
     for (index, d) in module.closures.iter().enumerate() {
         fee(b, d.captures.len().saturating_add(1))?;
-        if d.kind == CallableKind::FnOnce && d.storage_life.is_some() {
+        if d.storage_life.is_some() {
             for capture in &d.captures {
                 candidates[index] |= super::super::stored_callables::owned_capture(capture, b)?;
             }

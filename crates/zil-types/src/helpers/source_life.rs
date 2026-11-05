@@ -582,7 +582,12 @@ pub(crate) fn form(
             "source helper actual environment differs from its declared Fn signature",
         ));
     }
-    if definition.kind == CallableKind::FnOnce && bound.kind == CallableKind::FnOnce {
+    if definition.kind == CallableKind::FnOnce && bound.kind == CallableKind::FnOnce
+        || definition
+            .captures
+            .iter()
+            .any(|ty| matches!(ty, Type::Managed(_)))
+    {
         // The new owner classifier visits captures twice and scalar Record
         // fields twice, independently of the already-paid definition clone.
         pay(

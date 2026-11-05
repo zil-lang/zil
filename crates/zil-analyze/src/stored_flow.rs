@@ -1410,6 +1410,18 @@ fn transfer(
                 Some(i.span),
             )]);
         }
+        InstructionKind::ForeignCall { function, .. } => {
+            let declaration = module
+                .functions
+                .get(function.0 as usize)
+                .ok_or_else(|| failure("scalar foreign target is absent"))?;
+            if !super::stored_callables::scalar_foreign(declaration, b)? {
+                return Err(failure(
+                    "foreign call has pointer or owning payload permissions",
+                ));
+            }
+        }
+        InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
         InstructionKind::Call {
             function,
             arguments,
@@ -1438,7 +1450,7 @@ fn transfer(
                     out.slots.insert(path.clone(), permission);
                 }
             }
-            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
+            if callee.foreign.is_some()
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
@@ -2572,6 +2584,7 @@ fn actual_instructions(
     graph: &(Vec<Vec<usize>>, Vec<bool>),
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let mut scalar_ffi = false;
     let (preds, reachable) = graph;
     fee(b, f.values.len())?;
     let mut definitions = vec![false; f.values.len()];
@@ -2601,6 +2614,9 @@ fn actual_instructions(
                         | InstructionKind::MakeAggregate { .. }
                         | InstructionKind::ExtractField { .. }
                         | InstructionKind::Call { .. }
+                        | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::UnsafeEnter { .. }
+                        | InstructionKind::UnsafeExit { .. }
                         | InstructionKind::Unary { .. }
                         | InstructionKind::Binary { .. }
                         | InstructionKind::ConvertInteger { .. }
@@ -2650,6 +2666,53 @@ fn actual_instructions(
                 super::stored_callables::types(module, f, i, b)?;
             }
             match &i.kind {
+                InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {
+                    scalar_ffi = true;
+                    if i.result.is_some() {
+                        return Err(failure("unsafe region marker cannot produce an SSA result"));
+                    }
+                }
+                InstructionKind::ForeignCall {
+                    function,
+                    arguments,
+                    ..
+                } => {
+                    scalar_ffi = true;
+                    let callee = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| failure("scalar foreign target absent"))?;
+                    if !super::stored_callables::scalar_foreign(callee, b)?
+                        || arguments.len() != callee.parameters.len()
+                    {
+                        return Err(failure("foreign call is outside actual scalar ABI"));
+                    }
+                    fee(b, arguments.len())?;
+                    for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
+                        let expected = &callee
+                            .locals
+                            .get(parameter.0 as usize)
+                            .ok_or_else(|| failure("foreign actual parameter absent"))?
+                            .ty;
+                        b.type_work(
+                            expected,
+                            false,
+                            "foreign scalar actual parameter comparison",
+                        )?;
+                        if value_type(f, *argument)? != expected {
+                            return Err(failure(
+                                "foreign scalar argument differs from its declaration",
+                            ));
+                        }
+                    }
+                    if callee.return_type == Type::Unit {
+                        if i.result.is_some() {
+                            return Err(failure("Unit foreign call fabricates a value"));
+                        }
+                    } else {
+                        result(&callee.return_type, b)?;
+                    }
+                }
                 InstructionKind::BorrowCapture {
                     index,
                     mutable: false,
@@ -2923,6 +2986,9 @@ fn actual_instructions(
         2,
         "stored actual SSA availability",
     )?;
+    if scalar_ffi {
+        super::stored_callables::foreign_regions(f, preds, reachable, b)?;
+    }
     let mut inputs = vec![vec![true; f.values.len()]; f.blocks.len()];
     let mut outputs = inputs.clone();
     fee(b, f.values.len())?;
