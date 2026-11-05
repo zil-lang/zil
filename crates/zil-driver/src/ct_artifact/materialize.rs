@@ -969,8 +969,16 @@ impl Materializer<'_, '_> {
             .collect::<Vec<_>>();
         let mut limits = self.environment.remaining_limits_for_input();
         let before = limits.clone();
-        let result =
-            compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits);
+        let catalog = (!self.environment.generated_catalog.trees.is_empty())
+            .then_some(&self.environment.generated_catalog);
+        let result = compiler::uses_ct_domain_with_catalog(
+            &modules,
+            module,
+            expression,
+            &parameters,
+            &mut limits,
+            catalog,
+        );
         self.environment.budget.reserve_analysis_work(
             before
                 .max_analysis_steps
@@ -1577,7 +1585,6 @@ impl Materializer<'_, '_> {
                 // Preserve supported original deletion events; unknown or
                 // generated member changes keep the old unavailable state.
                 let recorded = if self.declaration_lineage_preserved
-                    && !generated
                     && let Some(host) = inherited
                 {
                     self.record_member_retention(module, host, original_count, &retained)?
