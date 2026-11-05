@@ -103,3 +103,35 @@ fn g447_runtime_ct_nested_after_ct_source_project_native() {
 fn g447_runtime_ct_inferred_type_source_project_native() {
     runtime_source_project_native(include_str!("../ct6-runtime-inferred-type.zil"), b"8\n");
 }
+
+#[test]
+fn g447_runtime_ct_generated_free_source_project_native() {
+    runtime_source_project_native(include_str!("../ct6-runtime-generated-free.zil"), b"8\n");
+}
+
+#[test]
+fn g447_runtime_ct_generic_host_retains_existing_ordinary_boundary() {
+    for text in [
+        include_str!("../ct6-runtime-generic-host-existing-boundary.zil"),
+        include_str!("../ct6-runtime-generic-host-no-ct-control.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message
+                    == "generic resource or methods require capability resolution"),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
