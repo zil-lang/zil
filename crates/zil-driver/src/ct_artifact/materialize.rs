@@ -264,7 +264,7 @@ fn take_statement(statement: &mut s::Stmt) -> s::Stmt {
         statement,
         s::Stmt {
             span,
-            kind: s::StmtKind::Expr(s::Expr {
+            kind: s::StmtKind::Expression(s::Expr {
                 span,
                 kind: s::ExprKind::Literal(s::Literal::Bool(false)),
             }),
@@ -2364,7 +2364,7 @@ pub(crate) fn materialize(
                 .collect::<Vec<_>>();
             let mut moved = Vec::with_capacity(retained.len());
             for entry in retained {
-                let mut row = match entry {
+                let row = match entry {
                     generated_lineage::OutputOrigin::Generated(row) => *row,
                     generated_lineage::OutputOrigin::Original(ordinal) => {
                         let mut row = original_rows
