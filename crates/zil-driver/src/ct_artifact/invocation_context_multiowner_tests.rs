@@ -77,10 +77,11 @@ fn real_host_member_source_rejects_same_ordinal_different_owner_substitution() {
             .as_mut()
             .unwrap()
     };
+    let root = graph.root;
     graph
         .ambient_classes
         .iter_mut()
-        .find(|row| row.owner == graph.root && row.class == 1)
+        .find(|row| row.owner == root && row.class == 1)
         .unwrap()
         .source = source;
     assert!(
