@@ -743,6 +743,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
         b.type_work(ty, true, "stored signature type clone and relation")?;
+        if matches!(ty, Type::Array { .. }) && !ty.is_copy_value() {
+            b.type_work(ty, false, "pure Array signature relation walk")?;
+        }
         if f.callable_contract.is_some()
             && let Type::Managed(payload) = ty
             && let Type::Record { fields, .. } = payload.as_ref()
@@ -752,6 +755,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         parameters.push(ty.clone());
     }
     b.type_work(&f.return_type, true, "stored signature result relation")?;
+    if matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value() {
+        b.type_work(&f.return_type, false, "pure Array result relation walk")?;
+    }
     if let Some(id) = f.environment {
         let d = module
             .closures

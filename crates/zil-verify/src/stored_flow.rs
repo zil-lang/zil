@@ -874,6 +874,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         let ty = &f.locals[p.0 as usize].ty;
         type_work(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
+        if matches!(ty, Type::Array { .. }) && !ty.is_copy_value() {
+            type_work(ty, &b.limits.clone(), b)?;
+        }
         if f.callable_contract.is_some()
             && let Type::Managed(payload) = ty
             && let Type::Record { fields, .. } = payload.as_ref()
@@ -885,6 +888,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
+    if matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value() {
+        type_work(&f.return_type, &b.limits.clone(), b)?;
+    }
     if let Some(id) = f.environment {
         let d = module
             .closures
