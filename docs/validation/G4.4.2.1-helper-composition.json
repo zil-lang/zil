@@ -1,0 +1,9 @@
+{
+  "source": "969d340197488b48c63ede5a8940bc9500fe5d25",
+  "reviewed_helper_source": "8485125df87b6ff0429dc2839c3098a053c72e48",
+  "independent_manifest_sha256": "7730df2e200c3cced5dd5ab6499d29820f8c165f57a0cd7a58cf822b35b2224b",
+  "all_reviewed_files_byte_equal": true,
+  "files_checked": 44,
+  "review": "docs/validation/G3.3.4-review.json",
+  "other_scopes": "G4.4.2 CT instance vectors and G1.3.4 complete local Package replacement separately reviewed; new async work remains a separate branch."
+}

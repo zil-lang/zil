@@ -478,3 +478,19 @@ Rust cost advantage follows. Compilation work is charged to each current
 request and checked at exact boundaries. Runtime/RSS and same-semantics Rust
 comparison, general helper/lending and broader ownership combinations remain
 unmeasured or incomplete as recorded in the goal board.
+
+
+G4.4.2.1 composition advances three actual consumers: complete explicit CT
+Type/Const/Life factory arguments keep their original scope and distinct full
+instance identities; complete local Package replacement retires the old leaf
+and transfers the real RHS origin; shared Fn helpers preserve captured Fixed
+relationships through Source formation and independent kernel checks. Review
+found and closed reused CT dependency-depth accounting and non-singleton
+Package strong-update defects. Native controls consume complete results and
+cleanup order, including helper argument evaluation order, with existing
+representations and no new implicit allocation, RC or lock. Current-request
+work boundaries and previous profile controls remain explicit. These are
+expressibility and correctness gains; same-semantics Rust time/RSS/compile
+cost and framework-maintenance comparisons remain unmeasured, so no product
+cost advantage or complete-language acceptance is inferred. Broader scopes
+remain in the goal board and the bound slice reviews.
