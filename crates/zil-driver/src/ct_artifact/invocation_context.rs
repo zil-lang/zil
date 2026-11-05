@@ -3,6 +3,8 @@
 use super::{compiler::Entry, source_index::SourceIndex};
 #[path = "invocation_context_calls.rs"]
 mod calls;
+#[path = "invocation_context_generated.rs"]
+mod generated;
 #[path = "invocation_context_relocations.rs"]
 mod relocations;
 #[path = "invocation_context_source_types.rs"]
@@ -153,21 +155,49 @@ impl FrozenInvocationContext {
             .iter()
             .find(|module| module.module.id == definition.module)
             .ok_or_else(|| unsupported("CT invocation has no actual original module"))?;
-        if definition.generation_path.is_some() || !index.contains(definition) {
-            return Err(unsupported(
-                "generated CT invocation lacks authentic scope lineage",
-            ));
-        }
         let max_depth = budget.remaining().max_call_depth as usize;
-        let Some(original) = super::compiler::source_scope::original_function(
-            &module.module,
-            definition.declaration,
-            max_depth,
-            |work| budget.reserve_analysis_work(work as u64),
-        )?
-        else {
-            return Ok(None);
-        };
+        let (scope_module, original, source_tree, generated_row) =
+            if definition.generation_path.is_some() {
+                let catalog = catalog.ok_or_else(|| {
+                    unsupported("generated CT invocation lacks an authentic frozen source catalog")
+                })?;
+                let (row, original) = super::compiler::source_scope::generated_original_function(
+                    catalog,
+                    definition,
+                    max_depth,
+                    |work| budget.reserve_analysis_work(work as u64),
+                )?
+                .ok_or_else(|| {
+                    unsupported("generated CT invocation lacks its actual frozen function")
+                })?;
+                (
+                    &*catalog.trees[row].module,
+                    original,
+                    super::compiler::source_sites::SourceTreeId::Generated(row as u32),
+                    Some(row),
+                )
+            } else {
+                if !index.contains(definition) {
+                    return Err(unsupported(
+                        "CT invocation lacks its actual original declaration",
+                    ));
+                }
+                let Some(original) = super::compiler::source_scope::original_function(
+                    &module.module,
+                    definition.declaration,
+                    max_depth,
+                    |work| budget.reserve_analysis_work(work as u64),
+                )?
+                else {
+                    return Ok(None);
+                };
+                (
+                    &module.module,
+                    original,
+                    super::compiler::source_sites::SourceTreeId::Original,
+                    None,
+                )
+            };
         if original.generic_host {
             return Err(unsupported(
                 "CT member scope requires its actual enclosing generic context",
@@ -185,16 +215,24 @@ impl FrozenInvocationContext {
         let origins = origins
             .ok_or_else(|| unsupported("CT ambient scope requires original declaration lineage"))?;
         budget.reserve_analysis_work(origins.len() as u64)?;
-        let origin = origins
-            .iter()
-            .find(|row| row.module == definition.module)
-            .and_then(|row| row.items.get(original.top))
-            .ok_or_else(|| unsupported("CT ambient owner is absent from original lineage"))?;
-        if origin.declaration.0 as usize != original.top {
-            return Err(unsupported(
-                "CT ambient original declaration ordinal differs",
-            ));
-        }
+        let generated_identity;
+        let identity = if let Some(row) = generated_row {
+            generated_identity =
+                generated::root_identity(catalog.unwrap(), row, original.top, origins, budget)?;
+            &generated_identity
+        } else {
+            let origin = origins
+                .iter()
+                .find(|row| row.module == definition.module)
+                .and_then(|row| row.items.get(original.top))
+                .ok_or_else(|| unsupported("CT ambient owner is absent from original lineage"))?;
+            if origin.declaration.0 as usize != original.top {
+                return Err(unsupported(
+                    "CT ambient original declaration ordinal differs",
+                ));
+            }
+            &origin.identity
+        };
         let catalog_bytes = if let Some(catalog) = catalog {
             budget.reserve_analysis_work(catalog.trees.len() as u64)?;
             catalog.trees.len() as u64
@@ -205,7 +243,7 @@ impl FrozenInvocationContext {
         let bytes = catalog_bytes
             + (std::mem::size_of::<Self>() + 2 * std::mem::size_of::<usize>()) as u64
             + (parsed.len() as u64) * std::mem::size_of::<Arc<ParseResult>>() as u64
-            + identity_cost(&origin.identity, budget)?
+            + identity_cost(identity, budget)?
             + std::mem::size_of::<ActiveScope>() as u64
             + (function.generics.len() as u64) * std::mem::size_of::<CtScopeParameterKind>() as u64;
         budget.reserve_temporary_bytes(bytes)?;
@@ -238,8 +276,9 @@ impl FrozenInvocationContext {
         }
         let entry_site = match entry {
             Entry::Expression { expression, .. } => Some(
-                super::compiler::source_sites::select(
-                    &module.module,
+                super::compiler::source_sites::select_in_tree(
+                    scope_module,
+                    source_tree,
                     match source_site {
                         Some(site) => super::compiler::source_sites::Selection::Site(site),
                         None => super::compiler::source_sites::Selection::Expr(
@@ -249,6 +288,7 @@ impl FrozenInvocationContext {
                     max_depth,
                     |work| budget.reserve_analysis_work(work as u64),
                 )?
+                .filter(|node| node.function.is_some_and(|f| std::ptr::eq(f, function)))
                 .ok_or_else(|| {
                     unsupported(
                         "CT invocation expression is not the actual frozen original source root",
@@ -266,7 +306,7 @@ impl FrozenInvocationContext {
                     binder_site: Vec::new(),
                     instance: CtScopeInstance::Definition,
                 },
-                identity: origin.identity.clone(),
+                identity: identity.clone(),
                 parameters,
             }],
             bytes,
@@ -302,9 +342,7 @@ impl FrozenInvocationContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<Vec<u8>> {
         if symbol.generation_path.is_some() {
-            return Err(unsupported(
-                "generated CT semantic symbol lacks authentic lineage",
-            ));
+            return self.generated_symbol_key(symbol, budget);
         }
         budget.reserve_analysis_work(self.modules.len() as u64)?;
         let module = self

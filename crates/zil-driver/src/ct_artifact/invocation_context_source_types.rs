@@ -120,24 +120,49 @@ impl FrozenInvocationContext {
         site: SourceSite,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<LocatedNode<'a>> {
-        if site.tree != SourceTreeId::Original {
-            return Err(unsupported(
-                "CT generated source site requires an authenticated frozen catalog",
-            ));
-        }
-        budget.reserve_analysis_work(self.modules.len() as u64)?;
-        let module = self
-            .modules
-            .iter()
-            .find(|p| p.module.id == site.module)
-            .ok_or_else(|| unsupported("CT source event has no original module"))?;
-        source_sites::select(
-            &module.module,
+        let module = self.source_site_module(site, budget)?;
+        source_sites::select_in_tree(
+            module,
+            site.tree,
             Selection::Site(site),
             budget.remaining().max_call_depth as usize,
             |n| budget.reserve_analysis_work(n as u64),
         )?
-        .ok_or_else(|| unsupported("CT source event has no original structural site"))
+        .ok_or_else(|| unsupported("CT source event has no actual frozen structural site"))
+    }
+    fn source_site_module(
+        &self,
+        site: SourceSite,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<&s::Module> {
+        match site.tree {
+            SourceTreeId::Original => {
+                budget.reserve_analysis_work(self.modules.len() as u64)?;
+                self.modules
+                    .iter()
+                    .find(|m| m.module.id == site.module)
+                    .map(|m| &m.module)
+                    .ok_or_else(|| unsupported("CT original source module absent"))
+            }
+            SourceTreeId::Generated(row) => {
+                budget.reserve_analysis_work(1)?;
+                let tree = self
+                    .generated_catalog
+                    .as_ref()
+                    .and_then(|c| c.get(row))
+                    .ok_or_else(|| {
+                        unsupported(
+                            "CT generated source site has no authenticated frozen catalog row",
+                        )
+                    })?;
+                if tree.identity.module() != site.module || tree.module.id != site.module {
+                    return Err(unsupported(
+                        "CT generated source site differs from its actual module",
+                    ));
+                }
+                Ok(&tree.module)
+            }
+        }
     }
     fn validate_entry_slice(
         &self,
@@ -159,14 +184,9 @@ impl FrozenInvocationContext {
         }
         let root = self.source_location(root_site, budget)?;
         let candidate = self.source_location(site, budget)?;
-        budget.reserve_analysis_work(self.modules.len() as u64)?;
-        let module = self
-            .modules
-            .iter()
-            .find(|m| m.module.id == site.module)
-            .ok_or_else(|| unsupported("CT actual invocation source module absent"))?;
+        let module = self.source_site_module(root_site, budget)?;
         if !source_sites::contains_node(
-            &module.module,
+            module,
             root.node,
             candidate.node,
             budget.remaining().max_call_depth as usize,
@@ -191,22 +211,25 @@ impl FrozenInvocationContext {
                 .get(parent_id.0 as usize)
                 .ok_or_else(|| unsupported("CT source enclosing host scope is absent"))?;
             self.validate_scope(parent, budget)?;
-            budget.reserve_analysis_work(self.modules.len() as u64 + 64)?;
-            let module = self
-                .modules
-                .iter()
-                .find(|m| m.module.id == scope.declaration.module)
-                .ok_or_else(|| unsupported("CT source enclosing host module absent"))?;
-            let original = super::super::compiler::source_scope::original_function(
-                &module.module,
-                scope.declaration.declaration,
-                budget.remaining().max_call_depth as usize,
-                |n| budget.reserve_analysis_work(n as u64),
-            )?
-            .ok_or_else(|| unsupported("CT source member declaration absent"))?;
+            budget.reserve_analysis_work(64)?;
+            let (module, original, tree) =
+                self.source_function_source(&scope.declaration, budget)?;
+            let local_parent = original
+                .lexical_parent
+                .ok_or_else(|| unsupported("CT source member has no actual lexical host"))?;
+            let expected_parent = if let Some(tree) = tree {
+                *tree
+                    .declarations
+                    .get(local_parent.0 as usize)
+                    .ok_or_else(|| {
+                        unsupported("CT generated lexical host output placement absent")
+                    })?
+            } else {
+                local_parent
+            };
             if parent.declaration.module != scope.declaration.module
                 || parent.declaration.generation_path != scope.declaration.generation_path
-                || Some(parent.declaration.declaration) != original.lexical_parent
+                || parent.declaration.declaration != expected_parent
                 || parent.enclosing.is_some()
             {
                 return Err(unsupported(
@@ -214,8 +237,8 @@ impl FrozenInvocationContext {
                 ));
             }
             let original_parent = super::super::compiler::source_scope::original_declaration(
-                &module.module,
-                parent.declaration.declaration,
+                module,
+                local_parent,
                 budget.remaining().max_call_depth as usize,
                 |n| budget.reserve_analysis_work(n as u64),
             )?
@@ -241,20 +264,53 @@ impl FrozenInvocationContext {
         scope: &CtAmbientLifeScope,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<&'a s::Function> {
-        budget.reserve_analysis_work(self.modules.len() as u64)?;
-        let module = self
-            .modules
-            .iter()
-            .find(|p| p.module.id == scope.declaration.module)
-            .ok_or_else(|| unsupported("CT source owner module absent"))?;
-        super::super::compiler::source_scope::original_function(
-            &module.module,
-            scope.declaration.declaration,
-            budget.remaining().max_call_depth as usize,
-            |n| budget.reserve_analysis_work(n as u64),
-        )?
-        .map(|o| o.function)
-        .ok_or_else(|| unsupported("CT source owner is not an original function"))
+        Ok(self
+            .source_function_source(&scope.declaration, budget)?
+            .1
+            .function)
+    }
+    pub(super) fn source_function_source<'a>(
+        &'a self,
+        symbol: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<(
+        &'a s::Module,
+        super::super::compiler::source_scope::OriginalFunction<'a>,
+        Option<&'a zil_expand::source_context::GeneratedSourceTree>,
+    )> {
+        if symbol.generation_path.is_some() {
+            let catalog = self
+                .generated_catalog
+                .as_ref()
+                .ok_or_else(|| unsupported("CT generated function has no frozen source catalog"))?;
+            let (row, original) =
+                super::super::compiler::source_scope::generated_original_function(
+                    catalog,
+                    symbol,
+                    budget.remaining().max_call_depth as usize,
+                    |n| budget.reserve_analysis_work(n as u64),
+                )?
+                .ok_or_else(|| {
+                    unsupported("CT generated function has no actual original declaration")
+                })?;
+            let tree = &*catalog.trees[row];
+            Ok((&tree.module, original, Some(tree)))
+        } else {
+            budget.reserve_analysis_work(self.modules.len() as u64)?;
+            let module = self
+                .modules
+                .iter()
+                .find(|m| m.module.id == symbol.module)
+                .ok_or_else(|| unsupported("CT source owner module absent"))?;
+            let original = super::super::compiler::source_scope::original_function(
+                &module.module,
+                symbol.declaration,
+                budget.remaining().max_call_depth as usize,
+                |n| budget.reserve_analysis_work(n as u64),
+            )?
+            .ok_or_else(|| unsupported("CT source owner is not an original function"))?;
+            Ok((&module.module, original, None))
+        }
     }
     fn source_symbol<'a>(
         &'a self,
@@ -286,31 +342,44 @@ impl FrozenInvocationContext {
         let name = path
             .first()
             .ok_or_else(|| unsupported("CT source path empty"))?;
+        budget.reserve_analysis_work(
+            self.generated_catalog.as_ref().map_or(0, |c| c.trees.len()) as u64,
+        )?;
         let mut selected = None;
-        for (i, item) in module.module.items.iter().enumerate() {
-            let original_name = match &item.kind {
-                s::ItemKind::Aggregate(a) => Some(&a.name),
-                s::ItemKind::Enum(e) => Some(&e.name),
-                s::ItemKind::Function(f) => Some(&f.name),
-                s::ItemKind::TypeAlias(a) => Some(&a.name),
-                _ => None,
-            };
-            budget.reserve_analysis_work(1)?;
-            if let Some(original_name) = original_name {
-                if eq_text(name, original_name, budget)? {
-                    if selected.replace((i, item)).is_some() {
-                        return Err(unsupported("CT source declaration path is ambiguous"));
+        let mut scan = |syntax: &'a s::Module,
+                        tree: Option<&'a zil_expand::source_context::GeneratedSourceTree>|
+         -> CompileResult<()> {
+            for (ordinal, item) in syntax.items.iter().enumerate() {
+                budget.reserve_analysis_work(1)?;
+                let original_name = match &item.kind {
+                    s::ItemKind::Aggregate(a) => Some(&a.name),
+                    s::ItemKind::Enum(e) => Some(&e.name),
+                    s::ItemKind::Function(f) => Some(&f.name),
+                    s::ItemKind::TypeAlias(a) => Some(&a.name),
+                    _ => None,
+                };
+                if let Some(original_name) = original_name {
+                    if eq_text(name, original_name, budget)? {
+                        if selected.replace((ordinal, item, syntax, tree)).is_some() {
+                            return Err(unsupported("CT source declaration path is ambiguous"));
+                        }
                     }
                 }
             }
-        }
-        let (ordinal, mut item) =
-            selected.ok_or_else(|| unsupported("CT source path has no original declaration"))?;
-        let mut symbol = CtSymbolId {
-            module: module_id,
-            declaration: zil_base::NodeId(ordinal as u32),
-            generation_path: None,
+            Ok(())
         };
+        scan(&module.module, None)?;
+        if let Some(catalog) = &self.generated_catalog {
+            for tree in &catalog.trees {
+                if tree.identity.module() == module_id {
+                    scan(&tree.module, Some(tree))?;
+                }
+            }
+        }
+        drop(scan);
+        let (ordinal, mut item, syntax, tree) = selected
+            .ok_or_else(|| unsupported("CT source path has no actual original declaration"))?;
+        let mut local = zil_base::NodeId(ordinal as u32);
         if path.len() == 2 {
             let s::ItemKind::Aggregate(host) = &item.kind else {
                 return Err(unsupported("CT source member has no original host"));
@@ -328,18 +397,40 @@ impl FrozenInvocationContext {
             }
             item = member.ok_or_else(|| unsupported("CT source path has no original member"))?;
             let original = super::super::compiler::source_scope::original_item(
-                &module.module,
+                syntax,
                 item,
                 budget.remaining().max_call_depth as usize,
                 |n| budget.reserve_analysis_work(n as u64),
             )?
             .ok_or_else(|| unsupported("CT source member original ordinal absent"))?;
-            symbol.declaration = original.declaration;
+            local = original.declaration;
         } else if path.len() != 1 {
             return Err(unsupported(
                 "CT source path requires a resolved original declaration",
             ));
         }
+        let symbol = if let Some(tree) = tree {
+            let work = match &tree.identity {
+                zil_expand::source_context::SourceTreeIdentity::Generated {
+                    event_path, ..
+                } => event_path.len() as u64 * 4 + 32,
+                _ => 0,
+            };
+            budget.reserve_analysis_work(work + 1)?;
+            CtSymbolId {
+                module: module_id,
+                declaration: *tree.declarations.get(local.0 as usize).ok_or_else(|| {
+                    unsupported("CT generated source declaration output placement absent")
+                })?,
+                generation_path: tree.generation_fingerprint(),
+            }
+        } else {
+            CtSymbolId {
+                module: module_id,
+                declaration: local,
+                generation_path: None,
+            }
+        };
         budget.reserve_analysis_work(index.symbol_lookup_work())?;
         if !index.visible(requester, &symbol) {
             return Err(unsupported(
