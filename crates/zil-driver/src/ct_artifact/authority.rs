@@ -39,6 +39,11 @@ pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
 }
 
 impl CtArtifactAuthority for FrozenAuthority<'_> {
+    fn active_scope_count(&self) -> Option<usize> {
+        self.invocation_context
+            .map(|context| context.active_scope_count())
+    }
+
     fn scope_parameter_count(
         &self,
         scope: &zil_ir::ct_artifact::CtAmbientLifeScope,

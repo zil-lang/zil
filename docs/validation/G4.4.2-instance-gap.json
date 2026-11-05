@@ -1,0 +1,126 @@
+{
+  "task": "G4.4.2",
+  "kind": "source-gap-and-interface-proposal-only",
+  "baseline": "211273736e33f96279179bb1383292b4bd699d40",
+  "compiler": {
+    "path": "/workspace/.zil-env/target340/debug/zil",
+    "sha256": "7ace92088e6b3bb642790a8224ff2ff6473ad59b6499853fe2be56639fe7a35d",
+    "build": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target340 TMPDIR=/workspace/.zil-env/G4.4.2-tmp CARGO_BUILD_JOBS=2 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_DEV_INCREMENTAL=false CARGO_PROFILE_DEV_STRIP=symbols cargo build -p zil-cli --offline",
+    "source_binding": "All local crates/*/src/lib.rs mtimes advanced before rebuild; build log lists zil-base/ir/syntax/db/verify/expand/ct/backend/lower/analyze/types/driver/cli from /workspace/zil-G4.4.2. No text changes."
+  },
+  "command": "zil check <actual source> --json",
+  "cases": [
+    {
+      "case": "runtime_actual",
+      "source_sha256": "6687bf2e928e06e3b20ab5d1cb00a8478bc04f34a742bca321bc910dd00e7d71",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "code": "E-CT-SOURCE",
+          "message": "unknown CT type name"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "runtime_const_only",
+      "source_sha256": "63b208c46bff0c7e1c7273608fb4ca6c250b60548beb454a63091dd872f03dbe",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "code": "E-CT-SOURCE",
+          "message": "nominal scalar value binder is absent"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "runtime_closed",
+      "source_sha256": "8f3263455f53778c97c324d3a846a862d17d41b3dc201af60a4aac8f765b871b",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "life is supported only by ordinary direct functions and concrete inherent methods"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "runtime_life_only",
+      "source_sha256": "5a5a4e49376675ee900ac1cc2d5b86d7aa6bf54ae0a8954fb4db958887559ec4",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "case": "runtime_unused",
+      "source_sha256": "f24078de1bc25e406e7e31776170c8f09aa17126c84c0870daa1ba4c2e61ac0f",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "code": "E-CT-SOURCE",
+          "message": "unknown CT type name"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "ct_factory_nominal",
+      "source_sha256": "a3f68518ec463539c3f1fff02e43d0b404e26a2444e3db55cf272fdf9eaf825f",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "code": "E-CT-SOURCE",
+          "message": "CT generics require ordinary Copy type binders"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "ct_factory_scalar",
+      "source_sha256": "e8e1a9a36cce87d5395681e04ff2e6771016ca20113c422c503ea8c3b6d6e6a1",
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "diagnostics": [
+        {
+          "code": "E-CT-SOURCE",
+          "message": "CT generics require ordinary Copy type binders"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "case": "ct_factory_type_control",
+      "source_sha256": "5f5f96c10b0d718762e8540fc86f40b675ef1d743c37ca5cdbbf3da23b1ebd74",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ],
+  "derivations": {
+    "runtime_const_only": "runtime fixture: replace each full argument sequence s,T,N with s,i32,N",
+    "runtime_closed": "runtime fixture: replace each full argument sequence s,T,N with s,i32,7",
+    "runtime_life_only": "runtime_closed: remove T/Const function binders and marker parameter; caller result(&n)",
+    "runtime_unused": "runtime fixture: replace main body with return 0",
+    "ct_factory_scalar": "same full explicit call inside outer Phantom scoped constructor; make returns its i32 n parameter",
+    "ct_factory_type_control": "ct_factory_scalar: remove #N/life a callee binders and explicit 7/life s actuals only"
+  },
+  "limits": "No thresholds measured; no budgeting change. No native/raw/Wire full-instance claim.",
+  "conclusion": "Runtime-body CT misses T/Const before specialization, with separate mixed-life Expand fence; genuine CT factory invocation is the chosen narrower producer path, currently rejected by type-only generic binder checker."
+}

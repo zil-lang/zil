@@ -70,6 +70,7 @@ impl<'a> Compiler<'a> {
             definition: definition.clone(),
             span: item.span,
             binders,
+            instance: CtScopeInstance::Definition,
         }))
     }
     pub(super) fn source_scoped_nominal(
@@ -265,13 +266,27 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| error(span, "ambient nominal lost actual definition"))?
             .definition
             .clone();
+        let instance = &self.source_life_scope.as_ref().unwrap().instance;
+        if let CtScopeInstance::Instantiated(actuals) = instance {
+            Self::actual_cost(&mut self.budget, actuals, span)?;
+        }
         let scope = CtAmbientLifeScope {
             declaration: definition,
             binder_site: Vec::new(),
-            instance: CtScopeInstance::Definition,
+            instance: self.source_life_scope.as_ref().unwrap().instance.clone(),
         };
         self.budget
             .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;
+        if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+            for candidate in &self.ambient_life_scopes {
+                if candidate.declaration == scope.declaration
+                    && matches!(candidate.instance, CtScopeInstance::Instantiated(_))
+                {
+                    self.budget.scope_comparison(candidate, span)?;
+                    self.budget.scope_comparison(&scope, span)?;
+                }
+            }
+        }
         let scope_id = if let Some(index) = self
             .ambient_life_scopes
             .iter()

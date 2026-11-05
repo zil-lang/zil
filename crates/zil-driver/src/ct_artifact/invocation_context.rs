@@ -1,6 +1,8 @@
 //! Immutable source witnesses for one actual CT invocation. Raw table indices,
 //! source names and spans never select a lexical owner.
 use super::{compiler::Entry, source_index::SourceIndex};
+#[path = "invocation_context_calls.rs"]
+mod calls;
 use std::sync::Arc;
 use zil_base::{CompileResult, Diagnostic, Phase};
 use zil_ct::CtExecutionBudget;
@@ -202,6 +204,9 @@ impl FrozenInvocationContext {
             modules: parsed.to_vec(),
         })))
     }
+    pub(super) fn active_scope_count(&self) -> usize {
+        self.active.len()
+    }
     pub(super) fn has_scopes(&self) -> bool {
         !self.active.is_empty()
     }
@@ -312,6 +317,47 @@ impl FrozenInvocationContext {
         debug_assert!(out.capacity() <= size);
         Ok(out)
     }
+    fn charge_instance_lookup(
+        &self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        if !matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+            return Ok(());
+        }
+        let query =
+            super::execute::value_context::ambient_cost(std::slice::from_ref(scope), budget)?;
+        budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+        for row in &self.active {
+            if row.raw.declaration == scope.declaration
+                && matches!(row.raw.instance, CtScopeInstance::Instantiated(_))
+            {
+                let prior = super::execute::value_context::ambient_cost(
+                    std::slice::from_ref(&row.raw),
+                    budget,
+                )?;
+                budget.reserve_analysis_work(query.saturating_add(prior))?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn parameter_count_paid(
+        &self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<usize>> {
+        self.charge_instance_lookup(scope, budget)?;
+        Ok(self.parameter_count(scope))
+    }
+    pub(super) fn parameter_kind_paid(
+        &self,
+        scope: &CtAmbientLifeScope,
+        ordinal: usize,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<CtScopeParameterKind>> {
+        self.charge_instance_lookup(scope, budget)?;
+        Ok(self.parameter_kind(scope, ordinal))
+    }
     pub(super) fn validate_scope(
         &self,
         scope: &CtAmbientLifeScope,
@@ -322,6 +368,7 @@ impl FrozenInvocationContext {
                 .saturating_mul(32)
                 .saturating_add(scope.binder_site.len() as u64),
         )?;
+        self.charge_instance_lookup(scope, budget)?;
         if self.identity(scope).is_none() {
             return Err(unsupported(
                 "CT ambient scope is not this actual invocation",
@@ -339,7 +386,7 @@ impl FrozenInvocationContext {
             .get(reference.scope.0 as usize)
             .ok_or_else(|| unsupported("CT ambient scope reference has no retained inventory"))?;
         self.validate_scope(scope, budget)?;
-        if self.parameter_kind(scope, reference.parameter as usize)
+        if self.parameter_kind_paid(scope, reference.parameter as usize, budget)?
             != Some(CtScopeParameterKind::Lifetime)
         {
             return Err(unsupported(
@@ -347,6 +394,55 @@ impl FrozenInvocationContext {
             ));
         }
         Ok(())
+    }
+    pub(super) fn resolve_reference<'a>(
+        &self,
+        scopes: &'a [CtAmbientLifeScope],
+        mut reference: CtAmbientLifeReference,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<(&'a CtSymbolId, u32)> {
+        let mut visited = Vec::new();
+        let mut bytes = 0u64;
+        let result = (|| {
+            loop {
+                self.validate_reference(scopes, reference, budget)?;
+                budget.reserve_analysis_work(visited.len() as u64 + 1)?;
+                if visited.contains(&reference) {
+                    return Err(unsupported("CT actual life reference cycle"));
+                }
+                if visited.len() >= budget.remaining().max_call_depth as usize {
+                    return Err(vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "CT actual life reference depth exceeded",
+                        None,
+                    )]);
+                }
+                let scope = &scopes[reference.scope.0 as usize];
+                match &scope.instance {
+                    CtScopeInstance::Definition => {
+                        return Ok((&scope.declaration, reference.parameter));
+                    }
+                    CtScopeInstance::Instantiated(actuals) => {
+                        let Some(CtScopeActual::Lifetime(next)) =
+                            actuals.get(reference.parameter as usize)
+                        else {
+                            return Err(unsupported(
+                                "CT actual life reference selects another parameter kind",
+                            ));
+                        };
+                        budget.reserve_temporary_bytes(
+                            std::mem::size_of::<CtAmbientLifeReference>() as u64,
+                        )?;
+                        bytes += std::mem::size_of::<CtAmbientLifeReference>() as u64;
+                        visited.reserve_exact(1);
+                        visited.push(reference);
+                        reference = *next;
+                    }
+                }
+            }
+        })();
+        budget.release_temporary_bytes(bytes);
+        result
     }
     pub(super) fn parameter_count(&self, scope: &CtAmbientLifeScope) -> Option<usize> {
         self.active
