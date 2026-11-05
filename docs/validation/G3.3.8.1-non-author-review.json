@@ -1,0 +1,205 @@
+{
+  "schema_version": 1,
+  "task": "G3.3.8",
+  "reviewer": "/root/p0_cross_review",
+  "implementation_author": "/root/g337_probe",
+  "verdict": "Pass",
+  "scope": "Independent limited owning helper DAG provenance review with actual branch-before-call, diamond live merge and a path that drops without invocation; existing finite teardownNone/shared-Tag profile only.",
+  "implementation_commit": "9cb1837c77529cc7dae1e7e24754d5898bcd2017",
+  "author_fixture_checkpoint": "4a3aa025907b3d195fee7a754da2acc12c00a6f0",
+  "author_delivery_commit": "99504410956234b4d93b6cd220f28ea9dcb5f8a4",
+  "independent_module_commit": "6a27ef89f3ea1d7722fc72321a6bbb6df59f7a10",
+  "tested_combination": "217804e9002081d652619f6f4a248e33cad31ad9",
+  "baseline": "917971a13a1590ee912db73be7474d0cceef2b2c",
+  "source_binding": [
+    {
+      "path": "crates/zil-analyze/src/stored_callables/staged.rs",
+      "production_prefix_sha256": "e60bb471f81bfb6f516431b8407713c5aa4a65d3c389353d434613549ca23686",
+      "prefix_equal": true,
+      "whole_file_equal_to_author_fixture_checkpoint": true
+    },
+    {
+      "path": "crates/zil-analyze/src/stored_callables/staged/cfg.rs",
+      "production_prefix_sha256": "e2590f3a88af0059e53dc78c69119fef1167628af4257183b7199748f804d72a",
+      "prefix_equal": true,
+      "whole_file_equal_to_author_fixture_checkpoint": true
+    },
+    {
+      "path": "crates/zil-verify/src/stored_callables.rs",
+      "production_prefix_sha256": "a2419cdf581f5e6c0e6ffeabe966f8d689360229e169991f5befc366cc732de3",
+      "prefix_equal": true,
+      "whole_file_equal_to_author_fixture_checkpoint": true
+    },
+    {
+      "path": "crates/zil-verify/src/stored_callables_staged.rs",
+      "production_prefix_sha256": "fe78ca58fd5d775bb0e574bf0b206fe5c84fd823af9264e6a3251df35bb0bad6",
+      "prefix_equal": true,
+      "whole_file_equal_to_author_fixture_checkpoint": true
+    },
+    {
+      "path": "crates/zil-verify/src/stored_callables_staged_cfg.rs",
+      "production_prefix_sha256": "d19c64007fb40bf62fff8ccada1fc0a8f3a68a6c271202346d0e15ea59a03381",
+      "prefix_equal": true,
+      "whole_file_equal_to_author_fixture_checkpoint": true
+    }
+  ],
+  "static_findings": [
+    {
+      "id": "definite-storage-activation",
+      "original_checkpoint": "76db0140eff22c328d0184177fb253e066c9c4d2",
+      "finding": "The initial identity resolver tracked retirement but allowed Store/Take without proving activation. Public independent initialization checks remained mandatory; no safety bypass was claimed.",
+      "resolution": "9cb requires definite active2 for Store/Take, never1 for Live, joins path-state sets by OR and independently checks the destination ClosureId. Late/missing-Live raw/Wire controls reject."
+    }
+  ],
+  "algorithm_review": [
+    "Analyze builds paid Kahn topological flow with exact actual-parameter provenance; Verify independently uses iterative DFS/backedge detection, reverse postorder and actual predecessor merges. No recursive path enumeration.",
+    "Both inventory canonical unique block/SSA identities and all blocks, rejecting unreachable islands, cycles and unknown exposure/effects.",
+    "A live origin is usable only if every incoming path has the same actual parameter and definitely active storage. Conflicting, empty, retired or already settled states cannot become a receiver.",
+    "Drop settles ownership without fabricating a callback/give trace. A legal path can drop without invoking; independent resource/initialization/loan/trace checks remain mandatory.",
+    "Old single-block and accepted tail success paths retain original proof/fees; exhausted limits are not retried through the new DAG path. Frame/graph allocations, copies, joins and scans spend the same request budget before growth/work."
+  ],
+  "direct_replay": {
+    "source_commit": "217804e9002081d652619f6f4a248e33cad31ad9",
+    "command": [
+      "/workspace/.zil-env/target-G1.3.5.2/debug/deps/generic_regressions-0faf210ce0d2b16a",
+      "p0_g338_",
+      "--nocapture"
+    ],
+    "compiler_builds": 0,
+    "test_binary_sha256_before": "814eb04fd60b7a0a7da51e1e9003c2225a0880124afb927bd65a6e18be77d618",
+    "test_binary_sha256_after": "814eb04fd60b7a0a7da51e1e9003c2225a0880124afb927bd65a6e18be77d618",
+    "exit_code": 0,
+    "log_sha256": "d17f3a7cc31926f51afe792f30bbc6fad51b253192819dc1cf5fe4cb2532eb61",
+    "TMPDIR": "/workspace/.zil-env/G3.3.8.1-tmp",
+    "ZIL_TEST_REPORT_DIR": "/workspace/.zil-env/G3.3.8.1-review-run/replay"
+  },
+  "direct_replay_summary": "2 tests passed, 0 failed, 146 filtered; 0.44 seconds. Root compiled the fixed test binary; reviewer ran it directly, with zero Cargo/compiler rebuilds.",
+  "executed_matrix": {
+    "actual_source_to_verify": 3,
+    "honest_analyze_plans": 3,
+    "honest_raw_verify": 3,
+    "honest_wire_verify": 3,
+    "hostile_analyze": 6,
+    "hostile_raw_verify": 6,
+    "hostile_wire_verify": 6,
+    "native_runs": 6,
+    "native_backend": "LlvmApi",
+    "native_optimizations": [
+      "O0",
+      "O2"
+    ],
+    "expected_complete_stdout": {
+      "split": "101\n",
+      "diamond": "103\n",
+      "optional": "51\n"
+    },
+    "fallback": null,
+    "exit_code": 0,
+    "stderr": "empty"
+  },
+  "hostile_first_rejection": [
+    {
+      "case": "missing-live",
+      "raw_and_wire": "local operation occurs outside its active storage scope"
+    },
+    {
+      "case": "late-live",
+      "raw_and_wire": "load may read a local before initialization"
+    },
+    {
+      "case": "one-predecessor-drop",
+      "raw_and_wire": "candidate initialization set differs from independently checked CFG facts"
+    },
+    {
+      "case": "copied-load",
+      "raw_and_wire": "Managed positions require DescribeLocal or TakeLocal, never copying Load"
+    },
+    {
+      "case": "unreachable-island",
+      "raw_and_wire": "candidate plan must describe every block exactly once"
+    },
+    {
+      "case": "backedge",
+      "raw_and_wire": "CFG join has incompatible cleanup scopes or storage ownership"
+    }
+  ],
+  "level_boundary": "These public raw/Wire controls first reject in existing independent storage/initialization/type/plan/cleanup checks. They do not prove that each public rejection first reached the private new origin resolver. Private algorithm review is listed separately.",
+  "native_artifacts": [
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-diamond-O0",
+      "sha256": {
+        "executable": "162c2e95bdbb668db7d78337f1b78900441149b65e62d7ff034abd02bab37545",
+        "typed": "777b7a8f35960d0879643aea1583fe2d9fe26b0869a1bdecfcf4ef37517e0222",
+        "verified": "28ea2d5be9bf14287a41610957cd8647b614d1e5a2fca82a33018967494d171e",
+        "lir": "bad8e505dbf87f1ba2294c925a1cb7bb8b60e155616f2b1485a5b83aa30d3981",
+        "llvm": "873204c24a37b66a37cc73f79bf6717ba6b2a0be349012c3adec14743a2d32e6"
+      }
+    },
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-diamond-O2",
+      "sha256": {
+        "executable": "8a461f6c1bda1826ddb23123875f13350d3faf3b9a5afee3212ce80c27a7d363",
+        "typed": "777b7a8f35960d0879643aea1583fe2d9fe26b0869a1bdecfcf4ef37517e0222",
+        "verified": "28ea2d5be9bf14287a41610957cd8647b614d1e5a2fca82a33018967494d171e",
+        "lir": "bad8e505dbf87f1ba2294c925a1cb7bb8b60e155616f2b1485a5b83aa30d3981",
+        "llvm": "873204c24a37b66a37cc73f79bf6717ba6b2a0be349012c3adec14743a2d32e6"
+      }
+    },
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-optional-O0",
+      "sha256": {
+        "executable": "e0f62652a798e893477c8066096e93868a9d135a77262dfcadabca4f5fd72485",
+        "typed": "69b07210d824b7530a7a22d115820a61191151efd56c853e31755f607645db45",
+        "verified": "19c29611415a7b989f73952a8657e3ea8f173c1930a953bc8a52b5e7bf424bf9",
+        "lir": "3bae2cbcf52f359f629f46bbb76e037cfda6316952205539c53a19be581e29b1",
+        "llvm": "a2910f3339d31b5fef0da238d5217c2aee6ffb26f9124cdea00c690327281e20"
+      }
+    },
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-optional-O2",
+      "sha256": {
+        "executable": "f71de50a2494531507f22f1ba5ff15c6f77da59a7a0fafe31177cf56452d24cd",
+        "typed": "69b07210d824b7530a7a22d115820a61191151efd56c853e31755f607645db45",
+        "verified": "19c29611415a7b989f73952a8657e3ea8f173c1930a953bc8a52b5e7bf424bf9",
+        "lir": "3bae2cbcf52f359f629f46bbb76e037cfda6316952205539c53a19be581e29b1",
+        "llvm": "a2910f3339d31b5fef0da238d5217c2aee6ffb26f9124cdea00c690327281e20"
+      }
+    },
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-split-O0",
+      "sha256": {
+        "executable": "1ba761a49be69f578981b7810a14d1c209dadf6796184dd3791eb33aacf64c66",
+        "typed": "4472e45f988f5990210b8b1bd7183699f84ae5b0a6f1298b83a3eb468900f218",
+        "verified": "0e74a84b8bf06a243c688faba59a9b76c56c1719477d83aab46c669064e47444",
+        "lir": "3a018b21157ea66d5ca7f12250d622e13db7b6ea45bd87c32f435fa2da291a15",
+        "llvm": "0c16fda22c7ecd77f8ad50eb46c7d2b007c470532a6657cb6a4527482dc42436"
+      }
+    },
+    {
+      "path": "/workspace/.zil-env/G3.3.8.1-tmp/zil-p0-g338-3303684-split-O2",
+      "sha256": {
+        "executable": "a13b0c169022cfcdd739fe5e90aca0be0ccf77d34d61463cbe0c2cc5d74ba6fa",
+        "typed": "4472e45f988f5990210b8b1bd7183699f84ae5b0a6f1298b83a3eb468900f218",
+        "verified": "0e74a84b8bf06a243c688faba59a9b76c56c1719477d83aab46c669064e47444",
+        "lir": "3a018b21157ea66d5ca7f12250d622e13db7b6ea45bd87c32f435fa2da291a15",
+        "llvm": "0c16fda22c7ecd77f8ad50eb46c7d2b007c470532a6657cb6a4527482dc42436"
+      }
+    }
+  ],
+  "machine_observation": "Optional O0 actual LLVM retains inline %zil_env_0 = { { i32 }, ptr, i1 } and no malloc/free/realloc symbol. TeardownNone does not expose a user Drop counter; full stdout is not cleanup-count evidence.",
+  "input_sha256": {
+    "tests/language-readiness/terminal/342/fnonce-helper-p0-review338/branch-before-two-calls.zil": "4538abc0c6ac2aa105e27304ad274520775f5af9fc73b3b175b18c818f5408c1",
+    "tests/language-readiness/terminal/342/fnonce-helper-p0-review338/diamond-transfer-then-call.zil": "a2a01f375ce0dc9a6588f5797e5963b5c006edc1ccaaf5ccdd0dcc97457e23a4",
+    "tests/language-readiness/terminal/342/fnonce-helper-p0-review338/drop-without-call-one-path.zil": "5b67ea28e0ae26ae875c55e2db17f886c6cb53686cb0b5a5b487321b1831b467",
+    "tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs": "dc2a0efcce030cedd82bba6502cd4649f29efc6fa676333d4a148eb6a72acb4e"
+  },
+  "original_baseline_evidence": "docs/validation/G3.3.8.1-early-review.json",
+  "root_preflight": "/workspace/.zil-env/G1.3.8.3-preflight/attempt2/g338-independent.log",
+  "formal_acceptance": "Root-owned and separate; no full gate run by reviewer.",
+  "limitations": [
+    "One actual owned callable role with scalar result, genuine finite scalar-resource/shared-Tag capture and teardownNone only.",
+    "No cyclic, multiple-F, lending, give-F, user Drop or broader owned-capture admission.",
+    "G4.4.5 is deferred by root to a successor batch; only its early source/architectural contract review is recorded here, no implementation Pass.",
+    "No Rust runtime/RSS/compile/maintenance comparison or product-level net breakthrough established."
+  ]
+}

@@ -6,7 +6,7 @@
   "baseline": "917971a13a1590ee912db73be7474d0cceef2b2c",
   "goal_reference": "24576143daa7a692ba1fd6fff73160f270cb95a8",
   "implementation_checkpoints": {
-    "G3.3.8": null,
+    "G3.3.8": "9cb1837c77529cc7dae1e7e24754d5898bcd2017",
     "G4.4.5": null
   },
   "baseline_cli": {
@@ -197,5 +197,6 @@
     "Types-only success is not a kernel proof; every recorded new owning Source still first rejects at Analyze.",
     "Phantom cross-factory result remains a CT identity mismatch on the accepted baseline.",
     "No new profile approval, public schema, formal full gate or Rust product-cost claim."
-  ]
+  ],
+  "followup": "G3.3.8 limited Pass is recorded separately in G3.3.8.1-non-author-review.json; this file retains original baseline observations. G4.4.5 remains deferred/unaccepted."
 }
