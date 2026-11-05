@@ -1,10 +1,10 @@
 {
   "task": "G3.3.4",
   "kind": "author limited actual Source shared Fn helper slice",
-  "source_commit": "8485125df87b6ff0429dc2839c3098a053c72e48",
-  "tests_commit": "db3407d8b3f45562a0bf078869c2fe62e946cc4a",
-  "source_parent": "db3407d8b3f45562a0bf078869c2fe62e946cc4a",
-  "source_delta_from_parent": "Equivalent nested-if collapse required by strict Clippy; tests and all other production bytes unchanged.",
+  "source_commit": "449852818ee8d2199b63bd5e1c05da403728d9dc",
+  "tests_commit": "449852818ee8d2199b63bd5e1c05da403728d9dc",
+  "source_parent": "51a2ae115cf48a07a4c36500a59d3b6e64a83572",
+  "source_delta_from_parent": "Revision449 restricts actual selected callback/data to one class0 backed by exactly one SharedAddress slot0; independent raw Some Types guard mirrors the finite physical profile. No kernel/public change.",
   "accepted_main_parent": "e7247e781d49ab569de263d142f72546f53470d3",
   "public_core_api_commit": "0b581b0b732d1f16f8253ebf73a6578809d9cd4b",
   "precondition_commit": "a757202e725e94ce98604849669e795c917b2c5a",
@@ -17,9 +17,9 @@
     "crates/zil-driver/src/ct_program.rs": "3e9ad4ae0a94fbe0cca8c57f9bb31805fc7c5b2ef83b8941a2bd7517964de277",
     "crates/zil-expand/src/callable_context_lower.rs": "fb0c1e4a1d1b47ccd95390590c154df0647fb2689a9f3905cc856a5d37fab831",
     "crates/zil-expand/src/generic_callable.rs": "908f7fd3a5fe43015edcb75efc94c701f56f3f29ff5b6be40d599c496b41e56a",
-    "crates/zil-expand/src/generic_callable_context.rs": "9d8c0a73531d530e8467269e32654569a81529b40cfa89e674fb1f3471b6deb2",
+    "crates/zil-expand/src/generic_callable_context.rs": "a6deea1184db73c967fada644dff1b904b69e1739f9c0adcb31d8987dae9b58d",
     "crates/zil-expand/src/generic_products.rs": "7600007881e773bc08e026632c7a001b1dfabad0e0439a8029cd131a68d74c90",
-    "crates/zil-expand/src/generic_stored_nominal.rs": "95909b3da28d4640ad32e41af143b73c2c5d98d6802e93326de405968f8aa74a",
+    "crates/zil-expand/src/generic_stored_nominal.rs": "e16124b0f1012f6ca86057712c6f9db10f0415d72ba43ed50e8dfb24a8b8400b",
     "crates/zil-expand/src/generics.rs": "c08ee174ae902641a99ef1e994b184f018fb5d0f9c485c47526e15a548bf2bfa",
     "crates/zil-expand/src/lib.rs": "c9b49937f9dfa2dfb67be5bd44fcbf597d00e2e4e96d181cc8ba6a4e0da8d557",
     "crates/zil-expand/src/receivers.rs": "5a1c3b662318661f88129b32fae47c0a0ed13a499eaec869bf831b1c2b49a74e",
@@ -30,13 +30,13 @@
     "crates/zil-types/src/closures.rs": "8639b0f38e57102b17ee3e371675d5173c9251ea20f8848a5ef3749ba33c12ba",
     "crates/zil-types/src/helper_capture_tests.rs": "84c8a828d38ae9e3a5c2051035f170aa1ce46eb7682830f99c7bfda8dca89a66",
     "crates/zil-types/src/helpers.rs": "a8143ed787d709b88c1ae61c3fca076f05001b93a94430ffcc0cdd1c38866f20",
-    "crates/zil-types/src/helpers/source_life.rs": "eea31c236831d45c22489af8f5ccfb88f3f2fc7a4942bb529b61fbacd330f719",
+    "crates/zil-types/src/helpers/source_life.rs": "aa7f6cbd3481e0b31c752cbaab14cd05fadd10a19a9314103ccd7832af677fd2",
     "crates/zil-types/src/inference.rs": "df4a1db3c8ff030434861bf98a1957d0776dc9d9aceee0b719b5c9d546f91128",
     "crates/zil-types/src/lib.rs": "6089b4640e030c1d256fcff5b2ebeec281a0298e0e8f2570c5ebd7a8d70d9236",
     "crates/zil-types/src/state_origins.rs": "157e6575b0c44c165a66b211b87437860d79860e069762ee8faa19ec45727c5b"
   },
   "tests_and_Source_sha256": {
-    "crates/zil-driver/tests/generic_regressions.rs": "cb09ddb779e0a1e45489b7d11fd30699ec79b010504bf58c708db81ff6bdb610",
+    "crates/zil-driver/tests/generic_regressions.rs": "d04716cedc49a723a68013d762c0538457f9f1660e583314256c18cdaa5807b5",
     "tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-good.zil": "9864c0238ff74220b1c3f0e705327c9150670b47d7127611dd8ddeedf98fbf37",
     "tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil": "f534ef47d1dec3ffb939c8f9535d15a01079d07cc91ce0b9171b6d8d30a2744b",
     "tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-call.zil": "4e90af4168bacc19309cbf7a1555905c6f41e5a12c2941ccdd7147dda31524e4",
@@ -50,7 +50,9 @@
     "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-bound-good.zil": "91eab09ac6db3012f1c6ccdfd82637bbe1f2fc3215a92a28042246988342dd97",
     "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-bound-wrong-class.zil": "429c1eda9e272f6d6d87f713ae9a7917df2f3941736c2ea471e2799c0a595f7c",
     "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-a.zil": "2513143ead01f82fb4ef2d318dd1e940c2172c4c6be9ab257f90e3eae9c5d047",
-    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil": "125fc5e896bcf8f259a453cd3ba23d0afe342e00500c8a871b18e1b91d4ecd76"
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil": "125fc5e896bcf8f259a453cd3ba23d0afe342e00500c8a871b18e1b91d4ecd76",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-data-wrong-class.zil": "422913438b461b8cebd96fe586ec004a0530d63345a5a40bd322f182c74fc881",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-unused.zil": "5066ebf16c61a9ab137dddfcdcaf9844bf6c8899d5215471a3c34854be570281"
   },
   "implemented": {
     "Source_producer": "Actual original selected Fn bound and first actual helper header are retained before nominal specialization/life erasure. Original life index is explicitly mapped to full generic ordinal. Actual lowered function+runtime role+filtered F+selected bound event consumes the private origin ledger once; repeated or orphan emission rejects. Body CT may preserve an Original header; generated/changed headers have no new permission.",
@@ -62,6 +64,114 @@
     "identity_boundary": "declaration/identity is authenticated producer provenance data, not runtime authority. Types has no original AST and does not re-prove text identity or reject consistent raw spelling changes. Actual placement is containing function/role plus actual header/capture facts; no name/Span/pointee-type guess grants permission."
   },
   "author_execution": {
+    "source_commit": "449852818ee8d2199b63bd5e1c05da403728d9dc",
+    "new_generic_regressions": {
+      "pass": 7,
+      "fail": 0,
+      "native_executions": 16
+    },
+    "revision_old_direct": {
+      "pass": 4,
+      "fail": 0
+    },
+    "revision_old_inventory": {
+      "pass": 1,
+      "fail": 0
+    },
+    "revision_old_quantified_helper": {
+      "pass": 1,
+      "fail": 0
+    },
+    "boundaries": {
+      "new_shared_Fn_Types": 8344,
+      "old_Types_inventory": 668,
+      "old_direct_Types": 1611,
+      "old_quantified_Source_to_Lower": 21782,
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "stable; quantified whole request also warm"
+    },
+    "strict_clippy": "Pass final449 Types/Expand/CT libs and Driver lib+generics+generic_regressions llvm-api",
+    "fmt_diff": "Pass",
+    "prior_complete_regressions": "Complete generics48, Types47, Expand12 and pureCT1 belong to preserved848 historical execution; final revision independent limited checks bind below, root formal gates separate.",
+    "native": "Four real Source cases simple/reverse/order-F-before/order-F-after ×Clang/API×O0/O2; full stdout42 newline, empty stderr, exit0, backend/no-fallback/currentVerify checked."
+  },
+  "frontier": {
+    "allowed": "Original header/bound, one shared Fn role, one shared qualified callback/data input class backed by exactly one SharedAddress slot0 (binder0), scalar callback/owner result; direct shared qualified data and scalar arguments. Body-only CT transports actual Original header context.",
+    "old_lane_preserved": "ClosedEnvironment before/after Fn and dualF unused correct declarations remain Verify success with no Some. Extra ordinary Type/Const, by-value/mutable callback input and non-scalar/lending result do not get this new bridge. Existing wrong declared-body obligations remain checked.",
+    "not_done": [
+      "Source helper FnMut/FnOnce bridge",
+      "General lending, escaping/forwarded or retained callback",
+      "Mixed ordinary Type/Const instances and complete actual vectors",
+      "Member/generated/rewritten-header contexts",
+      "General alias/local qualification reconstruction",
+      "Whole parent G3.3/G4.4 or product gates"
+    ]
+  },
+  "preserved_failures": [
+    "be066 legal positive failed Analyze missing closure free Fixed selector; inverse source bounds a/b collided into identical CoreCallableParameter, exact precondition receipt retained.",
+    "First Source producer checkpoint rejected unconsumed bound because late generic order had deleted Life entries; actual original selected-bound ledger and stable filtered/runtime lowering link repaired it.",
+    "Old generics assertion only recognized obsolete Unsupported strings; production source unchanged; accepted main6f375 matcher fix normally merged viae724. Final generics48 passes.",
+    "Original mark assignment *trace=*trace*10+digit hit stored-target overlapping-loan rejection. Exact be066 no-F direct closure control reproduces same rejection. No kernel fix claimed; final order proof uses two compound operations with same trace semantics. g334-second Fail remains history.",
+    "Strict Clippy nested-if failure fixed equivalently at848; not a language acceptance change.",
+    "First pure CT probe used bare function name and reached unknown-function fallback; corrected probe uses the actual Source-derived helper Call, and verifies the explicit contextual-template selection gate.",
+    "Superseded848/51a real phantom-data-wrong-class Source was Success/Verify1 despite distinct requested class and no physical slot. Revision449 keeps callback/data phantom off Some; exact bad Source now Analyze SafeReject E-ANALYZE-IR signature omits actual closure free Fixed domain, Verify0. Old unused phantom remains None and Verify1; adversarial attached Some rejected independently by Types physical profile."
+  ],
+  "independent_review": {
+    "reviewer": "helper_review_high non-author",
+    "status": "LimitedPass final449; dd72 production/tests byte identical",
+    "receipt": "/tmp/zil-G3.3.4-review-final.json",
+    "sha256": "34d230f722762db4192c28f82c5134971d88e595fe2b3da5a3ed71997c03ca2b",
+    "counts": "17/0 including independent probes and16 native processes",
+    "historical": "848/51a Pass is superseded/PendingRevision and cannot substitute for final revision",
+    "scope": "Actual Source/raw/Wire/native, physical phantom/forged slot controls, old None boundaries and strict limited checks. Root formal acceptance separate."
+  },
+  "Rust_goals": {
+    "safety": "Real original bound/header/environment obligations survive erasure and are checked by independent runtime kernels; complete-language safety not established.",
+    "runtime_memory": "Existing inline closure and pointer ABI; no implicit Box/RC/lock or runtime identity table. Same-semantics Rust runtime/RSS/latency not measured.",
+    "expression_maintenance": "A real qualified-input captured Fn now passes through an ordinary generic helper, including ordered scalar work and a private library. General modes/scopes and framework maintenance comparison remain incomplete.",
+    "compile_cost": "Current-ledger metadata copies and exact bounded retries/default quotas preserved. No Rust compilation-cost advantage or global old-source zero-CPU claim.",
+    "breakthrough": "Reproducible finite library-expression increment, not a product-level four-goal conjunction; original product-gates unchanged."
+  },
+  "logs": {
+    "directory": "/workspace/.zil-env/G3.3.4-tmp",
+    "sha256": {
+      "source-matrix.json": "ede568303ef5720e8a29417271e2f02fe65b04cd69f73c1c5fc0acbda935435a",
+      "erased-bound-comparison.json": "16b237b668097c827973eac309d945e5191ad6434a0f86abdf8e7b0cceccec66",
+      "first-consumer-matrix.json": "e87a166a4b79f6c8c0936264a9b66f8e1143808e56c0d01a2c81bcbc1cb7d271",
+      "second-consumer-matrix.json": "020c2b65421f38685e39434898fd9925a71e520f1facf29b3d28e95c86ad13a8",
+      "g334-first.log": "f73f8b80991f7aa99c882d1549ca89b61b46b471d915fc55aaab7e2aae252022",
+      "g334-second.log": "4b92f5df003e41d51db39546209108594767347bc02a979ea27343043511a1b9",
+      "g334-third.log": "82fc4420999c3279918f49e515fe9377a65bdab27833a84753ef990dc2a585cb",
+      "g334-fourth.log": "c3c535132a878b532c954b38b66de32c9cbc550a75dcaed5ca95c5bf61fe8bf5",
+      "g334-final.log": "84fa5f28900931bc287e1ee144c0ebf6c9df685f24b97f3e8184c3b71a5dab7f",
+      "g334-sealed-source.log": "9ac1286bbebf422e14033a885d98b22d0a6a0e19d64caf609598fb703dfb3176",
+      "generics-regression.log": "fd59c6f10466afaf1e9d115bd4a87f4f3482104875fab2c5514d94b68f53cf7e",
+      "generics-final.log": "f30cf80b8e9d3567755c7a84ec3c611454c00dee38cf74599147cc1f791c9f6a",
+      "ct-selection.log": "6b72d5bd3b526140c9f34a2cb53fc7e646e894567a476b9c354cbff34d758b82",
+      "ct-selection-retry.log": "cadfac3d22d72d4a22f0ff3007432f882d4b63b0492a7419c3361e80d9bbed33",
+      "ct-selection-final.log": "d712f5484579be7a1d3f87d9ed8443661aac3f9c1238c43f1684a7edbb518cfa",
+      "types-final.log": "bfda5cf60b2801778b0fa0a8b83156f106b93d55f1f0ef06e4c1dd5b4893aed5",
+      "expand-final.log": "8abe29281bc39a03cbf903f2359e1b656c326eb4b8c2fe9680d71f62e33d2869",
+      "clippy-libs.log": "a6b8b62516af26fcaf8d75edb5e2b5e9d0e29645d7b8c4d7e5f4285a5c0511aa",
+      "clippy-driver.log": "d639a3972ac78734d61c816c4cf65e5e4713a3e95a76301b6dd1f6260a0313e3",
+      "clippy-libs-retry.log": "1fbd062fd4279c6a98df42c382bb5ceca35ab201604eec742136e984e635f966",
+      "clippy-driver-retry.log": "cc3575e3baf9b33754abade02094f913dfb2e82f3b4b795616b9dc6d52acc994",
+      "fmt-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "frontier-baseline-be066.json": "e8f40553ac0bb7623188d8dc9569172d5af92be7724719d008d9d516d5f60ecd",
+      "old-direct-mark-assignment.zil": "5b03321a4151df2791aded6f7aa73d20c39adb1f56eadcbbed79a810c347ae78",
+      "old-direct-mark-assignment.json": "797b9fc5e4be4332829a796bcfa59ad8aeb47977181e8b2ff1f25c15978e603b",
+      "revision-clippy-libs.log": "ff11619d152b05816165de3021d380b15df0e178c4baaa38e557342703a52be9",
+      "revision-old21782.log": "208d276c4bc21e4d4bb1049856384d973f4cbbb30b20764a01af5dcca190449d",
+      "revision-old668.log": "910568b97051b1de551e19926a8a11d6efeb164f95ca260b3836b573e5e18b40",
+      "revision-old-direct.log": "284ad6cc86b2603842e952254cdd35de41a697ee09e79370e7df2387a8eb2ef5",
+      "revision-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "revision-clippy-driver.log": "55102f43d03183d0b3549d1a2633dc354ea9b6afedf033078171511530240e65",
+      "g334-physical-revision.log": "3227621a73a90404cc7c530b6c26944db0999d55c7b5a7116086bf0ac35738b2"
+    }
+  },
+  "features": "Author native target explicitly built with llvm-api; no fallback. No full workspace/all-target or formal performance gate run by this task.",
+  "historical_848_author_execution": {
     "cache": "fresh /workspace/.zil-env/target342-G3.3.4; never reused342-40 across tree",
     "environment": "source env.sh; jobs2; dev/test debug0; incremental0; workspace TMPDIR; RUST_MIN_STACK unset",
     "commands": [
@@ -134,71 +244,8 @@
     },
     "malformed_Core": "9 Source-derived variants: missing context, wrong full F kind/ordinal, filtered role, runtime parameter, named source life ordinal, header binder, selected bound coordinate, duplicate selector and absent actual input. Direct context/shape error, not ResourceLimit/schema mismatch. Raw identity rename preserves identical Typed output and grants no authority.",
     "before_clone": "Baseline infer fits16384; context package32768 bytes and path(maxDepth+1) ResourceLimit before snapshots. Fields/domains bounded before their allocation.",
-    "project_cache": "Actual private helper and capture creator in dependency library, scalar pub answer wrapper. ColdMissing -> warmHit/memory_hit -> fresh-session diskHit, every success currentVerify1. Change only wrong actual Tag operand rejects at current Analyze; revert returns exact original fingerprint and Verify1 in both existing/fresh session. No new cache protocol or bypass."
+    "project_cache": "Actual private helper and capture creator in dependency library, scalar pub answer wrapper. ColdMissing -> warmHit/memory_hit -> fresh-session diskHit, every success currentVerify1. Change only wrong actual Tag operand rejects at current Analyze; revert returns exact original fingerprint and Verify1 in both existing/fresh session. No new cache protocol or bypass.",
+    "status": "Superseded: later real phantom input accepted; historical counts are not final revision execution."
   },
-  "frontier": {
-    "allowed": "Original header/bound, one shared Fn runtime role, one shared qualified callback input, scalar callback/owner result; direct shared qualified data plus scalar arguments. Body-only CT preserves context on actual template transport.",
-    "old_lane_preserved": "ClosedEnvironment before/after Fn and dualF unused correct declarations remain Verify success with no Some. Extra ordinary Type/Const, by-value/mutable callback input and non-scalar/lending result do not get this new bridge. Existing wrong declared-body obligations remain checked.",
-    "not_done": [
-      "Source helper FnMut/FnOnce bridge",
-      "General lending, escaping/forwarded or retained callback",
-      "Mixed ordinary Type/Const instances and complete actual vectors",
-      "Member/generated/rewritten-header contexts",
-      "General alias/local qualification reconstruction",
-      "Whole parent G3.3/G4.4 or product gates"
-    ]
-  },
-  "preserved_failures": [
-    "be066 legal positive failed Analyze missing closure free Fixed selector; inverse source bounds a/b collided into identical CoreCallableParameter, exact precondition receipt retained.",
-    "First Source producer checkpoint rejected unconsumed bound because late generic order had deleted Life entries; actual original selected-bound ledger and stable filtered/runtime lowering link repaired it.",
-    "Old generics assertion only recognized obsolete Unsupported strings; production source unchanged; accepted main6f375 matcher fix normally merged viae724. Final generics48 passes.",
-    "Original mark assignment *trace=*trace*10+digit hit stored-target overlapping-loan rejection. Exact be066 no-F direct closure control reproduces same rejection. No kernel fix claimed; final order proof uses two compound operations with same trace semantics. g334-second Fail remains history.",
-    "Strict Clippy nested-if failure fixed equivalently at848; not a language acceptance change.",
-    "First pure CT probe used bare function name and reached unknown-function fallback; corrected probe uses the actual Source-derived helper Call, and verifies the explicit contextual-template selection gate."
-  ],
-  "independent_review": {
-    "reviewer": "helper_review_high non-author, following earlier ct_review_resume static feedback",
-    "status": "Final receipt pending at docs write; reviewer independently bound848 and reported no findings on db plus equivalent style hunk; not substituted by author execution",
-    "expected_receipt": "/tmp/zil-G3.3.4-review.json",
-    "scope": "Independent actual Source/raw/Wire/native and bounded regressions; no formal full gate claim."
-  },
-  "Rust_goals": {
-    "safety": "Real original bound/header/environment obligations survive erasure and are checked by independent runtime kernels; complete-language safety not established.",
-    "runtime_memory": "Existing inline closure and pointer ABI; no implicit Box/RC/lock or runtime identity table. Same-semantics Rust runtime/RSS/latency not measured.",
-    "expression_maintenance": "A real qualified-input captured Fn now passes through an ordinary generic helper, including ordered scalar work and a private library. General modes/scopes and framework maintenance comparison remain incomplete.",
-    "compile_cost": "Current-ledger metadata copies and exact bounded retries/default quotas preserved. No Rust compilation-cost advantage or global old-source zero-CPU claim.",
-    "breakthrough": "Reproducible finite library-expression increment, not a product-level four-goal conjunction; original product-gates unchanged."
-  },
-  "logs": {
-    "directory": "/workspace/.zil-env/G3.3.4-tmp",
-    "sha256": {
-      "source-matrix.json": "ede568303ef5720e8a29417271e2f02fe65b04cd69f73c1c5fc0acbda935435a",
-      "erased-bound-comparison.json": "16b237b668097c827973eac309d945e5191ad6434a0f86abdf8e7b0cceccec66",
-      "first-consumer-matrix.json": "e87a166a4b79f6c8c0936264a9b66f8e1143808e56c0d01a2c81bcbc1cb7d271",
-      "second-consumer-matrix.json": "020c2b65421f38685e39434898fd9925a71e520f1facf29b3d28e95c86ad13a8",
-      "g334-first.log": "f73f8b80991f7aa99c882d1549ca89b61b46b471d915fc55aaab7e2aae252022",
-      "g334-second.log": "4b92f5df003e41d51db39546209108594767347bc02a979ea27343043511a1b9",
-      "g334-third.log": "82fc4420999c3279918f49e515fe9377a65bdab27833a84753ef990dc2a585cb",
-      "g334-fourth.log": "c3c535132a878b532c954b38b66de32c9cbc550a75dcaed5ca95c5bf61fe8bf5",
-      "g334-final.log": "84fa5f28900931bc287e1ee144c0ebf6c9df685f24b97f3e8184c3b71a5dab7f",
-      "g334-sealed-source.log": "9ac1286bbebf422e14033a885d98b22d0a6a0e19d64caf609598fb703dfb3176",
-      "generics-regression.log": "fd59c6f10466afaf1e9d115bd4a87f4f3482104875fab2c5514d94b68f53cf7e",
-      "generics-final.log": "f30cf80b8e9d3567755c7a84ec3c611454c00dee38cf74599147cc1f791c9f6a",
-      "ct-selection.log": "6b72d5bd3b526140c9f34a2cb53fc7e646e894567a476b9c354cbff34d758b82",
-      "ct-selection-retry.log": "cadfac3d22d72d4a22f0ff3007432f882d4b63b0492a7419c3361e80d9bbed33",
-      "ct-selection-final.log": "d712f5484579be7a1d3f87d9ed8443661aac3f9c1238c43f1684a7edbb518cfa",
-      "types-final.log": "bfda5cf60b2801778b0fa0a8b83156f106b93d55f1f0ef06e4c1dd5b4893aed5",
-      "expand-final.log": "8abe29281bc39a03cbf903f2359e1b656c326eb4b8c2fe9680d71f62e33d2869",
-      "clippy-libs.log": "a6b8b62516af26fcaf8d75edb5e2b5e9d0e29645d7b8c4d7e5f4285a5c0511aa",
-      "clippy-driver.log": "d639a3972ac78734d61c816c4cf65e5e4713a3e95a76301b6dd1f6260a0313e3",
-      "clippy-libs-retry.log": "1fbd062fd4279c6a98df42c382bb5ceca35ab201604eec742136e984e635f966",
-      "clippy-driver-retry.log": "cc3575e3baf9b33754abade02094f913dfb2e82f3b4b795616b9dc6d52acc994",
-      "fmt-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "diff-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-      "frontier-baseline-be066.json": "e8f40553ac0bb7623188d8dc9569172d5af92be7724719d008d9d516d5f60ecd",
-      "old-direct-mark-assignment.zil": "5b03321a4151df2791aded6f7aa73d20c39adb1f56eadcbbed79a810c347ae78",
-      "old-direct-mark-assignment.json": "797b9fc5e4be4332829a796bcfa59ad8aeb47977181e8b2ff1f25c15978e603b"
-    }
-  },
-  "features": "Author native target explicitly built with llvm-api; no fallback. No full workspace/all-target or formal performance gate run by this task."
+  "docs_freeze": "dd72e6b2e5a0a7d1f549f6feb95142300fe1d6ee is documentation-only over449"
 }
