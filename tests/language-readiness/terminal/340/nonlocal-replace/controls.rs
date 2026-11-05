@@ -28,6 +28,11 @@ fn g139_nonlocal_complete_package_source_raw_wire() {
         include_str!("store-abort.zil"),
         include_str!("pin-apart.zil"),
         include_str!("enum-helper.zil"),
+        include_str!("store-helper.zil"),
+        include_str!("enum-multiple-leaves.zil"),
+        include_str!("nested-package-helper.zil"),
+        include_str!("nested-package-local.zil"),
+        include_str!("multiple-leaves-abort.zil"),
     ] {
         check(text);
     }
@@ -40,6 +45,8 @@ fn g139_nonlocal_replacement_source_safety_neighbors() {
         include_str!("store-old-desc.zil"),
         include_str!("same-inputs.zil"),
         include_str!("pin-overlap.zil"),
+        include_str!("nested-old-desc.zil"),
+        include_str!("nested-partial.zil"),
     ] {
         let module = typed(text);
         let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
@@ -211,6 +218,31 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                     b"ABAC42,43\n".as_slice(),
                 ),
                 (
+                    "multiple-leaves-abort",
+                    include_str!("multiple-leaves-abort.zil"),
+                    b"CAB42\n".as_slice(),
+                ),
+                (
+                    "store-helper",
+                    include_str!("store-helper.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "enum-multileaf",
+                    include_str!("enum-multiple-leaves.zil"),
+                    b"AFBCAFDE42,43\n".as_slice(),
+                ),
+                (
+                    "nested-helper",
+                    include_str!("nested-package-helper.zil"),
+                    b"ABCD42\n".as_slice(),
+                ),
+                (
+                    "nested-local",
+                    include_str!("nested-package-local.zil"),
+                    b"ABCD42\n".as_slice(),
+                ),
+                (
                     "store-abort",
                     include_str!("store-abort.zil"),
                     b"BA42\n".as_slice(),
@@ -247,4 +279,27 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
             }
         }
     }
+}
+
+#[test]
+fn g139_public_role_capture_current_contract_probe() {
+    let module = typed(include_str!("public-role-capture-probe.zil"));
+    for function in &module.functions {
+        if let Some(contract) = &function.callable_contract {
+            println!("G139 public-role helper {} {:?}", function.name, contract);
+            for block in &function.blocks {
+                println!("G139 actual helper instructions {:?}", block.instructions);
+            }
+        }
+    }
+    let result = zil_analyze::analyze(&module, &Limits::default());
+    println!("G139 public-role actual Analyze result {result:?}");
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+    );
 }

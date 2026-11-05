@@ -231,13 +231,13 @@ impl Program {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 package::local(f, target, b)?;
                             } else {
-                                package::borrowed(module, f, target, b)?;
+                                let admission = package::borrowed(module, f, target, b)?;
                                 b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
                                 // Non-Unit/error results add no exit-sensitive
                                 // must fact: their provenance stays may-only.
                                 if f.return_type == Type::Unit
                                     && f.blocks.len() == 1
-                                    && package::must_input(f, target, b)?
+                                    && admission.legacy_must
                                 {
                                     whole_helpers.insert(f.id);
                                 }
@@ -588,6 +588,21 @@ impl Program {
                     .sums
                     .replace_birth(local, &target.path, birth, check, b)?
                 {
+                    if product::nested(&flow.function.locals[local.0 as usize].ty) {
+                        let mut fields = Vec::new();
+                        fee(b, target.path.len())?;
+                        for step in &target.path {
+                            let PlaceProjection::Field(index) = step else {
+                                return Ok(());
+                            };
+                            fields.push(*index);
+                        }
+                        let mut old =
+                            product::birth(state, product::Carrier::Local(local), &fields, b)?;
+                        fee(b, old.len().saturating_add(birth.len()))?;
+                        old.extend(birth);
+                        product::set(state, product::Carrier::Local(local), &fields, old, b)?;
+                    }
                     return Ok(());
                 }
                 if target.path.is_empty() {
@@ -905,22 +920,38 @@ impl Program {
                         if matches!(target.root, origins::Root::Local(_)) {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
-                            let owners = package::borrowed(flow.module, f, &target, b)?;
-                            fee(b, owners.len())?;
-                            for index in owners {
-                                let mut leaf = target.clone();
-                                fee(b, leaf.path.len().saturating_add(1))?;
-                                leaf.path.push(PlaceProjection::Field(index));
-                                retirement::check(flow, state, &leaf, point, b)?;
-                                let incoming = product::birth(
-                                    state,
-                                    product::Carrier::Value(*value),
-                                    &[index],
-                                    b,
-                                )?;
-                                self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
-                                if let Some(rows) = &mut state.whole_commits {
-                                    add(rows, &leaf, &incoming, b)?;
+                            let owners = package::borrowed(flow.module, f, &target, b)?.owners;
+                            let mut commit_leaf =
+                                |path: &[u32], b: &mut Budget| -> CompileResult<()> {
+                                    let mut leaf = target.clone();
+                                    fee(b, leaf.path.len().saturating_add(path.len()))?;
+                                    leaf.path
+                                        .extend(path.iter().copied().map(PlaceProjection::Field));
+                                    retirement::check(flow, state, &leaf, point, b)?;
+                                    let incoming = product::birth(
+                                        state,
+                                        product::Carrier::Value(*value),
+                                        path,
+                                        b,
+                                    )?;
+                                    self.update(
+                                        flow, state, effect, &leaf, &incoming, check, live, b,
+                                    )?;
+                                    if let Some(rows) = &mut state.whole_commits {
+                                        add(rows, &leaf, &incoming, b)?;
+                                    }
+                                    Ok(())
+                                };
+                            if product::nested(&d.ty) {
+                                let paths = package::leaves(&d.ty, b)?;
+                                fee(b, paths.len().saturating_sub(1))?;
+                                for path in paths {
+                                    commit_leaf(&path, b)?;
+                                }
+                            } else {
+                                fee(b, owners.len().saturating_sub(1))?;
+                                for index in owners {
+                                    commit_leaf(&[index], b)?;
                                 }
                             }
                         }

@@ -93,7 +93,11 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
                     // replacement, nor old Fresh upgrade an incoming RHS.
                     *old = incoming.clone();
                 }
-                _ => return Err(invalid("replacement needs a complete flat Product")),
+                (Content::Product(_), Content::Product(_)) => {
+                    owned += 1;
+                    changed |= merge_endpoint(old, incoming, b)?;
+                }
+                _ => return Err(invalid("replacement needs a complete ordinary Product")),
             }
         }
         if owned == 0 {
@@ -129,6 +133,7 @@ pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usiz
             | Type::F64
             | Type::U8
             | Type::U16 => {}
+            Type::Package { .. } if package_owners(ty, b)?.is_some() => owners.push(index),
             _ => return Ok(None),
         }
     }
@@ -227,6 +232,9 @@ fn package_helper(
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
             Type::Package { .. } | Type::Enum { .. } if ty == endpoint => {}
             Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
+            Type::Desc(payload) | Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
+                    && matches!(endpoint, Type::Package { .. }) => {}
             _ => return Ok(false),
         }
     }
@@ -249,17 +257,23 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
     {
         return Ok(false);
     }
-    // New capture/multiple-address admission remains a may relation.
+    // New capture/multiple-address/Store admission remains a may relation.
     if f.environment.is_some() || f.call_kind != zil_ir::CallKind::Direct {
         return Ok(false);
     }
     b.spend(f.parameters.len())?;
-    if f.parameters
-        .iter()
-        .filter(|local| matches!(f.locals[local.0 as usize].ty, Type::Address { .. }))
-        .count()
-        != 1
-    {
+    let mut addresses = 0usize;
+    for local in &f.parameters {
+        match &f.locals[local.0 as usize].ty {
+            Type::Address { .. } => addresses += 1,
+            Type::Desc(_) => return Ok(false),
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+    if addresses != 1 {
         return Ok(false);
     }
     let mut commits = 0usize;
@@ -270,7 +284,8 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
             InstructionKind::CommitPlaceReplace { reservation, .. } => {
                 commits += 1;
                 whole = package_owners(&places.get(reservation, b)?.ty, b)?
-                    .is_some_and(|owners| owners.len() == 1);
+                    .is_some_and(|owners| owners.len() == 1)
+                    && !packages::has_children(&places.get(reservation, b)?.ty);
             }
             InstructionKind::Call { .. }
             | InstructionKind::CallClosure { .. }
@@ -305,9 +320,6 @@ fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
                     if matches!(payload.as_ref(), Type::Record { .. })
                         && payload.is_copy_value() =>
                 {
-                    if arm_owns {
-                        return Ok(false);
-                    }
                     arm_owns = true;
                 }
                 Type::Unit

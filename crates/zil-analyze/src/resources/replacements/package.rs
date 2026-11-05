@@ -15,11 +15,43 @@ pub(super) fn field(ty: &Type, b: &mut Budget) -> CompileResult<Option<Vec<u32>>
                 return Ok(None);
             }
             owners.push(index as u32);
+        } else if matches!(child, Type::Package { .. }) {
+            if field(child, b)?.is_none() {
+                return Ok(None);
+            }
+            owners.push(index as u32);
         } else if !child.is_b0_scalar() {
             return Ok(None);
         }
     }
     Ok((!owners.is_empty()).then_some(owners))
+}
+pub(super) fn leaves(ty: &Type, b: &mut Budget) -> CompileResult<Vec<Vec<u32>>> {
+    let mut result = Vec::new();
+    let mut pending = vec![(ty, Vec::new())];
+    while let Some((ty, path)) = pending.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        match ty {
+            Type::Managed(_) => result.push(path),
+            Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                for (index, (_, child)) in fields.iter().enumerate().rev() {
+                    if matches!(child, Type::Managed(_) | Type::Package { .. }) {
+                        fee(b, path.len().saturating_add(1))?;
+                        let mut next = path.clone();
+                        next.push(index as u32);
+                        pending.push((child, next));
+                    }
+                }
+            }
+            _ => {
+                return Err(error(
+                    "nested replacement leaf route crosses a nonowning tree",
+                ));
+            }
+        }
+    }
+    Ok(result)
 }
 fn unsupported() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
@@ -85,6 +117,10 @@ pub(super) fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 
+pub(super) struct Admission {
+    pub(super) owners: Vec<u32>,
+    pub(super) legacy_must: bool,
+}
 // The borrowed shell stays the caller's responsibility. Admission binds the
 // actual mutable parameter and complete endpoint, independently of the ticket.
 pub(super) fn borrowed(
@@ -92,7 +128,7 @@ pub(super) fn borrowed(
     f: &TypedFunction,
     target: &Target,
     b: &mut Budget,
-) -> CompileResult<Vec<u32>> {
+) -> CompileResult<Admission> {
     if f.foreign.is_some()
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
@@ -136,7 +172,12 @@ pub(super) fn borrowed(
     else {
         return Err(unsupported());
     };
-    let index = field(inner, b)?.ok_or_else(unsupported)?;
+    let owners = field(inner, b)?.ok_or_else(unsupported)?;
+    let mut legacy_must = f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && parameter.is_some()
+        && owners.len() == 1
+        && !product::nested(inner);
     fee(b, f.parameters.len())?;
     for (p, local) in f.parameters.iter().enumerate() {
         if parameter == Some(p as u32) {
@@ -147,41 +188,16 @@ pub(super) fn borrowed(
         let managed = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
         let address =
             matches!(ty, Type::Address { inner: other, .. } if other.as_ref() == inner.as_ref());
-        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address) {
+        let store = matches!(ty, Type::Desc(payload) | Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == inner.as_ref()));
+        legacy_must &= !address && !store;
+        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address || store) {
             return Err(unsupported());
         }
     }
-    Ok(index)
-}
-
-// Preserve the original must lane exactly. Other actual addresses/captures
-// can export may-retirement but cannot turn an Incoming caller leaf into Fresh.
-pub(super) fn must_input(
-    f: &TypedFunction,
-    target: &Target,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    if f.environment.is_some() || f.call_kind != CallKind::Direct {
-        return Ok(false);
-    }
-    let origins::Root::Parameter(parameter) = target.root else {
-        return Ok(false);
-    };
-    let ty = &f.locals[f.parameters[parameter as usize].0 as usize].ty;
-    let Type::Address { inner, .. } = ty else {
-        return Ok(false);
-    };
-    if !field(inner, b)?.is_some_and(|owners| owners.len() == 1) {
-        return Ok(false);
-    }
-    fee(b, f.parameters.len())?;
-    for (p, local) in f.parameters.iter().enumerate() {
-        if p != parameter as usize && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-        {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+    Ok(Admission {
+        owners,
+        legacy_must,
+    })
 }
 
 // Only the proved normal-return Commit replaces provenance. It leaves the
@@ -234,7 +250,7 @@ pub(super) fn complete(
             "complete Package replacement needs its live old shell",
         ));
     }
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for &index in &owners {
         if !exact(
             &copied(state, Place::PackageField { local, index }, b)?,
@@ -285,9 +301,21 @@ pub(super) fn apply(
         }
         no_later_use(state, &descriptions, Source::Head(local), b)?;
     }
+    if product::nested(&flow.function.locals[local.0 as usize].ty) {
+        let ty = &flow.function.locals[local.0 as usize].ty;
+        product::transfer(
+            state,
+            (product::Carrier::Value(rhs), &[]),
+            (product::Carrier::Local(local), &[]),
+            ty,
+            b,
+        )?;
+        state.sums.replace_product(local, rhs, point.validate, b)?;
+        return Ok(());
+    }
     // The generic Package Fact is Incoming. Recover the actual *owned field*
     // of this fully prepared RHS instead of inventing a fresh leaf from it.
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for index in owners {
         let incoming = product::birth(state, product::Carrier::Value(rhs), &[index], b)?;
         let place = Place::PackageField { local, index };

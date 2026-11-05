@@ -22,10 +22,7 @@ pub(super) fn admitted(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 return Ok(false);
             }
         }
-        if owners > 1 {
-            return Ok(false);
-        }
-        owning |= owners == 1;
+        owning |= owners != 0;
     }
     Ok(owning)
 }

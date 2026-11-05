@@ -608,6 +608,35 @@ impl Facts {
         }
         Ok(false)
     }
+    pub(super) fn replace_product(
+        &mut self,
+        local: LocalId,
+        rhs: ValueId,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.lookup(
+            self.locals.len(),
+            "nested replacement optional Product tree",
+        )?;
+        if !self.locals.contains_key(&local) {
+            return Ok(());
+        }
+        let old = self.local(local, budget)?;
+        let incoming = self.value(rhs, budget)?;
+        if !matches!(old.node, Node::Product(_)) || !matches!(incoming.node, Node::Product(_)) {
+            return Err(error(
+                "complete Product replacement requires actual Product contents",
+            ));
+        }
+        if check && (!old.complete(budget)? || !incoming.complete(budget)?) {
+            return Err(error(
+                "complete Product replacement cannot repair missing child contents",
+            ));
+        }
+        self.locals.insert(local, incoming);
+        Ok(())
+    }
     /// Replace a singleton complete local with the actual prepared RHS tree.
     /// Copying the tagged tree preserves each real leaf's origin alternatives.
     pub(super) fn replace_enum(
