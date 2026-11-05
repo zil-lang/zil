@@ -58,6 +58,7 @@ fn g339_multi_role_user_drop_and_managed_give_source_raw_wire() {
     let target = zil_base::TargetProfile::host_llvm();
     for (name, text) in [
         ("single-user-drop", include_str!("single-user-drop.zil")),
+        ("mixed-roles-loop", include_str!("mixed-roles-loop.zil")),
         ("two-role-no-drop", include_str!("two-role-no-drop.zil")),
         ("two-role-user-drop", include_str!("two-role-user-drop.zil")),
         ("managed-companion", include_str!("managed-companion.zil")),
@@ -136,6 +137,11 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
             "ABBA91\n0\n",
         ),
         (
+            "mixed-roles-loop",
+            include_str!("mixed-roles-loop.zil"),
+            "48\n",
+        ),
+        (
             "give-companion",
             include_str!("managed-companion.zil"),
             "45\n",
@@ -200,7 +206,7 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
 #[test]
 fn g339_environment_lending_nearest_live_receiver_rejections() {
     for (name, text) in [
-        ("move-live", include_str!("lending-move-live.zil")),
+        ("replace-live", include_str!("lending-move-live.zil")),
         ("exclusive-call-live", include_str!("lending-mut-live.zil")),
     ] {
         let report = compile_source(
@@ -223,5 +229,120 @@ fn g339_environment_lending_nearest_live_receiver_rejections() {
             report.to_json()
         );
         eprintln!("G339 {name} nearest rejection: {}", report.to_json());
+    }
+}
+
+#[test]
+fn g339_lending_field_claim_is_independent_of_copy_capture_type() {
+    let text = include_str!("qualified-lending.zil").replace(
+        "return &first_value",
+        "let ignored=second_value;ignored;return &first_value",
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let mut forged = typed.clone();
+    let definition = forged
+        .closures
+        .iter_mut()
+        .find(|d| {
+            !d.lending_captures.is_empty()
+                && d.captures
+                    .iter()
+                    .filter(|t| **t == zil_ir::Type::I32)
+                    .count()
+                    > 1
+        })
+        .unwrap();
+    let actual = definition.lending_captures[0];
+    let other = definition
+        .captures
+        .iter()
+        .enumerate()
+        .find(|(i, t)| *i != actual as usize && **t == zil_ir::Type::I32)
+        .unwrap()
+        .0 as u32;
+    definition.lending_captures = vec![other];
+    assert!(zil_analyze::analyze(&forged, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = forged.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+    for wire_mode in [false, true] {
+        let result = if wire_mode {
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
+        } else {
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+        };
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        eprintln!(
+            "G339 forged same-type lending field wire={wire_mode}: {}",
+            errors[0].message
+        );
+    }
+}
+
+#[test]
+fn g339_completion_exact_two_kernel_budgets() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for (case, text) in [
+        ("cyclic", include_str!("loop-transfer.zil")),
+        ("drop", include_str!("two-role-user-drop.zil")),
+        ("lending", include_str!("qualified-lending-mut.zil")),
+    ] {
+        let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+        for phase in [0, 1, 2] {
+            let check = |n| {
+                let tight = Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                };
+                match phase {
+                    0 => zil_analyze::analyze(&typed, &tight).map(|p| assert_eq!(p, plan)),
+                    1 => zil_verify::verify_module(typed.clone(), plan.clone(), &target, &tight)
+                        .map(|_| ()),
+                    _ => zil_verify::verify_module_bytes(&bytes, &target, &tight).map(|_| ()),
+                }
+            };
+            let (mut low, mut high) = (1, limits.max_analysis_steps);
+            while low < high {
+                let n = low + (high - low) / 2;
+                match check(n) {
+                    Ok(()) => high = n,
+                    Err(ds)
+                        if ds
+                            .iter()
+                            .any(|d| d.category == ResultCategory::ResourceLimit) =>
+                    {
+                        low = n + 1
+                    }
+                    Err(ds) => panic!("{case}/{phase}: {ds:?}"),
+                }
+            }
+            for n in [low, low - 1, low, low] {
+                if n == low {
+                    check(n).unwrap();
+                } else {
+                    assert!(
+                        check(n)
+                            .unwrap_err()
+                            .iter()
+                            .any(|d| d.category == ResultCategory::ResourceLimit)
+                    );
+                }
+            }
+            eprintln!(
+                "G339 {case}/phase{phase} exact N={low}; N-1 ResourceLimit, fresh retry success"
+            );
+        }
     }
 }

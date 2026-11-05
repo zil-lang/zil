@@ -1057,7 +1057,7 @@ pub(super) fn check_module(
                     crate::signature_life::closure_relation(
                         &definition.parameters,
                         &definition.captures,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
                     )?;
@@ -1070,7 +1070,7 @@ pub(super) fn check_module(
                 } else {
                     borrowed_fp::relation(
                         &definition.parameters,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
                     )?;

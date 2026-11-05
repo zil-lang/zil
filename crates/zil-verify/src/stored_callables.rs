@@ -305,6 +305,18 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
+        InstructionKind::BorrowCapture {index,mutable:false}=>{
+            let d=f.environment.and_then(|id|module.closures.get(id.0 as usize)).filter(|d|lending(d))
+                .ok_or_else(||bad("capture address lacks a real lending environment"))?;
+            let payload=d.captures.get(*index as usize).filter(|ty|scalar(ty))
+                .ok_or_else(||bad("capture address must name an inline scalar environment field"))?;
+            super::stored_flow::type_work(payload,&b.limits.clone(),b)?;
+            let result=i.result.and_then(|id|f.values.get(id.0 as usize));
+            if !matches!(result,Some(Type::Address {mutable:false,inner}) if inner.as_ref()==payload) {
+                return Err(bad("capture address actual result differs from its environment field"));
+            }
+            return Ok(());
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::WriteCapture { index, .. } => {
             let d = f
                 .environment

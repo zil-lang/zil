@@ -299,7 +299,7 @@ pub(super) fn check_role(
                 None,
             )]);
         }
-        super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
+        super::signature_life::capture_relation(&d.parameters, &d.captures, super::stored_callables::life_result(d), life)?;
     } else {
         super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
     }
