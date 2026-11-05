@@ -2,7 +2,6 @@
 //! No producer pairing predicate or producer conversion plan is consulted.
 use super::*;
 use crate::ct_artifact::compiler::{SourceInstanceCall, SourceRecordRelocation};
-use std::collections::BTreeMap;
 use zil_ir::{BinaryOp, Constant};
 
 #[derive(Clone, Copy)]
@@ -10,7 +9,7 @@ struct Cursor {
     block: CtBlockId,
     instruction: usize,
 }
-type Locals = BTreeMap<CtLocalId, (usize, [usize; 4])>;
+type Locals = Vec<(CtLocalId, usize, [usize; 4])>;
 
 fn block(function: &CtFunction, id: CtBlockId) -> CompileResult<&CtBlock> {
     function
@@ -263,11 +262,32 @@ fn copy_trace(
                     "CT relocation enum merge local has the wrong complete type",
                 ));
             }
-            budget.reserve_analysis_work(1 + locals.len().checked_ilog2().unwrap_or(0) as u64)?;
-            budget.reserve_temporary_bytes(96)?;
-            if locals.insert(local, (source.len(), [0; 4])).is_some() {
+            budget.reserve_analysis_work(locals.len() as u64 + 1)?;
+            if locals.iter().any(|(prior, _, _)| *prior == local) {
                 return Err(unsupported("CT relocation reuses an enum merge local"));
             }
+            if locals.len() == locals.capacity() {
+                let capacity = locals.len().checked_add(1).ok_or_else(|| {
+                    vec![Diagnostic::limit(
+                        Phase::Ct,
+                        "CT relocation merge-local capacity overflow",
+                        None,
+                    )]
+                })?;
+                let bytes = capacity
+                    .checked_mul(std::mem::size_of::<(CtLocalId, usize, [usize; 4])>())
+                    .ok_or_else(|| {
+                        vec![Diagnostic::limit(
+                            Phase::Ct,
+                            "CT relocation merge-local storage overflow",
+                            None,
+                        )]
+                    })?;
+                budget.reserve_temporary_bytes(bytes as u64)?;
+                budget.reserve_analysis_work(locals.len() as u64)?;
+                locals.reserve_exact(capacity - locals.len());
+            }
+            locals.push((local, source.len(), [0; 4]));
             let tagged = next(function, cursor, budget)?;
             if tagged.kind != CtInstructionKind::VariantTag(input) {
                 return Err(unsupported(
@@ -825,15 +845,15 @@ impl FrozenInvocationContext {
                             CtInstructionKind::Store { local, .. } => (local, 3),
                             _ => continue,
                         };
-                        budget.reserve_analysis_work(
-                            1 + locals.len().checked_ilog2().unwrap_or(0) as u64,
-                        )?;
-                        if let Some((_, counts)) = locals.get_mut(&local) {
+                        budget.reserve_analysis_work(locals.len() as u64 + 1)?;
+                        if let Some((_, _, counts)) =
+                            locals.iter_mut().find(|(id, _, _)| *id == local)
+                        {
                             counts[kind] += 1;
                         }
                     }
                 }
-                for (_, (stores, counts)) in locals {
+                for (_, stores, counts) in locals {
                     if counts != [1, 1, 1, stores] {
                         return Err(unsupported(
                             "CT relocation enum merge local has extra definitions, stores or uses",
