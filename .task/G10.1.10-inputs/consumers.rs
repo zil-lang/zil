@@ -252,7 +252,12 @@ fn g10110_native_complete_consumers() {
                     .output()
                     .unwrap();
                 assert!(output.status.success(), "{name}: {output:?}");
-                assert_eq!(output.stdout, stdout, "{name}/{backend:?}/{optimization:?}");
+                // CompileOptions.entry selects the existing full-return-value
+                // harness: after explicit Source output it prints main's i32.
+                // Every fixture independently computes zero on success.
+                let mut expected = stdout.to_vec();
+                expected.extend_from_slice(b"0\n");
+                assert_eq!(output.stdout, expected, "{name}/{backend:?}/{optimization:?}");
                 assert!(output.stderr.is_empty(), "{name}: {output:?}");
                 std::fs::remove_dir_all(directory).unwrap();
             }

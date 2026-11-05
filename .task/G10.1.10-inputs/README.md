@@ -67,3 +67,5 @@ whole-helper source tests remain separate regression controls; replaying those
 does not establish these new cases. Multiple-target Package helper effects and
 broader loop/early-error combinations remain additional parent obligations
 beyond these eleven initial inputs.
+
+Root initial integration c77b7a1e7 actually ran these consumers. It exposed a test oracle omission: CompileOptions.entry uses the existing full-return-value harness in zil-backend-llvm/src/emit.rs, which prints the selected main's i32 after explicit Source output. All fixtures compute zero on success, so native expected stdout is the table's explicit output followed by `0\n` (including lending). The original observed captured output `AB42\n0\n` and failing test log are preserved outside source; the oracle is corrected from the fixed harness contract, not by weakening equality. Nested Package still genuinely fails at Analyze unpaid responsibility, and qualified lending still fails before its intended negative obligation; neither is counted as Pass.
