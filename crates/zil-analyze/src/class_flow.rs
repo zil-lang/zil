@@ -739,7 +739,9 @@ fn check_with(
                             )?;
                         }
                     }
-                    if let (Some(out), Some(id)) = (out, i.result) {
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && !out.classes.is_empty()
+                    {
                         let parent_ty = &f.values[id.0 as usize];
                         for (index, field) in fields.iter().enumerate() {
                             let step = if matches!(parent_ty, Type::Array { .. }) {
@@ -815,7 +817,9 @@ fn check_with(
                     }
                 }
                 InstructionKind::MakeVariant { variant, fields } => {
-                    if let (Some(out), Some(id)) = (out, i.result) {
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && !out.classes.is_empty()
+                    {
                         for (index, field) in fields.iter().enumerate() {
                             link_projection(
                                 &f.values[id.0 as usize],
