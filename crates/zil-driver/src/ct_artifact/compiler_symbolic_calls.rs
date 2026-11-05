@@ -13,10 +13,34 @@ impl Compiler<'_> {
         span: Span,
     ) -> R<(Vec<CtTy>, CtTy, Vec<CtTy>)> {
         let d = self.declarations[declaration];
-        let mut data = Vec::new();
-        let mut scalar = Vec::new();
-        let mut lives = Vec::new();
-        let mut types = Vec::new();
+        let capacity = d.function.generics.len();
+        // Four independent backing arrays use a known full-arity upper bound.
+        // Prepay every slot before allocation, including unused kind slots;
+        // push cannot introduce an uncharged geometric-capacity allocation.
+        self.budget.work(capacity, span)?;
+        Budget::take(
+            &mut self.budget.bytes,
+            capacity
+                .saturating_mul(
+                    std::mem::size_of::<(String, CtTy)>()
+                        + std::mem::size_of::<(String, symbolic_nominal::ScalarArgument)>()
+                        + std::mem::size_of::<(String, CtSymbolId, u32)>()
+                        + std::mem::size_of::<CtTy>(),
+                )
+                .saturating_add(
+                    d.function
+                        .params
+                        .len()
+                        .saturating_mul(std::mem::size_of::<CtTy>()),
+                ),
+            span,
+            "CT symbolic call backing arrays exhausted",
+        )?;
+        let mut data = Vec::with_capacity(capacity);
+        let mut scalar = Vec::with_capacity(capacity);
+        let mut lives = Vec::with_capacity(capacity);
+        let mut types = Vec::with_capacity(capacity);
+        let parameters = Vec::with_capacity(d.function.params.len());
         for (parameter, actual) in d.function.generics.iter().zip(explicit) {
             self.budget.node(span)?;
             self.budget.text(&parameter.name, span)?;
@@ -26,33 +50,15 @@ impl Compiler<'_> {
                     self.ordinary_copy(&ty, depth + 1, span)?;
                     self.budget.copy_ty(&ty, depth + 1, span)?;
                     self.budget.copy_ty(&ty, depth + 1, span)?;
-                    Budget::take(
-                        &mut self.budget.bytes,
-                        std::mem::size_of::<(String, CtTy)>(),
-                        span,
-                        "CT symbolic call type bindings exhausted",
-                    )?;
                     data.push((parameter.name.clone(), ty.clone()));
                     types.push(ty);
                 }
                 (s::GenericParamKind::Const(_), actual) => {
                     let value = self.abstract_scalar(parameter, actual, span)?;
-                    Budget::take(
-                        &mut self.budget.bytes,
-                        std::mem::size_of::<(String, symbolic_nominal::ScalarArgument)>(),
-                        span,
-                        "CT symbolic call scalar bindings exhausted",
-                    )?;
                     scalar.push((parameter.name.clone(), value));
                 }
                 (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
                     let (definition, ordinal) = self.abstract_life(name, span)?;
-                    Budget::take(
-                        &mut self.budget.bytes,
-                        std::mem::size_of::<(String, CtSymbolId, u32)>(),
-                        span,
-                        "CT symbolic call life bindings exhausted",
-                    )?;
                     lives.push((parameter.name.clone(), definition, ordinal));
                 }
                 _ => {
@@ -67,7 +73,7 @@ impl Compiler<'_> {
         let old_meta = std::mem::take(&mut self.metadata_bindings);
         let old_scalar = std::mem::replace(&mut self.abstract_scalars, scalar);
         let old_lives = std::mem::replace(&mut self.abstract_lives, lives);
-        let result = self.header(declaration);
+        let result = self.header_parameters(declaration, parameters);
         self.bindings = old_data;
         self.metadata_bindings = old_meta;
         self.abstract_scalars = old_scalar;
@@ -98,7 +104,15 @@ impl Builder<'_, '_> {
         let (parameters, result, types) =
             self.compiler
                 .abstract_call_header(declaration, self.module, explicit, depth, span)?;
-        let mut values = Vec::new();
+        Budget::take(
+            &mut self.compiler.budget.bytes,
+            arguments
+                .len()
+                .saturating_mul(std::mem::size_of::<CtValueId>()),
+            span,
+            "CT symbolic call argument array exhausted",
+        )?;
+        let mut values = Vec::with_capacity(arguments.len());
         for (argument, ty) in arguments.iter().zip(parameters) {
             self.compiler.budget.node(argument.span)?;
             values.push(self.expr(&argument.value, Some(&ty), depth + 1)?.id);

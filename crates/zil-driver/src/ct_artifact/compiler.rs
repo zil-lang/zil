@@ -654,6 +654,13 @@ impl<'a> Compiler<'a> {
         Ok(id)
     }
     fn header(&mut self, declaration: usize) -> R<(Vec<CtTy>, CtTy)> {
+        self.header_parameters(declaration, Vec::new())
+    }
+    fn header_parameters(
+        &mut self,
+        declaration: usize,
+        mut parameters: Vec<CtTy>,
+    ) -> R<(Vec<CtTy>, CtTy)> {
         let d = self.declarations[declaration];
         if d.function.generics.is_empty() && !d.function.where_clause.is_empty() {
             return Err(error(
@@ -664,7 +671,6 @@ impl<'a> Compiler<'a> {
         if matches!(d.item.kind, s::ItemKind::Extern { .. }) {
             return Err(error(d.item.span, "foreign functions cannot execute in CT"));
         }
-        let mut parameters = Vec::new();
         for parameter in &d.function.params {
             self.budget.node(parameter.span)?;
             if parameter.give {
