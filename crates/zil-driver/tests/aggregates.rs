@@ -10011,3 +10011,7 @@ mod p0_g445_review;
 
 #[path = "../../../tests/language-readiness/terminal/340/nonlocal-replace/controls.rs"]
 mod terminal340_nonlocal_replace;
+
+// Independent complete-parent consumers; staged failures remain visible during integration.
+#[path = "../../../.task/G10.1.10-inputs/consumers.rs"]
+mod g10110_independent_parent_consumers;
