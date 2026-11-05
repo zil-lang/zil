@@ -9738,3 +9738,6 @@ fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
         "G4.4.3 actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
     );
 }
+
+#[path = "../../../tests/language-readiness/terminal/340/whole_helper_review.rs"]
+mod whole_helper_review;
