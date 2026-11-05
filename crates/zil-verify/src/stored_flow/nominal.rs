@@ -93,7 +93,7 @@ fn walk(
         };
         type_work(ty, limits, b)?;
         if !matches!(ty, Type::BorrowedStorage { .. }) {
-            if !ty.is_copy_value() {
+            if !context_free_copy(ty, b)? {
                 return Err(err(
                     "non-nominal borrowed Type actual requires its semantic metadata consumer",
                 ));
@@ -113,6 +113,12 @@ fn walk(
         }
         let child = selected.ok_or_else(|| err("Type actual has no complete nominal instance"))?;
         let child_rows = walk(module, child, limits, b, active)?;
+        let Type::BorrowedStorage {
+            life: child_life, ..
+        } = &child.ty
+        else {
+            unreachable!()
+        };
         let mut mapping = Vec::<(u32, u32)>::new();
         for child_row in child_rows {
             let row = life
@@ -155,6 +161,12 @@ fn walk(
                 binder: row.binder,
             });
         }
+        b.spend(mapping.len().saturating_add(1))?;
+        if mapping.len() != child_life.binder_count as usize {
+            return Err(err(
+                "Type argument has a fixed class without a complete nominal metadata occurrence",
+            ));
+        }
     }
     if expected.len() != life.nominal_arguments.len() {
         return Err(err(
@@ -177,4 +189,47 @@ fn walk(
     }
     active.pop();
     Ok(expected)
+}
+
+fn context_free_copy(ty: &Type, b: &mut Budget) -> Check<bool> {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::BorrowedFunctionPointer { .. } | Type::BorrowedStorage { .. } => {
+                return Ok(false);
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    b.spend(fields.len().saturating_add(1))?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?;
+                pending.push(element);
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::FunctionPointer { parameters, result } => {
+                b.spend(parameters.len().saturating_add(1))?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            other if other.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }

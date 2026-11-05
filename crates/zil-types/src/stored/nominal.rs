@@ -128,7 +128,7 @@ fn walk(
         )?;
         fee(left, work, span)?;
         if !matches!(ty, Type::BorrowedStorage { .. }) {
-            if !ty.is_copy_value() {
+            if !context_free_copy(ty, left)? {
                 return Err(error(
                     "E-STORED-IDENTITY",
                     span,
@@ -176,6 +176,12 @@ fn walk(
             )
         })?;
         let child_rows = walk(module, child, limits, left, active)?;
+        let Type::BorrowedStorage {
+            life: child_life, ..
+        } = &child.ty
+        else {
+            unreachable!()
+        };
         let mut mapping = Vec::<(u32, u32)>::new();
         for child_row in child_rows {
             let row = life.nominal_arguments.get(expected.len()).ok_or_else(|| {
@@ -229,6 +235,14 @@ fn walk(
                 binder: row.binder,
             });
         }
+        fee(left, mapping.len().saturating_add(1), span)?;
+        if mapping.len() != child_life.binder_count as usize {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                span,
+                "Type argument has a fixed class without a complete nominal metadata occurrence",
+            ));
+        }
     }
     if expected.len() != life.nominal_arguments.len() {
         return Err(error(
@@ -257,4 +271,48 @@ fn walk(
     }
     active.pop();
     Ok(expected)
+}
+
+fn context_free_copy(ty: &Type, left: &mut usize) -> R<bool> {
+    let span = Span::default();
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        fee(left, 1, span)?;
+        match ty {
+            Type::BorrowedFunctionPointer { .. } | Type::BorrowedStorage { .. } => {
+                return Ok(false);
+            }
+            Type::Tuple(fields) => {
+                fee(left, fields.len(), span)?;
+                pending.extend(fields);
+            }
+            Type::Record { fields, .. } => {
+                fee(left, fields.len(), span)?;
+                pending.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(left, fields.len().saturating_add(1), span)?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Array { element, .. } => {
+                fee(left, 1, span)?;
+                pending.push(element);
+            }
+            Type::ErrorUnion { error, result } => {
+                fee(left, 2, span)?;
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::FunctionPointer { parameters, result } => {
+                fee(left, parameters.len().saturating_add(1), span)?;
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            other if other.is_copy_value() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
