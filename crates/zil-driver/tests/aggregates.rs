@@ -10,6 +10,9 @@ use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
+#[path = "../../../tests/language-readiness/terminal/340/helper_retirement_verify.rs"]
+mod helper_retirement_verify;
+
 #[path = "../../../tests/language-readiness/terminal/340/enum_replacement_verify.rs"]
 mod enum_replacement_verify;
 #[path = "../../../tests/language-readiness/terminal/340/enum_terminal.rs"]
