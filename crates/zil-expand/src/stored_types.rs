@@ -820,7 +820,6 @@ pub(super) fn instantiate(
         declaration,
         arguments,
         lifetime_arguments,
-        &BTreeMap::new(),
         None,
         budget,
         span,
@@ -832,8 +831,7 @@ pub(super) fn instantiate_joint(
     declaration: LifeNominalDeclaration,
     arguments: Vec<LifeNominalActual>,
     lifetime_arguments: &[(String, LexicalLife)],
-    qualified: &BTreeMap<usize, QualifiedActual>,
-    original: Option<&s::Aggregate>,
+    joint: Option<(&s::Aggregate, &BTreeMap<usize, QualifiedActual>)>,
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<Instance> {
@@ -876,6 +874,11 @@ pub(super) fn instantiate_joint(
             "stored nominal lexical lifetime mapping is incomplete",
         ));
     }
+    let empty = BTreeMap::new();
+    let (original, qualified) = match joint {
+        Some((original, qualified)) => (Some(original), qualified),
+        None => (None, &empty),
+    };
     let mut shape = Shape {
         budget,
         formals: lifetime_arguments,
