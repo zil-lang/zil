@@ -3006,6 +3006,16 @@ mod tests {
                 "joint scope attack {attack}"
             );
         }
+        // A caller-supplied lexical host edge remains an untrusted graph edge.
+        // Even a broad test authority cannot turn a cycle or missing row into
+        // an admissible complete scope inventory.
+        for parent in [CtAmbientScopeId(0), CtAmbientScopeId(u32::MAX)] {
+            let mut bad = p.clone();
+            bad.ambient_life_scopes[0].enclosing = Some(parent);
+            let bytes = zil_ir::ct_wire::encode_program(&bad, &limits).unwrap();
+            let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+            assert!(verify_ct_artifact(decoded, &limits, &authority).is_err());
+        }
         let mut different = p.clone();
         let schema = &mut different.record_schemas[0];
         schema.arguments[4] = CtSchemaArgument::Lifetime(lifetime(1));
