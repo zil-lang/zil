@@ -6,6 +6,13 @@ use crate::generics::Budget;
 use zil_base::{Diagnostic, FingerprintBuilder, ModuleId, NodeId, Phase, SourceUnit, Span};
 use zil_ir::LifeDeclarationIdentity;
 
+#[path = "source_context_generated.rs"]
+mod generated;
+pub use generated::{
+    GeneratedDeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree,
+    SourceDeclarationSite, SourceTreeIdentity,
+};
+
 #[path = "source_context_lineage.rs"]
 mod lineage;
 pub(crate) use lineage::capture_original_impl;
@@ -45,7 +52,7 @@ pub struct RetainedMemberOrigins {
     pub positions: Vec<u32>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct DeclarationOrigin {
     pub closure_sites: ClosureSiteLineage,
     pub declaration: NodeId,
@@ -55,9 +62,12 @@ pub struct DeclarationOrigin {
     /// lineage. Consumers still validate shape and actual host eligibility;
     /// original-event truth is checked where the immutable source AST exists.
     pub retained_members: Option<RetainedMemberOrigins>,
+    /// The actual frozen generation event and its root in that source tree.
+    /// This is raw lineage, independently checked by each identity consumer.
+    pub generated: Option<GeneratedDeclarationOrigin>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq)]
 pub struct ModuleDeclarationOrigins {
     pub module: ModuleId,
     /// Aligned with the actual module item vector, including imports until the
