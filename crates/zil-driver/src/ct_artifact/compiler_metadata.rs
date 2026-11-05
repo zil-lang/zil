@@ -493,6 +493,11 @@ impl Compiler<'_> {
             && !self.checking_generics
         {
             let (owner, item) = self.named_item(module, path, ty.span)?;
+            if self.metadata_graph_only {
+                return self
+                    .source_scoped_nominal_graph(module, owner, item, args, depth + 1, ty.span)
+                    .map(|(graph, _, _)| graph);
+            }
             let data = self.source_scoped_nominal(module, owner, item, args, depth + 1, ty.span)?;
             return self.metadata_data(&data, ty.span, depth + 1);
         }

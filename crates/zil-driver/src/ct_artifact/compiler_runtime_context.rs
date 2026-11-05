@@ -187,6 +187,25 @@ impl<'a> Compiler<'a> {
         })
     }
 
+    /// A Type actual has no serializable CT value or schema caller. Its full
+    /// graph and ordinary Copy qualification come from the original source;
+    /// the frozen consumer independently authenticates the actual Call later.
+    fn runtime_type_argument(
+        &mut self,
+        module: usize,
+        ty: &s::TypeRef,
+        span: Span,
+    ) -> R<CtTypeRef> {
+        let prior = std::mem::replace(&mut self.metadata_graph_only, true);
+        let result = (|| {
+            let graph = self.metadata_type(module, ty, 0)?;
+            self.metadata_copy(&graph, 0, span)?;
+            Ok(graph)
+        })();
+        self.metadata_graph_only = prior;
+        result
+    }
+
     fn bind_runtime_frame(
         &mut self,
         definition: &CtSymbolId,
@@ -385,8 +404,7 @@ impl<'a> Compiler<'a> {
             actuals.push(Some(match (&parameter.kind, argument, recipe) {
                 (s::GenericParamKind::Type(_), s::GenericArg::Type(ty), A::Type(_)) => {
                     self.generic_names(std::slice::from_ref(parameter), &[], parameter.span)?;
-                    let graph = self.metadata_type(caller_module, ty, 0)?;
-                    self.metadata_copy(&graph, 0, span)?;
+                    let graph = self.runtime_type_argument(caller_module, ty, span)?;
                     CtScopeActual::Type(graph)
                 }
                 (s::GenericParamKind::Const(_), argument, A::Const(_)) => {
@@ -400,7 +418,8 @@ impl<'a> Compiler<'a> {
                 }
             }));
         }
-        self.source_life_scope = self.source_life_scope(module, definition, span)?;
+        self.source_life_scope =
+            self.source_life_scope(module, definition, original.function.span)?;
         let scope = self
             .source_life_scope
             .as_ref()
@@ -686,6 +705,15 @@ impl Compiler<'_> {
                 return Err(error(
                     span,
                     "computed runtime CT record has no independently derived abstract nominal identity",
+                ));
+            }
+            CtTy::Enum(schema) => {
+                if let Some(ty) = self.runtime_abstract_enum_type(*schema, span, depth + 1)? {
+                    return Ok(ty);
+                }
+                return Err(error(
+                    span,
+                    "computed runtime CT enum has no independently derived abstract nominal identity",
                 ));
             }
             _ => {

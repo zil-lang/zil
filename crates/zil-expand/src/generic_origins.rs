@@ -297,9 +297,8 @@ impl Origins {
                         "aligned original declaration kind differs",
                     ));
                 }
-                if captured.generated.is_some() {
+                if let Some(generated) = &captured.generated {
                     validate_generated(item, captured, module.id, budget)?;
-                    let generated = captured.generated.as_ref().unwrap();
                     let tree = &generated.tree;
                     let identity_work = tree.identity_path_len();
                     budget.identity_work(
@@ -665,15 +664,14 @@ fn validate_generated(
                 "generated members changed without retained source events",
             ));
         }
-        if let Some(retained) = retained {
-            if retained.original_count as usize != source.len()
-                || retained.positions.len() != output.len()
-            {
-                return Err(error(
-                    item.span,
-                    "generated retained member source count differs",
-                ));
-            }
+        if let Some(retained) = retained
+            && (retained.original_count as usize != source.len()
+                || retained.positions.len() != output.len())
+        {
+            return Err(error(
+                item.span,
+                "generated retained member source count differs",
+            ));
         }
         for (ordinal, member) in output.iter().enumerate() {
             let source_ordinal = retained.map_or(ordinal, |map| map.positions[ordinal] as usize);

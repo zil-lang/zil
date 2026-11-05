@@ -165,6 +165,9 @@ impl<'a> Compiler<'a> {
             .get(graph.root.0 as usize)
             .ok_or_else(|| error(span, "Copy metadata root is absent"))?;
         match node {
+            CtTypeNode::BorrowedStorage { .. } if self.metadata_graph_only => {
+                self.copy_metadata_nominal(graph, depth + 1, span)
+            }
             CtTypeNode::BorrowedStorage { .. } => {
                 self.copy_registered_scoped_data(graph, depth, span)
             }
@@ -340,6 +343,7 @@ impl<'a> Compiler<'a> {
                         if binding.caller.is_none() && self.current_source_function.is_some() {
                             binding.caller = self.current_source_function;
                             binding.site = self.current_nominal_site;
+                            binding.parent = self.source_nominal_parent;
                         }
                     }
                     return Ok(if record {
@@ -380,6 +384,62 @@ impl<'a> Compiler<'a> {
             });
             CtTy::Enum(CtEnumSchemaId((self.enums.len() - 1) as u32))
         };
+        // Only the selected original nominal's complete lifetime argument
+        // vector may name its real field binders. A strict Some table prevents
+        // a field spelling from falling back to the caller's unrelated binder.
+        let mut life_bindings = Vec::new();
+        if let Some((graph, _, _)) = &context {
+            let schema_arguments = match id {
+                CtTy::Record(id) => &self.records[id.0 as usize].arguments,
+                CtTy::Enum(id) => &self.enums[id.0 as usize].arguments,
+                _ => unreachable!(),
+            };
+            self.budget.work(parameters.len().saturating_mul(2), span)?;
+            let count = parameters
+                .iter()
+                .filter(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+                .count();
+            Budget::take(
+                &mut self.budget.bytes,
+                count.saturating_mul(std::mem::size_of::<(String, CtAmbientLifeReference)>()),
+                span,
+                "CT nominal field life binding backing exhausted",
+            )?;
+            life_bindings.reserve_exact(count);
+            for (parameter, argument) in parameters.iter().zip(schema_arguments) {
+                if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                    continue;
+                }
+                let CtSchemaArgument::Lifetime(argument) = argument else {
+                    return Err(error(span, "CT nominal field life actual has another kind"));
+                };
+                let zil_ir::StorageBinder::Fixed(class) = argument.binder else {
+                    return Err(error(
+                        span,
+                        "CT nominal field life actual is not a fixed class",
+                    ));
+                };
+                self.budget.work(graph.ambient_classes.len(), span)?;
+                let mut matches = graph
+                    .ambient_classes
+                    .iter()
+                    .filter(|row| row.owner == argument.owner && row.class == class);
+                let source = matches
+                    .next()
+                    .ok_or_else(|| {
+                        error(span, "CT nominal field life actual has no ambient source")
+                    })?
+                    .source;
+                if matches.next().is_some() {
+                    return Err(error(
+                        span,
+                        "CT nominal field life actual has repeated ambient sources",
+                    ));
+                }
+                self.budget.text(&parameter.name, span)?;
+                life_bindings.push((parameter.name.clone(), source));
+            }
+        }
         if let Some((_, parameters, sources)) = context {
             let definition = self
                 .source_life_scope
@@ -389,6 +449,7 @@ impl<'a> Compiler<'a> {
                 .clone();
             self.budget.work(parameters.len() + 32, span)?;
             self.source_life_bindings.push(SourceLifeBinding {
+                parent: self.source_nominal_parent,
                 enumeration: !record,
                 schema: match id {
                     CtTy::Record(id) => id.0,
@@ -405,6 +466,13 @@ impl<'a> Compiler<'a> {
         let old_meta = std::mem::replace(&mut self.metadata_bindings, metadata_bindings);
         let old_data = std::mem::take(&mut self.bindings);
         let old_scalars = std::mem::replace(&mut self.scalar_bindings, scalar_bindings);
+        let old_lives = self.metadata_life_bindings.replace(life_bindings);
+        let parent = match id {
+            CtTy::Record(id) => SourceSchemaId::Record(id),
+            CtTy::Enum(id) => SourceSchemaId::Enum(id),
+            _ => unreachable!(),
+        };
+        let old_parent = self.source_nominal_parent.replace(parent);
         let result = (|| {
             match (&item.kind, &id) {
                 (s::ItemKind::Aggregate(a), CtTy::Record(id)) => {
@@ -464,6 +532,8 @@ impl<'a> Compiler<'a> {
         self.bindings = old_data;
         self.metadata_bindings = old_meta;
         self.scalar_bindings = old_scalars;
+        self.metadata_life_bindings = old_lives;
+        self.source_nominal_parent = old_parent;
         result
     }
     pub(super) fn canonical_data_sum(&mut self, members: Vec<CtTy>, span: Span) -> R<CtTy> {

@@ -664,8 +664,7 @@ impl<'a> Engine<'a> {
                 declaration,
                 actuals,
                 &lives,
-                &qualified_actuals,
-                Some(aggregate),
+                Some((aggregate, &qualified_actuals)),
                 &mut self.budget,
                 span,
             )?

@@ -517,6 +517,16 @@ impl<'a> Compiler<'a> {
                         CtTy::Record(id)
                     }
                     s::ItemKind::Enum(e) => {
+                        if self.checking_generics && !e.generics.is_empty() {
+                            return self.abstract_nominal(
+                                module,
+                                owner,
+                                item,
+                                args,
+                                depth + 1,
+                                ty.span,
+                            );
+                        }
                         if !self.checking_generics {
                             if e.generics
                                 .iter()

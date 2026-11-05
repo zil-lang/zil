@@ -155,13 +155,7 @@ fn nearest_source_negatives(ownership: bool) {
         "return old+*b;",
         "return old+*a+*b;",
     );
-    let escaped = replace_once(
-        include_str!("qualified-lending.zil"),
-        "fn apply<life s>(left:&Tag<'s>)->i32",
-        "fn apply<life s>(left:&Tag<'s>)->&i32",
-    );
-    let escaped = replace_once(&escaped, "return *a+*b;", "return a;");
-    let escaped = replace_once(&escaped, "return apply(&tag)", "return *apply(&tag)");
+    let escaped = include_str!("dead-lending-scope.zil").to_owned();
     let aliased = replace_once(
         include_str!("two-role-fnmut-loop.zil"),
         "dispatch(&mut f,&mut g,left,3)",

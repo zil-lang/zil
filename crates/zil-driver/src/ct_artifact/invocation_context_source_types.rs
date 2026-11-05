@@ -1520,11 +1520,13 @@ impl FrozenInvocationContext {
             step(budget, 0)?;
             callee = inner;
         }
-        let s::ExprKind::TypeApply { callee, arguments } = &callee.kind else {
-            return Err(unsupported(
-                "CT source call omits its original complete explicit actuals",
-            ));
+        let (callee, explicit) = match &callee.kind {
+            s::ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee, None),
         };
+        let arguments = explicit.unwrap_or(&[]);
         let before = budget.live_temporary_bytes();
         let mut path = Vec::new();
         let result = (|| {
@@ -1550,6 +1552,11 @@ impl FrozenInvocationContext {
             budget.reserve_analysis_work(
                 (declaration.generics.len() + arguments.len() + call.actuals.len()) as u64,
             )?;
+            if explicit.is_none() && !declaration.generics.is_empty() {
+                return Err(unsupported(
+                    "CT source call omits its original complete explicit actuals",
+                ));
+            }
             if declaration.generics.len() != arguments.len()
                 || arguments.len() != call.actuals.len()
             {
