@@ -1,4 +1,5 @@
-//! Paid forward provenance over an actual DAG, independent of resource proofs.
+//! Paid forward provenance, independent of resource proofs.
+//! DAGs retain their original schedule; cycles use monotone input-state worklists.
 use super::*;
 use zil_ir::{BasicBlock, ClosureId, ValueId};
 
@@ -13,7 +14,7 @@ impl Origin {
         if self == other { self } else { Self::Mixed }
     }
 }
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 struct Frame {
     locals: Vec<Origin>,
     values: Vec<Origin>,
@@ -22,7 +23,7 @@ struct Frame {
     done: Origin,
 }
 impl Frame {
-    fn merge(&mut self, other: &Self, b: &mut Budget) -> CompileResult<()> {
+    fn merge(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
         b.spend(
             self.locals
                 .len()
@@ -31,16 +32,22 @@ impl Frame {
                 .saturating_add(1),
             "owning CFG frame merge",
         )?;
+        let mut changed = false;
         for i in 0..self.locals.len() {
+            changed |= self.locals[i] != self.locals[i].join(other.locals[i])
+                || self.activated[i] != (self.activated[i] | other.activated[i])
+                || self.retired[i] != (self.retired[i] | other.retired[i]);
             self.locals[i] = self.locals[i].join(other.locals[i]);
             self.activated[i] |= other.activated[i];
             self.retired[i] |= other.retired[i];
         }
         for (left, right) in self.values.iter_mut().zip(&other.values) {
+            changed |= *left != left.join(*right);
             *left = left.join(*right);
         }
+        changed |= self.done != self.done.join(other.done);
         self.done = self.done.join(other.done);
-        Ok(())
+        Ok(changed)
     }
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
         b.spend(
@@ -91,6 +98,24 @@ pub(super) fn parameter(
     call: &InstructionKind,
     id: ClosureId,
     b: &mut Budget,
+) -> CompileResult<usize> {
+    match solve(f, call, id, b, false) {
+        Err(errors)
+            if errors
+                .iter()
+                .all(|d| d.category != zil_base::ResultCategory::ResourceLimit) =>
+        {
+            solve(f, call, id, b, true)
+        }
+        result => result,
+    }
+}
+fn solve(
+    f: &TypedFunction,
+    call: &InstructionKind,
+    id: ClosureId,
+    b: &mut Budget,
+    cyclic: bool,
 ) -> CompileResult<usize> {
     let n = f.blocks.len();
     b.spend(
@@ -155,7 +180,7 @@ pub(super) fn parameter(
         }
     }
     let entry = f.entry.0 as usize;
-    if incoming[entry] != 0 {
+    if !cyclic && incoming[entry] != 0 {
         return Err(closed());
     }
     b.spend(
@@ -176,18 +201,37 @@ pub(super) fn parameter(
     initial.locals[local] = Origin::Input(p);
     initial.activated[local] = 2;
     states[entry] = Some(initial);
-    for (index, count) in incoming.iter().enumerate() {
-        if *count == 0 {
-            ready.push(index);
+    let mut seen = if cyclic {
+        b.spend(n, "cyclic owning CFG block activation inventory")?;
+        vec![false; n]
+    } else {
+        Vec::new()
+    };
+    if cyclic {
+        ready.push(entry);
+    } else {
+        for (index, count) in incoming.iter().enumerate() {
+            if *count == 0 {
+                ready.push(index);
+            }
         }
     }
     let mut visited = 0usize;
     let mut answer = None;
     while let Some(index) = ready.pop() {
         b.spend(3, "owning CFG actual block visit and edges")?;
-        visited += 1;
+        if !cyclic || !seen[index] {
+            visited += 1;
+        }
+        if cyclic {
+            seen[index] = true;
+        }
         let block = &f.blocks[index];
-        let mut frame = states[index].take().ok_or_else(closed)?; // unreachable islands fail, even if acyclic
+        let mut frame = if cyclic {
+            states[index].as_ref().ok_or_else(closed)?.copy(b)?
+        } else {
+            states[index].take().ok_or_else(closed)?
+        };
         b.spend(block.instructions.len(), "owning CFG linear transfers")?;
         for i in &block.instructions {
             let result = i.result;
@@ -261,6 +305,9 @@ pub(super) fn parameter(
                         _ => return Err(closed()),
                     }
                     frame.retired[l] = true;
+                    if cyclic {
+                        frame.activated[l] = 1;
+                    }
                 }
                 InstructionKind::StorageDead(local) if closure_local(f, *local) => {
                     let l = local.0 as usize;
@@ -268,13 +315,23 @@ pub(super) fn parameter(
                         return Err(closed());
                     }
                     frame.retired[l] = true;
+                    if cyclic {
+                        frame.activated[l] = 1;
+                    }
                 }
                 InstructionKind::StorageLive(local) if closure_local(f, *local) => {
                     let l = local.0 as usize;
-                    if frame.activated[l] != 1 || frame.retired[l] {
+                    if frame.activated[l] != 1
+                        || (frame.retired[l] && !cyclic)
+                        || (cyclic
+                            && (frame.locals[l] != Origin::Empty || *local == f.parameters[p]))
+                    {
                         return Err(closed());
                     }
                     frame.activated[l] = 2;
+                    if cyclic {
+                        frame.retired[l] = false;
+                    }
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
                     if closure_local(f, *local) =>
@@ -339,14 +396,21 @@ pub(super) fn parameter(
             }
         }
         for next in edges(block)?.into_iter().flatten() {
-            if let Some(previous) = &mut states[next] {
-                previous.merge(&frame, b)?;
+            let changed = if let Some(previous) = &mut states[next] {
+                previous.merge(&frame, b)?
             } else {
                 states[next] = Some(frame.copy(b)?);
-            }
-            incoming[next] -= 1;
-            if incoming[next] == 0 {
-                ready.push(next);
+                true
+            };
+            if cyclic {
+                if changed {
+                    ready.push(next);
+                }
+            } else {
+                incoming[next] -= 1;
+                if incoming[next] == 0 {
+                    ready.push(next);
+                }
             }
         }
     }

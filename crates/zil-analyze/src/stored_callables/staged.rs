@@ -472,7 +472,8 @@ mod tests {
                     .unwrap()
                     .kind;
                 assert!(
-                    super::super::role(&m, &changed, call, &mut Budget::new(&limits)).is_err(),
+                    super::super::role(&m, &changed, call, &mut Budget::new(&limits)).is_ok()
+                        == (name == "self-loop"),
                     "{name}"
                 );
             }

@@ -8065,3 +8065,6 @@ mod g338_cfg;
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs"]
 mod p0_g338_review;
+
+#[path = "../../../tests/language-readiness/terminal/342/callable-completion/regressions.rs"]
+mod g339_completion;
