@@ -136,6 +136,11 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
             "0\n",
         ),
         (
+            "once-adapt-managed",
+            include_str!("once-adapt-managed.zil"),
+            "AB15\n0\n",
+        ),
+        (
             "nonconsuming-managed",
             include_str!("nonconsuming-managed.zil"),
             "ABC52\n0\n",
@@ -813,6 +818,59 @@ fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
     );
     eprintln!(
         "G339 qualified same-F mutable alias rejection: {}",
+        rejected.to_json()
+    );
+}
+
+#[test]
+fn g339_once_adaptation_retains_actual_owned_environment_cleanup() {
+    let text = include_str!("once-adapt-managed.zil");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
+        assert!(typed.closures.iter().any(|d| {
+            d.kind == kind
+                && d.storage_life.is_some()
+                && d.captures
+                    .iter()
+                    .any(|ty| matches!(ty, zil_ir::Type::Managed(_)))
+        }));
+    }
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let double = text.replace("return f(x)", "return f(x)+f(x)");
+    let rejected = compile_source(
+        &source(&double),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    eprintln!(
+        "G339 adapted owning environment double call: {}",
         rejected.to_json()
     );
 }
