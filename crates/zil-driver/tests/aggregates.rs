@@ -9784,6 +9784,20 @@ fn g445_original_context_record_returns_reach_native_full_values() {
     let scalar_fields = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
     );
+    // The preexisting direct factory must also reify Unit as (), independently
+    // of whether the new return relocation is used by this expression.
+    let direct = scalar_fields.replace(
+        "#(forward::<'s,42,bool>(bool))",
+        "#(make::<bool,42,'s>(bool))",
+    );
+    let report = compile_source(&source(&direct), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
     let fields = reordered
         .replace("{n:i32}", "{n:i32;m:i32}")
         .replace("{n:N}", "{n:N,m:N+1}")
