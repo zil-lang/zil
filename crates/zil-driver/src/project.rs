@@ -91,7 +91,10 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
     let static_namespace_ct = parsed.module.items.iter().any(|item| {
         matches!(&item.kind, ast::ItemKind::Aggregate(host)
             if !host.generics.is_empty() && !host.methods.is_empty())
-    }) && parsed.tokens.iter().any(|token| token.text(&source.text) == "#");
+    }) && parsed
+        .tokens
+        .iter()
+        .any(|token| token.text(&source.text) == "#");
     standard
         || runtime_generic_ct
         || static_namespace_ct

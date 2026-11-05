@@ -922,8 +922,11 @@ impl<'a> Engine<'a> {
                 }
                 if !a.methods.is_empty() {
                     runtime_ct_phase::check_static_host(
-                        item, engine.budget.context.origin, engine.origins,
-                        engine.runtime_ct, &mut engine.budget,
+                        item,
+                        engine.budget.context.origin,
+                        engine.origins,
+                        engine.runtime_ct,
+                        &mut engine.budget,
                     )?;
                 }
             }
@@ -1040,7 +1043,10 @@ impl<'a> Engine<'a> {
             .cloned()
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
         if matches!(&item.kind, ItemKind::Aggregate(a) if !a.methods.is_empty()) {
-            return Err(unsupported(span,"generic resource or methods require capability resolution"));
+            return Err(unsupported(
+                span,
+                "generic resource or methods require capability resolution",
+            ));
         }
         let product =
             matches!(&item.kind, ItemKind::Aggregate(a) if products::parameter(a).is_some());

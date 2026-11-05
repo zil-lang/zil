@@ -418,8 +418,8 @@ impl RuntimeCt for RuntimePhase<'_> {
         remaining: &mut Limits,
     ) -> CompileResult<()> {
         let mut environment = self.environment.borrow_mut();
-        synchronize(&mut environment,remaining)?;
-        let result = environment.check_static_host(definition,actual);
+        synchronize(&mut environment, remaining)?;
+        let result = environment.check_static_host(definition, actual);
         *remaining = environment.remaining_limits_for_input();
         result
     }
