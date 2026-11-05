@@ -456,7 +456,17 @@ impl Builder<'_, '_> {
                     && path.len() >= 2
                     && !self.has_local(&path[0], span)?
                 {
-                    if let Some(value) = self.enum_value(&path, &[], depth + 1, span)? {
+                    if let Some(value) = self.enum_value(
+                        &path,
+                        &[],
+                        if matches!(object.kind, s::ExprKind::TypeApply { .. }) {
+                            None
+                        } else {
+                            expected
+                        },
+                        depth + 1,
+                        span,
+                    )? {
                         value
                     } else {
                         self.type_name(&path, span, depth + 1)?
@@ -595,7 +605,11 @@ impl Builder<'_, '_> {
                 {
                     if self.compiler.checking_generics {
                         self.compiler.check_abstract_type_application(
-                            self.module, item, arguments, depth + 1, span,
+                            self.module,
+                            item,
+                            arguments,
+                            depth + 1,
+                            span,
                         )?;
                         return self.emit(
                             CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
@@ -675,42 +689,78 @@ impl Builder<'_, '_> {
         &mut self,
         path: &[String],
         arguments: &[s::Argument],
+        expected: Option<&CtTy>,
         depth: usize,
         span: Span,
     ) -> R<Option<Value>> {
         if path.len() < 2 {
             return Ok(None);
         }
-        let (_, item) = match self
-            .compiler
-            .named_item(self.module, &path[..path.len() - 1], span)
-        {
-            Ok(item) => item,
-            Err(errors)
-                if errors
-                    .iter()
-                    .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+        let (owner, item) =
+            match self
+                .compiler
+                .named_item(self.module, &path[..path.len() - 1], span)
             {
-                return Err(errors);
-            }
-            Err(_) => return Ok(None),
-        };
+                Ok(item) => item,
+                Err(errors)
+                    if errors
+                        .iter()
+                        .any(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                {
+                    return Err(errors);
+                }
+                Err(_) => return Ok(None),
+            };
         if !matches!(item.kind, s::ItemKind::Enum(_) | s::ItemKind::TypeAlias(_)) {
             return Ok(None);
         }
         for part in &path[..path.len() - 1] {
             self.compiler.budget.text(part, span)?;
         }
-        let ty = s::TypeRef {
-            kind: s::TypeKind::Named {
-                path: path[..path.len() - 1].to_vec(),
-                args: Vec::new(),
-            },
-            span,
+        // The actual contextual header has already elaborated the complete
+        // vector. Infer a constructor's owner only after the written path
+        // independently selects that exact nominal declaration. Aliases and
+        // explicit owner applications keep their ordinary elaboration path.
+        let inferred = if let (s::ItemKind::Enum(enumeration), Some(CtTy::Enum(schema))) =
+            (&item.kind, expected)
+        {
+            self.compiler
+                .budget
+                .work(enumeration.generics.len().saturating_add(64), span)?;
+            let symbol = self.compiler.item_symbol(owner, item)?;
+            let actual = self
+                .compiler
+                .enums
+                .get(schema.0 as usize)
+                .ok_or_else(|| error(span, "CT enum constructor expected schema is absent"))?;
+            if actual.name != symbol
+                || actual.origin != CtSchemaOrigin::UserPure
+                || actual.arguments.len() != enumeration.generics.len()
+            {
+                return Err(error(
+                    span,
+                    "CT enum constructor expected Type has a different actual nominal or incomplete argument vector",
+                ));
+            }
+            Some(*schema)
+        } else {
+            None
         };
-        let resolved = self.compiler.ty(self.module, &ty, depth + 1)?;
-        let CtTy::Enum(schema) = resolved else {
-            return Ok(None);
+        let schema = if let Some(schema) = inferred {
+            schema
+        } else {
+            let ty = s::TypeRef {
+                kind: s::TypeKind::Named {
+                    path: path[..path.len() - 1].to_vec(),
+                    args: Vec::new(),
+                },
+                span,
+            };
+            let resolved = self.compiler.ty(self.module, &ty, depth + 1)?;
+            let CtTy::Enum(schema) = resolved else {
+                return Ok(None);
+            };
+            schema
         };
         let (_, enumeration) = self.compiler.enum_sources[schema.0 as usize];
         let name = path.last().unwrap();
@@ -826,11 +876,23 @@ impl Builder<'_, '_> {
             }
             s::TypeKind::Named { path, args } => {
                 if self.compiler.checking_generics
-                    && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                    && args
+                        .iter()
+                        .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
                 {
                     let (_, item) = self.compiler.named_item(module, path, ty.span)?;
-                    self.compiler.check_abstract_type_application(module, item, args, depth + 1, ty.span)?;
-                    return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, ty.span);
+                    self.compiler.check_abstract_type_application(
+                        module,
+                        item,
+                        args,
+                        depth + 1,
+                        ty.span,
+                    )?;
+                    return self.emit(
+                        CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
+                        CtTy::Type,
+                        ty.span,
+                    );
                 }
 
                 if !self.compiler.checking_generics
@@ -1188,7 +1250,7 @@ impl Builder<'_, '_> {
             };
             return self.emit(kind, CtTy::Scalar(target), span);
         }
-        if let Some(value) = self.enum_value(&path, arguments, depth, span)? {
+        if let Some(value) = self.enum_value(&path, arguments, if explicit.is_some() || matches!(&callee.kind, s::ExprKind::Member { object, .. } if matches!(object.kind, s::ExprKind::TypeApply { .. })) { None } else { expected }, depth, span)? {
             return Ok(value);
         }
         let declaration = self.compiler.function(self.module, &path, span)?;
