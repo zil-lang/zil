@@ -21,6 +21,8 @@ mod associated_constants;
 mod self_constant_coverage;
 #[path = "self_constants.rs"]
 mod self_constants;
+#[path = "materialize_member_lineage.rs"]
+mod member_lineage;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -205,6 +207,7 @@ struct Materializer<'a, 'b> {
     max_depth: usize,
     track_declarations: bool,
     declaration_lineage_preserved: bool,
+    member_retentions: Vec<member_lineage::MemberRetention>,
     generated_context: bool,
     // The revision is sampled at the actual original top-level item visit.
     // Changed rows move with retained original ordinals, never with spans.
@@ -1495,6 +1498,8 @@ impl Materializer<'_, '_> {
             if retained.into_iter().ne(0..original_count) {
                 // The current public ledger has top-level rows only. Member
                 // ordinals cannot be recovered after deleting nested items.
+                // Actual deletion events remain separate from the published
+                // untrusted table. Generated/unknown hosts stay unavailable.
                 self.declaration_lineage_preserved = false;
             }
         }

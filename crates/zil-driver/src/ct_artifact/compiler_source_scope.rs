@@ -172,6 +172,15 @@ pub(crate) fn original_item<'a>(
     select(module, Selection::Node(item), max_depth, pay)
 }
 
+pub(crate) fn original_declaration<'a>(
+    module: &'a s::Module,
+    declaration: zil_base::NodeId,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<OriginalItem<'a>>> {
+    select(module, Selection::Declaration(declaration), max_depth, pay)
+}
+
 /// The caller owns an aligned clone of this original member vector. Its
 /// ordinal remains authentic even when sibling spans are equal.
 pub(crate) fn original_member(
