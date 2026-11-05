@@ -535,12 +535,23 @@ impl State {
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
     }
 
+    pub(super) fn source_helper_bounds(
+        &mut self,
+        function: &CoreFunction,
+    ) -> R<Vec<CoreCallableParameter>> {
+        inference::snapshot_callable_parameters(
+            &function.callable_parameters,
+            &self.limits,
+            &mut self.work_left,
+            function.span,
+        )
+    }
     pub(super) fn source_helper_context(
         &mut self,
         function: &CoreFunction,
         bound: &CoreCallableParameter,
     ) -> R<()> {
-        helpers::source_life::reserve(bound, &self.limits, &mut self.work_left, 1, function.span)?;
+        helpers::source_life::reserve_function(function,bound,&self.limits,&mut self.work_left,2)?;
         helpers::source_life::validate(function, bound)
     }
     pub(super) fn source_helper_relation(

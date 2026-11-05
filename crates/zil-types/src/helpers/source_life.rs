@@ -150,6 +150,15 @@ pub(crate) fn reserve(
     Ok(())
 }
 
+pub(crate) fn reserve_function(function:&CoreFunction,bound:&CoreCallableParameter,limits:&Limits,left:&mut usize,copies:usize)->R<()> {
+    reserve(bound,limits,left,copies,function.span)?;
+    if bound.source_life.is_none() {return Ok(())}
+    let mut work=function.parameters.len().saturating_add(bound.generic_name.len());
+    if let Some(Type::Address {inner,..})=function.parameters.get(bound.index as usize).map(|p|&p.ty)
+        && let Type::Named(name)=inner.as_ref() { work=work.saturating_add(name.len()); }
+    pay(left,work.saturating_mul(copies.saturating_add(1)),function.span)
+}
+
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
@@ -178,11 +187,7 @@ fn tag(ty: &Type) -> Option<&StorageLifeShape> {
     };
     (matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
         && life.binder_count == 1
-        && life.retained.is_empty()
-        && life
-            .slots
-            .iter()
-            .all(|slot| slot.mode == StoredBorrowMode::SharedAddress))
+        && life.retained.is_empty())
     .then_some(life)
 }
 
