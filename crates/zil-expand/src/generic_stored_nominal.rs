@@ -324,7 +324,7 @@ impl<'a> Engine<'a> {
                 result
             }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
-                if !self.stored_declaration(&name[0], ty.span)? {
+                if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
                 }
                 let (generated, classes) =
@@ -494,7 +494,13 @@ impl<'a> Engine<'a> {
         let mut parameters = Vec::new();
         let mut keys = Vec::new();
         let mut local_classes = Vec::new();
-        for (formal, actual) in aggregate.generics.iter().zip(arguments.iter_mut()) {
+        let mut qualified_actuals = BTreeMap::new();
+        for (ordinal, (formal, actual)) in aggregate
+            .generics
+            .iter()
+            .zip(arguments.iter_mut())
+            .enumerate()
+        {
             self.budget.node(formal.span, depth)?;
             self.budget.text(&formal.name, formal.span)?;
             match (&formal.kind, actual) {
@@ -519,6 +525,27 @@ impl<'a> Engine<'a> {
                     lives.push((formal.name.clone(), life));
                 }
                 (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                    if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
+                        let class_key =
+                            self.joint_class_key(&actual.classes, &mut local_classes, span)?;
+                        let physical_key = type_key(ty, &mut self.budget)?;
+                        self.budget.identity_work(
+                            physical_key.len().saturating_add(class_key.len()),
+                            span,
+                        )?;
+                        keys.push(format!("{physical_key}[{class_key}]"));
+                        parameters.push(LifeParameterKind::Type);
+                        stored_types::pay_type(&actual.ty, &mut self.budget, span, depth + 1)?;
+                        actuals.push(LifeNominalActual::Type(actual.ty.clone()));
+                        self.budget.ty(ty)?;
+                        substitution.insert(formal.name.clone(), ty.clone());
+                        self.budget.lineage_bytes(
+                            std::mem::size_of::<(usize, stored_types::QualifiedActual)>(),
+                            span,
+                        )?;
+                        qualified_actuals.insert(ordinal, actual);
+                        continue;
+                    }
                     self.closed_stored_actual(ty, depth + 1)?;
                     self.ty(ty, depth + 1)?;
                     self.closed_stored_actual(ty, depth + 1)?;
@@ -616,14 +643,26 @@ impl<'a> Engine<'a> {
             kind: LifeNominalKind::Record,
             parameters,
         };
-        let produced = stored_types::instantiate(
-            physical,
-            declaration,
-            actuals,
-            &lives,
-            &mut self.budget,
-            span,
-        )?;
+        let produced = if qualified_actuals.is_empty() {
+            stored_types::instantiate(
+                physical,
+                declaration,
+                actuals,
+                &lives,
+                &mut self.budget,
+                span,
+            )?
+        } else {
+            stored_types::instantiate_joint(
+                physical,
+                declaration,
+                actuals,
+                &lives,
+                &qualified_actuals,
+                &mut self.budget,
+                span,
+            )?
+        };
         let classes = produced.classes;
         if existing.is_none() {
             physical.generics.clear();

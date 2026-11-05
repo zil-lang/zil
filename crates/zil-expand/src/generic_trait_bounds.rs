@@ -821,6 +821,7 @@ impl<'a> Index<'a> {
             (1 + self
                 .instantiated_copy_shapes
                 .len()
+                .saturating_add(self.nominals.len())
                 .checked_ilog2()
                 .unwrap_or(0) as usize)
                 .saturating_mul(label.len().saturating_add(1)),
