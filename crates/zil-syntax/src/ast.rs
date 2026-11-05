@@ -441,6 +441,34 @@ pub struct Expr {
     pub span: Span,
 }
 
+/// A request-local relocation reference, not source syntax or a semantic claim.
+/// Only a matching elaboration ledger may consume it. Incoming raw references
+/// must be cleared and rebuilt; cloning is not a second context production.
+/// Syntax equality deliberately ignores this transport detail. Consumers must
+/// compare `raw_index()` and validate the actual ledger, never compare markers.
+#[derive(Clone, Copy, Debug)]
+pub struct ClosureContextMarker(u32);
+impl Default for ClosureContextMarker {
+    fn default() -> Self {
+        Self(u32::MAX)
+    }
+}
+impl ClosureContextMarker {
+    /// MAX is the absent sentinel, never a valid ledger slot. Interpreting an
+    /// absent marker grants no authority; all actual contexts are reproduced.
+    pub fn untrusted(index: u32) -> Self {
+        Self(index)
+    }
+    pub fn raw_index(self) -> Option<u32> {
+        (self.0 != u32::MAX).then_some(self.0)
+    }
+}
+impl PartialEq for ClosureContextMarker {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub enum ExprKind {
     Literal(Literal),
@@ -496,6 +524,7 @@ pub enum ExprKind {
         fields: Vec<RecordField>,
     },
     Closure {
+        context: ClosureContextMarker,
         move_capture: bool,
         params: Vec<ClosureParam>,
         return_type: Option<TypeRef>,

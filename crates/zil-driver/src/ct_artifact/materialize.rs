@@ -206,6 +206,10 @@ struct Materializer<'a, 'b> {
     track_declarations: bool,
     declaration_lineage_preserved: bool,
     generated_context: bool,
+    // The revision is sampled at the actual original top-level item visit.
+    // Changed rows move with retained original ordinals, never with spans.
+    closure_site_revision: u64,
+    changed_closure_sites: BTreeSet<(ModuleId, usize)>,
     self_constant_sources: Vec<(ModuleId, usize, usize)>,
     self_constant_impl_sources: Vec<(ModuleId, usize)>,
     self_constant_impl_outputs: Vec<(ModuleId, usize)>,
@@ -1279,6 +1283,33 @@ impl Materializer<'_, '_> {
         });
         Ok(syntax)
     }
+    fn closure_sites_changed(&mut self, span: Span) -> CompileResult<()> {
+        if self.track_declarations {
+            self.environment.budget.reserve_analysis_work(1)?;
+            self.closure_site_revision = self
+                .closure_site_revision
+                .checked_add(1)
+                .ok_or_else(|| category("closure-site lineage revision overflow", span))?;
+        }
+        Ok(())
+    }
+    fn record_changed_closure_sites(
+        &mut self,
+        module: ModuleId,
+        ordinal: usize,
+    ) -> CompileResult<()> {
+        self.environment.budget.reserve_analysis_work(
+            self.changed_closure_sites
+                .len()
+                .saturating_mul(2)
+                .saturating_add(1) as u64,
+        )?;
+        self.environment.budget.reserve_temporary_bytes(
+            (std::mem::size_of::<(ModuleId, usize)>() as u64).saturating_add(64),
+        )?;
+        self.changed_closure_sites.insert((module, ordinal));
+        Ok(())
+    }
     fn items(
         &mut self,
         module: ModuleId,
@@ -1307,6 +1338,7 @@ impl Materializer<'_, '_> {
         };
         let original_coordinates = self.track_declarations || constant_coordinates;
         for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
+            let closure_site_revision = self.closure_site_revision;
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
             }
@@ -1409,6 +1441,12 @@ impl Materializer<'_, '_> {
                 }
                 _ => {
                     self.item(module, &mut item, &owner, depth + 1)?;
+                    if inherited.is_none()
+                        && !generated
+                        && self.closure_site_revision != closure_site_revision
+                    {
+                        self.record_changed_closure_sites(module, ordinal)?;
+                    }
                     if let Some(retained) = &mut retained {
                         self.environment.budget.reserve_analysis_work(1)?;
                         self.environment
@@ -1564,6 +1602,10 @@ impl Materializer<'_, '_> {
         )?;
         let mut output = Vec::new();
         for mut stmt in std::mem::take(statements) {
+            // Even MetaIf/For left for Engine can later select/unroll sites.
+            if matches!(stmt.kind, s::StmtKind::Meta(_)) {
+                self.closure_sites_changed(stmt.span)?;
+            }
             match &mut stmt.kind {
                 s::StmtKind::Meta(s::MetaStatement::Emit(expression)) => {
                     let value = self.expression_value(
@@ -1709,6 +1751,12 @@ impl Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.depth(depth, ty.span)?;
+        if matches!(
+            ty.kind,
+            s::TypeKind::MetaSplice(_) | s::TypeKind::MetaEval(_)
+        ) {
+            self.closure_sites_changed(ty.span)?;
+        }
         if let s::TypeKind::Dyn { bindings, .. } = &mut ty.kind {
             self.environment
                 .budget
@@ -1819,6 +1867,15 @@ impl Materializer<'_, '_> {
         depth: usize,
     ) -> CompileResult<()> {
         self.depth(depth, expression.span)?;
+        if matches!(
+            expression.kind,
+            s::ExprKind::MetaSplice(_)
+                | s::ExprKind::SyntaxIsland { .. }
+                | s::ExprKind::MetaEval(_)
+                | s::ExprKind::MetaBlock(_)
+        ) {
+            self.closure_sites_changed(expression.span)?;
+        }
         match &mut expression.kind {
             s::ExprKind::Ascribed { ty, value } => {
                 self.ty(module, ty, owner, depth + 1)?;
@@ -2077,6 +2134,8 @@ pub(crate) fn materialize(
         track_declarations: declaration_origins.is_some(),
         declaration_lineage_preserved: true,
         generated_context: false,
+        closure_site_revision: 0,
+        changed_closure_sites: BTreeSet::new(),
         self_constant_sources: Vec::new(),
         self_constant_impl_sources: Vec::new(),
         self_constant_impl_outputs: Vec::new(),
@@ -2107,8 +2166,24 @@ pub(crate) fn materialize(
                 .into_iter()
                 .peekable();
             let mut moved = Vec::new();
-            for (ordinal, row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
+            for (ordinal, mut row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
                 if retained.peek() == Some(&ordinal) {
+                    if !materializer.changed_closure_sites.is_empty() {
+                        materializer.environment.budget.reserve_analysis_work(
+                            materializer
+                                .changed_closure_sites
+                                .len()
+                                .saturating_mul(2)
+                                .saturating_add(1) as u64,
+                        )?;
+                        if materializer
+                            .changed_closure_sites
+                            .contains(&(module.id, ordinal))
+                        {
+                            row.closure_sites =
+                                zil_expand::source_context::ClosureSiteLineage::Unavailable;
+                        }
+                    }
                     materializer
                         .environment
                         .budget
@@ -2312,6 +2387,169 @@ mod scoped_tests {
         )
     }
     #[test]
+    fn closure_site_lineage_tracks_actual_materialization_and_retained_rows() {
+        use zil_expand::source_context::ClosureSiteLineage::{Original, Unavailable};
+        let decl = "struct Tag<life s>{p:&'s i64}";
+        let closure = "(p:&Tag<'s>)->i32=>i32(*p.p+*left.p)";
+        for (prefix, actual, expected) in [
+            ("", closure.to_owned(), Original),
+            (
+                "",
+                format!("#splice(quote<Expr>{{{closure}}})"),
+                Unavailable,
+            ),
+            (
+                "#emit quote<StmtList>{let generated=1;};",
+                closure.to_owned(),
+                Unavailable,
+            ),
+            (
+                "#if(true){let generated=1;}",
+                closure.to_owned(),
+                Unavailable,
+            ),
+            (
+                "#for(n in [1,2]){let generated=n;}",
+                closure.to_owned(),
+                Unavailable,
+            ),
+            ("let generated=#{yield 1};", closure.to_owned(), Unavailable),
+        ] {
+            // A removed CT-only item precedes both original creators. The
+            // retained row must keep its original ordinal, not output index.
+            let text = format!(
+                "{decl}fn removed()->Syntax<Expr>{{return quote<Expr>{{1}}}}fn stable<life s>(left:&Tag<'s>)->i32{{let f={closure};return f(left)}}fn changed<life s>(left:&Tag<'s>)->i32{{{prefix}let f={actual};return f(left)}}fn after<life s>(left:&Tag<'s>)->i32{{let f={closure};return f(left)}}"
+            );
+            let syntax = zil_syntax::parse(&SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                "ct4-scoped.zil",
+                &text,
+            ));
+            assert!(
+                syntax.diagnostics.is_empty(),
+                "{prefix}: {:?}",
+                syntax.diagnostics
+            );
+            let mut output = run(&text).unwrap_or_else(|e| panic!("{prefix}: {e:?}"));
+            if actual.starts_with("#splice") {
+                assert!(
+                    !output.previews.is_empty(),
+                    "actual syntax materialization must occur"
+                );
+                let s::ItemKind::Function(changed) = &output.modules[0].items[2].kind else {
+                    unreachable!()
+                };
+                let s::FunctionBody::Block(body) = &changed.body else {
+                    unreachable!()
+                };
+                assert!(matches!(&body.statements[0].kind,
+                    s::StmtKind::Binding { value, .. } if matches!(value.kind, s::ExprKind::Closure { .. })));
+            }
+            let rows = &output.declaration_origins.as_ref().unwrap()[0].items;
+            assert_eq!(rows.len(), 4);
+            assert_eq!(
+                rows.iter().map(|r| r.declaration.0).collect::<Vec<_>>(),
+                [0, 2, 3, 4]
+            );
+            assert_eq!(
+                rows.iter().map(|r| r.closure_sites).collect::<Vec<_>>(),
+                [Original, Original, expected, Original],
+                "prefix={prefix}; actual={actual}"
+            );
+            let before_identity = rows[2].identity.clone();
+            output
+                .retain_items(
+                    0,
+                    |item| !matches!(&item.kind, s::ItemKind::Function(f) if f.name == "stable"),
+                )
+                .unwrap();
+            let rows = &output.declaration_origins.as_ref().unwrap()[0].items;
+            assert_eq!(
+                rows.iter().map(|r| r.declaration.0).collect::<Vec<_>>(),
+                [0, 3, 4]
+            );
+            assert_eq!(rows[1].closure_sites, expected);
+            assert_eq!(rows[1].identity, before_identity);
+        }
+    }
+    #[test]
+    fn closure_site_lineage_shared_spans_and_event_budget_are_independent() {
+        use zil_expand::source_context::ClosureSiteLineage::{Original, Unavailable};
+        let text = "struct Tag<life s>{p:&'s i64}fn changed<life s>(left:&Tag<'s>)->i32{let n=#splice(quote<Expr>{1});return n}fn stable<life s>(left:&Tag<'s>)->i32{return 1}";
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "closure-lineage.zil",
+            text,
+        );
+        let mut parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        for item in &mut parsed.module.items {
+            item.span = parsed.module.span;
+        }
+        let parsed = Arc::new(parsed);
+        let run = |work| {
+            materialize(
+                std::slice::from_ref(&source),
+                std::slice::from_ref(&parsed),
+                &[&parsed.module],
+                &BTreeMap::from([(vec!["main".into()], ModuleId(0))]),
+                &[vec![]],
+                ModuleId(0),
+                source.fingerprint(),
+                &TargetProfile::host_llvm(),
+                &Limits {
+                    max_analysis_steps: work,
+                    ..Limits::default()
+                },
+                None,
+                true,
+            )
+        };
+        let expected = run(Limits::default().max_analysis_steps).unwrap();
+        let origins = expected.declaration_origins.unwrap();
+        assert_eq!(
+            origins[0]
+                .items
+                .iter()
+                .map(|r| r.closure_sites)
+                .collect::<Vec<_>>(),
+            [Original, Unavailable, Original]
+        );
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match run(mid) {
+                Ok(_) => high = mid,
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    low = mid + 1;
+                }
+            }
+        }
+        for (work, success) in [(low, true), (low - 1, false), (low, true)] {
+            let result = run(work);
+            if success {
+                assert_eq!(result.unwrap().declaration_origins.unwrap(), origins);
+            } else {
+                assert!(
+                    result
+                        .err()
+                        .unwrap()
+                        .iter()
+                        .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                );
+            }
+        }
+        eprintln!("G3.3.2.4 actual closure lineage N={low}/N-1/fresh/retry");
+    }
+    #[test]
     fn g231_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
         fn audit(text: &str, extra: &str, move_original: bool) -> CompileResult<()> {
             let source =
@@ -2349,6 +2587,8 @@ mod scoped_tests {
                 track_declarations: false,
                 declaration_lineage_preserved: true,
                 generated_context: false,
+                closure_site_revision: 0,
+                changed_closure_sites: BTreeSet::new(),
                 self_constant_sources: vec![],
                 self_constant_impl_sources: vec![],
                 self_constant_impl_outputs: vec![],

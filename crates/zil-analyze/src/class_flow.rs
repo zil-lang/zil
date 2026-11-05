@@ -6,17 +6,25 @@ use super::*;
 struct Ports {
     outer: Option<usize>,
     classes: Vec<usize>,
+    environment: bool,
 }
 struct Equations {
     parent: Vec<usize>,
     rigid: Vec<Option<usize>>,
     next_rigid: usize,
+    grounded: Option<Vec<bool>>,
 }
 impl Equations {
     fn fresh(&mut self, rigid: bool, b: &mut Budget) -> CompileResult<usize> {
-        b.spend(3, "class variable allocation")?;
+        b.spend(
+            if self.grounded.is_some() { 4 } else { 3 },
+            "class variable allocation",
+        )?;
         let i = self.parent.len();
         self.parent.push(i);
+        if let Some(grounded) = &mut self.grounded {
+            grounded.push(rigid);
+        }
         self.rigid.push(if rigid {
             let id = self.next_rigid;
             self.next_rigid += 1;
@@ -49,11 +57,41 @@ impl Equations {
                 "actual retained classes do not satisfy this invocation relation",
             ));
         }
+        if let Some(grounded) = &mut self.grounded {
+            b.spend(1, "actual class grounding propagation")?;
+            grounded[a] |= grounded[z];
+        }
         self.parent[z] = a;
         self.rigid[a] = self.rigid[a].or(self.rigid[z]);
         Ok(())
     }
-    fn ports(&mut self, ty: &Type, b: &mut Budget) -> CompileResult<Ports> {
+    fn address_origin(&mut self, variable: usize, b: &mut Budget) -> CompileResult<()> {
+        if self.grounded.is_some() {
+            let root = self.root(variable, b)?;
+            b.spend(1, "actual local Address class origin")?;
+            if let Some(grounded) = &mut self.grounded {
+                grounded[root] = true;
+            }
+        }
+        Ok(())
+    }
+    fn retain(&mut self, variable: usize, b: &mut Budget) -> CompileResult<()> {
+        let root = self.root(variable, b)?;
+        b.spend(1, "freeze actual environment class")?;
+        if !self.grounded.as_ref().is_some_and(|g| g[root]) {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "captured Fixed class has no actual header or Address origin",
+                None,
+            )]);
+        }
+        if self.rigid[root].is_none() {
+            self.rigid[root] = Some(self.next_rigid);
+            self.next_rigid += 1;
+        }
+        Ok(())
+    }
+    fn ports(&mut self, module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<Ports> {
         let outer = if matches!(ty, Type::Address { .. }) {
             Some(self.fresh(false, b)?)
         } else {
@@ -66,6 +104,12 @@ impl Equations {
         };
         let count = if let Type::BorrowedStorage { life, .. } = ty {
             life.binder_count as usize
+        } else if let Type::Closure(id) = ty {
+            module
+                .closures
+                .get(id.0 as usize)
+                .and_then(|d| d.storage_life.as_ref())
+                .map_or(0, |life| life.fixed_binder_count as usize)
         } else {
             0
         };
@@ -74,7 +118,11 @@ impl Equations {
         for _ in 0..count {
             classes.push(self.fresh(false, b)?);
         }
-        Ok(Ports { outer, classes })
+        Ok(Ports {
+            outer,
+            classes,
+            environment: matches!(ty, Type::Closure(_)) && count != 0,
+        })
     }
     fn copy(&mut self, a: &Ports, z: &Ports, b: &mut Budget) -> CompileResult<()> {
         b.spend(
@@ -174,10 +222,26 @@ fn call(
     args: &[ValueId],
     output: Option<ValueId>,
     values: &[Ports],
+    fixed: Option<&[usize]>,
     e: &mut Equations,
     b: &mut Budget,
 ) -> CompileResult<()> {
-    let formal = variables(c, e, false, b)?;
+    let formal = if let Some(fixed) = fixed {
+        crate::signature_life::charge(c, b)?;
+        b.spend(fixed.len(), "actual closure persistent Fixed snapshot")?;
+        if fixed.len() != c.fixed_binder_count as usize {
+            return Err(bad(
+                "actual closure free Fixed domain differs from call relation",
+            ));
+        }
+        let mut invocation = Vec::new();
+        for _ in 0..c.invocation_binder_count {
+            invocation.push(e.fresh(false, b)?);
+        }
+        (fixed.to_vec(), invocation)
+    } else {
+        variables(c, e, false, b)?
+    };
     for (i, arg) in args.iter().enumerate() {
         bind(
             c,
@@ -226,7 +290,19 @@ pub(super) fn check_role(
         )
         .ok_or_else(|| bad("role entry environment is absent"))?;
     super::borrowed_fp::signature_work(&d.parameters, &d.result, b)?;
-    super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
+    if let Some(actual) = &d.storage_life {
+        super::signature_life::charge(actual, b)?;
+        if actual != life {
+            return Err(vec![Diagnostic::unsupported(
+                Phase::Analyze,
+                "Fixed helper role needs the complete actual capture relation",
+                None,
+            )]);
+        }
+        super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
+    } else {
+        super::borrowed_fp::relation(&d.parameters, &d.result, life)?;
+    }
     check_with(module, f, reachable, b, Some(life))
 }
 fn check_with(
@@ -240,18 +316,35 @@ fn check_with(
         parent: Vec::new(),
         rigid: Vec::new(),
         next_rigid: 0,
+        grounded: b.capture_relations.then(Vec::new),
     };
     b.spend(
         f.values.len().saturating_add(f.locals.len()),
         "function class fact allocation",
     )?;
     let mut values = Vec::new();
+    let mut retained_environment = false;
     for ty in &f.values {
-        values.push(e.ports(ty, b)?);
+        let p = e.ports(module, ty, b)?;
+        retained_environment |= p.environment;
+        values.push(p);
     }
     let mut locals = Vec::new();
     for local in &f.locals {
-        locals.push(e.ports(&local.ty, b)?);
+        let p = e.ports(module, &local.ty, b)?;
+        retained_environment |= p.environment;
+        locals.push(p);
+    }
+    let mut captures = Vec::new();
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        && d.storage_life.is_some()
+    {
+        b.spend(d.captures.len(), "actual entry capture class ports")?;
+        for ty in &d.captures {
+            captures.push(e.ports(module, ty, b)?);
+        }
     }
     let header = if let Some(c) = assumptions {
         let vars = variables(c, &mut e, true, b)?;
@@ -265,9 +358,12 @@ fn check_with(
                 b,
             )?;
         }
+        for (i, capture) in captures.iter().enumerate() {
+            bind(c, StorageBase::Capture(i as u32), capture, &vars, &mut e, b)?;
+        }
         Some(vars)
     } else {
-        if f.environment.is_some() {
+        if f.environment.is_some() || retained_environment {
             for local in &f.parameters {
                 let p = &locals[local.0 as usize];
                 if let Some(outer) = p.outer {
@@ -282,6 +378,8 @@ fn check_with(
         }
         None
     };
+    let mut deferred_helpers = Vec::new();
+    let mut deferred_closures = Vec::new();
     for block in &f.blocks {
         for i in &block.instructions {
             b.spend(1, "class equation instruction")?;
@@ -292,12 +390,59 @@ fn check_with(
                         e.copy(out, &locals[local.0 as usize], b)?;
                     }
                 }
+                InstructionKind::TakeLocal { local }
+                    if super::stored_callables::fixed_value(
+                        module,
+                        &f.locals[local.0 as usize].ty,
+                    ) =>
+                {
+                    if let Some(out) = out {
+                        e.copy(out, &locals[local.0 as usize], b)?;
+                    }
+                }
+                InstructionKind::ReadCapture { index } if !captures.is_empty() => {
+                    if let Some(out) = out {
+                        let capture = captures
+                            .get(*index as usize)
+                            .ok_or_else(|| bad("actual capture class source is absent"))?;
+                        e.copy(out, capture, b)?;
+                    }
+                }
+                InstructionKind::MakeClosure {
+                    closure,
+                    captures: actuals,
+                } => {
+                    let d = &module.closures[closure.0 as usize];
+                    if let Some(c) = &d.storage_life {
+                        let out = out
+                            .ok_or_else(|| bad("captured environment lacks actual class result"))?;
+                        b.spend(out.classes.len(), "environment Fixed class snapshot")?;
+                        let mut invocation = Vec::new();
+                        for _ in 0..c.invocation_binder_count {
+                            invocation.push(e.fresh(false, b)?);
+                        }
+                        let vars = (out.classes.clone(), invocation);
+                        for (index, value) in actuals.iter().enumerate() {
+                            bind(
+                                c,
+                                StorageBase::Capture(index as u32),
+                                &values[value.0 as usize],
+                                &vars,
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
                 InstructionKind::Store { local, value } => {
                     e.copy(&locals[local.0 as usize], &values[value.0 as usize], b)?
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } => {
                     if let Some(out) = out {
+                        if let Some(outer) = out.outer {
+                            e.address_origin(outer, b)?;
+                        }
                         let stored = &locals[local.0 as usize];
                         b.spend(
                             out.classes.len().saturating_add(stored.classes.len()),
@@ -381,7 +526,18 @@ fn check_with(
                 } => {
                     let callee = &module.functions[function.0 as usize];
                     if let Some(c) = &callee.storage_life {
-                        call(c, arguments, i.result, &values, &mut e, b)?;
+                        let defer = if retained_environment {
+                            b.spend(arguments.len(), "actual environment argument detection")?;
+                            arguments.iter().any(|v| values[v.0 as usize].environment)
+                        } else {
+                            false
+                        };
+                        if defer {
+                            b.spend(1, "deferred actual environment helper call")?;
+                            deferred_helpers.push((c, arguments.as_slice(), i.result));
+                        } else {
+                            call(c, arguments, i.result, &values, None, &mut e, b)?;
+                        }
                     }
                 }
                 InstructionKind::CallClosureBorrowed { .. }
@@ -389,10 +545,44 @@ fn check_with(
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. } => {
-                    if let Some(life) = super::stored_callables::role(f, &i.kind, b)? {
-                        let (_, arguments) = super::stored_callables::called(module, f, &i.kind)
-                            .ok_or_else(|| bad("role call has no actual qualified closure"))?;
-                        call(life, arguments, i.result, &values, &mut e, b)?;
+                    let role = super::stored_callables::role(f, &i.kind, b)?;
+                    let (definition, arguments) =
+                        super::stored_callables::called(module, f, &i.kind)
+                            .ok_or_else(|| bad("class call has no actual qualified closure"))?;
+                    if let Some(actual) = &definition.storage_life {
+                        let life = role.unwrap_or(actual);
+                        if let Some(role) = role {
+                            crate::signature_life::charge(actual, b)?;
+                            crate::signature_life::charge(role, b)?;
+                            if role != actual {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Analyze,
+                                    "Fixed role differs from complete actual capture relation",
+                                    None,
+                                )]);
+                            }
+                        }
+                        let receiver = match &i.kind {
+                            InstructionKind::CallClosureShared { callee, .. }
+                            | InstructionKind::CallClosureMut { callee, .. } => {
+                                &locals[callee.0 as usize]
+                            }
+                            InstructionKind::CallClosureBorrowed { callee, .. }
+                            | InstructionKind::CallClosure { callee, .. }
+                            | InstructionKind::CallClosureOnce { callee, .. } => {
+                                &values[callee.0 as usize]
+                            }
+                            _ => unreachable!(),
+                        };
+                        b.spend(1, "deferred actual environment invocation")?;
+                        deferred_closures.push((
+                            life,
+                            arguments,
+                            i.result,
+                            receiver.classes.as_slice(),
+                        ));
+                    } else if let Some(life) = role {
+                        call(life, arguments, i.result, &values, None, &mut e, b)?;
                     }
                 }
                 InstructionKind::CallIndirect { callee, arguments } => {
@@ -402,11 +592,31 @@ fn check_with(
                             "stored indirect class call requires its complete borrowed signature",
                         ));
                     };
-                    call(life, arguments, i.result, &values, &mut e, b)?;
+                    call(life, arguments, i.result, &values, None, &mut e, b)?;
                 }
                 _ => {}
             }
         }
+    }
+    // Ordinary sources and structural propagation precede any use of a free
+    // environment class. Only grounded capture facts get persistent identities;
+    // neither a local phantom constructor nor the first call can choose one.
+    if retained_environment {
+        b.spend(values.len(), "retained environment inventory")?;
+        for p in &values {
+            if p.environment {
+                b.spend(p.classes.len(), "actual environment class retention")?;
+                for variable in &p.classes {
+                    e.retain(*variable, b)?;
+                }
+            }
+        }
+    }
+    for (contract, arguments, output) in deferred_helpers {
+        call(contract, arguments, output, &values, None, &mut e, b)?;
+    }
+    for (contract, arguments, output, fixed) in deferred_closures {
+        call(contract, arguments, output, &values, Some(fixed), &mut e, b)?;
     }
     if let (Some(c), Some(vars)) = (assumptions, header) {
         for (block, live) in f.blocks.iter().zip(reachable) {

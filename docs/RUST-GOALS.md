@@ -464,3 +464,17 @@ Package完整拥有数组字段、真实共享用户资源头、有限动态Stor
 
 此轮没有建立完整语言安全、同语义Rust运行时间/RSS、完整框架维护成本或编译性能优势，也没有产品级可重复净突破。部分库组合成本降低仅按新增可表达消费者报告。默认预算与product-gates原字节不变；B0 Doing、完整语言/ZUI NotSatisfied、产品及原生Windows/Rust成本门NotRun保持。身份、原失败和未完成范围见[本轮记录](LANGUAGE-GAPS-20261104.md)。
 
+
+G3.3.2 captured Source integration: actual shared Fn, stateful FnMut and genuine
+scalar-resource FnOnce now retain source life/capture relationships through
+independent Analyze and Verify, raw/Wire admission and the existing inline
+LLVM environment. Non-author review exposed an Analyze resource-definition
+binding gap; the final candidate independently checks actual definitions and
+keeps user Drop outside this first owning profile. Native Clang/API O0/O2
+controls include a two-call FnMut state check and full printed result 42, with
+no fallback or implicit heap/RC/lock. The concrete gain is useful shared
+qualified captures across the actual source/machine pipeline; no claim of a
+Rust cost advantage follows. Compilation work is charged to each current
+request and checked at exact boundaries. Runtime/RSS and same-semantics Rust
+comparison, general helper/lending and broader ownership combinations remain
+unmeasured or incomplete as recorded in the goal board.

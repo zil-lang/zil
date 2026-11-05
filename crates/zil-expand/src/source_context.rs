@@ -27,8 +27,18 @@ pub fn capture_original(
 /// One actual output item retains its original source declaration, or an
 /// explicitly allocated generated declaration. Vector position is current AST
 /// placement, not a source declaration identity. Spans are diagnostics only.
+/// Expression-site lineage is independent of nominal declaration identity.
+/// This availability state never proves a class, capture, loan or permission.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ClosureSiteLineage {
+    Original,
+    /// A materialization/elaboration event can replace or duplicate body sites.
+    Unavailable,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DeclarationOrigin {
+    pub closure_sites: ClosureSiteLineage,
     pub declaration: NodeId,
     pub identity: LifeDeclarationIdentity,
 }

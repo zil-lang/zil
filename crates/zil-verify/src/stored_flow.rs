@@ -17,12 +17,16 @@ struct Permission {
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Payload {
     address: Permission,
+    // For a concrete Fixed environment only, a private Field(capture) prefix
+    // retains its actual outer address and pointee leaves. It grants no public
+    // projection, is never a signature class selector, and is not serialized.
     leaves: Vec<(Path, Permission)>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Frame {
     locals: Vec<Payload>,
     external: Vec<Payload>,
+    captures: Vec<Payload>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
@@ -81,8 +85,13 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     Ok(())
 }
 fn frame_work(f: &Frame, b: &mut Budget) -> Check<()> {
-    b.spend(f.locals.len().saturating_add(f.external.len()))?;
-    for p in f.locals.iter().chain(&f.external) {
+    b.spend(
+        f.locals
+            .len()
+            .saturating_add(f.external.len())
+            .saturating_add(f.captures.len()),
+    )?;
+    for p in f.locals.iter().chain(&f.external).chain(&f.captures) {
         payload_work(p, b)?;
     }
     Ok(())
@@ -170,12 +179,18 @@ fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool>
     Ok(changed)
 }
 fn join_frame(to: &mut Frame, from: &Frame, b: &mut Budget) -> Check<()> {
-    b.spend(to.locals.len().saturating_add(to.external.len()))?;
+    b.spend(
+        to.locals
+            .len()
+            .saturating_add(to.external.len())
+            .saturating_add(to.captures.len()),
+    )?;
     for (a, z) in to
         .locals
         .iter_mut()
         .zip(&from.locals)
         .chain(to.external.iter_mut().zip(&from.external))
+        .chain(to.captures.iter_mut().zip(&from.captures))
     {
         join_payload(a, z, b)?;
     }
@@ -437,6 +452,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
+                    && !super::stored_owned::instruction(f, &i.kind)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -472,6 +488,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                         "instruction is outside the checked stored profile, including unreachable blocks",
                         Some(i.span),
                     ));
+                }
+                if super::stored_owned::instruction(f, &i.kind) {
+                    super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
                     super::class_flow::pointer_types(module, f, i, b)?;
@@ -742,7 +761,7 @@ fn relation(
     Err(err("signature omits actual qualified local class"))
 }
 
-pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
+pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
     for p in &f.parameters {
         b.spend(1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -765,19 +784,50 @@ pub(super) fn header(f: &TypedFunction, b: &mut Budget) -> Check<()> {
     };
     crate::signature_life::charge(c, b)?;
     b.spend(f.parameters.len())?;
-    if f.reference_return_bound.is_some() || f.foreign.is_some() || f.environment.is_some() {
+    if f.reference_return_bound.is_some() || f.foreign.is_some() {
         return Err(err("stored signature contradicts another active profile"));
     }
     let mut parameters = Vec::with_capacity(f.parameters.len());
+    let mut has_fixed_environment = false;
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
         type_work(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
+        has_fixed_environment |= fixed_environment(module, ty);
         parameters.push(ty.clone());
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
+    if let Some(id) = f.environment {
+        let d = module
+            .closures
+            .get(id.0 as usize)
+            .ok_or_else(|| err("captured Fixed entry has no actual environment"))?;
+        if d.id != id || d.function != f.id || d.storage_life.as_ref() != Some(c) {
+            return Err(err("captured Fixed entry and definition relation differ"));
+        }
+        super::stored_callables::captured_profile(d, b)?;
+        return super::signature_life::closure_relation(
+            &parameters,
+            &d.captures,
+            &f.return_type,
+            c,
+            Some(f.span),
+        );
+    }
+    if has_fixed_environment {
+        b.spend(parameters.len())?;
+        for ty in &parameters {
+            if !fixed_environment(module, ty) && !super::stored_callables::shared_input(ty) {
+                return Err(unsupported(
+                    "captured Fixed helper requires shared finite data parameters",
+                    Some(f.span),
+                ));
+            }
+        }
+    }
     super::signature_life::function_relation(
+        module,
         &parameters,
         &f.return_type,
         c,
@@ -867,64 +917,169 @@ fn access(
     }
     Ok(())
 }
-fn empty_frame(f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
-    b.spend(f.locals.len().saturating_add(f.parameters.len()))?;
-    Ok(Frame {
-        locals: vec![Payload::default(); f.locals.len()],
-        external: vec![Payload::default(); f.parameters.len()],
-    })
+fn captured_definition<'a>(
+    module: &'a TypedModule,
+    f: &TypedFunction,
+) -> Option<&'a ClosureDefinition> {
+    f.environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        .filter(|d| d.storage_life.is_some())
 }
-fn seed(f: &TypedFunction, loans: &mut Vec<Loan>, b: &mut Budget) -> Check<Frame> {
-    let mut state = empty_frame(f, b)?;
-    for (position, local) in f.parameters.iter().enumerate() {
-        b.spend(1)?;
-        let ty = &f.locals[local.0 as usize].ty;
-        let mut p = Payload::default();
-        if let Type::Address { mutable, .. } = ty {
+fn fixed_environment(module: &TypedModule, ty: &Type) -> bool {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    matches!(ty, Type::Closure(id) if module.closures.get(id.0 as usize).is_some_and(|d| d.storage_life.is_some()))
+}
+fn seed_environment(
+    module: &TypedModule,
+    ty: &Type,
+    base: HoldRoot,
+    out: &mut Payload,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<()> {
+    let ty = if let Type::Address { inner, .. } = ty {
+        inner.as_ref()
+    } else {
+        ty
+    };
+    let Type::Closure(id) = ty else {
+        return Err(err("environment carrier is not actual Closure"));
+    };
+    let d = module
+        .closures
+        .get(id.0 as usize)
+        .ok_or_else(|| err("environment definition absent"))?;
+    b.spend(d.captures.len())?;
+    for (index, ty) in d.captures.iter().enumerate() {
+        let capture = seed_payload(ty, base, loans, b)?;
+        let prefix = vec![PlaceProjection::Field(index as u32)];
+        for (tail, mut p) in std::iter::once((Vec::new(), capture.address)).chain(capture.leaves) {
+            if p.sources.is_empty() {
+                continue;
+            }
+            b.spend(tail.len().saturating_add(1))?;
+            let mut path = prefix.clone();
+            path.extend(tail);
+            for source in &mut p.sources {
+                b.spend(path.len())?;
+                source.leaf = path.clone();
+            }
+            // The corresponding abstract loan must name the same physical target.
+            for loan in &p.loans {
+                source_work(&p.sources, b)?;
+                loans[*loan].sources = p.sources.clone();
+            }
+            add_leaf(out, &path, &p, b)?;
+        }
+    }
+    Ok(())
+}
+fn seed_payload(
+    ty: &Type,
+    base: HoldRoot,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<Payload> {
+    let mut p = Payload::default();
+    if let Type::Address { mutable, .. } = ty {
+        let source = Source {
+            base,
+            leaf: Vec::new(),
+            inline: Vec::new(),
+        };
+        b.spend(3)?;
+        let id = loans.len();
+        loans.push(Loan {
+            sources: vec![source.clone()],
+            parents: Vec::new(),
+            exclusive: *mutable,
+        });
+        p.address = Permission {
+            sources: vec![source],
+            loans: vec![id],
+        };
+    }
+    if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
+        for slot in &shape.slots {
+            b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
             let source = Source {
-                base: HoldRoot::Parameter(position as u32),
-                leaf: Vec::new(),
+                base,
+                leaf: slot.path.clone(),
                 inline: Vec::new(),
             };
-            b.spend(3)?;
             let id = loans.len();
             loans.push(Loan {
                 sources: vec![source.clone()],
                 parents: Vec::new(),
-                exclusive: *mutable,
+                exclusive: false,
             });
-            p.address = Permission {
-                sources: vec![source],
-                loans: vec![id],
-            };
+            p.leaves.push((
+                slot.path.clone(),
+                Permission {
+                    sources: vec![source],
+                    loans: vec![id],
+                },
+            ));
         }
-        if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
-            for slot in &shape.slots {
-                b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
-                let source = Source {
-                    base: HoldRoot::Parameter(position as u32),
-                    leaf: slot.path.clone(),
-                    inline: Vec::new(),
-                };
-                let id = loans.len();
-                loans.push(Loan {
-                    sources: vec![source.clone()],
-                    parents: Vec::new(),
-                    exclusive: false,
-                });
-                p.leaves.push((
-                    slot.path.clone(),
-                    Permission {
-                        sources: vec![source],
-                        loans: vec![id],
-                    },
-                ));
-            }
-            if addressed(ty).is_some() {
-                state.external[position] = copy_payload(&p, b)?;
-            }
+    }
+    if matches!(ty, Type::Desc(_)) {
+        super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+        if super::stored_owned::description(ty) {
+            b.spend(1)?;
+            p.address.sources.push(Source {
+                base,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+    }
+    Ok(p)
+}
+fn empty_frame(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<Frame> {
+    b.spend(f.locals.len().saturating_add(f.parameters.len()))?;
+    let count = captured_definition(module, f).map_or(0, |d| d.captures.len());
+    b.spend(count)?;
+    Ok(Frame {
+        captures: vec![Payload::default(); count],
+        locals: vec![Payload::default(); f.locals.len()],
+        external: vec![Payload::default(); f.parameters.len()],
+    })
+}
+fn seed(
+    module: &TypedModule,
+    f: &TypedFunction,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<Frame> {
+    let mut state = empty_frame(module, f, b)?;
+    for (position, local) in f.parameters.iter().enumerate() {
+        b.spend(1)?;
+        let ty = &f.locals[local.0 as usize].ty;
+        let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        if fixed_environment(module, ty) {
+            seed_environment(
+                module,
+                ty,
+                HoldRoot::Parameter(position as u32),
+                &mut p,
+                loans,
+                b,
+            )?;
+        }
+        if addressed(ty).is_some() || fixed_environment(module, ty) {
+            state.external[position] = copy_payload(&p, b)?;
         }
         state.locals[local.0 as usize] = p;
+    }
+    if let Some(d) = captured_definition(module, f) {
+        b.spend(d.captures.len())?;
+        for (index, ty) in d.captures.iter().enumerate() {
+            state.captures[index] = seed_payload(ty, HoldRoot::Capture(index as u32), loans, b)?;
+        }
     }
     Ok(state)
 }
@@ -946,12 +1101,7 @@ fn select(
         let p = match source.base {
             HoldRoot::Local(l) => state.locals.get(l.0 as usize),
             HoldRoot::Parameter(p) => state.external.get(p as usize),
-            _ => {
-                return Err(unsupported(
-                    "captured stored target CFG is not yet implemented",
-                    None,
-                ));
-            }
+            HoldRoot::Capture(p) => state.captures.get(p as usize),
         }
         .ok_or_else(|| err("carrier location is absent"))?;
         if let Some(p) = leaf(p, path, b)? {
@@ -1023,9 +1173,68 @@ fn step(
         }
         InstructionKind::StorageLive(l)
         | InstructionKind::StorageDead(l)
-        | InstructionKind::TakeLocal { local: l }
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default()
+        }
+        InstructionKind::DescribeLocal { local } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Local(*local),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::DescribeCapture { index } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Capture(*index),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        InstructionKind::TakeCapture { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::ReadDesc { .. } => {}
+        InstructionKind::DropManaged { local } => {
+            state.locals[local.0 as usize] = Payload::default();
+        }
+        InstructionKind::TakeLocal { local } => {
+            out = copy_payload(&state.locals[local.0 as usize], b)?;
+            state.locals[local.0 as usize] = Payload::default();
+        }
+        InstructionKind::ReadCapture { index } if captured_definition(module, f).is_some() => {
+            out = copy_payload(
+                state
+                    .captures
+                    .get(*index as usize)
+                    .ok_or_else(|| err("capture payload absent"))?,
+                b,
+            )?;
+        }
+        InstructionKind::MakeClosure { closure, captures }
+            if module
+                .closures
+                .get(closure.0 as usize)
+                .is_some_and(|d| d.storage_life.is_some()) =>
+        {
+            let d = &module.closures[closure.0 as usize];
+            b.spend(captures.len())?;
+            for (index, (value, ty)) in captures.iter().zip(&d.captures).enumerate() {
+                let actual = val(*value)?;
+                let prefix = vec![PlaceProjection::Field(index as u32)];
+                if matches!(ty, Type::Address { .. }) {
+                    add_leaf(&mut out, &prefix, &actual.address, b)?;
+                }
+                if let Some((_, shape)) = addressed(ty) {
+                    for slot in &shape.slots {
+                        let p = select(state, &actual.address, &slot.path, b)?;
+                        b.spend(slot.path.len().saturating_add(1))?;
+                        let mut path = prefix.clone();
+                        path.extend(&slot.path);
+                        add_leaf(&mut out, &path, &p, b)?;
+                    }
+                }
+            }
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             b.spend(1)?;
@@ -1034,7 +1243,9 @@ fn step(
                 leaf: Vec::new(),
                 inline: Vec::new(),
             });
-            if qualified(&f.locals[local.0 as usize].ty).is_some() {
+            if qualified(&f.locals[local.0 as usize].ty).is_some()
+                || fixed_environment(module, &f.locals[local.0 as usize].ty)
+            {
                 for (path, p) in &state.locals[local.0 as usize].leaves {
                     add_leaf(&mut out, path, p, b)?;
                 }
@@ -1051,6 +1262,11 @@ fn step(
         | InstructionKind::AddressIndex { address, .. }
         | InstructionKind::AddressSlice { address, .. } => {
             join_permission(&mut out.address, &val(*address)?.address, b)?;
+            if fixed_environment(module, vt(f, *address)?) {
+                for (path, p) in &val(*address)?.leaves {
+                    add_leaf(&mut out, path, p, b)?;
+                }
+            }
         }
         InstructionKind::MakeAggregate { fields } => {
             if let Some((_, shape)) = qualified(vt(
@@ -1242,11 +1458,11 @@ fn solve(
     }
     b.spend(amount(count, 4)?)?;
     let mut loans = vec![Loan::default(); count];
-    let entry = seed(f, &mut loans, b)?;
+    let entry = seed(module, f, &mut loans, b)?;
     let mut values = vec![Payload::default(); f.values.len()];
     let mut outputs = Vec::new();
     for _ in &f.blocks {
-        outputs.push(empty_frame(f, b)?);
+        outputs.push(empty_frame(module, f, b)?);
     }
     loop {
         let mut changed = false;
@@ -1263,7 +1479,7 @@ fn solve(
             let mut state = if bi == f.entry.0 as usize {
                 copy_frame(&entry, b)?
             } else {
-                empty_frame(f, b)?
+                empty_frame(module, f, b)?
             };
             for pred in &g.predecessors[bi] {
                 if g.reachable[*pred] {
@@ -1296,7 +1512,13 @@ fn solve(
     })
 }
 
-fn reverse(f: &TypedFunction, i: &Instruction, live: &mut [bool], b: &mut Budget) -> Check<()> {
+fn reverse(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    live: &mut [bool],
+    b: &mut Budget,
+) -> Check<()> {
     b.spend(1)?;
     if let Some(v) = i.result {
         live[v.0 as usize] = false;
@@ -1309,6 +1531,12 @@ fn reverse(f: &TypedFunction, i: &Instruction, live: &mut [bool], b: &mut Budget
         | InstructionKind::BorrowLocal { local }
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
+        }
+        InstructionKind::CallClosureShared { callee, .. }
+        | InstructionKind::CallClosureMut { callee, .. }
+            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+        {
+            live[f.values.len() + callee.0 as usize] = true;
         }
         _ => {}
     }
@@ -1326,7 +1554,12 @@ fn term_live(t: &Terminator, live: &mut [bool]) {
         _ => {}
     }
 }
-fn live_out(f: &TypedFunction, g: &FunctionGraph, b: &mut Budget) -> Check<Vec<Vec<bool>>> {
+fn live_out(
+    module: &TypedModule,
+    f: &TypedFunction,
+    g: &FunctionGraph,
+    b: &mut Budget,
+) -> Check<Vec<Vec<bool>>> {
     let width = f
         .values
         .len()
@@ -1350,7 +1583,7 @@ fn live_out(f: &TypedFunction, g: &FunctionGraph, b: &mut Budget) -> Check<Vec<V
         outputs[bi].clone_from(&out);
         term_live(&f.blocks[bi].terminator, &mut out);
         for i in f.blocks[bi].instructions.iter().rev() {
-            reverse(f, i, &mut out, b)?;
+            reverse(module, f, i, &mut out, b)?;
         }
         b.spend(width)?;
         if inputs[bi] != out {
@@ -1480,7 +1713,7 @@ fn windows(
     requirements: &mut Vec<(Source, Source)>,
     b: &mut Budget,
 ) -> Check<()> {
-    let output_live = live_out(f, g, b)?;
+    let output_live = live_out(module, f, g, b)?;
     for (bi, block) in f.blocks.iter().enumerate() {
         b.spend(1)?;
         if !g.reachable[bi] {
@@ -1489,7 +1722,7 @@ fn windows(
         let mut state = if bi == f.entry.0 as usize {
             copy_frame(&solution.entry, b)?
         } else {
-            empty_frame(f, b)?
+            empty_frame(module, f, b)?
         };
         for pred in &g.predecessors[bi] {
             if g.reachable[*pred] {
@@ -1503,7 +1736,7 @@ fn windows(
         let mut after = vec![vec![false; width]; block.instructions.len()];
         for (at, i) in block.instructions.iter().enumerate().rev() {
             after[at].clone_from(&live);
-            reverse(f, i, &mut live, b)?;
+            reverse(module, f, i, &mut live, b)?;
         }
         for (at, i) in block.instructions.iter().enumerate() {
             b.spend(width)?;
@@ -1657,6 +1890,29 @@ fn windows(
                         _ => {}
                     }
 
+                    let receiver = match &i.kind {
+                        InstructionKind::CallClosureShared { callee, .. }
+                        | InstructionKind::CallClosureMut { callee, .. }
+                            if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
+                        {
+                            Some(&state.locals[callee.0 as usize])
+                        }
+                        InstructionKind::CallClosure { callee, .. }
+                        | InstructionKind::CallClosureBorrowed { callee, .. }
+                        | InstructionKind::CallClosureOnce { callee, .. }
+                            if fixed_environment(module, vt(f, *callee)?) =>
+                        {
+                            Some(&solution.values[callee.0 as usize])
+                        }
+                        _ => None,
+                    };
+                    if let Some(receiver) = receiver {
+                        b.spend(receiver.leaves.len())?;
+                        for (_, p) in &receiver.leaves {
+                            permission_work(p, b)?;
+                            all.push((p.clone(), false));
+                        }
+                    }
                     for argument in arguments {
                         let actual = &solution.values[argument.0 as usize];
                         if let Type::Address { mutable, .. } = vt(f, *argument)? {
@@ -1686,6 +1942,36 @@ fn windows(
                                         apart(a, z, requirements, b)?;
                                     }
                                 }
+                            }
+                        }
+                    }
+                }
+                InstructionKind::MakeClosure { closure, captures }
+                    if module
+                        .closures
+                        .get(closure.0 as usize)
+                        .is_some_and(|d| d.storage_life.is_some()) =>
+                {
+                    b.spend(captures.len())?;
+                    for (value, ty) in captures
+                        .iter()
+                        .zip(&module.closures[closure.0 as usize].captures)
+                    {
+                        let actual = &solution.values[value.0 as usize];
+                        if matches!(ty, Type::Address { .. }) {
+                            access(
+                                &actual.address,
+                                false,
+                                &active,
+                                &solution.loans,
+                                requirements,
+                                b,
+                            )?;
+                        }
+                        if let Some((_, shape)) = addressed(ty) {
+                            for slot in &shape.slots {
+                                let p = select(&state, &actual.address, &slot.path, b)?;
+                                access(&p, false, &active, &solution.loans, requirements, b)?;
                             }
                         }
                     }
@@ -1752,6 +2038,7 @@ fn result_row(
     Ok(())
 }
 fn summarize(
+    module: &TypedModule,
     f: &TypedFunction,
     g: &FunctionGraph,
     solution: &Solution,
@@ -1770,6 +2057,36 @@ fn summarize(
             for row in &shape.slots {
                 if leaf(p, &row.path, b)?.is_none_or(|p| p.sources.is_empty()) {
                     summary.complete = false;
+                }
+            }
+        }
+        if fixed_environment(module, ty) {
+            let carrier = if let Type::Address { inner, .. } = ty {
+                inner.as_ref()
+            } else {
+                ty
+            };
+            let Type::Closure(id) = carrier else {
+                return Err(err("actual environment type is absent"));
+            };
+            let d = &module.closures[id.0 as usize];
+            b.spend(d.captures.len())?;
+            for (index, ty) in d.captures.iter().enumerate() {
+                let prefix = vec![PlaceProjection::Field(index as u32)];
+                if matches!(ty, Type::Address { .. })
+                    && leaf(p, &prefix, b)?.is_none_or(|p| p.sources.is_empty())
+                {
+                    summary.complete = false;
+                }
+                if let Some((_, shape)) = addressed(ty) {
+                    for row in &shape.slots {
+                        b.spend(row.path.len().saturating_add(1))?;
+                        let mut path = prefix.clone();
+                        path.extend(&row.path);
+                        if leaf(p, &path, b)?.is_none_or(|p| p.sources.is_empty()) {
+                            summary.complete = false;
+                        }
+                    }
                 }
             }
         }
@@ -1807,15 +2124,16 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    if !module.resources.is_empty() {
-        return Err(unsupported(
-            "owned/closure storage needs its common retained integration",
-            None,
-        ));
-    }
+    super::stored_owned::module(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
+        if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
+            return Err(unsupported(
+                "owning Fixed profile does not export descriptions",
+                Some(f.span),
+            ));
+        }
         if f.foreign.is_some()
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
@@ -1842,11 +2160,16 @@ pub(super) fn check(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
+            if !module.resources.is_empty() {
+                super::stored_owned::value_type(ty, b)?;
+            }
             if !(super::stored_callables::value(module, ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
-                || ty.is_copy_value())
+                || ty.is_copy_value()
+                || super::stored_owned::owner(ty)
+                || super::stored_owned::description(ty))
             {
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",
@@ -1866,7 +2189,7 @@ pub(super) fn check(
         for index in (0..module.functions.len()).rev() {
             let f = &module.functions[index];
             let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
-            let mut summary = summarize(f, &graphs[index], &solution, b)?;
+            let mut summary = summarize(module, f, &graphs[index], &solution, b)?;
             if summary.complete {
                 windows(
                     module,
@@ -1969,6 +2292,834 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
+    }
+    // These fixtures have one straight-line block. The candidate supplies only
+    // root identities; all paths, loans and environment class bindings remain
+    // independently reconstructed by the verifier.
+    fn captured_candidate(m: &TypedModule) -> CandidatePlan {
+        let mut c = fixture::class_candidate(m);
+        for (f, plan) in m.functions.iter().zip(&mut c.functions) {
+            let mut locals: Vec<Vec<HoldRoot>> = f.locals.iter().map(|_| vec![]).collect();
+            for (index, local) in f.parameters.iter().enumerate() {
+                locals[local.0 as usize] = vec![HoldRoot::Parameter(index as u32)];
+            }
+            let mut initialized = f.parameters.clone();
+            for i in &f.blocks[0].instructions {
+                let roots = match &i.kind {
+                    InstructionKind::Load(l) | InstructionKind::TakeLocal { local: l } => {
+                        locals[l.0 as usize].clone()
+                    }
+                    InstructionKind::ReadCapture { index } => vec![HoldRoot::Capture(*index)],
+                    InstructionKind::DescribeLocal { local } => vec![HoldRoot::Local(*local)],
+                    InstructionKind::DescribeCapture { index } => vec![HoldRoot::Capture(*index)],
+                    InstructionKind::BorrowLocal { local }
+                    | InstructionKind::BorrowLocalMut { local } => {
+                        let mut roots = vec![HoldRoot::Local(*local)];
+                        if matches!(
+                            f.locals[local.0 as usize].ty,
+                            Type::BorrowedStorage { .. } | Type::Closure(_)
+                        ) {
+                            roots.extend(locals[local.0 as usize].clone());
+                        }
+                        roots
+                    }
+                    InstructionKind::MakeClosure { captures, .. }
+                    | InstructionKind::MakeAggregate { fields: captures } => captures
+                        .iter()
+                        .flat_map(|v| plan.holds[v.0 as usize].roots.clone())
+                        .collect(),
+                    InstructionKind::LoadStoredBorrow { storage, .. } => {
+                        plan.holds[storage.0 as usize].roots.clone()
+                    }
+                    InstructionKind::ReborrowAddress { address, .. } => {
+                        plan.holds[address.0 as usize].roots.clone()
+                    }
+                    _ => vec![],
+                };
+                if let Some(v) = i.result {
+                    let mut roots = roots;
+                    roots.sort();
+                    roots.dedup();
+                    plan.holds[v.0 as usize].roots = roots;
+                }
+                match &i.kind {
+                    InstructionKind::Store { local, value } => {
+                        locals[local.0 as usize] = plan.holds[value.0 as usize].roots.clone();
+                        if !initialized.contains(local) {
+                            initialized.push(*local);
+                        }
+                    }
+                    InstructionKind::StorageDead(l) | InstructionKind::TakeLocal { local: l } => {
+                        initialized.retain(|x| x != l)
+                    }
+                    _ => {}
+                }
+            }
+            initialized.sort();
+            plan.blocks[0].initialized_out = initialized;
+        }
+        c
+    }
+    #[test]
+    fn capture_grounded_fixed_actual_environments_raw_and_wire() {
+        for kind in [
+            zil_ir::CallableKind::Fn,
+            zil_ir::CallableKind::FnMut,
+            zil_ir::CallableKind::FnOnce,
+        ] {
+            for make in [
+                fixture::captured_fixed,
+                fixture::captured_fixed_instances,
+                fixture::captured_fixed_helper,
+            ] {
+                for wrong in [false, true] {
+                    let m = make(kind, wrong);
+                    let c = captured_candidate(&m);
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+                    for result in [
+                        super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                        super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+                    ] {
+                        if wrong {
+                            let error = result.unwrap_err();
+                            assert!(
+                                error.iter().any(|d| d.message.contains("class equality")),
+                                "{kind:?}: {error:?}"
+                            );
+                        } else {
+                            result.unwrap_or_else(|error| panic!("{kind:?}: {error:?}"));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_parent_target_keeps_real_loan() {
+        for dead in [false, true] {
+            let m = fixture::captured_fixed_parent_end(dead);
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                if dead {
+                    let error = result.unwrap_err();
+                    assert!(
+                        error
+                            .iter()
+                            .any(|d| d.message.contains("live incompatible loan")),
+                        "{error:?}"
+                    );
+                } else {
+                    result.unwrap();
+                }
+            }
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_malformed_contracts_and_actual_role_reject() {
+        for variant in 0..9 {
+            let mut m = fixture::captured_fixed_helper(zil_ir::CallableKind::Fn, false);
+            match variant {
+                0 => {
+                    m.closures[0].storage_life.as_mut().unwrap().classes[1].binder =
+                        StorageBinder::Fixed(1)
+                }
+                1 => {
+                    let d = m.closures[0].storage_life.as_mut().unwrap();
+                    d.bindings[1].binder = StorageBinder::Invocation(0);
+                    m.functions[0].storage_life = Some(d.clone());
+                }
+                2 => {
+                    let role = m.functions[2].callable_contract.as_mut().unwrap().roles[0]
+                        .life
+                        .as_mut()
+                        .unwrap();
+                    role.bindings[1].binder = StorageBinder::Fixed(0);
+                    role.classes[1].binder = StorageBinder::Fixed(1);
+                }
+                3 => m.functions[2].storage_life = None,
+                4 => {
+                    // Same physical types, but actual helper argument is the
+                    // other header class. A declared role is not permission.
+                    if let InstructionKind::Call { arguments, .. } = &mut m.functions[1].blocks[0]
+                        .instructions
+                        .last_mut()
+                        .unwrap()
+                        .kind
+                    {
+                        arguments[1] = ValueId(1);
+                    }
+                }
+                5 => {
+                    // Moving a receiver preserves its fixed domain. A helper
+                    // cannot choose another parameter's class after TakeLocal.
+                    m = fixture::captured_fixed_helper(zil_ir::CallableKind::FnOnce, false);
+                    let helper = &mut m.functions[2];
+                    let tag = helper.locals[1].ty.clone();
+                    let mut local = helper.locals[1].clone();
+                    local.id = LocalId(2);
+                    helper.locals.push(local);
+                    helper.parameters.push(LocalId(2));
+                    helper.values.push(tag);
+                    let c = helper.storage_life.as_mut().unwrap();
+                    c.fixed_binder_count += 1;
+                    c.invocation_binder_count += 1;
+                    c.bindings.push(StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Parameter(2),
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Invocation(1),
+                    });
+                    let mut row = c.classes.last().unwrap().clone();
+                    row.position.base = StorageBase::Parameter(2);
+                    row.binder = StorageBinder::Fixed(2);
+                    c.classes.push(row);
+                    helper.blocks[0].instructions.insert(
+                        2,
+                        Instruction {
+                            result: Some(ValueId(3)),
+                            kind: InstructionKind::Load(LocalId(2)),
+                            span: helper.span,
+                        },
+                    );
+                    if let InstructionKind::CallClosureOnce { arguments, .. } =
+                        &mut helper.blocks[0].instructions.last_mut().unwrap().kind
+                    {
+                        arguments[0] = ValueId(3);
+                    }
+                    if let InstructionKind::Call { arguments, .. } = &mut m.functions[1].blocks[0]
+                        .instructions
+                        .last_mut()
+                        .unwrap()
+                        .kind
+                    {
+                        arguments.push(ValueId(1));
+                    }
+                }
+                6 => {
+                    m = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+                    m.closures[0].kind = zil_ir::CallableKind::Fn;
+                    m.functions[1].blocks[0]
+                        .instructions
+                        .last_mut()
+                        .unwrap()
+                        .kind = InstructionKind::CallClosureOnce {
+                        callee: ValueId(2),
+                        arguments: vec![ValueId(0)],
+                    };
+                }
+                7 => {
+                    // A return of the actual environment cannot erase its
+                    // held targets through an ordinary function result.
+                    m = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+                    m.functions[1].return_type = Type::Closure(zil_ir::ClosureId(0));
+                    m.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+                }
+                _ => {
+                    // Extra rows must not smuggle a second Capture occurrence.
+                    let d = m.closures[0].storage_life.as_mut().unwrap();
+                    d.classes.push(d.classes[1].clone());
+                    m.functions[0].storage_life = Some(d.clone());
+                }
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                let error = result.unwrap_err();
+                let expected = match variant {
+                    0 => "entry and definition relation differ",
+                    1 | 7 | 8 => "signature class relation",
+                    2 => "actual capture mapping",
+                    3 => "requires complete class relation",
+                    4 | 5 => "class equality",
+                    6 => "owning mode accounting",
+                    _ => unreachable!(),
+                };
+                assert!(
+                    error.iter().any(|d| d.message.contains(expected)),
+                    "variant{variant}: {error:?}"
+                );
+                if matches!(variant, 4 | 5) {
+                    assert!(
+                        error.iter().any(|d| d.message.contains("class equality")),
+                        "variant{variant}: {error:?}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_reborrow_scalar_mutation_and_invocations() {
+        // Reborrowed capture must recover physical stored field targets from
+        // the actual address, not rely on a copied SSA leaf cache.
+        let mut reborrow = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+        let caller = &mut reborrow.functions[1];
+        caller.values.push(caller.values[0].clone());
+        caller.blocks[0].instructions.insert(
+            2,
+            Instruction {
+                result: Some(ValueId(4)),
+                kind: InstructionKind::ReborrowAddress {
+                    address: ValueId(0),
+                    mutable: false,
+                },
+                span: caller.span,
+            },
+        );
+        if let InstructionKind::MakeClosure { captures, .. } =
+            &mut caller.blocks[0].instructions[3].kind
+        {
+            captures[0] = ValueId(4);
+        }
+        // Scalar FnMut environment writes remain ordinary exclusive access.
+        let mut mutation = fixture::captured_fixed(zil_ir::CallableKind::FnMut, false);
+        mutation.closures[0].captures.push(Type::I64);
+        let caller = &mut mutation.functions[1];
+        caller.values.push(Type::I64);
+        caller.blocks[0].instructions.insert(
+            2,
+            Instruction {
+                result: Some(ValueId(4)),
+                kind: InstructionKind::Constant(Constant::I64(0)),
+                span: caller.span,
+            },
+        );
+        if let InstructionKind::MakeClosure { captures, .. } =
+            &mut caller.blocks[0].instructions[3].kind
+        {
+            captures.push(ValueId(4));
+        }
+        let entry = &mut mutation.functions[0];
+        entry.blocks[0].instructions.insert(
+            3,
+            Instruction {
+                result: None,
+                kind: InstructionKind::WriteCapture {
+                    index: 1,
+                    value: ValueId(2),
+                },
+                span: entry.span,
+            },
+        );
+        // Different outer invocation borrows can share a genuine inner class.
+        let mut repeated = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+        let caller = &mut repeated.functions[1];
+        let header = caller.storage_life.as_mut().unwrap();
+        header.fixed_binder_count = 1;
+        header.classes[1].binder = StorageBinder::Fixed(0);
+        caller.values.push(Type::I64);
+        caller.blocks[0].instructions.push(Instruction {
+            result: Some(ValueId(4)),
+            kind: InstructionKind::CallClosureShared {
+                callee: LocalId(2),
+                arguments: vec![ValueId(1)],
+            },
+            span: caller.span,
+        });
+        caller.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+        // Outer capture Address alone grounds a Fixed, without a nominal
+        // qualification. The same real target/loan reconstruction still runs.
+        let mut ordinary = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+        let shared = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I64),
+        };
+        ordinary.closures[0].captures[0] = shared.clone();
+        ordinary.closures[0].parameters[0] = shared.clone();
+        let life = ordinary.closures[0].storage_life.as_mut().unwrap();
+        life.fixed_binder_count = 1;
+        life.classes.clear();
+        life.bindings[1].binder = StorageBinder::Fixed(0);
+        let entry = &mut ordinary.functions[0];
+        entry.locals[0].ty = shared.clone();
+        entry.values[0] = shared.clone();
+        entry.values[3] = shared.clone();
+        entry.storage_life = Some(life.clone());
+        entry.blocks[0].instructions[1].kind = InstructionKind::ReborrowAddress {
+            address: ValueId(0),
+            mutable: false,
+        };
+        entry.blocks[0].instructions[4].kind = InstructionKind::ReborrowAddress {
+            address: ValueId(3),
+            mutable: false,
+        };
+        let caller = &mut ordinary.functions[1];
+        for index in 0..2 {
+            caller.locals[index].ty = shared.clone();
+            caller.values[index] = shared.clone();
+        }
+        let header = caller.storage_life.as_mut().unwrap();
+        header.fixed_binder_count = 0;
+        header.classes.clear();
+        for m in [reborrow, mutation, repeated, ordinary] {
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()).unwrap();
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()).unwrap();
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_uses_one_request_budget_exactly() {
+        let m = fixture::captured_fixed_helper(zil_ir::CallableKind::FnMut, false);
+        let c = captured_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let check = |n, wire| {
+            let limits = Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            };
+            if wire {
+                super::super::verify_module_bytes(&bytes, &m.target, &limits)
+            } else {
+                super::super::verify_module(m.clone(), c.clone(), &m.target, &limits)
+            }
+        };
+        for wire in [false, true] {
+            let expected = check(Limits::default().max_analysis_steps, wire)
+                .unwrap()
+                .fingerprint();
+            let mut low = 0;
+            let mut high = Limits::default().max_analysis_steps;
+            while low < high {
+                let mid = low + (high - low) / 2;
+                if check(mid, wire).is_ok() {
+                    high = mid;
+                } else {
+                    low = mid + 1;
+                }
+            }
+            let error = check(low - 1, wire).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert!(check(low - 1, wire).is_err());
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            println!(
+                "G3.3.2.2 capture helper Verify wire={wire} N={low}; N-1/fresh/warm/retry passed"
+            );
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_candidate_cannot_replace_actual_capture_roots() {
+        let m = fixture::captured_fixed(zil_ir::CallableKind::Fn, false);
+        for forged in [vec![], vec![HoldRoot::Parameter(1)]] {
+            let mut c = captured_candidate(&m);
+            c.functions[1].holds[2].roots = forged;
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                let error = result.unwrap_err();
+                assert!(
+                    error.iter().any(|d| d.code == "E-VERIFY-STORED"
+                        && d.message
+                            .contains("independently reconstructed stored target roots")),
+                    "{error:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_once_still_consumes_actual_owner() {
+        for duplicate_call in [true, false] {
+            let mut m = fixture::captured_fixed(zil_ir::CallableKind::FnOnce, false);
+            let f = &mut m.functions[1];
+            if duplicate_call {
+                f.values.push(Type::I64);
+                f.blocks[0].instructions.push(Instruction {
+                    result: Some(ValueId(4)),
+                    kind: InstructionKind::CallClosureOnce {
+                        callee: ValueId(2),
+                        arguments: vec![ValueId(0)],
+                    },
+                    span: f.span,
+                });
+                f.blocks[0].terminator = Terminator::Return(Some(ValueId(4)));
+            } else {
+                f.values.push(Type::Closure(zil_ir::ClosureId(0)));
+                f.blocks[0].instructions.insert(
+                    3,
+                    Instruction {
+                        result: None,
+                        kind: InstructionKind::Store {
+                            local: LocalId(2),
+                            value: ValueId(2),
+                        },
+                        span: f.span,
+                    },
+                );
+                f.blocks[0].instructions.insert(
+                    4,
+                    Instruction {
+                        result: Some(ValueId(4)),
+                        kind: InstructionKind::Load(LocalId(2)),
+                        span: f.span,
+                    },
+                );
+                if let InstructionKind::CallClosureOnce { callee, .. } =
+                    &mut f.blocks[0].instructions.last_mut().unwrap().kind
+                {
+                    *callee = ValueId(4);
+                }
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                let error = result.unwrap_err();
+                assert!(
+                    error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                    "{error:?}"
+                );
+            }
+        }
+    }
+    #[test]
+    fn capture_grounded_fixed_does_not_guess_local_phantom_classes() {
+        let mut m = fixture::captured_fixed_parent_end(false);
+        let Type::BorrowedStorage { storage, life } = &mut m.life_instances[0].ty else {
+            unreachable!()
+        };
+        **storage = Type::Record {
+            name: "View".into(),
+            fields: vec![("number".into(), Type::I64)],
+        };
+        life.slots.clear();
+        let phantom = m.life_instances[0].ty.clone();
+        let receiver = Type::Address {
+            mutable: false,
+            inner: Box::new(phantom.clone()),
+        };
+        m.closures[0].captures[0] = receiver.clone();
+        m.closures[0].parameters[0] = receiver.clone();
+        let entry = &mut m.functions[0];
+        entry.locals[0].ty = receiver.clone();
+        entry.values = vec![Type::I64];
+        entry.blocks[0].instructions = vec![fixture::instruction(
+            Some(0),
+            InstructionKind::Constant(Constant::I64(0)),
+        )];
+        entry.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+        let caller = &mut m.functions[1];
+        caller.locals[1].ty = phantom.clone();
+        caller.values[2] = phantom;
+        caller.values[3] = receiver;
+        if let InstructionKind::MakeAggregate { fields } =
+            &mut caller.blocks[0].instructions[3].kind
+        {
+            fields[0] = ValueId(0);
+        }
+        let c = captured_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        for result in [
+            super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+        ] {
+            let error = result.unwrap_err();
+            assert!(
+                error.iter().any(|d| d
+                    .message
+                    .contains("no independently established source class")),
+                "{error:?}"
+            );
+        }
+    }
+    #[test]
+    fn owning_fixed_true_once_has_real_description_roots_and_resource_check() {
+        for wrong in [false, true] {
+            for relay in [false, true] {
+                let mut m = fixture::captured_owned_fixed(wrong);
+                if relay {
+                    let f = &mut m.functions[1];
+                    let owner = f.values[5].clone();
+                    let id = f.values.len() as u32;
+                    f.values.push(owner.clone());
+                    let local = LocalId(f.locals.len() as u32);
+                    f.locals.push(LocalDecl {
+                        id: local,
+                        name: "mark".into(),
+                        ty: owner,
+                        mutable: false,
+                        span: f.span,
+                    });
+                    let at = f.blocks[0]
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::MakeClosure { .. }))
+                        .unwrap();
+                    f.blocks[0].instructions.splice(
+                        at..at,
+                        [
+                            fixture::instruction(
+                                None,
+                                InstructionKind::Store {
+                                    local,
+                                    value: ValueId(5),
+                                },
+                            ),
+                            fixture::instruction(Some(id), InstructionKind::TakeLocal { local }),
+                        ],
+                    );
+                    if let InstructionKind::MakeClosure { captures, .. } =
+                        &mut f.blocks[0].instructions[at + 2].kind
+                    {
+                        captures[0] = ValueId(id);
+                    }
+                }
+                let c = captured_candidate(&m);
+                let bytes =
+                    zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+                for result in [
+                    super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                    super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+                ] {
+                    if wrong {
+                        let error = result.unwrap_err();
+                        assert!(
+                            error.iter().any(|d| d.message.contains("class equality")),
+                            "{error:?}"
+                        );
+                    } else {
+                        result.unwrap();
+                    }
+                }
+            }
+        }
+    }
+    #[test]
+    fn owning_fixed_actual_owner_epochs_and_metadata_never_come_from_classes() {
+        for case in 0..14 {
+            let mut m = fixture::captured_owned_fixed(false);
+            match case {
+                0 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(f.values[7].clone());
+                    f.blocks[0].instructions.insert(
+                        1,
+                        fixture::instruction(Some(id), InstructionKind::TakeCapture { index: 0 }),
+                    );
+                }
+                1 => {
+                    let f = &mut m.functions[1];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::I64);
+                    f.blocks[0].instructions.push(fixture::instruction(
+                        Some(id),
+                        InstructionKind::CallClosureOnce {
+                            callee: ValueId(2),
+                            arguments: vec![ValueId(0)],
+                        },
+                    ));
+                    f.blocks[0].terminator = Terminator::Return(Some(ValueId(id)));
+                }
+                2 | 3 => {
+                    let code = &mut m.functions[0].blocks[0].instructions;
+                    let drop = code
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                        .unwrap();
+                    let i = code.remove(drop);
+                    let at = code
+                        .iter()
+                        .position(|i| {
+                            if case == 2 {
+                                matches!(i.kind, InstructionKind::ReadDesc { .. })
+                            } else {
+                                matches!(i.kind, InstructionKind::DescribeLocal { .. })
+                            }
+                        })
+                        .unwrap();
+                    code.insert(at, i);
+                }
+                4 => {
+                    let f = &mut m.functions[1];
+                    if let InstructionKind::MakeManaged { fields } = &mut f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+                        .unwrap()
+                        .kind
+                    {
+                        fields[0] = ValueId(0);
+                    }
+                }
+                5 => {
+                    m.functions[0].values[8] = m.functions[0].values[7].clone();
+                }
+                6 => {
+                    let f = &mut m.functions[0];
+                    if let InstructionKind::ReadDesc { index, .. } = &mut f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+                        .unwrap()
+                        .kind
+                    {
+                        *index = 99;
+                    }
+                }
+                7 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::I32);
+                    f.blocks[0]
+                        .instructions
+                        .iter_mut()
+                        .find(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                        .unwrap()
+                        .result = Some(ValueId(id));
+                }
+                8 => {
+                    m.resources.push(ResourceDefinition {
+                        name: "Other".into(),
+                        payload: Type::Record {
+                            name: "Other".into(),
+                            fields: vec![("n".into(), Type::I32)],
+                        },
+                        teardown: None,
+                    });
+                }
+                9 => {
+                    let f = &mut m.functions[0];
+                    let id = f.values.len() as u32;
+                    f.values.push(Type::Address {
+                        mutable: false,
+                        inner: Box::new(f.values[7].clone()),
+                    });
+                    // A real well-typed but unused owner-head address must not
+                    // bypass the finite profile through Copy-value fallback.
+                    f.blocks[0].instructions.insert(
+                        2,
+                        fixture::instruction(
+                            Some(id),
+                            InstructionKind::BorrowLocal { local: LocalId(1) },
+                        ),
+                    );
+                }
+                10 => {
+                    m.closures[0].kind = zil_ir::CallableKind::Fn;
+                }
+                11 => {
+                    m.resources[0].name = "Other".into();
+                    if let Type::Record { name, .. } = &mut m.resources[0].payload {
+                        *name = "Other".into();
+                    }
+                }
+                12 => {
+                    m.resources.clear();
+                }
+                _ => {
+                    m.resources[0].teardown = Some(FunctionId(0));
+                }
+            }
+            let c = captured_candidate(&m);
+            let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+            for result in [
+                super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
+                super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+            ] {
+                let error = result.unwrap_err();
+                if case <= 2 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case == 3 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-INITIALIZATION"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case <= 7 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case >= 11 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-RESOURCE"),
+                        "case{case}: {error:?}"
+                    );
+                } else {
+                    assert!(
+                        error
+                            .iter()
+                            .any(|d| d.category == zil_base::ResultCategory::Unsupported),
+                        "case{case}: {error:?}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn owning_fixed_owner_work_is_prepaid_and_actual_description_claims_are_checked() {
+        let m = fixture::captured_owned_fixed(false);
+        let c = captured_candidate(&m);
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &c, &Limits::default()).unwrap();
+        let check = |work, wire| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            };
+            if wire {
+                super::super::verify_module_bytes(&bytes, &m.target, &limits)
+            } else {
+                super::super::verify_module(m.clone(), c.clone(), &m.target, &limits)
+            }
+        };
+        for wire in [false, true] {
+            let expected = check(Limits::default().max_analysis_steps, wire)
+                .unwrap()
+                .fingerprint();
+            let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+            while low < high {
+                let mid = low + (high - low) / 2;
+                if check(mid, wire).is_ok() {
+                    high = mid
+                } else {
+                    low = mid + 1
+                }
+            }
+            let error = check(low - 1, wire).unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-RESOURCE-LIMIT"),
+                "{error:?}"
+            );
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            assert!(check(low - 1, wire).is_err());
+            assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
+            println!("G3.3.3.1 owning Fixed Verify wire={wire} N={low}; N-1/fresh/repeated/retry");
+        }
+        let mut forged = c;
+        forged.functions[0].holds[8].roots.clear();
+        let bytes = zil_ir::wire::encode_module_candidate(&m, &forged, &Limits::default()).unwrap();
+        for result in [
+            super::super::verify_module(m.clone(), forged, &m.target, &Limits::default()),
+            super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
+        ] {
+            let error = result.unwrap_err();
+            assert!(
+                error.iter().any(|d| d.code == "E-VERIFY-STORED"
+                    && d.message
+                        .contains("independently reconstructed stored target roots")),
+                "{error:?}"
+            );
+        }
     }
     #[test]
     fn two_rich_roles_consume_one_verification_ledger() {
@@ -2202,7 +3353,7 @@ mod tests {
         let mut budget = Budget::new(&limits);
         inventory(module, &limits, &mut budget)?;
         for f in &module.functions {
-            header(f, &mut budget)?;
+            header(module, f, &mut budget)?;
         }
         let graphs: Vec<_> = module
             .functions

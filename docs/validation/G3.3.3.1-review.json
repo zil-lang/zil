@@ -1,0 +1,60 @@
+{
+  "task": "G3.3.3.1",
+  "reviewer": "/root",
+  "decision": "LimitedPass",
+  "implementation_author": "/root/g4_4",
+  "production": "05cc1193908dfc50282c4b7ec8d129fcad36f4a8",
+  "tests": "4e360c07c60f51586981cf7e3ee91cbf3cd62ece",
+  "executed_integration_source": "be06624d0a4dbb058913996ce4f8a97dda118b36",
+  "reviewed_files_byte_equal_test_commit": true,
+  "other_Verify_diff": "Only accepted main39 ErrorUnion sums/partial_places/replacements changes; no owning Fixed proof source difference.",
+  "scope": "Independent Verify consumer only; root authored machine integration is reviewed separately by g10. No full common acceptance.",
+  "checks": [
+    {
+      "name": "owning",
+      "passed": 3,
+      "failed": 0,
+      "log_sha256": "62a35e7cbc9bbb40307eeb7bd9a319c848383b79754e985e2b395b0612586a7b"
+    },
+    {
+      "name": "captured",
+      "passed": 8,
+      "failed": 0,
+      "log_sha256": "69821ad227bf50a1f5732423a8621dd444b2aef7b14833750a64d86684863385"
+    },
+    {
+      "name": "source-corrected",
+      "passed": 1,
+      "failed": 0,
+      "log_sha256": "1c2098a6a1bf09ecd4699d44f7fbdbf0ef909d3c905e4eb5b86b02c576fce607"
+    }
+  ],
+  "source_sha256": {
+    "crates/zil-verify/src/stored_owned.rs": "654ba17955f27fff458cb205f78d2815a64191b418ac004ecc49d67b798d0911",
+    "crates/zil-verify/src/stored_callables.rs": "9fd797e8d00788f698a24b22d93447e3db3685c3a9bc4aff684018b43a066705",
+    "crates/zil-verify/src/stored_flow.rs": "328d097609c8b0cb7e65c4548bc76f96ab95b83f235019187f9185d098b0ea64",
+    "crates/zil-verify/src/signature_life.rs": "247126b78de39e72e2ef019ce9813e77571bd9178d88ea6cde13c4c8742edd13",
+    "crates/zil-verify/src/lib.rs": "8e451466d3b4024b26019aea70eb1368dd817affad157c15da6918a0ff6817a5"
+  },
+  "executables_sha256": {
+    "/workspace/.zil-env/target-public43/debug/deps/zil_verify-e5c00ec0866c83e5": "595d75ea467f2d211a9191cdef1c35a2d9906fe80cae26359ba6370abad8c5aa",
+    "/workspace/.zil-env/target-public43/debug/deps/generic_regressions-6ecdb24ac684ead8": "4ac02a4df38bc9ebebc819c450ac1d7b74d066dba9655d53fba5569ff6dd40e5"
+  },
+  "review_findings": [
+    "Actual FnOnce definition and class-free scalar Record owners only; source/capture permission reconstructed independently of Analyze proof code.",
+    "Managed/Desc constructors, capture movement, reads and Drop type actual operands/results; stored classes do not manufacture owner/loan permission.",
+    "Existing independent resource kernel and check_type_for enforce availability, repeated Once, weak description liveness and actual name plus complete payload definition; renamed/missing definitions and invalid teardown targets reject before Lower.",
+    "Complete actual Source original Once and two-lifetime creator pass raw/Wire with actual Analyze plan; same-typed argument switched to other actual header class rejects in both independent kernels.",
+    "Existing opaque raw candidate or copied contract cannot replace actual receiver/capture origins.",
+    "Owning Verify N13875 and preexisting captured helper N16203 both run raw/Wire N-1/fresh/repeated controls."
+  ],
+  "negative_boundaries": [
+    "Neighborhood cases remain distinguished by actual rejection stage; initialization rejection is not relabeled as resource-kernel execution.",
+    "Common Source scope uses Analyze narrower teardown=None profile; no user-defined Drop, lending, helper source-bound bridge or general owning combinations claimed."
+  ],
+  "excluded_run": {
+    "filter": "g3331",
+    "passed": 0,
+    "reason": "Incorrect test filter matched zero. Retained source.log is excluded; actual named Source test rerun in source-corrected.log passed 1."
+  }
+}

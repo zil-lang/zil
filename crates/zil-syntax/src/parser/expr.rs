@@ -110,6 +110,7 @@ impl Parser<'_> {
         };
         Ok(Expr {
             kind: ExprKind::Closure {
+                context: ClosureContextMarker::default(),
                 move_capture,
                 params,
                 return_type,

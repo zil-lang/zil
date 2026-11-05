@@ -62,11 +62,32 @@ pub(super) fn check_definitions(
     budget.spend(module.functions.len())?;
     let mut entries = vec![None; module.functions.len()];
     for (index, closure) in module.closures.iter().enumerate() {
-        if closure.storage_life.is_some() {
-            return Err(unsupported(
-                "stored-borrow closure contract consumer is not yet implemented",
+        if let Some(life) = &closure.storage_life {
+            stored_callables::captured_profile(closure, budget)?;
+            signature_life::charge(life, budget)?;
+            signature_life::closure_relation(
+                &closure.parameters,
+                &closure.captures,
+                &closure.result,
+                life,
                 None,
-            ));
+            )?;
+            let entry = module
+                .functions
+                .get(closure.function.0 as usize)
+                .ok_or_else(|| {
+                    reject("E-VERIFY-CLOSURE", None, "captured Fixed entry is absent")
+                })?;
+            if let Some(c) = &entry.storage_life {
+                signature_life::charge(c, budget)?;
+            }
+            if entry.storage_life.as_ref() != Some(life) {
+                return Err(reject(
+                    "E-VERIFY-CLOSURE",
+                    None,
+                    "captured Fixed definition differs from the actual entry relation",
+                ));
+            }
         }
         budget.spend(1)?;
         if closure.lending_captures.len() > limits.max_locals {

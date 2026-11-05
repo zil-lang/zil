@@ -1,0 +1,257 @@
+{
+  "task": "G3.3.3",
+  "decision": "AuthorLimitedSourceAndNativePassAwaitingIndependentReview",
+  "source_test_commit": "56666a1429974dca53d588a048aee9db793f69fd",
+  "analyze_initial_implementation": "32e5e11336c86a13cc18d1409540fa81b6b41070",
+  "analyze_identity_fix": "bec410da3e874648b77978bb57555483cc455523",
+  "integrated_root_baseline": "74ad5a2f69bbf928beee2cebed95eabf3e701209",
+  "neutral_fixture_commit": "467dbcac1f3513e2bca6bfd50148f1d5f5a9952e",
+  "schema": 42,
+  "specification_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "normative_sha256": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+  "scope": [
+    "Genuine FnOnce captures class-free Managed<Record of inline scalar fields> together with existing shared scalar/qualified Record or Tuple Fixed environment",
+    "Actual Source producer/Types, actual Analyze candidate to independent Verify raw and Wire, Lower and native execution",
+    "Every actual or unused Managed/Desc head is independently bound to the actual unique ResourceDefinition by name and complete payload; this creates no target or loan",
+    "Managed adds no class or borrow row. Weak Desc preserves actual Local/Capture identity without granting a loan; resource kernel independently checks ownership, Once and old-description liveness"
+  ],
+  "environment": {
+    "working_directory": "/workspace/zil-G3.3.3",
+    "setup": "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target341; export TMPDIR=/workspace/.zil-env/G3.3.3-tmp",
+    "exclusive_target": "/workspace/.zil-env/target341",
+    "jobs": 2,
+    "cross_worktree_rebinding": "Logs record actual compilation under /workspace/zil-G3.3.3; no claim of clean cache build",
+    "cargo_stopped": true
+  },
+  "commands": [
+    {
+      "label": "api_source",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test generic_regressions --features llvm-api g33 -- --nocapture",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/source-final-api-fixed.log",
+        "sha256": "8230b6e8d859b8d56825962de6cd192cec0c4fb5694995816fb5c11bdb360398"
+      },
+      "result": "Pass",
+      "tests_passed": 3,
+      "tests_failed": 0
+    },
+    {
+      "label": "default_source_identity",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test generic_regressions g333_ -- --nocapture",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/source-final-default.log",
+        "sha256": "7a8c9852370b6a258bc7b550c6caed76ae0884f50c3b414ec8739756855fc458"
+      },
+      "result": "Pass",
+      "tests_passed": 1,
+      "tests_failed": 0
+    },
+    {
+      "label": "analyze_stored",
+      "command": "cargo test --locked --offline -j2 -p zil-analyze --lib stored_flow::tests -- --nocapture",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/analyze-stored-fixed.log",
+        "sha256": "36a6408cf39a18ef10a22cc30397a91c3bdf9c338fb9b3ba29132e722e646c3b"
+      },
+      "result": "Pass",
+      "tests_passed": 29,
+      "tests_failed": 0
+    },
+    {
+      "label": "analyze_signature",
+      "command": "cargo test --locked --offline -j2 -p zil-analyze --lib signature_life::tests -- --nocapture",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/analyze-signature-final.log",
+        "sha256": "212156c4a06f6faa35ef865d24b50a45b580a99e08610e466f18d251f43476c4"
+      },
+      "result": "Pass",
+      "tests_passed": 2,
+      "tests_failed": 0
+    },
+    {
+      "label": "analyze_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-analyze --lib -- -D warnings",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/analyze-clippy-final.log",
+        "sha256": "bcac1159980f9c0b4e432d27cc89bf6f3825282bb5afe33b52209bbb0780b8dd"
+      },
+      "result": "Pass"
+    },
+    {
+      "label": "source_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-driver --test generic_regressions --features llvm-api -- -D warnings",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/source-clippy-final.log",
+        "sha256": "59a31219a339e1ad3798b5fee31112c484dc90a977d04d0dea0da357a5b6cb88"
+      },
+      "result": "Pass"
+    },
+    {
+      "label": "fmt",
+      "command": "cargo fmt --all -- --check",
+      "log": {
+        "path": "/workspace/.zil-env/G3.3.3-tmp/fmt-final.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "result": "Pass"
+    }
+  ],
+  "native": {
+    "test": "g3326_captured_source_native_full_results_and_budget",
+    "source_cases": [
+      "shared Fn",
+      "actual two-call scalar-mutating FnMut",
+      "original true owned Mark FnOnce"
+    ],
+    "backends": [
+      "Clang",
+      "LLVM API"
+    ],
+    "optimization": [
+      "O0",
+      "O2"
+    ],
+    "distinct_configurations": 12,
+    "executions_in_final_bound_test": 12,
+    "stdout": "42\n",
+    "exit_code": 0,
+    "stderr": "",
+    "verification_runs_per_build": 1,
+    "fallback": null,
+    "all_asserted_by_test": true,
+    "not_claimed": "Observable user-defined Drop side effect or Rust performance parity"
+  },
+  "source_derived_nearest_neighbors": {
+    "test": "g333_owned_fixed_source_resource_identity_is_independent",
+    "positive": "Original unmodified true FnOnce Source -> Types -> actual Analyze plan -> Verify raw and Wire",
+    "mutations": [
+      "same scalar layout but definition named Other",
+      "empty resource table",
+      "duplicate definition",
+      "unused Managed<Other> local"
+    ],
+    "analyze": "Each independently rejected; empty table remains Unsupported, other three E-ANALYZE-IR resource identity",
+    "verify": "Each raw and Wire independently E-VERIFY-RESOURCE using untrusted original candidate; no Analyze proof called",
+    "wrong_class_source": "Original fnonce-wrong-class.zil is SafeReject at Analyze for actual retained classes"
+  },
+  "typed_only_neighbors": {
+    "not_source_or_native_evidence": true,
+    "test": "owned_fixed_once_keeps_resource_and_class_proofs_independent",
+    "rejections": [
+      "wrong actual Fixed class",
+      "duplicate TakeCapture",
+      "ReadCapture copies owning capture",
+      "Drop before live ReadDesc",
+      "wrong constructor arity",
+      "ReadDesc out-of-range field"
+    ],
+    "weak_desc_positive": "Value7 Managed no borrow roots, Value8 Desc has actual Local1 root",
+    "definition_test": "owned_fixed_heads_require_actual_resource_definitions",
+    "rejections_identity": [
+      "same-layout Other",
+      "empty table",
+      "duplicate definition",
+      "unused Managed<Other>",
+      "same-name differing full payload",
+      "definition name differs from payload name"
+    ],
+    "explicit_closed_boundary": "teardown=Some remains Unsupported",
+    "positive": "All actual resource heads and definition consistently renamed remain accepted"
+  },
+  "budgets": {
+    "new_owned_typed": {
+      "N": 14077,
+      "fixed_assertion": true,
+      "N_minus_1": "E-RESOURCE-LIMIT",
+      "fresh": "same complete candidate",
+      "warm": "AnalysisSession reuses initialization queries but charges same request cost; N-1 still resource limit"
+    },
+    "whole_source_to_lower": [
+      {
+        "case": "Fn",
+        "N": 24224,
+        "tight_phase": "Verify"
+      },
+      {
+        "case": "FnMut two calls",
+        "N": 34804,
+        "tight_phase": "Verify"
+      },
+      {
+        "case": "FnOnce",
+        "N": 36926,
+        "tight_phase": "Analyze",
+        "prior_unfixed_N": 36307,
+        "delta": 619,
+        "reason": "actual resource identity and complete closure metadata inventory checks, prepaid before scans/name and payload comparisons"
+      }
+    ],
+    "whole_source_controls": "Fixed expected N, N-1 ResourceLimit and repeated fresh N all run; not isolated Lower budget",
+    "existing_unchanged_measured": {
+      "rich_class": 3377,
+      "qualified_roles": 5843,
+      "Fn_helper": 15509,
+      "FnMut_helper": 15922,
+      "FnOnce_helper": 13889
+    },
+    "default_limits_changed": false
+  },
+  "pre_fix_failure": {
+    "source_analyze": "32e5e11336c86a13cc18d1409540fa81b6b41070",
+    "bound_tree": "e89d8968087706ba5ee0c3300eeef70185ba77dd",
+    "test": "owned_fixed_heads_require_actual_resource_definitions",
+    "command": "cargo test --locked --offline -j2 -p zil-analyze --lib owned_fixed_heads_require_actual_resource_definitions -- --nocapture",
+    "log": {
+      "path": "/workspace/.zil-env/G3.3.3-tmp/resource-identity-before.log",
+      "sha256": "eec1316d3eb78584436bfc525e1f3d87e2c56e6666695835b9de41e88c4aa3b4"
+    },
+    "result": "Failed: Other, duplicate, unused Other, same-name wrong payload and name/payload mismatch all wrongly accepted; empty table already Unsupported"
+  },
+  "files": {
+    "crates/zil-analyze/src/budget.rs": "2ae9d02e442d95ee9e9d1938122bf67a2f7f78e2420357700047f7e0e8f9cbf8",
+    "crates/zil-analyze/src/stored_callables.rs": "7a195ac5f85be2f49291b3495c7b63101156ec47261d101da62ac43db8c3db7d",
+    "crates/zil-analyze/src/signature_life.rs": "60c039c3980c2932583ee808894c2141d992f56543057a90e42f8ead39ddb7a1",
+    "crates/zil-analyze/src/stored_flow.rs": "78f0094ae2e95a9587c1dc0dd7bbdd4ffe470c87878ded2c6110c1443e6889e2",
+    "crates/zil-analyze/src/stored_flow/owned.rs": "ffe1d799eaf5ef0d1c77fcb244c34e9c5e77ade2907c6b5cd00427535361890c",
+    "crates/zil-driver/tests/generic_regressions.rs": "353b1c96fb59cf3f1d8c13d052a2847357eeca21010da300b316e3256b9ea4ba",
+    "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "623b55ea5c1a34bc02f16d14fd1440fc5e294f84706a48a45ec152b701cfc579",
+    "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil": "a29aeb1c519a4cf3f6ebf875df5b0523844745c68338749c7a4d4f2369bf173b",
+    "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-wrong-class.zil": "27a8855c105aba704aaca6baef4fef84b93d21b7536c4dae1a35e6878fc99285"
+  },
+  "binaries": {
+    "analyze": {
+      "path": "/workspace/.zil-env/target341/debug/deps/zil_analyze-8dde3b1c204420d7",
+      "sha256": "8ba8997660228bab4ce66d43d8c2b5fd147caddf16e3f4d27ba1126d80a19156"
+    },
+    "driver_api": {
+      "path": "/workspace/.zil-env/target341/debug/deps/generic_regressions-6ecdb24ac684ead8",
+      "sha256": "54729fa1c25af4af25f4210dc1477f7cf9bd5c1ac78b021736d00161993b91f9"
+    },
+    "driver_default": {
+      "path": "/workspace/.zil-env/target341/debug/deps/generic_regressions-d00b6aceac9b1c62",
+      "sha256": "9a89459005a2cd4fe1592ab2d45a6b3be628343365e8ce6017109c6091d6d061"
+    }
+  },
+  "api_features": {
+    "fingerprint": {
+      "path": "/workspace/.zil-env/target341/debug/.fingerprint/zil-driver-6ecdb24ac684ead8/test-integration-test-generic_regressions.json",
+      "sha256": "162b3468d783bdfbdff5394702fb6f3bc117eef84c5fb248fa62f3078f5771d6"
+    },
+    "features": "[\"default\", \"llvm-api\"]"
+  },
+  "limitations": [
+    "User-defined Drop is Unsupported (teardown=None required); raw teardown metadata grants no Desc parameter access",
+    "No resource parameter/result transfer, Address<Managed>, nested owning heads, general mutable capture, lending, Store/Task/Package/callback owning composition",
+    "No Fn/FnMut-to-Once adapter used as witness",
+    "No Source F-helper bound bridge or broader generated/member/mixed creator context claimed",
+    "No full workspace gate, main acceptance, complete G3.3/G1.4 or product completion",
+    "Source formation and Verify/Lower/backend are independently authored merged dependencies; this slice authors Analyze only"
+  ],
+  "rust_four_goals": {
+    "safety": "Actual Source two-kernel and raw/Wire identity/ownership boundary evidence, finite profile only",
+    "runtime_memory": "Existing inline environment and shared pointer representation, native complete values; no same-semantics Rust runtime/RSS comparison",
+    "compile_cost": "Prepaid +619 actual identity work; exact fresh/warm budgets, unchanged default limits, no Rust compile-time claim",
+    "expressivity": "First actual moved Mark plus persistent input Fixed combination reaches native as true FnOnce; product net breakthrough not established"
+  },
+  "independent_review": "Pending g8; author does not self-review"
+}

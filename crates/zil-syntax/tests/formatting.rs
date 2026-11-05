@@ -7,6 +7,37 @@ fn source(text: &str) -> SourceUnit {
 }
 
 #[test]
+fn closure_transport_markers_do_not_change_syntax_value_equality() {
+    let parsed = zil_syntax::parse(&source("fn f(){let c=(x:i32)->i32=>x+1;}"))
+        .into_result()
+        .unwrap();
+    let mut transported = parsed.clone();
+    let ItemKind::Function(function) = &mut transported.items[0].kind else {
+        panic!();
+    };
+    let FunctionBody::Block(body) = &mut function.body else {
+        panic!();
+    };
+    let StmtKind::Binding { value, .. } = &mut body.statements[0].kind else {
+        panic!();
+    };
+    let ExprKind::Closure { context, .. } = &mut value.kind else {
+        panic!();
+    };
+    assert_eq!(context.raw_index(), None);
+    assert_eq!(std::mem::size_of::<ClosureContextMarker>(), 4);
+    assert_eq!(ClosureContextMarker::untrusted(u32::MAX).raw_index(), None);
+    assert_eq!(
+        ClosureContextMarker::untrusted(u32::MAX - 1).raw_index(),
+        Some(u32::MAX - 1)
+    );
+    *context = ClosureContextMarker::untrusted(19);
+    assert_eq!(context.raw_index(), Some(19));
+    assert_eq!(parsed, transported);
+    assert_eq!(module_shape(&parsed), module_shape(&transported));
+}
+
+#[test]
 fn short_closure_annotations_and_tail_discard_survive_trivia_formatting() {
     let text = "  fn sample() {\r\n\tlet a = move x -> i32 => { x + 1 /* ; */ }\r\n\tlet b = () => { \";\"; }\r\n}\r\n";
     let before = zil_syntax::parse(&source(text)).into_result().unwrap();
@@ -273,6 +304,7 @@ fn expr_shape(expr: &Expr) -> String {
             params,
             return_type,
             body,
+            ..
         } => format!(
             "closure:{move_capture}:{:?}:{:?}:{}",
             params

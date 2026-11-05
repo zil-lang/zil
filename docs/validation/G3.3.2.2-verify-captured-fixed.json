@@ -1,0 +1,101 @@
+{
+  "task": "G3.3.2.2",
+  "status": "PrivateConsumerImplementedLimitedValidationPendingIndependentReview",
+  "source_sha": "5a96d0cb6d1e5933878d921ca186883dd91cb81d",
+  "baseline": "f18ba34eddfe7cf08941789fbd21d2019b4b2df8",
+  "common41": "318875a451c5eb53b5392d869f975ec96e2963b4",
+  "schema": 41,
+  "independence": "Verify proof implementation is independent of Analyze/Types; only untrusted Typed fixture constructors were shared.",
+  "private_changes": [
+    "Complete canonical Parameter/Capture/Result relation; actual definition and entry correspondence.",
+    "Capture outer address and qualified class independently ground Fixed; private source-grounding facts reject unknown local phantom classes.",
+    "Each actual SSA/local environment retains Fixed; fresh Invocation only; TakeLocal preserves the actual domain.",
+    "MakeClosure independently selects real physical capture targets and retains outer/field loan ancestry, including reborrowed Address operands.",
+    "Capture access reconstructed from Capture roots; local env liveness and closure/helper calls preserve actual target/loan checks.",
+    "Role separately validated; finite profile requires role == definition without copying role into global definition."
+  ],
+  "limits": [
+    "Source Fixed guard unchanged and unopened; no Source or native completeness claim.",
+    "No schema/public registry/context identity changes. Original owner/fullordinal/ordered actual args and Named role adaptation are producer/identity successor obligations.",
+    "Shared finite data parameters/captures, scalar results, no lending or owning/nested closure captures. Only scalar capture mutation.",
+    "Captured Fixed Fn/FnMut -> Once adaptation Unsupported; actual FnOnce requires original owning-resource checks.",
+    "Environment result transfer Unsupported; missing complete helper relation rejected.",
+    "Local phantom class with neither header input nor physical Address origin Unsupported.",
+    "Nonempty user-resource module retained integration remains Unsupported."
+  ],
+  "validation": {
+    "suite": "zil-verify lib only",
+    "result": "372 passed, 0 failed",
+    "new_tests": 8,
+    "finite_raw_wire_cases": {
+      "positive": 28,
+      "negative": 48,
+      "total": 76,
+      "adaptive_budget_probes_excluded": true
+    },
+    "coverage": [
+      "Fn/FnMut/FnOnce direct, explicit helper and two actual environments of one ClosureId; good and wrong-class neighbors.",
+      "Parent target live/dead, Reborrow qualified capture, outer-only Address capture, scalar FnMut WriteCapture, same-env distinct Invocation borrows.",
+      "Entry/definition mismatch, Capture Invocation, validcanonical different role, missing helper header, wrong helper actual, moved Once receiver wrong class, Fn->Once fence, environment result, duplicate Capture metadata.",
+      "Forged candidate capture root/empty root, duplicate true Once invocation, nonCopy Once Load, unknown local phantom class."
+    ],
+    "budget": {
+      "raw_N": 16203,
+      "wire_N": 16203,
+      "checks": [
+        "N-1 ResourceLimit",
+        "fresh N same fingerprint",
+        "warm N same fingerprint",
+        "failed N-1 then retry N same fingerprint"
+      ],
+      "limits_enlarged": false
+    },
+    "commands": [
+      "source /workspace/.zil-env/env.sh; cargo test -p zil-verify --lib -j2 --offline -- --nocapture",
+      "source /workspace/.zil-env/env.sh; cargo clippy -p zil-verify --all-targets -j2 --offline -- -D warnings",
+      "source /workspace/.zil-env/env.sh; cargo fmt --all -- --check",
+      "git diff --check"
+    ],
+    "strict_clippy": "Pass",
+    "format_diff": "Pass",
+    "driver_builds": 0,
+    "native_runs": 0,
+    "formal_full_suite_runs": 0,
+    "toolchain": "rustc 1.99.1 (58cf8f9c3 2026-10-13), cargo 1.99.1 (5f94df478 2026-08-27)",
+    "environment": {
+      "CARGO_TARGET_DIR": "/workspace/.zil-env/target344",
+      "TMPDIR": "/workspace/.zil-env/G3.3.2.2-tmp",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_PROFILE_DEV_STRIP": "symbols",
+      "CARGO_PROFILE_TEST_STRIP": "symbols",
+      "CARGO_INCREMENTAL": "0"
+    },
+    "logs": {
+      "verify-lib-final.log": {
+        "path": "/workspace/.zil-env/G3.3.2.2-tmp/verify-lib-final.log",
+        "sha256": "b173961f1c5cd3590c63b41260f590fb5e0d8216523440f1b28acaf85e978440"
+      },
+      "clippy-final.log": {
+        "path": "/workspace/.zil-env/G3.3.2.2-tmp/clippy-final.log",
+        "sha256": "7ab4f08e923d3ed36f6ab593ca3bd701914f0efad4b9e8f1b8657da85d0dc23f"
+      }
+    },
+    "reusable_test_executable": {
+      "path": "/workspace/.zil-env/target344/debug/deps/zil_verify-76b42b1447e71442",
+      "sha256": "a5cf907e232bf8c5e281d969a4f4eb51ddffbeae895da410f645d1713cfa6ed3",
+      "features": "none; zil-verify has no llvm-api/native harness"
+    }
+  },
+  "source_manifest": {
+    "crates/zil-verify/src/class_flow.rs": "81f6f458b0cf91d11c5ad4d6509a3a68524722ebf5f9fe005c7cee6274b220eb",
+    "crates/zil-verify/src/closures.rs": "a433f096ef92206518f3a074e45a084f03a2fa0596f572d426bf48ec741fee48",
+    "crates/zil-verify/src/helpers.rs": "b55902cdae29f39e00a34353de3d78908ca6420b53405dfeee48d00ab96dc5f1",
+    "crates/zil-verify/src/lib.rs": "c0f1cd398a41e17ad113cbfc8f1b5cfdb9a90d2ef84df3435b58438655b100b0",
+    "crates/zil-verify/src/signature_life.rs": "048c313c0dbff11b35bb11eaa1682ff59b8befec88c156efdab48fe6cb63a466",
+    "crates/zil-verify/src/stored_callables.rs": "29c6f26a4138445baedcd0da2d75d36f91cf3527571254f8124c37b41b4706d0",
+    "crates/zil-verify/src/stored_flow.rs": "3bed8bb211df8d35bf6703bf57a7c5603c70a8f172718a7848dc2c2c135959de",
+    "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "f0b8d6b2a044c51b0043c9f56fa216e33b191bdb017a14db0b2f203e1f0ea632"
+  },
+  "checkpoint": "068992d18; first model controls passed before final grounding/complete-target and additional regressions. Final N supersedes earlier15985/16093 exploratory values."
+}

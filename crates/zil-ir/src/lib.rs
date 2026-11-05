@@ -7,8 +7,10 @@ use zil_base::{
     Fingerprint, FingerprintBuilder, ModuleId, NodeId, SCHEMA_VERSION, Span, TargetProfile,
 };
 
+mod closure_context;
 pub mod ct_artifact;
 pub mod ct_wire;
+pub use closure_context::*;
 mod dynamic;
 mod dynamic_fingerprint;
 pub use dynamic::*;
@@ -762,6 +764,8 @@ pub struct CoreModule {
     /// Raw nominal kind/full-actual inventory; no structural capability proof.
     pub life_declarations: Vec<LifeNominalDeclaration>,
     pub life_instances: Vec<LifeNominalInstance>,
+    /// Raw source context; no class, loan or calling authority.
+    pub closure_life_contexts: Vec<CoreClosureLifeContext>,
     pub schema_version: u32,
     pub module_id: ModuleId,
     pub source_fingerprint: Fingerprint,
