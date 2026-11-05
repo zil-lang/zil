@@ -74,6 +74,7 @@ impl<'a> Compiler<'a> {
             let declaration = *tree.declarations.get(local.0 as usize).ok_or_else(|| {
                 error(item.span, "generated compiler declaration inventory absent")
             })?;
+            self.budget.work(tree.identity_path_len(), item.span)?;
             let generation_path = tree
                 .generation_fingerprint()
                 .ok_or_else(|| error(item.span, "generated compiler tree identity absent"))?;

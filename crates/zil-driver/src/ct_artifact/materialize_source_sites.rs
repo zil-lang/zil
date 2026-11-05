@@ -55,9 +55,15 @@ impl Materializer<'_, '_> {
         item: &s::Item,
     ) -> CompileResult<()> {
         let (frozen, tree_id, row, local) = if let Some(fingerprint) = owner.generation_path {
-            self.environment
-                .budget
-                .reserve_analysis_work(self.environment.generated_catalog.trees.len() as u64 + 1)?;
+            self.environment.budget.reserve_analysis_work(
+                self.environment
+                    .generated_catalog
+                    .trees
+                    .iter()
+                    .fold(1u64, |work, tree| {
+                        work.saturating_add(tree.identity_path_len() as u64 + 1)
+                    }),
+            )?;
             let (row, tree) = self
                 .environment
                 .generated_catalog

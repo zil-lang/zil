@@ -605,7 +605,7 @@ impl Materializer<'_, '_> {
                 Vec::new(),
             ),
             CtTypeNode::Nominal { symbol, arguments } => {
-                self.prepay_source_lookup()?;
+                self.prepay_source_lookup(symbol)?;
                 let item = self.source_declaration(symbol, span)?;
                 let name = match &item.kind {
                     s::ItemKind::Aggregate(value) => value.name.clone(),
@@ -1352,6 +1352,17 @@ impl Materializer<'_, '_> {
                 return Err(late_import(item.span));
             }
             let path_len = self.item_path.len();
+            self.environment.budget.reserve_analysis_work(1)?;
+            if path_len == self.item_path.capacity() {
+                let old = self.item_path.capacity();
+                self.environment
+                    .budget
+                    .reserve_temporary_bytes((path_len as u64 + 1) * 4)?;
+                self.item_path.reserve_exact(1);
+                self.environment
+                    .budget
+                    .release_temporary_bytes(old as u64 * 4);
+            }
             self.item_path.push(
                 u32::try_from(ordinal)
                     .map_err(|_| category("item structural ordinal overflow", item.span))?,
@@ -1486,9 +1497,11 @@ impl Materializer<'_, '_> {
                     self.current_generated_tree = previous_tree;
                     self.current_emitter = previous_emitter;
                     if let Some(retained) = &mut retained {
-                        retained.extend(generated_rows.ok_or_else(|| {
+                        let generated_rows = generated_rows.ok_or_else(|| {
                             category("generated ItemList origin rows absent", item.span)
-                        })?);
+                        })?;
+                        self.reserve_output_origins(retained, generated_rows.len())?;
+                        retained.extend(generated_rows);
                     }
                     output.extend(generated_items);
                 }
@@ -1516,17 +1529,14 @@ impl Materializer<'_, '_> {
                         self.record_changed_closure_sites(module, ordinal)?;
                     }
                     if let Some(retained) = &mut retained {
-                        self.environment.budget.reserve_analysis_work(1)?;
-                        self.environment
-                            .budget
-                            .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
+                        self.reserve_output_origins(retained, 1)?;
                         if generated {
                             let tree = self.current_generated_tree.clone().ok_or_else(|| {
                                 category("generated output source tree absent", item.span)
                             })?;
-                            retained.push(generated_lineage::OutputOrigin::Generated(
+                            retained.push(generated_lineage::OutputOrigin::Generated(Box::new(
                                 self.generated_origin(&tree, ordinal)?,
-                            ));
+                            )));
                         } else {
                             retained.push(generated_lineage::OutputOrigin::Original(ordinal));
                         }
@@ -2281,7 +2291,7 @@ pub(crate) fn materialize(
                     &mut environment.budget,
                 )?;
                 environment.budget.reserve_temporary_bytes(
-                    bytes + std::mem::size_of::<zil_ir::LifeDeclarationIdentity>() as u64,
+                    bytes + std::mem::size_of::<zil_ir::LifeDeclarationIdentity>() as u64 + 64,
                 )?;
                 source_namespaces.insert(module.module, row.identity.clone());
             }
@@ -2341,8 +2351,10 @@ pub(crate) fn materialize(
                 .budget
                 .reserve_analysis_work(original_count as u64)?;
             materializer.environment.budget.reserve_temporary_bytes(
-                original_count as u64
-                    * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64,
+                module.items.len() as u64
+                    * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64
+                    + original_count as u64
+                        * std::mem::size_of::<Option<zil_expand::source_context::DeclarationOrigin>>() as u64,
             )?;
             let retained = retained
                 .ok_or_else(|| category("retained declaration positions absent", module.span))?;
@@ -2353,7 +2365,7 @@ pub(crate) fn materialize(
             let mut moved = Vec::with_capacity(retained.len());
             for entry in retained {
                 let mut row = match entry {
-                    generated_lineage::OutputOrigin::Generated(row) => row,
+                    generated_lineage::OutputOrigin::Generated(row) => *row,
                     generated_lineage::OutputOrigin::Original(ordinal) => {
                         let mut row = original_rows
                             .get_mut(ordinal)

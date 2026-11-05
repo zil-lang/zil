@@ -163,7 +163,9 @@ impl SourceIndex {
         budget: &mut zil_ct::CtExecutionBudget,
     ) -> CompileResult<()> {
         let span = tree.module.span;
-        budget.reserve_analysis_work(self.module_ids.len() as u64 + 1)?;
+        budget.reserve_analysis_work(
+            self.module_ids.len() as u64 + tree.identity_path_len() as u64 + 1,
+        )?;
         let owner = self
             .module_ids
             .iter()
