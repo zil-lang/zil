@@ -1951,11 +1951,35 @@ impl<'a> Engine<'a> {
             StmtKind::Binding {
                 pattern, ty, value, ..
             } => {
+                let source_enum = if let Some(t) = ty.as_ref()
+                    && self.stored_nominals
+                    && let TypeKind::Named { path, args } = &grouped(t).kind
+                    && path.len() == 1
+                    && {
+                        self.stored_lookup_fee(self.enums.len(), path[0].len(), t.span)?;
+                        self.enums.contains_key(&path[0])
+                    }
+                    && self.stored_application(&path[0], args, t.span, depth + 1)?
+                {
+                    self.budget.ty(t)?;
+                    Some(t.clone())
+                } else {
+                    None
+                };
                 if let Some(t) = ty {
                     self.ty(t, depth + 1)?;
                 }
-                let inferred = self.expr_expected(value, env, ty.as_ref(), depth + 1)?;
-                bind(pattern, ty.clone().or(inferred), env);
+                let inferred = self.expr_expected(
+                    value,
+                    env,
+                    source_enum.as_ref().or(ty.as_ref()),
+                    depth + 1,
+                )?;
+                bind(
+                    pattern,
+                    source_enum.or_else(|| ty.clone()).or(inferred),
+                    env,
+                );
             }
             StmtKind::Return(Some(e)) => {
                 let expected = self.return_type.clone();
