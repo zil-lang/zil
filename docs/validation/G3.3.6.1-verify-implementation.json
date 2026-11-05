@@ -16,7 +16,7 @@
   "source_tests": "0518ba2ffee0f340e119c118fa042f0a99143067",
   "rejection_anchor_tests": "7fcc8422d291ce0343f6717e2a596900180aed9f",
   "scope": "Original free helper; genuinely owning FnOnce with one Managed scalar Record capture, teardown=None and one shared physical Tag capture; single block Return/Trap staged Take/Store chain.",
-  "proof": "Recover exact declared parameter by paid unique Store/SSA transfer scans with strictly decreasing actual instruction positions. No allocation, ClosureId-based role selection or producer proof. Existing initialization, class, helper trace and resource/once proofs remain mandatory.",
+  "proof": "Recover exact declared parameter by paid unique Store/SSA transfer scans with strictly decreasing actual instruction positions. The origin chain allocates no scratch; capture profiling uses the existing prepaid type_work stack. No ClosureId-based role selection or producer proof. Existing initialization, class, helper trace and resource/once proofs remain mandatory.",
   "checks": [
     {
       "command": "cargo test -p zil-verify --lib g336_staged_verify --offline -- --nocapture",
@@ -90,7 +90,7 @@
     "safety": "Actual parameter identity plus independent initialization/class/resource checks, including equal-Type wrong-class and duplicate owning SSA.",
     "performance": "Old complete owner/borrowed budgets unchanged; new staged Source work is measured. No runtime speed claim.",
     "expressiveness": "Four real owning FnOnce helper Sources now reach complete independent raw/Wire checking with preserved staging.",
-    "maintainability": "One allocation-free private fallback; existing direct/borrowed route and private caller wiring.",
+    "maintainability": "One private fallback with an allocation-free origin chain and paid existing type-profile scratch; existing direct/borrowed route and private caller wiring.",
     "demonstrated_step": "Real staged owning helper acceptance with actual source parameter identity; whole-product Rust comparison unmeasured."
   },
   "limitations": [
