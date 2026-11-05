@@ -81,7 +81,7 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
-    fn abstract_scalar(
+    pub(super) fn abstract_scalar(
         &mut self,
         parameter: &s::GenericParam,
         actual: &s::GenericArg,
@@ -115,6 +115,19 @@ impl<'a> Compiler<'a> {
         }
         self.source_scalar_argument(parameter, actual, span)
             .map(ScalarArgument::Constant)
+    }
+
+    pub(super) fn abstract_life(&mut self, name: &str, span: Span) -> R<(CtSymbolId, u32)> {
+        for (bound, definition, ordinal) in &self.abstract_lives {
+            self.budget.work(name.len().min(bound.len()) + 32, span)?;
+            if bound == name {
+                return Ok((definition.clone(), *ordinal));
+            }
+        }
+        Err(error(
+            span,
+            "CT abstract life is not this declaration's binder",
+        ))
     }
 
     fn abstract_arguments_cost(
