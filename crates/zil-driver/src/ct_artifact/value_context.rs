@@ -114,7 +114,7 @@ pub(in crate::ct_artifact) fn graph_cost(
     }
     Ok(bytes)
 }
-pub(super) fn schema_copy_cost(
+pub(in crate::ct_artifact) fn schema_copy_cost(
     records: &[CtRecordSchema],
     enums: &[CtEnumSchema],
     budget: &mut CtExecutionBudget,
@@ -132,8 +132,15 @@ pub(super) fn schema_copy_cost(
         for arg in &record.arguments {
             budget.reserve_analysis_work(1)?;
             bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
-            if let CtSchemaArgument::Type(graph) = arg {
-                bytes = bytes.saturating_add(graph_cost(graph, budget)?);
+            match arg {
+                CtSchemaArgument::Type(graph) => {
+                    bytes = bytes.saturating_add(graph_cost(graph, budget)?)
+                }
+                CtSchemaArgument::Scalar(zil_ir::Constant::WideString(text)) => {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    bytes = bytes.saturating_add(text.len() as u64 * 2);
+                }
+                _ => {}
             }
         }
     }
@@ -152,8 +159,15 @@ pub(super) fn schema_copy_cost(
         for arg in &en.arguments {
             budget.reserve_analysis_work(1)?;
             bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
-            if let CtSchemaArgument::Type(graph) = arg {
-                bytes = bytes.saturating_add(graph_cost(graph, budget)?);
+            match arg {
+                CtSchemaArgument::Type(graph) => {
+                    bytes = bytes.saturating_add(graph_cost(graph, budget)?)
+                }
+                CtSchemaArgument::Scalar(zil_ir::Constant::WideString(text)) => {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    bytes = bytes.saturating_add(text.len() as u64 * 2);
+                }
+                _ => {}
             }
         }
     }
