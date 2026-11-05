@@ -2469,6 +2469,7 @@ pub(super) fn infer(
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     b.stored_owned_fixed = owned::profile(module, b)?;
     super::stored_callables::definitions(module, b)?;
+    let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
         if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
@@ -2479,6 +2480,20 @@ pub(super) fn infer(
                 "stored profile requires ordinary direct function bodies",
                 Some(f.span),
             )]);
+        }
+        if let Some(declaration) = &f.foreign {
+            b.spend(
+                foreign_symbols
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(declaration.symbol.len().saturating_add(1)),
+                "stored scalar foreign symbol uniqueness",
+            )?;
+            if !foreign_symbols.insert(declaration.symbol.as_str()) {
+                return Err(failure(
+                    "scalar foreign symbol has more than one actual declaration",
+                ));
+            }
         }
         if let Some(id) = f.environment {
             let d = module

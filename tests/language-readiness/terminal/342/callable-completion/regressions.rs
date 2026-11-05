@@ -612,3 +612,94 @@ fn g339_actual_cycle_reentering_owner_consumption_is_rejected_by_both_kernels() 
         );
     }
 }
+
+#[test]
+fn g339_scalar_foreign_actual_declaration_and_region_are_independent() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let text = format!(
+        "{}\nextern \"C\" fn other(code:i32)->i32;\n",
+        include_str!("two-role-user-drop.zil")
+    );
+    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for lane in [
+        "abi",
+        "noescape",
+        "canonical",
+        "duplicate-symbol",
+        "region",
+        "ordinary-call",
+    ] {
+        let mut forged = typed.clone();
+        if lane == "region" || lane == "ordinary-call" {
+            let call = forged
+                .functions
+                .iter_mut()
+                .flat_map(|f| &mut f.blocks)
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| matches!(i.kind, zil_ir::InstructionKind::ForeignCall { .. }))
+                .unwrap();
+            if lane == "region" {
+                let zil_ir::InstructionKind::ForeignCall { region, .. } = &mut call.kind else {
+                    unreachable!()
+                };
+                *region = region.saturating_add(100);
+            } else {
+                let zil_ir::InstructionKind::ForeignCall {
+                    function,
+                    arguments,
+                    ..
+                } = &call.kind
+                else {
+                    unreachable!()
+                };
+                call.kind = zil_ir::InstructionKind::Call {
+                    function: *function,
+                    arguments: arguments.clone(),
+                };
+            }
+        } else {
+            let foreign = forged
+                .functions
+                .iter_mut()
+                .find(|f| f.foreign.as_ref().is_some_and(|d| d.symbol == "other"))
+                .unwrap();
+            match lane {
+                "abi" => foreign.foreign.as_mut().unwrap().abi = "Rust".into(),
+                "noescape" => foreign.foreign.as_mut().unwrap().noescape_parameters = vec![0],
+                "canonical" => foreign.locals[0].mutable = true,
+                "duplicate-symbol" => foreign.foreign.as_mut().unwrap().symbol = "putchar".into(),
+                _ => unreachable!(),
+            }
+        }
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{lane}: {errors:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for wire_mode in [false, true] {
+            let errors = if wire_mode {
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+            } else {
+                zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+            }
+            .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category != ResultCategory::ResourceLimit),
+                "{lane}: {errors:?}"
+            );
+            eprintln!(
+                "G339 scalar foreign {lane} independently rejected wire={wire_mode}: {}",
+                errors[0].message
+            );
+        }
+    }
+}
