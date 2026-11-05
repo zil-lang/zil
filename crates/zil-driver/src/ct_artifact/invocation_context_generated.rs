@@ -138,3 +138,152 @@ impl FrozenInvocationContext {
         Ok(out)
     }
 }
+
+/// Independently select every emitter by BOTH its declaration inventory and
+/// its explicit structural directory path. A catalog identity alone is never
+/// enough, and unsupported selection/unrolling paths cannot gain authority.
+pub(super) fn validate_catalog(
+    catalog: &GeneratedSourceCatalog,
+    parsed: &[Arc<ParseResult>],
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<()> {
+    budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+    for (row, tree) in catalog.trees.iter().enumerate() {
+        let SourceTreeIdentity::Generated { module, event_path } = &tree.identity else {
+            return Err(unsupported(
+                "CT generated catalog contains an original tree identity",
+            ));
+        };
+        budget.reserve_analysis_work(
+            event_path.len() as u64 + tree.emitter.event_path.len() as u64 + 2,
+        )?;
+        if tree.module.id != *module
+            || tree.emitter.tree.module() != *module
+            || tree.emitter.event_path.is_empty()
+        {
+            return Err(unsupported(
+                "CT generated source emitter module or structural path differs",
+            ));
+        }
+        let (emitter_module, emitter_declaration, parent_path) = match &tree.emitter.tree {
+            SourceTreeIdentity::Original(module) => {
+                budget.reserve_analysis_work(parsed.len() as u64)?;
+                let source = parsed
+                    .iter()
+                    .find(|p| p.module.id == *module)
+                    .ok_or_else(|| {
+                        unsupported("CT generated emitter has no actual original module")
+                    })?;
+                (&source.module, tree.emitter.declaration, None)
+            }
+            SourceTreeIdentity::Generated {
+                module,
+                event_path: parent_identity,
+            } => {
+                let mut parent = None;
+                for candidate in &catalog.trees[..row] {
+                    budget.reserve_analysis_work(1)?;
+                    let SourceTreeIdentity::Generated {
+                        module: actual,
+                        event_path: path,
+                    } = &candidate.identity
+                    else {
+                        continue;
+                    };
+                    budget
+                        .reserve_analysis_work(path.len().min(parent_identity.len()) as u64 + 1)?;
+                    if actual == module && path == parent_identity {
+                        if parent.replace(candidate).is_some() {
+                            return Err(unsupported(
+                                "CT generated emitter parent tree identity is ambiguous",
+                            ));
+                        }
+                    }
+                }
+                let parent = parent.ok_or_else(|| {
+                    unsupported(
+                        "CT generated emitter parent is absent or not an earlier actual event",
+                    )
+                })?;
+                budget.reserve_analysis_work(parent.declarations.len() as u64)?;
+                let mut local = None;
+                for (position, global) in parent.declarations.iter().enumerate() {
+                    if *global == tree.emitter.declaration {
+                        if local.replace(zil_base::NodeId(position as u32)).is_some() {
+                            return Err(unsupported(
+                                "CT generated emitter declaration placement is ambiguous",
+                            ));
+                        }
+                    }
+                }
+                (
+                    &*parent.module,
+                    local.ok_or_else(|| {
+                        unsupported(
+                            "CT generated emitter has no actual original declaration placement",
+                        )
+                    })?,
+                    Some(parent_identity.as_slice()),
+                )
+            }
+        };
+        let expected_len = parent_path
+            .map_or(1, |p| p.len() + 1)
+            .saturating_add(tree.emitter.event_path.len());
+        if event_path.len() != expected_len {
+            return Err(unsupported(
+                "CT generated event path has a different structural domain",
+            ));
+        }
+        let suffix = if let Some(parent) = parent_path {
+            budget.reserve_analysis_work(parent.len() as u64)?;
+            if &event_path[..parent.len()] != parent || event_path[parent.len()] != 1 {
+                return Err(unsupported(
+                    "CT generated event path does not extend its actual emitter tree",
+                ));
+            }
+            &event_path[parent.len() + 1..]
+        } else {
+            if event_path[0] != 0 {
+                return Err(unsupported(
+                    "CT original emission event has a generated parent domain",
+                ));
+            }
+            &event_path[1..]
+        };
+        budget.reserve_analysis_work(suffix.len() as u64)?;
+        if suffix != tree.emitter.event_path.as_slice() {
+            return Err(unsupported(
+                "CT generated event differs from its actual emitter structural path",
+            ));
+        }
+        let by_declaration = super::super::compiler::source_scope::original_declaration(
+            emitter_module,
+            emitter_declaration,
+            budget.remaining().max_call_depth as usize,
+            |work| budget.reserve_analysis_work(work as u64),
+        )?
+        .ok_or_else(|| {
+            unsupported("CT generated emitter declaration is absent from its actual frozen tree")
+        })?;
+        let by_path = zil_expand::source_context::source_item_at_path(
+            emitter_module,
+            &tree.emitter.event_path,
+            budget.remaining().max_call_depth as usize,
+            |work| budget.reserve_analysis_work(work as u64),
+        )?
+        .ok_or_else(|| {
+            unsupported(
+                "CT generated emitter structural path is absent from its actual frozen tree",
+            )
+        })?;
+        if !std::ptr::eq(by_declaration.item, by_path)
+            || !matches!(by_path.kind, s::ItemKind::Meta(s::MetaItem::Emit(_)))
+        {
+            return Err(unsupported(
+                "CT generated source authority does not come from its actual original MetaEmit",
+            ));
+        }
+    }
+    Ok(())
+}
