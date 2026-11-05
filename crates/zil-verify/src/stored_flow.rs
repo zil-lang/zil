@@ -2696,6 +2696,12 @@ mod tests {
                 super::super::verify_module(m.clone(), c, &m.target, &Limits::default()),
                 super::super::verify_module_bytes(&bytes, &m.target, &Limits::default()),
             ] {
+                if variant == 6 {
+                    // The actual finite nonlending Fn entry may be consumed
+                    // through Once. Its environment still settles once.
+                    result.unwrap();
+                    continue;
+                }
                 let error = result.unwrap_err();
                 let expected = match variant {
                     0 => "entry and definition relation differ",
@@ -2703,7 +2709,6 @@ mod tests {
                     2 => "actual capture mapping",
                     3 => "requires complete class relation",
                     4 | 5 => "class equality",
-                    6 => "owning mode accounting",
                     _ => unreachable!(),
                 };
                 assert!(
@@ -3210,6 +3215,12 @@ mod tests {
                 } else if case <= 7 {
                     assert!(
                         error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"),
+                        "case{case}: {error:?}"
+                    );
+                } else if case == 10 {
+                    assert!(
+                        error.iter().any(|d| d.code == "E-VERIFY-STORED-OWNER"
+                            && d.message.contains("actual consuming FnOnce entry")),
                         "case{case}: {error:?}"
                     );
                 } else if case >= 11 {

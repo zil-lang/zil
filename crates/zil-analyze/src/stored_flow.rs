@@ -3698,19 +3698,17 @@ mod tests {
                 }
                 _ => m.functions[1].values.push(Type::I64),
             }
+            if mutation == 5 {
+                // Finite nonlending FnMut-to-Once adaptation consumes this
+                // actual environment under the independent owner ledger.
+                super::super::analyze(&m, &Limits::default()).unwrap();
+                continue;
+            }
             let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
             assert!(
                 error.iter().all(|d| d.code != "E-RESOURCE-LIMIT"),
                 "mutation {mutation}: {error:?}"
             );
-            if mutation == 5 {
-                assert!(
-                    error
-                        .iter()
-                        .any(|d| d.message.contains("consumption ledger")),
-                    "{error:?}"
-                );
-            }
             if mutation == 6 {
                 assert!(
                     error

@@ -226,21 +226,7 @@ fn continuation_does_not_make_a_once_callback_repeatable() {
         );
     }
     let source = "fn run<F:FnOnce()->i32>(f:F,n:i32)->i32{for index in 0..n{continue}return 0}fn main()->i32{let f=move()=>1;return run(f,2)}";
-    let report = check("once-zero-event-cycle", source);
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Types);
-    assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("FnOnce"))
-    );
+    accepted("once-zero-event-cycle", source);
 }
 
 #[test]
