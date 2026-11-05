@@ -878,6 +878,7 @@ fn g339_once_adaptation_retains_actual_owned_environment_cleanup() {
 
 #[test]
 fn g339_once_adapter_nearest_raw_wire_and_lending_rejections() {
+    use zil_ir::InstructionKind;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     // Actual extra i32 operation keeps all SSA and plan slots unchanged when
