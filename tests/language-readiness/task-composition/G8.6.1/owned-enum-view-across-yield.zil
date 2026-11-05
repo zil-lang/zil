@@ -6,8 +6,8 @@ enum Packet { Left(manages Token), Right(manages Token) }
 fn worker(flag:bool,give token:Token)->i32 {
     let packet=if flag{Packet.Left(give token)}else{Packet.Right(give token)};
     match packet {
-        Packet.Left(ref left)=>{task_yield();unsafe{putchar(81);}return left.code+100;},
-        Packet.Right(ref right)=>{task_yield();unsafe{putchar(81);}return right.code+200;}
+        Packet.Left(ref left)=>{task_yield();mark();return left.code+100;},
+        Packet.Right(ref right)=>{task_yield();mark();return right.code+200;}
     }
 }
 fn drive(task:&mut Task<i32>)->TaskPollState!i32 {
@@ -31,3 +31,4 @@ fn main()->TaskCreateError!i32 {
     task_finish_destroy(give task);
     return 0;
 }
+fn mark(){unsafe{putchar(81);}}

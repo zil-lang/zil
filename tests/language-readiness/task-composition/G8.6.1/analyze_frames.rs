@@ -64,10 +64,7 @@ fn g861_analyze_internal_view_rejects_live_root_move_and_drop() {
     for (case, before_read) in [("move", "let moved=packet;"), ("drop", "discard(packet);")] {
         let text = input
             .replace("let packet=if flag", "var packet:Packet=if flag")
-            .replace(
-                "unsafe{putchar(81);}",
-                &format!("unsafe{{putchar(81);}}{before_read}"),
-            );
+            .replace("mark();", &format!("mark();{before_read}"));
         let text = format!("{text}fn discard(packet:Packet){{}}");
         let report = compile_source(&source(&text), &CompileOptions::default());
         assert_eq!(
