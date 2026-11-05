@@ -9,8 +9,8 @@ use zil_ir::LifeDeclarationIdentity;
 #[path = "source_context_generated.rs"]
 mod generated;
 pub use generated::{
-    GeneratedDeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree,
-    SourceDeclarationSite, SourceTreeIdentity,
+    GeneratedDeclarationOrigin, GeneratedSourceCatalog, GeneratedSourceTree, SourceDeclarationSite,
+    SourceTreeIdentity,
 };
 
 #[path = "source_context_lineage.rs"]
