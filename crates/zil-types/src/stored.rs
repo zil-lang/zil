@@ -2,6 +2,9 @@
 //! reconstructed independently by Analyze and Verify, never by these checks.
 use super::*;
 
+mod nominal;
+mod retained;
+
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
         Diagnostic::limit(
@@ -122,7 +125,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         }
     }
     let mut names = std::collections::BTreeSet::new();
-    for instance in &core.life_instances {
+    for (index, instance) in core.life_instances.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
         let declaration = declarations.get(&instance.declaration).ok_or_else(|| {
             error(
@@ -131,7 +134,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance declaration is absent",
             )
         })?;
-        let Type::BorrowedStorage { storage, life } = &instance.ty else {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             return Err(error(
                 "E-STORED-TYPE",
                 span,
@@ -200,64 +203,17 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 ));
             }
         }
-        let mut rows = life.nominal_arguments.iter();
-        for (ordinal, (parameter, argument)) in declaration
-            .parameters
-            .iter()
-            .zip(&instance.arguments)
-            .enumerate()
-        {
-            fee(left, 1, span)?;
-            match (parameter, argument) {
-                (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(value))
-                    if *ty == value.ty()
-                        && matches!(
-                            value,
-                            Constant::Bool(_)
-                                | Constant::I32(_)
-                                | Constant::I64(_)
-                                | Constant::U64(_)
-                                | Constant::Usize(_)
-                                | Constant::U8(_)
-                                | Constant::U16(_)
-                        ) => {}
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class)) => {
-                    let row = rows.next().ok_or_else(|| {
-                        error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime actual occurrence is absent",
-                        )
-                    })?;
-                    if !row.path.is_empty()
-                        || row.declaration != instance.declaration
-                        || row.argument as usize != ordinal
-                        || row.binder != *class
-                        || *class >= life.binder_count
-                    {
-                        return Err(error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime occurrence differs from full actual position",
-                        ));
-                    }
-                }
-                _ => {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        span,
-                        "stored nominal full argument kind differs",
-                    ));
-                }
+        nominal::rows(core, instance, limits, left)?;
+        for prior in &core.life_instances[..index] {
+            if prior.declaration == instance.declaration
+                && nominal::same_key(prior, instance, limits, left)?
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "one complete nominal actual vector has multiple semantic types",
+                ));
             }
-        }
-        if rows.next().is_some() {
-            return Err(error(
-                "E-STORED-IDENTITY",
-                span,
-                "extra nominal lifetime actual occurrence",
-            ));
         }
     }
     Ok(())
@@ -358,10 +314,12 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if !matches!(storage.as_ref(), Type::Record { .. }) || !life.retained.is_empty() {
+    if !matches!(storage.as_ref(), Type::Record { .. })
+        || (!life.retained.is_empty() && !life.slots.is_empty())
+    {
         return Err(unsupported(
             span,
-            "stored nested/opaque carrier qualification requires its consumer",
+            "stored kind or mixed address/retained qualification requires its consumer",
         ));
     }
     struct Walk<'a> {
@@ -420,6 +378,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         path.pop();
                     }
                 }
+                Type::BorrowedStorage { .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "retained physical leaf needs a real borrowing consumer",
+                        ));
+                    }
+                }
                 other => {
                     if !closed_copy(other, self.left, depth + 1, self.limit, self.span)? {
                         return Err(unsupported(
@@ -463,12 +429,6 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 .saturating_add(1),
             span,
         )?;
-        if !row.path.is_empty() {
-            return Err(unsupported(
-                span,
-                "nested nominal life actual needs its complete type context",
-            ));
-        }
         if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
             return Err(error(
                 "E-STORED-TYPE",
@@ -502,6 +462,40 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             ));
         }
         classes.insert(slot.binder);
+    }
+    let actual_retained = retained::expected(storage, depth_limit, span, walk.left)?;
+    fee(walk.left, life.retained.len(), span)?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(error(
+            "E-STORED-TYPE",
+            span,
+            "physical retained class coverage differs",
+        ));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            walk.left,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(classes.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained classes are not canonical",
+            ));
+        }
+        classes.insert(row.binder);
     }
     if classes.is_empty() || classes.len() != life.binder_count as usize {
         return Err(error(

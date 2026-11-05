@@ -4,6 +4,9 @@ use super::*;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
+mod nominal;
+mod retained;
+
 type Path = Vec<PlaceProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Source {
@@ -306,7 +309,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_)) || !shape.retained.is_empty() {
+    if !matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        || (!shape.retained.is_empty() && !shape.slots.is_empty())
+    {
         return Err(unsupported(
             "nested retained/nominal stored carrier needs its independent consumer",
             None,
@@ -360,6 +365,13 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     todo.push((child, p));
                 }
             }
+            Type::BorrowedStorage { .. } => {
+                if !retained::pure(t, b)? {
+                    return Err(err(
+                        "retained physical leaf needs a real borrowing consumer",
+                    ));
+                }
+            }
             child => {
                 type_work(child, limits, b)?;
                 if !child.is_copy_value() {
@@ -372,7 +384,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         }
     }
     if actual.len() != shape.slots.len()
-        || (actual.is_empty() && shape.nominal_arguments.is_empty())
+        || (actual.is_empty() && shape.nominal_arguments.is_empty() && shape.retained.is_empty())
     {
         return Err(err("stored physical leaf coverage is incomplete"));
     }
@@ -394,12 +406,6 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     };
     for row in &shape.nominal_arguments {
         b.spend(row.path.len().saturating_add(1))?;
-        if !row.path.is_empty() {
-            return Err(unsupported(
-                "nested nominal class mapping is not yet implemented",
-                None,
-            ));
-        }
         class(row.binder, b)?;
     }
     for (path, row) in actual.iter().zip(&shape.slots) {
@@ -407,6 +413,20 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         if path != &row.path || row.mode != StoredBorrowMode::SharedAddress {
             return Err(err(
                 "actual physical stored path or mode differs from declared leaf",
+            ));
+        }
+        class(row.binder, b)?;
+    }
+    let actual_retained = retained::expected(storage, limits, b)?;
+    b.spend(shape.retained.len())?;
+    if actual_retained.len() != shape.retained.len() {
+        return Err(err("physical retained class coverage differs"));
+    }
+    for ((path, local), row) in actual_retained.iter().zip(&shape.retained) {
+        b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
+        if path != &row.path || *local != row.class {
+            return Err(err(
+                "retained row differs from actual physical boundary/class",
             ));
         }
         class(row.binder, b)?;
@@ -614,7 +634,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
     for (i, instance) in module.life_instances.iter().enumerate() {
         type_work(&instance.ty, limits, b)?;
         physical(&instance.ty, limits, b)?;
-        let (storage, shape) = qualified(&instance.ty)
+        let (storage, _) = qualified(&instance.ty)
             .ok_or_else(|| err("nominal instance has no complete qualified type"))?;
         b.spend(declarations.len())?;
         let d = declarations
@@ -633,58 +653,14 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         if d.parameters.len() != instance.arguments.len() {
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
-        let mut lifetime_rows = Vec::new();
-        b.spend(instance.arguments.len())?;
-        for (ordinal, (formal, actual)) in d.parameters.iter().zip(&instance.arguments).enumerate()
-        {
-            match (formal, actual) {
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class))
-                    if *class < shape.binder_count =>
-                {
-                    b.spend(1)?;
-                    lifetime_rows.push((ordinal as u32, *class));
-                }
-                (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
-                    type_work(ty, limits, b)?;
-                    if !ty.is_copy_value() {
-                        return Err(unsupported(
-                            "metadata-only borrowed Type actual needs qualified context checking",
-                            None,
-                        ));
-                    }
-                }
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(c)) if c.ty() == *ty => {
-                    b.spend(match c {
-                        Constant::WideString(data) => data.len().saturating_add(1),
-                        _ => 1,
-                    })?;
-                }
-                _ => {
-                    return Err(err(
-                        "full nominal actual kind or local fixed class differs from declaration",
-                    ));
-                }
-            }
-        }
-        if lifetime_rows.len() != shape.nominal_arguments.len() {
-            return Err(err("nominal lifetime relation coverage is incomplete"));
-        }
-        for ((ordinal, class), row) in lifetime_rows.iter().zip(&shape.nominal_arguments) {
-            b.spend(row.path.len().saturating_add(1))?;
-            if !row.path.is_empty()
-                || row.declaration != d.id
-                || row.argument != *ordinal
-                || row.binder != *class
-            {
-                return Err(err(
-                    "nominal relation differs from actual declaration, ordinal or local class",
-                ));
-            }
-        }
+        nominal::rows(module, instance, limits, b)?;
         for previous in &module.life_instances[..i] {
             type_work(&previous.ty, limits, b)?;
             type_work(&instance.ty, limits, b)?;
-            if previous.ty == instance.ty {
+            if previous.ty == instance.ty
+                || (previous.declaration == instance.declaration
+                    && nominal::same_key(previous, instance, limits, b)?)
+            {
                 return Err(err("duplicate complete nominal instance"));
             }
         }
