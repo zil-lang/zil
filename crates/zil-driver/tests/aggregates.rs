@@ -195,6 +195,20 @@ fn terminal340_owner_replacement_wide_long_names_budget() {
 }
 
 #[test]
+fn terminal340_owner_replacement_independent_verify_source() {
+    for (text,expected) in [
+        (include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),ResultCategory::Success),
+        (include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),ResultCategory::Success),
+        (include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),ResultCategory::SafeReject),
+        (include_str!("../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"),ResultCategory::SafeReject),
+        (include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"),ResultCategory::Success),
+    ] {
+        let report=compile_source(&source(text),&CompileOptions::default());
+        assert_eq!(report.status,expected,"{}",report.to_json());
+    }
+}
+
+#[test]
 fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
