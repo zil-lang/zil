@@ -156,6 +156,7 @@ fn local_mutable(f: &TypedFunction, instruction: &Instruction, local: LocalId) -
         && match instruction.kind {
             InstructionKind::BorrowLocalMut { .. } => true,
             InstructionKind::BorrowPackageField { mutable, .. }
+            | InstructionKind::BorrowFieldLocal { mutable, .. }
             | InstructionKind::BorrowPlaceLocal { mutable, .. }
             | InstructionKind::BorrowVariantLocal { mutable, .. } => mutable,
             _ => false,
@@ -363,6 +364,18 @@ fn function(
                                     root: Root::Local(*local),
                                     mutable: local_mutable(f, instruction, *local),
                                     path: path.clone(),
+                                });
+                            }
+                            InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                                work(b, path.len().saturating_add(1))?;
+                                row.insert(Place {
+                                    root: Root::Local(*local),
+                                    mutable: local_mutable(f, instruction, *local),
+                                    path: path
+                                        .iter()
+                                        .copied()
+                                        .map(PlaceProjection::Field)
+                                        .collect(),
                                 });
                             }
                             InstructionKind::BorrowVariantLocal { local, path, .. } => {

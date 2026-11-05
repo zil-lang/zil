@@ -2,17 +2,23 @@
 //! A callee is checked normally before a parent Builder may use its instance.
 use super::*;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) enum Node {
     Callable(Instance),
     Store(u32),
 }
 
 impl Node {
-    fn ready(self, state: &closures::State) -> bool {
+    fn key_factor(&self) -> usize {
         match self {
-            Self::Callable(instance) => state.helper_instances.contains_key(&instance),
-            Self::Store(index) => state.store_instances[index as usize].function.is_some(),
+            Self::Callable((_, bindings)) => bindings.extra_key_work().saturating_add(1),
+            Self::Store(_) => 1,
+        }
+    }
+    fn ready(&self, state: &closures::State) -> bool {
+        match self {
+            Self::Callable(instance) => state.helper_instances.contains_key(instance),
+            Self::Store(index) => state.store_instances[*index as usize].function.is_some(),
         }
     }
 }
@@ -157,7 +163,7 @@ impl Walk<'_, '_> {
             let ty = store_templates::resolve_argument(
                 ty,
                 bounds,
-                bindings,
+                &bindings,
                 self.state,
                 self.limits,
                 span,
@@ -296,7 +302,8 @@ impl Walk<'_, '_> {
         if let Type::ErrorUnion { error, result } = ty {
             self.node(depth, span)?;
             self.state.snapshot(2, span)?;
-            let error = self.applied_result_shape(error, bounds, bindings, span, depth + 1)?;
+            let error =
+                self.applied_result_shape(error, bounds, bindings.clone(), span, depth + 1)?;
             let result = self.applied_result_shape(result, bounds, bindings, span, depth + 1)?;
             Ok(Shape::ErrorUnion {
                 error: Box::new(error),
@@ -367,7 +374,13 @@ impl Walk<'_, '_> {
                 } => {
                     self.expr(initializer, depth + 1)?;
                     if let Some(ty) = ty {
-                        self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?;
+                        self.shape(
+                            ty,
+                            self.bounds,
+                            self.bindings.clone(),
+                            statement.span,
+                            depth + 1,
+                        )?;
                     }
                     self.pattern(pattern, &Shape::Unknown, depth + 1)?;
                 }
@@ -387,12 +400,18 @@ impl Walk<'_, '_> {
                             self.applied_result_shape(
                                 ty,
                                 self.bounds,
-                                self.bindings,
+                                self.bindings.clone(),
                                 statement.span,
                                 depth + 1,
                             )?
                         } else {
-                            self.shape(ty, self.bounds, self.bindings, statement.span, depth + 1)?
+                            self.shape(
+                                ty,
+                                self.bounds,
+                                self.bindings.clone(),
+                                statement.span,
+                                depth + 1,
+                            )?
                         }
                     } else {
                         inferred
@@ -538,7 +557,7 @@ impl Walk<'_, '_> {
                     let actual = store_templates::resolve_argument(
                         argument,
                         self.bounds,
-                        self.bindings,
+                        &self.bindings,
                         self.state,
                         self.limits,
                         callee.span,
@@ -739,7 +758,12 @@ impl Walk<'_, '_> {
                                 };
                                 let id = selected.ok_or_else(|| unsupported(expression.span,
                                 "nested helper environment type cannot be established by the finite instance plan"))?;
-                                bindings.bind(bound.generic_index, id, expression.span)?;
+                                bindings.bind(
+                                    bound.generic_index,
+                                    id,
+                                    expression.span,
+                                    self.state,
+                                )?;
                             }
                         }
                         if local_environment {
@@ -755,10 +779,14 @@ impl Walk<'_, '_> {
                             );
                         }
                         self.state.snapshot(
-                            tree_work(self.found.len()).saturating_add(1),
+                            tree_work(self.found.len())
+                                .saturating_mul(bindings.extra_key_work().saturating_add(1))
+                                .saturating_add(1),
                             expression.span,
                         )?;
-                        self.found.insert(Node::Callable((key, bindings)));
+                        self.state
+                            .snapshot(Bindings::storage_delta_work(), expression.span)?;
+                        self.found.insert(Node::Callable((key, bindings.clone())));
                         self.has_forward |= forwarding::signature(signature).is_some();
                         self.shape(
                             &signature.result,
@@ -786,12 +814,18 @@ impl Walk<'_, '_> {
                     self.applied_result_shape(
                         ty,
                         self.bounds,
-                        self.bindings,
+                        self.bindings.clone(),
                         expression.span,
                         depth + 1,
                     )?
                 } else {
-                    self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                    self.shape(
+                        ty,
+                        self.bounds,
+                        self.bindings.clone(),
+                        expression.span,
+                        depth + 1,
+                    )?
                 }
             }
             CoreExprKind::Unary { operand, .. } | CoreExprKind::CompileTime(operand) => {
@@ -869,7 +903,13 @@ impl Walk<'_, '_> {
                 for (_, field) in fields {
                     self.expr(field, depth + 1)?;
                 }
-                self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                self.shape(
+                    ty,
+                    self.bounds,
+                    self.bindings.clone(),
+                    expression.span,
+                    depth + 1,
+                )?
             }
             CoreExprKind::RecordUpdate { ty, base, fields } => {
                 let original = self.expr(base, depth + 1)?;
@@ -877,7 +917,13 @@ impl Walk<'_, '_> {
                     self.expr(field, depth + 1)?;
                 }
                 if let Some(ty) = ty {
-                    self.shape(ty, self.bounds, self.bindings, expression.span, depth + 1)?
+                    self.shape(
+                        ty,
+                        self.bounds,
+                        self.bindings.clone(),
+                        expression.span,
+                        depth + 1,
+                    )?
                 } else {
                     original
                 }
@@ -1031,7 +1077,7 @@ impl Walk<'_, '_> {
             .ok_or_else(|| {
                 unsupported(span, "State replacement plan field environment is absent")
             })?;
-            result.bind(binding.generic_index, selected, span)?;
+            result.bind(binding.generic_index, selected, span, self.state)?;
         }
         let replacement = arguments.get(direct.index as usize).ok_or_else(|| {
             error(
@@ -1044,7 +1090,7 @@ impl Walk<'_, '_> {
         let id = replacement
             .environment()
             .ok_or_else(|| unsupported(span, "State replacement plan environment is absent"))?;
-        result.bind(direct.generic_index, id, span)?;
+        result.bind(direct.generic_index, id, span, self.state)?;
         Ok(result)
     }
 }
@@ -1059,7 +1105,7 @@ fn dependencies(
         tree_work(state.helper_templates.len()).saturating_add(2),
         span,
     )?;
-    let (key, bindings) = match instance {
+    let (key, bindings) = match instance.clone() {
         Node::Callable((key, bindings)) => (key, bindings),
         Node::Store(index) => (
             state.store_instances[index as usize].key,
@@ -1093,7 +1139,7 @@ fn dependencies(
     let mut walk = Walk {
         context: &template.context,
         bounds,
-        bindings,
+        bindings: bindings.clone(),
         tables,
         scopes: vec![BTreeMap::new()],
         found: BTreeSet::new(),
@@ -1105,7 +1151,7 @@ fn dependencies(
         has_forward: false,
     };
     for parameter in &function.parameters {
-        let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
+        let shape = walk.shape(&parameter.ty, bounds, bindings.clone(), parameter.span, 0)?;
         walk.bind(&parameter.name, shape, parameter.span)?;
     }
     let first = walk.block(&function.body, 0);
@@ -1116,7 +1162,7 @@ fn dependencies(
         walk.full_values = true;
         walk.restart_full = false;
         for parameter in &function.parameters {
-            let shape = walk.shape(&parameter.ty, bounds, bindings, parameter.span, 0)?;
+            let shape = walk.shape(&parameter.ty, bounds, bindings.clone(), parameter.span, 0)?;
             walk.bind(&parameter.name, shape, parameter.span)?;
         }
         walk.block(&function.body, 0)?;
@@ -1127,12 +1173,20 @@ fn dependencies(
         && let Node::Callable(instance) = instance
     {
         walk.state.snapshot(
-            tree_work(walk.state.forward_callers.len()).saturating_add(1),
+            tree_work(walk.state.forward_callers.len())
+                .saturating_mul(instance.1.extra_key_work().saturating_add(1))
+                .saturating_add(1),
             span,
         )?;
+        walk.state.snapshot(Bindings::storage_delta_work(), span)?;
         walk.state.forward_callers.insert(instance);
     }
-    walk.state.snapshot(walk.found.len(), span)?;
+    walk.state.snapshot(
+        walk.found
+            .len()
+            .saturating_mul(Bindings::storage_delta_work().saturating_add(1)),
+        span,
+    )?;
     Ok(walk.found.into_iter().collect())
 }
 
@@ -1144,23 +1198,34 @@ pub(super) fn order(
     limits: &Limits,
     span: Span,
 ) -> R<Vec<Node>> {
-    state.snapshot(1, span)?;
+    state.snapshot(1usize.saturating_add(Bindings::storage_delta_work()), span)?;
     let mut pending = vec![(root, false)];
     let mut edges = BTreeMap::<Node, Vec<Node>>::new();
     let mut active = BTreeSet::new();
     let mut heights = BTreeMap::<Node, usize>::new();
     let mut result = Vec::new();
     while let Some((instance, finish)) = pending.pop() {
-        state.snapshot(tree_work(heights.len()).saturating_add(1), span)?;
+        state.snapshot(
+            tree_work(heights.len())
+                .saturating_mul(instance.key_factor())
+                .saturating_add(1),
+            span,
+        )?;
         if heights.contains_key(&instance) {
             continue;
         }
         if finish {
-            state.snapshot(tree_work(edges.len()), span)?;
+            state.snapshot(
+                tree_work(edges.len()).saturating_mul(instance.key_factor()),
+                span,
+            )?;
             let children = &edges[&instance];
             let mut height = 1usize;
             for child in children {
-                state.snapshot(tree_work(heights.len()), span)?;
+                state.snapshot(
+                    tree_work(heights.len()).saturating_mul(child.key_factor()),
+                    span,
+                )?;
                 height = height.max(heights[child].saturating_add(1));
             }
             if height > limits.max_call_depth {
@@ -1173,13 +1238,19 @@ pub(super) fn order(
             state.snapshot(
                 tree_work(heights.len())
                     .saturating_add(tree_work(active.len()))
+                    .saturating_mul(instance.key_factor())
                     .saturating_add(2),
                 span,
             )?;
-            heights.insert(instance, height);
+            state.snapshot(Bindings::storage_delta_work(), span)?;
+            heights.insert(instance.clone(), height);
             active.remove(&instance);
-            state.snapshot(tree_work(state.helper_instances.len()), span)?;
+            state.snapshot(
+                tree_work(state.helper_instances.len()).saturating_mul(instance.key_factor()),
+                span,
+            )?;
             if !instance.ready(state) {
+                state.snapshot(Bindings::storage_delta_work(), span)?;
                 result.push(instance);
             }
         } else {
@@ -1196,8 +1267,14 @@ pub(super) fn order(
                     ));
                 }
             }
-            state.snapshot(tree_work(active.len()).saturating_add(1), span)?;
-            if !active.insert(instance) {
+            state.snapshot(
+                tree_work(active.len())
+                    .saturating_mul(instance.key_factor())
+                    .saturating_add(1),
+                span,
+            )?;
+            state.snapshot(Bindings::storage_delta_work(), span)?;
+            if !active.insert(instance.clone()) {
                 return Err(unsupported(
                     span,
                     "recursive concrete helper dependency has no finite instance plan",
@@ -1217,16 +1294,24 @@ pub(super) fn order(
                     Some(span),
                 ));
             }
-            let children = dependencies(instance, state, limits, span)?;
+            let children = dependencies(instance.clone(), state, limits, span)?;
             state.snapshot(
                 children
                     .len()
                     .saturating_add(tree_work(edges.len()))
+                    .saturating_mul(instance.key_factor())
                     .saturating_add(2),
                 span,
             )?;
-            pending.push((instance, true));
-            pending.extend(children.iter().rev().map(|child| (*child, false)));
+            state.snapshot(
+                children
+                    .len()
+                    .saturating_add(2)
+                    .saturating_mul(Bindings::storage_delta_work()),
+                span,
+            )?;
+            pending.push((instance.clone(), true));
+            pending.extend(children.iter().rev().map(|child| (child.clone(), false)));
             edges.insert(instance, children);
         }
     }

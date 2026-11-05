@@ -328,7 +328,12 @@ fn pay_instance(instance: &Instance, budget: &mut generics::Budget<'_>, span: Sp
     pay_type(&instance.instance.ty, budget, span, 0)
 }
 
-fn pay_type(ty: &Type, budget: &mut generics::Budget<'_>, span: Span, depth: usize) -> R<()> {
+pub(super) fn pay_type(
+    ty: &Type,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
     budget.node(span, depth)?;
     match ty {
         Type::BorrowedStorage { storage, life } => {
@@ -577,11 +582,20 @@ fn spend(budget: &mut generics::Budget<'_>, span: Span, count: usize) -> R<()> {
     Ok(())
 }
 
+pub(super) struct QualifiedActual {
+    pub(super) name: String,
+    pub(super) ty: Type,
+    pub(super) classes: Vec<LexicalLife>,
+}
+
 struct Shape<'a, 'l> {
     budget: &'a mut generics::Budget<'l>,
     formals: &'a [(String, LexicalLife)],
     classes: Vec<LexicalLife>,
     slots: Vec<StorageLifeSlot>,
+    retained: Vec<StorageRetainedBinding>,
+    qualified: &'a BTreeMap<usize, QualifiedActual>,
+    original: Option<&'a s::Aggregate>,
 }
 
 impl Shape<'_, '_> {
@@ -613,12 +627,84 @@ impl Shape<'_, '_> {
     fn field(
         &mut self,
         source: &s::TypeRef,
+        original: Option<&s::TypeRef>,
         path: &mut Vec<PlaceProjection>,
         depth: usize,
     ) -> R<Type> {
         self.budget.node(source.span, depth)?;
+        // Resolve the original formal occurrence before looking at the physical
+        // specialization. Two source Type formals may have identical layouts
+        // while carrying distinct caller classes.
+        let selected = if let (Some(aggregate), Some(original)) = (self.original, original) {
+            let mut original = original;
+            while let s::TypeKind::Group(inner) = &original.kind {
+                self.budget.node(original.span, depth)?;
+                original = inner;
+            }
+            if let s::TypeKind::Named { path, args } = &original.kind
+                && path.len() == 1
+                && args.is_empty()
+            {
+                let mut ordinal = None;
+                for (index, formal) in aggregate.generics.iter().enumerate() {
+                    self.budget.text(&formal.name, source.span)?;
+                    self.budget.text(&path[0], source.span)?;
+                    if formal.name == path[0] {
+                        ordinal = Some(index);
+                    }
+                }
+                ordinal.and_then(|index| self.qualified.get(&index))
+            } else {
+                None
+            }
+        } else {
+            None
+        };
+        if let Some(actual) = selected {
+            let mut physical = source;
+            while let s::TypeKind::Group(inner) = &physical.kind {
+                self.budget.node(physical.span, depth)?;
+                physical = inner;
+            }
+            self.budget.text(&actual.name, source.span)?;
+            if !matches!(&physical.kind, s::TypeKind::Named {path, args}
+                if path.len() == 1 && path[0] == actual.name && args.is_empty())
+            {
+                return Err(invalid(
+                    source.span,
+                    "physical field differs from its original Type formal substitution",
+                ));
+            }
+            for (class, lexical) in actual.classes.iter().enumerate() {
+                let binder = self.class(*lexical, source.span)?;
+                spend(self.budget, source.span, path.len().saturating_add(1))?;
+                self.retained.push(StorageRetainedBinding {
+                    path: path
+                        .iter()
+                        .copied()
+                        .map(LifeTypeProjection::Place)
+                        .collect(),
+                    class: u32::try_from(class)
+                        .map_err(|_| invalid(source.span, "retained class overflow"))?,
+                    binder,
+                });
+            }
+            pay_type(&actual.ty, self.budget, source.span, depth + 1)?;
+            return Ok(actual.ty.clone());
+        }
         match &source.kind {
-            s::TypeKind::Group(inner) => self.field(inner, path, depth + 1),
+            s::TypeKind::Group(inner) => self.field(
+                inner,
+                original.map(|ty| {
+                    if let s::TypeKind::Group(inner) = &ty.kind {
+                        inner.as_ref()
+                    } else {
+                        ty
+                    }
+                }),
+                path,
+                depth + 1,
+            ),
             s::TypeKind::Reference {
                 lifetime,
                 mutable,
@@ -666,7 +752,22 @@ impl Shape<'_, '_> {
                         .map_err(|_| invalid(field.span, "field ordinal overflow"))?;
                     self.budget.node(field.span, depth)?;
                     path.push(PlaceProjection::Field(index));
-                    let ty = self.field(field, path, depth + 1)?;
+                    let source_field = if let Some(mut original) = original {
+                        let mut nesting = depth;
+                        while let s::TypeKind::Group(inner) = &original.kind {
+                            self.budget.node(original.span, nesting)?;
+                            nesting = nesting.saturating_add(1);
+                            original = inner;
+                        }
+                        if let s::TypeKind::Tuple(fields) = &original.kind {
+                            fields.get(index as usize)
+                        } else {
+                            None
+                        }
+                    } else {
+                        None
+                    };
+                    let ty = self.field(field, source_field, path, depth + 1)?;
                     path.pop();
                     types.push(ty);
                 }
@@ -714,6 +815,26 @@ pub(super) fn instantiate(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<Instance> {
+    instantiate_joint(
+        aggregate,
+        declaration,
+        arguments,
+        lifetime_arguments,
+        None,
+        budget,
+        span,
+    )
+}
+
+pub(super) fn instantiate_joint(
+    aggregate: &s::Aggregate,
+    declaration: LifeNominalDeclaration,
+    arguments: Vec<LifeNominalActual>,
+    lifetime_arguments: &[(String, LexicalLife)],
+    joint: Option<(&s::Aggregate, &BTreeMap<usize, QualifiedActual>)>,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<Instance> {
     if aggregate.kind != s::AggregateKind::Struct || declaration.kind != LifeNominalKind::Record {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
@@ -753,11 +874,19 @@ pub(super) fn instantiate(
             "stored nominal lexical lifetime mapping is incomplete",
         ));
     }
+    let empty = BTreeMap::new();
+    let (original, qualified) = match joint {
+        Some((original, qualified)) => (Some(original), qualified),
+        None => (None, &empty),
+    };
     let mut shape = Shape {
         budget,
         formals: lifetime_arguments,
         classes: vec![],
         slots: vec![],
+        retained: vec![],
+        qualified,
+        original,
     };
     for (index, (name, _)) in lifetime_arguments.iter().enumerate() {
         for (prior, _) in &lifetime_arguments[..index] {
@@ -774,12 +903,67 @@ pub(super) fn instantiate(
     for (_, actual) in lifetime_arguments {
         shape.class(*actual, span)?;
     }
+    // The outer nominal's direct life actuals precede every Type argument.
+    // Nested rows retain their real declaration/ordinal and full TypeArgument path.
+    let mut nested_nominal_arguments = Vec::new();
+    for (ordinal, actual) in qualified {
+        let Some(LifeNominalActual::Type(ty)) = arguments.get(*ordinal) else {
+            return Err(invalid(
+                span,
+                "qualified Type actual ordinal is not a Type parameter",
+            ));
+        };
+        pay_type(ty, shape.budget, span, 0)?;
+        if ty != &actual.ty {
+            return Err(invalid(span, "qualified Type actual metadata differs"));
+        }
+        let Type::BorrowedStorage { life, .. } = ty else {
+            return Err(invalid(
+                span,
+                "qualified actual lacks its complete storage shape",
+            ));
+        };
+        if life.binder_count as usize != actual.classes.len() {
+            return Err(invalid(
+                span,
+                "qualified actual source classes are incomplete",
+            ));
+        }
+        for row in &life.nominal_arguments {
+            let lexical = *actual
+                .classes
+                .get(row.binder as usize)
+                .ok_or_else(|| invalid(span, "qualified actual class is absent"))?;
+            let binder = shape.class(lexical, span)?;
+            spend(shape.budget, span, row.path.len().saturating_add(2))?;
+            let mut path = Vec::with_capacity(row.path.len() + 1);
+            path.push(LifeTypeProjection::TypeArgument(
+                u32::try_from(*ordinal)
+                    .map_err(|_| invalid(span, "Type actual ordinal overflow"))?,
+            ));
+            path.extend_from_slice(&row.path);
+            nested_nominal_arguments.push(NominalLifeArgument {
+                path,
+                declaration: row.declaration,
+                argument: row.argument,
+                binder,
+            });
+        }
+    }
     let mut fields = Vec::new();
     for (index, field) in aggregate.fields.iter().enumerate() {
         shape.budget.text(&field.name, field.span)?;
         let index =
             u32::try_from(index).map_err(|_| invalid(field.span, "field ordinal overflow"))?;
-        let ty = shape.field(&field.ty, &mut vec![PlaceProjection::Field(index)], 0)?;
+        let original_field = original
+            .and_then(|aggregate| aggregate.fields.get(index as usize))
+            .map(|field| &field.ty);
+        let ty = shape.field(
+            &field.ty,
+            original_field,
+            &mut vec![PlaceProjection::Field(index)],
+            0,
+        )?;
         fields.push((field.name.clone(), ty));
     }
     let mut nominal_arguments = Vec::new();
@@ -800,6 +984,7 @@ pub(super) fn instantiate(
             });
         }
     }
+    nominal_arguments.extend(nested_nominal_arguments);
     shape.budget.text(&aggregate.name, span)?;
     let binder_count =
         u32::try_from(shape.classes.len()).map_err(|_| invalid(span, "life class overflow"))?;
@@ -811,7 +996,7 @@ pub(super) fn instantiate(
         life: StorageLifeShape {
             binder_count,
             slots: shape.slots,
-            retained: vec![],
+            retained: shape.retained,
             nominal_arguments,
         },
     };
@@ -1608,6 +1793,57 @@ fn make<life a, life b>(x: &'a i64, y: &'b i64) -> Phantom<'a, ACTUAL> {
                     binder: StorageBinder::Invocation(0)
                 },
             ]
+        );
+    }
+
+    #[test]
+    fn joint_nominal_fields_select_original_type_formals() {
+        let core = expand_text("struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn make<life a,life b>(p:&'a i32,q:&'b i32)->Wrap<Phantom<'a>,Phantom<'b>>{return Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:1},right:Phantom::<'b>{n:2}}}").unwrap();
+        let declaration = core
+            .life_declarations
+            .iter()
+            .find(|d| {
+                d.identity
+                    .declaration_path
+                    .last()
+                    .is_some_and(|name| name == "Wrap")
+            })
+            .unwrap();
+        let instance = core
+            .life_instances
+            .iter()
+            .find(|i| i.declaration == declaration.id)
+            .unwrap();
+        assert_eq!(
+            instance.arguments[0], instance.arguments[1],
+            "the two actuals deliberately share their child-local shape"
+        );
+        let Type::BorrowedStorage { storage, life } = &instance.ty else {
+            panic!("{instance:?}")
+        };
+        assert_eq!(life.binder_count, 2);
+        assert_eq!(
+            life.retained,
+            vec![
+                StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Place(PlaceProjection::Field(0))],
+                    class: 0,
+                    binder: 0
+                },
+                StorageRetainedBinding {
+                    path: vec![LifeTypeProjection::Place(PlaceProjection::Field(1))],
+                    class: 0,
+                    binder: 1
+                },
+            ]
+        );
+        let Type::Record { fields, .. } = storage.as_ref() else {
+            panic!()
+        };
+        assert!(
+            fields
+                .iter()
+                .all(|(_, ty)| matches!(ty, Type::BorrowedStorage { .. }))
         );
     }
 

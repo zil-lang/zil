@@ -560,6 +560,20 @@ impl State {
         )?;
         helpers::source_life::validate(function, bound)
     }
+    pub(super) fn has_source_context(&self, id: ClosureId) -> bool {
+        self.pending
+            .get(id.0 as usize)
+            .is_some_and(|pending| pending.source_context.is_some())
+    }
+
+    pub(super) fn source_helper_joint(
+        &mut self,
+        original: &CoreFunction,
+        partials: &[(u32, StorageLifeContract)],
+        span: Span,
+    ) -> R<StorageLifeContract> {
+        helpers::source_life::joint_header(original, partials, &mut self.work_left, span)
+    }
     pub(super) fn source_helper_relation(
         &mut self,
         original: &CoreFunction,
@@ -1013,7 +1027,12 @@ impl State {
                     borrowed_fp_qualified::source_capture_relation(
                         &parameters,
                         &captures,
-                        &result,
+                        if matches!(&result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())
+                        {
+                            &Type::Unit
+                        } else {
+                            &result
+                        },
                         life,
                         pending.span,
                     )?;
@@ -2566,15 +2585,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             owned_shapes::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
         }
         if ty.is_package_address() {
-            let Type::Address {
-                mutable: false,
-                inner,
-            } = ty
-            else {
-                return Err(unsupported(
-                    span,
-                    "mutable Product capture is not implemented",
-                ));
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
             };
             // This is shape admission, not origin authority. Analyze and Verify
             // independently exclude dynamic Store and unknown incoming roots.
@@ -2714,13 +2726,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             {
                 (inner.as_ref(), Some(*mutable))
             }
-            Type::Address {
-                mutable: false,
-                inner,
-            } if matches!(inner.as_ref(), Type::Package { .. }) => {
+            Type::Address { mutable, inner } if matches!(inner.as_ref(), Type::Package { .. }) => {
                 // Complete Product qualification was charged above. Capturing
                 // the address keeps a loan; it never creates an owning slot.
-                (inner.as_ref(), Some(false))
+                (inner.as_ref(), Some(*mutable))
             }
             _ => {
                 return Err(unsupported(

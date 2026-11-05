@@ -32,6 +32,7 @@ pub(super) struct Index<'a> {
     instance_count: usize,
     inherent_methods: BTreeSet<(&'a str, &'a str)>,
     nominals: BTreeMap<String, &'a Item>,
+    instantiated_copy_shapes: BTreeMap<String, Item>,
     pub(super) recipes: Vec<&'a Item>,
 }
 
@@ -219,6 +220,7 @@ impl<'a> Index<'a> {
             declarations,
             implementations,
             nominals,
+            instantiated_copy_shapes: BTreeMap::new(),
             has_instances,
             has_defaults,
             has_supertraits,
@@ -550,7 +552,14 @@ impl<'a> Index<'a> {
                 ));
             };
             if bounds.iter().any(copy::is_bound) || !check::dependent(actual, variables) {
-                copy::require(actual, &self.nominals, available, variables, budget)?;
+                copy::require_registered(
+                    actual,
+                    &self.nominals,
+                    Some(&self.instantiated_copy_shapes),
+                    available,
+                    variables,
+                    budget,
+                )?;
             } else {
                 trait_instances::known_type(actual, variables, &self.nominals, budget, 0)?;
                 self.store_types(
@@ -802,6 +811,32 @@ impl<'a> Index<'a> {
         Ok(result)
     }
 
+    /// Register the actual, fully substituted physical source item without
+    /// interpreting the generated spelling or changing semantic life metadata.
+    pub(super) fn register_copy_shape(&mut self, item: &Item, budget: &mut Budget<'_>) -> R<()> {
+        let label =
+            name(item).ok_or_else(|| error(item.span, "Copy shape has no actual nominal name"))?;
+        budget.text(label, item.span)?;
+        budget.identity_work(
+            (1 + self
+                .instantiated_copy_shapes
+                .len()
+                .saturating_add(self.nominals.len())
+                .checked_ilog2()
+                .unwrap_or(0) as usize)
+                .saturating_mul(label.len().saturating_add(1)),
+            item.span,
+        )?;
+        if self.nominals.contains_key(label) || self.instantiated_copy_shapes.contains_key(label) {
+            return Err(error(item.span, "actual Copy shape registration collides"));
+        }
+        budget.substituted_item(item, &BTreeMap::new())?;
+        budget.lineage_bytes(std::mem::size_of::<(String, Item)>(), item.span)?;
+        self.instantiated_copy_shapes
+            .insert(label.to_owned(), item.clone());
+        Ok(())
+    }
+
     pub(super) fn check_arguments(
         &self,
         parameters: &[GenericParam],
@@ -827,7 +862,14 @@ impl<'a> Index<'a> {
                     let actual = found
                         .get(&parameter.name)
                         .ok_or_else(|| error(span, "Copy argument has no unique symbolic type"))?;
-                    copy::require(actual, &self.nominals, available, variables, budget)?;
+                    copy::require_registered(
+                        actual,
+                        &self.nominals,
+                        Some(&self.instantiated_copy_shapes),
+                        available,
+                        variables,
+                        budget,
+                    )?;
                     continue;
                 }
                 if stores::is_bound(bound) {

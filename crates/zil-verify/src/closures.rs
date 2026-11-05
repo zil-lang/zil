@@ -68,7 +68,7 @@ pub(super) fn check_definitions(
             signature_life::closure_relation(
                 &closure.parameters,
                 &closure.captures,
-                &closure.result,
+                stored_callables::life_result(closure),
                 life,
                 None,
             )?;
@@ -194,16 +194,19 @@ pub(super) fn check_definitions(
         for ty in &closure.captures {
             budget.owning_address_captures |= owning_capture_address(ty);
             if ty.is_package_address() {
-                let Type::Address {
-                    mutable: false,
-                    inner,
-                } = ty
-                else {
-                    return Err(unsupported(
-                        "mutable Product capture is not implemented",
-                        None,
-                    ));
+                let Type::Address { mutable, inner } = ty else {
+                    unreachable!()
                 };
+                if *mutable {
+                    if closure.kind == zil_ir::CallableKind::Fn {
+                        return Err(reject(
+                            "E-VERIFY-CLOSURE",
+                            None,
+                            "exclusive Product capture requires an exclusive environment entry",
+                        ));
+                    }
+                    budget.owning_address_captures = true;
+                }
                 packages::check_shared_product_type(module, inner, None, budget)?;
                 resources::charge_payload(&closure.result, budget)?;
                 if !closure.result.is_copy_value() {
@@ -623,6 +626,8 @@ fn lending_environment(
             Type::Address { inner, .. } if owning_capture_address(ty) => {
                 sums::check_type_for(module, inner, None, budget)?;
             }
+            Type::Address { mutable:false, .. } if stored_callables::lending(closure)
+                && stored_callables::shared_input(ty) => {},
             Type::Closure(child) => self_contained(module, *child, budget)?,
             Type::Managed(_) | Type::Package { .. } => {}
             ty if ty.is_copy_value() => {}

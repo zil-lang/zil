@@ -1,0 +1,401 @@
+{
+  "task": "G3.3.9",
+  "implementation_author": "/root/g33_complete",
+  "evidence_kind": "author-limited-tests; independent root integration review pending",
+  "baseline": "fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95",
+  "implementation_commit": "f5c29bdb59daf8d0fb94826948dc87263c9cebea",
+  "tested_commit": "cbbbf1e18783496aa15a00c94c10766ee03aee5f",
+  "scope": "Finite existing qualified callable/life profile: actual cyclic CFG with conditional cleanup, dynamic finite Fn/FnMut/FnOnce roles, scalar user Drop and retained scalar Managed captures, Managed give companion, distinct single-role Fn/FnMut environment lending.",
+  "preserved_limits": [
+    "Closure Value give F remains Expand Unsupported",
+    "Multiple-role environment lending remains outside existing finite profile",
+    "No new capture types, State/dyn/async, persistent storage or public instance schema",
+    "No formal full-suite or performance gate claim"
+  ],
+  "commands": [
+    "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target-G3.3.9 CARGO_PROFILE_TEST_STRIP=symbols CARGO_PROFILE_DEV_STRIP=symbols TMPDIR=/workspace/.zil-env/G3.3.9-tmp",
+    "cargo test --offline --locked -j2 -p zil-driver --features llvm-api --test generic_regressions g338_ -- --nocapture --test-threads=1",
+    "/workspace/.zil-env/target-G3.3.9/debug/deps/generic_regressions-0faf210ce0d2b16a g337_ --nocapture --test-threads=1",
+    "/workspace/.zil-env/target-G3.3.9/debug/deps/generic_regressions-0faf210ce0d2b16a g339_ --nocapture --test-threads=1",
+    "cargo test --offline --locked -j2 -p zil-analyze -p zil-verify --lib g338_ -- --nocapture --test-threads=1 (production f5c29bd; later changes only tests/documentation)"
+  ],
+  "executed": {
+    "g339_tests": 13,
+    "g339_failed": 0,
+    "g338_tests": 5,
+    "g338_failed": 0,
+    "g337_tests": 3,
+    "g337_failed": 0,
+    "direct_private_resolvers": {
+      "analyze": 1,
+      "verify": 1,
+      "includes": "consuming-self-loop, independently run through each actual resolver"
+    },
+    "native_runs": 44,
+    "native_backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "native_opt_levels": [
+      "O0",
+      "O2"
+    ],
+    "native_backend_fallback": null,
+    "native_observation": "actual backend equality, successful process, empty stderr, exact full stdout incl visible Drop order",
+    "budget_lanes": 21
+  },
+  "native_stdout": [
+    [
+      "before/Clang/O0",
+      "\"45\\n\""
+    ],
+    [
+      "before/Clang/O2",
+      "\"45\\n\""
+    ],
+    [
+      "before/LlvmApi/O0",
+      "\"45\\n\""
+    ],
+    [
+      "before/LlvmApi/O2",
+      "\"45\\n\""
+    ],
+    [
+      "nonconsuming-managed/Clang/O0",
+      "\"ABC52\\n0\\n\""
+    ],
+    [
+      "nonconsuming-managed/Clang/O2",
+      "\"ABC52\\n0\\n\""
+    ],
+    [
+      "nonconsuming-managed/LlvmApi/O0",
+      "\"ABC52\\n0\\n\""
+    ],
+    [
+      "nonconsuming-managed/LlvmApi/O2",
+      "\"ABC52\\n0\\n\""
+    ],
+    [
+      "five-role-composition/Clang/O0",
+      "\"ABCCBA158\\n0\\n\""
+    ],
+    [
+      "five-role-composition/Clang/O2",
+      "\"ABCCBA158\\n0\\n\""
+    ],
+    [
+      "five-role-composition/LlvmApi/O0",
+      "\"ABCCBA158\\n0\\n\""
+    ],
+    [
+      "five-role-composition/LlvmApi/O2",
+      "\"ABCCBA158\\n0\\n\""
+    ],
+    [
+      "after/Clang/O0",
+      "\"45\\n\""
+    ],
+    [
+      "after/Clang/O2",
+      "\"45\\n\""
+    ],
+    [
+      "after/LlvmApi/O0",
+      "\"45\\n\""
+    ],
+    [
+      "after/LlvmApi/O2",
+      "\"45\\n\""
+    ],
+    [
+      "nested/Clang/O0",
+      "\"45\\n\""
+    ],
+    [
+      "nested/Clang/O2",
+      "\"45\\n\""
+    ],
+    [
+      "nested/LlvmApi/O0",
+      "\"45\\n\""
+    ],
+    [
+      "nested/LlvmApi/O2",
+      "\"45\\n\""
+    ],
+    [
+      "drop-order/Clang/O0",
+      "\"ABBA91\\n0\\n\""
+    ],
+    [
+      "drop-order/Clang/O2",
+      "\"ABBA91\\n0\\n\""
+    ],
+    [
+      "drop-order/LlvmApi/O0",
+      "\"ABBA91\\n0\\n\""
+    ],
+    [
+      "drop-order/LlvmApi/O2",
+      "\"ABBA91\\n0\\n\""
+    ],
+    [
+      "mixed-roles-loop/Clang/O0",
+      "\"48\\n\""
+    ],
+    [
+      "mixed-roles-loop/Clang/O2",
+      "\"48\\n\""
+    ],
+    [
+      "mixed-roles-loop/LlvmApi/O0",
+      "\"48\\n\""
+    ],
+    [
+      "mixed-roles-loop/LlvmApi/O2",
+      "\"48\\n\""
+    ],
+    [
+      "give-companion/Clang/O0",
+      "\"AS45\\n0\\n\""
+    ],
+    [
+      "give-companion/Clang/O2",
+      "\"AS45\\n0\\n\""
+    ],
+    [
+      "give-companion/LlvmApi/O0",
+      "\"AS45\\n0\\n\""
+    ],
+    [
+      "give-companion/LlvmApi/O2",
+      "\"AS45\\n0\\n\""
+    ],
+    [
+      "consume-break/Clang/O0",
+      "\"AB42\\n0\\n\""
+    ],
+    [
+      "consume-break/Clang/O2",
+      "\"AB42\\n0\\n\""
+    ],
+    [
+      "consume-break/LlvmApi/O0",
+      "\"AB42\\n0\\n\""
+    ],
+    [
+      "consume-break/LlvmApi/O2",
+      "\"AB42\\n0\\n\""
+    ],
+    [
+      "lending/Clang/O0",
+      "\"0\\n\""
+    ],
+    [
+      "lending/Clang/O2",
+      "\"0\\n\""
+    ],
+    [
+      "lending/LlvmApi/O0",
+      "\"0\\n\""
+    ],
+    [
+      "lending/LlvmApi/O2",
+      "\"0\\n\""
+    ],
+    [
+      "lending-mut/Clang/O0",
+      "\"0\\n\""
+    ],
+    [
+      "lending-mut/Clang/O2",
+      "\"0\\n\""
+    ],
+    [
+      "lending-mut/LlvmApi/O0",
+      "\"0\\n\""
+    ],
+    [
+      "lending-mut/LlvmApi/O2",
+      "\"0\\n\""
+    ]
+  ],
+  "exact_budget_lanes": [
+    "cyclic/phase0 exact N=83583; N-1 ResourceLimit, fresh retry success",
+    "cyclic/phase1 exact N=86380; N-1 ResourceLimit, fresh retry success",
+    "cyclic/phase2 exact N=86380; N-1 ResourceLimit, fresh retry success",
+    "conditional-cleanup/phase0 exact N=86789; N-1 ResourceLimit, fresh retry success",
+    "conditional-cleanup/phase1 exact N=90870; N-1 ResourceLimit, fresh retry success",
+    "conditional-cleanup/phase2 exact N=90870; N-1 ResourceLimit, fresh retry success",
+    "five-role/phase0 exact N=571593; N-1 ResourceLimit, fresh retry success",
+    "five-role/phase1 exact N=638294; N-1 ResourceLimit, fresh retry success",
+    "five-role/phase2 exact N=638294; N-1 ResourceLimit, fresh retry success",
+    "retained-managed/phase0 exact N=219960; N-1 ResourceLimit, fresh retry success",
+    "retained-managed/phase1 exact N=252272; N-1 ResourceLimit, fresh retry success",
+    "retained-managed/phase2 exact N=252272; N-1 ResourceLimit, fresh retry success",
+    "give-companion/phase0 exact N=71558; N-1 ResourceLimit, fresh retry success",
+    "give-companion/phase1 exact N=67794; N-1 ResourceLimit, fresh retry success",
+    "give-companion/phase2 exact N=67794; N-1 ResourceLimit, fresh retry success",
+    "drop/phase0 exact N=117208; N-1 ResourceLimit, fresh retry success",
+    "drop/phase1 exact N=111772; N-1 ResourceLimit, fresh retry success",
+    "drop/phase2 exact N=111772; N-1 ResourceLimit, fresh retry success",
+    "lending/phase0 exact N=65328; N-1 ResourceLimit, fresh retry success",
+    "lending/phase1 exact N=74259; N-1 ResourceLimit, fresh retry success",
+    "lending/phase2 exact N=74259; N-1 ResourceLimit, fresh retry success"
+  ],
+  "budget_migration": {
+    "reason": "Origin u8 to 16-byte role+flags, independently prepaid actual table, 4 locals+12 SSA =16 slots",
+    "physical_delta": 240,
+    "original_limits_are_still_asserted_ResourceLimit": true,
+    "new_limits": {
+      "analyze": 53407,
+      "verify": 51840,
+      "wire_verify": 51840
+    },
+    "solver_fees": "Successful legacy DAG path not rerun as cyclic; solver work only on actual cyclic fallback. Physical role-table migration is separately charged on old DAG path."
+  },
+  "negative_proofs": [
+    "Actual live receiver Store and second exclusive call reject; independent negative raw/Wire Verify input uses real negative Types body",
+    "same-copy-type wrong capture field rejects each kernel",
+    "actual Fn/FnMut TakeCapture owner forgery rejects each kernel",
+    "Foreign ABI, region, canonical signature, normal Call and symbol forgery reject Analyze and raw/Wire Verify",
+    "direct private consuming self-loop rejected by both independently written resolvers; full raw/Wire backedge separately rejected on plan initialization, not claimed as direct debt-proof evidence"
+  ],
+  "history": "Earlier failed outcomes retained in logs and stage receipts; original userDrop accepted under explicit contract migration; original give F rejection retained. Initial all-Copy let-move lending oracle corrected to actual environment Store.",
+  "logs": {
+    "merged-g339-final.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-g339-final.log",
+      "sha256": "65e90d48445c8d88a995e4edfb9bd7ee673c7ce13e40395f1067f88d03f500c8",
+      "results": [
+        "test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 148 filtered out; finished in 10.52s"
+      ]
+    },
+    "merged-old-g338-final.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-old-g338-final.log",
+      "sha256": "58c1ef6628453dbc4476d1e1701e00f153cbec063ae70787fd2f664562b1a24e",
+      "results": [
+        "test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 156 filtered out; finished in 3.58s"
+      ]
+    },
+    "merged-g337-final.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-g337-final.log",
+      "sha256": "07cd1cb41aef9cf6b579ad0454a7a0246163a6c984db05ec8a948d5d46277013",
+      "results": [
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 158 filtered out; finished in 1.15s"
+      ]
+    },
+    "merged-private-second.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-private-second.log",
+      "sha256": "04517a61b06657e1fc4583524ef14e1ea8b1431cbae710761ad5301d2086dc93",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 175 filtered out; finished in 0.00s",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 393 filtered out; finished in 0.00s"
+      ]
+    },
+    "merged-exact-complete.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-exact-complete.log",
+      "sha256": "03bc3c203e99b5a826e1e976cdd9f8da0ba84b944c1a776e932d18327503c393",
+      "results": [
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 160 filtered out; finished in 5.25s"
+      ]
+    },
+    "merged-old-g338.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-old-g338.log",
+      "sha256": "f5750855bf4624a0ccc9106ba4bd2631bb7d78667fc6a7a43f6299825e6166db",
+      "results": [
+        "test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 156 filtered out; finished in 2.76s"
+      ]
+    },
+    "merged-old-g337.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-old-g337.log",
+      "sha256": "240021d08f6ae60449b1be43e9678c7c1aa72da4fe339b2f3fcc7dcc76d75893",
+      "results": [
+        "test result: FAILED. 2 passed; 1 failed; 0 ignored; 0 measured; 158 filtered out; finished in 1.05s"
+      ]
+    },
+    "merged-complete-first.log": {
+      "path": "/workspace/.zil-env/G3.3.9-tmp/merged-complete-first.log",
+      "sha256": "e983be6cd38fac4b33f2029898233600a148f50979e3598780aa7ae1d3cfd861",
+      "results": [
+        "test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 148 filtered out; finished in 2.79s"
+      ]
+    }
+  },
+  "input_sha256": {
+    "crates/zil-analyze/src/budget.rs": "6f7d8b04e306d57b26568c508d9fc9f7aae4849fc9f41a64de1d12d134532d89",
+    "crates/zil-analyze/src/class_flow.rs": "7918cbe4f5896e7fa35046c83036d34cb0ba63c919370ab6c3fb463c9633e003",
+    "crates/zil-analyze/src/forward.rs": "9a8071050f9f1bb0028356eb2b89817c451d759b40923fb4c0be5402712b49df",
+    "crates/zil-analyze/src/helper_flow.rs": "537da66df57efe191465b87c6277ffb8e605da2e32dd3ca1e4847b93f35f823e",
+    "crates/zil-analyze/src/helper_origin.rs": "6968418401c76481e3da80f771e66566d62ea3db5b4c020c56ef035221dd8eaa",
+    "crates/zil-analyze/src/helpers.rs": "f18a402bd51115808b1501eea9e63725bd0061e82316cd8ec08f529e024cdafa",
+    "crates/zil-analyze/src/signature_life.rs": "461c5368e38e0555249de5c324d42034384630cddb3d0eec510152944df6e0c3",
+    "crates/zil-analyze/src/stored_callables.rs": "2e550cebb2255489f184a68e2bf3573458d348155f6ef473fd954675d1610f1e",
+    "crates/zil-analyze/src/stored_callables/foreign.rs": "17f6b0e7c667254812078d785834bf920318bdd1ca28c2f3799dde3eb1baabc1",
+    "crates/zil-analyze/src/stored_callables/staged.rs": "90b2ca53cec078591a5f3d5217e702291d44e44010f0c4a3f5a2e1ce90240266",
+    "crates/zil-analyze/src/stored_callables/staged/cfg.rs": "cea4e74d8bf9b67c73c1e881e640e8730e35b5b69f642c8292ccae79b6054795",
+    "crates/zil-analyze/src/stored_flow.rs": "fcc9aca4db7a21792e0764d99c4490bb5b3e18c78d689cfbca5ee94d23af5976",
+    "crates/zil-analyze/src/stored_flow/owned.rs": "3af22b3f8a09b7897e45c4aa4997463058e630b7091fe18a1fc34db43720c8f7",
+    "crates/zil-backend-llvm/src/emit.rs": "a3b10e02452390f4a80741c5be7254fc3efd27576c6efb27d71760a4024d0352",
+    "crates/zil-backend-llvm/src/emit/stored_borrows.rs": "647948eab634450a1b71fa084b4dc39e2f458f085e5ceee5b1f06622b88f6e8a",
+    "crates/zil-driver/tests/generic_regressions.rs": "8a0f24e24d9baf637a0a33ae04a05727d2e35d2088b8fb75939a7ac8584c4ba6",
+    "crates/zil-driver/tests/impl196_roles_source.rs": "9b68dfbd07f1acc3f5b4b76b4b1b118cba18220e55b8add29a479564776d064a",
+    "crates/zil-expand/src/callable_context_lower.rs": "ab0d8bdbda2d371bf8bcc545c6ca466ea4918ab14ad6dfc5725ffc7b8c319438",
+    "crates/zil-expand/src/generic_callable.rs": "df938e111edb5d54f97863d4a2cb3eba540f53ba2ba03254c7e2b5a23f77be67",
+    "crates/zil-expand/src/generic_callable_context.rs": "c8334711db5601fadf0804a772ea488475471d54fda687cb4b491af4f666e491",
+    "crates/zil-expand/src/generic_check.rs": "6444989a61555d19fc31c26af0c45804425d5d0946550eae80af300cd844ebca",
+    "crates/zil-expand/src/generic_closure_context.rs": "dd6baba7120a36b4d5dc63877888cedb645d4b1da5b592bdf767f880f96926e6",
+    "crates/zil-expand/src/generic_stored_nominal.rs": "5ac34e307768e245a99cfbf0849eb62788a81136d8d8b93329c545196295cf27",
+    "crates/zil-expand/src/lifetimes.rs": "f070a0096319a30e985fb2fffdba558fcb5414b283a57c3c5fd7017200dbe71a",
+    "crates/zil-lower/src/lib.rs": "90471bcf1bfeda9ffd357a97c25ab270e3963a3bbe461ac78ce555bd444f19c3",
+    "crates/zil-types/src/aggregate_templates.rs": "40497d61780eee09a1add179d65ce3fe643571a3e68f8c265bb125270ef71e88",
+    "crates/zil-types/src/borrowed_fp.rs": "c4925aca404a15370707ffcb332036561736d18efd33a6d212d84ee15309bfab",
+    "crates/zil-types/src/closures.rs": "84fb0c94a17a9183975da6580c0a49d502d45aab5ac3e1cec15cf28c72ea0fb4",
+    "crates/zil-types/src/closures/source_context.rs": "c4f1ba35c51657e3df00f5063a8a9e933f16f44a296b28f558379b2c62ea9cd2",
+    "crates/zil-types/src/helper_capture_tests.rs": "a42d498af887e4fe77a2d9a91baab74ce352839e1ff0b535bbc55784817f288f",
+    "crates/zil-types/src/helper_flow.rs": "f5e029044166081b23c1d86b474368d4f2c43892526aa105bbb5861cc9bca051",
+    "crates/zil-types/src/helper_origin.rs": "93310cef36b8ab475869f0f0903e35b3194f3c0a3248342fb4881f3308de0689",
+    "crates/zil-types/src/helper_plan.rs": "adc14e9c2391f705671e3da2319bc11ccaf563f2fb84453ca081f372780cbcf7",
+    "crates/zil-types/src/helpers.rs": "377d71f4538b846540ed08bde301ac3eda9cb18be37530e3e7efb3faad8ba562",
+    "crates/zil-types/src/helpers/source_life.rs": "af164ce8775ed1299896447cb41e83d62fc718178187d5bcce196b4e9df60d6e",
+    "crates/zil-types/src/lending.rs": "4520d345c904267a5dcf4d94ed108c86e7a246f6a84ffbc4a9af7a59194851d9",
+    "crates/zil-types/src/state_origins.rs": "7f96ef38982ad333fb987b4aecfda7564692da1dc99ba82dded537c872a4ccdb",
+    "crates/zil-types/src/store_templates.rs": "342a6601694ec0012802632896c4fd347c86b3486354d63d55067bac2e199068",
+    "crates/zil-verify/src/class_flow.rs": "295461f43377ffff3df19e5ceefd487a3b6b39eca05bfe555840fc615e8570b9",
+    "crates/zil-verify/src/closures.rs": "5ce1771810d96a555f55b41b867c195dc67e8a194c6765ec02cdaa4de55568b5",
+    "crates/zil-verify/src/helper_flow.rs": "0931b2ba0218c6fcb8b9afda3dfbc80d0f8ccb331b19a259858e73d472f76a87",
+    "crates/zil-verify/src/helper_origin.rs": "f90c5e7a3fb8e54b51cb9a54fc66f9ba52f676c2f3bfd114a9894f3905d0d23c",
+    "crates/zil-verify/src/helpers.rs": "6c1dd797117f554151d39c91a291790eee90e383d0e9d081e9fb1cbf58fb867f",
+    "crates/zil-verify/src/signature_life.rs": "f1347005453d02180ae9c57f213cdb5e044628d37e4cac205d6b2812e428b899",
+    "crates/zil-verify/src/stored_callables.rs": "522d326623ed6d78fdb9a8ee69f79870aa866a7fd6cda57491656e64c7d9acb9",
+    "crates/zil-verify/src/stored_callables_staged.rs": "a5d84bd261f56fb207b44726f150ccc255811f74e009772976c3fd9e69f16e24",
+    "crates/zil-verify/src/stored_callables_staged_cfg.rs": "e5d5f15d12ad00e02f63f079056cd665d7a02dc2268e7f2ab0d74693286d501f",
+    "crates/zil-verify/src/stored_flow.rs": "263deb01e9db3d857a6d6fc91f2965bb27d58f1bfeb631c17887ec0a02065bd3",
+    "crates/zil-verify/src/stored_owned.rs": "e94f2f8fba48b262d13e5b96f5c9ac51998698cacac3845dd88eb8d9580757a3",
+    "tests/language-readiness/terminal/342/callable-completion/five-role-drop-lending.zil": "8d00d8ceb1ff478d2b50f985365085042b53d29ad82adbc5a463018be5739e2c",
+    "tests/language-readiness/terminal/342/callable-completion/lending-move-live.zil": "e638724b2d0323743fec50ce82dcf3413de7e2edde97828fea060e0213feae98",
+    "tests/language-readiness/terminal/342/callable-completion/lending-mut-live.zil": "375c2297ab0a7064eadfb1034e8405b0e1f86c91afa81d6ebe68691377bf9af4",
+    "tests/language-readiness/terminal/342/callable-completion/loop-after.zil": "7e17e8aac2cc2fdf91cca609293977039b720e1eed42e29989c51f15374f0bb8",
+    "tests/language-readiness/terminal/342/callable-completion/loop-before.zil": "2143eac5c444b88f35468c8e0c6da708fe852a6483f59a7b40ed0cc202fc0417",
+    "tests/language-readiness/terminal/342/callable-completion/loop-consume-break.zil": "95c7f1f7d714c15a3368c7ae3985514b6a39af92a30ebb1a983cd8356e27550a",
+    "tests/language-readiness/terminal/342/callable-completion/loop-double.zil": "3490af52f5aea7f1539a3e2c0ac01b14572b67c553bb05a2dfa84e417cbd0bd0",
+    "tests/language-readiness/terminal/342/callable-completion/loop-transfer.zil": "96c4292ce38ba467b63f333f2a2c02a1ddfde2136f0734c1c7ca5b32137ea756",
+    "tests/language-readiness/terminal/342/callable-completion/managed-companion.zil": "54b894247131eb8500aa1dfc0e175820e33ee015e1b23515ddf43f0c25d51ccb",
+    "tests/language-readiness/terminal/342/callable-completion/mixed-roles-loop.zil": "b2911aa9ecb6c62aac0a65132b98683cf42f93e280be6f6fad1ca8d4e523d725",
+    "tests/language-readiness/terminal/342/callable-completion/nonconsuming-managed.zil": "0cfaf375480feea899be21c56cf447f47c02fd7d2cb552f1ffab1b07f3f0c70f",
+    "tests/language-readiness/terminal/342/callable-completion/qualified-lending-mut.zil": "9942aa84c791b77530b91770303b53090fa7fbff7d67e22f1420af69c7306cfe",
+    "tests/language-readiness/terminal/342/callable-completion/qualified-lending.zil": "7dc0c45a71ba16b3638bdab7dcb7866d07dc81b9c3e8fc0bd48c20a138aef0f1",
+    "tests/language-readiness/terminal/342/callable-completion/regressions.rs": "adeda46524cc4d049bb26944947f69f4a5c413b0ca36e28f84ba822638ad0580",
+    "tests/language-readiness/terminal/342/callable-completion/single-user-drop.zil": "8396132a4f260dc5bb34697146bf97a7ae4912f503138a6a9ae16e6a5e1b1757",
+    "tests/language-readiness/terminal/342/callable-completion/two-role-no-drop.zil": "6652003b1c1b92a3a321c8dc42b58e20db6e1a36f153538c6d4810e773b1b57e",
+    "tests/language-readiness/terminal/342/callable-completion/two-role-user-drop.zil": "2b52d169671e9516ed9d2d4e07d8fe7ccac168cf4dee8832aa08931b48fb3970"
+  },
+  "rust_goals": {
+    "runtime": "Same existing direct calls and pointer ABI; visible cleanup behavior measured on two backends, no runtime performance benchmark claimed",
+    "memory": "No new runtime box/RC/lock/global table; compile-time finite carrier matrices/sets and Origin tails explicitly prepaid; RSS not measured",
+    "compilation": "Actual finite tests and independent N/N-1/fresh boundaries measured; no comparative compiler throughput claim",
+    "maintenance": "Independent queue/bit-matrix Analyze versus DFS/sweep/sorted-position Verify implementation; no shared proof helper; existing neutral fixture only shared data"
+  },
+  "remaining": "Root independent review and combined G13/G44 integration consumers; author finite matrix passed, no assertion of all global P0 completion."
+}

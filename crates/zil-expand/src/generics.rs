@@ -105,6 +105,8 @@ mod source_life;
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_actuals.rs"]
+mod stored_actuals;
 #[path = "generic_stored_nominal.rs"]
 mod stored_nominal;
 #[path = "generic_store.rs"]
@@ -327,8 +329,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -348,8 +349,7 @@ fn specialize_products_prepared<'a>(
                     &aliased.pattern_types,
                     budget,
                     products,
-                    has_associated,
-                    has_generic_methods,
+                    (has_associated, has_generic_methods),
                     runtime_ct,
                 )
             }
@@ -359,8 +359,7 @@ fn specialize_products_prepared<'a>(
                 &BTreeMap::new(),
                 budget,
                 products,
-                has_associated,
-                has_generic_methods,
+                (has_associated, has_generic_methods),
                 runtime_ct,
             ),
         }
@@ -398,8 +397,7 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -425,8 +423,7 @@ fn specialize_products_prepared<'a>(
         &BTreeMap::new(),
         names_budget,
         products,
-        has_associated,
-        has_generic_methods,
+        (has_associated, has_generic_methods),
         runtime_ct,
     )
     .map(Cow::Owned)
@@ -439,10 +436,10 @@ fn specialize_with_budget<'a>(
     pattern_types: &'a BTreeMap<String, TypeRef>,
     mut budget: Budget<'a>,
     products: &mut products::Products,
-    has_associated: bool,
-    has_generic_methods: bool,
+    type_features: (bool, bool),
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
+    let (has_associated, has_generic_methods) = type_features;
     source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
     let methods =
@@ -1092,7 +1089,7 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
-        let arguments = parameters
+        let mut arguments = parameters
             .iter()
             .zip(arguments)
             .map(|(parameter, actual)| {
@@ -1108,11 +1105,58 @@ impl<'a> Engine<'a> {
         if dependent {
             return self.retain_store_template(template, item, arguments, span);
         }
+        // The source application still names its complete nominal arguments.
+        // Resolve a qualified Type actual while the enclosing function's
+        // lexical life scope is available, before the ordinary function key
+        // and substitution erase that source relation. CT receives the
+        // original actual separately and authenticates it from the Call.
+        let mut source_arguments = None;
+        let mut class_keys: Option<Vec<Option<String>>> = None;
+        if self.stored_nominals && !self.life_scope.is_empty() {
+            let mut qualified = false;
+            for actual in &arguments {
+                if self.qualified_actual_syntax(actual, 0)? {
+                    qualified = true;
+                }
+            }
+            if qualified {
+                for actual in &arguments {
+                    self.budget.ty(actual)?;
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<Option<String>>(), span)?;
+                }
+                source_arguments = Some(arguments.clone());
+                let mut keys = vec![None; arguments.len()];
+                let mut joint_classes = Vec::new();
+                for (ordinal, actual) in arguments.iter_mut().enumerate() {
+                    if let Some(stored) = self.qualified_type_actual(actual, 0)? {
+                        keys[ordinal] = Some(self.joint_class_key(
+                            &stored.classes,
+                            &mut joint_classes,
+                            span,
+                        )?);
+                    }
+                }
+                class_keys = Some(keys);
+            }
+        }
         let mut key = (
             template.to_owned(),
             arguments
                 .iter()
-                .map(|ty| type_key(ty, &mut self.budget))
+                .enumerate()
+                .map(|(ordinal, ty)| {
+                    let physical = type_key(ty, &mut self.budget)?;
+                    if let Some(classes) =
+                        class_keys.as_ref().and_then(|keys| keys[ordinal].as_ref())
+                    {
+                        self.budget
+                            .identity_work(physical.len().saturating_add(classes.len()), span)?;
+                        Ok(format!("{physical}[{classes}]"))
+                    } else {
+                        Ok(physical)
+                    }
+                })
                 .collect::<R<Vec<_>>>()?,
         );
         let product_scope = if product {
@@ -1165,6 +1209,22 @@ impl<'a> Engine<'a> {
                 },
             );
         }
+        let runtime_substitution = if let Some(source) = source_arguments {
+            for parameter in &parameters {
+                self.budget.text(&parameter.name, parameter.span)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), span)?;
+            }
+            Some(
+                parameters
+                    .iter()
+                    .zip(source)
+                    .map(|(p, ty)| (p.name.clone(), ty))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+        } else {
+            None
+        };
         let substitution: BTreeMap<_, _> = parameters
             .iter()
             .zip(arguments)
@@ -1234,7 +1294,12 @@ impl<'a> Engine<'a> {
             trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
-        self.runtime_materialize(item, &substitution, &generated, &mut instance)?;
+        self.runtime_materialize(
+            item,
+            runtime_substitution.as_ref().unwrap_or(&substitution),
+            &generated,
+            &mut instance,
+        )?;
         if let Some(anchors) = anchors {
             let calls =
                 trait_instances::rekey_anchored_calls(&instance, anchors, &mut self.budget)?;
@@ -1339,7 +1404,7 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path, args } => {
                 if self.stored_nominals
                     && path.len() == 1
-                    && self.stored_declaration(&path[0], ty.span)?
+                    && self.stored_application(&path[0], args, ty.span, depth + 1)?
                 {
                     let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
                     *path = vec![name];

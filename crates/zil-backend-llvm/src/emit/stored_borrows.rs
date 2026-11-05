@@ -254,6 +254,17 @@ pub(super) fn reserve_binding(
                 .saturating_add(f.values.len())
                 .saturating_add(f.blocks.len()),
         )?;
+        if let Some(declaration) = &f.foreign {
+            pay(
+                work,
+                declaration
+                    .abi
+                    .len()
+                    .saturating_add(declaration.symbol.len())
+                    .saturating_add(declaration.noescape_parameters.len())
+                    .saturating_add(3),
+            )?;
+        }
         if let Some(c) = &f.storage_life {
             contract(c, work)?;
         }
@@ -300,6 +311,7 @@ pub(super) fn reserve_binding(
             for i in &block.instructions {
                 let n = match &i.kind {
                     InstructionKind::Call { arguments, .. }
+                    | InstructionKind::ForeignCall { arguments, .. }
                     | InstructionKind::MakeAggregate { fields: arguments }
                     | InstructionKind::MakeVariant {
                         fields: arguments, ..
@@ -321,6 +333,7 @@ pub(super) fn reserve_binding(
                     InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
                     InstructionKind::ExtractField { .. }
                     | InstructionKind::ReadCapture { .. }
+                    | InstructionKind::BorrowCapture { .. }
                     | InstructionKind::WriteCapture { .. }
                     | InstructionKind::TakeLocal { .. }
                     | InstructionKind::TakeCapture { .. }
@@ -351,7 +364,9 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::ConvertNumber { .. }
                     | InstructionKind::ScopeEnter { .. }
-                    | InstructionKind::ScopeExit { .. } => 1,
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::UnsafeEnter { .. }
+                    | InstructionKind::UnsafeExit { .. } => 1,
                     _ => {
                         return invalid(
                             "E-CODEGEN-STORAGE-PROFILE",
@@ -370,6 +385,7 @@ pub(super) fn reserve_binding(
 fn operands(i: &InstructionKind) -> Vec<ValueId> {
     match i {
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::MakeAggregate { fields: arguments }
         | InstructionKind::MakeVariant {
             fields: arguments, ..
@@ -443,6 +459,7 @@ pub(super) fn reserve_emission(
         for i in f.blocks.iter().flat_map(|b| &b.instructions) {
             let count = match &i.kind {
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeAggregate { fields: arguments }
                 | InstructionKind::MakeVariant {
                     fields: arguments, ..
@@ -482,7 +499,8 @@ pub(super) fn reserve_emission(
                 type_work(&f.locals[callee.0 as usize].ty, work, limits, 0)?;
             }
             if let InstructionKind::TakeCapture { index }
-            | InstructionKind::DescribeCapture { index } = &i.kind
+            | InstructionKind::DescribeCapture { index }
+            | InstructionKind::BorrowCapture { index, .. } = &i.kind
             {
                 let definition =
                     &lir.closures[f.environment.expect("verified capture entry").0 as usize];

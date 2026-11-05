@@ -148,10 +148,10 @@ fn child_work(child: &CallableTraces, span: Span) -> R<usize> {
     Ok(count)
 }
 
-fn callback(
+pub(super) fn callback(
     instruction: &Instruction,
-    locals: &[u8],
-    values: &[u8],
+    locals: &[Origin],
+    values: &[Origin],
     bounds: &[CoreCallableParameter],
 ) -> R<Option<CallEvent>> {
     let (origin, mode, borrowed) = match instruction.kind {
@@ -172,22 +172,21 @@ fn callback(
         }
         _ => return Ok(None),
     };
-    if (origin == 4 && !borrowed) || origin == 16 || origin == 32 {
+    if (origin == Origin::FACTORY && !borrowed)
+        || origin == Origin::BODY
+        || origin == Origin::CONCRETE
+    {
         return Ok(None);
     }
-    let bound = if origin == 1 {
-        bounds.first()
-    } else if origin == 2 {
-        bounds.get(1)
-    } else {
-        None
-    }
-    .ok_or_else(|| {
-        unsupported(
-            instruction.span,
-            "helper callable origin is unknown, mixed, or a borrowed local factory result",
-        )
-    })?;
+    let bound = origin
+        .index()
+        .and_then(|index| bounds.get(index))
+        .ok_or_else(|| {
+            unsupported(
+                instruction.span,
+                "helper callable origin is unknown, mixed, or a borrowed local factory result",
+            )
+        })?;
     if mode != bound.kind {
         return Err(error(
             "E-CLOSURE-MODE",
@@ -228,22 +227,21 @@ pub(super) fn contract(
                 scoped_loop = true;
                 let event = |value: ValueId, kind: CallableKind| -> R<Option<CallEvent>> {
                     let origin = values[value.0 as usize];
-                    if origin == 4
-                        || ((origin == 16 || origin == 32) && kind == CallableKind::FnOnce)
+                    if origin == Origin::FACTORY
+                        || ((origin == Origin::BODY || origin == Origin::CONCRETE)
+                            && kind == CallableKind::FnOnce)
                     {
                         return Ok(None);
                     }
-                    let bound = match origin {
-                        1 => bounds.first(),
-                        2 => bounds.get(1),
-                        _ => None,
-                    }
-                    .ok_or_else(|| {
-                        unsupported(
-                            instruction.span,
-                            "scoped callback helper origin is unknown or mixed",
-                        )
-                    })?;
+                    let bound = origin
+                        .index()
+                        .and_then(|index| bounds.get(index))
+                        .ok_or_else(|| {
+                            unsupported(
+                                instruction.span,
+                                "scoped callback helper origin is unknown or mixed",
+                            )
+                        })?;
                     if !compatible(bound.kind, kind) {
                         return Err(error(
                             "E-CLOSURE-MODE",
@@ -600,19 +598,17 @@ fn classify(
                 state.snapshot(node.calls.len().saturating_add(1), span)?;
             }
         }
-        if bounds.iter().any(|bound| {
-            bound.kind == CallableKind::FnOnce
+        for bound in bounds {
+            if bound.kind == CallableKind::FnOnce
                 && !(roles.forward
                     && flow.nodes.iter().all(|node| {
                         node.calls
                             .iter()
                             .all(|event| event.parameter != bound.index)
                     }))
-        }) {
-            return Err(unsupported(
-                span,
-                "cyclic FnOnce helper requires an additional consumption contract",
-            ));
+            {
+                scoped_once(&flow, bound.index, state, span)?;
+            }
         }
         return Ok(CallableTraces::Flow(flow));
     }

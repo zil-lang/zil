@@ -3,6 +3,14 @@
 use super::*;
 
 fn profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
+    match legacy_profile(module, d, b) {
+        Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
+            extended_profile(module, d, b)
+        }
+        result => result,
+    }
+}
+fn legacy_profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
     b.spend(d.captures.len().saturating_add(1))?;
     for ty in &d.captures {
         super::super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
@@ -66,6 +74,91 @@ fn profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -> Check
     Ok(())
 }
 
+fn extended_profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -> Check<()> {
+    b.spend(d.captures.len().saturating_add(1))?;
+    for ty in &d.captures {
+        super::super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
+    }
+    super::captured_profile(d, b)?;
+    if d.kind != CallableKind::FnOnce || d.storage_life.is_none() {
+        return Err(bad(
+            "staged callback requires an actual owning Fixed definition",
+        ));
+    }
+    let mut owners = 0usize;
+    for capture in &d.captures {
+        let Type::Managed(payload) = capture else {
+            continue;
+        };
+        owners += 1;
+        b.spend(module.resources.len())?;
+        let mut found = false;
+        for resource in &module.resources {
+            super::super::stored_flow::type_work(payload, &b.limits.clone(), b)?;
+            super::super::stored_flow::type_work(&resource.payload, &b.limits.clone(), b)?;
+            if payload.as_ref() == &resource.payload {
+                if found {
+                    return Err(bad("staged callback owner definition repeats"));
+                }
+                checked_teardown(module, resource, b)?;
+                found = true;
+            }
+        }
+        if !found {
+            return Err(bad(
+                "staged callback owner has no actual resource definition",
+            ));
+        }
+    }
+    if owners == 0 {
+        return Err(bad("staged callback requires an actual owned capture"));
+    }
+    Ok(())
+}
+fn checked_teardown(
+    module: &TypedModule,
+    resource: &ResourceDefinition,
+    b: &mut Budget,
+) -> Check<()> {
+    let Some(id) = resource.teardown else {
+        return Ok(());
+    };
+    b.spend(1)?;
+    let f = module
+        .functions
+        .get(id.0 as usize)
+        .ok_or_else(|| bad("staged owner teardown is absent"))?;
+    if f.id != id
+        || f.foreign.is_some()
+        || f.environment.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.parameters.len() != 1
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.storage_life.is_some()
+        || f.reference_return_bound.is_some()
+        || f.return_type != Type::Unit
+        || f.result_mode != PassingMode::Infer
+    {
+        return Err(bad(
+            "staged owner teardown has no ordinary exact Desc-to-Unit entry",
+        ));
+    }
+    let Some(Type::Desc(actual)) = f
+        .parameters
+        .first()
+        .and_then(|p| f.locals.get(p.0 as usize))
+        .map(|l| &l.ty)
+    else {
+        return Err(bad("staged owner teardown has no actual Desc receiver"));
+    };
+    super::super::stored_flow::type_work(actual, &b.limits.clone(), b)?;
+    super::super::stored_flow::type_work(&resource.payload, &b.limits.clone(), b)?;
+    if **actual != resource.payload {
+        return Err(bad("staged owner teardown has a different nominal payload"));
+    }
+    Ok(())
+}
 // No local address can be exposed in this first fallback. In particular a
 // WriteAddress cannot silently change the whole-local Store correspondence.
 pub(super) fn finite_instruction(kind: &InstructionKind) -> bool {
@@ -80,8 +173,9 @@ pub(super) fn finite_instruction(kind: &InstructionKind) -> bool {
             | InstructionKind::Load(_)
             | InstructionKind::TakeLocal { .. }
             | InstructionKind::Store { .. }
-            | InstructionKind::ReborrowAddress { mutable: false, .. }
+            | InstructionKind::ReborrowAddress { .. }
             | InstructionKind::CallClosureOnce { .. }
+            | InstructionKind::CallClosureBorrowed { .. }
             | InstructionKind::Unary { .. }
             | InstructionKind::Binary { .. }
             | InstructionKind::ConvertInteger { .. }
@@ -127,7 +221,9 @@ pub(super) fn parameter(
     b.spend(block.instructions.len())?;
     let mut before = None;
     for (index, instruction) in block.instructions.iter().enumerate() {
-        if !finite_instruction(&instruction.kind) {
+        if !finite_instruction(&instruction.kind)
+            && !super::super::stored_owned::instruction(f, &instruction.kind)
+        {
             return Err(bad(
                 "staged callback body exposes storage or unsupported effects",
             ));
@@ -609,7 +705,8 @@ mod tests {
                         &m.closures[0],
                         &mut Budget::new(&limits)
                     )
-                    .is_err(),
+                    .is_ok()
+                        == (name == "self-loop"),
                     "{name}"
                 );
             }

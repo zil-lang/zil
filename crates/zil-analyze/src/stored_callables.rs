@@ -1,7 +1,9 @@
 //! Qualified callbacks with inline scalar environments. Metadata is checked
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
+mod foreign;
 mod staged;
+pub(super) use foreign::regions as foreign_regions;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(
@@ -18,11 +20,72 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    let Some(declaration) = &f.foreign else {
+        return Ok(false);
+    };
+    b.spend(
+        f.parameters
+            .len()
+            .saturating_add(declaration.abi.len())
+            .saturating_add(declaration.symbol.len())
+            .saturating_add(1),
+        "stored scalar foreign actual declaration",
+    )?;
+    let c_number = |ty: &Type| {
+        matches!(
+            ty,
+            Type::U8 | Type::U16 | Type::I32 | Type::I64 | Type::F32 | Type::F64
+        )
+    };
+    let bytes = declaration.symbol.as_bytes();
+    Ok(declaration.abi == "C"
+        && declaration.symbol != "main"
+        && bytes
+            .first()
+            .is_some_and(|v| v.is_ascii_alphabetic() || *v == b'_')
+        && bytes
+            .iter()
+            .all(|v| v.is_ascii_alphanumeric() || *v == b'_')
+        && declaration.noescape_parameters.is_empty()
+        && !declaration.static_callbacks
+        && declaration.scoped_callback.is_none()
+        && f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && f.storage_life.is_none()
+        && f.callable_contract.is_none()
+        && f.callable_return_contract.is_none()
+        && f.reference_return_bound.is_none()
+        && f.result_mode == zil_ir::PassingMode::Infer
+        && (f.return_type == Type::Unit || c_number(&f.return_type))
+        && f.blocks.is_empty()
+        && f.values.is_empty()
+        && f.entry == zil_ir::BlockId(0)
+        && f.parameters.len() == f.locals.len()
+        && f.parameters
+            .iter()
+            .zip(&f.locals)
+            .enumerate()
+            .all(|(index, (id, local))| {
+                id.0 as usize == index && local.id == *id && !local.mutable && c_number(&local.ty)
+            }))
+}
+
+pub(super) fn lending(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_some()
+        && !d.lending_captures.is_empty()
+        && d.kind != CallableKind::FnOnce
+        && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
+}
+pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
+    if lending(d) { &Type::Unit } else { &d.result }
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module
         .closures
         .get(id.0 as usize)
-        .is_some_and(|d| d.lending_captures.is_empty() && scalar(&d.result))
+        .is_some_and(|d| (d.lending_captures.is_empty() && scalar(&d.result)) || lending(d))
 }
 pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -69,7 +132,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
         let mut admitted = finite(module, d.id);
         for t in &d.captures {
             admitted &= if d.storage_life.is_some() {
-                capture(t) || (d.kind == CallableKind::FnOnce && owned_capture(t, b)?)
+                capture(t) || owned_capture(t, b)?
             } else {
                 scalar(t)
             };
@@ -116,7 +179,12 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     "actual captured closure entry relation differs from definition",
                 ));
             }
-            super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
+            super::signature_life::capture_relation(
+                &d.parameters,
+                &d.captures,
+                life_result(d),
+                life,
+            )?;
         } else if f.storage_life.is_some() {
             return Err(bad("closure definition omits actual entry relation"));
         }
@@ -217,6 +285,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
+        InstructionKind::BorrowCapture { mutable: false, .. } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .is_some_and(lending),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -263,6 +335,27 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let definition = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| lending(d))
+                .ok_or_else(|| bad("capture loan requires an actual lending entry"))?;
+            let actual = definition
+                .captures
+                .get(*index as usize)
+                .filter(|ty| scalar(ty))
+                .ok_or_else(|| bad("capture loan requires a real inline scalar field"))?;
+            b.type_work(actual, false, "inline capture loan actual payload")?;
+            if !matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address {mutable:false,inner}) if inner.as_ref()==actual)
+            {
+                return Err(bad("inline capture loan has a different actual result"));
+            }
+            return Ok(());
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::WriteCapture { index, .. } => {
             let d = f
                 .environment

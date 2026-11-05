@@ -764,8 +764,10 @@ fn bind_lir(
                 .storage_life
                 .as_ref()
                 .is_some_and(|life| life.fixed_binder_count > 0)
-            && closure.lending_captures.is_empty()
-            && closure.result.is_b0_scalar();
+            && ((closure.lending_captures.is_empty() && closure.result.is_b0_scalar())
+                || (!closure.lending_captures.is_empty()
+                    && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())));
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(
@@ -820,7 +822,7 @@ fn bind_lir(
                     || sum_capture_address(ty)
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
-                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+                    || ty.is_package_address()
                     // The exact VerifiedModule binding above carries the
                     // independently checked owning Store capture contract.
                     // Borrowed descriptions do not gain an owning ABI here.
@@ -3499,7 +3501,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || shared_qualified_capture_address(ty)
             || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-            || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+            || ty.is_package_address()
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
@@ -3594,7 +3596,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !shared_qualified_capture_address(field)
                     && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-                    && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
+                    && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))

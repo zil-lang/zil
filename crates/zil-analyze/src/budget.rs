@@ -25,6 +25,7 @@ pub(super) struct Budget {
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
+    pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
@@ -69,6 +70,7 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             replacement_functions: BTreeSet::new(),
+            replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
@@ -995,8 +997,7 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
                 if !super::stored_callables::capture(ty)
-                    && !(closure.kind == zil_ir::CallableKind::FnOnce
-                        && super::stored_callables::owned_capture(ty, budget)?)
+                    && !super::stored_callables::owned_capture(ty, budget)?
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -1014,17 +1015,17 @@ pub(super) fn preflight(
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
                 budget.shared_product_capture = true;
-                let Type::Address {
-                    mutable: false,
-                    inner,
-                } = ty
-                else {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "mutable Product capture is not implemented",
-                        None,
-                    )]);
+                let Type::Address { mutable, inner } = ty else {
+                    unreachable!()
                 };
+                if *mutable {
+                    if closure.kind == zil_ir::CallableKind::Fn {
+                        return Err(bad(
+                            "exclusive Product capture requires an exclusive environment entry",
+                        ));
+                    }
+                    budget.owning_address_captures = true;
+                }
                 super::resources::product::admit(inner, budget)?;
                 budget.type_work(&closure.result, true, "shared Product capture result")?;
                 if !closure.result.is_copy_value() {

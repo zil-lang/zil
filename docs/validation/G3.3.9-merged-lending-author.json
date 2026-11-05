@@ -1,0 +1,129 @@
+{
+  "task": "G3.3.9",
+  "author": "/root/g33_complete",
+  "frozen_implementation": "5ba7937a37a3c67a9a3943a2a2e146b653cbf91e",
+  "baseline": "fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95",
+  "environment": "source /workspace/.zil-env/env.sh; CARGO_TARGET_DIR=/workspace/.zil-env/target-G3.3.9; TMPDIR=/workspace/.zil-env/G3.3.9-tmp; j2; default features; LLVM API native not executed",
+  "scope": "Actual merged five qualified roles including Fn/FnMut/FnOnce cyclic CFG, user Drop, distinct single-role environment lending; nonconsuming scalar Managed qualified consumers; independent raw/Wire neighbors and nine exact budget lanes. Parent still incomplete.",
+  "logs": {
+    "merged-multi-drop-second.log": {
+      "sha256": "f14939ca477f475e22b8ade72bf4514bc26dd07eef2e8888064fd8c0dd81a3d8",
+      "exit_code": 101,
+      "results": [
+        "G339 single-user-drop: actual Source/raw/Wire success",
+        "G339 mixed-roles-loop: actual Source/raw/Wire success",
+        "G339 two-role-no-drop: actual Source/raw/Wire success",
+        "G339 two-role-user-drop: actual Source/raw/Wire success",
+        "test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.18s"
+      ],
+      "command": "cargo test --offline --locked -j2 -p zil-driver --test generic_regressions g339_multi_role_user_drop_and_managed_give_source_raw_wire -- --nocapture"
+    },
+    "merged-five-second.log": {
+      "sha256": "0bc887cebbadc5a5c8fc6f65ceaa6b5d801f3749b89b20b237f38c2c465d135b",
+      "exit_code": 0,
+      "results": [
+        "G339 merged five qualified roles: mixed Fn/FnMut/FnOnce cyclic CFG + user Drop + separate single-role lending actual Source/raw/Wire success",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.20s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-nonconsuming-second.log": {
+      "sha256": "a1a6e19deb4ecc74d99251155493ac6674d6c2bd3547890c6a1e7711aef805e9",
+      "exit_code": 0,
+      "results": [
+        "G339 nonconsuming Managed Fn/FnMut actual Source/raw/Wire repeat + separate single-role lending success",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.10s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-lending-second.log": {
+      "sha256": "cb16fe52f50112fdca74a2b5eb90a0412fa2deb212874d17e36082cd8b6228ee",
+      "exit_code": 0,
+      "results": [
+        "G339 lending: actual Source/raw/Wire success",
+        "G339 lending-mut: actual Source/raw/Wire success",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.09s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-nonconsuming-forged-second.log": {
+      "sha256": "2603bcae1470b285fab25939273b9a93995b87bde14e115d5112619a82f5557e",
+      "exit_code": 0,
+      "results": [
+        "G339 actual Fn forged owner transfer wire=false: moving a captured owner requires the actual consuming FnOnce entry",
+        "G339 actual Fn forged owner transfer wire=true: moving a captured owner requires the actual consuming FnOnce entry",
+        "G339 actual FnMut forged owner transfer wire=false: moving a captured owner requires the actual consuming FnOnce entry",
+        "G339 actual FnMut forged owner transfer wire=true: moving a captured owner requires the actual consuming FnOnce entry",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.05s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-lending-independent-second.log": {
+      "sha256": "2e34b2168aa7899f8565a31feeeb4cfb3485a7cf2c83883e7bd2015415a311fe",
+      "exit_code": 0,
+      "results": [
+        "G339 independent actual live receiver wire=false: stored target proof: actual target intersects a live incompatible loan",
+        "G339 independent actual live receiver wire=true: stored target proof: actual target intersects a live incompatible loan",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.03s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-cycle-negative-second.log": {
+      "sha256": "ba346c288169e3068b6e5a6b4eb22f97fcf677be67f5b45c06c6ef89616b5b30",
+      "exit_code": 0,
+      "results": [
+        "G339 actual consuming backedge wire=false: candidate initialization set differs from independently checked CFG facts",
+        "G339 actual consuming backedge wire=true: candidate initialization set differs from independently checked CFG facts",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.02s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-foreign-negative-second.log": {
+      "sha256": "ac7d9328c15f78f23ba744bd4ada459c3748d40b2594e689d178ffdbe8ac3475",
+      "exit_code": 0,
+      "results": [
+        "G339 scalar foreign abi independently rejected wire=false: foreign declarations require C ABI and an unreserved C identifier",
+        "G339 scalar foreign abi independently rejected wire=true: foreign declarations require C ABI and an unreserved C identifier",
+        "G339 scalar foreign noescape independently rejected wire=false: noescape indices contain a duplicate, scalar, or absent parameter",
+        "G339 scalar foreign noescape independently rejected wire=true: noescape indices contain a duplicate, scalar, or absent parameter",
+        "G339 scalar foreign canonical independently rejected wire=false: foreign parameters must be canonical immutable parameter locals",
+        "G339 scalar foreign canonical independently rejected wire=true: foreign parameters must be canonical immutable parameter locals",
+        "G339 scalar foreign duplicate-symbol independently rejected wire=false: a foreign symbol must have exactly one declaration in the module",
+        "G339 scalar foreign duplicate-symbol independently rejected wire=true: a foreign symbol must have exactly one declaration in the module",
+        "G339 scalar foreign region independently rejected wire=false: foreign call lacks its active explicit unsafe region",
+        "G339 scalar foreign region independently rejected wire=true: foreign call lacks its active explicit unsafe region",
+        "G339 scalar foreign ordinary-call independently rejected wire=false: ordinary Call cannot enter a foreign declaration",
+        "G339 scalar foreign ordinary-call independently rejected wire=true: ordinary Call cannot enter a foreign declaration",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.05s"
+      ],
+      "command": "direct already compiled generic_regressions-d00b6aceac9b1c62 with unique g339 selector --nocapture"
+    },
+    "merged-exact-first.log": {
+      "sha256": "ba6c15bfe0c728d7e4b50f9e9ff2e4dcc3ee7ffe6b2ef648fe6b8ca7000fc67b",
+      "exit_code": 0,
+      "results": [
+        "G339 cyclic/phase0 exact N=82663; N-1 ResourceLimit, fresh retry success",
+        "G339 cyclic/phase1 exact N=86258; N-1 ResourceLimit, fresh retry success",
+        "G339 cyclic/phase2 exact N=86258; N-1 ResourceLimit, fresh retry success",
+        "G339 drop/phase0 exact N=117208; N-1 ResourceLimit, fresh retry success",
+        "G339 drop/phase1 exact N=111772; N-1 ResourceLimit, fresh retry success",
+        "G339 drop/phase2 exact N=111772; N-1 ResourceLimit, fresh retry success",
+        "G339 lending/phase0 exact N=65328; N-1 ResourceLimit, fresh retry success",
+        "G339 lending/phase1 exact N=74259; N-1 ResourceLimit, fresh retry success",
+        "G339 lending/phase2 exact N=74259; N-1 ResourceLimit, fresh retry success",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 1.45s"
+      ],
+      "command": "/workspace/.zil-env/target-G3.3.9/debug/deps/generic_regressions-d00b6aceac9b1c62 g339_completion_exact_two_kernel_budgets --nocapture"
+    }
+  },
+  "limits": [
+    "Visible Drop Source/raw/Wire is green but actual native order has not run.",
+    "Managed companion remains Analyze SafeReject on signature ownership carrier; next candidate pending.",
+    "The raw/Wire owner consuming backedge rejects on initialization-plan mismatch before debt proof; new direct private resolver neighbor is pending.",
+    "Native/API O0/O2, old exact legacy fee rerun and independent non-author review are pending."
+  ],
+  "production_sha256": {
+    "crates/zil-analyze/src/stored_callables.rs": "2e550cebb2255489f184a68e2bf3573458d348155f6ef473fd954675d1610f1e",
+    "crates/zil-analyze/src/stored_callables/foreign.rs": "17f6b0e7c667254812078d785834bf920318bdd1ca28c2f3799dde3eb1baabc1"
+  }
+}

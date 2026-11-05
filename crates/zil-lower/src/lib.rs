@@ -118,8 +118,10 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 .storage_life
                 .as_ref()
                 .is_some_and(|life| life.fixed_binder_count > 0)
-            && closure.lending_captures.is_empty()
-            && closure.result.is_b0_scalar();
+            && ((closure.lending_captures.is_empty() && closure.result.is_b0_scalar())
+                || (!closure.lending_captures.is_empty()
+                    && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())));
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(
@@ -181,7 +183,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
-                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+                    || ty.is_package_address()
                     // Verify already qualified the complete captured Store
                     // leaf, canonical definition, result and actual operands.
                     // A borrowed Store description still has no owning ABI.

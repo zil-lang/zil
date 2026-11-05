@@ -608,6 +608,35 @@ impl Facts {
         }
         Ok(false)
     }
+    pub(super) fn replace_product(
+        &mut self,
+        local: LocalId,
+        rhs: ValueId,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.lookup(
+            self.locals.len(),
+            "nested replacement optional Product tree",
+        )?;
+        if !self.locals.contains_key(&local) {
+            return Ok(());
+        }
+        let old = self.local(local, budget)?;
+        let incoming = self.value(rhs, budget)?;
+        if !matches!(old.node, Node::Product(_)) || !matches!(incoming.node, Node::Product(_)) {
+            return Err(error(
+                "complete Product replacement requires actual Product contents",
+            ));
+        }
+        if check && (!old.complete(budget)? || !incoming.complete(budget)?) {
+            return Err(error(
+                "complete Product replacement cannot repair missing child contents",
+            ));
+        }
+        self.locals.insert(local, incoming);
+        Ok(())
+    }
     /// Replace a singleton complete local with the actual prepared RHS tree.
     /// Copying the tagged tree preserves each real leaf's origin alternatives.
     pub(super) fn replace_enum(
@@ -620,7 +649,10 @@ impl Facts {
     ) -> CompileResult<()> {
         let incoming = self.value(rhs, budget)?;
         let old = self.local(local, budget)?;
-        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.node, Node::Sum(_)) {
+        if !matches!(
+            (&old.node, &incoming.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
             return Err(error(
                 "whole Enum replacement requires actual tagged contents",
             ));
@@ -656,6 +688,113 @@ impl Facts {
     }
 }
 
+/// Private actual staged contents for nonlocal whole-Sum may effects. This is
+/// separate from the flat leaf-origin ledger and never grants a must fact.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct Replacement(Arc<Tree>);
+impl Replacement {
+    pub(super) fn merge(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
+        self.0.merge(&other.0, budget)
+    }
+    pub(super) fn copied(&self, budget: &mut Budget) -> CompileResult<Self> {
+        Ok(Self(self.0.copied(budget)?))
+    }
+    pub(super) fn instantiate(
+        &self,
+        replace: &mut impl FnMut(&BTreeSet<Birth>, &mut Budget) -> CompileResult<BTreeSet<Birth>>,
+        budget: &mut Budget,
+    ) -> CompileResult<Self> {
+        fn node(
+            old: &Arc<Tree>,
+            replace: &mut impl FnMut(&BTreeSet<Birth>, &mut Budget) -> CompileResult<BTreeSet<Birth>>,
+            budget: &mut Budget,
+        ) -> CompileResult<Arc<Tree>> {
+            old.cost(budget)?;
+            let node = match &old.node {
+                Node::Leaf(birth) => Node::Leaf(replace(birth, budget)?),
+                Node::Copy => Node::Copy,
+                Node::Product(fields) => Node::Product(
+                    fields
+                        .iter()
+                        .map(|child| node(child, replace, budget))
+                        .collect::<CompileResult<_>>()?,
+                ),
+                Node::Sum(arms) => {
+                    let mut result = BTreeMap::new();
+                    for (tag, fields) in arms {
+                        budget.spend(
+                            fields.len().saturating_add(1),
+                            "tagged replacement actual children",
+                        )?;
+                        result.insert(
+                            *tag,
+                            fields
+                                .iter()
+                                .map(|child| node(child, replace, budget))
+                                .collect::<CompileResult<_>>()?,
+                        );
+                    }
+                    Node::Sum(result)
+                }
+            };
+            Ok(Arc::new(Tree {
+                missing: old.missing,
+                node,
+            }))
+        }
+        Ok(Self(node(&self.0, replace, budget)?))
+    }
+}
+impl Facts {
+    pub(super) fn replacement_value(
+        &self,
+        value: ValueId,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<Replacement> {
+        let tree = self.value(value, budget)?;
+        if check && !tree.complete(budget)? {
+            return Err(error(
+                "tagged replacement RHS has incomplete actual contents",
+            ));
+        }
+        Ok(Replacement(tree))
+    }
+    pub(super) fn merge_replacement(
+        &mut self,
+        local: LocalId,
+        incoming: &Replacement,
+        plan: &Plan,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        let old = self.local(local, budget)?;
+        if !matches!(
+            (&old.node, &incoming.0.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
+            return Err(error(
+                "tagged replacement may effect requires actual Sum contents",
+            ));
+        }
+        if check && (!old.complete(budget)? || !incoming.0.complete(budget)?) {
+            return Err(error(
+                "tagged replacement cannot repair partial old or staged contents",
+            ));
+        }
+        self.invalidate(local, plan, budget)?;
+        budget.lookup(
+            self.locals.len(),
+            "tagged replacement actual local publication",
+        )?;
+        self.locals
+            .get_mut(&local)
+            .ok_or_else(|| error("tagged replacement local absent"))?
+            .merge(&incoming.0, budget)?;
+        Ok(())
+    }
+}
+
 pub(super) struct Plan {
     partial: Option<partial_places::Meta>,
     observations: BTreeMap<ValueId, (LocalId, Vec<VariantProjection>)>,
@@ -670,7 +809,37 @@ impl Plan {
             .copied()
             .unwrap_or(false)
         {
-            return Ok(None);
+            if !budget.replacement_error_sums {
+                return Ok(None);
+            }
+            // A complete ErrorUnion replacement also needs this kernel's
+            // actual old/RHS tree on legacy ordinary-error callers. Preserve
+            // their old lane unless such an endpoint really exists.
+            budget.spend(
+                f.locals
+                    .len()
+                    .saturating_add(f.values.len())
+                    .saturating_add(1),
+                "replacement ErrorUnion facts qualification",
+            )?;
+            let mut needs = false;
+            for ty in std::iter::once(&f.return_type)
+                .chain(f.locals.iter().map(|l| &l.ty))
+                .chain(&f.values)
+            {
+                let inner = if let Type::Address { inner, .. } = ty {
+                    inner.as_ref()
+                } else {
+                    ty
+                };
+                if matches!(inner, Type::ErrorUnion { .. }) {
+                    budget.type_work(inner, true, "replacement ErrorUnion owning tree")?;
+                    needs |= owned(inner);
+                }
+            }
+            if !needs {
+                return Ok(None);
+            }
         }
         budget.spend(f.values.len() + f.locals.len(), "Sum plan inventory")?;
         let mut partial = false;

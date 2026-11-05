@@ -70,14 +70,12 @@ impl<'a> Engine<'a> {
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.life_scope.clear();
-                let mut callable_parameter = None;
+                let mut callable_parameters = Vec::new();
                 let mut callable_profile = function.where_clause.is_empty();
                 for (index, parameter) in function.generics.iter().enumerate() {
                     self.budget.node(parameter.span, 0)?;
                     match parameter.kind {
-                        GenericParamKind::Type(_) if callable_parameter.is_none() => {
-                            callable_parameter = Some(index)
-                        }
+                        GenericParamKind::Type(_) => callable_parameters.push(index),
                         GenericParamKind::Lifetime => {}
                         _ => callable_profile = false,
                     }
@@ -86,9 +84,11 @@ impl<'a> Engine<'a> {
                         self.life_scope.push(parameter.name.clone());
                     }
                 }
-                let callable_parameter = callable_profile.then_some(callable_parameter).flatten();
+                if !callable_profile {
+                    callable_parameters.clear();
+                }
                 self.with_origin(pending.origin, |engine| {
-                    if engine.stored_signature_context(function, callable_parameter)? {
+                    if engine.stored_signature_context(function, &callable_parameters)? {
                         engine.budget.function_snapshot(function)?;
                         engine.budget.text(&function.name, function.span)?;
                         engine.stored_lookup_fee(
@@ -115,12 +115,12 @@ impl<'a> Engine<'a> {
     }
 
     pub(super) fn stored_signature(&mut self, function: &mut Function) -> R<bool> {
-        self.stored_signature_context(function, None)
+        self.stored_signature_context(function, &[])
     }
     fn stored_signature_context(
         &mut self,
         function: &mut Function,
-        callable_parameter: Option<usize>,
+        callable_parameters: &[usize],
     ) -> R<bool> {
         if !self.stored_nominals {
             return Ok(false);
@@ -136,21 +136,6 @@ impl<'a> Engine<'a> {
         let mut stored = false;
         let mut callable_data_profile = true;
         let mut callable_receivers = 0usize;
-        // Use only the actual selected bound's constant mode here. Unsupported
-        // receiver modes stay on the old None lane before paid template work.
-        let callable_receiver_mode = callable_parameter.map_or(Some(false), |ordinal| {
-            let GenericParamKind::Type(bounds) = &function.generics[ordinal].kind else {
-                return Some(false);
-            };
-            let [bound] = bounds.as_slice() else {
-                return Some(false);
-            };
-            match &bound.kind {
-                TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnOnce") => None,
-                TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnMut") => Some(true),
-                _ => Some(false),
-            }
-        });
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
@@ -170,7 +155,29 @@ impl<'a> Engine<'a> {
                 0,
             )?;
             stored |= parameter_stored;
-            if callable_parameter.is_some() {
+            if !callable_parameters.is_empty() {
+                if callable_parameters.len() > 1 {
+                    self.budget
+                        .identity_work(callable_parameters.len(), parameter.span)?;
+                }
+                let receiver = callable_parameters.iter().find_map(|ordinal| {
+                    let generic = &function.generics[*ordinal];
+                    let receiver = match &parameter.ty.kind {
+                        TypeKind::Named { path, args } if args.is_empty() && path.as_slice() == [generic.name.as_str()] => true,
+                        TypeKind::Reference { inner, .. } => matches!(&inner.kind, TypeKind::Named {path,args}
+                            if args.is_empty() && path.as_slice() == [generic.name.as_str()]),
+                        _ => false,
+                    };
+                    if !receiver { return None; }
+                    let GenericParamKind::Type(bounds) = &generic.kind else { return None; };
+                    let [bound] = bounds.as_slice() else { return None; };
+                    match &bound.kind {
+                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnOnce") => Some(None),
+                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnMut") => Some(Some(true)),
+                        TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "Fn") => Some(Some(false)),
+                        _ => None,
+                    }
+                });
                 match &parameter.ty.kind {
                     TypeKind::Reference { mutable, inner, .. }
                         if matches!(inner.kind, TypeKind::Named { .. }) =>
@@ -179,16 +186,15 @@ impl<'a> Engine<'a> {
                             callable_data_profile &=
                                 !*mutable && occurrences.len() - before == 2 && physical_witness;
                         } else {
-                            callable_data_profile &= Some(*mutable) == callable_receiver_mode;
+                            callable_data_profile &= receiver == Some(Some(*mutable));
                             callable_receivers += 1;
                         }
                     }
                     _ if callable_context::scalar_syntax(&parameter.ty) => {}
-                    TypeKind::Named { .. }
-                        if callable_receiver_mode.is_none() && !parameter_stored =>
-                    {
+                    TypeKind::Named { .. } if receiver == Some(None) && !parameter_stored => {
                         callable_receivers += 1;
                     }
+                    TypeKind::Named { .. } if parameter.give && !parameter_stored => {}
                     _ => callable_data_profile = false,
                 }
             }
@@ -214,10 +220,10 @@ impl<'a> Engine<'a> {
             &mut self.budget,
             function.span,
         )?;
-        if let Some(parameter) =
-            callable_parameter.filter(|_| callable_data_profile && callable_receivers == 1)
-        {
-            self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
+        if callable_data_profile && callable_receivers == callable_parameters.len() {
+            for &parameter in callable_parameters {
+                self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
+            }
         }
         self.budget.text(&function.name, function.span)?;
         self.stored_lookup_fee(
@@ -324,7 +330,7 @@ impl<'a> Engine<'a> {
                 result
             }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
-                if !self.stored_declaration(&name[0], ty.span)? {
+                if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
                 }
                 let (generated, classes) =
@@ -494,7 +500,13 @@ impl<'a> Engine<'a> {
         let mut parameters = Vec::new();
         let mut keys = Vec::new();
         let mut local_classes = Vec::new();
-        for (formal, actual) in aggregate.generics.iter().zip(arguments.iter_mut()) {
+        let mut qualified_actuals = BTreeMap::new();
+        for (ordinal, (formal, actual)) in aggregate
+            .generics
+            .iter()
+            .zip(arguments.iter_mut())
+            .enumerate()
+        {
             self.budget.node(formal.span, depth)?;
             self.budget.text(&formal.name, formal.span)?;
             match (&formal.kind, actual) {
@@ -519,6 +531,27 @@ impl<'a> Engine<'a> {
                     lives.push((formal.name.clone(), life));
                 }
                 (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                    if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
+                        let class_key =
+                            self.joint_class_key(&actual.classes, &mut local_classes, span)?;
+                        let physical_key = type_key(ty, &mut self.budget)?;
+                        self.budget.identity_work(
+                            physical_key.len().saturating_add(class_key.len()),
+                            span,
+                        )?;
+                        keys.push(format!("{physical_key}[{class_key}]"));
+                        parameters.push(LifeParameterKind::Type);
+                        stored_types::pay_type(&actual.ty, &mut self.budget, span, depth + 1)?;
+                        actuals.push(LifeNominalActual::Type(actual.ty.clone()));
+                        self.budget.ty(ty)?;
+                        substitution.insert(formal.name.clone(), ty.clone());
+                        self.budget.lineage_bytes(
+                            std::mem::size_of::<(usize, stored_types::QualifiedActual)>(),
+                            span,
+                        )?;
+                        qualified_actuals.insert(ordinal, actual);
+                        continue;
+                    }
                     self.closed_stored_actual(ty, depth + 1)?;
                     self.ty(ty, depth + 1)?;
                     self.closed_stored_actual(ty, depth + 1)?;
@@ -616,17 +649,31 @@ impl<'a> Engine<'a> {
             kind: LifeNominalKind::Record,
             parameters,
         };
-        let produced = stored_types::instantiate(
-            physical,
-            declaration,
-            actuals,
-            &lives,
-            &mut self.budget,
-            span,
-        )?;
+        let produced = if qualified_actuals.is_empty() {
+            stored_types::instantiate(
+                physical,
+                declaration,
+                actuals,
+                &lives,
+                &mut self.budget,
+                span,
+            )?
+        } else {
+            stored_types::instantiate_joint(
+                physical,
+                declaration,
+                actuals,
+                &lives,
+                Some((aggregate, &qualified_actuals)),
+                &mut self.budget,
+                span,
+            )?
+        };
         let classes = produced.classes;
         if existing.is_none() {
             physical.generics.clear();
+            self.traits
+                .register_copy_shape(&instance, &mut self.budget)?;
             self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
             self.budget.text(&generated, span)?;
             self.instances.insert(key, generated.clone());

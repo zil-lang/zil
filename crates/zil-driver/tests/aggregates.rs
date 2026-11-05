@@ -1,4 +1,6 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
+#[path = "../../../.task/G4.4.6.1-inputs/nominal_controls.rs"]
+mod g4461_nominal_controls;
 use std::{
     fs,
     path::PathBuf,
@@ -10009,6 +10011,12 @@ mod whole_helper_error_review;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
 mod p0_g445_review;
 
+#[path = "../../../tests/language-readiness/terminal/340/nonlocal-replace/controls.rs"]
+mod terminal340_nonlocal_replace;
+
+// Independent complete-parent consumers; staged failures remain visible during integration.
+#[path = "../../../.task/G10.1.10-inputs/consumers.rs"]
+mod g10110_independent_parent_consumers;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
 mod runtime_ct_phase_tests;
 

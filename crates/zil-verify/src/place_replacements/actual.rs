@@ -273,6 +273,22 @@ impl Program {
                                             mutable: *mutable && f.locals[local.0 as usize].mutable,
                                         });
                                     }
+                                    InstructionKind::BorrowFieldLocal {
+                                        local,
+                                        path,
+                                        mutable,
+                                    } => {
+                                        b.spend(path.len().saturating_add(1))?;
+                                        route.insert(Target {
+                                            base: Base::Local(*local),
+                                            steps: path
+                                                .iter()
+                                                .copied()
+                                                .map(PlaceProjection::Field)
+                                                .collect(),
+                                            mutable: *mutable && f.locals[local.0 as usize].mutable,
+                                        });
+                                    }
                                     InstructionKind::BorrowVariantLocal {
                                         local,
                                         path,

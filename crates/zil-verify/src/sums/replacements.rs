@@ -10,6 +10,7 @@ struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
+    may_only: bool,
 }
 pub(super) struct Context<'a> {
     actual: &'a actual::Program,
@@ -93,11 +94,19 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
                     // replacement, nor old Fresh upgrade an incoming RHS.
                     *old = incoming.clone();
                 }
-                _ => return Err(invalid("replacement needs a complete flat Product")),
+                (Content::Product(_), Content::Product(_)) => {
+                    owned += 1;
+                    changed |= merge_endpoint(old, incoming, b)?;
+                }
+                (Content::Sum(_, _), Content::Sum(_, _)) => {
+                    owned += 1;
+                    changed |= merge_endpoint(old, incoming, b)?;
+                }
+                _ => return Err(invalid("replacement needs a complete ordinary Product")),
             }
         }
-        if owned != 1 {
-            return Err(invalid("replacement Product needs exactly one owned leaf"));
+        if owned == 0 {
+            return Err(invalid("replacement Product needs an actual owned leaf"));
         }
         Ok(changed)
     } else {
@@ -106,20 +115,18 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
 }
 /// Structural admission only; actual roots, debts, loans and epochs are checked
 /// independently. No full Product or nested owning profile is implied.
-pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
+pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usize>>> {
     let Type::Package { fields, .. } = ty else {
         return Ok(None);
     };
     b.spend(fields.len())?;
-    let mut owner = None;
+    let mut owners = Vec::new();
     for (index, (_, ty)) in fields.iter().enumerate() {
         match ty {
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
             {
-                if owner.replace(index).is_some() {
-                    return Ok(None);
-                }
+                owners.push(index);
             }
             Type::Unit
             | Type::Bool
@@ -131,10 +138,11 @@ pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
             | Type::F64
             | Type::U8
             | Type::U16 => {}
+            Type::Package { .. } if package_owners(ty, b)?.is_some() => owners.push(index),
             _ => return Ok(None),
         }
     }
-    Ok(owner)
+    Ok((!owners.is_empty()).then_some(owners))
 }
 /// Result shape only; the independent module/type checks validate nominal
 /// identity and actual instructions. No borrow or owner can leave this lane.
@@ -187,34 +195,86 @@ fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(true)
 }
 
-/// This private lane admits one real mutable Package parameter. Other inputs
-/// may only prepare a scalar or a complete finite owning RHS; they cannot
-/// introduce a second address, capture, Store or callable authority.
-fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bool> {
+/// Shape admission for a real nonlocal complete endpoint. Authority and actual
+/// target substitution stay in this kernel's independent origin/loan passes.
+fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if helper_copy_result(ty, b)? {
+        return Ok(true);
+    }
+    resources::charge_payload(ty, b)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                resources::check_type_for(module, ty, None, b)?;
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?;
+                pending.push(element);
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16 => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn package_helper(
+    module: &TypedModule,
+    f: &TypedFunction,
+    endpoint: &Type,
+    parameter: Option<u32>,
+    b: &mut Budget,
+) -> Check<bool> {
     if f.foreign.is_some()
-        || f.environment.is_some()
-        || f.call_kind != zil_ir::CallKind::Direct
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.storage_life.is_some()
     {
         return Ok(false);
     }
-    if !helper_copy_result(&f.return_type, b)? {
-        return Ok(false);
-    }
-    let Type::Address {
-        mutable: true,
-        inner: endpoint,
-    } = &f.locals[f.parameters[parameter as usize].0 as usize].ty
-    else {
-        return Ok(false);
-    };
-    if package_owner(endpoint, b)?.is_none() {
+    if !(if f.environment.is_some() {
+        helper_copy_result(&f.return_type, b)?
+    } else {
+        helper_owned_result(module, &f.return_type, b)?
+    }) || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(module, endpoint, b)?)
+    {
         return Ok(false);
     }
     b.spend(f.parameters.len())?;
     for (index, local) in f.parameters.iter().enumerate() {
-        if index == parameter as usize {
+        if parameter == Some(index as u32) {
             continue;
         }
         let ty = &f.locals[local.0 as usize].ty;
@@ -231,7 +291,12 @@ fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bo
             | Type::U16 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Package { .. } if ty == endpoint.as_ref() => {}
+            Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                if ty == endpoint => {}
+            Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
+            Type::Desc(payload) | Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
+                    && matches!(endpoint, Type::Package { .. }) => {}
             _ => return Ok(false),
         }
     }
@@ -254,6 +319,25 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
     {
         return Ok(false);
     }
+    // New capture/multiple-address/Store admission remains a may relation.
+    if f.environment.is_some() || f.call_kind != zil_ir::CallKind::Direct {
+        return Ok(false);
+    }
+    b.spend(f.parameters.len())?;
+    let mut addresses = 0usize;
+    for local in &f.parameters {
+        match &f.locals[local.0 as usize].ty {
+            Type::Address { .. } => addresses += 1,
+            Type::Desc(_) => return Ok(false),
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                return Ok(false);
+            }
+            _ => {}
+        }
+    }
+    if addresses != 1 {
+        return Ok(false);
+    }
     let mut commits = 0usize;
     let mut whole = false;
     for instruction in &f.blocks[0].instructions {
@@ -261,7 +345,9 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
         match instruction.kind {
             InstructionKind::CommitPlaceReplace { reservation, .. } => {
                 commits += 1;
-                whole = matches!(places.get(reservation, b)?.ty, Type::Package { .. });
+                whole = package_owners(&places.get(reservation, b)?.ty, b)?
+                    .is_some_and(|owners| owners.len() == 1)
+                    && !packages::has_children(&places.get(reservation, b)?.ty);
             }
             InstructionKind::Call { .. }
             | InstructionKind::CallClosure { .. }
@@ -281,7 +367,18 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
 }
 /// Finite whole-Enum endpoint, not ordinary Sum qualification. Each owning
 /// arm has one direct canonical Copy-record leaf and scalar/Unit companions.
-fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
+fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+        resources::charge_payload(ty, b)?;
+        if !owned(ty) || !helper_owned_result(module, ty, b)? {
+            return Ok(false);
+        }
+        check_type_for(module, ty, None, b)?;
+        Ok(true)
+    }
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        return ordinary(module, ty, b);
+    }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
     };
@@ -290,15 +387,12 @@ fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
     for (_, fields) in variants {
         b.spend(fields.len())?;
         let mut arm_owns = false;
-        for ty in fields {
-            match ty {
+        for field in fields {
+            match field {
                 Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. })
                         && payload.is_copy_value() =>
                 {
-                    if arm_owns {
-                        return Ok(false);
-                    }
                     arm_owns = true;
                 }
                 Type::Unit
@@ -311,7 +405,7 @@ fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
                 | Type::F64
                 | Type::U8
                 | Type::U16 => {}
-                _ => return Ok(false),
+                _ => return ordinary(module, ty, b),
             }
         }
         owns |= arm_owns;
@@ -338,7 +432,10 @@ fn merge_row(
     }
     b.spend(work)?;
     if let Some(old) = rows.get_mut(target) {
-        if matches!((&*old, value), (Content::Product(_), Content::Product(_))) {
+        if matches!(
+            (&*old, value),
+            (Content::Product(_), Content::Product(_)) | (Content::Sum(_, _), Content::Sum(_, _))
+        ) {
             old.merge(value, b)
         } else {
             merge_leaf(old, value, b)
@@ -379,7 +476,7 @@ pub(crate) fn at_type<'a>(
             &module.closures[id.0 as usize].captures[c as usize]
         }
         actual::Base::Element(value) => {
-            if !matches!(target.steps.as_slice(), [PlaceProjection::Field(_)]) {
+            if !matches!(target.steps.as_slice(), [] | [PlaceProjection::Field(_)]) {
                 return Err(unsupported(
                     "Store replacement requires a direct complete owning field",
                     None,
@@ -428,13 +525,24 @@ pub(crate) fn at_type<'a>(
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
         let whole_input = target.steps.is_empty()
-            && if let actual::Base::Input(p) = target.base {
-                package_helper(f, p, b)?
-            } else {
-                false
+            && match target.base {
+                actual::Base::Input(p) => package_helper(module, f, ty, Some(p), b)?,
+                actual::Base::Environment(_) => package_helper(module, f, ty, None, b)?,
+                actual::Base::InputCapture(p, c) => {
+                    f.foreign.is_none()
+                        && f.callable_return_contract.is_none()
+                        && f.reference_return_bound.is_none()
+                        && f.storage_life.is_none()
+                        && helper_copy_result(&f.return_type, b)?
+                        && resources::public_roles::mutable_capture(module, f, p, c, b)?
+                }
+                actual::Base::Element(_) => {
+                    matches!(ty, Type::Package { .. }) && package_helper(module, f, ty, None, b)?
+                }
+                _ => false,
             };
         if (!whole_local && !whole_input)
-            || (package_owner(ty, b)?.is_none() && !enum_endpoint(ty, b)?)
+            || (package_owners(ty, b)?.is_none() && !enum_endpoint(module, ty, b)?)
         {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",
@@ -450,6 +558,11 @@ pub(crate) fn at_type<'a>(
                 None,
             ));
         }
+    }
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        // Successful independent whole-endpoint reconstruction also enables
+        // the existing complete Sum drop recipes on this verified module.
+        b.mark_sum(Some(f.id.0 as usize))?;
     }
     Ok(ty)
 }
@@ -583,7 +696,10 @@ impl Context<'_> {
                 }
                 selected(&state.locals[local.0 as usize], &target.steps, validate, b)?;
                 state.locals[local.0 as usize].cost(b)?;
-                if !strong && target.steps.is_empty() && matches!(value, Content::Product(_)) {
+                if !strong
+                    && target.steps.is_empty()
+                    && matches!(value, Content::Product(_) | Content::Sum(_, _))
+                {
                     // A may-Commit preserves ordinary initialized access, but
                     // a no-write return must retain the old leaf's origin.
                     Arc::make_mut(&mut state.locals[local.0 as usize]).merge(value, b)?;
@@ -597,7 +713,10 @@ impl Context<'_> {
                     )?;
                 }
                 if target.steps.is_empty()
-                    && matches!(flow.f.locals[local.0 as usize].ty, Type::Enum { .. })
+                    && matches!(
+                        flow.f.locals[local.0 as usize].ty,
+                        Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                    )
                 {
                     // The old observation belongs to the retired instance.
                     // The incoming Content alone carries the new tag set.
@@ -635,6 +754,7 @@ impl Context<'_> {
             entry,
             arguments,
             captures,
+            may_only,
         } = invocation;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
@@ -652,7 +772,7 @@ impl Context<'_> {
                     "replacement call has no actual selected destination",
                 ));
             }
-            let whole = matches!(payload, Content::Product(_));
+            let whole = matches!(payload, Content::Product(_) | Content::Sum(_, _));
             if whole && targets.len() != 1 {
                 return Err(unsupported(
                     "whole Package helper needs one independently reconstructed actual destination",
@@ -661,7 +781,9 @@ impl Context<'_> {
             }
             let strong = if whole {
                 lookup(b, self.whole_must.len())?;
-                self.whole_must.contains(&entry)
+                !may_only
+                    && matches!(payload, Content::Product(_))
+                    && self.whole_must.contains(&entry)
             } else {
                 true
             };
@@ -709,12 +831,26 @@ impl Context<'_> {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
                 let incoming = state.values[value.0 as usize].duplicate(b)?;
                 if validate
-                    && matches!(place.ty, Type::Package { .. } | Type::Enum { .. })
+                    && matches!(
+                        place.ty,
+                        Type::Package { .. }
+                            | Type::Enum { .. }
+                            | Type::Tuple(_)
+                            | Type::ErrorUnion { .. }
+                    )
                     && !incoming.complete(b)?
                 {
                     return Err(invalid("whole replacement RHS is not complete"));
                 }
                 for target in self.actual.selected(f, place, b)? {
+                    if f.callable_contract.is_some()
+                        && !matches!(target.base, actual::Base::Local(_))
+                    {
+                        return Err(unsupported(
+                            "public callable helper cannot publish its own nonlocal Commit",
+                            Some(i.span),
+                        ));
+                    }
                     self.apply(flow, state, &target, &incoming, true, validate, b)?;
                 }
             }
@@ -723,6 +859,51 @@ impl Context<'_> {
                 arguments,
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
+                if let Some(contract) = &callee.callable_contract {
+                    b.spend(self.summaries[function.0 as usize].len())?;
+                    if self.summaries[function.0 as usize]
+                        .keys()
+                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
+                    {
+                        return Err(unsupported(
+                            "public callable helper has an unpublished replacement effect",
+                            Some(i.span),
+                        ));
+                    }
+                    for (entry, value) in
+                        resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
+                    {
+                        b.spend(self.summaries[entry].len())?;
+                        for target in self.summaries[entry].keys() {
+                            if !matches!(target.base, actual::Base::Environment(_)) {
+                                return Err(unsupported(
+                                    "callback replacement needs an actual captured destination; callback argument mapping is absent",
+                                    Some(i.span),
+                                ));
+                            }
+                        }
+                        self.call(
+                            flow,
+                            state,
+                            Invocation {
+                                entry,
+                                arguments: &[],
+                                captures: Some(&facts.captures[value.0 as usize]),
+                                may_only: true,
+                            },
+                            validate,
+                            b,
+                        )?;
+                    }
+                    return Ok(None);
+                }
+                if f.callable_contract.is_some() && !self.summaries[function.0 as usize].is_empty()
+                {
+                    return Err(unsupported(
+                        "public callable helper cannot publish an ordinary callee's private replacement effects",
+                        Some(i.span),
+                    ));
+                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()
                 {
@@ -738,6 +919,7 @@ impl Context<'_> {
                         entry: function.0 as usize,
                         arguments,
                         captures: None,
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -758,6 +940,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: facts.local_captures.get(callee),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -780,6 +963,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: Some(&facts.captures[callee.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -799,6 +983,7 @@ impl Context<'_> {
                             entry,
                             arguments: &[],
                             captures: Some(&facts.captures[value.0 as usize]),
+                            may_only: false,
                         },
                         validate,
                         b,
@@ -819,6 +1004,7 @@ impl Context<'_> {
                         entry,
                         arguments: &[],
                         captures: Some(&facts.captures[body.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,

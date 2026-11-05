@@ -1056,6 +1056,13 @@ impl Resolver<'_> {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
                             || (stored_instance.is_some()
+                                && stored::pure_value(
+                                    &ty,
+                                    &mut self.remaining,
+                                    &self.generic_limits,
+                                    f.span,
+                                )?)
+                            || (stored_instance.is_some()
                                 && matches!(ty, Type::Address { mutable: false, .. }))
                             || (d.kind == AggregateKind::Package
                                 && !f.manages
@@ -2248,7 +2255,9 @@ impl<'a> Builder<'a, '_> {
                     ty,
                 ));
             }
-            if !ty.is_copy_value() {
+            if !ty.is_copy_value()
+                && !stored::pure_value(&ty, &mut self.match_work_left, &self.limits, e.span)?
+            {
                 return Err(unsupported(
                     e.span,
                     "nested stored field requires its complete projection consumer",

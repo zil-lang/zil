@@ -957,6 +957,43 @@ impl Check<'_, '_, '_> {
                     },
                     _ => None,
                 };
+                // The bound's elided shared result borrows this invocation's
+                // actual receiver. Definition-time roots must still satisfy
+                // the helper's explicit receiver/result lifetime relation.
+                if let Some(local) = target.and_then(|name| state.locals.get(name))
+                    && self.callable.as_ref().is_some_and(|scope| {
+                        scope.bindings().any(|bound| {
+                            bound.kind != zil_ir::CallableKind::FnOnce
+                                && matches!(
+                                    &group(&bound.result).kind,
+                                    TypeKind::Reference {
+                                        mutable: false,
+                                        lifetime: None,
+                                        ..
+                                    }
+                                )
+                                && matches!(
+                                    callable::parameter_mode(&local.ty, &bound.generic_name),
+                                    Some(Some(_))
+                                )
+                        })
+                    })
+                {
+                    self.budget.ty(&local.ty)?;
+                    if !matches!(
+                        &group(&local.ty).kind,
+                        TypeKind::Reference {
+                            lifetime: Some(_),
+                            ..
+                        }
+                    ) {
+                        return Err(unsupported(
+                            expression.span,
+                            "generic environment lending requires an explicit receiver life",
+                        ));
+                    }
+                    return self.life_expression(callee, state);
+                }
                 if self.higher_rank
                     && let Some(local) = target.and_then(|name| state.locals.get(name))
                     && let Some(scope) = &self.callable
