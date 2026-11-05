@@ -10008,3 +10008,16 @@ mod whole_helper_error_review;
 
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
 mod p0_g445_review;
+
+#[test]
+fn g4453_contextual_type_and_pure_composite_results_keep_full_values() {
+    for (text, expected) in [
+        (include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil"), b"18446744073709551557\n".as_slice()),
+        (include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-type-result.zil"), b"42\n".as_slice()),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", expected);
+    }
+}

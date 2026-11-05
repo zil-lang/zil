@@ -11,6 +11,19 @@ impl Builder<'_, '_> {
     ) -> R<Value> {
         self.compiler.budget.depth(depth, span)?;
         self.compiler.budget.node(span)?;
+        if id == graph.root
+            && (!graph.ambient_classes.is_empty()
+                || matches!(graph.nodes.get(id.0 as usize), Some(CtTypeNode::BorrowedStorage { .. })))
+        {
+            self.compiler.budget.metadata(graph, span)?;
+            let value = self.emit(
+                CtInstructionKind::TypeInContext { ty: graph.clone() },
+                CtTy::Type,
+                span,
+            )?;
+            self.record_source_type_site(value.id, span)?;
+            return Ok(value);
+        }
         let node = graph
             .nodes
             .get(id.0 as usize)

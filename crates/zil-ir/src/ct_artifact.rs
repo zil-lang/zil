@@ -3,10 +3,10 @@
 use crate::{BinaryOp, Constant, UnaryOp};
 use zil_base::{Fingerprint, ModuleId, NodeId, Span};
 
-pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 5;
-pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v5";
-pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v5";
-pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v5";
+pub const CT_ARTIFACT_SCHEMA_VERSION: u32 = 6;
+pub const CT_ARTIFACT_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-artifact/v6";
+pub const CT_PROVIDER_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-provider/v6";
+pub const CT_DEPENDENCY_FINGERPRINT_DOMAIN: &[u8] = b"zil/ct-dependencies/v6";
 
 macro_rules! ct_id {
     ($($name:ident),+ $(,)?) => {$(
@@ -656,6 +656,12 @@ pub enum CtInstructionKind {
     TypePrimitive(CtScalarTy),
     TypeBuiltin(CtBuiltinType),
     TypeName(CtSymbolId),
+    /// A complete source-attributed Type graph. Admission checks its physical
+    /// tree, lexical owners, declarations and authentic source expression.
+    /// A graph or its fingerprint alone never authenticates this instruction.
+    TypeInContext {
+        ty: CtTypeRef,
+    },
     TypeApply {
         nominal: CtSymbolId,
         arguments: Vec<CtValueId>,

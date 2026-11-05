@@ -46,6 +46,9 @@ impl Compiler<'_> {
                 }
             }
         }
+        if !self.source_type_sites.is_empty() {
+            return Ok(true);
+        }
         Ok(false)
     }
     pub(super) fn mixed_parameters(parameters: &[s::GenericParam]) -> bool {
@@ -361,6 +364,7 @@ impl Builder<'_, '_> {
             "CT actual call ledger bytes exhausted",
         )?;
         let callee = self.compiler.item_symbol(d.module, d.item)?;
+        let site = self.compiler.current_expression_site(span)?;
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
@@ -371,6 +375,7 @@ impl Builder<'_, '_> {
                 callee,
                 instance: function,
                 actuals,
+                site,
             });
         if result == CtTy::Scalar(CtScalarTy::Unit) {
             self.op(

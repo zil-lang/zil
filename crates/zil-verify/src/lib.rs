@@ -97,6 +97,7 @@ mod tasks;
 pub use ct_artifact::{
     CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage, CtVerificationMeter,
     VerifiedCTArtifactProgram, verify_ct_artifact, verify_ct_artifact_metered,
+    verify_ct_type_graph_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 

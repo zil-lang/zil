@@ -3,6 +3,8 @@
 use super::{compiler::Entry, source_index::SourceIndex};
 #[path = "invocation_context_calls.rs"]
 mod calls;
+#[path = "invocation_context_source_types.rs"]
+mod source_types;
 #[path = "invocation_context_relocations.rs"]
 mod relocations;
 use std::sync::Arc;
@@ -79,6 +81,7 @@ pub(super) struct FrozenInvocationContext {
     pub bytes: u64,
     origins: Option<Arc<Vec<ModuleDeclarationOrigins>>>,
     modules: Vec<Arc<ParseResult>>,
+    authenticated_types: Vec<source_types::AuthenticatedTypeSite>,
 }
 impl FrozenInvocationContext {
     pub(super) fn freeze(
@@ -210,6 +213,7 @@ impl FrozenInvocationContext {
             bytes,
             origins: Some(origins.clone()),
             modules: parsed.to_vec(),
+            authenticated_types: Vec::new(),
         })))
     }
     pub(super) fn active_scope_count(&self) -> usize {

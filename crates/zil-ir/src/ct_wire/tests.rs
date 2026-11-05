@@ -730,6 +730,7 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
         ][index];
         assert_eq!(decode_value(prior, &limits), Err(WireError::BadFingerprint));
         let mut current = prior.to_vec();
+        current[..8].copy_from_slice(VALUE_MAGIC);
         current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
         resign(&mut current, VALUE_DOMAIN);
         assert_eq!(fresh, current);
@@ -767,6 +768,7 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
     // Schema2 adds only the explicitly frozen target width after the inner
     // schema; all pre-iterative recursive payload bytes remain the old golden.
     let mut current = prior.to_vec();
+    current[..8].copy_from_slice(PROGRAM_MAGIC);
     current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current[12..16].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current.splice(16..16, 64u16.to_le_bytes());

@@ -102,6 +102,12 @@ impl Builder<'_, '_> {
     }
 
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
+        let old = self.compiler.current_source_expr.replace((self.module, e as *const s::Expr as usize));
+        let result = self.expr_at_source(e, expected, depth);
+        self.compiler.current_source_expr = old;
+        result
+    }
+    fn expr_at_source(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
         if let Some(CtTy::AnonymousSum(members)) = expected
             && !matches!(e.kind, s::ExprKind::If { .. } | s::ExprKind::MetaBlock(_))
         {
@@ -578,6 +584,17 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
+                if arguments.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_))) {
+                    if self.compiler.checking_generics {
+                        self.compiler.abstract_nominal(self.module, owner, item, arguments, depth + 1, span)?;
+                        return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, span);
+                    }
+                    let data = self.compiler.source_scoped_nominal(
+                        self.module, owner, item, arguments, depth + 1, span,
+                    )?;
+                    let graph = self.compiler.metadata_data(&data, span, depth + 1)?;
+                    return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+                }
                 let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut ids = Vec::new();
                 for argument in arguments {
@@ -725,6 +742,12 @@ impl Builder<'_, '_> {
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
     }
     pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
+        let old = self.compiler.current_source_type.replace((module, ty as *const s::TypeRef as usize));
+        let result = self.type_ref_inner(module, ty, depth);
+        self.compiler.current_source_type = old;
+        result
+    }
+    fn type_ref_inner(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, ty.span)?;
         match &ty.kind {
             s::TypeKind::Named { path, args } if args.is_empty() => {
@@ -754,6 +777,12 @@ impl Builder<'_, '_> {
                 result
             }
             s::TypeKind::Named { path, args } => {
+                if !self.compiler.checking_generics
+                    && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
+                    let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
+                    return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+                }
                 if path.len() == 1 && self.compiler.binding(&path[0], ty.span)?.is_some() {
                     return Err(error(ty.span, "CT type binder takes no type arguments"));
                 }

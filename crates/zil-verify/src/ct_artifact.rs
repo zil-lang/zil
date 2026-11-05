@@ -59,6 +59,16 @@ pub trait CtArtifactAuthority {
     /// Compare with a trusted compilation of the frozen source definition;
     /// a raw body cannot inherit another definition's private query rights.
     fn authenticate_function(&self, function: &CtFunction) -> bool;
+    /// Independent frozen-source attribution for the complete Type expression
+    /// at this actual instruction. Raw graph equality is insufficient.
+    fn authenticate_type_context(
+        &self,
+        _function: &CtFunction,
+        _instruction: &CtInstruction,
+        _ty: &CtTypeRef,
+    ) -> bool {
+        false
+    }
     fn authorize_symbol(
         &self,
         requester: &CtSymbolId,
@@ -674,6 +684,18 @@ fn check_ambient_metadata(
     scopes::check(raw, limits, authority, meter)
 }
 
+/// Structural Type admission shared by the artifact kernel and VM. This checks
+/// a complete root tree and every lexical life owner, without constructing a
+/// verified program or granting source authority to an arbitrary graph.
+pub fn verify_ct_type_graph_metered(
+    graph: &CtTypeRef,
+    raw: &CtArtifactProgram,
+    limits: &Limits,
+    meter: &mut CtVerificationMeter,
+) -> CompileResult<()> {
+    identity::check_graph(graph, raw, limits, meter)
+}
+
 fn check_type_metadata(
     raw: &CtArtifactProgram,
     limits: &Limits,
@@ -705,6 +727,9 @@ fn check_type_metadata(
             check_ty(ty, raw, limits, meter)?;
         }
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                verify_ct_type_graph_metered(ty, raw, limits, meter)?;
+            }
             if let CtInstructionKind::MakeAnonymousSum { members, .. } = &instruction.kind {
                 identity::check_members(members, raw, limits, meter)?;
                 for member in members {
@@ -1090,7 +1115,8 @@ fn operands(kind: &CtInstructionKind) -> Vec<CtValueId> {
         | CtInstructionKind::Load(_)
         | CtInstructionKind::TypePrimitive(_)
         | CtInstructionKind::TypeBuiltin(_)
-        | CtInstructionKind::TypeName(_) => Vec::new(),
+        | CtInstructionKind::TypeName(_)
+        | CtInstructionKind::TypeInContext { .. } => Vec::new(),
     }
 }
 
@@ -1464,6 +1490,30 @@ fn check_instruction(
             callee.result_type.clone()
         }
         K::TypePrimitive(_) | K::TypeBuiltin(_) => CtTy::Type,
+        K::TypeInContext { ty } => {
+            expect(
+                authority.authenticate_type_context(function, instruction, ty),
+                "CT contextual Type does not match its actual frozen source expression",
+            )?;
+            for node in &ty.nodes {
+                let symbol = match node {
+                    CtTypeNode::Nominal { symbol, .. } => Some(symbol),
+                    CtTypeNode::Opaque { identity } => Some(identity),
+                    _ => None,
+                };
+                if let Some(symbol) = symbol {
+                    expect(
+                        authority.authorize_symbol(
+                            &function.definition,
+                            symbol,
+                            CtSymbolUsage::TypeApply,
+                        ),
+                        "CT contextual Type contains an invisible or forged declaration",
+                    )?;
+                }
+            }
+            CtTy::Type
+        }
         K::TypeName(symbol)
         | K::TypeApply {
             nominal: symbol, ..
