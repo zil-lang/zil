@@ -162,6 +162,16 @@ pub(crate) fn original_function<'a>(
     }))
 }
 
+/// Select a retained original AST node, never its spelling or source span.
+pub(crate) fn original_item<'a>(
+    module: &'a s::Module,
+    item: &'a s::Item,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<OriginalItem<'a>>> {
+    select(module, Selection::Node(item), max_depth, pay)
+}
+
 /// The caller owns an aligned clone of this original member vector. Its
 /// ordinal remains authentic even when sibling spans are equal.
 pub(crate) fn original_member(
