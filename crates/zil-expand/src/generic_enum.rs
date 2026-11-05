@@ -90,13 +90,17 @@ fn source_field_actuals(
             }
         }
     }
-    budget.substituted_type(field, &substitutions)?;
+    budget.ty(field)?;
     let mut actual = field.clone();
+    // Rebind only lifetimes written in the declaration. A caller's Type
+    // actual may contain the same spelling with a different lexical owner;
+    // inserting it first would capture that unrelated lifetime.
+    source_field_lives(&mut actual, &lives, budget, 0)?;
+    budget.substituted_type(&actual, &substitutions)?;
     Substitution {
         substitutions: &substitutions,
     }
     .ty(&mut actual);
-    source_field_lives(&mut actual, &lives, budget, 0)?;
     Ok(actual)
 }
 

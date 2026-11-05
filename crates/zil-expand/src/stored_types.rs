@@ -964,46 +964,6 @@ fn contains_unresolved(ty: &Type) -> bool {
 /// `aggregate` is the actual substituted declaration and `identity` comes from
 /// the original SourceIndex/Origins chain. Names are used only for lookup and
 /// storage spelling, never parsed to reconstruct declaration identity.
-pub(super) fn instantiate(
-    aggregate: &s::Aggregate,
-    declaration: LifeNominalDeclaration,
-    arguments: Vec<LifeNominalActual>,
-    lifetime_arguments: &[(String, LexicalLife)],
-    budget: &mut generics::Budget<'_>,
-    span: Span,
-) -> R<Instance> {
-    instantiate_joint(
-        aggregate,
-        declaration,
-        arguments,
-        lifetime_arguments,
-        None,
-        budget,
-        span,
-    )
-}
-
-pub(super) fn instantiate_joint(
-    aggregate: &s::Aggregate,
-    declaration: LifeNominalDeclaration,
-    arguments: Vec<LifeNominalActual>,
-    lifetime_arguments: &[(String, LexicalLife)],
-    joint: Option<(&s::Aggregate, &BTreeMap<usize, QualifiedActual>)>,
-    budget: &mut generics::Budget<'_>,
-    span: Span,
-) -> R<Instance> {
-    instantiate_joint_with_fields(
-        aggregate,
-        declaration,
-        arguments,
-        lifetime_arguments,
-        joint,
-        &BTreeMap::new(),
-        budget,
-        span,
-    )
-}
-
 pub(super) fn instantiate_joint_with_fields(
     aggregate: &s::Aggregate,
     declaration: LifeNominalDeclaration,
@@ -1309,6 +1269,27 @@ pub(super) fn instantiate_enum_joint(
         if actual.name != source.name {
             return Err(invalid(span, "stored enum variant order differs"));
         }
+        let physical_count = match &actual.fields {
+            s::VariantFields::Unit => 0,
+            s::VariantFields::Tuple(fields) => fields.len(),
+            s::VariantFields::Record(fields) => fields.len(),
+        };
+        let source_count = match &source.fields {
+            s::VariantFields::Unit => 0,
+            s::VariantFields::Tuple(fields) => fields.len(),
+            s::VariantFields::Record(fields) => fields.len(),
+        };
+        spend(
+            shape.budget,
+            span,
+            physical_count.saturating_add(source_count),
+        )?;
+        shape.budget.lineage_bytes(
+            physical_count
+                .saturating_add(source_count)
+                .saturating_mul(std::mem::size_of::<&s::TypeRef>()),
+            span,
+        )?;
         let physical_fields: Vec<&s::TypeRef> = match &actual.fields {
             s::VariantFields::Unit => Vec::new(),
             s::VariantFields::Tuple(fields) => fields.iter().map(|field| &field.ty).collect(),
@@ -1405,6 +1386,31 @@ pub(super) fn instantiate_enum_joint(
 mod source_tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
+
+    #[test]
+    fn nested_type_actual_keeps_callers_distinct_life_from_outer_formal() {
+        let core = expand_text("struct Leaf<life a>{n:i32}struct Wrap<T:Copy>{v:T}struct Outer<life a,T:Copy>{v:Wrap<T>}fn accept<life a,life b>(p:&'a i32,q:&'b i32,x:Outer<'b,Leaf<'a>>)->i32{return 0}fn main(){}").unwrap();
+        let outer = core.life_instances.iter().find(|instance|
+            matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Record { name, .. } if name.starts_with("$stored_Outer_"))))
+            .expect("actual Outer specialization");
+        let Type::BorrowedStorage { life, .. } = &outer.ty else {
+            unreachable!()
+        };
+        assert_eq!(
+            life.binder_count, 2,
+            "caller Type life must not collapse into outer formal life"
+        );
+        assert!(life.retained.iter().any(|row| row.binder == 1
+            && row.path == [LifeTypeProjection::Place(PlaceProjection::Field(0))]));
+        assert!(matches!(
+            outer.arguments.as_slice(),
+            [
+                LifeNominalActual::Lifetime(0),
+                LifeNominalActual::Type(Type::BorrowedStorage { .. })
+            ]
+        ));
+    }
 
     #[test]
     fn stored_const_actuals_preserve_full_life_type_const_ordinals_and_bits() {
