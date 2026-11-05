@@ -54,8 +54,10 @@ impl Compiler<'_> {
             span,
         )?;
         for argument in left.arguments.iter().chain(&right.arguments) {
-            if let CtSchemaArgument::Type(graph) = argument {
-                self.budget.metadata(graph, span)?;
+            match argument {
+                CtSchemaArgument::Type(graph) => self.budget.metadata(graph, span)?,
+                CtSchemaArgument::Scalar(Constant::WideString(_)) => return Ok(false),
+                _ => {}
             }
         }
         if left.origin != CtSchemaOrigin::UserPure

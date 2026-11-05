@@ -112,9 +112,17 @@ impl FrozenInvocationContext {
                 )?);
             budget.reserve_analysis_work(cost)?;
             for argument in source.arguments.iter().chain(&target.arguments) {
-                if let CtSchemaArgument::Type(graph) = argument {
-                    let cost = super::super::execute::value_context::graph_cost(graph, budget)?;
-                    budget.reserve_analysis_work(cost)?;
+                match argument {
+                    CtSchemaArgument::Type(graph) => {
+                        let cost = super::super::execute::value_context::graph_cost(graph, budget)?;
+                        budget.reserve_analysis_work(cost)?;
+                    }
+                    CtSchemaArgument::Scalar(zil_ir::Constant::WideString(_)) => {
+                        return Err(unsupported(
+                            "CT record relocation const actual is not a pure scalar",
+                        ));
+                    }
+                    _ => {}
                 }
             }
             if source.arguments != target.arguments
@@ -151,6 +159,22 @@ impl FrozenInvocationContext {
                     budget,
                 )?;
                 budget.reserve_analysis_work(cost)?;
+                budget.reserve_analysis_work(
+                    call.actuals.len() as u64 * std::mem::size_of::<CtScopeActual>() as u64,
+                )?;
+                for actual in &call.actuals {
+                    match actual {
+                        CtScopeActual::Type(graph) => {
+                            let cost =
+                                super::super::execute::value_context::graph_cost(graph, budget)?;
+                            budget.reserve_analysis_work(cost)?;
+                        }
+                        CtScopeActual::Scalar(zil_ir::Constant::WideString(text)) => {
+                            budget.reserve_analysis_work(text.len() as u64 * 2)?;
+                        }
+                        _ => {}
+                    }
+                }
                 if scope.declaration != call.callee
                     || !scope.binder_site.is_empty()
                     || actuals != &call.actuals
