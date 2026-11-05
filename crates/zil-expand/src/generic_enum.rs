@@ -47,6 +47,124 @@ pub(super) fn substituted(
     .ty(&mut ty);
     Ok(ty)
 }
+
+fn source_field_actuals(
+    formals: &[GenericParam],
+    arguments: &[GenericArg],
+    field: &TypeRef,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    if formals.len() != arguments.len() {
+        return Err(error(
+            field.span,
+            "source field needs full ordered nominal actuals",
+        ));
+    }
+    let mut substitutions = BTreeMap::new();
+    let mut lives = BTreeMap::new();
+    for (formal, argument) in formals.iter().zip(arguments) {
+        budget.text(&formal.name, formal.span)?;
+        match (&formal.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                budget.text(name, field.span)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, String)>(), field.span)?;
+                lives.insert(formal.name.clone(), name.clone());
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), field.span)?;
+                substitutions.insert(formal.name.clone(), ty.clone());
+            }
+            (GenericParamKind::Const(_), arg) => {
+                let value = consts::argument(arg, Some(formal), budget)?;
+                let value = consts::normalize(formal, &value, budget)?;
+                budget.ty(&value)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), field.span)?;
+                substitutions.insert(formal.name.clone(), value);
+            }
+            _ => {
+                return Err(error(
+                    field.span,
+                    "source field actual kind differs from formal",
+                ));
+            }
+        }
+    }
+    budget.substituted_type(field, &substitutions)?;
+    let mut actual = field.clone();
+    Substitution {
+        substitutions: &substitutions,
+    }
+    .ty(&mut actual);
+    source_field_lives(&mut actual, &lives, budget, 0)?;
+    Ok(actual)
+}
+
+fn source_field_lives(
+    ty: &mut TypeRef,
+    lives: &BTreeMap<String, String>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
+    match &mut ty.kind {
+        TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+            for argument in args {
+                match argument {
+                    GenericArg::Lifetime(name) => {
+                        budget.text(name, ty.span)?;
+                        if let Some(actual) = lives.get(name) {
+                            budget.text(actual, ty.span)?;
+                            *name = actual.clone();
+                        }
+                    }
+                    GenericArg::Type(inner) => source_field_lives(inner, lives, budget, depth + 1)?,
+                    GenericArg::Const(_) => {}
+                }
+            }
+        }
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => {
+            if let Some(name) = lifetime
+                && let Some(actual) = lives.get(name)
+            {
+                budget.text(name, ty.span)?;
+                budget.text(actual, ty.span)?;
+                *name = actual.clone();
+            }
+            source_field_lives(inner, lives, budget, depth + 1)?;
+        }
+        TypeKind::Group(inner) | TypeKind::Optional(inner) => {
+            source_field_lives(inner, lives, budget, depth + 1)?
+        }
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
+            for field in fields {
+                source_field_lives(field, lives, budget, depth + 1)?;
+            }
+        }
+        TypeKind::Array { element, .. } => source_field_lives(element, lives, budget, depth + 1)?,
+        TypeKind::Error { error, result } => {
+            source_field_lives(error, lives, budget, depth + 1)?;
+            source_field_lives(result, lives, budget, depth + 1)?;
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            for parameter in params {
+                source_field_lives(parameter, lives, budget, depth + 1)?;
+            }
+            source_field_lives(result, lives, budget, depth + 1)?;
+        }
+        TypeKind::ForLifetime { .. } if !lives.is_empty() => {
+            return Err(unsupported(
+                ty.span,
+                "source field nested lifetime binder needs scoped substitution",
+            ));
+        }
+        _ => {}
+    }
+    Ok(())
+}
 pub(super) fn context(
     decl: &EnumDecl,
     expected: Option<&TypeRef>,
@@ -441,6 +559,125 @@ impl Engine<'_> {
         };
         let variant = variant.to_owned();
         let raw_fields = fields(decl, &variant, span)?;
+        if self.stored_nominals
+            && decl
+                .generics
+                .iter()
+                .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+        {
+            let source_arguments = if let Some(explicit) = explicit {
+                if explicit.len() != decl.generics.len() {
+                    return Err(error(
+                        span,
+                        "stored enum constructor needs full ordered actuals",
+                    ));
+                }
+                for argument in explicit {
+                    self.budget.node(span, depth)?;
+                    match argument {
+                        GenericArg::Type(ty) => self.budget.ty(ty)?,
+                        GenericArg::Lifetime(name) => self.budget.text(name, span)?,
+                        GenericArg::Const(value) => self.budget.const_expression(value)?,
+                    }
+                }
+                explicit.to_vec()
+            } else {
+                let source_expected = expected.ok_or_else(|| {
+                    unsupported(
+                        span,
+                        "stored enum constructor needs source actuals or a full source context",
+                    )
+                })?;
+                let TypeKind::Named { path, args } = &grouped(source_expected).kind else {
+                    return Err(unsupported(
+                        span,
+                        "stored enum constructor needs nominal source context",
+                    ));
+                };
+                if path.as_slice() != [decl.name.as_str()] || args.len() != decl.generics.len() {
+                    return Err(unsupported(
+                        span,
+                        "stored enum constructor source context differs",
+                    ));
+                }
+                self.budget.ty(source_expected)?;
+                args.clone()
+            };
+            let supplied = arguments.as_ref().map_or(0, |a| a.len());
+            if supplied != raw_fields.len() {
+                return Err(error(
+                    span,
+                    "stored enum constructor payload arity mismatch",
+                ));
+            }
+            if let Some(values) = arguments {
+                for (value, field) in values.iter_mut().zip(raw_fields) {
+                    if value.spread {
+                        return Err(unsupported(value.span, "enum payload tuple spread"));
+                    }
+                    let mut hint = source_field_actuals(
+                        &decl.generics,
+                        &source_arguments,
+                        &field.ty,
+                        &mut self.budget,
+                    )?;
+                    self.ty(&mut hint, depth + 1)?;
+                    let actual = if let Some(actual) =
+                        self.expr_expected(&mut value.value, env, Some(&hint), depth + 1)?
+                    {
+                        actual
+                    } else {
+                        self.value_hint(&value.value, env, depth + 1, true)?
+                            .ok_or_else(|| {
+                                error(value.span, "stored enum payload type cannot be inferred")
+                            })?
+                    };
+                    let actual = self.original_type(&actual)?;
+                    let expected = self.original_type(&hint)?;
+                    if type_key(&actual, &mut self.budget)?
+                        != type_key(&expected, &mut self.budget)?
+                    {
+                        return Err(error(
+                            value.span,
+                            "stored enum payload differs from source field",
+                        ));
+                    }
+                }
+            }
+            for argument in &source_arguments {
+                match argument {
+                    GenericArg::Type(ty) => self.budget.ty(ty)?,
+                    GenericArg::Lifetime(name) => self.budget.text(name, span)?,
+                    GenericArg::Const(value) => self.budget.const_expression(value)?,
+                }
+            }
+            let mut actuals = source_arguments.clone();
+            let (generated, classes) =
+                self.stored_nominal(&decl.name, &mut actuals, span, depth + 1)?;
+            if let Some(expected) = expected
+                && let TypeKind::Named { path, args } = &grouped(expected).kind
+                && path.as_slice() == [decl.name.as_str()]
+            {
+                self.budget.ty(expected)?;
+                let mut expected_args = args.clone();
+                let (expected_name, expected_classes) =
+                    self.stored_nominal(&decl.name, &mut expected_args, span, depth + 1)?;
+                if generated != expected_name || classes != expected_classes {
+                    return Err(error(
+                        span,
+                        "stored enum constructor differs from source context",
+                    ));
+                }
+            }
+            callee.kind = ExprKind::Member {
+                object: Box::new(Expr {
+                    kind: ExprKind::Name(generated.clone()),
+                    span,
+                }),
+                member: MemberName::Name(variant),
+            };
+            return Ok(Some(named(&generated, span)));
+        }
         let mut found = BTreeMap::new();
         let vars = decl
             .generics
@@ -680,6 +917,14 @@ impl Engine<'_> {
         Ok(())
     }
     pub(super) fn record_field(&mut self, ty: &TypeRef, member: &str) -> R<Option<TypeRef>> {
+        let Some(mut result) = self.source_record_field(ty, member)? else {
+            return Ok(None);
+        };
+        self.ty(&mut result, 0)?;
+        Ok(Some(result))
+    }
+
+    pub(super) fn source_record_field(&mut self, ty: &TypeRef, member: &str) -> R<Option<TypeRef>> {
         let original = self.original_type(ty)?;
         let TypeKind::Named { path, args } = &grouped(&original).kind else {
             return Ok(None);
@@ -697,17 +942,28 @@ impl Engine<'_> {
         if decl.generics.len() != args.len() {
             return Err(error(ty.span, "generic record argument arity mismatch"));
         }
-        let mut found = BTreeMap::new();
-        for (p, arg) in decl.generics.iter().zip(args) {
-            let GenericArg::Type(t) = arg else {
-                return Err(unsupported(ty.span, "const record argument"));
-            };
-            self.budget.ty(t)?;
-            found.insert(p.name.clone(), t.clone());
+        if decl
+            .generics
+            .iter()
+            .all(|p| matches!(p.kind, GenericParamKind::Type(_)))
+            && args.iter().all(|arg| matches!(arg, GenericArg::Type(_)))
+        {
+            let mut found = BTreeMap::new();
+            for (p, arg) in decl.generics.iter().zip(args) {
+                let GenericArg::Type(t) = arg else {
+                    unreachable!()
+                };
+                self.budget.ty(t)?;
+                found.insert(p.name.clone(), t.clone());
+            }
+            return Ok(Some(substituted(&field.ty, &found, &mut self.budget)?));
         }
-        let mut result = substituted(&field.ty, &found, &mut self.budget)?;
-        self.ty(&mut result, 0)?;
-        Ok(Some(result))
+        Ok(Some(source_field_actuals(
+            &decl.generics,
+            args,
+            &field.ty,
+            &mut self.budget,
+        )?))
     }
     pub(super) fn call_hints(
         &mut self,
