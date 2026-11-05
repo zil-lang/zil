@@ -56,6 +56,7 @@ fn replacement_actual_origin_does_not_upgrade_a_shared_parent_claim() {
     let facts = origins::module(
         &module,
         &[(vec![vec![]], vec![true])],
+        false,
         &mut Budget::new(&limits),
     )
     .unwrap();
