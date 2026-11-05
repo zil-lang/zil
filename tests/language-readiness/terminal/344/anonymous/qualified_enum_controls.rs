@@ -250,9 +250,13 @@ fn g4463_array_signature_cannot_drop_its_complete_class_contract() {
         // relation connecting the real nested classes to the signature is gone.
         assert_eq!(missing.life_instances, raw.life_instances);
         let analyzed = zil_analyze::analyze(&missing, &limits).unwrap_err();
+        // A coherent hostile claim must reach the independent class checker,
+        // rather than being rejected only for the old module fingerprint.
+        let mut claim = plan.clone();
+        claim.module_fingerprint = missing.fingerprint();
         let verified =
-            zil_verify::verify_module(missing.clone(), plan.clone(), &target, &limits).unwrap_err();
-        let bytes = zil_ir::wire::encode_module_candidate(&missing, &plan, &limits).unwrap();
+            zil_verify::verify_module(missing.clone(), claim.clone(), &target, &limits).unwrap_err();
+        let bytes = zil_ir::wire::encode_module_candidate(&missing, &claim, &limits).unwrap();
         let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
         for errors in [analyzed, verified, decoded] {
             assert!(
