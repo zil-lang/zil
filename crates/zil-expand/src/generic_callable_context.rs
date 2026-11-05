@@ -147,7 +147,7 @@ impl Engine<'_> {
         fixed: &[crate::stored_types::LexicalLife],
         invocation: &[crate::stored_types::LexicalLife],
         generic_parameter: usize,
-        runtime_parameter: usize,
+        runtime_parameter: Option<usize>,
     ) -> R<()> {
         if self.life_scope.is_empty() {
             return Ok(());
@@ -202,7 +202,7 @@ impl Engine<'_> {
         }
         let mut selected_roles = selected.roles.iter().filter(|role| {
             role.source_generic_parameter == generic_parameter as u32
-                && role.index == runtime_parameter
+                && runtime_parameter.is_none_or(|parameter| role.index == parameter)
         });
         let Some(selected_role) = selected_roles.next() else {
             return Err(unavailable(

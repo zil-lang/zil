@@ -776,4 +776,26 @@ fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
         .unwrap();
     role.source_life.as_mut().unwrap().generic_parameter = 0;
     assert!(zil_types::check(&false_ordinal, &target, &limits).is_err());
+
+    let aliased_mutable = text.replace(
+        "all_mut(&mut d,&mut e,&mut f,left)",
+        "all_mut(&mut d,&mut d,&mut f,left)",
+    );
+    let rejected = compile_source(
+        &source(&aliased_mutable),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    eprintln!(
+        "G339 qualified same-F mutable alias rejection: {}",
+        rejected.to_json()
+    );
 }
