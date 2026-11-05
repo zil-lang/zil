@@ -1,31 +1,61 @@
 {
   "task": "G4.4.7.2",
   "base": "9281069d8",
-  "implementation": "c51b7f8f4eabceccbc521a5dbd1419729d2ffe39",
+  "implementation": "87b258848995232df0c336be7635dada78917233",
   "scope": "Restore original CT source clone lifecycle, independent constructor-based ambient Type inference, and native scalar receiving context; preserve source authorization and deferred specialization",
   "checks": [
-    {"command": "cargo check -p zil-driver --lib -j1 --offline", "result": "PASS", "seconds": 38.69, "stage": "initial clone implementation"},
-    {"command": "cargo check -p zil-driver --all-targets -j1 --offline", "result": "PASS", "seconds": 48.88, "revision": "b4563184ccc8fe389fc8b032111feef42e226846"},
-    {"command": "cargo check -p zil-driver --all-targets -j1 --offline", "result": "PASS", "seconds": 53.10, "revision": "c51b7f8f4eabceccbc521a5dbd1419729d2ffe39"}
+    {
+      "command": "cargo check -p zil-driver --lib -j1 --offline",
+      "result": "PASS",
+      "seconds": 38.69,
+      "stage": "initial clone implementation"
+    },
+    {
+      "command": "cargo check -p zil-driver --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 48.88,
+      "revision": "b4563184ccc8fe389fc8b032111feef42e226846"
+    },
+    {
+      "command": "cargo check -p zil-driver --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 53.1,
+      "revision": "c51b7f8f4eabceccbc521a5dbd1419729d2ffe39"
+    },
+    {
+      "command": "cargo check -p zil-driver --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 58.48,
+      "revision": "87b258848995232df0c336be7635dada78917233"
+    }
   ],
   "tests_added": [
     "closed_generic_scalar_is_materialized_even_with_an_unrelated_deferred_root",
     "inferred_ambient_copy_actual_is_recovered_from_the_original_value_constructor",
-    "closed_generic_float_preserves_its_actual_receiving_spelling_and_context"
+    "closed_generic_float_preserves_its_actual_receiving_spelling_and_context",
+    "mixed_native_and_deferred_roots_keep_every_original_meta_ordinal"
   ],
-  "execution": "Pending root's coordinated linked Source/raw/Wire/native regression window; author did not run a heavy suite",
+  "execution": "87b preserves original native MetaEval and receiving context, does not change helper/closure gates; coordinated execution pending root",
   "independent_static_review": "/root/static_host_design reviewed inferred-value category and unrelated-deferred-root composition; both findings narrowed before b456",
   "limits": [
     "Ambient inferred generic vectors currently require Type-only direct formal constraints from original record constructor values; no local-name provenance or arbitrary call-result inference is invented",
-    "Only Literal/Group generic roots use the eager verified scalar bridge; original literal spelling remains for native expected typing; Unary/Binary computation is not moved ahead",
+    "Literal/Group roots retain original MetaEval and use native expected-type checking. Deferred roots retain all original ordinals and are classified from frozen source even when substitution makes output literal.",
     "Prepared selection with Unavailable declaration lineage is never promoted to Original source authority",
     "Recursive B new Source annotation failures remain assigned to the original source-key author; no native recovery claim is made here"
   ],
   "rust_goals": {
-    "safety": "Structural SourceSite authority preserved across real AST moves; private producer facts remain candidates for independent frozen-AST checks",
+    "safety": "Unmodified native literal roots retain original helper/closure capabilities; substituted deferred roots still authenticate frozen source; preserved output literals are compared by exact kind/text/Group structure",
     "runtime_memory": "No implicit runtime allocation, ownership or ABI change; same-semantics Rust runtime/RSS comparison not measured",
     "compile_cost": "All clone correspondence snapshots prepay traversal and temporary backing; no performance advantage claim",
     "maintenance": "One first-clone correspondence plus provenance-preserving moves replaces repeated owner-based re-zipping; maintenance-cost comparison not measured",
     "increment": "Compiler reliability restoration for existing source combinations; product-level four-goal conjunction remains unestablished"
+  },
+  "joint_followup": {
+    "revision": "924eac32fe299f2cc827ae2530c49f0800678efe",
+    "author": "root",
+    "scoped": "11 PASS / 2 FAIL",
+    "passes": "Original CT4 and scalar record Source/native restored; auth13 PASS. Existing scoped clone/Self/rawWire/native/budget controls in ct-scoped.log pass.",
+    "failures": "Fn/FnMut and new unrelated-deferred literal case lost helper Unreplaced capability after eager rewrite; Type-then-Life old pre-specialization assertion pending c51 migration.",
+    "logs": "/workspace/.zil-env/G10.1.11-followup/{ct-scoped,ct-closed-fn,ct-closed-fnmut}.log"
   }
 }
