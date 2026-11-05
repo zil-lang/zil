@@ -35,6 +35,16 @@ impl<'a> Compiler<'a> {
             if receiver || !self.ct_only_function(module, function)? {
                 continue;
             }
+            for sibling in &aggregate.methods {
+                self.budget.work(1, sibling.span)?;
+                if let s::ItemKind::Function(other) = &sibling.kind {
+                    self.budget
+                        .work(function.name.len().min(other.name.len()) + 1, sibling.span)?;
+                    if !std::ptr::eq(sibling, item) && other.name == function.name {
+                        return Err(error(sibling.span, "duplicate CT member declaration"));
+                    }
+                }
+            }
             self.budget.node(item.span)?;
             Budget::take(
                 &mut self.budget.bytes,

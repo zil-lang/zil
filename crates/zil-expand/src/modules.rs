@@ -318,6 +318,10 @@ fn normalize(
             snapshot.capture_identities(module, false, &resolved, &mut budget)?;
             let output = origins.as_mut().expect("dyn provenance ledger");
             for (key, identity) in snapshot.identities {
+                budget.lineage_bytes(
+                    std::mem::size_of::<crate::source_context::DeclarationOrigin>(),
+                    module.span,
+                )?;
                 for _ in 0..output
                     .identities
                     .len()
