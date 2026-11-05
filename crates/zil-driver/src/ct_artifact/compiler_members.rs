@@ -125,7 +125,7 @@ impl<'a> Compiler<'a> {
             };
             (module, &path[1], &path[2])
         };
-        let mut host = None;
+        let mut host = self.generated_named_item(module, host_name, span)?;
         for item in &self.modules[module].syntax.items {
             self.budget.work(1, span)?;
             let s::ItemKind::Aggregate(aggregate) = &item.kind else {
