@@ -283,6 +283,7 @@ impl FrozenInvocationContext {
         }
         let raw = CtAmbientLifeScope {
             declaration: call.callee.clone(),
+            enclosing: None,
             binder_site: Vec::new(),
             instance: CtScopeInstance::Instantiated(Vec::new()),
         };

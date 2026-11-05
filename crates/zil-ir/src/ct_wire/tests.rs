@@ -135,6 +135,7 @@ fn rich_callable_and_ambient_scope_claims_are_lossless_bounded_raw_data() {
     assert_eq!(decode_value(&bytes, &limits), Ok(value.clone()));
     let mut p = program();
     p.ambient_life_scopes.push(CtAmbientLifeScope {
+            enclosing: None,
         declaration: CtSymbolId {
             module: ModuleId(4),
             declaration: NodeId(7),

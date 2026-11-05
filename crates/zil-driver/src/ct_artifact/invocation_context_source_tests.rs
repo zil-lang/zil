@@ -101,7 +101,14 @@ fn fixture(text: &str, entry: u32) -> Fixture {
         max_analysis_work: limits.max_analysis_steps as u64,
     });
     let context = FrozenInvocationContext::freeze(
-        &Entry::Function(definition),
+        &Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: Some(definition),
+            expected: None,
+            parameters: &[],
+        },
         &parsed,
         &index,
         Some(&origins),
@@ -201,5 +208,73 @@ fn source_type_instruction_requires_the_original_type_site() {
         f.context
             .validate_type_contexts(&f.facts, &f.raw, &f.index, &mut f.budget)
             .is_err()
+    );
+}
+
+#[test]
+fn source_site_cannot_borrow_a_real_sibling_expression() {
+    let mut f = fixture(
+        "struct Phantom<life a>{n:i32} fn query<T:Copy,life a,life b>(p:&'a i32)->i32{let value:Type=#(Phantom::<'a>);let other:Type=#(Phantom::<'b>);return 0}",
+        1,
+    );
+    f.context
+        .validate_type_contexts(&f.facts, &f.raw, &f.index, &mut f.budget)
+        .unwrap();
+    let module = &f.context.modules[0].module;
+    let s::ItemKind::Function(function) = &module.items[1].kind else {
+        unreachable!()
+    };
+    let s::FunctionBody::Block(block) = &function.body else {
+        unreachable!()
+    };
+    let s::StmtKind::Binding { value, .. } = &block.statements[1].kind else {
+        unreachable!()
+    };
+    let s::ExprKind::MetaEval(sibling) = &value.kind else {
+        unreachable!()
+    };
+    let sibling_site = source_sites::select(
+        module,
+        Selection::Expr(sibling.as_ref() as *const s::Expr as usize),
+        128,
+        |_| Ok(()),
+    )
+    .unwrap()
+    .unwrap()
+    .site;
+    for binding in &mut f.facts.bindings {
+        binding.site = Some(sibling_site);
+        binding.parameters[0] = 2;
+    }
+    for event in &mut f.facts.type_sites {
+        event.site = sibling_site;
+    }
+    for schema in &mut f.raw.record_schemas {
+        if let Some(graph) = &mut schema.life_context {
+            for row in &mut graph.ambient_classes {
+                row.source.parameter = 2;
+            }
+        }
+    }
+    for function in &mut f.raw.functions {
+        for block in &mut function.blocks {
+            for instruction in &mut block.instructions {
+                if let CtInstructionKind::TypeInContext { ty } = &mut instruction.kind {
+                    for row in &mut ty.ambient_classes {
+                        row.source.parameter = 2;
+                    }
+                }
+            }
+        }
+    }
+    let error = f
+        .context
+        .validate_type_contexts(&f.facts, &f.raw, &f.index, &mut f.budget)
+        .unwrap_err();
+    assert!(
+        error[0]
+            .message
+            .contains("actual frozen invocation expression"),
+        "{error:?}"
     );
 }

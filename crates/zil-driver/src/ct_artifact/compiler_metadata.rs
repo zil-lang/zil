@@ -431,6 +431,37 @@ impl Compiler<'_> {
         )?;
         result
     }
+    pub(super) fn metadata_source_has_ambient(&mut self, ty: &s::TypeRef, depth: usize) -> R<bool> {
+        self.budget.depth(depth, ty.span)?;
+        self.budget.work(1, ty.span)?;
+        match &ty.kind {
+            s::TypeKind::Named { path, args } => {
+                if path.len() == 1 && args.is_empty()
+                    && let Some(graph) = self.metadata_binding(&path[0], ty.span)?
+                {
+                    return Ok(!graph.ambient_classes.is_empty()
+                        || matches!(graph.nodes.get(graph.root.0 as usize), Some(CtTypeNode::BorrowedStorage { .. })));
+                }
+                for arg in args {
+                    match arg {
+                        s::GenericArg::Lifetime(_) => return Ok(true),
+                        s::GenericArg::Type(inner) if self.metadata_source_has_ambient(inner, depth + 1)? => return Ok(true),
+                        _ => {}
+                    }
+                }
+                Ok(false)
+            }
+            s::TypeKind::Tuple(parts) | s::TypeKind::Union(parts) => {
+                for part in parts {
+                    if self.metadata_source_has_ambient(part, depth + 1)? { return Ok(true); }
+                }
+                Ok(false)
+            }
+            s::TypeKind::Group(inner) | s::TypeKind::Array { element: inner, .. } => self.metadata_source_has_ambient(inner, depth + 1),
+            _ => Ok(false),
+        }
+    }
+
     pub(super) fn metadata_type(
         &mut self,
         module: usize,

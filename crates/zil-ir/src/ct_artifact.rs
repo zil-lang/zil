@@ -183,6 +183,8 @@ pub enum CtScopeInstance {
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CtAmbientLifeScope {
+    /// Authentic lexical host context; each row retains only its own actuals.
+    pub enclosing: Option<CtAmbientScopeId>,
     pub declaration: CtSymbolId,
     pub binder_site: Vec<u32>,
     pub instance: CtScopeInstance,

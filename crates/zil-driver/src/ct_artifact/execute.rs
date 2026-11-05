@@ -463,7 +463,7 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<CtValue> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false)
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false, None)
             .map(|output| output.value)
     }
     pub(super) fn evaluate_data(
@@ -474,7 +474,18 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<EvaluatedData> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true)
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true, None)
+    }
+    pub(super) fn evaluate_data_at_source(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+        site: compiler::source_sites::SourceSite,
+    ) -> CompileResult<EvaluatedData> {
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true, Some(site))
     }
     fn evaluate_data_impl(
         &mut self,
@@ -484,11 +495,12 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
         retain_context: bool,
+        source_site: Option<compiler::source_sites::SourceSite>,
     ) -> CompileResult<EvaluatedData> {
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
         let result =
-            self.evaluate_data_inner(entry, input_tokens, input, arguments, span, retain_context);
+            self.evaluate_data_inner(entry, input_tokens, input, arguments, span, retain_context, source_site);
         if result.is_err() {
             let keep = (self
                 .budget
@@ -511,18 +523,21 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
         retain_context: bool,
+        source_site: Option<compiler::source_sites::SourceSite>,
     ) -> CompileResult<EvaluatedData> {
-        let mut invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
+        let mut invocation_context = super::invocation_context::FrozenInvocationContext::freeze_at_source(
             &entry,
             self.parsed,
             &self.index,
             self.source_origins.as_ref(),
+            Some(&self.generated_catalog),
+            source_site,
             &mut self.budget,
         )?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, source_bindings) = compiler::compile_scoped(CompileRequest {
+        let (expected, source_bindings) = compiler::compile_scoped_at_source(CompileRequest {
             target_pointer_width: self.target.pointer_width,
             modules: &modules,
             source_fingerprint: self.source_fingerprint,
@@ -530,7 +545,7 @@ impl<'a> Environment<'a> {
             input_tokens,
             snapshot: &self.snapshot,
             limits: &selected_limits,
-        })?;
+        }, Some(&self.generated_catalog), source_site)?;
         let declared = expected.budget;
         let before = self.budget.remaining();
         self.budget.reserve_analysis_work(

@@ -33,6 +33,7 @@ pub(crate) struct LocatedNode<'a> {
     pub node: SourceNode<'a>,
     pub function: Option<&'a s::Function>,
 }
+#[derive(Clone, Copy)]
 pub(crate) enum Selection {
     Expr(usize),
     Type(usize),
@@ -54,6 +55,53 @@ pub(crate) fn select_in_tree<'a>(
     module: &'a s::Module,
     tree: SourceTreeId,
     selection: Selection,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<LocatedNode<'a>>> {
+    select_from_node(module, tree, selection, None, max_depth, pay)
+}
+pub(crate) fn contains_node(
+    module: &s::Module,
+    root: SourceNode<'_>,
+    candidate: SourceNode<'_>,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<bool> {
+    let selection = match candidate {
+        SourceNode::Expr(node) => Selection::Expr(node as *const s::Expr as usize),
+        SourceNode::Type(node) => Selection::Type(node as *const s::TypeRef as usize),
+    };
+    Ok(select_from_node(
+        module,
+        SourceTreeId::Original,
+        selection,
+        Some(root),
+        max_depth,
+        pay,
+    )?
+    .is_some())
+}
+pub(crate) fn relative_node<'a>(
+    module: &'a s::Module,
+    root: SourceNode<'a>,
+    selection: Selection,
+    max_depth: usize,
+    pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<LocatedNode<'a>>> {
+    select_from_node(
+        module,
+        SourceTreeId::Original,
+        selection,
+        Some(root),
+        max_depth,
+        pay,
+    )
+}
+fn select_from_node<'a>(
+    module: &'a s::Module,
+    tree: SourceTreeId,
+    selection: Selection,
+    root: Option<SourceNode<'a>>,
     max_depth: usize,
     pay: impl FnMut(usize) -> R<()>,
 ) -> R<Option<LocatedNode<'a>>> {
@@ -606,10 +654,16 @@ pub(crate) fn select_in_tree<'a>(
         max_depth,
         pay,
     };
-    for item in &module.items {
-        walk.item(item, 0)?;
-        if walk.found.is_some() {
-            break;
+    match root {
+        Some(SourceNode::Expr(node)) => walk.expr(node, 0)?,
+        Some(SourceNode::Type(node)) => walk.ty(node, 0)?,
+        None => {
+            for item in &module.items {
+                walk.item(item, 0)?;
+                if walk.found.is_some() {
+                    break;
+                }
+            }
         }
     }
     Ok(walk.found)

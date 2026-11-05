@@ -17,6 +17,11 @@ struct SourceEnvironment<'a> {
     function: &'a s::Function,
     scope: &'a CtAmbientLifeScope,
     scope_id: CtAmbientScopeId,
+    host: Option<(
+        &'a [s::GenericParam],
+        &'a CtAmbientLifeScope,
+        CtAmbientScopeId,
+    )>,
 }
 fn step(budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<()> {
     budget.reserve_analysis_work(1)?;
@@ -84,13 +89,25 @@ fn primitive(name: &str) -> Option<CtScalarTy> {
     })
 }
 fn parameter<'a>(
-    env: &'a SourceEnvironment<'_>,
+    env: &'a SourceEnvironment<'a>,
     name: &str,
     budget: &mut CtExecutionBudget,
-) -> CompileResult<(usize, &'a s::GenericParam)> {
+) -> CompileResult<(
+    usize,
+    &'a s::GenericParam,
+    &'a CtAmbientLifeScope,
+    CtAmbientScopeId,
+)> {
     for (i, p) in env.function.generics.iter().enumerate().rev() {
         if eq_text(name, &p.name, budget)? {
-            return Ok((i, p));
+            return Ok((i, p, env.scope, env.scope_id));
+        }
+    }
+    if let Some((generics, scope, id)) = env.host {
+        for (i, p) in generics.iter().enumerate().rev() {
+            if eq_text(name, &p.name, budget)? {
+                return Ok((i, p, scope, id));
+            }
         }
     }
     Err(unsupported(
@@ -121,6 +138,103 @@ impl FrozenInvocationContext {
             |n| budget.reserve_analysis_work(n as u64),
         )?
         .ok_or_else(|| unsupported("CT source event has no original structural site"))
+    }
+    fn validate_entry_slice(
+        &self,
+        site: SourceSite,
+        definition: &CtSymbolId,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        budget.reserve_analysis_work(32)?;
+        if definition != &self.entry_definition {
+            return Ok(());
+        }
+        let Some(root_site) = self.entry_site else {
+            return Ok(());
+        };
+        if root_site.tree != site.tree || root_site.module != site.module {
+            return Err(unsupported(
+                "CT source event differs from the actual frozen invocation tree",
+            ));
+        }
+        let root = self.source_location(root_site, budget)?;
+        let candidate = self.source_location(site, budget)?;
+        budget.reserve_analysis_work(self.modules.len() as u64)?;
+        let module = self
+            .modules
+            .iter()
+            .find(|m| m.module.id == site.module)
+            .ok_or_else(|| unsupported("CT actual invocation source module absent"))?;
+        if !source_sites::contains_node(
+            &module.module,
+            root.node,
+            candidate.node,
+            budget.remaining().max_call_depth as usize,
+            |n| budget.reserve_analysis_work(n as u64),
+        )? {
+            return Err(unsupported(
+                "CT source event is outside the actual frozen invocation expression",
+            ));
+        }
+        Ok(())
+    }
+    fn source_environment<'a>(
+        &'a self,
+        scope: &'a CtAmbientLifeScope,
+        scope_id: CtAmbientScopeId,
+        scopes: &'a [CtAmbientLifeScope],
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<SourceEnvironment<'a>> {
+        let function = self.original_scope_function(scope, budget)?;
+        let host = if let Some(parent_id) = scope.enclosing {
+            let parent = scopes
+                .get(parent_id.0 as usize)
+                .ok_or_else(|| unsupported("CT source enclosing host scope is absent"))?;
+            self.validate_scope(parent, budget)?;
+            budget.reserve_analysis_work(self.modules.len() as u64 + 64)?;
+            let module = self
+                .modules
+                .iter()
+                .find(|m| m.module.id == scope.declaration.module)
+                .ok_or_else(|| unsupported("CT source enclosing host module absent"))?;
+            let original = super::super::compiler::source_scope::original_function(
+                &module.module,
+                scope.declaration.declaration,
+                budget.remaining().max_call_depth as usize,
+                |n| budget.reserve_analysis_work(n as u64),
+            )?
+            .ok_or_else(|| unsupported("CT source member declaration absent"))?;
+            if parent.declaration.module != scope.declaration.module
+                || parent.declaration.generation_path != scope.declaration.generation_path
+                || Some(parent.declaration.declaration) != original.lexical_parent
+                || parent.enclosing.is_some()
+            {
+                return Err(unsupported(
+                    "CT source member enclosing scope is not its actual lexical host",
+                ));
+            }
+            let original_parent = super::super::compiler::source_scope::original_declaration(
+                &module.module,
+                parent.declaration.declaration,
+                budget.remaining().max_call_depth as usize,
+                |n| budget.reserve_analysis_work(n as u64),
+            )?
+            .ok_or_else(|| unsupported("CT source lexical host declaration absent"))?;
+            let s::ItemKind::Aggregate(aggregate) = &original_parent.item.kind else {
+                return Err(unsupported(
+                    "CT source lexical host is not an original aggregate",
+                ));
+            };
+            Some((aggregate.generics.as_slice(), parent, parent_id))
+        } else {
+            None
+        };
+        Ok(SourceEnvironment {
+            function,
+            scope,
+            scope_id,
+            host,
+        })
     }
     fn original_scope_function<'a>(
         &'a self,
@@ -257,7 +371,7 @@ impl FrozenInvocationContext {
             _ => None,
         };
         if let Some(name) = binder {
-            let (ordinal, p) = parameter(env, name, budget)?;
+            let (ordinal, p, actual_scope, _) = parameter(env, name, budget)?;
             let s::GenericParamKind::Const(ty) = &p.kind else {
                 return Err(unsupported(
                     "CT source scalar name selects another generic kind",
@@ -266,7 +380,7 @@ impl FrozenInvocationContext {
             if scalar_domain(ty, budget)? != domain {
                 return Err(unsupported("CT source scalar binder domain differs"));
             }
-            let CtScopeInstance::Instantiated(actuals) = &env.scope.instance else {
+            let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
                 return Err(unsupported(
                     "CT source scalar binder lacks its actual instance",
                 ));
@@ -312,14 +426,14 @@ impl FrozenInvocationContext {
         env: &SourceEnvironment<'_>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<CtAmbientLifeReference> {
-        let (ordinal, p) = parameter(env, name, budget)?;
+        let (ordinal, p, _, scope_id) = parameter(env, name, budget)?;
         if !matches!(p.kind, s::GenericParamKind::Lifetime) {
             return Err(unsupported(
                 "CT source lifetime selects another complete generic kind",
             ));
         }
         Ok(CtAmbientLifeReference {
-            scope: env.scope_id,
+            scope: scope_id,
             parameter: ordinal as u32,
         })
     }
@@ -479,9 +593,9 @@ impl FrozenInvocationContext {
                 }
                 return Err(unsupported("CT source primitive Type differs"));
             }
-            if let Ok((ordinal, p)) = parameter(env, &path[0], budget) {
+            if let Ok((ordinal, p, actual_scope, _)) = parameter(env, &path[0], budget) {
                 if matches!(p.kind, s::GenericParamKind::Type(_)) {
-                    let CtScopeInstance::Instantiated(actuals) = &env.scope.instance else {
+                    let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
                         return Err(unsupported(
                             "CT source Type parameter lacks an actual instance",
                         ));
@@ -653,14 +767,14 @@ impl FrozenInvocationContext {
         match &e.kind {
             s::ExprKind::Group(e) => self.source_scalar_expr(e, domain, env, budget, depth + 1),
             s::ExprKind::Name(name) => {
-                let (ordinal, p) = parameter(env, name, budget)?;
+                let (ordinal, p, actual_scope, _) = parameter(env, name, budget)?;
                 let s::GenericParamKind::Const(ty) = &p.kind else {
                     return Err(unsupported("CT source scalar name has another kind"));
                 };
                 if scalar_domain(ty, budget)? != domain {
                     return Err(unsupported("CT source scalar domain differs"));
                 }
-                let CtScopeInstance::Instantiated(actuals) = &env.scope.instance else {
+                let CtScopeInstance::Instantiated(actuals) = &actual_scope.instance else {
                     return Err(unsupported("CT source scalar lacks instance"));
                 };
                 match actuals.get(ordinal) {
@@ -865,7 +979,9 @@ impl FrozenInvocationContext {
     ) -> CompileResult<()> {
         step(budget, depth)?;
         match &e.kind {
-            s::ExprKind::Group(e) => self.source_path(e, out, budget, depth + 1),
+            s::ExprKind::Group(e) | s::ExprKind::TypeApply { callee: e, .. } => {
+                self.source_path(e, out, budget, depth + 1)
+            }
             s::ExprKind::Name(name) => {
                 budget.reserve_analysis_work(name.len() as u64)?;
                 budget.reserve_temporary_bytes(
@@ -982,6 +1098,7 @@ impl FrozenInvocationContext {
         index: &SourceIndex,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
+        self.validate_entry_slice(call.site, &call.caller_scope.declaration, budget)?;
         let location = self.source_location(call.site, budget)?;
         let function = self.original_scope_function(&call.caller_scope, budget)?;
         if !location.function.is_some_and(|f| std::ptr::eq(f, function)) {
@@ -1042,11 +1159,12 @@ impl FrozenInvocationContext {
             if source_scopes.get(call.caller_scope_id.0 as usize) != Some(&call.caller_scope) {
                 return Err(unsupported("CT source call original caller scope differs"));
             }
-            let env = SourceEnvironment {
-                function,
-                scope: &call.caller_scope,
-                scope_id: call.caller_scope_id,
-            };
+            let env = self.source_environment(
+                &call.caller_scope,
+                call.caller_scope_id,
+                source_scopes,
+                budget,
+            )?;
             for ((parameter, source), actual) in declaration
                 .generics
                 .iter()
@@ -1123,6 +1241,7 @@ impl FrozenInvocationContext {
             let site = binding.site.ok_or_else(|| {
                 unsupported("CT source nominal binding has no original structural site")
             })?;
+            self.validate_entry_slice(site, &binding.definition, budget)?;
             let location = self.source_location(site, budget)?;
             let mut scope_id = None;
             for row in &graph.ambient_classes {
@@ -1156,11 +1275,7 @@ impl FrozenInvocationContext {
             self.match_location(
                 location,
                 graph,
-                &SourceEnvironment {
-                    function,
-                    scope,
-                    scope_id,
-                },
+                &self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)?,
                 raw,
                 index,
                 budget,
@@ -1198,6 +1313,7 @@ impl FrozenInvocationContext {
                     "CT source Type event output is not a contextual Type constructor",
                 ));
             };
+            self.validate_entry_slice(event.site, &function.definition, budget)?;
             let location = self.source_location(event.site, budget)?;
             let mut scope_id = None;
             for (id, scope) in raw.ambient_life_scopes.iter().enumerate() {
@@ -1220,7 +1336,10 @@ impl FrozenInvocationContext {
                                     budget,
                                 )?;
                                 budget.reserve_analysis_work(cost)?;
-                                if &call.actuals == actuals && call.callee == scope.declaration {
+                                if &call.actuals == actuals
+                                    && call.callee == scope.declaration
+                                    && call.enclosing == scope.enclosing
+                                {
                                     found = true;
                                 }
                             }
@@ -1245,11 +1364,7 @@ impl FrozenInvocationContext {
             self.match_location(
                 location,
                 graph,
-                &SourceEnvironment {
-                    function: source_function,
-                    scope,
-                    scope_id,
-                },
+                &self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)?,
                 raw,
                 index,
                 budget,

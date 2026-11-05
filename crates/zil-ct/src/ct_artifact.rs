@@ -2899,6 +2899,7 @@ mod tests {
             ambient_classes: Vec::new(),
         };
         p.ambient_life_scopes.push(CtAmbientLifeScope {
+            enclosing: None,
             declaration: symbol(),
             binder_site: Vec::new(),
             instance: CtScopeInstance::Definition,

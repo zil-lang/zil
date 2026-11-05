@@ -29,7 +29,7 @@ impl<'a> Compiler<'a> {
         };
         let item = original.item;
         let function = original.function;
-        if original.generic_host {
+        if original.generic_host && self.active_host.is_none() && !self.checking_generics {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Ct,
                 "CT member scope requires its actual enclosing generic context",
@@ -67,6 +67,7 @@ impl<'a> Compiler<'a> {
             ));
         }
         Ok(Some(SourceLifeScope {
+            enclosing: self.active_host,
             definition: definition.clone(),
             span: item.span,
             binders,
@@ -289,6 +290,7 @@ impl<'a> Compiler<'a> {
             Self::actual_cost(&mut self.budget, actuals, span)?;
         }
         let scope = CtAmbientLifeScope {
+            enclosing: self.source_life_scope.as_ref().unwrap().enclosing,
             declaration: definition,
             binder_site: Vec::new(),
             instance: self.source_life_scope.as_ref().unwrap().instance.clone(),

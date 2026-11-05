@@ -1840,8 +1840,24 @@ impl Materializer<'_, '_> {
                         runtime("contextual Type result lost its actual source context", ty.span)
                     })?;
                     let scopes = context.source_scopes_for_graph(&value, &mut self.environment.budget)?;
+                    let mut name_bytes = 0u64;
+                    for node in &value.nodes {
+                        self.environment.budget.reserve_analysis_work(1)?;
+                        if let CtTypeNode::Nominal { symbol, .. } = node {
+                            let (_, parsed) = self.parsed_source(symbol.module)?;
+                            let item = parsed.module.items.get(symbol.declaration.0 as usize)
+                                .ok_or_else(|| runtime("Type result nominal declaration is absent", ty.span))?;
+                            let name = match &item.kind {
+                                s::ItemKind::Aggregate(a) => &a.name,
+                                s::ItemKind::Enum(e) => &e.name,
+                                _ => return Err(runtime("Type result has no nominal declaration", ty.span)),
+                            };
+                            name_bytes = name_bytes.saturating_add(name.len() as u64);
+                        }
+                    }
+                    self.environment.budget.reserve_analysis_work(name_bytes)?;
                     self.environment.budget.reserve_temporary_bytes(
-                        (value.nodes.len() as u64).saturating_mul(256),
+                        name_bytes.saturating_add((value.nodes.len() as u64).saturating_mul(256)),
                     )?;
                     let previous = std::mem::replace(&mut self.data_source_scopes, scopes);
                     let replacement = self.owner_node(&value, value.root, module, ty.span, depth + 1);

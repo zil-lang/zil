@@ -96,7 +96,7 @@ impl Builder<'_, '_> {
                 path.push(name.clone());
                 Ok(Some(path))
             }
-            s::ExprKind::Group(inner) => self.source_path(inner, depth + 1),
+            s::ExprKind::Group(inner) | s::ExprKind::TypeApply { callee: inner, .. } => self.source_path(inner, depth + 1),
             _ => Ok(None),
         }
     }
@@ -595,6 +595,17 @@ impl Builder<'_, '_> {
                     let graph = self.compiler.metadata_data(&data, span, depth + 1)?;
                     return self.metadata_type_value(&graph, graph.root, depth + 1, span);
                 }
+                if !self.compiler.checking_generics {
+                    for argument in arguments {
+                        if let s::GenericArg::Type(ty) = argument
+                            && self.compiler.metadata_source_has_ambient(ty, depth + 1)?
+                        {
+                            let syntax = s::TypeRef { kind: s::TypeKind::Named { path: names.clone(), args: arguments.clone() }, span };
+                            let graph = self.compiler.metadata_type(self.module, &syntax, depth + 1)?;
+                            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+                        }
+                    }
+                }
                 let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut ids = Vec::new();
                 for argument in arguments {
@@ -749,6 +760,12 @@ impl Builder<'_, '_> {
     }
     fn type_ref_inner(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, ty.span)?;
+        if !self.compiler.checking_generics
+            && !matches!(&ty.kind, s::TypeKind::Named { args, .. } if args.is_empty())
+            && self.compiler.metadata_source_has_ambient(ty, depth + 1)? {
+            let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
+            return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+        }
         match &ty.kind {
             s::TypeKind::Named { path, args } if args.is_empty() => {
                 if path.len() == 1 {
@@ -1140,7 +1157,16 @@ impl Builder<'_, '_> {
             .is_empty()
             || explicit.is_some()
         {
-            return self.generic_call(
+            let host_arguments = match &callee.kind {
+                s::ExprKind::Member { object, .. } => match &object.kind {
+                    s::ExprKind::TypeApply { arguments, .. } => Some(arguments.as_slice()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let host = self.compiler.source_host_instance(self.module, declaration, host_arguments, depth + 1, span)?;
+            let previous_host = std::mem::replace(&mut self.compiler.active_host, host);
+            let result = self.generic_call(
                 declaration,
                 explicit.map(Vec::as_slice),
                 arguments,
@@ -1148,6 +1174,8 @@ impl Builder<'_, '_> {
                 depth + 1,
                 span,
             );
+            self.compiler.active_host = previous_host;
+            return result;
         }
         let (types, result) = self.compiler.header(declaration)?;
         if types.len() != arguments.len() {

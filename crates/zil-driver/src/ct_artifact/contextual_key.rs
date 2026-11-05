@@ -89,7 +89,7 @@ impl Key<'_, '_> {
             self.scopes.get(id as usize).map(|s| &s.instance),
             Some(CtScopeInstance::Instantiated(_))
         );
-        if !instantiated {
+        if !instantiated && self.scopes.get(id as usize).is_some_and(|scope| scope.enclosing.is_none()) {
             return self.scope_key_inner(id);
         }
         self.budget
@@ -120,6 +120,17 @@ impl Key<'_, '_> {
         self.context.validate_scope(scope, self.budget)?;
         let outer = std::mem::take(&mut self.out);
         let result = (|| {
+            if let Some(parent) = scope.enclosing {
+                self.bytes(&[1])?;
+                let key = self.scope_key(parent.0)?;
+                let bytes = key.capacity() as u64;
+                self.number(key.len() as u64)?;
+                self.bytes(&key)?;
+                drop(key);
+                self.release(bytes);
+            } else {
+                self.bytes(&[0])?;
+            }
             self.symbol(&scope.declaration)?;
             self.number(scope.binder_site.len() as u64)?;
             for n in &scope.binder_site {
@@ -969,6 +980,7 @@ mod tests {
     }
     fn scopes(fixture: &Fixture, ordinal: u32) -> Vec<CtAmbientLifeScope> {
         vec![CtAmbientLifeScope {
+            enclosing: None,
             declaration: symbol(fixture, ordinal),
             binder_site: vec![],
             instance: CtScopeInstance::Definition,
