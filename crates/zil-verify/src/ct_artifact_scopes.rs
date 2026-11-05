@@ -197,6 +197,9 @@ pub(super) fn check(
         meter.charge(count, None)?;
         Some(vec![false; count])
     };
+    let inventory_scratch = count.saturating_mul(
+        2 * std::mem::size_of::<usize>() + 1 + usize::from(runtime_roots.is_some()),
+    );
     let mut weights: Option<Vec<usize>> = None;
     for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
         meter.charge(
@@ -215,7 +218,7 @@ pub(super) fn check(
         {
             if weights.is_none() {
                 // State, comparison weights and dependency heights coexist.
-                let bytes = count.saturating_mul(2 * std::mem::size_of::<usize>() + 1);
+                let bytes = inventory_scratch;
                 if bytes as u64 > raw.budget.max_temporary_bytes {
                     return Err(limit(
                         None,
@@ -225,13 +228,8 @@ pub(super) fn check(
                 meter.charge(count.saturating_mul(2), None)?;
                 weights = Some(vec![0; count]);
             }
-            let weight = identity::scope_comparison_weight(
-                scope,
-                raw,
-                limits,
-                meter,
-                count.saturating_mul(2 * std::mem::size_of::<usize>() + 1),
-            )?;
+            let weight =
+                identity::scope_comparison_weight(scope, raw, limits, meter, inventory_scratch)?;
             weights.as_mut().unwrap()[index] = weight;
             weight
         } else {
