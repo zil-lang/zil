@@ -301,3 +301,6 @@ fn source_site_cannot_borrow_a_real_sibling_expression() {
         "{error:?}"
     );
 }
+
+#[path = "invocation_context_multiowner_tests.rs"]
+mod multiowner;

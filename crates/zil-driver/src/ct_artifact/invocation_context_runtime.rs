@@ -306,3 +306,7 @@ impl FrozenInvocationContext {
             .any(|active| &active.raw == scope)
     }
 }
+
+#[cfg(test)]
+#[path = "invocation_context_runtime_tests.rs"]
+mod tests;
