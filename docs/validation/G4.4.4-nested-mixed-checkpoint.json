@@ -1,0 +1,175 @@
+{
+  "task_id": "G4.4.4",
+  "result": "Implementation checkpoint with limited validation; formal acceptance and parent G4.4 remain outside this receipt",
+  "base_sha": "fcdea036500945b51991b044a00bbbcc8578ade7",
+  "goal_read_sha": "abff426a9189311625ff48cd79b1047e52f4573c",
+  "proposal_sha": "d682220cae2194a2dfaf5d1c7b74ac344ed69498",
+  "frozen_production_and_tests_sha": "13d5e7c495bae80a1817ee351c82b092e394380f",
+  "scope": [
+    "Original CT-only free factories forwarding explicit full Type/Const/Life vectors through two or three calls, with scalar results",
+    "Independent universal callee definition checking with symbolic Type, original Const declaration/ordinal/domain and original Life declaration/ordinal substitution",
+    "Whole unused published ambient inventory projection only after all record/enum/template graph roots have no ambient references; private actual-call and scope ledgers retained",
+    "Original Function inventory discovery for complete mixed headers, without requiring an unused lifetime nominal declaration",
+    "Prepaid exact backing capacities for new symbolic binding, header and SSA argument arrays"
+  ],
+  "unchanged_interfaces": [
+    "CtScopeActual and SourceInstanceCall representations",
+    "public schema/Wire/native ABI",
+    "default limits",
+    "product gates",
+    "Analyze and Verify production code"
+  ],
+  "first_failures_retained": [
+    {
+      "source": "ct5-nested-mixed-forwarding.zil",
+      "stage": "preliminary accepted-release probe",
+      "diagnostic": "nested mixed CT calls require symbolic full-actual forwarding",
+      "verification_runs": 0
+    },
+    {
+      "source_sha": "a5304e7d89e901eb821639aa2627e7e83cb88241",
+      "source": "scalar two/three-level probes",
+      "diagnostic": "CT ambient scope inventory contains unused rows",
+      "verification_runs": 0,
+      "resolved_by": "1c9666c95586f6011862aa67d2b609aea79d420d"
+    },
+    {
+      "source_sha": "17f63e34181c4fd5b9bb8653abfde159c2e74c46",
+      "source": "Independent no-dummy three-level scalar Source",
+      "diagnostic": "CT ambient scope requires original declaration lineage",
+      "verification_runs": 0,
+      "resolved_by": "a79c5fb193bbbd4d0b44a221ace025c09f655c44"
+    }
+  ],
+  "final_limited_validation": {
+    "integration_source_sha": "6074087a0e724e86074963a1ed3e54fdf09e8cb2",
+    "source_equivalence": "All G4.4.4 production and lib-test files match frozen 13d5e7c49; aggregates differs only by an unrelated G1.3.7 review module inclusion",
+    "coordinator": "root; one shared build window",
+    "aggregate_target": "zil-driver existing aggregates, filter g444_",
+    "aggregate_features": [
+      "default",
+      "llvm-api"
+    ],
+    "aggregate_result": {
+      "passed": 3,
+      "failed": 0,
+      "native_executions": 16,
+      "native_matrix": "4 actual Sources x Clang/LLVM API x O0/O2; complete stdout 42"
+    },
+    "request_boundaries": {
+      "work": 60900,
+      "nodes": 1943,
+      "steps": 24,
+      "bytes": 61580,
+      "checks": [
+        "N success",
+        "N-1 ResourceLimit",
+        "cold",
+        "warm",
+        "fresh"
+      ]
+    },
+    "lib_target": "zil-driver existing lib, filter g444_",
+    "lib_result": {
+      "passed": 1,
+      "failed": 0,
+      "raw_and_wire_exact_verifier_work": {
+        "scalar_chain": 122,
+        "intermediate_ambient_graph": 20812
+      },
+      "checks": [
+        "N/N-1 and repeated N",
+        "3 actual Source call events and complete vectors",
+        "true instantiated caller scopes",
+        "forged sibling scope, wrong full ordinal and removed middle event reject",
+        "erasing intermediate graph dependencies independently rejects before whole-artifact equality"
+      ]
+    },
+    "logs": [
+      "/workspace/.zil-env/G1.3.7.3-common-run/g444-final.log",
+      "/workspace/.zil-env/G1.3.7.3-common-run/g444-lib-final.log"
+    ],
+    "strict_checks": "Coordinator reports strict Clippy and fmt passed for integration source; author did not run formal full suite"
+  },
+  "earlier_distinct_validation": {
+    "integration_source_sha": "905866c20c37428b069cbb1a25d596b652b43bb5",
+    "cli_sha256": "98c16e5f79fded0659b124a205c95120a7a9ac456fb8de090fdbb0f232f4cb88",
+    "aggregate_features": [
+      "default"
+    ],
+    "native_executions": 8,
+    "note": "Clang x O0/O2 x 4 Sources only; not 16 and not accumulated with final matrix",
+    "request_boundaries_before_capacity_fix": {
+      "work": 60882,
+      "nodes": 1943,
+      "steps": 24,
+      "bytes": 59936
+    },
+    "commands": [
+      "/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-69ffa20fbaa0b0e1 g444_ --nocapture --test-threads=1",
+      "/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-69ffa20fbaa0b0e1 g442_ --nocapture --test-threads=1",
+      "/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-69ffa20fbaa0b0e1 g443_member_requests_pay_all_current_ledgers --nocapture --test-threads=1"
+    ],
+    "logs": [
+      "/tmp/g444-aggregates-current.log",
+      "/tmp/g444-old-g442-current.log",
+      "/tmp/g444-old-g443-current.log"
+    ],
+    "old_consumers": {
+      "g442_": {
+        "passed": 3,
+        "failed": 0,
+        "work_before": 157162,
+        "work_after": 157168,
+        "nodes_before": 4260,
+        "nodes_after": 4266,
+        "steps": 42,
+        "bytes": 167965,
+        "growth_work_before": [
+          119314,
+          313676,
+          522607
+        ],
+        "growth_work_after": [
+          119317,
+          313679,
+          522610
+        ],
+        "semantic_cache": "warm/change/reorder/revert output42; 3 actual candidates raw/Wire reverified"
+      },
+      "g443_member_request": {
+        "passed": 1,
+        "failed": 0,
+        "work_before": 79628,
+        "work_after": 79631,
+        "nodes_before": 2894,
+        "nodes_after": 2897,
+        "steps": 16,
+        "bytes": 54828
+      },
+      "fee_explanation": "Each actual mixed 3-parameter Function discovery adds 3 work/nodes. 13d capacity fee is only in new symbolic mixed calls; existing g442/g443 do not enter that wrapper."
+    }
+  },
+  "remaining_boundaries": [
+    {
+      "source": "ct5-nested-mixed-forwarding.zil",
+      "diagnostic": "CT expression type does not match its actual expected type",
+      "reason": "Cross-factory scoped nominal result relocation remains unfinished"
+    },
+    {
+      "source": "ambient Type-only actual Phantom<life,...> probe",
+      "diagnostic": "nominal lifetime is not bound by its actual enclosing metadata scope",
+      "reason": "Broader ambient Type actual forwarding is not claimed"
+    },
+    "Generic hosts, receiver calls, generated lineage and runtime-generic-body CT phase remain outside this slice",
+    "No same-semantics Rust runtime/RSS, compiler or maintenance comparison; no complete language/B0/ZUI acceptance"
+  ],
+  "independent_review": "p0_cross_review independently replayed no-dummy/identity/domain/host/member Sources on 905 and reviewed 13d capacity-before-growth; exact independent receipt is owned by the reviewer",
+  "rust_goals": {
+    "same_class_safety": "Real Source, independent CT raw/Wire and ordinary Verify; universal identity/domain negatives. General scoped result relocation remains incomplete.",
+    "runtime_and_memory": "Actual CT result materializes to ordinary machine scalar; no added implicit Box/RC/lock. Rust comparison not measured.",
+    "expression_and_maintenance": "Previously rejected explicit nested mixed CT-only calls now produce complete42; no dummy nominal needed. Broader framework maintenance gain not measured.",
+    "compile_cost": "New table capacities and actual discovery are prepaid in current ledgers, defaults unchanged; no Rust compile-speed claim.",
+    "breakthrough": "Finite reproducible expression increment established; product-level net Rust advantage and all four goals together remain unproven."
+  }
+}
