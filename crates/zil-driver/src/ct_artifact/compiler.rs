@@ -517,6 +517,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn item_symbol(&mut self, module: usize, item: &s::Item) -> R<CtSymbolId> {
+        if let Some(symbol) = self.generated_item_symbol(module, item)? {
+            return Ok(symbol);
+        }
         self.budget.work(
             self.modules[module]
                 .syntax

@@ -79,6 +79,9 @@ impl<'a> Compiler<'a> {
         symbol: &CtSymbolId,
         span: Span,
     ) -> R<(usize, &'a s::Item)> {
+        if let Some(declaration) = self.generated_declaration(symbol, span)? {
+            return Ok(declaration);
+        }
         self.budget.work(self.modules.len(), span)?;
         if symbol.generation_path.is_some() {
             return Err(error(
