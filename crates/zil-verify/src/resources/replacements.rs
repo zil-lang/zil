@@ -8,6 +8,7 @@ pub(super) struct Plan {
     inventories: Vec<Inventory>,
     written: Vec<BTreeSet<Root>>,
     targets: BTreeMap<usize, Vec<actual::Target>>,
+    retirements: BTreeMap<usize, Vec<actual::Target>>,
 }
 #[derive(Clone, Copy)]
 struct Point {
@@ -70,6 +71,7 @@ impl Plan {
         graphs: &[FunctionGraph],
         writes: &[BTreeSet<Root>],
         targets: &BTreeMap<usize, Vec<actual::Target>>,
+        retirements: &BTreeMap<usize, Vec<actual::Target>>,
         b: &mut Budget,
     ) -> Check<Self> {
         nested_descriptor_boundary(module, b)?;
@@ -88,11 +90,21 @@ impl Plan {
                 b.spend(target.steps.len().saturating_add(1))?;
             }
         }
+        if !retirements.is_empty() {
+            b.spend(retirements.len())?;
+            for row in retirements.values() {
+                b.spend(row.len())?;
+                for target in row {
+                    b.spend(target.steps.len().saturating_add(1))?;
+                }
+            }
+        }
         Ok(Self {
             actual,
             inventories,
             written: writes.to_vec(),
             targets: targets.clone(),
+            retirements: retirements.clone(),
         })
     }
     pub(super) fn extend_slots(
@@ -146,6 +158,74 @@ impl Plan {
         let row = &self.written[id.0 as usize];
         b.spend(row.len())?;
         Ok(row.clone())
+    }
+    fn retire(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &State,
+        target: &actual::Target,
+        point: Point,
+        b: &mut Budget,
+    ) -> Check<()> {
+        if !point.validate {
+            return Ok(());
+        }
+        sums::replacements::at_type(transfer.module, transfer.f, target, b)?;
+        let root = match target.base {
+            actual::Base::Local(local) => match target.steps.first() {
+                Some(zil_ir::PlaceProjection::Field(index))
+                    if matches!(transfer.f.locals[local.0 as usize].ty, Type::Package { .. }) =>
+                {
+                    Root::PackageField {
+                        local,
+                        index: *index,
+                    }
+                }
+                _ => Root::Local(local),
+            },
+            actual::Base::Input(p) | actual::Base::InputCapture(p, _) => Root::Parameter(p),
+            actual::Base::Environment(c) => Root::BorrowedCapture(c),
+            actual::Base::Element(_) => return Ok(()), // separate Store instance protocol
+        };
+        if matches!(root, Root::Parameter(_) | Root::BorrowedCapture(_)) {
+            // Incoming descriptions are not exclusive loans. Distinct input
+            // ordinals alone cannot establish disjoint runtime resource heads.
+            // A continuing mutable parent address is not an old weak Desc.
+            for (ty, slot) in transfer.f.values.iter().zip(&transfer.slots.desc_value).chain(
+                transfer.f.locals.iter().map(|local| &local.ty).zip(&transfer.slots.desc_local),
+            ) {
+                b.spend(1)?;
+                if !(matches!(ty, Type::Desc(_) | Type::Closure(_))
+                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))) {
+                    continue;
+                }
+                let Some(slot) = *slot else { continue; };
+                if transfer.after[point.block][point.position][slot] {
+                    let roots = &state.desc[slot];
+                    b.spend(roots.len())?;
+                    if roots.iter().any(|candidate| {
+                        matches!(
+                            candidate.parent(),
+                            Root::Parameter(_) | Root::BorrowedCapture(_)
+                        )
+                    }) {
+                        return Err(bad(
+                            point.span,
+                            "possible replacement retirement would invalidate a live nonlocal resource description",
+                        ));
+                    }
+                }
+            }
+            Ok(())
+        } else {
+            no_live_description(
+                state,
+                &transfer.after[point.block][point.position],
+                root,
+                point.span,
+                b,
+            )
+        }
     }
     fn invalidate_store(
         &self,
@@ -294,6 +374,29 @@ impl Plan {
                         description_live(state, transfer.slots, parent, point.span, b)?;
                     }
                     self.invalidate_store(transfer, state, &state.desc[parent], written, point, b)?;
+                } else {
+                    self.retire(transfer, state, &target, point, b)?;
+                }
+            }
+        }
+        // Empty on historical local-only/Store paths. This paid target ledger
+        // is derived solely from real possible Commits, including nested calls.
+        if !self.retirements.is_empty() {
+            b.spend(self.retirements.len())?;
+            if let Some(rows) = self.retirements.get(&invocation.entry) {
+                b.spend(rows.len())?;
+                for target in rows {
+                    b.spend(target.steps.len().saturating_add(1))?;
+                    let selected = actual::substitute(
+                        &BTreeSet::from([target.clone()]),
+                        invocation.arguments,
+                        invocation.captures,
+                        &self.actual.functions[f.id.0 as usize],
+                        b,
+                    )?;
+                    for target in selected {
+                        self.retire(transfer, state, &target, point, b)?;
+                    }
                 }
             }
         }
@@ -549,10 +652,12 @@ impl Plan {
                     // and lexical cleanup age; the old value is replaced once.
                 }
                 actual::Base::Input(p) | actual::Base::InputCapture(p, _) => {
+                    self.retire(transfer, state, &target, point, b)?;
                     b.spend(written.len().saturating_add(1))?;
                     written.insert(Root::Parameter(p));
                 }
                 actual::Base::Environment(c) => {
+                    self.retire(transfer, state, &target, point, b)?;
                     if f.environment.is_some_and(|id| {
                         transfer.module.closures[id.0 as usize].kind == CallableKind::Fn
                     }) {
