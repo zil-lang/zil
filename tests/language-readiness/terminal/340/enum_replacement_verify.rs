@@ -308,7 +308,7 @@ fn g135_enum_verify_known_arm_create_boundary_is_also_ordinary() {
 }
 
 #[test]
-fn g135_enum_verify_raw_weak_payload_desc_route_is_closed() {
+fn g135_enum_verify_grounded_payload_desc_obeys_actual_retirement() {
     let text = "resource R{code:i32}enum E{Left(manages R),Right(manages R)}fn choose(flag:bool)->i32{var packet=if flag{E.Left(R{code:65})}else{E.Right(R{code:66})};match packet{E.Left(ref r)=>{let seen=r.code;let target=&mut packet;*target=E.Right(R{code:67});return seen},E.Right(ref r)=>{let seen=r.code;let target=&mut packet;*target=E.Left(R{code:68});return seen}}}fn main()->i32{return choose(false)}";
     let (mut module, mut plan) = candidate(text);
     verify_both(&module, &plan);
@@ -367,15 +367,11 @@ fn g135_enum_verify_raw_weak_payload_desc_route_is_closed() {
     }
     assert_eq!(readers.len(), 2);
     plan.module_fingerprint = module.fingerprint();
-    // A raw weak descriptor route is not produced by the original ref-source.
-    // This route is already ungrounded before Commit in the resource kernel;
-    // it is not evidence that the later retirement check was reached.
-    reject_both(
-        &module,
-        &plan,
-        "E-VERIFY-RESOURCE",
-        "no independently grounded source",
-    );
+    // G1.3.9 now grounds this actual payload address independently. Reading
+    // before the replacement is legal; the later read below must still fail.
+    let fresh_plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    verify_both(&module, &fresh_plan);
+    verify_both(&module, &plan);
     let f = module
         .functions
         .iter_mut()
