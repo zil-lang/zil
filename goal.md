@@ -68,8 +68,9 @@
 | │　├─ G4.4.5.3 | 带life的Type值构造与跨工厂返回的声明归属 | 进行中 | P0 | sol · CT | 实施 TypeInContext 完整图生产、真实源码 Type/Call 端点独核、CT6 编码及 ValueContext 返回；astra 复核公共认证边界。实施：[task/G4.4.5.3](https://github.com/zil-lang/zil/tree/task/G4.4.5.3)，尚未验收。 |
 | │　└─ G4.4.5.4 | 非标量纯字段跨工厂返回：Tuple/Array/Record/Enum 递归重构 | 进行中 | P0 | sol · CT | 接续 G4.4.5.1；原始 Tuple/Array/Record/Enum 组合已到实际 Source/机器完整 u64 结果，新增带 life 嵌套字段、最近反例与独立预算控制仍在复核。与 G4.4.5.3 同分支，保留旧标量费用快路。 |
 | ├─ **G4.4.6** | ambient Type 实参、泛型宿主/成员及生成作用域的实际归属 | 进行中 | P0 | sol · CT / 生成 | G4.4.5.3 接 host/member 完整上下文；[task/G4.4.6](https://github.com/zil-lang/zil/tree/task/G4.4.6) 接实际生成树、发射位置与独立来源核验；生成片 3 组真实源码、6 次 Clang 原生运行和 9 个预算边界已限定通过。ambient Type 完整元数据与运行时相位组合继续验证，父项未验收。 |
-| │　└─ G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。已有源码与最近 raw/Wire 反例，限定验证中；不把 Copy 资格通过当作完整 life 身份通过。 |
-| └─ G4.4.7 | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 从 G4.4.6 分离实现写集；[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
+| │　└─ G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。原 ambient Type Source/native/semantic-cache 完整身份已在联合提交 `612117d5` 复核通过；物理子字段复制及最近 raw/Wire 反例继续验证，不把首例通过当作子项全验收。 |
+| └─ **G4.4.7** | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 既有矩阵 10/0 已通过真实 Source/project/Clang O0/O2 及四类预算边界；带 life nominal 的 Type 实参接续由 G4.4.7.1 补齐。[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
+| 　　└─ G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：真实 `leaf<Phantom<life,T,N>>` 尚停在 Expand；保留完整原实参和 caller life 关系，接现有 canonical storage 路径，不能以删 key 检查或物理名取代语义身份。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
