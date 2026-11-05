@@ -1049,7 +1049,7 @@ impl Check<'_, '_, '_> {
                 let mut output = Fact::Unknown;
                 if root.is_none() {
                     if let Some(variant) =
-                        self.variant_call_result(callee, &actuals, e.span, depth + 1)?
+                        self.variant_call_result(callee, &actuals, scope, e.span, depth + 1)?
                     {
                         return Ok(variant);
                     }
@@ -1144,6 +1144,7 @@ impl Check<'_, '_, '_> {
         &mut self,
         callee: &Expr,
         actuals: &[Fact],
+        caller: &Scope<'_>,
         span: Span,
         depth: usize,
     ) -> R<Option<Fact>> {
@@ -1153,6 +1154,12 @@ impl Check<'_, '_, '_> {
         } = &callee.kind
         else {
             return Ok(None);
+        };
+        let (object, explicit) = match &object.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (object.as_ref(), None),
         };
         let ExprKind::Name(enum_name) = &object.kind else {
             return Ok(None);
@@ -1186,9 +1193,29 @@ impl Check<'_, '_, '_> {
                     host: None,
                 };
                 let mut map = Substitutions::new();
+                if let Some(explicit) = explicit {
+                    if explicit.len() != declaration.generics.len() {
+                        return Err(unsupported(
+                            span,
+                            "source enum constructor needs its full ordered actuals",
+                        ));
+                    }
+                    for (ordinal, (formal, actual)) in
+                        declaration.generics.iter().zip(explicit).enumerate()
+                    {
+                        let fact = self.member_actual(formal, actual, caller, span, depth + 1)?;
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), fact);
+                    }
+                }
                 for (field, actual) in fields.iter().zip(actuals) {
                     let formal = self.ty(field, &scope, depth + 1)?;
-                    self.infer(&formal, actual, &mut map, span, true)?;
+                    if explicit.is_some() {
+                        let expected = self.substitute(&formal, &map, span)?;
+                        self.compatible(&expected, actual, span)?;
+                    } else {
+                        self.infer(&formal, actual, &mut map, span, true)?;
+                    }
                 }
                 let mut classes = Vec::new();
                 for ordinal in 0..declaration.generics.len() {
