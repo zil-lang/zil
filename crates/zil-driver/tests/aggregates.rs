@@ -8666,3 +8666,104 @@ fn terminal340_package_terminal_optional_product_lanes_keep_actual_rhs_origin() 
         }
     }
 }
+
+#[test]
+fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    for same in [true, false] {
+        let right = if same { "x" } else { "y" };
+        let text = format!(
+            "resource R{{code:i32}}package P{{manages owner:R;n:i32}}fn choose(flag:bool,give incoming:R)->R contract{{result(give)}}{{var x=P{{owner:give incoming,n:0}};var y=P{{owner:R{{code:2}},n:1}};let target=if flag{{&mut x}}else{{&mut {right}}};*target=P{{owner:R{{code:3}},n:3}};return give x.owner}}fn main()->i32{{let r=choose(false,R{{code:1}});return r.code}}"
+        );
+        let input = source(&text);
+        let ast = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &ast).unwrap();
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        if same {
+            let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+            for create in [false, true] {
+                let mut raw = typed.clone();
+                if create {
+                    raw.functions
+                        .iter_mut()
+                        .find(|f| f.name == "choose")
+                        .unwrap()
+                        .result_mode = zil_ir::PassingMode::Create;
+                }
+                let mut claim = plan.clone();
+                claim.module_fingerprint = raw.fingerprint();
+                zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+                let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+            }
+            continue;
+        }
+        assert!(zil_analyze::analyze(&typed, &limits).is_err());
+        // Keep the real Source CFG, both address producers, all SSA values
+        // and their honest multi-root Holds. A definite direct-x reservation
+        // supplies the candidate without asking Analyze to authorize the
+        // distinct raw address-selected replacement that Verify must reject.
+        let mut direct = typed.clone();
+        let f = direct
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "choose")
+            .unwrap();
+        let x = f.locals.iter().find(|l| l.name == "x").unwrap().id;
+        let reserve = f
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }))
+            .unwrap();
+        let InstructionKind::ReservePlaceAddress { reservation, .. } = reserve.kind else {
+            unreachable!()
+        };
+        reserve.kind = InstructionKind::ReservePlaceLocal {
+            reservation,
+            local: x,
+            path: vec![],
+        };
+        let plan = zil_analyze::analyze(&direct, &limits).unwrap();
+        zil_verify::verify_module(direct.clone(), plan.clone(), &target, &limits).unwrap();
+        let mut outcomes = Vec::new();
+        for create in [false, true] {
+            let mut raw = typed.clone();
+            if create {
+                raw.functions
+                    .iter_mut()
+                    .find(|f| f.name == "choose")
+                    .unwrap()
+                    .result_mode = zil_ir::PassingMode::Create;
+            }
+            let mut claim = plan.clone();
+            claim.module_fingerprint = raw.fingerprint();
+            for wire in [false, true] {
+                let result = if wire {
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+                    zil_verify::verify_module_bytes(&bytes, &target, &limits)
+                } else {
+                    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits)
+                };
+                println!(
+                    "whole Package branch join create={create} wire={wire} accepted={}",
+                    result.is_ok()
+                );
+                outcomes.push((create, wire, result.err()));
+            }
+        }
+        for (create, wire, errors) in outcomes {
+            let errors = errors.expect("multi-root whole Package replacement was accepted");
+            assert!(
+                errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::Unsupported
+                        && d.message
+                            .contains("one independently reconstructed actual target")),
+                "create={create} wire={wire}: {errors:?}"
+            );
+        }
+    }
+}
