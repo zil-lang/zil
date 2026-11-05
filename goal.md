@@ -19,7 +19,7 @@
 | G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 已合入 | — | — | [PR42 验收][e-pr42]；有限载荷、真实来源与失败清理已闭合，既有单已知变体精度边界保留。 |
 | G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 已合入 | — | — | [PR42 验收][e-pr42]；两核按实际根/字段/捕获独立检查，拒绝旧描述后用并保留合法分离调用。原误拒、旧断言失败及修正记录保留。 |
 | G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 已合入 | — | — | [PR43 验收][e-pr43]；两核及独审 Source/raw/Wire/机器消费者通过。首片 Direct Unit，Fresh 限单块单 Commit 无调用，保留实际来源、旧描述失效与 caller 清理年龄。 |
-| G1.3.8 | 整体 Package helper 的非 Unit/错误返回、失败时旧值保留与清理 | 进行中 | P0 | Analyze / Verify / 独审（sol high） | 两核非 Unit 有限 Copy 结果实现已推送；错误返回保留实际 Commit/Abort 责任，非 Unit 不授 Fresh。Analyze 8/0、Verify 17/0 限定组件通过，集成 Source/机器验收进行中。 |
+| G1.3.8 | 整体 Package helper 的非 Unit/错误返回、失败时旧值保留与清理 | 实现待验 | P0 | Analyze / Verify / 独审（sol high） | [PR44](https://github.com/zil-lang/zil/pull/44) 实现和独审 Source/raw/Wire/原生清理已通过限定验证；错误返回保留实际 Commit/Abort，非 Unit 不授 Fresh。正在共同全量验收，尚未合入。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -43,7 +43,7 @@
 | G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 已合入 | — | — | [PR42 验收][e-pr42]；同一真实环境两次状态变化、物理共享捕获与独立来源核验已到机器，旧 None 费用回归已修复。 |
 | G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
 | G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
-| G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 进行中 | P0 | 拥有 helper / 独审（sol high） | 无环图来源实现已推送，Analyze 拓扑传播、Verify 独立图遍历与前驱合流；保留旧快路。消费前分支、diamond 和一路 Drop 的真实源码已准备，尚未验收。 |
+| G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 实现待验 | P0 | 拥有 helper / 独审（sol high） | [PR44](https://github.com/zil-lang/zil/pull/44) 两核无环来源、definite-active 合流与独立消费者通过限定验证；消费前分支、diamond、一路 Drop 已到双后端，旧尾分支预算保持。正在共同全量验收，尚未合入。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
