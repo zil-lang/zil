@@ -850,6 +850,19 @@ impl<'a> Index<'a> {
         span: Span,
         retained: Option<&callable::CallableTemplates>,
     ) -> R<()> {
+        self.check_arguments_scoped(parameters, found, (available, variables, callback), budget, span, retained, None)
+    }
+
+    pub(super) fn check_arguments_scoped(
+        &self,
+        parameters: &[GenericParam],
+        found: &BTreeMap<String, TypeRef>,
+        (available, variables, callback): (&Bounds, &BTreeSet<String>, callable::StoreCallbacks<'_>),
+        budget: &mut Budget<'_>,
+        span: Span,
+        retained: Option<&callable::CallableTemplates>,
+        source: Option<&Function>,
+    ) -> R<()> {
         for parameter in parameters {
             if retained.is_some_and(|roles| roles.contains_generic(&parameter.name)) {
                 continue;
@@ -862,13 +875,14 @@ impl<'a> Index<'a> {
                     let actual = found
                         .get(&parameter.name)
                         .ok_or_else(|| error(span, "Copy argument has no unique symbolic type"))?;
-                    copy::require_registered(
+                    copy::require_registered_scoped(
                         actual,
                         &self.nominals,
                         Some(&self.instantiated_copy_shapes),
                         available,
                         variables,
                         budget,
+                        source,
                     )?;
                     continue;
                 }
