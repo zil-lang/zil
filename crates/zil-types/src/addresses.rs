@@ -349,6 +349,11 @@ impl Builder<'_, '_> {
                 } else {
                     InstructionKind::BorrowLocal { local }
                 };
+                if pure_array {
+                    // The earlier snapshot pays for decl.clone(); this one
+                    // pays the separate full Address result clone below.
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((self.value(kind, ty.clone(), e.span)?, ty))
             }
             CoreExprKind::Unary {
@@ -573,9 +578,7 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         mutable: bool,
     ) -> R<(ValueId, Type)> {
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
-            || dynamic_store::borrow_expression(object)
-        {
+        if self.known_address(object) || dynamic_store::borrow_expression(object) {
             self.expr(object, None)
         } else {
             self.address_place(object, mutable)
@@ -591,7 +594,7 @@ impl Builder<'_, '_> {
                 ..
             } => true,
             CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
-                matches!(self.known_type(object), Some(Type::Address { .. }))
+                self.known_address(object)
                     || dynamic_store::borrow_expression(object)
                     || self.indirect_place(object)
             }

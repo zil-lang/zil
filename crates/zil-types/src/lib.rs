@@ -2254,6 +2254,43 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
+    fn known_type_ref<'e>(&'e self, e: &'e CoreExpr) -> Option<&'e Type> {
+        match &e.kind {
+            CoreExprKind::Name(name) => {
+                let id = self.lookup(name)?;
+                if self.closure_slots.contains_key(&id) {
+                    return None;
+                }
+                self.borrowed_captures
+                    .get(&id)
+                    .or_else(|| self.sum_slots.get(&id))
+                    .or_else(|| self.function.locals.get(id.0 as usize).map(|l| &l.ty))
+            }
+            CoreExprKind::Ascribed { ty, .. } => Some(ty),
+            CoreExprKind::Index { object, .. } => match self.known_type_ref(object)? {
+                Type::Array { element, .. } => Some(element),
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::Array { element, .. } | Type::Slice { element } => Some(element),
+                    _ => None,
+                },
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
+    fn known_address(&self, e: &CoreExpr) -> bool {
+        self.known_type_is(e, |ty| matches!(ty, Type::Address { .. }))
+    }
+
+    fn known_type_is(&self, e: &CoreExpr, predicate: impl Fn(&Type) -> bool) -> bool {
+        if let Some(ty) = self.known_type_ref(e) {
+            predicate(ty)
+        } else {
+            self.known_type(e).as_ref().is_some_and(predicate)
+        }
+    }
+
     fn known_type(&self, e: &CoreExpr) -> Option<Type> {
         if let CoreExprKind::Call { callee, arguments } = &e.kind
             && let Some(name) = dynamic_store::primitive(callee)

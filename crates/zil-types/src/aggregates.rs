@@ -1130,6 +1130,13 @@ impl Resolver<'_> {
                     for f in &d.fields {
                         let ty = self.field_type(f, depth + 1)?;
                         if !(ty.is_copy_value()
+                            || (d.kind == AggregateKind::Struct
+                                && stored::pure_inline(
+                                    &ty,
+                                    &mut self.remaining,
+                                    &self.generic_limits,
+                                    f.span,
+                                )?)
                             || (stored_instance.is_some()
                                 && stored::pure_value(
                                     &ty,
@@ -1940,6 +1947,17 @@ impl<'a> Builder<'a, '_> {
         object: &CoreExpr,
         member: &str,
     ) -> Option<&'a Signature> {
+        if let Some(ty) = self.known_type_ref(object) {
+            let ty = match ty {
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::Managed(payload) => payload.as_ref(),
+                    other => other,
+                },
+                Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+                other => other,
+            };
+            return resolve_type_method(ty, member, self.signatures, self.imports);
+        }
         let ty = self.known_type(object)?;
         let ty = match ty {
             Type::Address { inner, .. } => match *inner {
@@ -1968,17 +1986,16 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let receiver = &signature.parameters[0];
-        let (first, actual) = if matches!(receiver, Type::Address { .. })
-            && !matches!(self.known_type(object), Some(Type::Address { .. }))
-        {
-            let (value, ty) = self.borrow_place_mode(
-                object,
-                matches!(receiver, Type::Address { mutable: true, .. }),
-            )?;
-            (value, ty)
-        } else {
-            self.argument_expr(object, receiver)?
-        };
+        let (first, actual) =
+            if matches!(receiver, Type::Address { .. }) && !self.known_address(object) {
+                let (value, ty) = self.borrow_place_mode(
+                    object,
+                    matches!(receiver, Type::Address { mutable: true, .. }),
+                )?;
+                (value, ty)
+            } else {
+                self.argument_expr(object, receiver)?
+            };
         self.member_owner(&actual, owner, span)?;
         self.same(&actual, receiver, object.span)?;
         let mut arguments = vec![self.stage_argument(first, receiver, object.span)?];
@@ -2025,7 +2042,14 @@ impl<'a> Builder<'a, '_> {
             unreachable!("expression dispatcher variant")
         };
         let (mut element, length) = match expected {
-            Some(Type::Array { element, length }) => (Some((**element).clone()), *length),
+            Some(Type::Array { element, length }) => {
+                if !element.is_copy_value()
+                    && stored::pure_inline(element, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(element, 1, 0, e.span)?;
+                }
+                (Some((**element).clone()), *length)
+            }
             _ => (None, items.len() as u32),
         };
         if length as usize != items.len() {
@@ -2040,6 +2064,11 @@ impl<'a> Builder<'a, '_> {
         for v in items {
             let (id, t) = self.owned_array_input(v, element.as_ref())?;
             if element.is_none() {
+                if !t.is_copy_value()
+                    && stored::pure_inline(&t, &mut self.match_work_left, self.limits, v.span)?
+                {
+                    self.closures.snapshot_type(&t, 1, 0, v.span)?;
+                }
                 element = Some(t.clone());
             }
             self.same(&t, element.as_ref().expect("known array element"), v.span)?;
@@ -2060,16 +2089,19 @@ impl<'a> Builder<'a, '_> {
         if let Type::Array { element, length } = &ty {
             self.check_owned_array_closure(element, *length, e.span)?;
         }
-        if !owned
+        let qualified_pure = !owned
             && !ty.is_copy_value()
-            && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
-        {
+            && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+        if !owned && !ty.is_copy_value() && !qualified_pure {
             return Err(unsupported(
                 e.span,
                 "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
             ));
         }
         let fields = self.commit_arguments(staged, e.span)?;
+        if qualified_pure {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((
             self.value(
                 if owned {
@@ -2099,14 +2131,17 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
-            || dynamic_store::borrow_expression(object)
-        {
+        if self.known_address(object) || dynamic_store::borrow_expression(object) {
             let (address, ty) = self.borrow_place(e)?;
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
             };
             let ty = *inner;
+            if !ty.is_copy_value()
+                && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+            {
+                self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+            }
             return Ok((
                 self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
                 ty,
@@ -2129,6 +2164,11 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let ty = *element;
+        if !ty.is_copy_value()
+            && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((
             self.value(
                 InstructionKind::ExtractIndex { aggregate, index },
@@ -2176,6 +2216,9 @@ impl<'a> Builder<'a, '_> {
         } else {
             InstructionKind::MakeOwnedTuple { fields }
         };
+        if pure && !ty.is_copy_value() {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((self.value(kind, ty.clone(), e.span)?, ty))
     }
 
@@ -2201,6 +2244,12 @@ impl<'a> Builder<'a, '_> {
         let mut slots = vec![None; decl.len()];
         let mut guarded = vec![None; decl.len()];
         for (name, value) in fields {
+            if let Some((_, actual)) = decl.iter().find(|(field, _)| field == name)
+                && !actual.is_copy_value()
+                && stored::pure_inline(actual, &mut self.match_work_left, self.limits, value.span)?
+            {
+                self.closures.snapshot_type(actual, 1, 0, value.span)?;
+            }
             let (i, t) = field(payload, name, value.span)?;
             if slots[i as usize].is_some() {
                 return Err(error(
@@ -2242,6 +2291,11 @@ impl<'a> Builder<'a, '_> {
         } else {
             slots.into_iter().map(Option::unwrap).collect()
         };
+        if !ty.is_copy_value()
+            && stored::pure_inline(ty, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(ty, 2, 0, e.span)?;
+        }
         Ok((
             self.value(
                 if matches!(ty, Type::Managed(_)) {
@@ -2309,11 +2363,9 @@ impl<'a> Builder<'a, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
-        if self
-            .known_type(object)
-            .as_ref()
-            .is_some_and(|ty| stored::shared_value(ty) || stored::shared_address(ty))
-        {
+        if self.known_type_is(object, |ty| {
+            stored::shared_value(ty) || stored::shared_address(ty)
+        }) {
             let (storage, address_ty) = self.projection_base(object, false)?;
             let Type::Address { inner, .. } = &address_ty else {
                 unreachable!()
@@ -2365,16 +2417,14 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Package { .. }))
+        if self.known_type_is(object, |ty| matches!(ty, Type::Package { .. }))
             && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()
         {
             return self.package_field(object, member, owner.as_ref(), e.span);
         }
-        if matches!(
-            self.known_type(object),
-            Some(Type::Managed(_) | Type::Desc(_))
-        ) && !self.indirect_place(e)
+        if self.known_type_is(object, |ty| matches!(ty, Type::Managed(_) | Type::Desc(_)))
+            && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()
         {
             return self.resource_field(object, member, owner.as_ref(), e.span);
@@ -2400,7 +2450,7 @@ impl<'a> Builder<'a, '_> {
         })();
         self.closures.snapshot(before - remaining, e.span)?;
         if owned_tuple_place?
-            || matches!(self.known_type(object), Some(Type::Address { .. }))
+            || self.known_address(object)
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
