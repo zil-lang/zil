@@ -1,0 +1,378 @@
+{
+  "task": "G1.3.4",
+  "decision": "AuthorLimitedSourcePackagePassIndependentTestsReportedPass",
+  "source_test_commit": "ec60ab812686c20678b2c520cdbbbd07d3ec4cb1",
+  "accepted_baseline": "6d4d3e1182001290f87cc0105f9c5a64d769b153",
+  "goal_read": "a30b2e71d5b16a8b9a07eba3ff92a10ea9718604",
+  "schema": 42,
+  "specification_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "normative_sha256": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+  "commits": {
+    "neutral_source_and_scope": "f917a83328b494eaca2befa8c364822487fcc995",
+    "types_producer": "9f3fab3edf525d2d226621b942475ca988b6a111",
+    "analyze_first_consumer": "80b58b900b99cfd268ae2343d2e0059e7853ccfe",
+    "machine": "eadf73e94cd2103656bb20a8228f23bcea73bcbd",
+    "analyze_absent_table_fix": "e04e6e9a7f5eee9c66b2a343acbe872c61afe66e",
+    "analyze_exact_rhs": "8ec06f2936f99da205668506784e9695e1943d7f",
+    "independent_verify_production": "020927cbe8d91b55aa30b2b3a197b84c25612737",
+    "independent_verify_compact_receipt": "0ca09a82ee08da92434346f96bbd5b1ee01aec63",
+    "composition": "ec60ab812686c20678b2c520cdbbbd07d3ec4cb1"
+  },
+  "scope": [
+    "Complete Package endpoint with exactly one direct Managed<CopyRecord> plus inline scalar companions",
+    "One independently reconstructed actual whole body-local root, genuine mutable parent, excluding direct formal-parameter locals",
+    "Exact actual RHS owned-field provenance replaces the retired leaf; original parent obligation, initialization and cleanup age remain",
+    "Types actual Reserve/Commit/Abort; Analyze and Verify prove independently, old cleanup projects the actual child then stores the complete prepared new Package",
+    "No public schema changes or current G3 candidate merged into accepted-base branch"
+  ],
+  "implementation_boundaries": {
+    "old_managed": "Existing Managed may-write summary union unchanged",
+    "incoming": "Incoming RHS cannot acquire Create from old fresh contents; a truly fresh RHS can replace an Incoming leaf at a definite singleton local Commit",
+    "resource_definition": "Every function/capture type inventory Managed/Desc Record head, including unused heads, is bound to unique actual name and full payload; user teardown has exact direct nonforeign nonenvironment Desc-to-Unit/Infer entry, cleanup-only target cannot be ordinary call/function value",
+    "no_raw_table_bypass": "Paid replacement inventory forces the real resource consumer even if raw resource table is empty",
+    "optional_facts": "Analyze direct Package Sum leaf and independent Verify optional Product lanes are synchronized with actual RHS",
+    "multi_root": "Independent Verify020 rejects whole-Package actual target cardinality !=1 before exact updates; matching type or public candidate never proves singleton"
+  },
+  "environment": {
+    "worktree": "/workspace/zil-G1.3.4",
+    "target": "/workspace/.zil-env/target341-G1.3.4",
+    "setup": "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target341-G1.3.4; export TMPDIR=/workspace/.zil-env/G1.3.4-tmp",
+    "jobs": 2,
+    "fresh_target_first_build": {
+      "path": "/workspace/.zil-env/G1.3.4-tmp/fresh-driver-build.log",
+      "sha256": "d08ec51ff03eb7c784ba35ea01bd91ae909ae1af37a5eef58b26c0dc7863ba59"
+    },
+    "first_driver_build_seconds": 32.81,
+    "cargo_stopped": true,
+    "superseded_target341_build": "Not used as acceptance/proof evidence; root assigned fresh target341-G1.3.4"
+  },
+  "validation": [
+    {
+      "name": "package_api",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test aggregates --features llvm-api terminal340_package_terminal_ -- --nocapture --skip terminal340_package_terminal_native_old_drop_store_and_failure --skip terminal340_package_terminal_new_provenance_and_temporary_native",
+      "result": {
+        "passed": 13,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-package-api.log",
+        "sha256": "c16991dbf159836bcd6240bde379b23ef07f34c9eafd309f670b5c5d18ad146d"
+      }
+    },
+    {
+      "name": "package_default",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test aggregates terminal340_package_terminal_ -- --nocapture --skip terminal340_package_terminal_native_old_drop_store_and_failure --skip terminal340_package_terminal_new_provenance_and_temporary_native",
+      "result": {
+        "passed": 13,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-package-default.log",
+        "sha256": "12b789754ef9163c45168587c3b53069f281180bf1274d8d481d704edcd55b8b"
+      }
+    },
+    {
+      "name": "old_error_arm_budget",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test aggregates terminal340_owner_replacement_error_arm_alias_budget -- --exact --nocapture",
+      "result": {
+        "passed": 1,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-old-alias-budget.log",
+        "sha256": "e75318e883e8d7e503b9d3fe69905c90e594709e1e31986882d3e89c90764357"
+      }
+    },
+    {
+      "name": "old_store_budget",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test impl180_store_mut owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries -- --exact --nocapture",
+      "result": {
+        "passed": 1,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-old-store-budget.log",
+        "sha256": "d2760c8ca84652f631153f5b13b08e05fa8e2b6b82b5d07a294dd3b4827511b1"
+      }
+    },
+    {
+      "name": "old_store_call_budget",
+      "command": "cargo test --locked --offline -j2 -p zil-driver --test impl180_store_mut owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries -- --exact --nocapture",
+      "result": {
+        "passed": 1,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-old-store-call-budget.log",
+        "sha256": "4b1c3de032a3b71184803a8cb5ce532d89ba639e8a5edd379bdd57908e9b26f2"
+      }
+    },
+    {
+      "name": "analyze_replacement_components",
+      "command": "cargo test --locked --offline -j2 -p zil-analyze --lib resources::replacements::tests -- --nocapture",
+      "result": {
+        "passed": 3,
+        "failed": 0
+      },
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-analyze-replacements.log",
+        "sha256": "d36d1ffb0ec5c0e32b235cfd1ad2ab2b43d4964899aec8ea1c2e157ea07e4d51"
+      }
+    },
+    {
+      "name": "analyze_strict_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-analyze --lib -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-analyze-clippy.log",
+        "sha256": "c0d968fcbe9e290a1cf495b999f41f722430a500437d9af6ad64cdde0f91e109"
+      }
+    },
+    {
+      "name": "types_strict_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-types --lib -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-types-clippy.log",
+        "sha256": "3c36d3f6e230e2b448e0be884d66ebe535f707fd119a00d0ab5695906b0d3652"
+      }
+    },
+    {
+      "name": "backend_strict_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-backend-llvm --lib -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-backend-clippy.log",
+        "sha256": "8aa2df2a44e590411a111bf0e48ba4b666764a68d3a185f05bdea46290a40ff8"
+      }
+    },
+    {
+      "name": "aggregates_strict_clippy",
+      "command": "cargo clippy --locked --offline -j2 -p zil-driver --test aggregates --features llvm-api -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-aggregates-clippy.log",
+        "sha256": "e2097572121959ee7b8ef36ce7aa50d1b373e6be6cdb1148052fa8d8cc868fa0"
+      }
+    },
+    {
+      "name": "fmt",
+      "command": "cargo fmt --all -- --check",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/final-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    }
+  ],
+  "final_test_functions": {
+    "passed": 32,
+    "failed": 0,
+    "native_matrix_functions_skipped": "Two previously executed native functions skipped as requested; see distinct source bindings below"
+  },
+  "budgets": {
+    "new_whole_source": {
+      "Analyze": 13945,
+      "Verify": 28743,
+      "fixed_expectations": true,
+      "N_minus_1": "ResourceLimit at corresponding phase",
+      "fresh_warm_retry": "same status; zero active queries; Verify executes once on successful Verify requests"
+    },
+    "independent_verify_raw_and_wire": 28743,
+    "unchanged_old": {
+      "error_arm_alias": [
+        46908,
+        97818
+      ],
+      "Store_local": [
+        19754,
+        54842
+      ],
+      "Store_call_invalidation": [
+        23731,
+        63080
+      ]
+    },
+    "default_limits_changed": false
+  },
+  "native_author_evidence": {
+    "not_rerun_after_compile_time_only_final_verify_fix": true,
+    "total_distinct_configurations": 32,
+    "configuration_per_source": "Clang/LLVM API x O0/O2",
+    "assertions": "exact full stdout, exit success, empty stderr, verification_runs=1, requested backend, no fallback, API builder object reports",
+    "groups": [
+      {
+        "source_test_commit": "e04e6e9a7f5eee9c66b2a343acbe872c61afe66e",
+        "log": {
+          "path": "/workspace/.zil-env/G1.3.4-tmp/source-native-api-identity-fixed.log",
+          "sha256": "b290aa132449bd6e9edfa5eb4390dea9935c62a15c30d1fa7f290ebaf9062b08"
+        },
+        "test": "terminal340_package_terminal_native_old_drop_store_and_failure",
+        "configurations": 16,
+        "sources_and_stdout": {
+          "whole Package": "AB42\n",
+          "parent address remains readable": "AB42\n",
+          "different same-type local old Desc": "ACB42\n",
+          "staged R failure then old owner error-exit": "BA42\n"
+        }
+      },
+      {
+        "source_test_commit": "8ec06f2936f99da205668506784e9695e1943d7f",
+        "log": {
+          "path": "/workspace/.zil-env/G1.3.4-tmp/new-native-first.log",
+          "sha256": "f1f18e8e246b2f62fad0b716108715550d3a7ad62003c30a8f42b0f017bfcf6a"
+        },
+        "command": "cargo test --locked --offline -j2 -p zil-driver --test aggregates --features llvm-api terminal340_package_terminal_new_provenance_and_temporary_native -- --exact --nocapture",
+        "configurations": 16,
+        "sources_and_stdout": {
+          "old Incoming body local -> genuinely fresh RHS -> Create result": "AB42\n",
+          "given Incoming RHS -> Give result": "AB42\n",
+          "owner declared second": "AB42\n",
+          "staged complete Package failure then old owner error-exit": "BA42\n"
+        }
+      }
+    ],
+    "binding_limit": "These author matrices bind their listed source/test commits; final ec60 new matrix is delegated to nonauthor fresh review, not falsely relabeled as a rerun here. Generated native executables were removed by existing Temp helper; no raw archive is committed."
+  },
+  "source_controls": {
+    "actual_source": "Original entire P assignment through a local mutable alias now emits real tickets and reaches both kernels/Wire",
+    "identity_raw_wire": [
+      "same-layout different resource name",
+      "empty table",
+      "duplicate definition",
+      "unused Managed<Other> local",
+      "same name with different full payload",
+      "wrong actual teardown entry"
+    ],
+    "provenance": "Both real Source directions, reversed field order, subsequent existing owning Sum/Product moves; Create on Incoming remains rejected. Source rejects in Analyze do not stand in for Verify proof; independent Verify promoted-claim/raw controls are separate.",
+    "liveness": [
+      "direct old Desc rejected",
+      "Desc captured in direct closure rejected",
+      "Desc carried by Address<Closure> rejected",
+      "old Desc of another actual same-type local accepted"
+    ],
+    "preconditions": [
+      "shared alias Types E-ADDRESS-PERMISSION",
+      "partial old source rejected by existing earlier Product-borrow completeness check, not counted as new reserve proof",
+      "nonlocal helper whole-Package endpoint Unsupported",
+      "actual intersecting RHS parent write E-BORROW-CONFLICT",
+      "Source RHS writes a separate actual same-type local passes both kernels/Wire; changing the actual argument root to the pinned parent with matching untrusted Hold is independently E-BORROW-REPLACEMENT-PIN"
+    ],
+    "independent_verify": "Source-derived ticket/shell/RHS, matching-hold wrong-root, actual epoch/pin and same-root/multi-root controls included from independently authored tests"
+  },
+  "historical_failures": [
+    {
+      "scope": "baseline accepted CLI",
+      "result": "Types WriteAddress then Analyze unpaid; no new terminal consumer",
+      "receipt": "docs/validation/G1.3.4-baseline.json"
+    },
+    {
+      "scope": "e04 predecessor empty-table fast path",
+      "result": "Raw empty resource table wrongly bypassed Analyze resource proof; e04 corrects it",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/source-native-api-first.log",
+        "sha256": "550ee57df0a74283834bdf5631cafc9ac98d3f3dcd1edb88e97d7ce68591cb32"
+      }
+    },
+    {
+      "scope": "pre-strong union Source observation",
+      "result": "Valid by-value input:P moved into body local then actual fresh RHS was conservatively rejected for Create; incoming RHS Create rejected and Give control accepted",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/pre-strong-source-valid.log",
+        "sha256": "0ab7c9236a469c41c74290b716888893b47e94cbbc34417a9ef7e2163c11746a"
+      },
+      "probe": {
+        "path": "/workspace/.zil-env/G1.3.4-tmp/source-stage",
+        "sha256": "044d6e93596917497c5b5fddcb68c248806aefac5dfaef2a7a10ef0085956352"
+      },
+      "binding_limit": "Frozen first implementation probe predates e04/8ec; historical diagnostic only, not final acceptance Source SHA"
+    },
+    {
+      "scope": "independent Verify1e multi-root",
+      "result": "Same-type multiple actual roots were falsely strongly updated; superseded by020, details in independent Verify receipt",
+      "receipt": "docs/validation/G1.3.4.1-verify.json"
+    }
+  ],
+  "continue_after_abort": {
+    "not_claimed": true,
+    "existing_BA_witness": "Prepared R or complete P is cleaned before old A on actual function error-exit, not a post-abort old scalar/Desc read",
+    "probes": [
+      {
+        "input": "RHS match expression with break arm",
+        "result": "Parse E-PARSE-IDENTIFIER at match",
+        "log": {
+          "path": "/workspace/.zil-env/G1.3.4-tmp/abort-source-probe.log",
+          "sha256": "abc63560cdee3a3b3678851dd5b7602214f9a78d2ad2e3cd7ad3cfe366605f7a"
+        }
+      },
+      {
+        "input": "RHS if expression with break branch",
+        "result": "Parse E-PARSE-IDENTIFIER at break",
+        "log": {
+          "path": "/workspace/.zil-env/G1.3.4-tmp/abort-if-source-probe.log",
+          "sha256": "8ec7b7fce75394fa17dcdf9d3ee889f54def5c8ffd2bfd8b96cb4dad80badea4"
+        }
+      }
+    ],
+    "limit": "Only these attempted expression forms are recorded; grammar not expanded and no blanket impossibility claim"
+  },
+  "limitations": [
+    "Whole Enum/ErrorUnion terminals remain closed; G1.3.3 active-arm Managed projection is separate",
+    "Nonlocal/capture/Store roots, direct formal-parameter Package local, nested Package endpoint, multiple Managed fields or nonscalar companions not admitted",
+    "No complete G1.3/G1.4, global user-resource/async/retained lifetime acceptance or full workspace gate claimed",
+    "No source expression catch/continue-after-Abort old Desc witness",
+    "No implicit runtime reservation field, Box/RC/GC or new allocation; no same-semantics Rust runtime/RSS/compile-speed comparison"
+  ],
+  "rust_four_goals": {
+    "safety": "Independent actual root, singleton, resource identity/cleanup and descriptor-liveness checks; limited Source/raw/Wire evidence",
+    "runtime_memory": "Existing inline representation plus actual child-pointer old cleanup/full store; complete native output only, no Rust parity/RSS benchmark",
+    "compile_cost": "Prepaid new scans and exact live request N/N-1/fresh/warm without raising defaults; original budgets retained",
+    "expressivity": "New genuine whole Package endpoint through ordinary mutable alias; broad owning Sum/lending and product net breakthrough remain unfinished"
+  },
+  "files_sha256": {
+    "crates/zil-types/src/owning_place_replace.rs": "d217fea52616e11a88026b4f719e987ad17158bb7431e78cd2a5572d327932aa",
+    "crates/zil-analyze/src/resources.rs": "4dc0d40820ffe789793ae63f127f89f3b736ef6630636f3bf12c0c949fe14106",
+    "crates/zil-analyze/src/resources/replacements.rs": "10cb7a60a9fe77312513410459e8feba225e289b7e0633e06c8be47472a062f8",
+    "crates/zil-analyze/src/resources/replacements/package.rs": "1f16c946a75e2faea10a158c58b5557dd22d3b3410b8acafc86e61c64668dd39",
+    "crates/zil-analyze/src/resources/sums.rs": "d6e32fd0071c5eb1c97d7215d5d5123dc989bdce05d24b182690ed9fb9dbf105",
+    "crates/zil-backend-llvm/src/emit/replacements.rs": "1395e3a84deec285e50d8d8c57462f0f0d11d2b14bec33e11d5aa57b690dcd21",
+    "crates/zil-verify/src/place_replacements/actual.rs": "8dcb0024b9bd479c6df521da23f75a29049be568cad9aa3e5c37e91375243be6",
+    "crates/zil-verify/src/resources.rs": "7f9a3e18e5c3c8eb1e00e67add9e20167085dedb38abaf244d105555db50f7a9",
+    "crates/zil-verify/src/resources/product.rs": "4af875101117653c788a639351e7b7a3d70201d053ecc4852a11864dc62c7091",
+    "crates/zil-verify/src/resources/replacements.rs": "d48243de05378a0478f036ae5fdfef233adbb6893fc896281e1eb51fb4da735f",
+    "crates/zil-verify/src/sums/replacements.rs": "82e1892145f892ac2cdf342a291c25dd56670b9f5175824e2837867d78e94b4c",
+    "crates/zil-driver/tests/aggregates.rs": "641fe8c31a497b637d153679c6402a73e04afe682f4d20ef86c0fce42f2b5206",
+    "tests/language-readiness/terminal/340/replace-package-terminal-failure.zil": "2fda880bccfdf507082d7c80f4e026c70eec0aee27745cc7b3106ece009b46a1",
+    "tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil": "9ffbb3a8fba80a2fab084a9886f58d1b9a6ccb1cb4ad2c12d9b2a9a575783863",
+    "tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil": "18473a074c2010e0aef227d3e7e93296354adc176dd6c4ea1c225c0516354981",
+    "tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil": "adb2bab427a8642cdad9bb3fb0bbfc873822a88f179f6c986febb6b534ae25f4",
+    "tests/language-readiness/terminal/340/replace-package-terminal-pending.zil": "de984954b54ef7964cbf41a382c9cd60c33c99ff50edce914d0458f6c9e706ba",
+    "tests/language-readiness/terminal/340/replace-package-terminal-shared.zil": "14ef340f29de0069a029f14233a12c410221b81026f10405ca2ce072453044c0"
+  },
+  "final_binaries": {
+    "aggregates_api": {
+      "path": "/workspace/.zil-env/target341-G1.3.4/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "d91cc264a35d75a0590010406254f1274a4f299a709d1c8049143c970df67f9c"
+    },
+    "aggregates_default": {
+      "path": "/workspace/.zil-env/target341-G1.3.4/debug/deps/aggregates-69ffa20fbaa0b0e1",
+      "sha256": "17bc5a5b5622e78ae022c37f3bce7264c17bc82377576cfb766ddbf705f86e77"
+    },
+    "analyze": {
+      "path": "/workspace/.zil-env/target341-G1.3.4/debug/deps/zil_analyze-8dde3b1c204420d7",
+      "sha256": "bc5fd34dd27563edd2a302686ac6e13af16bd17a6f1b04906594720d980cf58d"
+    },
+    "store": {
+      "path": "/workspace/.zil-env/target341-G1.3.4/debug/deps/impl180_store_mut-0ecbf88db537b83c",
+      "sha256": "973d9776ccc4d718bfe597afb1e93386be6eea0e2a7ed88d3db1d8a3e1e3dac7"
+    }
+  },
+  "api_feature_fingerprint": {
+    "file": {
+      "path": "/workspace/.zil-env/target341-G1.3.4/debug/.fingerprint/zil-driver-e68efd3bca6e242d/test-integration-test-aggregates.json",
+      "sha256": "878522b4b37aa7792a3f04d2cd0867f66ef482beaf3ca3723664aafa6172b9b4"
+    },
+    "features": "[\"default\", \"llvm-api\"]"
+  },
+  "independent_review": "g8 fresh ec60 review reports Package14 (13 nonnative + new native16), Analyze6/Verify10/Types2/machine1/oldbudgets3, four strict Clippy and fmt passed; final external receipt sealing separately"
+}
