@@ -319,3 +319,77 @@ fn whole_helper_commit_keeps_actual_rhs_and_conditional_may_distinct() {
         }
     }
 }
+
+#[test]
+fn whole_helper_later_field_commit_or_helper_clears_the_must_fact() {
+    use fixture::instruction as i;
+    use zil_ir::ReservationId;
+    for nested in [false, true] {
+        let mut module = whole_helper(false, false);
+        let resource = module.functions[0].locals[1].ty.clone();
+        if nested {
+            let mut mutator = fixture::module().functions.remove(0);
+            mutator.id = FunctionId(2);
+            module.functions.push(mutator);
+        }
+        let helper = &mut module.functions[0];
+        helper.values.push(resource);
+        helper.blocks[0].instructions.push(i(
+            Some(ValueId(4)),
+            InstructionKind::MakeManaged {
+                fields: vec![ValueId(2)],
+            },
+        ));
+        if nested {
+            helper.blocks[0].instructions.push(i(
+                None,
+                InstructionKind::Call {
+                    function: FunctionId(2),
+                    arguments: vec![ValueId(0), ValueId(4)],
+                },
+            ));
+        } else {
+            helper.blocks[0].instructions.extend([
+                i(
+                    None,
+                    InstructionKind::ReservePlaceAddress {
+                        reservation: ReservationId(72),
+                        address: ValueId(0),
+                        path: vec![PlaceProjection::Field(0)],
+                    },
+                ),
+                i(
+                    None,
+                    InstructionKind::CommitPlaceReplace {
+                        reservation: ReservationId(72),
+                        value: ValueId(4),
+                    },
+                ),
+            ]);
+        }
+        let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+        let limits = Limits::default();
+        let mut b = Budget::new(&limits);
+        b.head_descriptions = true;
+        let program = Program::new(&module, &graphs, &mut b).unwrap();
+        let effects = infer(&module, &graphs, &program, &mut b).unwrap();
+        assert!(effects[0].whole_commits.as_ref().unwrap().is_empty());
+        let errors = analyze_function_program(
+            &module,
+            &module.functions[1],
+            &[true],
+            &effects,
+            true,
+            &mut b,
+            None,
+            Some(&program),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("create result forwards an incoming responsibility")),
+            "nested={nested}: {errors:?}"
+        );
+    }
+}
