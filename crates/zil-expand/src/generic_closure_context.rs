@@ -167,7 +167,7 @@ fn scalar_result(ty: &TypeRef) -> bool {
 /// the actual aligned creator; it neither numbers closures nor matches two
 /// traversals. It runs only after a contextual closure actually requests an
 /// owner, never as an unrelated whole-module discovery fee.
-pub(super) fn original_creator_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
+fn original_creator_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
     use crate::ct_selection::Visitor;
     struct Original<'a, 'l> {
         budget: &'a mut Budget<'l>,

@@ -19,6 +19,65 @@ pub(crate) struct Ledger {
 fn unavailable(span: Span, message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Expand, message, Some(span))
 }
+pub(super) fn scalar_syntax(ty: &TypeRef) -> bool {
+    matches!(&ty.kind,TypeKind::Named {path,args} if args.is_empty() && matches!(path.as_slice(),[name] if matches!(name.as_str(),"unit"|"void"|"bool"|"i32"|"i64"|"u8"|"u16"|"u64"|"usize"|"f32"|"f64")))
+}
+fn original_header_capability(item: &Item, budget: &mut Budget<'_>) -> R<()> {
+    use crate::ct_selection::Visitor;
+    struct Header<'a, 'l> {
+        budget: &'a mut Budget<'l>,
+    }
+    impl Visitor for Header<'_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            if matches!(
+                ty.kind,
+                TypeKind::MetaEval(_) | TypeKind::MetaSplice(_) | TypeKind::MetaBlock(_)
+            ) {
+                return Err(vec![unavailable(
+                    ty.span,
+                    "source helper header rewrite requires original bound lineage",
+                )]);
+            }
+            crate::ct_selection::walk_type(self, ty, depth)
+        }
+    }
+    if !item.attributes.is_empty() {
+        return Err(unavailable(
+            item.span,
+            "source helper header attributes require original signature lineage",
+        ));
+    }
+    let ItemKind::Function(function) = &item.kind else {
+        return Err(unavailable(
+            item.span,
+            "source helper header is not a free function",
+        ));
+    };
+    let mut header = Header { budget };
+    for parameter in &function.generics {
+        header
+            .node(parameter.span, 0)
+            .map_err(|mut e| e.remove(0))?;
+        if let GenericParamKind::Type(bounds) = &parameter.kind {
+            for bound in bounds {
+                header.ty(bound, 0).map_err(|mut e| e.remove(0))?;
+            }
+        }
+    }
+    for parameter in &function.params {
+        header.ty(&parameter.ty, 0).map_err(|mut e| e.remove(0))?;
+    }
+    if let Some(result) = &function.return_type {
+        header.ty(result, 0).map_err(|mut e| e.remove(0))?;
+    }
+    Ok(())
+}
 impl Ledger {
     pub(crate) fn consume(
         &mut self,
@@ -115,17 +174,16 @@ impl Engine<'_> {
         if !candidate {
             return Ok(());
         }
-        self.budget
-            .identity_work(function.generics.len(), function.span)?;
-        if !function.where_clause.is_empty()
-            || function.generics.iter().enumerate().any(|(i, p)| {
-                i != generic_parameter && !matches!(p.kind, GenericParamKind::Lifetime)
-            })
+        let Some(GenericArg::Type(result)) = args.last() else {
+            return Ok(());
+        };
+        if !scalar_syntax(result)
+            || function
+                .return_type
+                .as_ref()
+                .is_some_and(|result| !scalar_syntax(result))
         {
-            return Err(unavailable(
-                function.span,
-                "source helper context requires one free Fn and life-only surrounding declarations",
-            ));
+            return Ok(());
         }
         let selected = callable::template(function, &mut self.budget)?.ok_or_else(|| {
             unavailable(
@@ -187,7 +245,7 @@ impl Engine<'_> {
                 "source helper original owner is not a free function",
             ));
         }
-        closure_context::original_creator_capability(original, &mut self.budget)?;
+        original_header_capability(original, &mut self.budget)?;
         let source = origins.identity(origin.declaration, &mut self.budget, function.span)?;
         if source.closure_sites != crate::source_context::ClosureSiteLineage::Original
             || !source.identity.generation_path.is_empty()

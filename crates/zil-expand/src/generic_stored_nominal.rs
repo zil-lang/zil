@@ -71,18 +71,22 @@ impl<'a> Engine<'a> {
             if let ItemKind::Function(function) = &mut pending.item.kind {
                 self.life_scope.clear();
                 let mut callable_parameter = None;
+                let mut callable_profile = function.where_clause.is_empty();
                 for (index, parameter) in function.generics.iter().enumerate() {
                     self.budget.node(parameter.span, 0)?;
-                    if callable_parameter.is_none()
-                        && matches!(parameter.kind, GenericParamKind::Type(_))
-                    {
-                        callable_parameter = Some(index);
+                    match parameter.kind {
+                        GenericParamKind::Type(_) if callable_parameter.is_none() => {
+                            callable_parameter = Some(index)
+                        }
+                        GenericParamKind::Lifetime => {}
+                        _ => callable_profile = false,
                     }
                     if matches!(parameter.kind, GenericParamKind::Lifetime) {
                         self.budget.text(&parameter.name, parameter.span)?;
                         self.life_scope.push(parameter.name.clone());
                     }
                 }
+                let callable_parameter = callable_profile.then_some(callable_parameter).flatten();
                 self.with_origin(pending.origin, |engine| {
                     if engine.stored_signature_context(function, callable_parameter)? {
                         engine.budget.function_snapshot(function)?;
@@ -130,9 +134,13 @@ impl<'a> Engine<'a> {
         }
         let mut occurrences = Vec::new();
         let mut stored = false;
+        let mut callable_data_profile = true;
+        let mut callable_receivers = 0usize;
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
         for (index, parameter) in function.params.iter_mut().enumerate() {
+            let before = occurrences.len();
+            let mut parameter_stored = false;
             self.storage_header(
                 &mut parameter.ty,
                 zil_ir::StorageBase::Parameter(
@@ -142,10 +150,28 @@ impl<'a> Engine<'a> {
                 &mut Vec::new(),
                 &mut Vec::new(),
                 &mut occurrences,
-                &mut stored,
+                &mut parameter_stored,
                 &mut next_elided,
                 0,
             )?;
+            stored |= parameter_stored;
+            if callable_parameter.is_some() {
+                match &parameter.ty.kind {
+                    TypeKind::Reference {
+                        mutable: false,
+                        inner,
+                        ..
+                    } if matches!(inner.kind, TypeKind::Named { .. }) => {
+                        if parameter_stored {
+                            callable_data_profile &= occurrences.len() - before == 2;
+                        } else {
+                            callable_receivers += 1;
+                        }
+                    }
+                    _ if callable_context::scalar_syntax(&parameter.ty) => {}
+                    _ => callable_data_profile = false,
+                }
+            }
         }
         if let Some(result) = &mut function.return_type {
             self.storage_header(
@@ -168,7 +194,9 @@ impl<'a> Engine<'a> {
             &mut self.budget,
             function.span,
         )?;
-        if let Some(parameter) = callable_parameter {
+        if let Some(parameter) =
+            callable_parameter.filter(|_| callable_data_profile && callable_receivers == 1)
+        {
             self.prepare_callable_context(function, &contract, &fixed, &invocation, parameter)?;
         }
         self.budget.text(&function.name, function.span)?;

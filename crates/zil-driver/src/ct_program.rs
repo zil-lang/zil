@@ -1591,6 +1591,74 @@ mod tests {
     use zil_ct::SourceCompiler;
 
     #[test]
+    fn g334_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
+        use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+        let input = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "helper-ct.zil",
+            include_str!(
+                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+            ),
+        );
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &input,
+            &syntax,
+            &limits,
+            &target,
+            SourceIdentityContext::ClosedSnapshot {
+                root: input.module_id,
+                aliases: &Default::default(),
+                declarations: DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let helper = core
+            .functions
+            .iter()
+            .find(|f| {
+                f.callable_parameters
+                    .iter()
+                    .any(|r| r.source_life.is_some())
+            })
+            .unwrap();
+        let query = core.functions.iter().flat_map(|f| &f.body.statements).find_map(|statement| {
+            if let CoreStatementKind::Return(Some(expression))=&statement.kind
+                && matches!(&expression.kind,CoreExprKind::Call {callee,..} if matches!(&callee.kind,CoreExprKind::Name(name) if name==&helper.name)) {
+                Some(expression.clone())
+            } else { None }
+        }).expect("actual source helper call");
+        let program = CoreProgram {
+            root: core.module_id,
+            source_fingerprint: core.source_fingerprint,
+            modules: vec![ProgramModule {
+                core,
+                imports: vec![],
+                exports: vec![],
+            }],
+        };
+        let errors = Compiler {
+            program: &program,
+            module: program.root,
+            target: &target,
+        }
+        .compile(&query, None, &limits)
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::Unsupported
+                    && d.message
+                        .contains("source helper context cannot execute in a pure CT query")),
+            "{errors:?}"
+        );
+    }
+
+    #[test]
     fn scoped_foreign_role_selection_work_is_prepaid_without_changing_none() {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "role.zil", "fn f(){}");
         let ast = zil_syntax::parse(&source).into_result().unwrap();
