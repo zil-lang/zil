@@ -259,5 +259,14 @@
     "Exact-one Commit, single normal-return block and no call for must Fresh; ordinary access does not require Fresh.",
     "Fallible non-Unit borrowed helper is Unsupported; argument failure and local Abort controls are distinct.",
     "No full gate/Rust cost/complete language acceptance claim."
-  ]
+  ],
+  "test_target_features": [
+    "default"
+  ],
+  "driver_default_features": [],
+  "test_suite_native_backends": [
+    "clang"
+  ],
+  "test_suite_native_run_count": 6,
+  "separate_cli_native_run_count": 12
 }
