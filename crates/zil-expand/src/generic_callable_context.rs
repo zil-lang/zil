@@ -193,12 +193,26 @@ impl Engine<'_> {
                 "source helper actual selected role is absent",
             )
         })?;
-        let [selected_role] = selected.roles.as_slice() else {
+        if selected.roles.len() > 1 {
+            self.budget
+                .identity_work(selected.roles.len(), function.span)?;
+        }
+        let mut selected_roles = selected
+            .roles
+            .iter()
+            .filter(|role| role.source_generic_parameter == generic_parameter as u32);
+        let Some(selected_role) = selected_roles.next() else {
             return Err(unavailable(
                 function.span,
-                "source helper first profile requires one actual shared Fn role",
+                "source helper selected role is absent",
             ));
         };
+        if selected_roles.next().is_some() {
+            return Err(unavailable(
+                function.span,
+                "source helper selected role is ambiguous",
+            ));
+        }
         if selected_role.source_generic_parameter != generic_parameter as u32
             || selected_role.source_bound_ordinal != 0
             || selected_role.kind != kind

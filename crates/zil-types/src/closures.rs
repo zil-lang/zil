@@ -560,6 +560,14 @@ impl State {
         )?;
         helpers::source_life::validate(function, bound)
     }
+    pub(super) fn source_helper_joint(
+        &mut self,
+        original: &CoreFunction,
+        partials: &[(u32, StorageLifeContract)],
+        span: Span,
+    ) -> R<StorageLifeContract> {
+        helpers::source_life::joint_header(original, partials, &mut self.work_left, span)
+    }
     pub(super) fn source_helper_relation(
         &mut self,
         original: &CoreFunction,

@@ -903,6 +903,7 @@ impl Builder<'_, '_> {
             }
         }
         let mut source_role_life = None;
+        let mut multiple_source_roles = BTreeMap::new();
         if let [bound] = bounds
             && bound.source_life.is_some()
         {
@@ -912,6 +913,32 @@ impl Builder<'_, '_> {
                     .source_helper_relation(&template.function, bound, closure, span)?;
             function.storage_life = Some(header);
             source_role_life = Some(role);
+        } else if bounds.iter().any(|bound| bound.source_life.is_some()) {
+            self.closures
+                .snapshot(bounds.len().saturating_mul(3), span)?;
+            let mut partials = Vec::with_capacity(bounds.len());
+            for bound in bounds {
+                if bound.source_life.is_none() {
+                    return Err(unsupported(
+                        span,
+                        "multiple qualified roles require each actual original source context",
+                    ));
+                }
+                let closure = bindings.get(bound.generic_index, span)?;
+                let (header, role) = self.closures.source_helper_relation(
+                    &template.function,
+                    bound,
+                    closure,
+                    span,
+                )?;
+                partials.push((bound.index, header));
+                multiple_source_roles.insert(bound.index, role);
+            }
+            function.storage_life = Some(self.closures.source_helper_joint(
+                &template.function,
+                &partials,
+                span,
+            )?);
         }
         aggregate_templates::rebind_callable_function(
             &mut function,
@@ -997,15 +1024,18 @@ impl Builder<'_, '_> {
                     self.closures
                         .snapshot(borrowed_fp::metadata_work(life), span)?;
                 }
+                let actual_source_role = multiple_source_roles
+                    .get(&bound.index)
+                    .or(source_role_life.as_ref());
                 if bound.source_life.is_some()
-                    && let Some(life) = &source_role_life
+                    && let Some(life) = actual_source_role
                 {
                     self.closures
                         .snapshot(borrowed_fp::metadata_work(life), span)?;
                 }
                 roles.push(CallableRole {
                     life: if bound.source_life.is_some() {
-                        source_role_life.clone()
+                        actual_source_role.cloned()
                     } else {
                         bound.life.clone()
                     },

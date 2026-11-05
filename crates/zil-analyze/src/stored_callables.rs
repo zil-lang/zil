@@ -18,6 +18,29 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    if f.foreign.is_none() {
+        return Ok(false);
+    }
+    b.spend(
+        f.parameters.len().saturating_add(1),
+        "stored scalar foreign signature",
+    )?;
+    Ok(f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && f.storage_life.is_none()
+        && f.callable_contract.is_none()
+        && f.callable_return_contract.is_none()
+        && f.reference_return_bound.is_none()
+        && f.result_mode == zil_ir::PassingMode::Infer
+        && scalar(&f.return_type)
+        && f.blocks.is_empty()
+        && f.values.is_empty()
+        && f.parameters
+            .iter()
+            .all(|p| f.locals.get(p.0 as usize).is_some_and(|l| scalar(&l.ty))))
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module
         .closures

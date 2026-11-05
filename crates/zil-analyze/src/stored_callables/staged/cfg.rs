@@ -20,7 +20,7 @@ struct Frame {
     values: Vec<Origin>,
     activated: Vec<u8>,
     retired: Vec<bool>,
-    done: Origin,
+    done: u8,
 }
 impl Frame {
     fn merge(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
@@ -45,8 +45,8 @@ impl Frame {
             changed |= *left != left.join(*right);
             *left = left.join(*right);
         }
-        changed |= self.done != self.done.join(other.done);
-        self.done = self.done.join(other.done);
+        changed |= self.done != (self.done | other.done);
+        self.done |= other.done;
         Ok(changed)
     }
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
@@ -93,6 +93,17 @@ fn scalar_operands(kind: &InstructionKind) -> [Option<ValueId>; 2] {
     }
 }
 
+fn debt(roles: &[zil_ir::CallableRole], parameter: usize, b: &mut Budget) -> CompileResult<u8> {
+    if roles.len() > 1 {
+        b.spend(roles.len(), "actual owning role debt selector")?;
+    }
+    let index = roles
+        .iter()
+        .position(|role| role.parameter as usize == parameter)
+        .ok_or_else(closed)?;
+    Ok(1 << (index * 2))
+}
+
 pub(super) fn parameter(
     f: &TypedFunction,
     call: &InstructionKind,
@@ -125,32 +136,43 @@ fn solve(
             .saturating_add(f.parameters.len()),
         "owning CFG graph and origin inventory",
     )?;
-    let role = f
-        .callable_contract
-        .as_ref()
-        .filter(|c| c.roles.len() == 1)
-        .and_then(|c| c.roles.first())
-        .ok_or_else(closed)?;
-    let p = role.parameter as usize;
-    if role.kind != zil_ir::CallableKind::FnOnce
-        || role.cleanup != zil_ir::CallableCleanup::Owned
-        || role.closure != id
-    {
+    let roles = &f.callable_contract.as_ref().ok_or_else(closed)?.roles;
+    if roles.is_empty() || roles.len() > 2 {
         return Err(closed());
     }
-    let mut input = None;
-    for (index, local) in f.parameters.iter().enumerate() {
-        if closure_local(f, *local)
-            && (input.replace(index).is_some()
-                || index != p
-                || f.locals.get(local.0 as usize).map(|l| &l.ty) != Some(&Type::Closure(id)))
+    if roles.len() > 1 {
+        b.spend(roles.len(), "owning role inventory")?;
+    }
+    for role in roles {
+        if role.kind != zil_ir::CallableKind::FnOnce
+            || role.cleanup != zil_ir::CallableCleanup::Owned
         {
             return Err(closed());
         }
+        let local = f
+            .parameters
+            .get(role.parameter as usize)
+            .ok_or_else(closed)?;
+        if f.locals.get(local.0 as usize).map(|l| &l.ty) != Some(&Type::Closure(role.closure)) {
+            return Err(closed());
+        }
     }
-    if input != Some(p) || n == 0 || f.entry.0 as usize >= n {
+    if roles.len() == 1 && roles[0].closure != id {
         return Err(closed());
     }
+    let mut inputs = 0usize;
+    for (index, local) in f.parameters.iter().enumerate() {
+        if closure_local(f, *local) {
+            inputs += 1;
+            if !roles.iter().any(|role| role.parameter as usize == index) {
+                return Err(closed());
+            }
+        }
+    }
+    if inputs != roles.len() || n == 0 || f.entry.0 as usize >= n {
+        return Err(closed());
+    }
+    let unsettled = if roles.len() == 1 { 1 } else { 5 };
     let mut incoming = vec![0usize; n];
     let mut ready = Vec::with_capacity(n);
     let mut states: Vec<Option<Frame>> = vec![None; n];
@@ -179,6 +201,32 @@ fn solve(
             }
         }
     }
+    if cyclic {
+        // This fallback extends actual cycles only. A rejected DAG does not
+        // gain a different local-activation discipline by retrying it.
+        b.spend(n.saturating_mul(3), "cyclic graph classification tables")?;
+        let mut degrees = incoming.clone();
+        let mut frontier = Vec::with_capacity(n);
+        for (index, count) in degrees.iter().enumerate() {
+            if *count == 0 {
+                frontier.push(index);
+            }
+        }
+        let mut removed = 0usize;
+        while let Some(index) = frontier.pop() {
+            b.spend(3, "cyclic graph classification edges")?;
+            removed += 1;
+            for next in edges(&f.blocks[index])?.into_iter().flatten() {
+                degrees[next] -= 1;
+                if degrees[next] == 0 {
+                    frontier.push(next);
+                }
+            }
+        }
+        if removed == n {
+            return Err(closed());
+        }
+    }
     let entry = f.entry.0 as usize;
     if !cyclic && incoming[entry] != 0 {
         return Err(closed());
@@ -195,20 +243,31 @@ fn solve(
         values: vec![Origin::Empty; f.values.len()],
         activated: vec![1; f.locals.len()],
         retired: vec![false; f.locals.len()],
-        done: Origin::Empty,
+        done: unsettled,
     };
-    let local = f.parameters[p].0 as usize;
-    initial.locals[local] = Origin::Input(p);
-    initial.activated[local] = 2;
+    if roles.len() > 1 {
+        b.spend(roles.len(), "actual owning role seeds")?;
+    }
+    for role in roles {
+        let p = role.parameter as usize;
+        let local = f.parameters[p].0 as usize;
+        initial.locals[local] = Origin::Input(p);
+        initial.activated[local] = 2;
+    }
     states[entry] = Some(initial);
     let mut seen = if cyclic {
-        b.spend(n, "cyclic owning CFG block activation inventory")?;
+        b.spend(
+            n.saturating_mul(2),
+            "cyclic owning CFG block activation/queue inventory",
+        )?;
         vec![false; n]
     } else {
         Vec::new()
     };
+    let mut queued = if cyclic { vec![false; n] } else { Vec::new() };
     if cyclic {
         ready.push(entry);
+        queued[entry] = true;
     } else {
         for (index, count) in incoming.iter().enumerate() {
             if *count == 0 {
@@ -225,6 +284,7 @@ fn solve(
         }
         if cyclic {
             seen[index] = true;
+            queued[index] = false;
         }
         let block = &f.blocks[index];
         let mut frame = if cyclic {
@@ -243,15 +303,19 @@ fn solve(
             match &i.kind {
                 InstructionKind::TakeLocal { local } if closure_local(f, *local) => {
                     let l = local.0 as usize;
-                    if frame.retired[l] || frame.activated[l] != 2 || frame.done != Origin::Empty {
-                        return Err(closed());
-                    }
                     let origin = frame.locals[l];
-                    if !matches!(origin, Origin::Input(_)) {
+                    let Origin::Input(actual) = origin else {
+                        return Err(closed());
+                    };
+                    let mask = debt(roles, actual, b)?;
+                    if frame.retired[l]
+                        || frame.activated[l] != 2
+                        || frame.done & (mask * 3) != mask
+                    {
                         return Err(closed());
                     }
                     let value = result
-                        .filter(|v| f.values.get(v.0 as usize) == Some(&Type::Closure(id)))
+                        .filter(|v| f.values.get(v.0 as usize) == Some(&f.locals[l].ty))
                         .ok_or_else(closed)?;
                     frame.values[value.0 as usize] = origin;
                     frame.locals[l] = Origin::Empty;
@@ -259,14 +323,16 @@ fn solve(
                 InstructionKind::Store { local, value } if closure_local(f, *local) => {
                     let l = local.0 as usize;
                     let v = value.0 as usize;
+                    let Some(Origin::Input(actual)) = frame.values.get(v) else {
+                        return Err(closed());
+                    };
+                    let mask = debt(roles, *actual, b)?;
                     if frame.retired[l]
                         || frame.activated[l] != 2
-                        || f.locals[l].ty != Type::Closure(id)
                         || frame.locals[l] != Origin::Empty
-                        || frame.done != Origin::Empty
-                        || !matches!(frame.values.get(v), Some(Origin::Input(_)))
-                        || f.values.get(v) != Some(&Type::Closure(id))
-                        || *local == f.parameters[p]
+                        || frame.done & (mask * 3) != mask
+                        || f.values.get(v) != Some(&f.locals[l].ty)
+                        || f.parameters.contains(local)
                     {
                         return Err(closed());
                     }
@@ -275,30 +341,36 @@ fn solve(
                 }
                 InstructionKind::CallClosureOnce { callee, arguments } => {
                     b.spend(arguments.len(), "owning CFG callback operands")?;
-                    if arguments.iter().any(|v| closure_value(f, *v)) || frame.done != Origin::Empty
-                    {
+                    if arguments.iter().any(|v| closure_value(f, *v)) {
                         return Err(closed());
                     }
                     let value = frame.values.get_mut(callee.0 as usize).ok_or_else(closed)?;
                     let Origin::Input(actual) = *value else {
                         return Err(closed());
                     };
-                    if actual != p {
+                    let mask = debt(roles, actual, b)?;
+                    if frame.done & (mask * 3) != mask {
                         return Err(closed());
                     }
-                    if (std::ptr::eq(&i.kind, call) || i.kind == *call)
-                        && answer.replace(actual).is_some_and(|old| old != actual)
-                    {
-                        return Err(closed());
+                    if std::ptr::eq(&i.kind, call) || i.kind == *call {
+                        if f.values.get(callee.0 as usize) != Some(&Type::Closure(id))
+                            || answer.replace(actual).is_some_and(|old| old != actual)
+                        {
+                            return Err(closed());
+                        }
                     }
                     *value = Origin::Empty;
-                    frame.done = Origin::Input(actual);
+                    frame.done = (frame.done & !(mask * 3)) | (mask * 2);
                 }
                 InstructionKind::DropClosure { local } if closure_local(f, *local) => {
                     let l = local.0 as usize;
                     match frame.locals[l] {
-                        Origin::Input(actual) if frame.done == Origin::Empty => {
-                            frame.done = Origin::Input(actual);
+                        Origin::Input(actual) => {
+                            let mask = debt(roles, actual, b)?;
+                            if frame.done & (mask * 3) != mask {
+                                return Err(closed());
+                            }
+                            frame.done = (frame.done & !(mask * 3)) | (mask * 2);
                             frame.locals[l] = Origin::Empty;
                         }
                         Origin::Empty => {}
@@ -324,7 +396,7 @@ fn solve(
                     if frame.activated[l] != 1
                         || (frame.retired[l] && !cyclic)
                         || (cyclic
-                            && (frame.locals[l] != Origin::Empty || *local == f.parameters[p]))
+                            && (frame.locals[l] != Origin::Empty || f.parameters.contains(local)))
                     {
                         return Err(closed());
                     }
@@ -385,7 +457,7 @@ fn solve(
                 frame.locals.len().saturating_add(frame.values.len()),
                 "owning CFG return debt inventory",
             )?;
-            if frame.done != Origin::Input(p)
+            if frame.done != unsettled * 2
                 || frame
                     .locals
                     .iter()
@@ -403,8 +475,9 @@ fn solve(
                 true
             };
             if cyclic {
-                if changed {
+                if changed && !queued[next] {
                     ready.push(next);
+                    queued[next] = true;
                 }
             } else {
                 incoming[next] -= 1;

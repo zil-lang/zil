@@ -2,7 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 use std::collections::BTreeMap;
-mod owned;
+pub(super) mod owned;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -1379,7 +1379,7 @@ fn transfer(
                     out.slots.insert(path.clone(), permission);
                 }
             }
-            if callee.foreign.is_some()
+            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
@@ -2293,7 +2293,7 @@ pub(super) fn infer(
     b.stored_owned_fixed = owned::profile(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
-        if f.foreign.is_some()
+        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {

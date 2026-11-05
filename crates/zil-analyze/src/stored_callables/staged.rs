@@ -49,9 +49,10 @@ pub(super) fn parameter(
                 "staged declared owner payload comparison",
             )?;
             if resource.payload == **payload {
-                if matched || resource.teardown.is_some() {
+                if matched {
                     return Err(closed());
                 }
+                super::super::stored_flow::owned::teardown(module, resource, b)?;
                 matched = true;
             }
         }

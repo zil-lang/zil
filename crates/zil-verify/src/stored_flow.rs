@@ -1307,7 +1307,7 @@ fn step(
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| err("call target absent"))?;
-            if callee.foreign.is_some()
+            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
@@ -2134,7 +2134,7 @@ pub(super) fn check(
                 Some(f.span),
             ));
         }
-        if f.foreign.is_some()
+        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {

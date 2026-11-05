@@ -26,6 +26,36 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+    if f.foreign.is_none() {
+        return Ok(false);
+    }
+    b.spend(f.parameters.len().saturating_add(1))?;
+    if !f.blocks.is_empty()
+        || !f.values.is_empty()
+        || f.environment.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.result_mode != PassingMode::Infer
+        || f.storage_life.is_some()
+        || f.reference_return_bound.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || !scalar(&f.return_type)
+    {
+        return Ok(false);
+    }
+    for parameter in &f.parameters {
+        if !f
+            .locals
+            .get(parameter.0 as usize)
+            .is_some_and(|l| scalar(&l.ty))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module
         .closures

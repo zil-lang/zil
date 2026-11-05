@@ -63,17 +63,30 @@ pub(crate) fn reserve(
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
         )
         || bound.closed_environment
-        || bound.generic_index != 0
+        || bound.generic_index >= 2
         || context.bound_ordinal != 0
         || context.parameters.iter().enumerate().any(|(index, kind)| {
             if index == context.generic_parameter as usize {
                 *kind != LifeParameterKind::Type
             } else {
-                *kind != LifeParameterKind::Lifetime
+                !matches!(kind, LifeParameterKind::Lifetime | LifeParameterKind::Type)
             }
         })
         || context.parameters.get(context.generic_parameter as usize)
             != Some(&LifeParameterKind::Type)
+        || context
+            .parameters
+            .iter()
+            .filter(|kind| **kind == LifeParameterKind::Type)
+            .count()
+            > 2
+        || context
+            .parameters
+            .iter()
+            .take(context.generic_parameter as usize)
+            .filter(|kind| **kind == LifeParameterKind::Type)
+            .count()
+            != bound.generic_index as usize
     {
         return Err(unsupported(
             span,
@@ -263,7 +276,7 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
         return Ok(());
     };
     let span = function.span;
-    if function.callable_parameters.len() != 1
+    if function.callable_parameters.is_empty() || function.callable_parameters.len() > 2
         || !function.type_parameters.is_empty()
         || !function.state_parameters.is_empty()
         || function.receiver.is_some()
@@ -282,6 +295,40 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
             span,
             "source helper requires its actual free shared Fn parameter and scalar result",
         ));
+    }
+    // Every Type ordinal in the complete original declaration must have one
+    // actual callable role; accepting another Type marker alone grants nothing.
+    for (ordinal, kind) in context.parameters.iter().enumerate() {
+        if *kind != LifeParameterKind::Type {
+            continue;
+        }
+        let mut matching = function.callable_parameters.iter().filter(|role| {
+            role.source_life
+                .as_ref()
+                .is_some_and(|other| other.generic_parameter as usize == ordinal)
+        });
+        let Some(role) = matching.next() else {
+            return Err(bad(
+                span,
+                "source helper Type ordinal has no actual callable role",
+            ));
+        };
+        let other = role.source_life.as_ref().unwrap();
+        if matching.next().is_some()
+            || other.parameters != context.parameters
+            || other.declaration != context.declaration
+            || other.identity != context.identity
+            || role.generic_index as usize
+                != context.parameters[..ordinal]
+                    .iter()
+                    .filter(|kind| **kind == LifeParameterKind::Type)
+                    .count()
+        {
+            return Err(bad(
+                span,
+                "source helper callable role has a different original declaration",
+            ));
+        }
     }
     relation(bound, span)?;
     let header = function
@@ -380,7 +427,11 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
         ));
     }
     for (index, parameter) in function.parameters.iter().enumerate() {
-        if index != bound.index as usize && !(scalar(&parameter.ty) || tag(&parameter.ty).is_some())
+        if !function
+            .callable_parameters
+            .iter()
+            .any(|role| role.index as usize == index)
+            && !(scalar(&parameter.ty) || tag(&parameter.ty).is_some())
         {
             return Err(unsupported(
                 span,
@@ -394,7 +445,7 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum HeaderKey {
     Source(StorageBinder),
-    Environment(u32),
+    Environment(u32, u32),
 }
 struct Writer {
     fixed: BTreeMap<HeaderKey, u32>,
@@ -598,7 +649,7 @@ pub(crate) fn form(
                 let key = if class == environment_fixed {
                     HeaderKey::Source(source_binder)
                 } else {
-                    HeaderKey::Environment(class)
+                    HeaderKey::Environment(0, class)
                 };
                 let binder = writer.binder(key, left, span)?;
                 writer.classes.push(SignatureLifeClassBinding {
@@ -640,4 +691,123 @@ pub(crate) fn form(
     // Complete role is copied only after every source bound occurrence and its
     // data-header inverse has been checked. It remains untrusted Typed input.
     Ok((writer.finish(), actual.clone()))
+}
+
+/// Compose role-local canonical headers by their real original data anchors.
+/// Unanchored environment classes are namespaced by runtime parameter position.
+/// Equality of ClosureId or a binder ordinal in two closures is never a link.
+pub(crate) fn joint_header(
+    original: &CoreFunction,
+    partials: &[(u32, StorageLifeContract)],
+    left: &mut usize,
+    span: Span,
+) -> R<StorageLifeContract> {
+    let source = original
+        .storage_life
+        .as_ref()
+        .ok_or_else(|| bad(span, "multiple source roles omit their actual data header"))?;
+    let width = partials.iter().fold(
+        source.bindings.len().saturating_add(source.classes.len()),
+        |sum, (_, header)| {
+            sum.saturating_add(header.bindings.len())
+                .saturating_add(header.classes.len())
+        },
+    );
+    pay(
+        left,
+        width
+            .saturating_mul(width.saturating_add(1))
+            .saturating_mul(2)
+            .saturating_add(original.parameters.len().saturating_mul(partials.len())),
+        span,
+    )?;
+    let mut writer = Writer {
+        fixed: BTreeMap::new(),
+        invocation: BTreeMap::new(),
+        bindings: Vec::new(),
+        classes: Vec::new(),
+    };
+    for index in 0..original.parameters.len() {
+        let base = StorageBase::Parameter(index as u32);
+        for row in source
+            .bindings
+            .iter()
+            .filter(|row| row.position.base == base)
+        {
+            let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+            writer.bindings.push(StorageLifeBinding {
+                position: row.position.clone(),
+                binder,
+            });
+        }
+        if let Some((parameter, header)) = partials
+            .iter()
+            .find(|(parameter, _)| *parameter as usize == index)
+        {
+            for row in header
+                .classes
+                .iter()
+                .filter(|row| row.position.base == base)
+            {
+                let mut anchor = None;
+                for data in &source.classes {
+                    if header.classes.iter().any(|actual| {
+                        actual.position == data.position && actual.binder == row.binder
+                    }) {
+                        if anchor
+                            .replace(data.binder)
+                            .is_some_and(|old| old != data.binder)
+                        {
+                            return Err(bad(
+                                span,
+                                "multiple role header equates distinct original data classes",
+                            ));
+                        }
+                    }
+                }
+                for data in &source.bindings {
+                    if header.bindings.iter().any(|actual| {
+                        actual.position == data.position && actual.binder == row.binder
+                    }) {
+                        if anchor
+                            .replace(data.binder)
+                            .is_some_and(|old| old != data.binder)
+                        {
+                            return Err(bad(
+                                span,
+                                "multiple role header equates distinct original borrows",
+                            ));
+                        }
+                    }
+                }
+                let key = match anchor {
+                    Some(source) => HeaderKey::Source(source),
+                    None => {
+                        let StorageBinder::Fixed(class) = row.binder else {
+                            return Err(bad(span, "role environment class is not Fixed"));
+                        };
+                        HeaderKey::Environment(*parameter, class)
+                    }
+                };
+                let binder = writer.binder(key, left, span)?;
+                writer.classes.push(SignatureLifeClassBinding {
+                    position: row.position.clone(),
+                    binder,
+                });
+            }
+        } else {
+            for row in source
+                .classes
+                .iter()
+                .filter(|row| row.position.base == base)
+            {
+                let binder = writer.binder(HeaderKey::Source(row.binder), left, span)?;
+                writer.classes.push(SignatureLifeClassBinding {
+                    position: row.position.clone(),
+                    binder,
+                });
+            }
+        }
+    }
+    Ok(writer.finish())
 }
