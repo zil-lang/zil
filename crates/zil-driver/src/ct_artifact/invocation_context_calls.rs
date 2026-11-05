@@ -171,15 +171,52 @@ impl FrozenInvocationContext {
             |work| budget.reserve_analysis_work(work as u64),
         )?
         .ok_or_else(|| unsupported("CT factory has no original function"))?;
-        if original.generic_host
-            || !std::ptr::eq(original.item, &module.module.items[original.top])
-            || !matches!(original.item.kind, s::ItemKind::Function(_))
-        {
+        if original.generic_host || !matches!(original.item.kind, s::ItemKind::Function(_)) {
             return Err(unsupported(
-                "CT full instance requires an original nongenerated free factory",
+                "CT full instance requires an original nongenerated factory",
             ));
         }
         let function = original.function;
+        let host = &module.module.items[original.top];
+        if !std::ptr::eq(original.item, host) {
+            let s::ItemKind::Aggregate(aggregate) = &host.kind else {
+                return Err(unsupported("CT member factory has no actual struct host"));
+            };
+            budget.reserve_analysis_work(
+                aggregate.methods.len() as u64
+                    + function.generics.len() as u64 * 3
+                    + function.params.len() as u64,
+            )?;
+            if !aggregate.generics.is_empty()
+                || aggregate.kind != s::AggregateKind::Struct
+                || aggregate
+                    .methods
+                    .iter()
+                    .filter(|item| std::ptr::eq(*item, original.item))
+                    .count()
+                    != 1
+                || function
+                    .params
+                    .iter()
+                    .any(|parameter| parameter.name == "self")
+                || !function
+                    .generics
+                    .iter()
+                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Type(_)))
+                || !function
+                    .generics
+                    .iter()
+                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Const(_)))
+                || !function
+                    .generics
+                    .iter()
+                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
+            {
+                return Err(unsupported(
+                    "CT member factory requires an actual nongeneric struct, static entry and complete mixed parameters",
+                ));
+            }
+        }
         if function.generics.len() != call.actuals.len() {
             return Err(unsupported("CT call ledger full actual arity differs"));
         }
@@ -193,7 +230,7 @@ impl FrozenInvocationContext {
             .find(|row| row.module == call.callee.module)
             .and_then(|row| row.items.get(original.top))
             .ok_or_else(|| unsupported("CT factory original source identity absent"))?;
-        if origin.declaration != call.callee.declaration {
+        if origin.declaration.0 as usize != original.top {
             return Err(unsupported(
                 "CT factory original declaration ordinal differs",
             ));

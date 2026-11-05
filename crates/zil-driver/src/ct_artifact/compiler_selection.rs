@@ -83,6 +83,16 @@ impl Selection<'_, '_> {
         }
     }
     fn target(&mut self, module: usize, path: &[String], span: Span) -> R<Option<(usize, usize)>> {
+        if let Some(index) = self.compiler.member_function(module, path, span)? {
+            return Ok(Some((self.compiler.declarations[index].module, index)));
+        }
+        self.compiler.budget.work(
+            self.compiler
+                .member_hosts
+                .len()
+                .saturating_mul(self.compiler.declarations.len()),
+            span,
+        )?;
         let (owner, name) = if path.len() == 1 {
             (module, &path[0])
         } else if path.len() == 2 {
@@ -109,7 +119,14 @@ impl Selection<'_, '_> {
             self.compiler
                 .budget
                 .work(name.len().saturating_add(1), span)?;
-            if declaration.module == owner && declaration.function.name == *name {
+            if declaration.module == owner
+                && declaration.function.name == *name
+                && !self
+                    .compiler
+                    .member_hosts
+                    .iter()
+                    .any(|member| member.declaration == index)
+            {
                 // This is only routing; compile/ordinary Expand enforce visibility.
                 return Ok(Some((owner, index)));
             }

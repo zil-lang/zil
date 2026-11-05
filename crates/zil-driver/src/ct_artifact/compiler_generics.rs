@@ -548,6 +548,7 @@ impl<'a> Compiler<'a> {
             self.budget.node(d.item.span)?;
         }
         scratch.declarations.extend_from_slice(&self.declarations);
+        self.copy_member_locations(&mut scratch, d.item.span)?;
         scratch.checking_generics = true;
         std::mem::swap(&mut scratch.budget, &mut self.budget);
         let result = scratch
