@@ -1,0 +1,57 @@
+{
+  "task": "G3.3.10 independent production review, G3310-R1 closure",
+  "reviewer": "/root/g33_joint_regressions",
+  "verdict": "PassLimited",
+  "formal_acceptance": false,
+  "original_implementation": "365235ae94785e63daedbdd48cbcbc0fbd5c436c",
+  "original_integrated_review_source": "54b1b8f56422b65273f577585819934fec48f85f",
+  "historical_not_ready_review": "d3d5c39bd5e73214ed63f8aac2e0f34f45f34431",
+  "fixes": [
+    "75ec5718c9c85f7a4791007259fb94cca930ff66",
+    "3eb3103d3d7e63ef46df1453e185ee1ddc26b505",
+    "b3043d1cc3333486a49fcfef35b70940821e3629"
+  ],
+  "reviewed_fix_freeze": "b3043d1cc3333486a49fcfef35b70940821e3629",
+  "integrated_test_source": "95391378209c26d6c53b5e61c480b560dd5904bd",
+  "independence": "Reviewer authored legacy G3.3.9.1 test/fee migrations, not this production implementation or fix. The independent production verdict excludes approval of those own-authored tests. No production edit, test target, cargo invocation, heavy build or native execution by reviewer. Root owns the recorded linked execution.",
+  "closed_findings": [
+    {
+      "id": "G3310-R1",
+      "status": "Closed on the named final fix freeze",
+      "call_helper": "Before iterating actual arguments, profiles with more than two callable roles prepay (arguments.len()+1)*signature.callable.len(). Every argument's ordered bound search costs at most the complete role count; the extra role-count allowance covers the additional owned-State lookup. This uses the existing live closures::State balance.",
+      "forwarded_contract": "Before growing the role mapping and iterating actual environment arguments, a child with more than two roles prepays arguments.len()*role_count. This bounds the complete child-role search for each actual position; the existing mapping, argument scan and concrete-set construction charges remain.",
+      "all_child_events": "At each static child call, before cloning child traces or running retain/substitute, final b304 computes child_roles=R+C and prepays addition.calls*(R+C) when child_roles>2. R is the symbolic mapping length and C the concrete-role set length. Each original event can require at most C concrete key comparisons plus R ordered mapping comparisons. Counts are taken before filtering, so removed events are paid too. child_size sums all calls in every Finite path and every Flow node, including trapping/inactive paths retained by this representation; both trace forms pass through the same reservation.",
+      "review_followup": "The intermediate 75ec predicate R>2 did not cover repeated concrete-set probes when R<=2 and C>2. Reviewer identified this during delta review; author confirmed and fixed it in b304 with the R+C bound. The old NotReady history is retained rather than rewriting it as if the first fix covered this case.",
+      "overflow": "saturating_add/mul cannot wrap a large charge down. Each multiplication is reached after an existing strictly positive reservation, so the current balance is strictly less than usize::MAX even when the selected initial quota equals usize::MAX. A saturated charge therefore fails State::snapshot's checked_sub with ResourceLimit before the scans/clones. Zero-event children perform zero event searches and correctly add zero event work.",
+      "old_fees": "The first two new reservations run only above two declared callable roles; event work runs only above two total child roles, counting symbolic and concrete roles. The entire former one/two-role profile therefore retains its existing fees. No default limit, role, origin, mode, effect, ABI or schema rule changes."
+    }
+  ],
+  "continued_production_conclusion": "The prior independent review's complete ordered callable key, separate actual-position origin lattice, mixed/unknown rejection, exact role/effect/cleanup table, source-helper life mode and unchanged physical ABI findings remain applicable. The new fix changes only the missing Types work reservations and existing-target controls. No remaining blocking finding was identified in this reviewed production scope.",
+  "meaningful_controls_inspected": [
+    "Existing impl196_roles_source boundary helper starts each stage with fresh state, requires default success, finds exact N, requires N-1 ResourceLimit and repeats fresh N. Types receives the same actual Core source; Analyze receives the complete checked TypedModule; Verify receives the genuine independent candidate.",
+    "SAME_F_NESTED_SOURCE keeps four actual positions of one F/ClosureId and performs two child calls with distinct argument permutations, exercising repeated searches without extended generic-key allocation as an alternative charge.",
+    "ONE_FORWARDED_THREE_CONCRETE_SOURCE keeps one supplied parent F and three actual local closures at a four-role child call, exercising R=1/C=3 concrete filtering.",
+    "Existing third/fourth event-swap raw/Wire negative rebinds the genuine candidate fingerprint to actual mutated bytes and requires E-VERIFY-CALLABLE-CONTRACT/SafeReject independently; actual alias, repeated non-Copy Once and malformed-unused-definition negatives remain in the same executed target. No negative expectation was weakened by this fix."
+  ],
+  "external_execution": {
+    "owner": "/root",
+    "source": "95391378209c26d6c53b5e61c480b560dd5904bd",
+    "results": "/workspace/.zil-env/G10.1.11-role-budget-closure/results.json",
+    "source_binding": "git diff b3043d1cc..953913782 -- crates/zil-types/src/helpers.rs crates/zil-types/src/helper_flow.rs crates/zil-driver/tests/impl196_roles_source.rs is empty. results.json records the same source/head_after and dirty_after empty. Reviewer read actual assertions/logs and independently checked all three log hashes; no execution is attributed to reviewer.",
+    "rows": [
+      {"label": "impl196_roles_source complete existing target, llvm-api", "passed": 20, "failed": 0, "log_sha256": "2473cbcd863cbc8c9fc8805c8eeaee511875db853c9bbf89d874582ad2bc4bab"},
+      {"label": "impl202_budget complete existing target, llvm-api", "passed": 2, "failed": 0, "log_sha256": "ea969a74c8abbe63f73f703fffee40c22c2a2c5c344c0db80109bea28ae21377"},
+      {"label": "impl246_front registered_copy_helper_costs selector, llvm-api", "passed": 1, "failed": 0, "log_sha256": "be5650fa8317093a33109a107d9b6b8c2f390b63181d08924583d4a24869f968"}
+    ],
+    "exact_stage_boundaries_Types_Analyze_Verify": {
+      "old_one_role": [830, 1851, 2490],
+      "old_two_role": [810, 1733, 2384],
+      "four_generic_roles": [6363, 10232, 17124],
+      "same_F_nested_four_positions": [3208, 4688, 8020],
+      "one_forwarded_three_concrete": [2751, 5442, 5389]
+    },
+    "boundary_semantics": "Every listed row passed N / N-1 ResourceLimit / fresh N at each stage. Old one/two-role N matches the original G3.3.10 author record; only the newly enlarged four-role Types work changes from6231 to6363. Legacy callbacks/registered-helper controls also passed on final source; those reviewer-authored historical fee expectations are external regression observations, not newly independent acceptance claims."
+  },
+  "limits": "This closes the independent G3.3.10 production review finding on the named successor and its matching consumer files. It is not a full workspace, formal release acceptance, benchmark, independent rerun of author test counts or acceptance of every G3.3/G4.4 combination. Root's final formal gates remain separate and must bind their actual later source freeze.",
+  "rust_goals": "Static source/instance safety boundaries remain independent. No implicit runtime Rc/Box/lock was added. Complete multi-callable composition is a scoped expression increment; the newly enlarged compile work now has a prepaid bound for the reviewed searches. Same-semantic Rust runtime/RSS, compile and maintenance comparisons remain unmeasured; no product four-goal conjunction or changed gate is claimed."
+}
