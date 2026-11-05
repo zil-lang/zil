@@ -77,10 +77,11 @@ fn g447_runtime_ct_checks_unused_definitions() {
     let report = compile_source(&source(ordinary), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::SafeReject,
+        ResultCategory::Unsupported,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(report.diagnostics.iter().any(|d| d.message == "operation on an unconstrained type parameter requires a declared bound"));
     assert_eq!(report.verification_runs, 0);
 }
