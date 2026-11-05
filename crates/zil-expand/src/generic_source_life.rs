@@ -1028,12 +1028,11 @@ impl Check<'_, '_, '_> {
                     _ => (None, None),
                 };
                 let mut output = Fact::Unknown;
-                if root.is_none() {
-                    if let Some(member) =
+                if root.is_none()
+                    && let Some(member) =
                         self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
-                    {
-                        return Ok(member);
-                    }
+                {
+                    return Ok(member);
                 }
                 if let Some(name) = root {
                     self.lookup(env.len(), name.len(), e.span)?;

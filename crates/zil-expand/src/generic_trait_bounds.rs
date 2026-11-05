@@ -861,6 +861,8 @@ impl<'a> Index<'a> {
         )
     }
 
+    // Source scope is an independent input to Copy qualification, not an inferred label.
+    #[allow(clippy::too_many_arguments)]
     pub(super) fn check_arguments_scoped(
         &self,
         parameters: &[GenericParam],
