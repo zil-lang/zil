@@ -3064,7 +3064,7 @@ mod scoped_tests {
         .unwrap();
     }
     #[test]
-    fn ct5_generated_member_keeps_naming_owner_without_original_binder_authority() {
+    fn ct6_generated_member_binds_its_actual_frozen_lifetime_owner() {
         let text = include_str!(
             "../../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
         );
@@ -3076,19 +3076,65 @@ mod scoped_tests {
         ));
         assert!(probe.diagnostics.is_empty(), "{:?}", probe.diagnostics);
         let output = run(text).unwrap();
-        assert!(output.declaration_origins.is_none());
-        let generated = text
-            .replace("#(scalar(i32,42))", "#(Phantom::<'s>{n:scalar(i32,42)})")
-            .replace("return value\n", "return value.n\n");
-        let errors = run(&generated)
-            .err()
-            .expect("generated own binder needs authentic lineage");
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("actual lexical source owner")),
-            "{errors:?}"
+        let origins = output.declaration_origins.as_ref().unwrap();
+        let generated = origins[0]
+            .items
+            .iter()
+            .find(|row| row.generated.is_some())
+            .unwrap();
+        assert!(!generated.identity.generation_path.is_empty());
+        assert_ne!(
+            generated.declaration,
+            zil_base::NodeId(3),
+            "generated root must not share the emitter's identity"
         );
+        let strong = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+        );
+        let output = run(strong).unwrap();
+        assert!(
+            output.declaration_origins.as_ref().unwrap()[0]
+                .items
+                .iter()
+                .any(|row| row.generated.is_some())
+        );
+    }
+    #[test]
+    fn ct6_generated_source_consumers_reach_independent_runtime_verification() {
+        for (name, text) in [
+            (
+                "member",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+                ),
+            ),
+            (
+                "factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
+                ),
+            ),
+        ] {
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let report = crate::compile_source(
+                &source,
+                &crate::CompileOptions {
+                    stop_after: crate::Stage::Verify,
+                    ..crate::CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+        }
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
