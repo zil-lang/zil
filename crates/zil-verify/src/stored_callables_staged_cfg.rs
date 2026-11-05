@@ -77,7 +77,7 @@ pub(super) fn parameter(
     let count = f.blocks.len();
     b.spend(
         count
-            .saturating_mul(7)
+            .saturating_mul(9)
             .saturating_add(f.values.len())
             .saturating_add(f.parameters.len())
             .saturating_add(1),
@@ -174,7 +174,7 @@ pub(super) fn parameter(
                     .saturating_add(f.values.len()),
             )?;
             let mut state = State {
-                slots: vec![(0, 0); f.locals.len()],
+                slots: vec![(0, 1); f.locals.len()],
                 values: vec![0; f.values.len()],
                 settled: 0,
             };
@@ -182,7 +182,7 @@ pub(super) fn parameter(
                 .slots
                 .get_mut(parameter.0 as usize)
                 .ok_or_else(failure)?;
-            *input = (position + 1, 1);
+            *input = (position + 1, 2);
             state
         } else {
             let mut incoming = None;
@@ -214,7 +214,7 @@ pub(super) fn parameter(
             match &instruction.kind {
                 InstructionKind::TakeLocal { local } if owner_slot(f, *local) => {
                     let source = state.slots.get_mut(local.0 as usize).ok_or_else(failure)?;
-                    if source.0 != position + 1 || source.1 & 2 != 0 || state.settled != 0 {
+                    if source.0 != position + 1 || source.1 != 2 || state.settled != 0 {
                         return Err(failure());
                     }
                     let value = instruction
@@ -229,7 +229,8 @@ pub(super) fn parameter(
                     let dest = state.slots.get_mut(local.0 as usize).ok_or_else(failure)?;
                     if *local == parameter
                         || dest.0 != 0
-                        || dest.1 & 2 != 0
+                        || dest.1 != 2
+                        || f.locals[local.0 as usize].ty != Type::Closure(d.id)
                         || *source != position + 1
                         || state.settled != 0
                         || f.values.get(value.0 as usize) != Some(&Type::Closure(d.id))
@@ -264,21 +265,21 @@ pub(super) fn parameter(
                         slot.0 = 0;
                         state.settled = 1;
                     }
-                    slot.1 |= 2;
+                    slot.1 |= 4;
                 }
                 InstructionKind::StorageLive(local) if owner_slot(f, *local) => {
                     let slot = &mut state.slots[local.0 as usize];
-                    if slot.1 != 0 {
+                    if slot.1 != 1 {
                         return Err(failure());
                     }
-                    slot.1 = 1;
+                    slot.1 = 2;
                 }
                 InstructionKind::StorageDead(local) if owner_slot(f, *local) => {
                     let slot = &mut state.slots[local.0 as usize];
                     if slot.0 != 0 {
                         return Err(failure());
                     }
-                    slot.1 |= 2;
+                    slot.1 |= 4;
                 }
                 InstructionKind::Load(local) if owner_slot(f, *local) => return Err(failure()),
                 _ => {

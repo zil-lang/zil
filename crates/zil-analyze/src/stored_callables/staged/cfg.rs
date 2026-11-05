@@ -17,7 +17,7 @@ impl Origin {
 struct Frame {
     locals: Vec<Origin>,
     values: Vec<Origin>,
-    activated: Vec<bool>,
+    activated: Vec<u8>,
     retired: Vec<bool>,
     done: Origin,
 }
@@ -168,13 +168,13 @@ pub(super) fn parameter(
     let mut initial = Frame {
         locals: vec![Origin::Empty; f.locals.len()],
         values: vec![Origin::Empty; f.values.len()],
-        activated: vec![false; f.locals.len()],
+        activated: vec![1; f.locals.len()],
         retired: vec![false; f.locals.len()],
         done: Origin::Empty,
     };
     let local = f.parameters[p].0 as usize;
     initial.locals[local] = Origin::Input(p);
-    initial.activated[local] = true;
+    initial.activated[local] = 2;
     states[entry] = Some(initial);
     for (index, count) in incoming.iter().enumerate() {
         if *count == 0 {
@@ -199,7 +199,7 @@ pub(super) fn parameter(
             match &i.kind {
                 InstructionKind::TakeLocal { local } if closure_local(f, *local) => {
                     let l = local.0 as usize;
-                    if frame.retired[l] || frame.done != Origin::Empty {
+                    if frame.retired[l] || frame.activated[l] != 2 || frame.done != Origin::Empty {
                         return Err(closed());
                     }
                     let origin = frame.locals[l];
@@ -216,6 +216,8 @@ pub(super) fn parameter(
                     let l = local.0 as usize;
                     let v = value.0 as usize;
                     if frame.retired[l]
+                        || frame.activated[l] != 2
+                        || f.locals[l].ty != Type::Closure(id)
                         || frame.locals[l] != Origin::Empty
                         || frame.done != Origin::Empty
                         || !matches!(frame.values.get(v), Some(Origin::Input(_)))
@@ -269,10 +271,10 @@ pub(super) fn parameter(
                 }
                 InstructionKind::StorageLive(local) if closure_local(f, *local) => {
                     let l = local.0 as usize;
-                    if frame.activated[l] || frame.retired[l] {
+                    if frame.activated[l] != 1 || frame.retired[l] {
                         return Err(closed());
                     }
-                    frame.activated[l] = true;
+                    frame.activated[l] = 2;
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local }
                     if closure_local(f, *local) =>

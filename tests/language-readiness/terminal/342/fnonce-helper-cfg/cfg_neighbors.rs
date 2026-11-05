@@ -7,7 +7,13 @@ pub fn diamond(f: &mut TypedFunction, drop_branch: bool) {
     let InstructionKind::CallClosureOnce{callee,..} = call.kind else { unreachable!() };
     let take_at = f.blocks[0].instructions.iter().position(|i| i.result == Some(callee)).unwrap();
     let InstructionKind::TakeLocal{local:stage} = f.blocks[0].instructions[take_at].kind else { unreachable!() };
-    let suffix = f.blocks[0].instructions.split_off(take_at);
+    let mut split_at = take_at;
+    if !f.blocks[0].instructions.iter().any(|i| matches!(i.kind, InstructionKind::StorageLive(local) if local == stage)) {
+        let at = f.blocks[0].instructions.iter().position(|i| matches!(i.kind,InstructionKind::Store{local,..} if local == stage)).unwrap();
+        f.blocks[0].instructions.insert(at,op(None,InstructionKind::StorageLive(stage)));
+        split_at += 1;
+    }
+    let suffix = f.blocks[0].instructions.split_off(split_at);
     let exit = f.blocks[0].terminator.clone();
     let flag = ValueId(f.values.len() as u32); f.values.push(Type::Bool);
     f.blocks[0].instructions.push(op(Some(flag),InstructionKind::Constant(Constant::Bool(true))));
@@ -29,9 +35,13 @@ pub fn hostile(original:&TypedFunction)->Vec<(&'static str,TypedFunction)>{
     let take=original.blocks.iter().flat_map(|b|&b.instructions).find(|i|i.result==Some(callee)).unwrap();
     let InstructionKind::TakeLocal{local:stage}=take.kind else{unreachable!()};
     let source=original.blocks[0].instructions.iter().find(|i|matches!(i.kind,InstructionKind::TakeLocal{local}if local==original.parameters[original.callable_contract.as_ref().unwrap().roles[0].parameter as usize])).unwrap().result.unwrap();
-    for name in ["island","backedge","self-loop","duplicate-block","other-entry","one-path-drop-then-call","early-dead","reactivate","address-exposure","duplicate-ssa","after-call-ssa-use","same-type-other-parameter","branch-origin-escape","return-origin-escape","one-path-take-then-call"]{
+    for name in ["island","backedge","self-loop","duplicate-block","other-entry","one-path-drop-then-call","early-dead","reactivate","address-exposure","duplicate-ssa","after-call-ssa-use","same-type-other-parameter","branch-origin-escape","return-origin-escape","one-path-take-then-call", "missing-live", "late-live"]{
         let mut f=original.clone();
         match name{
+            "missing-live" | "late-live" => {
+                for block in &mut f.blocks { block.instructions.retain(|i| !matches!(i.kind,InstructionKind::StorageLive(local) if local == stage)); }
+                if name == "late-live" { let at=f.blocks[3].instructions.iter().position(|i| matches!(i.kind,InstructionKind::TakeLocal{local} if local == stage)).unwrap(); f.blocks[3].instructions.insert(at,op(None,InstructionKind::StorageLive(stage))); }
+            },
             "island"=>f.blocks.push(BasicBlock{id:BlockId(4),instructions:vec![],terminator:Terminator::Trap}),
             "backedge"=>f.blocks[1].terminator=Terminator::Jump(BlockId(0)),
             "self-loop"=>f.blocks[1].terminator=Terminator::Jump(BlockId(1)),
