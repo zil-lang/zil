@@ -1,0 +1,138 @@
+{
+  "task": "G3.3.3.1",
+  "status": "AuthorLimitedPassPendingIndependentReview",
+  "source_test_sha": "4e360c07c60f51586981cf7e3ee91cbf3cd62ece",
+  "own_production_sha": "05cc1193908dfc50282c4b7ec8d129fcad36f4a8",
+  "baseline": "eb6c570d0060ab3455a30e1dd53e7c3d18da745a",
+  "dependencies": {
+    "neutral_fixture": "467dbcac1 -> 2760e9b3b",
+    "Types_normal_merge": "90632bb93 (25cc31f00)",
+    "Analyze_working_normal_merge": "b4a75abc6 (32e5e1133)"
+  },
+  "schema": 42,
+  "independence": "Verify does not call Analyze/Types proof functions. Shared fixture is raw untrusted data only. Real Source regression invokes stages separately and gives Analyze actual plan to independent Verify.",
+  "profile": "Genuine definition FnOnce, class-free Managed<Record scalar-only fields> captures plus shared actual input Fixed; scalar result, shared/scalar closure parameters. No Fn/FnMut->Once adaptation.",
+  "new_semantics": [
+    "Precisely type MakeManaged/TakeLocal/TakeCapture/DescribeLocal/DescribeCapture/ReadDesc/DropManaged against actual fields/sources/results before admitting the new op.",
+    "Managed owner carries no borrowed target/class facts. Descriptions reconstruct actual Local/Capture/Parameter weak roots without address loans.",
+    "Existing independent resource ledger remains mandatory after class/target proof; checks debt, move/drop, actual Once consumption and description epoch/liveness.",
+    "Every resource declaration must be an exact payload of an actual supported owning Fixed capture. Recursive value gate rejects nested owners and owning-head addresses, including unused Copy fallback cases.",
+    "Existing resource check_local_type/check_type_for independently binds all local/value and capture Managed/Desc (including unused inventory) to matching nominal name+complete payload; declaration uniqueness and teardown metadata remain separately validated."
+  ],
+  "validation": {
+    "verify_lib": {
+      "passed": 377,
+      "failed": 0,
+      "kind": "Exact final frozen executable full lib rerun, no full workspace gate"
+    },
+    "new_verify_tests": 3,
+    "finite_model_raw_wire_cases": {
+      "positive": 4,
+      "negative": 34,
+      "total": 38,
+      "adaptive_budget_probes_excluded": true,
+      "kind": "Untrusted Typed fixture only"
+    },
+    "actual_source_regression": {
+      "test": "captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire",
+      "passed": 1,
+      "failed": 0,
+      "source": "Existing fnonce-input-capture.zil plus two-life-input valid variant",
+      "pipeline": "Parse -> public Expand ClosedSnapshot Original -> Types -> actual Analyze plan -> independent Verify, decoded Analyze/Verify and Verify bytes",
+      "actual_environment": "Kind FnOnce, Managed Mark Capture0 / shared Tag Capture1; actual source TakeCapture",
+      "nearest": "Only actual Once argument redirected to equal-runtime-Type other source Header class; both kernels Raw/decoded/Wire reject; not a hand-filled positive"
+    },
+    "definition_neighbors": [
+      "Rename sole definition and payload Record to Other with identical scalar fields: Verify Raw/Wire E-VERIFY-RESOURCE.",
+      "Remove resource table entirely: Verify Raw/Wire E-VERIFY-RESOURCE.",
+      "Set teardown to actual closure entry with wrong environment/signature: Verify Raw/Wire E-VERIFY-RESOURCE."
+    ],
+    "other_neighbors": [
+      "Duplicate TakeCapture/actual Once and live old Desc reach E-VERIFY-RESOURCE.",
+      "Describe after Drop reaches E-VERIFY-INITIALIZATION, not claimed as a later resource proof.",
+      "Wrong resource operation/result/field metadata rejects E-VERIFY-STORED-OWNER.",
+      "Wrong captured class, unrelated resource, unused Address<Managed> and false Fn adaptation reject.",
+      "Forged empty description Hold is rejected by independent stored-root comparison."
+    ],
+    "budget": {
+      "kind": "Verify on neutral owning Typed fixture, not whole Source compilation",
+      "raw_N": 13875,
+      "wire_N": 13875,
+      "checks": [
+        "N-1 E-RESOURCE-LIMIT",
+        "fresh/repeated N same fingerprint",
+        "failed N-1 then successful N retry"
+      ],
+      "unchanged_previous_nonowning_fixed_helper_N": 16203,
+      "limits_increased": false
+    },
+    "strict_clippy": "cargo clippy -p zil-verify --all-targets -j2 --offline -- -D warnings: Pass",
+    "format_diff": "cargo fmt --all / git diff --check: Pass",
+    "native_by_this_author": 0,
+    "machine_evidence_reference_only": "Root reports actual Fn/FnMut/Managed Once Clang+LLVM API O0/O2 native12/12 exit42 on its separate integrated55ddd/ongoingcandidate. This author did not independently execute those builds and does not bind them to this source tree.",
+    "formal_full_gate_by_author": 0,
+    "logs": {
+      "verify-final-frozen-exe.log": {
+        "path": "/workspace/.zil-env/G3.3.3.1-tmp/verify-final-frozen-exe.log",
+        "sha256": "cc4fd90b57b03a3505a726a9e5a97bec928511164ce3ec5426b75285774999bf"
+      },
+      "owning-final-focused.log": {
+        "path": "/workspace/.zil-env/G3.3.3.1-tmp/owning-final-focused.log",
+        "sha256": "455699a723a34859cefe190ba7a27ae0d8c57a3dd81468701b66462cabdcaa35"
+      },
+      "actual-source-test.log": {
+        "path": "/workspace/.zil-env/G3.3.3.1-tmp/actual-source-test.log",
+        "sha256": "bb1ba7f626caf533d2c6da895aea7a3aad51588fcfe172fcd026919e1d06cd3b"
+      },
+      "actual-source.log": {
+        "path": "/workspace/.zil-env/G3.3.3.1-tmp/actual-source.log",
+        "sha256": "cd357e77239dfe253ccbe25d12b5d05a6eab60f2bcf840f74c6e6d5b21d52d13"
+      },
+      "clippy-final.log": {
+        "path": "/workspace/.zil-env/G3.3.3.1-tmp/clippy-final.log",
+        "sha256": "171fb8e7d229e2da2837ea1eca29931710800f8cdbbb0ef9561388e264dab176"
+      }
+    },
+    "executables": {
+      "/workspace/.zil-env/target344/debug/deps/zil_verify-76b42b1447e71442": "628c14c6938da485f553f6138b3eed5c3319b67c765a3441ea9c5f7385ba3a7c",
+      "/workspace/.zil-env/target344/debug/deps/generic_regressions-bb639842e89a69cf": "4cd4e0afbabfab74c2b7a4fa2abe912c7b2d52ae4e6681880a2ae28b8d78e36b"
+    },
+    "commands": [
+      "cargo test -p zil-driver --test generic_regressions captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire -j2 --offline -- --exact --nocapture",
+      "cargo test -p zil-verify --lib -j2 --offline -- --nocapture",
+      "cargo clippy -p zil-verify --all-targets -j2 --offline -- -D warnings"
+    ]
+  },
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target344",
+    "TMPDIR": "/workspace/.zil-env/G3.3.3.1-tmp",
+    "jobs": 2,
+    "debug": 0,
+    "strip": "symbols",
+    "incremental": 0,
+    "binding": "Initial IR/Verify entries mtime-refreshed without byte changes. Build logs prove this tree Base/IR/Verify and Source dependencies rebuilt before actual checks; no previous-worktree Fresh result trusted."
+  },
+  "scope_boundaries": [
+    "Joint accepted scope uses Analyze final teardown=None restriction. Verify existing complete teardown validation was preserved, but no UserDrop composition completion is claimed.",
+    "No Package/Store/Task/nested/lending/returning description/owning-head address expansion.",
+    "No source generic instance vectors/member/generated contexts or full G4.4 identity completion.",
+    "Source -> both kernels is established here; no Lower/native whole-feature completion from this author or comparative Rust runtime/RSS claim."
+  ],
+  "source_sha256": {
+    "crates/zil-verify/src/stored_owned.rs": "654ba17955f27fff458cb205f78d2815a64191b418ac004ecc49d67b798d0911",
+    "crates/zil-verify/src/stored_callables.rs": "9fd797e8d00788f698a24b22d93447e3db3685c3a9bc4aff684018b43a066705",
+    "crates/zil-verify/src/stored_flow.rs": "328d097609c8b0cb7e65c4548bc76f96ab95b83f235019187f9185d098b0ea64",
+    "crates/zil-verify/src/signature_life.rs": "247126b78de39e72e2ef019ce9813e77571bd9178d88ea6cde13c4c8742edd13",
+    "crates/zil-verify/src/lib.rs": "8e451466d3b4024b26019aea70eb1368dd817affad157c15da6918a0ff6817a5",
+    "crates/zil-driver/tests/generic_regressions.rs": "082159b287d302cfacaf359c88e0541d79ba2f518db44a555a7e4d89d7e392d4",
+    "tests/language-readiness/terminal/342/stored_flow_fixture.rs": "623b55ea5c1a34bc02f16d14fd1440fc5e294f84706a48a45ec152b701cfc579",
+    "tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil": "a29aeb1c519a4cf3f6ebf875df5b0523844745c68338749c7a4d4f2369bf173b"
+  },
+  "rust_goals": {
+    "safety": "Finite actual genuine Once ownership and Fixed composition with independent responsibility and target/class checks.",
+    "runtime_memory": "No new runtime mechanism from Verify; reuses explicit existing Managed/closure operations, no implicit RC/locks/Box. Runtime/RSS comparison unmeasured.",
+    "expression_maintenance": "Real existing Mark/give Source now reaches both kernels; framework maintenance benefit unmeasured.",
+    "compile_cost": "New work charged, exact bounded Verify13875 and previous helper16203 unchanged; relative Rust compiler performance unmeasured."
+  }
+}
