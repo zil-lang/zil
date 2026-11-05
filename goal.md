@@ -49,7 +49,7 @@
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 部分实现 | P0 | root | 真实 Fn/FnMut、有限 owning FnOnce free-helper 及一般无环来源流已合入，见 G3.3.4–8；剩余组合已由 G3.3.9–10 实现并通过限定测试，父项等待独审与正式共同验收。 普通闭包 Value 的 give F 按规范保持拒绝。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。含 qualified 值的数组已接通局部/SSA 地址；`Address<Array<qualified>>` 作为 Source 函数参数仍待实现。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -64,7 +64,7 @@
 | G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
 | G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 已合入 | — | — | [PR44 验收][e-pr44]；消费前分支、一般无环合流、合法 Drop 分支的实际参数/Local/SSA 来源由两核独立证明；旧快路预算保持。循环、lending、多 F/用户 Drop 仍另缺。 |
 | **G3.3.9** | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
-| G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | [365235ae](https://github.com/zil-lang/zil/commit/365235ae94785e63daedbdd48cbcbc0fbd5c436c)：真实源码目标 20/0、三层来源等价 6/0；正在与 G3.3.9 的 lending/Drop 合并验证，不把分支通过数相加。 |
+| G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | 完整实例键/来源已进入共同验收；独审发现三处多角色乘积工作欠计，`75ec5718` 已补前付，`3eb3103d` 新增同 F 四位置、重复嵌套调用预算控制，正在独审与 N/N−1/fresh 重放。旧一/二角色费用和默认额度保持。 |
 
 <details>
 <summary>G3.3.9 · 回归收口</summary>
@@ -199,7 +199,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.1.11 | 剩余 P0 的共同验收、回归修复与合入 | 进行中 | P0 | root | 首轮全量 `9281069d` **4915 过 / 59 失败** 已保留；修复后限定重放 `f47e1bb5` 为 60/4、`5f16b9de` 为 42/3（不同范围，不累计为全量）。冻结 `6276269a` 正执行默认全量；三项已知深层 class 消费失败并行修复。参考配置、产品门和 main 合入未完成。[源码/真实记录](https://github.com/zil-lang/zil/tree/task/G10.1.11)。 |
+| G10.1.11 | 剩余 P0 的共同验收、回归修复与合入 | 进行中 | P0 | root | `54b1b8f5` 默认全量 **5007/0**、参考全量 **4895/0**，两配置严格 Clippy、文本参考、release 与 consumer209 通过；早期失败记录保留。当前收尾：G3.3.10 多角色预算补修独审、非规范实施注记路径与离线设计视图同步。新修复仍需验收，未合入 main。[源码/真实记录](https://github.com/zil-lang/zil/tree/task/G10.1.11)。 |
 
 </details>
 
