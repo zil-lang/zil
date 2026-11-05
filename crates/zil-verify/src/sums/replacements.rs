@@ -3,6 +3,8 @@
 use super::*;
 use crate::place_replacements::{Inventory, actual};
 use std::cell::RefCell;
+#[cfg(test)]
+mod helper_result_tests;
 type Rows = BTreeMap<actual::Target, Content>;
 struct Invocation<'a> {
     entry: usize,
