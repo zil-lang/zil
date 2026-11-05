@@ -612,6 +612,15 @@ impl<'a> Environment<'a> {
         site: compiler::source_sites::SourceSite,
     ) -> CompileResult<zil_syntax::ast::TypeRef> {
         self.require_source_origins()?;
+        let module_bytes = (self.parsed.len() as u64)
+            .saturating_mul(std::mem::size_of::<&zil_syntax::ast::Module>() as u64)
+            .saturating_add(
+                (self.sources.len().min(self.parsed.len()) as u64)
+                    .saturating_mul(std::mem::size_of::<compiler::SourceModule<'_>>() as u64),
+            );
+        self.budget
+            .reserve_analysis_work((self.parsed.len() + self.sources.len()) as u64)?;
+        self.budget.reserve_temporary_bytes(module_bytes)?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let before = self.remaining_limits();
@@ -641,6 +650,7 @@ impl<'a> Environment<'a> {
         let keep = result.as_ref().map_or(0, |(_, bytes)| *bytes);
         self.budget
             .release_temporary_bytes(bytes.saturating_sub(keep));
+        self.budget.release_temporary_bytes(module_bytes);
         result.map(|(ty, _)| ty)
     }
 
@@ -732,6 +742,20 @@ impl<'a> Environment<'a> {
                 source_site,
                 &mut self.budget,
             )?
+        };
+        let runtime_module_bytes = if runtime_source.is_some() {
+            let bytes = (self.parsed.len() as u64)
+                .saturating_mul(std::mem::size_of::<&zil_syntax::ast::Module>() as u64)
+                .saturating_add(
+                    (self.sources.len().min(self.parsed.len()) as u64)
+                        .saturating_mul(std::mem::size_of::<compiler::SourceModule<'_>>() as u64),
+                );
+            self.budget
+                .reserve_analysis_work((self.parsed.len() + self.sources.len()) as u64)?;
+            self.budget.reserve_temporary_bytes(bytes)?;
+            bytes
+        } else {
+            0
         };
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
@@ -919,6 +943,7 @@ impl<'a> Environment<'a> {
             self.budget
                 .release_temporary_bytes(invocation_context.bytes);
         }
+        self.budget.release_temporary_bytes(runtime_module_bytes);
         Ok(EvaluatedData { value, context })
     }
 

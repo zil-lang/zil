@@ -242,11 +242,12 @@ pub(crate) fn check_runtime_definition_expression<'a>(
     site: source_sites::SourceSite,
     limits: &mut Limits,
 ) -> R<(s::TypeRef, u64)> {
-    let mut compiler = Compiler::indexed(modules, limits)?;
+    let mut compiler = Compiler::unindexed(modules, limits);
     compiler.generated_catalog = catalog;
-    compiler.index_generated()?;
     compiler.checking_generics = true;
     let result = (|| {
+        compiler.index()?;
+        compiler.index_generated()?;
         let (tree, source) = compiler.frozen_site_module(site, Span::default())?;
         let location = source_sites::select_in_tree(
             source,
