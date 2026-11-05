@@ -18,8 +18,8 @@ mod project_traits;
 mod receivers;
 mod records;
 mod resources;
-pub mod source_context;
 pub mod runtime_ct;
+pub mod source_context;
 mod static_traits;
 mod stored_types;
 mod tasks;
@@ -543,17 +543,36 @@ pub fn expand_program_with_limits_target_context(
     target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, Some(context), None)
+    expand_program_with_limits_target_impl(
+        sources,
+        syntax,
+        imports,
+        limits,
+        target,
+        Some(context),
+        None,
+    )
 }
 /// Expand with a source-authenticated CT consumer at the runtime instantiation
 /// boundary. Ordinary callers preserve the existing specialization path.
 pub fn expand_program_with_runtime_ct(
-    sources: &[SourceUnit], syntax: &[&s::Module], imports: &[Vec<CoreImport>],
-    limits: &Limits, target: &zil_base::TargetProfile,
+    sources: &[SourceUnit],
+    syntax: &[&s::Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    target: &zil_base::TargetProfile,
     context: source_context::SourceIdentityContext<'_>,
     runtime_ct: &dyn runtime_ct::RuntimeCt,
 ) -> CompileResult<Vec<(ProgramModule, SourceMap)>> {
-    expand_program_with_limits_target_impl(sources, syntax, imports, limits, target, Some(context), Some(runtime_ct))
+    expand_program_with_limits_target_impl(
+        sources,
+        syntax,
+        imports,
+        limits,
+        target,
+        Some(context),
+        Some(runtime_ct),
+    )
 }
 fn expand_program_with_limits_target_impl(
     sources: &[SourceUnit],
@@ -567,7 +586,15 @@ fn expand_program_with_limits_target_impl(
     let mut products = generics::products::Products::default();
     products.target_pointer_width = Some(target.pointer_width);
     let specialized = if let Some(runtime_ct) = runtime_ct {
-        modules::specialize_with_runtime(sources, syntax, imports, limits, &mut products, context, Some(runtime_ct))?
+        modules::specialize_with_runtime(
+            sources,
+            syntax,
+            imports,
+            limits,
+            &mut products,
+            context,
+            Some(runtime_ct),
+        )?
     } else {
         modules::specialize_with_context(sources, syntax, imports, limits, &mut products, context)?
     };

@@ -91,14 +91,14 @@ mod helper_graph;
 mod options;
 #[path = "generic_origins.rs"]
 pub(super) mod origins;
-#[path = "generic_runtime_ct.rs"]
-mod runtime_ct_phase;
 #[path = "generic_products.rs"]
 pub(super) mod products;
 #[path = "generic_record_enum.rs"]
 pub(super) mod record_enums;
 #[path = "generic_rich_pointer.rs"]
 pub(super) mod rich_pointer;
+#[path = "generic_runtime_ct.rs"]
+mod runtime_ct_phase;
 #[path = "generic_source_life.rs"]
 mod source_life;
 #[path = "generic_state.rs"]
@@ -173,7 +173,10 @@ pub(super) fn specialize_products_with_runtime<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
-    context: Option<(&[zil_base::SourceUnit], super::source_context::SourceIdentityContext<'_>)>,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
@@ -182,7 +185,9 @@ pub(super) fn specialize_products_with_runtime<'a>(
             specialize_products_prepared(&prepared, &remaining, products, true, context, runtime_ct)
                 .map(|module| Cow::Owned(module.into_owned()))
         }
-        None => specialize_products_prepared(module, &remaining, products, false, context, runtime_ct),
+        None => {
+            specialize_products_prepared(module, &remaining, products, false, context, runtime_ct)
+        }
     }
 }
 
@@ -198,7 +203,9 @@ fn specialize_products_prepared<'a>(
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
-    if runtime_ct.is_some() { names_budget.note_source_identity(); }
+    if runtime_ct.is_some() {
+        names_budget.note_source_identity();
+    }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
@@ -354,7 +361,7 @@ fn specialize_products_prepared<'a>(
                 products,
                 has_associated,
                 has_generic_methods,
-                    runtime_ct,
+                runtime_ct,
             ),
         }
         .map(Cow::Owned)
@@ -393,7 +400,7 @@ fn specialize_products_prepared<'a>(
             products,
             has_associated,
             has_generic_methods,
-                    runtime_ct,
+            runtime_ct,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -451,7 +458,14 @@ fn specialize_with_budget<'a>(
     let module = prepared.as_ref().unwrap_or(module);
     let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
     let module = lifted.as_ref().unwrap_or(module);
-    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
+    let mut engine = Engine::with_budget(
+        module,
+        limits,
+        pattern_types,
+        origins.as_ref(),
+        budget,
+        runtime_ct,
+    )?;
     engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
@@ -466,6 +480,7 @@ fn specialize_with_budget<'a>(
         pattern_types,
         origins.as_ref(),
         engine.budget,
+        runtime_ct,
     )?;
     engine.runtime_ct = runtime_ct;
     if engine.nominal_binder_collision {
@@ -573,10 +588,11 @@ impl<'a> Engine<'a> {
         pattern_types: &'a BTreeMap<String, TypeRef>,
         origins: Option<&'a origins::Origins>,
         mut budget: Budget<'a>,
+        runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
-            runtime_ct: None,
+            runtime_ct,
             runtime_calls: BTreeMap::new(),
             runtime_call: None,
             runtime_instance: None,
@@ -800,11 +816,32 @@ impl<'a> Engine<'a> {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
-                let checked =
-                    consts::definition(f, &mut engine.budget, engine.traits.has_instances, None)?;
+                let ct_types = runtime_ct_phase::symbolic_types(
+                    item,
+                    engine.budget.context.origin,
+                    engine.origins,
+                    module,
+                    engine.runtime_ct,
+                    &mut engine.budget,
+                )?;
+                let source_ids = if ct_types.is_some() {
+                    Some(trait_instances::expression_ids(
+                        &f.body,
+                        &mut engine.budget,
+                    )?)
+                } else {
+                    None
+                };
+                let checked = consts::definition(
+                    f,
+                    &mut engine.budget,
+                    engine.traits.has_instances || ct_types.is_some(),
+                    source_ids,
+                )?;
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
+                        ct_types: ct_types.as_ref(),
                         source_definition: Some(f),
                         expression_origins: checked.source_ids.as_ref(),
                         definition_equations: None,
@@ -945,7 +982,9 @@ impl<'a> Engine<'a> {
             member_calls,
         }) = self.pending.pop_front()
         {
-            self.runtime_instance = name(&item).and_then(|name| self.runtime_instances.get(name)).copied();
+            self.runtime_instance = name(&item)
+                .and_then(|name| self.runtime_instances.get(name))
+                .copied();
             self.runtime_bind_calls(&item)?;
             let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
             let processed = self.with_origin(origin, |engine| engine.item(&mut item));

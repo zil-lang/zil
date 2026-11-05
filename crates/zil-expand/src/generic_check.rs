@@ -12,6 +12,7 @@ mod role_check;
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub ct_types: Option<&'a BTreeMap<usize, TypeRef>>,
     pub source_definition: Option<&'a Function>,
     pub expression_origins: Option<&'a BTreeMap<usize, usize>>,
     pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
@@ -42,6 +43,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        ct_types,
         source_definition,
         expression_origins,
         definition_equations,
@@ -121,6 +123,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         .as_ref()
         .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        ct_types,
         class_scope,
         higher_rank,
         variables,
@@ -797,6 +800,7 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    ct_types: Option<&'s BTreeMap<usize, TypeRef>>,
     class_scope: role_check::Scope<'s>,
     source_definition: &'s Function,
     definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
@@ -3205,6 +3209,25 @@ impl Check<'_, '_, '_> {
         borrowing: bool,
     ) -> R<TypeRef> {
         match &e.kind {
+            ExprKind::MetaEval(_) if self.ct_types.is_some() => {
+                let ordinal = self
+                    .expression_ids
+                    .get(&(e as *const Expr as usize))
+                    .ok_or_else(|| {
+                        error(
+                            e.span,
+                            "symbolic CT expression lost its actual source position",
+                        )
+                    })?;
+                let ty = self
+                    .ct_types
+                    .and_then(|types| types.get(ordinal))
+                    .ok_or_else(|| {
+                        error(e.span, "symbolic CT expression has no checked result type")
+                    })?;
+                self.budget.ty(ty)?;
+                Ok(ty.clone())
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }

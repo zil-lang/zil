@@ -264,6 +264,7 @@ impl Engine<'_> {
         check::validate_parametric_with_bounds(
             &checked,
             check::ParametricTables {
+                ct_types: None,
                 source_definition: Some(&function),
                 expression_origins: checked.source_ids.as_ref(),
                 definition_equations: None,

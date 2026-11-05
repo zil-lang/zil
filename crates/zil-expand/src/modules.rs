@@ -282,7 +282,10 @@ pub(super) fn specialize_with_runtime(
     context: Option<super::source_context::SourceIdentityContext<'_>>,
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits, products, context, runtime_ct).map_err(|e| vec![e])
+    normalize(
+        sources, modules, imports, limits, products, context, runtime_ct,
+    )
+    .map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
@@ -294,7 +297,9 @@ fn normalize(
     runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
-    if runtime_ct.is_some() { budget.note_source_identity(); }
+    if runtime_ct.is_some() {
+        budget.note_source_identity();
+    }
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
         return Err(error(
             "E-MODULE-ID",
@@ -471,8 +476,20 @@ fn normalize(
         limits.clone()
     };
     products.origins = origins;
-    let specialized = match generics::specialize_products_with_runtime(&combined, &instance_limits, products, None, runtime_ct)
-        .map_err(|mut e| e.remove(0))?
+    let runtime_bridge = runtime_ct.map(|callback| NormalizedRuntimeCt {
+        callback,
+        index: &index,
+    });
+    let specialized = match generics::specialize_products_with_runtime(
+        &combined,
+        &instance_limits,
+        products,
+        None,
+        runtime_bridge
+            .as_ref()
+            .map(|bridge| bridge as &dyn crate::runtime_ct::RuntimeCt),
+    )
+    .map_err(|mut e| e.remove(0))?
     {
         // A borrowed result is the unchanged combined input. Keep that owned
         // syntax rather than cloning it again while redistributing modules.
@@ -621,6 +638,48 @@ fn normalize(
     }
     products.restore_owners(&functions)?;
     Ok(output)
+}
+
+/// Re-enter the actual module normalizer for syntax produced by the CT
+/// consumer. Its original source names cannot be interpreted as already
+/// normalized template names by the generic engine.
+struct NormalizedRuntimeCt<'a> {
+    callback: &'a dyn crate::runtime_ct::RuntimeCt,
+    index: &'a Index,
+}
+impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
+    fn definition_expression(
+        &self,
+        definition: &crate::runtime_ct::RuntimeDefinition,
+        ordinal: u32,
+        remaining: &mut Limits,
+    ) -> CompileResult<TypeRef> {
+        self.callback
+            .definition_expression(definition, ordinal, remaining)
+    }
+    fn instantiated(
+        &self,
+        instance: &crate::runtime_ct::RuntimeInstance,
+        template: &Item,
+        output: &mut Item,
+        remaining: &mut Limits,
+    ) -> CompileResult<()> {
+        self.callback
+            .instantiated(instance, template, output, remaining)?;
+        let mut budget = Budget::new(remaining);
+        let mut visitor = Visitor {
+            default_nominal: None,
+            const_scope: Names::new(),
+            mode: Mode::Normalize(self.index),
+            module: instance.definition.module,
+            budget: &mut budget,
+        };
+        visitor
+            .item(output, &Names::new(), true, 0)
+            .map_err(|e| vec![e])?;
+        *remaining = budget.remaining_limits();
+        Ok(())
+    }
 }
 
 enum Mode<'a> {
