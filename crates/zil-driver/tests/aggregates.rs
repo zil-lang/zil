@@ -8301,6 +8301,14 @@ fn terminal340_package_terminal_exact_rhs_provenance() {
         "package P{manages owner:R;n:i32}",
         "package P{n:i32;manages owner:R}",
     );
+    let via_sum = fresh.replace("fn fresh", "enum Carrier{Wrap(P)}\nfn fresh")
+        .replace("return give packet.owner", "let wrapper=Carrier.Wrap(packet);match wrapper{Carrier.Wrap(child)=>{return give child.owner}}");
+    let via_product = fresh.replace("fn fresh", "package Outer{child:P;n:i32}\nfn fresh")
+        .replace("return give packet.owner", "let moved=packet;let outer=Outer{child:moved,n:0};let child=outer.child;return give child.owner");
+    let bad_sum = incoming.replace("fn incoming", "enum Carrier{Wrap(P)}\nfn incoming")
+        .replace("return give packet.owner", "let wrapper=Carrier.Wrap(packet);match wrapper{Carrier.Wrap(child)=>{return give child.owner}}");
+    let bad_product = incoming.replace("fn incoming", "package Outer{child:P;n:i32}\nfn incoming")
+        .replace("return give packet.owner", "let moved=packet;let outer=Outer{child:moved,n:0};let child=outer.child;return give child.owner");
     for (name, text, expected) in [
         (
             "old incoming to actual fresh",
@@ -8321,6 +8329,26 @@ fn terminal340_package_terminal_exact_rhs_provenance() {
             "actual owner is second field",
             reversed.as_str(),
             ResultCategory::Success,
+        ),
+        (
+            "fresh leaf through owning Sum",
+            via_sum.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "fresh leaf through owning Product",
+            via_product.as_str(),
+            ResultCategory::Success,
+        ),
+        (
+            "incoming through owning Sum is not create",
+            bad_sum.as_str(),
+            ResultCategory::SafeReject,
+        ),
+        (
+            "incoming through owning Product is not create",
+            bad_product.as_str(),
+            ResultCategory::SafeReject,
         ),
     ] {
         for stage in [Stage::Analyze, Stage::Verify] {
