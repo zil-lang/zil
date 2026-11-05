@@ -44,12 +44,10 @@ fn g339_source_loop_origins_raw_wire() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 0);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("generic loop must preserve"))
-    );
+    assert!(report
+        .diagnostics
+        .iter()
+        .any(|d| d.message.contains("generic loop must preserve")));
 }
 
 #[test]
@@ -109,12 +107,10 @@ fn g339_qualified_environment_lending_actual_source_raw_wire() {
         );
         assert_eq!(report.verification_runs, 1);
         let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
-        assert!(
-            typed
-                .closures
-                .iter()
-                .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty())
-        );
+        assert!(typed
+            .closures
+            .iter()
+            .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty()));
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
         zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -342,12 +338,10 @@ fn g339_completion_exact_two_kernel_budgets() {
                 if n == low {
                     check(n).unwrap();
                 } else {
-                    assert!(
-                        check(n)
-                            .unwrap_err()
-                            .iter()
-                            .any(|d| d.category == ResultCategory::ResourceLimit)
-                    );
+                    assert!(check(n)
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit));
                 }
             }
             eprintln!(
@@ -381,12 +375,10 @@ fn g339_merged_five_real_roles_mixed_cfg_drop_and_single_role_lending() {
             .as_ref()
             .is_some_and(|c| c.roles.len() == 5)
     }));
-    assert!(
-        typed
-            .closures
-            .iter()
-            .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty())
-    );
+    assert!(typed
+        .closures
+        .iter()
+        .any(|d| d.storage_life.is_some() && !d.lending_captures.is_empty()));
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -431,4 +423,182 @@ fn g339_nonconsuming_managed_capture_actual_repeat_and_lending() {
     eprintln!(
         "G339 nonconsuming Managed Fn/FnMut actual Source/raw/Wire repeat + separate single-role lending success"
     );
+}
+
+#[test]
+fn g339_nonconsuming_managed_entry_cannot_forge_capture_transfer() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = zil_types::check(
+        &g334_core(include_str!("nonconsuming-managed.zil")),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
+        let mut forged = typed.clone();
+        let id = forged
+            .closures
+            .iter()
+            .find(|d| {
+                d.kind == kind
+                    && d.storage_life.is_some()
+                    && d.captures
+                        .iter()
+                        .any(|t| matches!(t, zil_ir::Type::Managed(_)))
+            })
+            .unwrap()
+            .id;
+        let entry = forged
+            .functions
+            .iter_mut()
+            .find(|f| f.environment == Some(id))
+            .unwrap();
+        let instruction = entry
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, zil_ir::InstructionKind::DescribeCapture { .. }))
+            .unwrap();
+        let zil_ir::InstructionKind::DescribeCapture { index } = instruction.kind else {
+            unreachable!()
+        };
+        instruction.kind = zil_ir::InstructionKind::TakeCapture { index };
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+        for wire_mode in [false, true] {
+            let errors = if wire_mode {
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+            } else {
+                zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+            }
+            .unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category != ResultCategory::ResourceLimit),
+                "{errors:?}"
+            );
+            eprintln!(
+                "G339 actual {kind:?} forged owner transfer wire={wire_mode}: {}",
+                errors[0].message
+            );
+        }
+    }
+}
+
+#[test]
+fn g339_lending_live_exclusive_call_is_rejected_independently_from_source_plan() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let good = zil_types::check(
+        &g334_core(include_str!("qualified-lending-mut.zil")),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let mut claim = zil_analyze::analyze(&good, &limits).unwrap();
+    // Use a real source-produced body with the first returned pointer live
+    // across the second exclusive call. No Analyze result exists for this body.
+    let bad = zil_types::check(
+        &g334_core(include_str!("lending-mut-live.zil")),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    claim.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+    for wire_mode in [false, true] {
+        let errors = if wire_mode {
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
+        } else {
+            zil_verify::verify_module(bad.clone(), claim.clone(), &target, &limits)
+        }
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        assert!(
+            errors.iter().any(|d| d.message.contains("overlap")),
+            "{errors:?}"
+        );
+        eprintln!(
+            "G339 independent actual live receiver wire={wire_mode}: {}",
+            errors[0].message
+        );
+    }
+}
+
+#[test]
+fn g339_actual_cycle_reentering_owner_consumption_is_rejected_by_both_kernels() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let typed = zil_types::check(
+        &g334_core(include_str!("loop-before.zil")),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let mut claim = zil_analyze::analyze(&typed, &limits).unwrap();
+    let mut forged = typed.clone();
+    let helper = forged
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.callable_contract.as_ref().is_some_and(|c| {
+                c.roles
+                    .iter()
+                    .any(|r| r.kind == zil_ir::CallableKind::FnOnce)
+            })
+        })
+        .unwrap();
+    let block = helper
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::CallClosure { .. }))
+        })
+        .unwrap();
+    block.terminator = zil_ir::Terminator::Jump(block.id);
+    claim.module_fingerprint = forged.fingerprint();
+    let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category != ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+    for wire_mode in [false, true] {
+        let errors = if wire_mode {
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
+        } else {
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+        }
+        .unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        eprintln!(
+            "G339 actual consuming backedge wire={wire_mode}: {}",
+            errors[0].message
+        );
+    }
 }
