@@ -962,8 +962,7 @@ impl<'a> Environment<'a> {
             }
             errors
         })?;
-        self.budget.release_usage_receipt(&_usage);
-        self.budget.release_temporary_bytes(copied_bytes);
+        self.budget.release_usage_receipt(_usage);
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;
         let context = if retain_context
@@ -977,15 +976,22 @@ impl<'a> Environment<'a> {
                     | CtTy::List(_)
             ) || matches!(&value, CtValue::Type(graph) if !graph.ambient_classes.is_empty()))
         {
-            Some(value_context::ValueContext::capture(
+            value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings.bindings,
                 invocation_context.clone(),
                 &mut self.budget,
-            )?)
+            )
+            .map(Some)
         } else {
-            None
+            Ok(None)
         };
+        // Capture can allocate while the independently verified candidate is
+        // still live. Reclaim its charge only after every consumer finishes,
+        // including the error path from capture.
+        drop(verified);
+        self.budget.release_temporary_bytes(copied_bytes);
+        let context = context?;
         self.budget.reserve_analysis_work(
             (source_bindings.calls.len() as u64).saturating_mul(completed_calls.len() as u64),
         )?;
@@ -1014,10 +1020,10 @@ impl<'a> Environment<'a> {
                 completed_calls,
             )?;
         } else {
-            self.budget.release_temporary_bytes(
-                completed_calls.capacity() as u64
-                    * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64,
-            );
+            let completed_bytes = completed_calls.capacity() as u64
+                * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64;
+            drop(completed_calls);
+            self.budget.release_temporary_bytes(completed_bytes);
         }
         if context.is_none()
             && !retain_host
@@ -2650,7 +2656,7 @@ mod tests {
             zil_ct::evaluate_ct_artifact(&verified, &[], &reader, &mut environment.budget).unwrap();
         assert!(matches!(value, CtValue::Record { .. }));
         environment.budget.release_value(&value);
-        environment.budget.release_usage_receipt(&usage);
+        environment.budget.release_usage_receipt(usage);
         eprintln!(
             "CT5 actual-source owner {definition_ordinal} raw/Wire independent work boundary {exact}"
         );
