@@ -166,3 +166,37 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
     }
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn g4454_inactive_and_nested_payloads_never_hide_address_roots() {
+        let limits = Limits::default();
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        let inactive = Type::Enum {
+            name: "InactiveAddress".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                ("Hidden".into(), vec![address.clone()]),
+            ],
+        };
+        let nested = Type::Record {
+            name: "NestedAddress".into(),
+            fields: vec![(
+                "payload".into(),
+                Type::Tuple(vec![Type::Array {
+                    element: Box::new(address),
+                    length: 2,
+                }]),
+            )],
+        };
+        for ty in [inactive, nested, Type::ForeignHandle] {
+            assert!(!pure(&ty, &mut Budget::new(&limits), 0).unwrap());
+        }
+    }
+}
