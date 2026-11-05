@@ -3470,6 +3470,42 @@ mod scoped_tests {
         assert!(!report.to_json().contains("ordinary Copy"));
     }
     #[test]
+    fn closed_generic_float_preserves_its_actual_receiving_spelling_and_context() {
+        let original = "fn helper<F:FnMut(i32)->i32>(f:&mut F)->f32{return #(0.1)}fn main()->i32{var n=0;var f=move(x:i32)->i32=>{n+=x;return n};let v=helper(&mut f);if v>0.0{return 0}return 1}";
+        for deferred in [false, true] {
+            let text = if deferred {
+                format!("{original}fn unrelated<#N:i32>()->i32{{return #(N)}}")
+            } else {
+                original.to_owned()
+            };
+            let output = run(&text).unwrap();
+            let s::ItemKind::Function(function) = &output.modules[0].items[0].kind else {
+                unreachable!()
+            };
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Return(Some(value)) = &body.statements[0].kind else {
+                unreachable!()
+            };
+            assert!(
+                matches!(&value.kind, s::ExprKind::Literal(s::Literal::Float(text)) if text == "0.1"),
+                "{value:?}"
+            );
+            let source =
+                SourceUnit::new(zil_base::FileId(0), ModuleId(0), "receiving-f32.zil", &text);
+            let report = crate::CompilationSession::default()
+                .compile_source(&source, &crate::CompileOptions::default());
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
+    #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
         let text = include_str!(
             "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
@@ -3498,6 +3534,32 @@ mod scoped_tests {
             let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
                 unreachable!()
             };
+            if name == "renamed" {
+                // Type/Const-generic definitions remain templates until the
+                // actual native specialization. Assert that phase boundary,
+                // then exercise the real callback instead of dropping its
+                // environment and expecting an early ascription.
+                assert!(matches!(value.kind, s::ExprKind::MetaEval(_)), "{value:?}");
+                let source = SourceUnit::new(
+                    zil_base::FileId(0),
+                    ModuleId(0),
+                    "full-ordinal-runtime.zil",
+                    &text,
+                );
+                let report = crate::CompilationSession::default()
+                    .compile_source(&source, &crate::CompileOptions::default());
+                assert_eq!(
+                    report.status,
+                    zil_base::ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                // Independent raw source controls in source_schema_rejects_
+                // coordinated_life_and_witness_mutation require ordinal 1
+                // (and reject ordinal 0) for this Type-then-Life layout.
+                continue;
+            }
             let s::ExprKind::Ascribed { ty, value } = &value.kind else {
                 panic!("missing full type ascription {value:?}")
             };

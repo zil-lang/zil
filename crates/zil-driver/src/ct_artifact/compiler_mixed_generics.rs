@@ -222,7 +222,7 @@ impl Compiler<'_> {
         let parameter = parameter.ok_or_else(|| {
             error(
                 span,
-                "CT life actual is not declared by its authentic lexical owner",
+                "CT life actual is not declared by its authentic caller or lexical host",
             )
         })?;
         let scope = self.source_life_scope.as_ref().unwrap();
