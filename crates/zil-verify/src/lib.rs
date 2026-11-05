@@ -281,6 +281,7 @@ struct Budget {
     sums: bool,
     tasks: bool,
     registrations: bool,
+    replacements: bool,
     task_workers: BTreeSet<FunctionId>,
     suspend_functions: BTreeSet<FunctionId>,
     task_exports: BTreeSet<FunctionId>,
@@ -305,6 +306,7 @@ impl Budget {
             sums: false,
             tasks: false,
             registrations: false,
+            replacements: false,
             task_workers: BTreeSet::new(),
             suspend_functions: BTreeSet::new(),
             task_exports: BTreeSet::new(),
@@ -674,6 +676,24 @@ fn check_module(
             for instruction in &block.instructions {
                 budget.spend(1)?;
                 match &instruction.kind {
+                    InstructionKind::ReservePlaceLocal{path,..}|InstructionKind::ReservePlaceAddress{path,..}
+                    |InstructionKind::TakeTupleField{path,..}|InstructionKind::TakeVariantField{path,..}
+                    |InstructionKind::BorrowPlaceLocal{path,..}|InstructionKind::PlaceTagLocal{path,..}
+                    |InstructionKind::BorrowPlaceAddress{path,..}|InstructionKind::PlaceTagAddress{path,..}=>{
+                        if path.len()>limits.max_call_depth {return Err(limit("mixed/replacement path exceeds depth limit before fingerprint"))}
+                        budget.spend(path.len().checked_mul(24).and_then(|n|n.checked_add(1)).ok_or_else(||limit("mixed/replacement preflight path work overflow"))?)?;
+                        if matches!(instruction.kind,InstructionKind::ReservePlaceLocal{..}|InstructionKind::ReservePlaceAddress{..}){budget.replacements=true;}
+                    }
+                    InstructionKind::BorrowVariantLocal{path,..}|InstructionKind::BorrowVariantAddress{path,..}
+                    |InstructionKind::VariantTagLocal{path,..}|InstructionKind::VariantTagAddress{path,..}|InstructionKind::ReadVariantLocal{path,..}=>{
+                        if path.len()>limits.max_call_depth {return Err(limit("variant path exceeds depth limit before fingerprint"))}
+                        budget.spend(path.len().checked_mul(24).and_then(|n|n.checked_add(1)).ok_or_else(||limit("variant preflight path work overflow"))?)?;
+                    }
+                    InstructionKind::BorrowFieldLocal{path,..}=>{
+                        if path.len()>limits.max_call_depth {return Err(limit("field path exceeds depth limit before fingerprint"))}
+                        budget.spend(path.len().checked_mul(12).and_then(|n|n.checked_add(1)).ok_or_else(||limit("field preflight path work overflow"))?)?;
+                    }
+                    InstructionKind::CommitPlaceReplace{..}|InstructionKind::AbortPlaceReservation{..}=>{budget.replacements=true;}
                     InstructionKind::Constant(constant) => native_values::constant(
                         constant,
                         &module.target,
@@ -1787,11 +1807,8 @@ fn check_instruction(
         | InstructionKind::ReservePlaceAddress { .. }
         | InstructionKind::CommitPlaceReplace { .. }
         | InstructionKind::AbortPlaceReservation { .. } => {
-            return Err(Diagnostic::unsupported(
-                Phase::Verify,
-                "owning-place reservation consumers are under construction",
-                span,
-            ));
+            budget.replacements=true;
+            None
         }
         InstructionKind::RegistrationStart { .. }
         | InstructionKind::RegistrationValid { .. }
