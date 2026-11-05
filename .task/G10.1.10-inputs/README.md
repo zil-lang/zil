@@ -11,8 +11,11 @@ must retain its actual phase/diagnostic rather than count as a passing negative.
 | store-whole-package.zil | whole target is an actual mutable Store element | exit0, `AB42\n` |
 | store-whole-package-abort.zil | real `?` before Commit; prepared B drops before original A | exit0, `BA42\n` |
 | two-leaf-package-helper.zil | both old leaves retire and both new leaves remain owned | exit0, `ABCD42\n` |
+| nested-package-helper.zil | recursive child and sibling through a borrowed whole target | exit0, `ABCD42\n` |
 | nonlocal-enum-helper.zil | borrowed complete Enum target crosses Left→Left and Left→Right | exit0, `ABAC42,43\n` |
+| nonlocal-enum-abort.zil | borrowed multi-leaf Enum retains its old active branch after `?` | exit0, `CAB42\n` |
 | two-role-user-drop.zil | qualified F/G, real Managed give, invoked and uninvoked paths | exit0, `ABBA91\n` (callee parameter cleanup reverse preparation order) |
+| two-role-fnmut-loop.zil | actual three-iteration CFG and two independent mutable qualified environments | exit0, `45\n` |
 | qualified-lending.zil | qualified single-role helper returns each actual environment's field | exit0, empty stdout |
 | qualified-lending-mut.zil | actual first result last-use releases exclusive environment | exit0, empty stdout |
 
@@ -34,11 +37,12 @@ Run bounded filters `g10110_source_and_honest_raw_wire`,
 the existing aggregates binary/target. Root must bind implementation SHA and
 input SHA first. Use workspace TMPDIR/ZIL_TEST_REPORT_DIR, a single shared
 build window, existing target storage and no formal full gate. Do not create
-eight per-case targets or retain duplicate raw phase archives.
+per-case targets or retain duplicate raw phase archives.
 
 Negative controls are surgical source transformations performed in the module:
 second-leaf stale Desc after whole replacement; old same-Store element address
-after reserve; double consumption of the actual F role; a qualified FnMut result
+after reserve; double consumption of the actual F role; two mutable roles aliasing
+one actual environment; a qualified FnMut result
 used after another exclusive call; a borrowed local lender result returned past
 environment destruction. Separate positive sources must pass before these
 negatives count as coverage of the corresponding obligation.
@@ -46,6 +50,6 @@ negatives count as coverage of the corresponding obligation.
 The first fixture's whole captured target and Store fixtures are deliberately
 new parent-scope cases. Existing accepted bare loan/pin and Direct single-leaf
 whole-helper source tests remain separate regression controls; replaying those
-does not establish these new cases. Additional parent obligations (recursive
-Package children, multiple-target helper effects, nonlocal Enum failure and
-actual loop invariants) are not covered by these eight initial inputs.
+does not establish these new cases. Multiple-target Package helper effects and
+broader loop/early-error combinations remain additional parent obligations
+beyond these eleven initial inputs.

@@ -21,14 +21,29 @@ const INPUTS: &[(&str, &str, &[u8])] = &[
         b"ABCD42\n",
     ),
     (
+        "nested-package",
+        include_str!("nested-package-helper.zil"),
+        b"ABCD42\n",
+    ),
+    (
         "enum",
         include_str!("nonlocal-enum-helper.zil"),
         b"ABAC42,43\n",
     ),
     (
+        "enum-abort",
+        include_str!("nonlocal-enum-abort.zil"),
+        b"CAB42\n",
+    ),
+    (
         "two-role-drop",
         include_str!("two-role-user-drop.zil"),
         b"ABBA91\n",
+    ),
+    (
+        "two-role-loop",
+        include_str!("two-role-fnmut-loop.zil"),
+        b"45\n",
     ),
     ("lending", include_str!("qualified-lending.zil"), b""),
     (
@@ -149,12 +164,18 @@ fn g10110_nearest_source_negatives() {
     );
     let escaped = replace_once(&escaped, "return *a+*b;", "return a;");
     let escaped = replace_once(&escaped, "return apply(&tag)", "return *apply(&tag)");
+    let aliased = replace_once(
+        include_str!("two-role-fnmut-loop.zil"),
+        "dispatch(&mut f,&mut g,left,3)",
+        "dispatch(&mut f,&mut f,left,3)",
+    );
     for (name, text, early_consumption) in [
         ("second-leaf-stale-desc", stale, false),
         ("same-store-reserve", store, false),
         ("actual-f-double-consume", twice, true),
         ("overlapping-lending-call", overlap, false),
         ("dead-lending-environment", escaped, false),
+        ("two-mut-roles-one-instance", aliased, false),
     ] {
         let report = compile_source(
             &input(name, &text),
