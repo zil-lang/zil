@@ -792,7 +792,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 && nested_class(ty, 0, b)?
             {
                 return Err(failure(
-                    "nested qualified signature requires complete class relation",
+                    "nested stored qualified signature requires complete class relation",
                 ));
             }
         }
