@@ -135,7 +135,19 @@
     "path": "/workspace/.zil-env/target342-G3.3.5/debug/deps/generic_regressions-6ecdb24ac684ead8",
     "sha256": "6006bdc7ed2264f111d2c3e174c27da43e5df0aaa1c601b9f54eeee80acc9274"
   },
-  "independent_review": "pending exact non-author receipt; root formal acceptance separate",
+  "independent_review": {
+    "status": "PassLimited",
+    "reviewer": "helper_review_high non-author",
+    "receipt": "/tmp/zil-G3.3.5-review-final.json",
+    "sha256": "b0997f61616245cd2cb4ae5494447f7d68a94318373203074fde7e146f541885",
+    "source_and_tests": "bfd84b224",
+    "docs_only_checked": "188137b59",
+    "manifest_sha256": "2f80b762def30eaec52071e6b60b51af2bbf1bab630bd8fa6dca59518403a680",
+    "tests": "12/0: independent probe4 + G3354 + oldNone4; native12",
+    "boundaries": "Types8601; old668/1611/21782; final None Expand5811 unchanged",
+    "extra": "Independently attached FnMut Some on stateful Phantom Core rejects Types Unsupported; Source stays None/rejected; physical slot gate not reopened.",
+    "scope": "Finite Source profile only. Root formal gates/integration separate; parent G3.3 remains partial."
+  },
   "Rust_goals": {
     "expression": "actual stateful helper produces complete42 and43 on one environment",
     "safety": "source/raw/Wire physical class/receiver/loan controls; independent kernels unchanged",
