@@ -223,6 +223,14 @@ impl Builder<'_, '_> {
                 let local = self.lookup(name).ok_or_else(|| {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
+                let actual = &self.function.locals[local.0 as usize].ty;
+                let pure_array = !mutable
+                    && matches!(actual, Type::Array { .. })
+                    && !actual.is_copy_value()
+                    && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?;
+                if pure_array {
+                    self.closures.snapshot_type(actual, 1, 0, e.span)?;
+                }
                 let decl = self.function.locals[local.0 as usize].clone();
                 if self.closure_slots.contains_key(&local) {
                     return self.borrow_closure_slot(local, mutable, e.span);
@@ -311,6 +319,7 @@ impl Builder<'_, '_> {
                 }
                 if !decl.ty.is_copy_value()
                     && !stored::shared_value(&decl.ty)
+                    && !pure_array
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
                     && !(mutable

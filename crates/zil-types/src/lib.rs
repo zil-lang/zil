@@ -1816,7 +1816,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         };
         if self.enum_constructor(e)?.is_some() {
             let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
-            return self.make_variant(&ty, variant, &[], expected, e.span);
+            return self.make_variant(ty, variant, &[], expected, e.span);
         }
         let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
         {
@@ -1959,7 +1959,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.foreign_callback(arguments, e.span);
             }
             if let Some((ty, variant)) = self.enum_constructor(callee)? {
-                return self.make_variant(&ty, variant, arguments, expected, e.span);
+                return self.make_variant(ty, variant, arguments, expected, e.span);
             }
             if let CoreExprKind::Member {
                 object,
@@ -2251,13 +2251,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         {
             return byte_buffer::result_type(name);
         }
-        if let Ok(Some((ty, _))) = self.enum_constructor(e) {
-            return Some(ty);
+        if let Ok(Some((ty, _))) = self.enum_constructor(e)
+            && !matches!(ty, Type::BorrowedStorage { .. })
+        {
+            return Some(ty.clone());
         }
         if let CoreExprKind::Call { callee, .. } = &e.kind
             && let Ok(Some((ty, _))) = self.enum_constructor(callee)
+            && !matches!(ty, Type::BorrowedStorage { .. })
         {
-            return Some(ty);
+            return Some(ty.clone());
         }
         match &e.kind {
             CoreExprKind::Try(operand) => match self.known_type(operand)? {

@@ -668,7 +668,7 @@ fn specialize(rows: &[Vec<Pattern>], constructor: &Constructor, arity: usize) ->
         .collect()
 }
 
-impl Builder<'_, '_> {
+impl<'a, 'c> Builder<'a, 'c> {
     /// Check one conditional pattern without requiring coverage of the input.
     /// The returned flag means no valid input can take its failure edge.
     pub(super) fn conditional_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
@@ -697,7 +697,7 @@ impl Builder<'_, '_> {
             0,
         )?)
     }
-    pub(super) fn enum_constructor(&self, expression: &CoreExpr) -> R<Option<(Type, u32)>> {
+    pub(super) fn enum_constructor(&self, expression: &CoreExpr) -> R<Option<(&'a Type, u32)>> {
         let CoreExprKind::Member {
             object,
             member,
@@ -732,7 +732,7 @@ impl Builder<'_, '_> {
             .iter()
             .position(|(name, _)| name == member)
             .ok_or_else(|| error("E-ENUM-VARIANT", expression.span, "unknown enum variant"))?;
-        Ok(Some((ty.clone(), index as u32)))
+        Ok(Some((ty, index as u32)))
     }
     pub(super) fn make_variant(
         &mut self,
