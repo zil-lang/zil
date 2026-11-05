@@ -9874,12 +9874,26 @@ fn g445_relocation_keeps_symbolic_life_and_closed_type_identities() {
 
 #[test]
 fn g445_real_record_relocations_pay_all_request_ledgers() {
-    let input = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
-    );
-    for ledger in ["work", "nodes", "steps", "bytes"] {
-        let n = g44_source_request_boundary(input, ledger);
-        eprintln!("G4.4.5 real record relocation {ledger} N={n}; N-1/cold/warm/fresh agree");
+    for (shape, input) in [
+        (
+            "single",
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+            ),
+        ),
+        (
+            "scalar-vector",
+            include_str!(
+                "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
+            ),
+        ),
+    ] {
+        for ledger in ["work", "nodes", "steps", "bytes"] {
+            let n = g44_source_request_boundary(input, ledger);
+            eprintln!(
+                "G4.4.5 real record relocation {shape}/{ledger} N={n}; N-1/cold/warm/fresh agree"
+            );
+        }
     }
 }
 
