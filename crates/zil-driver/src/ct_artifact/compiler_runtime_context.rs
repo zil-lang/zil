@@ -400,7 +400,8 @@ impl<'a> Compiler<'a> {
                 }
             }));
         }
-        self.source_life_scope = self.source_life_scope(module, definition, span)?;
+        self.source_life_scope =
+            self.source_life_scope(module, definition, original.function.span)?;
         let scope = self
             .source_life_scope
             .as_ref()
