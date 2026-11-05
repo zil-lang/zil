@@ -1,6 +1,7 @@
 //! Qualified callbacks with inline scalar environments. Metadata is checked
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
+mod staged;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(
@@ -330,6 +331,7 @@ pub(super) fn types(
 }
 /// An ambiguous/rebound receiver cannot select a role merely by ClosureId.
 pub(super) fn role<'a>(
+    module: &TypedModule,
     f: &'a TypedFunction,
     kind: &InstructionKind,
     b: &mut Budget,
@@ -379,11 +381,10 @@ pub(super) fn role<'a>(
         f.parameters.len().saturating_add(contract.roles.len()),
         "callback role actual parameter position",
     )?;
-    let position = f
-        .parameters
-        .iter()
-        .position(|p| *p == local)
-        .ok_or_else(|| bad("callback role receiver is not an actual declared parameter"))?;
+    let position = match f.parameters.iter().position(|p| *p == local) {
+        Some(position) => position,
+        None => staged::parameter(module, f, kind, b)?,
+    };
     let role = contract
         .roles
         .iter()

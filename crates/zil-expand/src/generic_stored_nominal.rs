@@ -138,15 +138,18 @@ impl<'a> Engine<'a> {
         let mut callable_receivers = 0usize;
         // Use only the actual selected bound's constant mode here. Unsupported
         // receiver modes stay on the old None lane before paid template work.
-        let callable_receiver_mut = callable_parameter.is_some_and(|ordinal| {
+        let callable_receiver_mode = callable_parameter.map_or(Some(false), |ordinal| {
             let GenericParamKind::Type(bounds) = &function.generics[ordinal].kind else {
-                return false;
+                return Some(false);
             };
             let [bound] = bounds.as_slice() else {
-                return false;
+                return Some(false);
             };
-            matches!(&bound.kind, TypeKind::Named {path,..}
-                if matches!(path.as_slice(), [name] if name == "FnMut"))
+            match &bound.kind {
+                TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnOnce") => None,
+                TypeKind::Named {path,..} if matches!(path.as_slice(), [name] if name == "FnMut") => Some(true),
+                _ => Some(false),
+            }
         });
         let mut next_elided = u32::try_from(self.life_scope.len())
             .map_err(|_| error(function.span, "lifetime scope overflow"))?;
@@ -176,11 +179,16 @@ impl<'a> Engine<'a> {
                             callable_data_profile &=
                                 !*mutable && occurrences.len() - before == 2 && physical_witness;
                         } else {
-                            callable_data_profile &= *mutable == callable_receiver_mut;
+                            callable_data_profile &= Some(*mutable) == callable_receiver_mode;
                             callable_receivers += 1;
                         }
                     }
                     _ if callable_context::scalar_syntax(&parameter.ty) => {}
+                    TypeKind::Named { .. }
+                        if callable_receiver_mode.is_none() && !parameter_stored =>
+                    {
+                        callable_receivers += 1;
+                    }
                     _ => callable_data_profile = false,
                 }
             }

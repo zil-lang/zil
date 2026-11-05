@@ -545,7 +545,7 @@ fn check_with(
                 | InstructionKind::CallClosureShared { .. }
                 | InstructionKind::CallClosureMut { .. }
                 | InstructionKind::CallClosureOnce { .. } => {
-                    let role = super::stored_callables::role(f, &i.kind, b)?;
+                    let role = super::stored_callables::role(module, f, &i.kind, b)?;
                     let (definition, arguments) =
                         super::stored_callables::called(module, f, &i.kind)
                             .ok_or_else(|| bad("class call has no actual qualified closure"))?;
