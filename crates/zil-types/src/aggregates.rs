@@ -570,11 +570,28 @@ fn resolve_indexed(
     }
     let mut resolved_enums = core.enums.clone();
     for declaration in &mut resolved_enums {
-        let Type::Enum { variants, .. } = resolver
+        let resolved = resolver
             .ty(&Type::Named(declaration.name.clone()), 0, declaration.span)
-            .map_err(|e| vec![e])?
-        else {
-            unreachable!()
+            .map_err(|e| vec![e])?;
+        let variants = match resolved {
+            Type::Enum { variants, .. } => variants,
+            Type::BorrowedStorage { storage, .. } => match *storage {
+                Type::Enum { variants, .. } => variants,
+                _ => {
+                    return Err(vec![error(
+                        "E-STORED-TYPE",
+                        declaration.span,
+                        "resolved stored Enum has no physical variant layout",
+                    )]);
+                }
+            },
+            _ => {
+                return Err(vec![error(
+                    "E-ENUM-TYPE",
+                    declaration.span,
+                    "resolved Enum has no physical variant layout",
+                )]);
+            }
         };
         declaration.variants = variants;
     }
