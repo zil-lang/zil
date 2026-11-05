@@ -14,7 +14,8 @@
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
-| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / Verify | Store/helper [已合入][e42]，ErrorUnion 字段替换[已合入][e39]；G1.3.4 整值替换已修复多根地址误接受，来源与失败清理独审通过，待共同验收；整体 Sum、非局部组合仍缺。 |
+| G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / Verify | Store/helper [已合入][e42]，ErrorUnion 字段替换[已合入][e39]；完整 Done 仍需整体 Sum，以及非局部/helper/capture/Store 的真实来源、loan/pin 和失败责任组合；当前交付见 G1.3.4。 |
+| G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 实现待验 | P0 | g1_3 / Verify | 已修复多根目标误接受，独审通过；[PR41][p41] 共同验收中。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -32,7 +33,9 @@
 | --- | --- | --- | --- | --- | --- |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
-| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | G3.3.2 真实捕获 Fn/FnMut/拥有 FnOnce 已由 PR40 [合入][e40]；G3.3.4 F-helper 已过原生，但复核发现 phantom 实参错误接受，作者与非作者已复现，正在收紧资格；修复前不验收。 |
+| G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 真实捕获已合入，见 G3.3.2；完整 Done 仍需 qualified FnMut/FnOnce helper 的真实环境、来源与调用模式贯通，当前共享桥见 G3.3.4。 |
+| G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
+| G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 进行中 | P0 | g3_3 / 独审 | [PR41][p41]；phantom 实参误接受已由两方复现，正收紧资格并复核，修复前不验收。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
@@ -43,7 +46,8 @@
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
 | G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 已合入 | — | — | [本批验收][e41]；CT4 全序号及原源重实体化已通过共同验收。 |
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 已合入 | — | — | [本批验收][e41]；CT5 实际上下文、键与物理字节计费已通过共同验收。 |
-| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root / CT | 成员 CT 和子值上下文已[合入][e41]；G4.4.2 完整实例向量、原生、raw/Wire、四预算及独审已过，待共同验收；一般成员/生成组合仍缺。 |
+| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root / CT | 成员 CT 和子值上下文已[合入][e41]；完整 Done 仍需泛型 host/member/generated 归属与重定位、运行时泛型体内 CT 相位及嵌套 mixed forwarding，见当前 G4.4.2。 |
+| G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 实现待验 | P0 | root / CT | 原生、raw/Wire、当前请求预算及独审通过；[PR41][p41] 共同验收中。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
@@ -120,3 +124,5 @@
 [e39]: https://github.com/zil-lang/zil/blob/6d4d3e1182001290f87cc0105f9c5a64d769b153/docs/validation/G2.3.2-common-acceptance.json
 
 [e40]: https://github.com/zil-lang/zil/blob/e7247e781d49ab569de263d142f72546f53470d3/docs/validation/G3.3.2-common-acceptance.json
+
+[p41]: https://github.com/zil-lang/zil/pull/41
