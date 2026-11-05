@@ -84,11 +84,6 @@ fn g337_actual_source_tail_and_raw_wire_hostile_neighbors() {
     }
     for (text, phase, fragment) in [
         (
-            include_str!("helper-branch.zil"),
-            zil_base::Phase::Analyze,
-            "staged owning callback",
-        ),
-        (
             include_str!("user-drop.zil"),
             zil_base::Phase::Analyze,
             "user-defined Drop",

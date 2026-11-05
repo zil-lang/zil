@@ -393,3 +393,223 @@ fn whole_helper_later_field_commit_or_helper_clears_the_must_fact() {
         );
     }
 }
+
+// Exercise the actual resource transfer, not just result-shape classification.
+// 0: scalar return; 1: ok after Commit; 2: err after Commit; 3: err after Abort.
+fn copy_result_helper(mode: u8) -> TypedModule {
+    use fixture::instruction as i;
+    use zil_ir::{Constant, ReservationId};
+    let mut module = whole_helper(false, false);
+    let helper = &mut module.functions[0];
+    if mode == 3 {
+        helper.blocks[0].instructions.truncate(4);
+        helper.blocks[0].instructions.extend([
+            i(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(1),
+                },
+            ),
+            i(
+                None,
+                InstructionKind::AbortPlaceReservation {
+                    reservation: ReservationId(71),
+                },
+            ),
+            i(None, InstructionKind::DropManaged { local: LocalId(1) }),
+        ]);
+    }
+    let (result, returned) = if mode == 0 {
+        (Type::I32, ValueId(2))
+    } else {
+        let union = Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(Type::I32),
+        };
+        helper.values.extend([Type::Unit, union.clone()]);
+        helper.blocks[0].instructions.extend([
+            i(Some(ValueId(4)), InstructionKind::Constant(Constant::Unit)),
+            i(
+                Some(ValueId(5)),
+                InstructionKind::MakeErrorUnion {
+                    is_error: mode >= 2,
+                    value: if mode >= 2 { ValueId(4) } else { ValueId(2) },
+                },
+            ),
+        ]);
+        (union, ValueId(5))
+    };
+    helper.return_type = result.clone();
+    helper.blocks[0].terminator = Terminator::Return(Some(returned));
+    let caller = &mut module.functions[1];
+    let output = ValueId(caller.values.len() as u32);
+    caller.values.push(result);
+    caller.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::Call { .. }))
+        .unwrap()
+        .result = Some(output);
+    module
+}
+
+fn run_copy_result_helper(module: &TypedModule, work: usize) -> CompileResult<usize> {
+    let graphs = vec![(vec![vec![]], vec![true]); module.functions.len()];
+    let limits = Limits {
+        max_analysis_steps: work,
+        ..Limits::default()
+    };
+    let mut b = Budget::new(&limits);
+    b.head_descriptions = true;
+    let program = Program::new(module, &graphs, &mut b)?;
+    let effects = infer(module, &graphs, &program, &mut b)?;
+    assert!(effects[0].whole_commits.is_none());
+    for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
+        analyze_function_program(
+            module,
+            f,
+            &reachable,
+            &effects,
+            true,
+            &mut b,
+            None,
+            Some(&program),
+        )?;
+    }
+    Ok(work - b.remaining())
+}
+
+#[test]
+fn whole_copy_result_commit_and_abort_preserve_may_origin_and_real_cleanup() {
+    for mode in 0..4 {
+        let mut module = copy_result_helper(mode);
+        let graphs = vec![(vec![vec![]], vec![true]); 2];
+        let limits = Limits::default();
+        let mut b = Budget::new(&limits);
+        b.head_descriptions = true;
+        let program = Program::new(&module, &graphs, &mut b).unwrap();
+        let effects = infer(&module, &graphs, &program, &mut b).unwrap();
+        assert!(effects[0].whole_commits.is_none());
+        assert_eq!(effects[0].replacements.is_empty(), mode == 3);
+        let errors = analyze_function_program(
+            &module,
+            &module.functions[1],
+            &[true],
+            &effects,
+            true,
+            &mut b,
+            None,
+            Some(&program),
+        )
+        .unwrap_err();
+        assert!(
+            errors.iter().any(|d| d
+                .message
+                .contains("create result forwards an incoming responsibility")),
+            "mode={mode}: {errors:?}"
+        );
+        module.functions[1].result_mode = PassingMode::Give;
+        run_copy_result_helper(&module, limits.max_analysis_steps).unwrap();
+    }
+    let mut missing_abort = copy_result_helper(3);
+    missing_abort.functions[0].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::AbortPlaceReservation { .. }));
+    assert!(
+        run_copy_result_helper(&missing_abort, Limits::default().max_analysis_steps)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.message.contains("prepared replacement activation"))
+    );
+    let mut leaked_preparation = copy_result_helper(3);
+    leaked_preparation.functions[0].blocks[0]
+        .instructions
+        .retain(|i| !matches!(i.kind, InstructionKind::DropManaged { .. }));
+    assert!(
+        run_copy_result_helper(&leaked_preparation, Limits::default().max_analysis_steps)
+            .unwrap_err()
+            .iter()
+            .any(|d| d.message.contains("responsibility unpaid"))
+    );
+}
+
+#[test]
+fn whole_copy_result_qualification_does_not_admit_copy_code_or_foreign_carriers() {
+    let ordinary = Type::ErrorUnion {
+        error: Box::new(Type::Enum {
+            name: "Failure".into(),
+            variants: vec![("Bad".into(), vec![Type::I32])],
+        }),
+        result: Box::new(Type::Tuple(vec![
+            Type::Record {
+                name: "Report".into(),
+                fields: vec![("code".into(), Type::I64)],
+            },
+            Type::Array {
+                element: Box::new(Type::Bool),
+                length: 3,
+            },
+        ])),
+    };
+    let limits = Limits::default();
+    for (ty, admitted) in [
+        (ordinary, true),
+        (
+            Type::FunctionPointer {
+                parameters: vec![],
+                result: Box::new(Type::Unit),
+            },
+            false,
+        ),
+        (Type::ForeignHandle, false),
+        (Type::Tuple(vec![Type::CWideString]), false),
+        (
+            Type::ErrorUnion {
+                error: Box::new(Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                }),
+                result: Box::new(Type::I32),
+            },
+            false,
+        ),
+    ] {
+        let mut module = copy_result_helper(0);
+        module.functions[0].return_type = ty;
+        let result = Program::new(
+            &module,
+            &vec![(vec![vec![]], vec![true]); 2],
+            &mut Budget::new(&limits),
+        );
+        assert_eq!(result.is_ok(), admitted);
+        if !admitted {
+            assert!(
+                result
+                    .err()
+                    .unwrap()
+                    .iter()
+                    .all(|d| d.category == zil_base::ResultCategory::Unsupported)
+            );
+        }
+    }
+}
+
+#[test]
+fn whole_copy_result_request_work_is_exact_and_retryable() {
+    let limits = Limits::default();
+    for mode in [1, 3] {
+        let mut module = copy_result_helper(mode);
+        module.functions[1].result_mode = PassingMode::Give;
+        let work = run_copy_result_helper(&module, limits.max_analysis_steps).unwrap();
+        assert_eq!(run_copy_result_helper(&module, work).unwrap(), work);
+        assert!(
+            run_copy_result_helper(&module, work - 1)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+        );
+        assert_eq!(run_copy_result_helper(&module, work).unwrap(), work);
+        println!("G138 Analyze actual copy-result helper mode={mode} N={work}");
+    }
+}

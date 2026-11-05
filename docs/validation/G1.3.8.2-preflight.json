@@ -1,0 +1,230 @@
+{
+  "status": "RealSourcePreflightOnly",
+  "baseline_main": "917971a13a1590ee912db73be7474d0cceef2b2c",
+  "compiler_source": "a641425b34ba17e689965f78ebd4ebfbd4374fcb",
+  "compiler_sha256": "d0b41f95ac93df5d1f58ab363a1cea1dfc8fafa237e6c6eaa90d32f948de87c5",
+  "controls": [
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_branch_failure.zil",
+      "sha256": "b7ca5c1da3a01e06e7a9318fb0712ae0952c7a275080f38610e1f7ef15fcad9b",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_branch_success.zil",
+      "sha256": "5f85ef336c05b93f6239dac858a6d0e44cb080dbe6c66c996ae583b5844b84df",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_commit_then_error.zil",
+      "sha256": "38a6b4b048d2be8229a1369daf85abb34be85e3aeaa944e35b4991f76aa5153f",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_incoming_give.zil",
+      "sha256": "66558e93895da38a61d1dcd6849ed83b222279e2a7f7cd3759633a0e0995d064",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_no_commit_old_desc.zil",
+      "sha256": "3ff49bf517d4f305268fa265c56a3289f4423662ea3415c89ef7442a60ebf85d",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "verification_runs": 1
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_old_desc_error.zil",
+      "sha256": "4837da5a50d39f61fbd107cf813e156c72f274351281a22ab872935c5ccc43bb",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_original_failure.zil",
+      "sha256": "36028415ef2eeabed19cee8df52ce143c2b17f69216b032c886915022e759650",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_scalar_fresh_give.zil",
+      "sha256": "0a02a739985a24776c247796db2a30fa81d991033ceb760d5093efc66ec4645a",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g138_review_scalar_success.zil",
+      "sha256": "8dc940f6fa6f1802ac757f5ec767e5868ebbdcd68d3727d74794c66a832bbb13",
+      "types": {
+        "status": "Success",
+        "phase": "types",
+        "diagnostics": [],
+        "verification_runs": 0
+      },
+      "verify": {
+        "status": "Unsupported",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "complete Package replacement requires this body's exact whole local owner",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0
+      }
+    }
+  ],
+  "not_run": [
+    "new raw/Wire aggregates module",
+    "native non-Unit whole helper",
+    "new production checkpoint builds",
+    "formal full gates"
+  ]
+}

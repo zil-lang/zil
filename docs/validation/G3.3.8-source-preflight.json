@@ -1,0 +1,159 @@
+{
+  "task": "G3.3.8",
+  "status": "PreflightOnly",
+  "baseline": "917971a13a1590ee912db73be7474d0cceef2b2c",
+  "goal": "24576143daa7a692ba1fd6fff73160f270cb95a8",
+  "command": "source /workspace/.zil-env/env.sh; existing integrated CLI check SOURCE --stop-after types|verify --json; types additionally --emit-dir /workspace/.zil-env/G3.3.8-tmp/preflight",
+  "existing_cli": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+  "binary_binding": "Existing integrated artifact used. Its hash was not captured before execution; no exact CLI binary/source rebuild claim made by this preflight. Current-source tests are a separate obligation.",
+  "source": "tests/language-readiness/terminal/342/fnonce-helper-next/helper-branch.zil",
+  "source_sha256": "53e4b3bbabcaabdc32d87bc0f61c507505720f62036c5b1e41ad0bcc50bd1e9d",
+  "types_report": {
+    "status": "Success",
+    "phase": "types",
+    "diagnostics": [],
+    "artifacts": {
+      "core": "/workspace/.zil-env/G3.3.8-tmp/preflight/core.txt",
+      "ct-core": "/workspace/.zil-env/G3.3.8-tmp/preflight/ct-core.txt",
+      "interfaces": "/workspace/.zil-env/G3.3.8-tmp/preflight/interfaces.txt",
+      "source-map": "/workspace/.zil-env/G3.3.8-tmp/preflight/source-map.txt",
+      "syntax": "/workspace/.zil-env/G3.3.8-tmp/preflight/syntax.txt",
+      "task-interfaces": "/workspace/.zil-env/G3.3.8-tmp/preflight/task-interfaces.txt",
+      "typed": "/workspace/.zil-env/G3.3.8-tmp/preflight/typed.txt"
+    },
+    "input_fingerprint": "d2b95fc82dcaea126876a428d4a353ae425726c391c971253516f483397e7e75",
+    "seconds": 0.038912608,
+    "cache_hit": false,
+    "commands": [],
+    "native_codegen": null,
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 0,
+    "source_files": {
+      "0": "/workspace/zil-G3.3.8/tests/language-readiness/terminal/342/fnonce-helper-next/helper-branch.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "3b5fe0f022bc6e3b5b70ffb34c2931df4e91eb532f9a45da6d1b86ecd134e5b5",
+        "implementation_fingerprint": "53e4b3bbabcaabdc32d87bc0f61c507505720f62036c5b1e41ad0bcc50bd1e9d",
+        "contract_fingerprint": null,
+        "result_origins": null,
+        "callable_contracts": null,
+        "callable_returns": null,
+        "exports": []
+      }
+    ]
+  },
+  "verify_request_report": {
+    "status": "Unsupported",
+    "phase": "analyze",
+    "diagnostics": [
+      {
+        "phase": "analyze",
+        "category": "Unsupported",
+        "code": "E-UNSUPPORTED",
+        "message": "staged owning callback needs one unexposed acyclic parameter transfer",
+        "span": null,
+        "notes": []
+      }
+    ],
+    "artifacts": {},
+    "input_fingerprint": "d2b95fc82dcaea126876a428d4a353ae425726c391c971253516f483397e7e75",
+    "seconds": 0.015403323,
+    "cache_hit": false,
+    "commands": [],
+    "native_codegen": null,
+    "disk_cache": "disabled",
+    "query_events": [
+      {
+        "phase": "parse",
+        "disposition": "executed"
+      },
+      {
+        "phase": "expand",
+        "disposition": "executed"
+      },
+      {
+        "phase": "ct",
+        "disposition": "executed"
+      },
+      {
+        "phase": "types",
+        "disposition": "executed"
+      },
+      {
+        "phase": "analyze",
+        "disposition": "executed"
+      }
+    ],
+    "verification_runs": 0,
+    "source_files": {
+      "0": "/workspace/zil-G3.3.8/tests/language-readiness/terminal/342/fnonce-helper-next/helper-branch.zil"
+    },
+    "scalar_interfaces": [
+      {
+        "module": 0,
+        "signature_fingerprint": "3b5fe0f022bc6e3b5b70ffb34c2931df4e91eb532f9a45da6d1b86ecd134e5b5",
+        "implementation_fingerprint": "53e4b3bbabcaabdc32d87bc0f61c507505720f62036c5b1e41ad0bcc50bd1e9d",
+        "contract_fingerprint": null,
+        "result_origins": null,
+        "callable_contracts": null,
+        "callable_returns": null,
+        "exports": []
+      }
+    ]
+  },
+  "typed_artifact": "/workspace/.zil-env/G3.3.8-tmp/preflight/typed.txt",
+  "typed_sha256": "152046bb07482e983f1e87026f251b763f6e5847038cb1999d22473165c51511",
+  "typed_observation": "Actual helper entry branches before the TakeLocal(parameter0), Store(local2), TakeLocal(local2), CallClosureOnce chain in its successor. This is a Typed artifact observation, not accepted resource or execution proof.",
+  "new_real_sources_types_only": [
+    {
+      "source": "tests/language-readiness/terminal/342/fnonce-helper-cfg/branch-before-call.zil",
+      "status": "Success",
+      "phase": "types",
+      "input_fingerprint": "a45f82c111f170058591b3dadccd526814aaaeae142c863433d41cd1e14b4b80"
+    },
+    {
+      "source": "tests/language-readiness/terminal/342/fnonce-helper-cfg/diamond-before-call.zil",
+      "status": "Success",
+      "phase": "types",
+      "input_fingerprint": "25ae4379582ff4bd5ed9ba23e60974811a4fe0c72cf316362b156e780372e4c2"
+    },
+    {
+      "source": "tests/language-readiness/terminal/342/fnonce-helper-cfg/drop-other-branch.zil",
+      "status": "Success",
+      "phase": "types",
+      "input_fingerprint": "9bde8fb20a9014687eb0c51e09428d80eabd24df9e2daa9de922cd5bdf06c9fd"
+    },
+    {
+      "source": "tests/language-readiness/terminal/342/fnonce-helper-cfg/forward-before-diamond.zil",
+      "status": "Success",
+      "phase": "types",
+      "input_fingerprint": "5f21c54f4cf8cbc66eb46327be714ebbafa5a3a4496fd5fa608359f25f2cada5"
+    },
+    {
+      "source": "tests/language-readiness/terminal/342/fnonce-helper-cfg/nested-before-call.zil",
+      "status": "Success",
+      "phase": "types",
+      "input_fingerprint": "85788ffb07f159e51bae0debf327ad75f1c21acdb549e48d6199858ef855cec6"
+    }
+  ]
+}

@@ -551,3 +551,18 @@ different symbolic inputs as either automatically disjoint or always aliased.
 It adds no runtime ownership mechanism and grants no new Fresh/must-Commit
 capability. This is a concrete safety correction; broad-language safety and
 same-semantics Rust cost comparisons still require their existing product gates.
+
+
+G1.3.8.3 extends real composition in two bounded areas: mutable whole-Package
+helpers can return finite ordinary Copy values/errors, and owning FnOnce helpers
+can branch before consumption and join acyclic paths. Actual Commit/Abort effects,
+old-description retirement, prepared-value cleanup, parameter provenance and
+single ownership settlement remain independently checked. An error result does
+not undo an earlier Commit and non-Unit results do not grant Fresh. Source/raw/Wire
+and full-value native consumers distinguish these cases; the new DAG proof also
+requires definite activation before every owner transfer. The existing inline
+representations add no implicit box, RC or lock. This is a useful expressibility
+and correctness gain; runtime/RSS and compile speed against same-semantics Rust,
+framework maintenance costs and a product-level net breakthrough remain unmeasured.
+Current-request work and prior Unit/tail budget controls are preserved; broader
+lending, loops, multiple callable roles and user teardown are still outstanding.

@@ -335,6 +335,138 @@ fn whole_helper_broader_or_conditional_cfg_does_not_export_fresh() {
         "{error:?}"
     );
 }
+
+fn whole_helper_copy_return(error_union: bool) -> TypedModule {
+    let mut module = whole_helper(true);
+    let helper = &mut module.functions[0];
+    if error_union {
+        let error = Type::Enum {
+            name: "Fault".into(),
+            variants: vec![("Bad".into(), vec![])],
+        };
+        helper.return_type = Type::ErrorUnion {
+            error: Box::new(error.clone()),
+            result: Box::new(Type::I32),
+        };
+        helper.values.extend([error, helper.return_type.clone()]);
+        helper.blocks[0].instructions.extend([
+            fixture::instruction(
+                Some(ValueId(4)),
+                InstructionKind::MakeVariant {
+                    variant: 0,
+                    fields: vec![],
+                },
+            ),
+            fixture::instruction(
+                Some(ValueId(5)),
+                InstructionKind::MakeErrorUnion {
+                    is_error: false,
+                    value: ValueId(2),
+                },
+            ),
+        ]);
+        helper.blocks[0].terminator = Terminator::Return(Some(ValueId(5)));
+    } else {
+        helper.return_type = Type::I32;
+        helper.blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
+    }
+    let returned = helper.return_type.clone();
+    let caller = &mut module.functions[1];
+    caller.result_mode = PassingMode::Give;
+    let output = ValueId(caller.values.len() as u32);
+    caller.values.push(returned);
+    caller.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::Call { .. }))
+        .unwrap()
+        .result = Some(output);
+    module
+}
+
+#[test]
+fn nonunit_whole_helper_actual_commit_preserves_access_without_must_fresh() {
+    for error_union in [false, true] {
+        let mut module = whole_helper_copy_return(error_union);
+        whole_check(&module).unwrap();
+        module.functions[1].result_mode = PassingMode::Create;
+        let error = whole_check(&module).unwrap_err();
+        assert!(
+            error
+                .message
+                .contains("create result is not independently proven fresh"),
+            "{error:?}"
+        );
+    }
+}
+
+#[test]
+fn error_whole_helper_abort_retains_old_debt_and_cleans_only_prepared_temporary() {
+    let mut module = whole_helper_copy_return(true);
+    let helper = &mut module.functions[0];
+    // A real prepared resource exists before failure. It is cleaned on Abort;
+    // no Package is published and no old destination debt can be consumed.
+    helper.blocks[0].instructions.truncate(4);
+    helper.blocks[0].instructions.extend([
+        fixture::instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(1),
+            },
+        ),
+        fixture::instruction(None, InstructionKind::DropManaged { local: LocalId(1) }),
+        fixture::instruction(
+            None,
+            InstructionKind::AbortPlaceReservation {
+                reservation: ReservationId(71),
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(4)),
+            InstructionKind::MakeVariant {
+                variant: 0,
+                fields: vec![],
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(5)),
+            InstructionKind::MakeErrorUnion {
+                is_error: true,
+                value: ValueId(4),
+            },
+        ),
+    ]);
+    whole_check(&module).unwrap();
+    let mut forged_create = module.clone();
+    forged_create.functions[1].result_mode = PassingMode::Create;
+    assert!(
+        whole_check(&forged_create)
+            .unwrap_err()
+            .message
+            .contains("fresh")
+    );
+    for omit_abort in [false, true] {
+        let mut bad = module.clone();
+        bad.functions[0].blocks[0].instructions.retain(|i| {
+            if omit_abort {
+                !matches!(i.kind, InstructionKind::AbortPlaceReservation { .. })
+            } else {
+                !matches!(i.kind, InstructionKind::DropManaged { .. })
+            }
+        });
+        let error = whole_check(&bad).unwrap_err();
+        assert_eq!(
+            error.code,
+            if omit_abort {
+                "E-VERIFY-PLACE-REPLACE"
+            } else {
+                "E-VERIFY-RESOURCE"
+            },
+            "{error:?}"
+        );
+    }
+}
 #[test]
 fn whole_package_transfers_actual_field_provenance_without_making_shell_fresh() {
     for fresh in [true, false] {

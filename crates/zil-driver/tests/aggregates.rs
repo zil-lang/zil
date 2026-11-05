@@ -9880,3 +9880,6 @@ fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
 
 #[path = "../../../tests/language-readiness/terminal/340/whole_helper_review.rs"]
 mod whole_helper_review;
+
+#[path = "../../../tests/language-readiness/terminal/340/whole_helper_error_review.rs"]
+mod whole_helper_error_review;
