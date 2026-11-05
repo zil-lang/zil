@@ -3103,9 +3103,8 @@ mod scoped_tests {
                 .any(|row| row.generated.is_some())
         );
     }
-    #[test]
-    fn ct6_generated_source_consumers_reach_independent_runtime_verification() {
-        for (name, text) in [
+    fn generated_source_fixtures() -> [(&'static str, &'static str); 3] {
+        [
             (
                 "member",
                 include_str!(
@@ -3118,7 +3117,17 @@ mod scoped_tests {
                     "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
                 ),
             ),
-        ] {
+            (
+                "nominal-factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-nominal-factory.zil"
+                ),
+            ),
+        ]
+    }
+    #[test]
+    fn ct6_generated_source_consumers_reach_independent_runtime_verification() {
+        for (name, text) in generated_source_fixtures() {
             let source = SourceUnit::new(
                 zil_base::FileId(0),
                 ModuleId(0),
@@ -3142,20 +3151,7 @@ mod scoped_tests {
     }
     #[test]
     fn ct6_generated_candidates_pass_raw_wire_and_clang_o0_o2() {
-        for (name, text) in [
-            (
-                "member",
-                include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
-                ),
-            ),
-            (
-                "factory",
-                include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
-                ),
-            ),
-        ] {
+        for (name, text) in generated_source_fixtures() {
             let source = SourceUnit::new(
                 zil_base::FileId(0),
                 ModuleId(0),
@@ -3225,20 +3221,7 @@ mod scoped_tests {
     }
     #[test]
     fn ct6_generated_source_budget_is_exact_and_request_local() {
-        for (name, text) in [
-            (
-                "member",
-                include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
-                ),
-            ),
-            (
-                "factory",
-                include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
-                ),
-            ),
-        ] {
+        for (name, text) in generated_source_fixtures() {
             let defaults = Limits::default();
             for dimension in 0..3 {
                 let maximum = match dimension {
