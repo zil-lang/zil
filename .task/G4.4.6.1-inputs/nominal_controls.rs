@@ -4,6 +4,133 @@ use zil_driver::{CompileOptions, Stage};
 use zil_ir::{LifeNominalActual, LifeNominalKind, LifeParameterKind, LifeTypeProjection, Type};
 
 #[test]
+fn g4461_core_named_fields_and_actuals_get_resolved_physical_checks() {
+    for actual in ["i32", "Pair"] {
+        let text = format!(
+            "struct Pair{{left:i32;right:u64}}enum Choice{{Empty,Pair(i32,u64)}}struct Phantom<life a,T:Copy,#N:i32>{{tuple:(i32,bool);array:[i32;2];record:Pair;variant:Choice}}fn result<life s>(p:&'s i32)->u64{{let value=Phantom::<'s,{actual},37>{{tuple:(37,true),array:[37,38],record:Pair{{left:39,right:18446744073709551557u64}},variant:Choice.Pair(40,18446744073709551557u64)}};return value.record.right}}fn main()->u64{{let n=0;return result(&n)}}"
+        );
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0),
+            zil_base::ModuleId(0),
+            "g4461-core-named.zil",
+            text,
+        );
+        let options = CompileOptions {
+            stop_after: Stage::Types,
+            ..CompileOptions::default()
+        };
+        let report = zil_driver::compile_source(&source, &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let limits = Limits::default();
+        let target = zil_base::TargetProfile::host_llvm();
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let instance = &core.life_instances[0];
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+            unreachable!()
+        };
+        let Type::Record { name, fields } = storage.as_ref() else {
+            unreachable!()
+        };
+        assert!(matches!(&fields[2].1, Type::Named(_)));
+        assert!(matches!(&fields[3].1, Type::Named(_)));
+        let aggregate = core
+            .aggregates
+            .iter()
+            .position(|a| {
+                a.name == *name || format!("@module{}:{}", core.module_id.0, a.name) == *name
+            })
+            .unwrap();
+        if actual == "Pair" {
+            assert!(matches!(
+                &instance.arguments[1],
+                LifeNominalActual::Type(Type::Named(_))
+            ));
+        }
+        let typed = zil_types::check(&core, &target, &limits).unwrap();
+        let Type::BorrowedStorage { storage, .. } = &typed.life_instances[0].ty else {
+            unreachable!()
+        };
+        let Type::Record { fields, .. } = storage.as_ref() else {
+            unreachable!()
+        };
+        assert!(matches!(&fields[2].1,Type::Record{fields,..} if fields[1].1==Type::U64));
+        assert!(matches!(&fields[3].1, Type::Enum { .. }));
+        if actual == "Pair" {
+            assert!(matches!(
+                &typed.life_instances[0].arguments[1],
+                LifeNominalActual::Type(Type::Record { .. })
+            ));
+        }
+        for mutation in 0..5 {
+            let mut hostile = core.clone();
+            match mutation {
+                0 => hostile.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I32),
+                1 => {
+                    hostile.life_instances[0].arguments[1] =
+                        LifeNominalActual::Type(Type::Named("$absent_actual".into()))
+                }
+                2 => {
+                    let Type::BorrowedStorage { storage, .. } = &mut hostile.life_instances[0].ty
+                    else {
+                        unreachable!()
+                    };
+                    let Type::Record { fields, .. } = storage.as_mut() else {
+                        unreachable!()
+                    };
+                    fields[2].1 = Type::Bool;
+                }
+                3 => {
+                    let Type::BorrowedStorage { life, .. } = &mut hostile.life_instances[0].ty
+                    else {
+                        unreachable!()
+                    };
+                    life.slots.push(zil_ir::StorageLifeSlot {
+                        path: vec![zil_ir::PlaceProjection::Field(2)],
+                        binder: 0,
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                    });
+                }
+                4 => {
+                    let invalid = Type::Named("$absent_physical".into());
+                    hostile.aggregates[aggregate].fields[2].ty = invalid.clone();
+                    let Type::BorrowedStorage { storage, .. } = &mut hostile.life_instances[0].ty
+                    else {
+                        unreachable!()
+                    };
+                    let Type::Record { fields, .. } = storage.as_mut() else {
+                        unreachable!()
+                    };
+                    fields[2].1 = invalid;
+                }
+                _ => unreachable!(),
+            }
+            assert!(
+                zil_types::check(&hostile, &target, &limits).is_err(),
+                "Types accepted unresolved/physical mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn g4461_same_child_distinct_outer_relations_coexist() {
     let text = "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{n:i32}fn same<life s>(p:&'s i32)->i32{let w=Wrap::<Phantom<'s>,Phantom<'s>>{n:20};return w.n}fn apart<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{n:22};return w.n}fn main()->i32{let p=0;let q=1;return same(&p)+apart(&p,&q)}";
     let source = zil_base::SourceUnit::new(
