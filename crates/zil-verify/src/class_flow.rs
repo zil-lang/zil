@@ -295,6 +295,8 @@ fn link_projection(
         } else {
             &[]
         };
+        let scan = parent.keys.len().saturating_add(retained.len());
+        b.spend(scan)?;
         let full_len = path.len().saturating_add(1);
         let lookup_work = parent
             .keys
@@ -307,7 +309,7 @@ fn link_projection(
             }))
             .saturating_add(full_len.saturating_mul(3))
             .saturating_add(1);
-        b.spend(lookup_work)?;
+        b.spend(lookup_work.saturating_sub(scan))?;
         let tail = if path.first() == Some(&LifeTypeProjection::Pointee) {
             &path[1..]
         } else {
@@ -390,6 +392,7 @@ fn bind(
     }
     for row in &c.classes {
         if row.position.base == base {
+            b.spend(p.keys.len())?;
             let lookup_work = p.keys.iter().fold(0usize, |n, (path, _)| {
                 n.saturating_add(
                     path.len()
@@ -397,7 +400,7 @@ fn bind(
                         .saturating_add(1),
                 )
             });
-            b.spend(lookup_work)?;
+            b.spend(lookup_work.saturating_sub(p.keys.len()))?;
             let index = p
                 .keys
                 .iter()
