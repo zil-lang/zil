@@ -1,0 +1,101 @@
+{
+  "task_id": "G3.3.6.1",
+  "kind": "implementation handoff; independent review and root acceptance are separate",
+  "author": "/root/g443_review_sol",
+  "goal_read_sha": "be291d1b6a2e49f5f14e8a0fd84f20b637c79c0b",
+  "baseline": "2f9e9df0eee05b6285ec56d0e33cc520eba0acbf",
+  "verify_production": [
+    "02d65f15331f33d057ba76d4d92b4de21f6b131b",
+    "3f5d3ced13d33e66a3016f8448b6ddc773b4bb2f"
+  ],
+  "independent_analyze_dependency": {
+    "author": "/root/g3_3",
+    "original": "a0325eb77",
+    "local_cherry_pick": "466029af9"
+  },
+  "source_tests": "0518ba2ffee0f340e119c118fa042f0a99143067",
+  "rejection_anchor_tests": "7fcc8422d291ce0343f6717e2a596900180aed9f",
+  "scope": "Original free helper; genuinely owning FnOnce with one Managed scalar Record capture, teardown=None and one shared physical Tag capture; single block Return/Trap staged Take/Store chain.",
+  "proof": "Recover exact declared parameter by paid unique Store/SSA transfer scans with strictly decreasing actual instruction positions. The origin chain allocates no scratch; capture profiling uses the existing prepaid type_work stack. No ClosureId-based role selection or producer proof. Existing initialization, class, helper trace and resource/once proofs remain mandatory.",
+  "checks": [
+    {
+      "command": "cargo test -p zil-verify --lib g336_staged_verify --offline -- --nocapture",
+      "passed": 2,
+      "local_hostile_cases": 13,
+      "local_work": 126,
+      "old_direct_role_work": 10,
+      "log": "/workspace/.zil-env/G3.3.6-verify-tmp/local-test-final.log"
+    },
+    {
+      "command": "cargo test -p zil-driver --test generic_regressions g336_verify_staged --offline -- --nocapture",
+      "passed": 2,
+      "positive_source_raw_wire_checks": 8,
+      "negative_source_derived_raw_wire_checks": 14,
+      "log": "/workspace/.zil-env/G3.3.6-verify-tmp/source-raw-wire-anchored.log"
+    },
+    {
+      "command": "cargo test -p zil-verify --lib owning_fixed --offline -- --nocapture",
+      "passed": 3,
+      "raw_wire_old_work": 13875,
+      "log": "/workspace/.zil-env/G3.3.6-verify-tmp/old-owning-fixed.log"
+    },
+    {
+      "command": "cargo test -p zil-verify --lib capture_grounded_fixed_uses_one_request_budget_exactly --offline -- --nocapture",
+      "passed": 1,
+      "raw_wire_old_work": 16203,
+      "log": "/workspace/.zil-env/G3.3.6-verify-tmp/old-borrowed-fixed-budget.log"
+    },
+    {
+      "command": "cargo clippy -p zil-verify --all-targets --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "cargo clippy -p zil-driver --test generic_regressions --offline -- -D warnings",
+      "passed": true
+    },
+    {
+      "command": "cargo fmt --all -- --check; git diff --check",
+      "passed": true
+    }
+  ],
+  "actual_source_fixtures": [
+    "helper-owned-byvalue.zil",
+    "reverse-owned-byvalue.zil",
+    "owned-ssa-spare.zil",
+    "actual-caller-good.zil"
+  ],
+  "fixture_directory": "tests/language-readiness/terminal/342/fnonce-helper-bridge",
+  "source_verify_work": {
+    "raw": 44081,
+    "wire": 44081,
+    "modes": [
+      "exact N",
+      "N-1 ResourceLimit",
+      "fresh",
+      "repeat",
+      "retry"
+    ]
+  },
+  "anchored_first_rejections": {
+    "duplicate_store": "staged callback local has ambiguous or repeated Stores",
+    "wrong_ssa": "load may read a local before initialization",
+    "copied_owner": "Managed positions require DescribeLocal or TakeLocal, never copying Load",
+    "self_loop": "Return cleanup must lead to an ordinary return on this edge",
+    "helper_double_once": "helper consumes a callback role more than once",
+    "equal_type_wrong_class": "actual retained class equality is not universally valid",
+    "caller_repeated_owned_ssa": "managed SSA value was not available exactly once"
+  },
+  "cleanup_oracle": "teardown=None. Actual Typed closure entry takes its Managed capture; complete raw/Wire resource and once-consumption proofs are exercised. Native return values are not destructor counters; this author did not run a native matrix.",
+  "rust_four_goals": {
+    "safety": "Actual parameter identity plus independent initialization/class/resource checks, including equal-Type wrong-class and duplicate owning SSA.",
+    "performance": "Old complete owner/borrowed budgets unchanged; new staged Source work is measured. No runtime speed claim.",
+    "expressiveness": "Four real owning FnOnce helper Sources now reach complete independent raw/Wire checking with preserved staging.",
+    "maintainability": "One private fallback with an allocation-free origin chain and paid existing type-profile scratch; existing direct/borrowed route and private caller wiring.",
+    "demonstrated_step": "Real staged owning helper acceptance with actual source parameter identity; whole-product Rust comparison unmeasured."
+  },
+  "limitations": [
+    "No formal full suite, native matrix, Windows or CI authored here.",
+    "General forwarding, multiple F, user Drop and lending remain outside this scope.",
+    "This does not complete parent G3.3."
+  ]
+}
