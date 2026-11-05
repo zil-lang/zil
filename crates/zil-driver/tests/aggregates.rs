@@ -10044,3 +10044,16 @@ fn g4453_generic_host_keeps_its_actual_type_binding() {
     assert_eq!(report.verification_runs, 1);
     review329_native_entry_output(&[("main", text)], "main", b"42\n");
 }
+
+#[test]
+fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-const-only-factory.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-parameter-subsets.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}

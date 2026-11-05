@@ -1197,6 +1197,7 @@ impl Builder<'_, '_> {
             .generics
             .is_empty()
             || explicit.is_some()
+            || matches!(&callee.kind, s::ExprKind::Member { object, .. } if matches!(object.kind, s::ExprKind::TypeApply { .. }))
         {
             let host_arguments = match &callee.kind {
                 s::ExprKind::Member { object, .. } => match &object.kind {
@@ -1272,9 +1273,9 @@ impl Builder<'_, '_> {
             return self.abstract_mixed_call(declaration, explicit, arguments, depth, span);
         }
         if !self.compiler.checking_generics
-            && Compiler::mixed_parameters(
+            && (Compiler::mixed_parameters(
                 &self.compiler.declarations[declaration].function.generics,
-            )
+            ) || self.compiler.active_host.is_some())
         {
             return self.mixed_generic_call(
                 declaration,

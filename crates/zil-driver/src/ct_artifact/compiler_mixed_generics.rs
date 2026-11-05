@@ -52,15 +52,75 @@ impl Compiler<'_> {
         Ok(false)
     }
     pub(super) fn mixed_parameters(parameters: &[s::GenericParam]) -> bool {
-        parameters
-            .iter()
-            .any(|p| matches!(p.kind, s::GenericParamKind::Type(_)))
-            && parameters
-                .iter()
-                .any(|p| matches!(p.kind, s::GenericParamKind::Const(_)))
-            && parameters
-                .iter()
-                .any(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+        parameters.iter().any(|p| {
+            matches!(
+                p.kind,
+                s::GenericParamKind::Const(_) | s::GenericParamKind::Lifetime
+            )
+        })
+    }
+
+    pub(super) fn source_call_scope(
+        &mut self,
+        span: Span,
+    ) -> R<(CtAmbientScopeId, CtAmbientLifeScope)> {
+        let scope = self
+            .source_life_scope
+            .as_ref()
+            .ok_or_else(|| error(span, "CT factory call lacks authentic caller scope"))?;
+        let first = if let Some((name, _)) = scope.binders.first() {
+            self.budget.text(name, span)?;
+            Some(name.clone())
+        } else {
+            None
+        };
+        let existing = if let Some(first) = first {
+            Some(self.ambient_actual(&first, span)?.scope)
+        } else {
+            None
+        };
+        let scope = self.source_life_scope.as_ref().unwrap();
+        self.budget.work(32, span)?;
+        if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
+            Self::actual_cost(&mut self.budget, actuals, span)?;
+        }
+        let raw = CtAmbientLifeScope {
+            declaration: scope.definition.clone(),
+            enclosing: scope.enclosing,
+            binder_site: Vec::new(),
+            instance: scope.instance.clone(),
+        };
+        let id = if let Some(id) = existing {
+            id
+        } else {
+            self.budget.work(self.ambient_life_scopes.len(), span)?;
+            for old in &self.ambient_life_scopes {
+                self.budget.scope_comparison(old, span)?;
+            }
+            self.budget.scope_comparison(&raw, span)?;
+            let index =
+                if let Some(index) = self.ambient_life_scopes.iter().position(|old| old == &raw) {
+                    index
+                } else {
+                    self.budget.node(span)?;
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        std::mem::size_of::<CtAmbientLifeScope>(),
+                        span,
+                        "CT caller context scope bytes exhausted",
+                    )?;
+                    if let CtScopeInstance::Instantiated(actuals) = &raw.instance {
+                        Self::actual_cost(&mut self.budget, actuals, span)?;
+                    }
+                    self.ambient_life_scopes.push(raw.clone());
+                    self.ambient_life_scopes.len() - 1
+                };
+            CtAmbientScopeId(
+                u32::try_from(index)
+                    .map_err(|_| error(span, "CT caller context scope ID overflow"))?,
+            )
+        };
+        Ok((id, raw))
     }
 
     fn mixed_actual_cost(&mut self, actuals: &[CtScopeActual], span: Span) -> R<()> {
@@ -282,6 +342,85 @@ impl Compiler<'_> {
 }
 
 impl Builder<'_, '_> {
+    pub(super) fn contextual_metadata_call(
+        &mut self,
+        declaration: usize,
+        graphs: Vec<CtTypeRef>,
+        values: Vec<CtValueId>,
+        actual_types: &[CtTy],
+        expected: Option<&CtTy>,
+        span: Span,
+    ) -> R<Value> {
+        let d = self.compiler.declarations[declaration];
+        let (caller_scope_id, caller_scope) = self.compiler.source_call_scope(span)?;
+        Budget::take(
+            &mut self.compiler.budget.bytes,
+            graphs
+                .len()
+                .saturating_mul(std::mem::size_of::<CtScopeActual>()),
+            span,
+            "CT contextual Type actual vector backing exhausted",
+        )?;
+        let actuals = graphs
+            .into_iter()
+            .map(CtScopeActual::Type)
+            .collect::<Vec<_>>();
+        let (parameters, result) = self.compiler.mixed_header(declaration, &actuals)?;
+        for (actual, expected) in actual_types.iter().zip(&parameters) {
+            self.compiler.budget.ty(actual, 0, span)?;
+            self.compiler.budget.ty(expected, 0, span)?;
+            if actual != expected {
+                return Err(error(span, "CT contextual generic argument type differs"));
+            }
+        }
+        let function = self
+            .compiler
+            .enqueue_mixed_instance(declaration, &actuals)?;
+        self.compiler.mixed_actual_cost(&actuals, span)?;
+        self.compiler.budget.node(span)?;
+        Budget::take(
+            &mut self.compiler.budget.bytes,
+            std::mem::size_of::<SourceInstanceCall>(),
+            span,
+            "CT contextual call source ledger exhausted",
+        )?;
+        let callee = self.compiler.item_symbol(d.module, d.item)?;
+        let site = self.compiler.current_expression_site(span)?;
+        self.compiler
+            .source_instance_calls
+            .push(SourceInstanceCall {
+                caller: self.function_id(),
+                caller_definition: self.definition.clone(),
+                caller_scope,
+                caller_scope_id,
+                callee,
+                instance: function,
+                actuals,
+                enclosing: self.compiler.active_host,
+                site,
+            });
+        if result == CtTy::Scalar(CtScalarTy::Unit) {
+            self.op(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: values,
+                },
+                span,
+            )?;
+            self.constant(CtConstant::Scalar(Constant::Unit), result, span)
+        } else {
+            let value = self.emit(
+                CtInstructionKind::Call {
+                    function,
+                    arguments: values,
+                },
+                result,
+                span,
+            )?;
+            self.relocate_record_result(value, expected, span)
+        }
+    }
+
     pub(super) fn mixed_generic_call(
         &mut self,
         declaration: usize,
@@ -292,8 +431,16 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<Value> {
         let d = self.compiler.declarations[declaration];
-        let explicit = explicit
-            .ok_or_else(|| error(span, "CT full instance requires all explicit actuals"))?;
+        let explicit = match explicit {
+            Some(actuals) => actuals,
+            None if d.function.generics.is_empty() => &[],
+            None => {
+                return Err(error(
+                    span,
+                    "CT full instance requires all explicit actuals",
+                ));
+            }
+        };
         if explicit.len() != d.function.generics.len() || arguments.len() != d.function.params.len()
         {
             return Err(error(span, "CT full instance actual arity differs"));
@@ -301,33 +448,7 @@ impl Builder<'_, '_> {
         // item_symbol uses actual immutable AST placement, never Span/name.
         self.compiler.item_symbol(d.module, d.item)?;
         self.compiler.ensure_generic_definition(declaration)?;
-        // This event is emitted by the actual source call before any raw scope
-        // can be presented to Verify. Its caller token is the current lexical
-        // scope, not a row accepted from the eventual artifact.
-        let scope = self
-            .compiler
-            .source_life_scope
-            .as_ref()
-            .ok_or_else(|| error(span, "CT factory call lacks authentic caller scope"))?;
-        let first_name = &scope
-            .binders
-            .first()
-            .ok_or_else(|| error(span, "CT factory caller has no life binder"))?
-            .0;
-        self.compiler.budget.text(first_name, span)?;
-        let first_name = first_name.clone();
-        let caller_reference = self.compiler.ambient_actual(&first_name, span)?;
-        let scope = self.compiler.source_life_scope.as_ref().unwrap();
-        self.compiler.budget.work(32, span)?;
-        if let CtScopeInstance::Instantiated(actuals) = &scope.instance {
-            Compiler::actual_cost(&mut self.compiler.budget, actuals, span)?;
-        }
-        let caller_scope = CtAmbientLifeScope {
-            enclosing: scope.enclosing,
-            declaration: scope.definition.clone(),
-            binder_site: Vec::new(),
-            instance: scope.instance.clone(),
-        };
+        let (caller_scope_id, caller_scope) = self.compiler.source_call_scope(span)?;
         let mut actuals = Vec::new();
         for (parameter, actual) in d.function.generics.iter().zip(explicit) {
             self.compiler.budget.node(span)?;
@@ -377,7 +498,7 @@ impl Builder<'_, '_> {
                 caller: self.function_id(),
                 caller_definition: self.definition.clone(),
                 caller_scope,
-                caller_scope_id: caller_reference.scope,
+                caller_scope_id,
                 callee,
                 instance: function,
                 actuals,

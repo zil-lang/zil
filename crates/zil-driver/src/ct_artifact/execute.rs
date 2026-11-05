@@ -29,6 +29,8 @@ fn error(message: &str, span: Span) -> Vec<Diagnostic> {
 
 pub(super) struct Environment<'a> {
     sources: &'a [SourceUnit],
+    paths: &'a BTreeMap<Vec<String>, ModuleId>,
+    root: ModuleId,
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
@@ -51,7 +53,7 @@ impl<'a> Environment<'a> {
     pub(super) fn new(
         sources: &'a [SourceUnit],
         parsed: &'a [Arc<ParseResult>],
-        paths: &BTreeMap<Vec<String>, ModuleId>,
+        paths: &'a BTreeMap<Vec<String>, ModuleId>,
         imports: &[Vec<CoreImport>],
         root: ModuleId,
         fingerprint: Fingerprint,
@@ -147,6 +149,8 @@ impl<'a> Environment<'a> {
         };
         Ok(Self {
             sources,
+            paths,
+            root,
             parsed,
             index,
             shape,
@@ -232,6 +236,37 @@ impl<'a> Environment<'a> {
         self.generated_catalog.trees.push(tree);
         self.classify_definitions()?;
         Ok(row)
+    }
+
+    fn require_source_origins(&mut self) -> CompileResult<()> {
+        if self.source_origins.is_some() {
+            return Ok(());
+        }
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let limits = self.remaining_limits();
+        let (origins, remaining) = zil_expand::source_context::capture_original_required(
+            self.sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: self.root,
+                aliases: self.paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )?;
+        self.budget.reserve_analysis_work(
+            limits
+                .max_analysis_steps
+                .saturating_sub(remaining.max_analysis_steps) as u64,
+        )?;
+        self.budget
+            .reserve_generated_nodes(limits.max_nodes.saturating_sub(remaining.max_nodes) as u64)?;
+        self.budget.reserve_temporary_bytes(
+            limits
+                .max_source_bytes
+                .saturating_sub(remaining.max_source_bytes) as u64,
+        )?;
+        self.bind_source_origins(Some(&origins))
     }
 
     pub(super) fn bind_source_origins(
@@ -562,6 +597,25 @@ impl<'a> Environment<'a> {
         retain_context: bool,
         source_site: Option<compiler::source_sites::SourceSite>,
     ) -> CompileResult<EvaluatedData> {
+        // Fixed-size source seed only; type/category inputs are not proof and
+        // are unnecessary when retrying complete lexical freezing after compile.
+        let retry_entry = match &entry {
+            Entry::Expression {
+                module,
+                expression,
+                definition,
+                lexical_owner,
+                ..
+            } => Some(Entry::Expression {
+                module: *module,
+                expression,
+                definition: definition.clone(),
+                lexical_owner: lexical_owner.clone(),
+                expected: None,
+                parameters: &[],
+            }),
+            Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
+        };
         let mut invocation_context =
             super::invocation_context::FrozenInvocationContext::freeze_at_source(
                 &entry,
@@ -603,6 +657,22 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
+        if invocation_context.is_none() && !source_bindings.calls.is_empty() {
+            self.require_source_origins()?;
+            invocation_context =
+                super::invocation_context::FrozenInvocationContext::freeze_at_source_force(
+                    retry_entry.as_ref().ok_or_else(|| {
+                        error("complete source call lost its immutable entry", span)
+                    })?,
+                    self.parsed,
+                    &self.index,
+                    self.source_origins.as_ref(),
+                    Some(&self.generated_catalog),
+                    source_site,
+                    true,
+                    &mut self.budget,
+                )?;
+        }
         if !source_bindings.calls.is_empty() || !source_bindings.relocations.is_empty() {
             let context = invocation_context
                 .as_mut()
@@ -628,7 +698,10 @@ impl<'a> Environment<'a> {
                 &mut self.budget,
             )?;
         }
-        if !source_bindings.type_sites.is_empty() || !source_bindings.bindings.is_empty() {
+        if !expected.ambient_life_scopes.is_empty()
+            || !source_bindings.type_sites.is_empty()
+            || !source_bindings.bindings.is_empty()
+        {
             let context = invocation_context
                 .as_mut()
                 .and_then(std::sync::Arc::get_mut)
