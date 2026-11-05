@@ -63,8 +63,17 @@
 | G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
 | G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
 | G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 已合入 | — | — | [PR44 验收][e-pr44]；消费前分支、一般无环合流、合法 Drop 分支的实际参数/Local/SSA 来源由两核独立证明；旧快路预算保持。循环、lending、多 F/用户 Drop 仍另缺。 |
-| G3.3.9 | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
+| **G3.3.9** | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
 | G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | [365235ae](https://github.com/zil-lang/zil/commit/365235ae94785e63daedbdd48cbcbc0fbd5c436c)：真实源码目标 20/0、三层来源等价 6/0；正在与 G3.3.9 的 lending/Drop 合并验证，不把分支通过数相加。 |
+
+<details>
+<summary>G3.3.9 · 回归收口</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G3.3.9.1 | 新闭包组合与历史验收共同收口 | 进行中 | P0 | sol · 回归 | 迁移已明确支持的零消费循环、有限 Once 适配和用户 Drop 正例，保留实际重复消费反例；精确费用差异逐项归因，默认额度不变。[实施分支](https://github.com/zil-lang/zil/tree/task/G3.3.9.1)。 |
+
+</details>
 
 </details>
 
@@ -113,11 +122,12 @@
 </details>
 
 <details>
-<summary>G4.4.7 · 子任务（1 项）</summary>
+<summary>G4.4.7 · 子任务（2 项）</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：原 `leaf<Phantom<life,T,N>>` 与 CT Type 值两源在冻结 `c7b63633` 已 Source/project/native8 通过，并在联合 runtime 13 项重放通过；修正定义期 Copy 先行键和过早实参正规化，完整原实参仍由原 Call 独核。 |
+| G4.4.7.2 | CT 相位与原源/生成来源映射的历史组合回归 | 进行中 | P0 | sol · CT 独核 | 全量发现旧 CT4、Self 常量、生成声明等真实源码回归；按实际来源树/节点与声明相位修复，保留原正例及最近伪造反例，不逐例豁免。 |
 
 </details>
 
@@ -177,12 +187,21 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | 精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | 最新 [PR45][e-pr45]：默认4866/0、参考4754/0、text70/0、双配置严格检查、release既有消费者及新增12源码/16原生观察、10项工程检查通过；实际 main handoff=CurrentPass0。原失败保留；Actions账单/额度未启动。 |
+| **G10.1** | 精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 进行中 | P0 | root | 远端 main 的 [PR45][e-pr45] 验收与 CurrentPass 保留；当前剩余 P0 联合批次见下方 G10.1.11，未合入 main。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
+
+<details>
+<summary>G10.1 · 当前联合验收</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G10.1.11 | 剩余 P0 的共同验收、回归修复与合入 | 进行中 | P0 | root | 冻结 `9281069d` 严格全目标 Clippy 通过；首轮完整默认测试 **4915 过 / 59 失败**。按 CT 来源、闭包/精确预算、拥有责任三类修复；参考配置及产品门尚未验收。[源码与真实失败记录](https://github.com/zil-lang/zil/tree/task/G10.1.11)。 |
+
+</details>
 
 [design]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/_zil_design.md
 [gates]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/validation/product-gates.json
