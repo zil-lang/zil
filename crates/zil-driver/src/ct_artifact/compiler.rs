@@ -803,7 +803,10 @@ fn compile_scoped_context<'a>(
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
         let d = compiler.declarations[index];
-        if d.function.generics.is_empty() && compiler.ct_only_function(d.module, d.function)? {
+        if d.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
+            && compiler.ct_only_function(d.module, d.function)?
+        {
             compiler.enqueue(index)?;
         }
     }
@@ -1019,6 +1022,7 @@ pub(crate) fn definitions_entry_with_catalog<'a>(
     for index in 0..compiler.declarations.len() {
         let declaration = compiler.declarations[index];
         if declaration.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
             && compiler.ct_only_function(declaration.module, declaration.function)?
         {
             entry = Some(compiler.item_symbol(declaration.module, declaration.item)?);

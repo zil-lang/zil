@@ -331,10 +331,9 @@ pub(crate) fn check_runtime_definition_expression<'a>(
         )?;
         let before_output = compiler.budget.bytes;
         let ty = compiler.runtime_computed_type(&body.result_type, expression.span, 0)?;
-        Ok((
-            ty,
-            before_output.saturating_sub(compiler.budget.bytes) as u64,
-        ))
+        let output_bytes = before_output.saturating_sub(compiler.budget.bytes) as u64;
+        compiler.drain_symbolic()?;
+        Ok((ty, output_bytes))
     })();
     let remaining = compiler.budget.declared();
     drop(compiler);

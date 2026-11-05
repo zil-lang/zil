@@ -12,7 +12,7 @@ pub(super) enum ScalarArgument {
     Constant(Constant),
 }
 impl ScalarArgument {
-    fn domain(&self) -> CtTy {
+    pub(super) fn domain(&self) -> CtTy {
         match self {
             Self::Parameter { domain, .. } => CtTy::Scalar(*domain),
             Self::Constant(value) => expr::scalar_constant(value),
