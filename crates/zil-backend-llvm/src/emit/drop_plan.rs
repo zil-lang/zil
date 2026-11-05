@@ -677,6 +677,18 @@ pub(super) fn functions(
             for instruction in &block.instructions {
                 budget.pay(0, 1)?;
                 match &instruction.kind {
+                    InstructionKind::CommitPlaceReplace { value, .. } => {
+                        let ty = &f.values[value.0 as usize];
+                        if matches!(ty, Type::ErrorUnion { .. }) {
+                            // Verified Commit requires the actual RHS Type to
+                            // equal its independently selected old endpoint.
+                            // Whole replacement demands this cleanup even for
+                            // legacy error shapes omitted by new_shape. The
+                            // paid visitor retains full Type/hash identity and
+                            // recursively collects its actual owned children.
+                            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
+                        }
+                    }
                     InstructionKind::TakeTupleField { local, .. }
                     | InstructionKind::TakeVariantField { local, .. } => {
                         partial_places::prepay(
