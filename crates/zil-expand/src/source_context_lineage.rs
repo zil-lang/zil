@@ -15,6 +15,25 @@ impl Visitor for Discovery<'_, '_> {
         self.0.text(text, span).map_err(|error| vec![error])
     }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        if let s::ItemKind::Function(function) = &item.kind
+            && function.generics.len() >= 3
+        {
+            // Full CT factory instances need authentic declaration identities
+            // even when no nominal type stores a life. This is inventory
+            // discovery only; it does not authorize any CT operation or member.
+            let (mut types, mut scalars, mut lives) = (false, false, false);
+            for parameter in &function.generics {
+                self.node(parameter.span, depth)?;
+                match parameter.kind {
+                    s::GenericParamKind::Type(_) => types = true,
+                    s::GenericParamKind::Const(_) => scalars = true,
+                    s::GenericParamKind::Lifetime => lives = true,
+                }
+            }
+            if types && scalars && lives {
+                self.0.note_source_identity();
+            }
+        }
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(aggregate) => aggregate.generics.as_slice(),
             s::ItemKind::Enum(enumeration) => enumeration.generics.as_slice(),
