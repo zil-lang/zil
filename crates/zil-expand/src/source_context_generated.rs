@@ -3,6 +3,45 @@ use std::sync::Arc;
 use zil_base::{ModuleId, NodeId};
 use zil_syntax::ast::Module;
 
+/// Resolve an actual root/member structural path. Meta selection/unrolling is
+/// deliberately not inferred: such events need their own source-tree ledger.
+pub fn source_item_at_path<'a>(
+    module: &'a Module,
+    path: &[u32],
+    max_depth: usize,
+    mut pay: impl FnMut(usize) -> zil_base::CompileResult<()>,
+) -> zil_base::CompileResult<Option<&'a zil_syntax::ast::Item>> {
+    use zil_syntax::ast::ItemKind;
+    pay(1)?;
+    if path.len() > max_depth.saturating_add(1) {
+        return Err(vec![zil_base::Diagnostic::limit(
+            zil_base::Phase::Expand,
+            "source item structural path exceeds depth budget",
+            Some(module.span),
+        )]);
+    }
+    let Some((root, members)) = path.split_first() else {
+        return Ok(None);
+    };
+    let Some(mut item) = module.items.get(*root as usize) else {
+        return Ok(None);
+    };
+    for ordinal in members {
+        pay(1)?;
+        let children = match &item.kind {
+            ItemKind::Aggregate(host) => &host.methods,
+            ItemKind::Trait(host) => &host.members,
+            ItemKind::Impl(host) => &host.members,
+            _ => return Ok(None),
+        };
+        let Some(child) = children.get(*ordinal as usize) else {
+            return Ok(None);
+        };
+        item = child;
+    }
+    Ok(Some(item))
+}
+
 /// Structural source identity. No diagnostic span or hygienic name enters it.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SourceTreeIdentity {
