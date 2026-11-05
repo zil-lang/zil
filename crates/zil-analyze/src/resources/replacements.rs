@@ -28,6 +28,7 @@ struct Invocation<'a> {
     sealed: bool,
 }
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
+pub(super) type TaggedEffects = BTreeMap<Target, sums::Replacement>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
     definitions: Vec<Definitions>,
@@ -91,6 +92,18 @@ pub(super) fn grow(to: &mut Effects, from: &Effects, b: &mut Budget) -> CompileR
     let mut changed = false;
     for (target, birth) in from {
         changed |= add(to, target, birth, b)?;
+    }
+    Ok(changed)
+}
+pub(super) fn grow_tagged(
+    to: &mut TaggedEffects,
+    from: &TaggedEffects,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, from.len())?;
+    let mut changed = false;
+    for (target, incoming) in from {
+        changed |= whole_enum::add(to, target, incoming, b)?;
     }
     Ok(changed)
 }
@@ -209,7 +222,11 @@ impl Program {
                     }
                     for target in &targets {
                         if matches!(definition.ty, Type::Enum { .. }) {
-                            whole_enum::local(f, target, b)?;
+                            if matches!(target.root, origins::Root::Local(_)) {
+                                whole_enum::local(f, target, b)?;
+                            } else {
+                                whole_enum::borrowed(module, f, target, b)?;
+                            }
                         } else {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 package::local(f, target, b)?;
@@ -745,6 +762,45 @@ impl Program {
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
+        let tagged = &flow.effects[callee].tagged_replacements;
+        fee(b, tagged.len())?;
+        for (target, content) in tagged {
+            let selected = origins::substitute(
+                &BTreeSet::from([target.clone()]),
+                arguments,
+                captures,
+                &self.routes[flow.function.id.0 as usize].values,
+                &self.routes[flow.function.id.0 as usize].slots,
+                b,
+            )?;
+            if selected.len() != 1 {
+                return Err(error("whole Enum helper needs one actual destination"));
+            }
+            let incoming = content.instantiate(
+                &mut |birth, budget| self.substitute_birth(state, arguments, birth, budget),
+                b,
+            )?;
+            for at in selected {
+                retirement::check(flow, state, &at, point, b)?;
+                if let origins::Root::Local(local) = at.root {
+                    whole_enum::local(flow.function, &at, b)?;
+                    if check {
+                        self.initialized(flow, state, local, &[], b)?;
+                    }
+                    state.sums.merge_replacement(
+                        local,
+                        &incoming,
+                        flow.sums
+                            .ok_or_else(|| error("whole Enum caller has no actual Sum plan"))?,
+                        check,
+                        b,
+                    )?;
+                } else {
+                    whole_enum::borrowed(flow.module, flow.function, &at, b)?;
+                    whole_enum::record(effect, &at, &incoming, b)?;
+                }
+            }
+        }
         if let Some(rows) = &flow.effects[callee].whole_commits {
             fee(b, rows.len())?;
             for (target, birth) in rows {
@@ -869,7 +925,14 @@ impl Program {
                             }
                         }
                     } else if matches!(d.ty, Type::Enum { .. }) {
-                        whole_enum::apply(flow, state, &target, *value, point, b)?;
+                        if matches!(target.root, origins::Root::Local(_)) {
+                            whole_enum::apply(flow, state, &target, *value, point, b)?;
+                        } else {
+                            whole_enum::borrowed(flow.module, f, &target, b)?;
+                            let incoming = state.sums.replacement_value(*value, check, b)?;
+                            retirement::check(flow, state, &target, point, b)?;
+                            whole_enum::record(effect, &target, &incoming, b)?;
+                        }
                     } else {
                         self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
                     }

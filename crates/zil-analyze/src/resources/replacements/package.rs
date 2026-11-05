@@ -41,7 +41,7 @@ pub(super) fn local(f: &TypedFunction, target: &Target, b: &mut Budget) -> Compi
 }
 // Copy alone includes code/foreign carriers. This result profile permits only
 // ordinary finite value trees, so it introduces no borrowed or owning output.
-fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if *ty == Type::Unit {
         return Ok(true);
     }

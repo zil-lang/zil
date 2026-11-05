@@ -89,3 +89,127 @@ pub(super) fn apply(
         b,
     )
 }
+
+/// Exact borrowed endpoint shape; actual address mode, parent loan and contents
+/// are proved separately. No tagged must-Commit relation is exported.
+pub(super) fn borrowed(
+    module: &TypedModule,
+    f: &TypedFunction,
+    target: &Target,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let unsupported = || {
+        vec![Diagnostic::unsupported(
+            Phase::Analyze,
+            "complete nonlocal Enum replacement needs an exact exclusive input or capture",
+            None,
+        )]
+    };
+    if !target.path.is_empty()
+        || !target.mutable
+        || f.foreign.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.storage_life.is_some()
+        || !package::copy_result(&f.return_type, b)?
+    {
+        return Err(unsupported());
+    }
+    let (parameter, ty) = match target.root {
+        origins::Root::Parameter(p) => {
+            let local = f.parameters.get(p as usize).ok_or_else(unsupported)?;
+            (Some(p), &f.locals[local.0 as usize].ty)
+        }
+        origins::Root::Capture(c) => {
+            let id = f.environment.ok_or_else(unsupported)?;
+            let definition = module.closures.get(id.0 as usize).ok_or_else(unsupported)?;
+            (
+                None,
+                definition
+                    .captures
+                    .get(c as usize)
+                    .ok_or_else(unsupported)?,
+            )
+        }
+        _ => return Err(unsupported()),
+    };
+    let Type::Address {
+        mutable: true,
+        inner,
+    } = ty
+    else {
+        return Err(unsupported());
+    };
+    if !admitted(inner, b)? {
+        return Err(unsupported());
+    }
+    fee(b, f.parameters.len())?;
+    for (p, local) in f.parameters.iter().enumerate() {
+        if parameter == Some(p as u32) {
+            continue;
+        }
+        let other = &f.locals[local.0 as usize].ty;
+        b.type_work(other, true, "whole Enum actual companion shape")?;
+        let managed = matches!(other, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
+        let address = matches!(other, Type::Address { inner: endpoint, .. } if endpoint.as_ref() == inner.as_ref());
+        if !(other.is_b0_scalar() || managed || other == inner.as_ref() || address) {
+            return Err(unsupported());
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn add(
+    rows: &mut TaggedEffects,
+    target: &Target,
+    incoming: &sums::Replacement,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    b.lookup(rows.len(), "tagged replacement exact summary key")?;
+    fee(
+        b,
+        rows.len()
+            .saturating_mul(target.path.len().saturating_add(1)),
+    )?;
+    for old in rows.keys() {
+        fee(b, old.path.len().saturating_add(1))?;
+    }
+    if let Some(old) = rows.get_mut(target) {
+        old.merge(incoming, b)
+    } else {
+        fee(b, target.path.len().saturating_add(1))?;
+        rows.insert(target.clone(), incoming.copied(b)?);
+        Ok(true)
+    }
+}
+pub(super) fn record(
+    effect: &mut Effect,
+    target: &Target,
+    incoming: &sums::Replacement,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    match target.root {
+        origins::Root::Parameter(p) => {
+            b.lookup(
+                effect.arguments.len(),
+                "tagged replacement actual parameter write",
+            )?;
+            effect.arguments.insert(p);
+        }
+        origins::Root::Capture(c) => {
+            b.lookup(
+                effect.borrowed_fields.len(),
+                "tagged replacement actual capture write",
+            )?;
+            effect.borrowed_fields.insert(c);
+        }
+        _ => {
+            return Err(error(
+                "tagged replacement summary has no exact nonlocal root",
+            ));
+        }
+    }
+    add(&mut effect.tagged_replacements, target, incoming, b)?;
+    Ok(())
+}

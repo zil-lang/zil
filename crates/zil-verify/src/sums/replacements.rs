@@ -96,8 +96,8 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
                 _ => return Err(invalid("replacement needs a complete flat Product")),
             }
         }
-        if owned != 1 {
-            return Err(invalid("replacement Product needs exactly one owned leaf"));
+        if owned == 0 {
+            return Err(invalid("replacement Product needs an actual owned leaf"));
         }
         Ok(changed)
     } else {
@@ -201,7 +201,9 @@ fn package_helper(
     {
         return Ok(false);
     }
-    if !helper_copy_result(&f.return_type, b)? || package_owners(endpoint, b)?.is_none() {
+    if !helper_copy_result(&f.return_type, b)?
+        || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(endpoint, b)?)
+    {
         return Ok(false);
     }
     b.spend(f.parameters.len())?;
@@ -223,7 +225,7 @@ fn package_helper(
             | Type::U16 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Package { .. } if ty == endpoint => {}
+            Type::Package { .. } | Type::Enum { .. } if ty == endpoint => {}
             Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
             _ => return Ok(false),
         }
@@ -345,7 +347,10 @@ fn merge_row(
     }
     b.spend(work)?;
     if let Some(old) = rows.get_mut(target) {
-        if matches!((&*old, value), (Content::Product(_), Content::Product(_))) {
+        if matches!(
+            (&*old, value),
+            (Content::Product(_), Content::Product(_)) | (Content::Sum(_, _), Content::Sum(_, _))
+        ) {
             old.merge(value, b)
         } else {
             merge_leaf(old, value, b)
@@ -437,8 +442,9 @@ pub(crate) fn at_type<'a>(
         let whole_input = target.steps.is_empty()
             && match target.base {
                 actual::Base::Input(p) => package_helper(f, ty, Some(p), b)?,
-                actual::Base::Environment(_) | actual::Base::Element(_) => {
-                    package_helper(f, ty, None, b)?
+                actual::Base::Environment(_) => package_helper(f, ty, None, b)?,
+                actual::Base::Element(_) => {
+                    matches!(ty, Type::Package { .. }) && package_helper(f, ty, None, b)?
                 }
                 _ => false,
             };
@@ -592,7 +598,10 @@ impl Context<'_> {
                 }
                 selected(&state.locals[local.0 as usize], &target.steps, validate, b)?;
                 state.locals[local.0 as usize].cost(b)?;
-                if !strong && target.steps.is_empty() && matches!(value, Content::Product(_)) {
+                if !strong
+                    && target.steps.is_empty()
+                    && matches!(value, Content::Product(_) | Content::Sum(_, _))
+                {
                     // A may-Commit preserves ordinary initialized access, but
                     // a no-write return must retain the old leaf's origin.
                     Arc::make_mut(&mut state.locals[local.0 as usize]).merge(value, b)?;
@@ -661,7 +670,7 @@ impl Context<'_> {
                     "replacement call has no actual selected destination",
                 ));
             }
-            let whole = matches!(payload, Content::Product(_));
+            let whole = matches!(payload, Content::Product(_) | Content::Sum(_, _));
             if whole && targets.len() != 1 {
                 return Err(unsupported(
                     "whole Package helper needs one independently reconstructed actual destination",
@@ -670,7 +679,7 @@ impl Context<'_> {
             }
             let strong = if whole {
                 lookup(b, self.whole_must.len())?;
-                self.whole_must.contains(&entry)
+                matches!(payload, Content::Product(_)) && self.whole_must.contains(&entry)
             } else {
                 true
             };

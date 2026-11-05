@@ -132,6 +132,7 @@ struct Effect {
     arguments: BTreeSet<u32>,
     borrowed_fields: BTreeSet<u32>,
     replacements: replacements::Effects,
+    tagged_replacements: replacements::TaggedEffects,
     whole_commits: Option<replacements::Effects>,
     invalidated_stores: BTreeSet<replacements::StoreInvalidation>,
 }
@@ -3351,7 +3352,7 @@ fn forwards_replacement_effect(
                 let effect = effects
                     .get(function.0 as usize)
                     .ok_or_else(|| error("replacement forwarding callee absent"))?;
-                if !effect.replacements.is_empty() {
+                if !effect.replacements.is_empty() || !effect.tagged_replacements.is_empty() {
                     return Ok(true);
                 }
             }
@@ -3481,7 +3482,13 @@ fn grow_effect(target: &mut Effect, found: Effect, budget: &mut Budget) -> Compi
     target.borrowed_fields.extend(found.borrowed_fields);
     let replacements_changed =
         replacements::grow(&mut target.replacements, &found.replacements, budget)?;
+    let tagged_changed = replacements::grow_tagged(
+        &mut target.tagged_replacements,
+        &found.tagged_replacements,
+        budget,
+    )?;
     Ok(replacements_changed
+        || tagged_changed
         || old_invalidations != target.invalidated_stores.len()
         || before != (target.arguments.len(), target.borrowed_fields.len()))
 }
