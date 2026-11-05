@@ -752,9 +752,11 @@ impl Shape<'_, '_> {
                         .map_err(|_| invalid(field.span, "field ordinal overflow"))?;
                     self.budget.node(field.span, depth)?;
                     path.push(PlaceProjection::Field(index));
-                    let source_field = original.and_then(|original| {
-                        let mut original = original;
+                    let source_field = if let Some(mut original) = original {
+                        let mut nesting = depth;
                         while let s::TypeKind::Group(inner) = &original.kind {
+                            self.budget.node(original.span, nesting)?;
+                            nesting = nesting.saturating_add(1);
                             original = inner;
                         }
                         if let s::TypeKind::Tuple(fields) = &original.kind {
@@ -762,7 +764,9 @@ impl Shape<'_, '_> {
                         } else {
                             None
                         }
-                    });
+                    } else {
+                        None
+                    };
                     let ty = self.field(field, source_field, path, depth + 1)?;
                     path.pop();
                     types.push(ty);
