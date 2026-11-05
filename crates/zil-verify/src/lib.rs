@@ -97,6 +97,7 @@ mod tasks;
 pub use ct_artifact::{
     CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage, CtVerificationMeter,
     VerifiedCTArtifactProgram, verify_ct_artifact, verify_ct_artifact_metered,
+    verify_ct_type_graph_metered,
 };
 pub use ct_program::{VerifiedCTProgram, verify_ct_program, verify_ct_program_bytes};
 
@@ -320,6 +321,8 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_borrows: bool,
+    // Eligibility only; pure reads and values still prove their actual shape.
+    pure_nominal: bool,
     stored_context: bool,
 }
 impl Budget {
@@ -348,6 +351,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_borrows: false,
+            pure_nominal: false,
             stored_context: false,
         }
     }
@@ -1329,6 +1333,23 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        // The paid stored_flow::qualifications pass checks this same complete
+        // signature type after all local/value shape preflights. Do not repeat
+        // its deep nominal scan at every signature occurrence.
+        return if budget.stored_borrows {
+            Ok(())
+        } else {
+            Err(reject(
+                "E-VERIFY-STORED",
+                span,
+                "stored nominal type lacks its instance inventory",
+            ))
+        };
+    }
+    if stored_flow::pure_inline(module, ty, budget)? {
+        return Ok(());
+    }
     match ty {
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
@@ -1370,6 +1391,28 @@ fn check_local_type(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> Check<bool> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        return if budget.stored_borrows {
+            Ok(false)
+        } else {
+            Err(reject(
+                "E-VERIFY-STORED",
+                span,
+                "stored nominal type lacks its instance inventory",
+            ))
+        };
+    }
+    if stored_flow::pure_inline(module, ty, budget)? {
+        return Ok(false);
+    }
+    if let Type::Address {
+        inner,
+        mutable: false,
+    } = ty
+        && stored_flow::pure_inline(module, inner, budget)?
+    {
+        return Ok(false);
+    }
     if resources::arrays::is_owned_type(ty) {
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }
@@ -2381,7 +2424,13 @@ fn check_instruction(
             Some(Type::I64)
         }
         InstructionKind::ReadAddress { address } => match value_type(function, *address, span)? {
-            Type::Address { inner, .. } if inner.is_copy_value() => Some(inner.as_ref().clone()),
+            Type::Address { inner, .. }
+                if inner.is_copy_value()
+                    || stored_flow::pure_read(module, inner, budget)?
+                    || stored_flow::pure_inline(module, inner, budget)? =>
+            {
+                Some(inner.as_ref().clone())
+            }
             _ => {
                 return Err(reject(
                     "E-VERIFY-ADDRESS",
@@ -2686,7 +2735,11 @@ fn check_instruction(
                 reject("E-VERIFY-ENUM", span, "enum construction requires a result")
             })?;
             let ty = value_type(function, result, span)?;
-            let Type::Enum { variants, .. } = ty else {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let Type::Enum { variants, .. } = physical else {
                 return Err(reject(
                     "E-VERIFY-ENUM",
                     span,
@@ -2716,7 +2769,11 @@ fn check_instruction(
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
-            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            if !matches!(physical, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -2727,7 +2784,11 @@ fn check_instruction(
             index,
         } => {
             let source = value_type(function, *value, span)?;
-            let Type::Enum { variants, .. } = source else {
+            let physical = match source {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let Type::Enum { variants, .. } = physical else {
                 return Err(reject(
                     "E-VERIFY-ENUM",
                     span,
@@ -2762,7 +2823,11 @@ fn check_instruction(
                     "Copy field operations cannot access owning array elements",
                 ));
             }
-            let fields = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let fields = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,
@@ -2793,7 +2858,11 @@ fn check_instruction(
                     "Copy field operations cannot access owning array elements",
                 ));
             }
-            let fields = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let fields = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,

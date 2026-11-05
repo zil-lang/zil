@@ -1,6 +1,102 @@
 //! Semantic class equations are not target origins or access paths.
 use super::*;
 
+// The signature relation assigns no loan to a value-only Array. The module
+// preflight separately validates every qualified child and its exact instance.
+fn pure_array_value(ty: &Type) -> bool {
+    if !matches!(ty, Type::Array { .. }) {
+        return false;
+    }
+    pure_value_tree(ty)
+}
+
+fn pure_nominal_value(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
+}
+
+fn pure_value_tree(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::BorrowedStorage { storage, life } if life.slots.is_empty() => {
+                pending.push(storage)
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+fn array_classes(
+    ty: &Type,
+    path: &mut Vec<LifeTypeProjection>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+) {
+    match ty {
+        Type::BorrowedStorage { life, .. } => {
+            for class in 0..life.binder_count {
+                out.push((path.clone(), class));
+            }
+        }
+        Type::Array { element, .. } => {
+            path.push(LifeTypeProjection::Element);
+            array_classes(element, path, out);
+            path.pop();
+        }
+        Type::Tuple(fields) => {
+            for (index, field) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (index, (_, field)) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, field) in fields.iter().enumerate() {
+                    path.push(LifeTypeProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        },
+                    )));
+                    array_classes(field, path, out);
+                    path.pop();
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
     let rows = c.bindings.len().saturating_add(c.classes.len());
     b.spend(
@@ -148,8 +244,9 @@ fn relation_inner(
                 (ty, false)
             };
             if let Type::BorrowedStorage { storage, life } = target {
-                if !matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
-                    || !life.retained.is_empty()
+                if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty())
+                    && !pure_nominal_value(target)
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -180,6 +277,37 @@ fn relation_inner(
                     if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                         return Err(bad("captured qualified class must be Fixed"));
                     }
+                    self.binder(
+                        row.binder,
+                        capture || !self.captured && self.inputs.is_none(),
+                    )?;
+                }
+            } else if pure_array_value(target) {
+                let mut path = if pointed {
+                    vec![LifeTypeProjection::Pointee]
+                } else {
+                    Vec::new()
+                };
+                let mut classes = Vec::new();
+                array_classes(target, &mut path, &mut classes);
+                for (path, local) in classes {
+                    let row = self
+                        .c
+                        .classes
+                        .get(self.class)
+                        .ok_or_else(|| bad("signature omits actual Array child class"))?;
+                    if row.position.base != base
+                        || row.position.path != path
+                        || row.position.class != local
+                    {
+                        return Err(bad(
+                            "signature Array child class differs from actual Element path",
+                        ));
+                    }
+                    if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
+                        return Err(bad("captured Array child class must be Fixed"));
+                    }
+                    self.class += 1;
                     self.binder(
                         row.binder,
                         capture || !self.captured && self.inputs.is_none(),
@@ -226,10 +354,18 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                || pure_array_value(target)
                 // A direct owned field contributes no class/borrow position.
                 // Capture admission and the independent resource kernel still
                 // establish its finite payload, actual mode and responsibility.
                 || capture && matches!(target, Type::Managed(_))
+                // An actual helper's finite Managed companion is a carrier,
+                // not a class-bearing input. Body/resource proofs still settle it.
+                || self.allow_callback && self.inputs.is_none()
+                    && matches!(base, StorageBase::Parameter(_))
+                    && matches!(target, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { fields, .. }
+                            if fields.iter().all(|(_, ty)| super::stored_callables::scalar(ty))))
                 || self.allow_callback
                     && self.inputs.is_none()
                     && matches!(target, Type::Closure(_)))
@@ -398,6 +534,33 @@ mod tests {
             classes: vec![],
         };
         assert!(relation(&[], &Type::I32, &impossible).is_err());
+    }
+    #[test]
+    fn captured_array_child_class_cannot_be_invocation_local() {
+        let child = Type::Array {
+            element: Box::new(tag()),
+            length: 2,
+        };
+        let mut contract = StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: 1,
+            bindings: vec![],
+            classes: vec![SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Capture(0),
+                    path: vec![LifeTypeProjection::Element],
+                    class: 0,
+                },
+                binder: StorageBinder::Invocation(0),
+            }],
+        };
+        assert!(
+            capture_relation(&[], std::slice::from_ref(&child), &Type::Unit, &contract).is_err()
+        );
+        contract.fixed_binder_count = 1;
+        contract.invocation_binder_count = 0;
+        contract.classes[0].binder = StorageBinder::Fixed(0);
+        capture_relation(&[], &[child], &Type::Unit, &contract).unwrap();
     }
     #[test]
     fn qualified_class_is_joint_with_outer_inputs_and_never_a_physical_borrow_row() {

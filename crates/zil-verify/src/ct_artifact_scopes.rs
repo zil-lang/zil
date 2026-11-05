@@ -79,6 +79,13 @@ impl<A: CtArtifactAuthority> Visit<'_, '_, A> {
         self.state[index] = 1;
         let raw = self.raw;
         let mut height = 0;
+        if let Some(parent) = raw.ambient_life_scopes[index].enclosing {
+            self.meter.charge(1, None)?;
+            if parent.0 as usize >= raw.ambient_life_scopes.len() {
+                return Err(reject(None, "CT lexical host scope is outside inventory"));
+            }
+            height = self.scope(parent.0 as usize, depth + 1)?.saturating_add(1);
+        }
         if let CtScopeInstance::Instantiated(actuals) = &raw.ambient_life_scopes[index].instance {
             self.meter.charge(actuals.len(), None)?;
             for actual in actuals {
@@ -133,7 +140,9 @@ fn charge_lookup(
     bound: usize,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    let work = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+    let work = if scope.enclosing.is_some()
+        || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+    {
         weight.saturating_mul(bound)
     } else {
         32usize.saturating_mul(bound.saturating_sub(1))
@@ -170,6 +179,27 @@ pub(super) fn check(
             "CT authentic scope lookup inventory exceeds quota",
         ));
     }
+    let root_bound = authority.runtime_scope_root_count();
+    if root_bound > limits.max_nodes {
+        return Err(limit(
+            None,
+            "CT runtime root authority inventory exceeds quota",
+        ));
+    }
+    let mut runtime_roots = if root_bound == 0 {
+        None
+    } else {
+        if count.saturating_mul(2 * std::mem::size_of::<usize>() + 2) as u64
+            > raw.budget.max_temporary_bytes
+        {
+            return Err(limit(None, "CT runtime root inventory scratch exhausted"));
+        }
+        meter.charge(count, None)?;
+        Some(vec![false; count])
+    };
+    let inventory_scratch = count.saturating_mul(
+        2 * std::mem::size_of::<usize>() + 1 + usize::from(runtime_roots.is_some()),
+    );
     let mut weights: Option<Vec<usize>> = None;
     for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
         meter.charge(
@@ -183,10 +213,12 @@ pub(super) fn check(
         if scope.binder_site.len() > limits.max_call_depth {
             return Err(limit(None, "CT binder-site depth exceeds quota"));
         }
-        let weight = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+        let weight = if scope.enclosing.is_some()
+            || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+        {
             if weights.is_none() {
                 // State, comparison weights and dependency heights coexist.
-                let bytes = count.saturating_mul(2 * std::mem::size_of::<usize>() + 1);
+                let bytes = inventory_scratch;
                 if bytes as u64 > raw.budget.max_temporary_bytes {
                     return Err(limit(
                         None,
@@ -196,18 +228,24 @@ pub(super) fn check(
                 meter.charge(count.saturating_mul(2), None)?;
                 weights = Some(vec![0; count]);
             }
-            let weight = identity::scope_comparison_weight(
-                scope,
-                raw,
-                limits,
-                meter,
-                count.saturating_mul(2 * std::mem::size_of::<usize>() + 1),
-            )?;
+            let weight =
+                identity::scope_comparison_weight(scope, raw, limits, meter, inventory_scratch)?;
             weights.as_mut().unwrap()[index] = weight;
             weight
         } else {
             0
         };
+        if let Some(roots) = &mut runtime_roots {
+            // Complete structural equality includes every nested actual graph.
+            meter.charge(
+                weight
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32)
+                    .saturating_mul(root_bound),
+                None,
+            )?;
+            roots[index] = authority.authorized_runtime_scope_root(index, scope);
+        }
         for (prior_index, prior) in raw.ambient_life_scopes[..index].iter().enumerate() {
             meter.charge(
                 prior
@@ -291,8 +329,18 @@ pub(super) fn check(
                 }
             }
         }
-        if !lifetime {
-            return Err(reject(None, "CT ambient scope has no lifetime parameter"));
+        if !lifetime && !runtime_roots.as_ref().is_some_and(|roots| roots[index]) {
+            meter.charge(count, None)?;
+            if !raw
+                .ambient_life_scopes
+                .iter()
+                .any(|child| child.enclosing == Some(CtAmbientScopeId(index as u32)))
+            {
+                return Err(reject(
+                    None,
+                    "CT ambient scope without life binders is not a lexical host",
+                ));
+            }
         }
     }
     let mut visit = Visit {
@@ -306,6 +354,17 @@ pub(super) fn check(
         weights,
         lookup_bound,
     };
+    // Runtime entry execution first establishes its independently checked
+    // parent-chain roots. Their exact row IDs are authenticated as well as
+    // their complete graphs; arbitrary raw order cannot replace that order.
+    if let Some(roots) = runtime_roots {
+        visit.meter.charge(count, None)?;
+        for (index, authorized) in roots.into_iter().enumerate() {
+            if authorized && visit.state[index] != 2 {
+                visit.scope(index, 0)?;
+            }
+        }
+    }
     for (arguments, context) in raw
         .record_schemas
         .iter()
@@ -341,6 +400,13 @@ pub(super) fn check(
             }) = node
             {
                 visit.graph(graph, 0)?;
+            }
+        }
+    }
+    for function in &raw.functions {
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                visit.graph(ty, 0)?;
             }
         }
     }

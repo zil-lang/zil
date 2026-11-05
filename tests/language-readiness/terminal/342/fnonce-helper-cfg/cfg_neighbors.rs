@@ -115,6 +115,7 @@ pub fn hostile(original: &TypedFunction) -> Vec<(&'static str, TypedFunction)> {
         "island",
         "backedge",
         "self-loop",
+        "consuming-self-loop",
         "duplicate-block",
         "other-entry",
         "one-path-drop-then-call",
@@ -152,6 +153,7 @@ pub fn hostile(original: &TypedFunction) -> Vec<(&'static str, TypedFunction)> {
             }),
             "backedge" => f.blocks[1].terminator = Terminator::Jump(BlockId(0)),
             "self-loop" => f.blocks[1].terminator = Terminator::Jump(BlockId(1)),
+            "consuming-self-loop" => f.blocks[3].terminator = Terminator::Jump(BlockId(3)),
             "duplicate-block" => f.blocks[2].id = BlockId(1),
             "other-entry" => f.entry = BlockId(1),
             "one-path-drop-then-call" => f.blocks[1]

@@ -8,6 +8,7 @@ pub(crate) struct OriginalItem<'a> {
     pub declaration: zil_base::NodeId,
     pub item: &'a s::Item,
     pub generic_host: bool,
+    pub lexical_parent: Option<zil_base::NodeId>,
 }
 enum Selection<'a> {
     Declaration(zil_base::NodeId),
@@ -48,6 +49,7 @@ fn select<'a>(
             item: &'a s::Item,
             top: usize,
             generic_host: bool,
+            parent: zil_base::NodeId,
             depth: usize,
         ) -> R<Option<OriginalItem<'a>>> {
             (self.pay)(1)?;
@@ -97,9 +99,12 @@ fn select<'a>(
                             declaration,
                             item: member,
                             generic_host,
+                            lexical_parent: Some(parent),
                         }));
                     }
-                    if let Some(found) = self.children(member, top, generic_host, depth + 1)? {
+                    if let Some(found) =
+                        self.children(member, top, generic_host, declaration, depth + 1)?
+                    {
                         return Ok(Some(found));
                     }
                 }
@@ -116,6 +121,7 @@ fn select<'a>(
                 declaration: id,
                 item,
                 generic_host: false,
+                lexical_parent: None,
             }));
         }
     }
@@ -128,7 +134,7 @@ fn select<'a>(
         pay,
     };
     for (top, item) in module.items.iter().enumerate() {
-        if let Some(found) = walk.children(item, top, false, 0)? {
+        if let Some(found) = walk.children(item, top, false, zil_base::NodeId(top as u32), 0)? {
             return Ok(Some(found));
         }
     }
@@ -139,6 +145,7 @@ pub(crate) struct OriginalFunction<'a> {
     pub item: &'a s::Item,
     pub function: &'a s::Function,
     pub generic_host: bool,
+    pub lexical_parent: Option<zil_base::NodeId>,
 }
 pub(crate) fn original_function<'a>(
     module: &'a s::Module,
@@ -159,6 +166,7 @@ pub(crate) fn original_function<'a>(
         item: original.item,
         function,
         generic_host: original.generic_host,
+        lexical_parent: original.lexical_parent,
     }))
 }
 
@@ -206,4 +214,54 @@ pub(crate) fn original_member(
     };
     Ok(select(module, Selection::Node(member), max_depth, pay)?
         .map(|original| original.declaration))
+}
+
+/// Locate a generated original through its immutable catalog and complete
+/// semantic tree identity. The output placement is never a local AST ordinal.
+pub(crate) fn generated_original_function<'a>(
+    catalog: &'a zil_expand::source_context::GeneratedSourceCatalog,
+    symbol: &CtSymbolId,
+    max_depth: usize,
+    mut pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<(usize, OriginalFunction<'a>)>> {
+    let Some(generation) = symbol.generation_path else {
+        return Ok(None);
+    };
+    pay(catalog.trees.len())?;
+    let mut selected = None;
+    for (row, tree) in catalog.trees.iter().enumerate() {
+        let work = match &tree.identity {
+            zil_expand::source_context::SourceTreeIdentity::Generated { event_path, .. } => {
+                event_path.len()
+            }
+            _ => 0,
+        };
+        pay(work + tree.declarations.len() + 1)?;
+        if tree.identity.module() != symbol.module
+            || tree.generation_fingerprint() != Some(generation)
+        {
+            continue;
+        }
+        for (local, output) in tree.declarations.iter().enumerate() {
+            if *output != symbol.declaration {
+                continue;
+            }
+            let Some(original) = original_function(
+                &tree.module,
+                zil_base::NodeId(local as u32),
+                max_depth,
+                &mut pay,
+            )?
+            else {
+                continue;
+            };
+            if selected.replace((row, original)).is_some() {
+                return Err(error(
+                    tree.module.span,
+                    "CT generated source declaration identity is ambiguous",
+                ));
+            }
+        }
+    }
+    Ok(selected)
 }

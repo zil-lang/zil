@@ -147,6 +147,7 @@ impl Engine<'_> {
         fixed: &[crate::stored_types::LexicalLife],
         invocation: &[crate::stored_types::LexicalLife],
         generic_parameter: usize,
+        runtime_parameter: Option<usize>,
     ) -> R<()> {
         if self.life_scope.is_empty() {
             return Ok(());
@@ -179,11 +180,13 @@ impl Engine<'_> {
         let Some(GenericArg::Type(result)) = args.last() else {
             return Ok(());
         };
-        if !scalar_syntax(result)
-            || function
-                .return_type
-                .as_ref()
-                .is_some_and(|result| !scalar_syntax(result))
+        let lending_result = kind != CallableKind::FnOnce
+            && matches!(&result.kind, TypeKind::Reference { mutable:false, lifetime:None, inner }
+                if scalar_syntax(inner));
+        if !(scalar_syntax(result) || lending_result)
+            || function.return_type.as_ref().is_some_and(|result|
+                !(scalar_syntax(result) || lending_result && matches!(&result.kind,
+                    TypeKind::Reference { mutable:false, lifetime:Some(_), inner } if scalar_syntax(inner))))
         {
             return Ok(());
         }
@@ -193,12 +196,26 @@ impl Engine<'_> {
                 "source helper actual selected role is absent",
             )
         })?;
-        let [selected_role] = selected.roles.as_slice() else {
+        if selected.roles.len() > 1 {
+            self.budget
+                .identity_work(selected.roles.len(), function.span)?;
+        }
+        let mut selected_roles = selected.roles.iter().filter(|role| {
+            role.source_generic_parameter == generic_parameter as u32
+                && runtime_parameter.is_none_or(|parameter| role.index == parameter)
+        });
+        let Some(selected_role) = selected_roles.next() else {
             return Err(unavailable(
                 function.span,
-                "source helper first profile requires one actual shared Fn role",
+                "source helper selected role is absent",
             ));
         };
+        if selected_roles.next().is_some() {
+            return Err(unavailable(
+                function.span,
+                "source helper selected role is ambiguous",
+            ));
+        }
         if selected_role.source_generic_parameter != generic_parameter as u32
             || selected_role.source_bound_ordinal != 0
             || selected_role.kind != kind
@@ -299,9 +316,12 @@ impl Engine<'_> {
             self.budget
                 .identity_work(position.path.len().saturating_add(1), function.span)?;
             let StorageBase::Parameter(index) = position.base else {
+                if lending_result && position.base == StorageBase::Result {
+                    continue;
+                }
                 return Err(unavailable(
                     function.span,
-                    "source helper first profile has scalar result",
+                    "source helper result has no receiver lending relation",
                 ));
             };
             let life = match binder {
@@ -322,9 +342,12 @@ impl Engine<'_> {
             self.budget
                 .identity_work(position.path.len().saturating_add(1), function.span)?;
             let StorageBase::Parameter(index) = position.base else {
+                if lending_result && position.base == StorageBase::Result {
+                    continue;
+                }
                 return Err(unavailable(
                     function.span,
-                    "source helper first profile has scalar result",
+                    "source helper result has no receiver lending relation",
                 ));
             };
             let life = match binder {
@@ -388,16 +411,18 @@ impl Engine<'_> {
         }
         self.budget.ty(result)?;
         let mut result = result.clone();
-        self.storage_header(
-            &mut result,
-            StorageBase::Result,
-            &mut Vec::new(),
-            &mut Vec::new(),
-            &mut occurrences,
-            &mut stored,
-            &mut next,
-            0,
-        )?;
+        if !lending_result {
+            self.storage_header(
+                &mut result,
+                StorageBase::Result,
+                &mut Vec::new(),
+                &mut Vec::new(),
+                &mut occurrences,
+                &mut stored,
+                &mut next,
+                0,
+            )?;
+        }
         let actual_result = self.products.storage.pointer_parameter_type(
             &result,
             &self.nominals,
@@ -454,7 +479,12 @@ impl Engine<'_> {
             .rows
             .iter()
             .flatten()
-            .any(|r| r.origin == origin)
+            .any(|r| {
+                r.origin == origin
+                    && r.parameter == role_parameter
+                    && r.generic_index == role_generic
+                    && r.context.bound_ordinal == 0
+            })
         {
             return Err(unavailable(
                 function.span,

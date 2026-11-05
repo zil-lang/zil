@@ -1,0 +1,84 @@
+{
+  "task": "G10.1.11 / G4.4.6.2 / G4.4.7.2 / G3.3.9.1",
+  "reviewer": "legacy_acceptance_review (independent delegated reviewer)",
+  "implementation_commit": "f47e1bb5b977952eef5071281cbce83a5ae8133a",
+  "verdict": "ReviewedConcreteBoundariesWithOpenDriverBudgetFinding",
+  "method": "Independent git-show inspection of exact production/test commits and existing root logs; no implementation, builds, tests or native executions by this reviewer. Source snapshots were not switched in root's tree. No formal or whole-P0 acceptance claim.",
+  "reviewed_commits": {
+    "unit_freeze_and_vm_release_fix": "b9d7a6c7720d2c3f9763f4df54b1303d77171dd6",
+    "host_identity_discovery": "ad6f8366152cc6a2291035631086bb7085b51ddc",
+    "unit_trace_tests": "4a529f9d9bd878c6dfe559d9657c55a10f4a546a",
+    "deferred_receiver_guard": "e0ecb8338e8a3f2cde4afaefbd345cfcc5af7fb4",
+    "root_directory_prepayment": "07a3db277ec4d3255c07f1b6b6e6f799a7b0df66",
+    "types_fee_alignment": "870f34bb8353c7f48b4c5ae338c30c097cfb3853",
+    "raw_once_cycle_alignment": "a83955cc947db69d98fdaad29776441083f2aa39",
+    "legacy_author_receipt": "aad071a3fe43bc281f234b6e483aba234ebf7891"
+  },
+  "separate_prior_reviews": [
+    "1512f5ced96ddb676f1f719fc9c1dd2a4734f6c2 reports actual-call execution and post-traversal charging blockers at 4d38; it is not final approval of later changes.",
+    "G4.4.6.2-16dec-independent-review.json identifies the narrow Unit, entry-lineage and pending-backing fixes. This review independently inspected their resulting code.",
+    "87b258848995232df0c336be7635dada78917233 scheduling was reviewed separately by static_host_design (receipt fe790f94f10b08025ecb041b6c4c503a59949f93). Its receipt explicitly excludes budgets and subsequent receiver repair; no such coverage is inferred here."
+  ],
+  "production_findings": [
+    {
+      "id": "HOST-FINAL-RECEIPT-LIFETIME",
+      "severity": "P2",
+      "status": "Open at exact f47e1bb5; reported to root; inherited release site rather than introduced by e0ec/07a",
+      "location": "crates/zil-driver/src/ct_artifact/execute.rs:958",
+      "finding": "release_usage_receipt(&_usage) removes the returned query-vector capacity charge while the named _usage binding still owns its allocation. ValueContext::capture and retain_static_host_invocation may allocate afterward, before that binding is dropped at scope exit. Requests combining actual queries with retained values/host calls can therefore have a real receipt/backing overlap absent from the live-byte ledger.",
+      "required_correction": "Discard the receipt allocation before subsequent allocating consumers and before releasing its capacity charge, e.g. save capacity, drop the receipt, then release; alternatively use a consuming release API. A passing VM-only peak test does not cover this driver successor lifetime."
+    },
+    {
+      "id": "HOST-FINAL-VERIFIED-COPY-LIFETIME",
+      "severity": "P2",
+      "status": "Open at exact f47e1bb5; reported to root; inherited release site",
+      "location": "crates/zil-driver/src/ct_artifact/execute.rs:959",
+      "finding": "program_copy_cost(&expected) is reserved before expected.clone() becomes raw and then the owned verified artifact. copied_bytes is released before verified.program() supplies result_type and before ValueContext::capture consumes the verified program. The verified allocation remains owned across those later allocations, so releasing its charge there understates the actual overlap.",
+      "required_correction": "Retain the copy charge through all verified-program consumers; drop verified before releasing the charge and before later host-retention allocations, or explicitly retain the charge for the true remaining lifetime. This is distinct from the VM pending/frame release already repaired."
+    }
+  ],
+  "concrete_boundaries_confirmed": [
+    "Actual Unit Call is the sole no-result exception in CT Verify, after checking real target existence, source authority/visibility, arity and each argument type. Non-Unit Call and unrelated Unit instructions retain result-presence obligations. Function Return(None) still requires the declared actual Unit result.",
+    "The observing VM saves caller/block/instruction/callee/result before entering a callee and publishes that event only after normal Return. Unit calls use exact instruction ordinals, not a missing-result fallback. Repeated calls remain separate events; failed whole evaluation returns no event vector. The ordinary evaluator passes no collector and pays no collection work.",
+    "Pending and completed event vectors prepay full new backing and old-element copy work before growth, release old backing after replacement, and successful outer cleanup retains the actual returned completed capacity. At root Return the VM now drops pending_calls and frames before releasing those backing charges, then allocates the query receipt. This closes the specific earlier VM overlap; the separate driver findings above remain.",
+    "The 4a529 controls use a verified raw CFG containing eight actual Unit calls plus a real query receipt. They assert all eight complete locations, Unit output, unchanged ordinary VM steps, observer-only analysis work, exact temporary N/N-1/fresh and failed-request cleanup. Six raw/Wire malformed neighbors cover non-Unit missing result, missing target, unauthorized symbol, arity, operand type and unrelated Unit instruction. These are VM/raw evidence, not Source evidence.",
+    "Missing-original-lineage entry freezing is deferred only when runtime_source is absent and original origins are absent. Fresh source calls trigger require_source_origins and forced immutable-entry freezing; the no-call path executes the original freeze. Source-call/full-actual and type-context validators, FrozenAuthority, CT Verify and actual VM execution still precede retained namespace use; errors are propagated.",
+    "Discovery plans original identities for an actual generic Struct with nonempty methods before materialization. This creates source correspondence, not namespace authorization. Static-host consumption independently rechecks frozen call actuals, exact raw Call and completed event including result, real lexical host, full Type/Const/Life vector and generated catalog. Duplicate source execution locators reject; same-callee presence alone grants nothing.",
+    "Whole host AST is metered node/text before cloning and comparison; generated-span remapping debits shared work during its metered path. The normalization bridge meters copying, replays the real normalizer, compares the whole output, and propagates remaining limits on failure. All sibling functions are still registered then symbolically checked; plain/unrelated CT, unexecuted trap-host, unused malformed sibling, receiver/effect and real runtime nominal neighbors remain rejected.",
+    "e0ec checks actual function parameters only after runtime_phase::deferred returns true, prepays params.len(), and preserves Unsupported/Ct/generic function specialization for an actual self receiver. Nonreceiver static namespace functions keep their existing path. This is a retained unsupported receiver boundary, not a new method capability or a diagnosis-only passing program.",
+    "07a root tuple growth prepays len+1 copy work and the complete new (usize,bool) allocation while the old capacity remains charged; reserve_exact occurs before the old capacity charge is released. Conversion then takes the source vector, drops the borrowing Scan, prepays one count-sized (SourceSite,bool) destination Vec and its count work before mapping. Both actual arrays remain conservatively charged during conversion; root classification, immutable SourceSite selection, original root cursor and final cursor==roots.len() checks remain. The patch adds no source authorization or default allowance."
+  ],
+  "g33_test_only_review": {
+    "types_production_basis": "Types helpers constructs one callable_contract via flow::contract for each completed helper. contract calls environment_origins once; its actual local/SSA Origin pair is prepaid through Origin::table_work. Private Origin is {usize,u8}, 16 bytes on the root host, replacing prior one-byte cells.",
+    "fees": [
+      {"fixture":"impl202 original","actual_tables":[],"old_n":6729,"delta":0,"new_n":6729},
+      {"fixture":"impl202 pair","actual_tables":[],"old_n":30319,"delta":0,"new_n":30319},
+      {"fixture":"impl202 nested","actual_tables":[[1,2]],"old_n":30931,"delta":45,"new_n":30976},
+      {"fixture":"impl246 scalar","actual_tables":[[2,4]],"old_n":506,"delta":90,"new_n":596},
+      {"fixture":"impl246 enum","actual_tables":[[2,5]],"old_n":782,"delta":105,"new_n":887}
+    ],
+    "no_watering": "Tests inspect actual completed callable-contract tables and assert exact dimensions before deriving N from cells*(size_of<(usize,u8)>-1). Old changed N explicitly rejects at Types/ResourceLimit; exact new N/N-1/fresh result equality remains. Source bytes, Expand thresholds and local/function controls remain. The two no-helper controls retain their old N.",
+    "raw_cycle": "Idle source and its independently derived candidate are preserved; changing only the role to Once rebinds candidate identity and requires Analyze/raw/Wire success. A separate actual by-value repeated Fn loop mutates exactly one real CallClosure to CallClosureOnce plus its matching role/event kind, preserving SSA slots and the original independently derived candidate. The reject helper only rebinds its fingerprint and demands SafeReject from Analyze and E-VERIFY-CALLABLE-CONTRACT from both Verify routes. It cannot pass merely through initialization or plan mismatch. Other wrong-event/malformed-flow tests are unchanged.",
+    "scope": "870/a839 change tests and changes/task records only; aad adds author evidence only. No production/default quota or public schema change. Author no-link and root linked evidence remain distinct; earlier frozen 69/2 is not added to these three selectors."
+  },
+  "root_execution_evidence": {
+    "owner": "root, not this reviewer",
+    "f47_source": "f47e1bb5b977952eef5071281cbce83a5ae8133a",
+    "manifest": "/workspace/.zil-env/G10.1.11-third-targeted/results.json",
+    "hash_check": "Each listed file's actual SHA256 independently matched its manifest row; source is the clean manifest freeze. No results were rerun or summed into formal acceptance.",
+    "rows": [
+      {"label":"host-migration","result":"1 passed / 0 failed; actual source/native and N=46625/N-1/warm/fresh","sha256":"04209ecbc97273c4b8922f3c631f71e230e567845967fe837090a65692ac3ad6"},
+      {"label":"host-maker","result":"1 passed / 0 failed","sha256":"939e692cc8b9c39993f8fe6b7929cb7268909c8dda9304452f20f1ce26c1ceb8"},
+      {"label":"ct-auth","result":"14 passed / 0 failed","sha256":"539e317d2bc37bf5f477469185c6299e89c591abce8a02c9b8988a8e1e778717"},
+      {"label":"ct-scoped","result":"15 passed / 0 failed (not 14)","sha256":"6fac7067ca56c6a6e8fb7c0c6181943779b42e615e471efda035fefb0a09901e"},
+      {"label":"types-fee202","result":"1 passed / 0 failed; exact actual tables and migrated fees printed","sha256":"81f8005abcfa2b7c0597c1a9ce3c1a754a13d175dadbf9d403cb9450e3140df5"},
+      {"label":"types-fee246","result":"1 passed / 0 failed; exact actual tables and migrated fees printed","sha256":"3c2dce78b544c6a0bdd5a9052acfcefb4509db1960db7e901a6336fc44836df7"},
+      {"label":"once-raw190","result":"1 passed / 0 failed; idle positive and real consuming backedge controls","sha256":"5d161bfdfc34a5c5434324aaf95a4141bb51e54a4508153ad35b7e52e6f77a5d"}
+    ],
+    "prior_924": [
+      {"log":"/workspace/.zil-env/G10.1.11-followup/host.log","result":"11 passed / 0 failed; Source tests","sha256":"0aba8e034113e9b1ac16a5acdb80583552b9c9d1301e481bb73d1287699d4bbb"},
+      {"log":"/workspace/.zil-env/G10.1.11-followup/ct-unit.log","result":"2 passed / 0 failed; VM/raw/Wire tests","sha256":"43d37aaf1a1ad9116d2e8796a75d5aab2cfaf2b0c3d5562dbf31e3239f2196d9"}
+    ]
+  },
+  "limits_and_product": "Confirmed production boundaries above and root-owned limited passes do not establish complete live-byte accounting: the two inherited driver lifetime findings remain. This reviewer ran no heavy or light compiler tests. Original failed sweeps and separate author failures remain intact; main, default quotas, product-gates, complete language/B0/ZUI requirements are not changed. Safety/expression composition has concrete source/VM evidence; same-semantics Rust runtime/RSS, compile speed, maintenance and repeatable product net breakthrough remain unmeasured."
+}

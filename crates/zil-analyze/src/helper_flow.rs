@@ -184,9 +184,8 @@ fn remap(
 
 fn actual_call(
     instruction: &Instruction,
-    locals: &[u8],
-    values: &[u8],
-    borrowed_roles: u8,
+    locals: &[Origin],
+    values: &[Origin],
     roles: &[CallableRole],
     concrete: bool,
 ) -> CompileResult<Option<CallEvent>> {
@@ -208,9 +207,7 @@ fn actual_call(
         InstructionKind::CallClosureBorrowed { callee, kind, .. } => {
             (values[callee.0 as usize], kind, true)
         }
-        InstructionKind::DropClosure { local }
-            if locals[local.0 as usize] & borrowed_roles != 0 =>
-        {
+        InstructionKind::DropClosure { local } if locals[local.0 as usize].has_borrowed() => {
             return Err(bad("borrowed helper cannot destroy its environment"));
         }
         InstructionKind::MakeClosure { .. } => {
@@ -239,7 +236,7 @@ fn actual_call(
 }
 
 fn scoped_event(
-    origin: u8,
+    origin: Origin,
     wanted: CallableKind,
     borrowed: bool,
     roles: &[CallableRole],
@@ -303,7 +300,6 @@ pub(super) fn check(
     function: &TypedFunction,
     claim: &CallableParameterContract,
     parameters: &[(u32, LocalId)],
-    borrowed_roles: u8,
     checked: &[bool],
     budget: &mut Budget,
 ) -> CompileResult<()> {
@@ -457,14 +453,9 @@ pub(super) fn check(
                 let (entry, continuation) = append_child(&mut rows, &child, &mut counts, budget)?;
                 rows[output].end = End::Links(vec![entry]);
                 output = continuation;
-            } else if let Some(event) = actual_call(
-                instruction,
-                locals,
-                values,
-                borrowed_roles,
-                &claim.roles,
-                precise.is_some(),
-            )? {
+            } else if let Some(event) =
+                actual_call(instruction, locals, values, &claim.roles, precise.is_some())?
+            {
                 counts.add(0, 1, 0, budget)?;
                 rows[output].calls.push(event);
             }
@@ -549,11 +540,14 @@ pub(super) fn check(
                 .iter()
                 .any(|role| role.kind == CallableKind::FnOnce)
         {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "cyclic FnOnce helper requires an additional consumption contract",
-                Some(function.span),
-            )]);
+            budget.spend(claim.roles.len(), "cyclic actual Once-role inventory")?;
+            let roles: BTreeSet<_> = claim
+                .roles
+                .iter()
+                .filter(|role| role.kind == CallableKind::FnOnce)
+                .map(|role| role.parameter)
+                .collect();
+            once_paths(&rows, &roles, budget)?;
         }
         let CallableTraces::Flow(flow) = &claim.traces else {
             return Err(bad("cyclic helper requires its exact Flow contract"));

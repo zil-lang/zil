@@ -59,8 +59,17 @@ fn fields_layout_with_offsets<'a>(
     result.size = rounded(result.size, result.align)?;
     Ok(result)
 }
+/// Borrow only the machine storage view. The verified function/value types
+/// retain their complete qualified metadata throughout lowering.
+pub(super) fn storage_shape(ty: &Type) -> &Type {
+    match ty {
+        Type::BorrowedStorage { storage, .. } => storage,
+        _ => ty,
+    }
+}
 fn physical_layout(ty: &Type) -> CompileResult<Layout> {
     Ok(match ty {
+        Type::BorrowedStorage { storage, .. } => physical_layout(storage)?,
         Type::Unit => Layout { size: 0, align: 1 },
         Type::Bool | Type::U8 => Layout { size: 1, align: 1 },
         Type::U16 => Layout { size: 2, align: 2 },
@@ -82,7 +91,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
-                || ty.is_package_address() =>
+                || ty.is_package_address()
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Layout { size: 8, align: 8 }
         }
@@ -369,7 +379,7 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
 }
 
 pub(super) fn union_layout(ty: &Type) -> CompileResult<UnionLayout> {
-    let Type::Enum { variants, .. } = ty else {
+    let Type::Enum { variants, .. } = storage_shape(ty) else {
         return unsupported("union layout needs enum type", None);
     };
     let mut bytes = 0;
@@ -432,7 +442,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let result = result(instruction)?;
         let ty = self.function.values[result.0 as usize].clone();
-        let Type::Enum { variants, .. } = &ty else {
+        let Type::Enum { variants, .. } = storage_shape(&ty) else {
             return unsupported("verified variant lost enum type", Some(instruction.span));
         };
         let payload = Type::Tuple(variants[variant as usize].1.clone());
@@ -560,7 +570,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let result = result(instruction)?;
         let ty = self.function.values[source.0 as usize].clone();
-        let Type::Enum { variants, .. } = &ty else {
+        let Type::Enum { variants, .. } = storage_shape(&ty) else {
             return unsupported("verified projection lost enum type", Some(instruction.span));
         };
         let fields = &variants[variant as usize].1;
@@ -641,6 +651,9 @@ impl FunctionEmitter<'_> {
     }
     fn store_payload(&mut self, ty: &Type, source: &str, address: &str) -> CompileResult<()> {
         match ty {
+            Type::BorrowedStorage { storage, .. } => {
+                self.store_payload(storage, source, address)?
+            }
             Type::Unit => {}
             Type::Bool => {
                 let widened = self.temp();
@@ -1132,5 +1145,65 @@ mod ct_layout_tests {
                 .category,
             ResultCategory::ResourceLimit
         );
+    }
+}
+
+#[cfg(test)]
+mod qualified_pure_layout_tests {
+    use super::*;
+
+    fn qualified(storage: Type) -> Type {
+        Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        }
+    }
+
+    #[test]
+    fn g4463_qualified_enum_payload_keeps_nested_array_layout_and_ct_boundary() {
+        // Synthetic layout probe only; this does not establish nominal/source
+        // authority. The Source/native test must traverse the independent kernels.
+        let leaf = qualified(Type::Record {
+            name: "Leaf".into(),
+            fields: vec![("small".into(), Type::U8), ("bits".into(), Type::U64)],
+        });
+        let storage = Type::Enum {
+            name: "Choice".into(),
+            variants: vec![
+                ("Empty".into(), vec![]),
+                (
+                    "Value".into(),
+                    vec![
+                        leaf.clone(),
+                        Type::Array {
+                            element: Box::new(leaf),
+                            length: 2,
+                        },
+                        Type::Bool,
+                    ],
+                ),
+            ],
+        };
+        let ty = qualified(storage.clone());
+        let layout = physical_layout(&ty).unwrap();
+        assert_eq!((layout.size, layout.align), (64, 8));
+        assert_eq!(llvm_type(&ty).unwrap(), llvm_type(&storage).unwrap());
+        let union = union_layout(&ty).unwrap();
+        assert_eq!((union.words, union.word_align, union.align), (7, 8, 8));
+        assert!(matches!(ty, Type::BorrowedStorage { .. }));
+        // Runtime representation support does not widen the separate CT query.
+        let errors = ct_layout_of_checked_type(
+            &ty,
+            &TargetProfile::host_llvm(),
+            &zil_base::Limits::default(),
+            &mut |_| Ok(()),
+        )
+        .unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::Unsupported);
     }
 }

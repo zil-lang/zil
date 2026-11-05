@@ -25,6 +25,7 @@ pub(super) struct Budget {
     pub(super) address_capture: bool,
     pub(super) owning_address_captures: bool,
     pub(super) replacement_functions: BTreeSet<zil_ir::FunctionId>,
+    pub(super) replacement_error_sums: bool,
     pub(super) address_capture_closures: BTreeSet<zil_ir::ClosureId>,
     // Empty on legacy modules; populated only by the paid ordinary admission.
     pub(super) ordinary_store_functions: Vec<bool>,
@@ -48,6 +49,8 @@ pub(super) struct Budget {
     pub(super) registrations: bool,
     pub(super) async_registrations: bool,
     pub(super) stored_borrows: bool,
+    // Eligibility only; each pure use still proves the actual physical type.
+    pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
@@ -69,6 +72,7 @@ impl Budget {
             address_capture: false,
             owning_address_captures: false,
             replacement_functions: BTreeSet::new(),
+            replacement_error_sums: false,
             address_capture_closures: BTreeSet::new(),
             ordinary_store_functions: Vec::new(),
             sum_functions: Vec::new(),
@@ -90,6 +94,7 @@ impl Budget {
             registrations: false,
             async_registrations: false,
             stored_borrows: false,
+            pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
             shared_thread_functions: BTreeSet::new(),
@@ -404,6 +409,15 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        // The paid structural preflight above already visits every actual
+        // return, local, and SSA type and qualifies each stored boundary.
+        return if budget.stored_borrows {
+            Ok(false)
+        } else {
+            Err(bad("stored nominal type lacks its instance inventory"))
+        };
+    }
     if let Type::Address { inner, .. } = ty
         && matches!(
             inner.as_ref(),
@@ -424,6 +438,15 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
+    } else if super::stored_flow::pure_inline(module, ty, budget)? {
+        Ok(false)
+    } else if let Type::Address {
+        inner,
+        mutable: false,
+    } = ty
+        && super::stored_flow::pure_inline(module, inner, budget)?
+    {
+        Ok(false)
     } else {
         legacy_value(ty, span, module).map(|_| false)
     }
@@ -995,8 +1018,7 @@ pub(super) fn preflight(
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
                 if !super::stored_callables::capture(ty)
-                    && !(closure.kind == zil_ir::CallableKind::FnOnce
-                        && super::stored_callables::owned_capture(ty, budget)?)
+                    && !super::stored_callables::owned_capture(ty, budget)?
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -1014,17 +1036,17 @@ pub(super) fn preflight(
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
                 budget.shared_product_capture = true;
-                let Type::Address {
-                    mutable: false,
-                    inner,
-                } = ty
-                else {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "mutable Product capture is not implemented",
-                        None,
-                    )]);
+                let Type::Address { mutable, inner } = ty else {
+                    unreachable!()
                 };
+                if *mutable {
+                    if closure.kind == zil_ir::CallableKind::Fn {
+                        return Err(bad(
+                            "exclusive Product capture requires an exclusive environment entry",
+                        ));
+                    }
+                    budget.owning_address_captures = true;
+                }
                 super::resources::product::admit(inner, budget)?;
                 budget.type_work(&closure.result, true, "shared Product capture result")?;
                 if !closure.result.is_copy_value() {

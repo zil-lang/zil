@@ -97,12 +97,16 @@ pub(super) mod products;
 pub(super) mod record_enums;
 #[path = "generic_rich_pointer.rs"]
 pub(super) mod rich_pointer;
+#[path = "generic_runtime_ct.rs"]
+mod runtime_ct_phase;
 #[path = "generic_source_life.rs"]
 mod source_life;
 #[path = "generic_state.rs"]
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_actuals.rs"]
+mod stored_actuals;
 #[path = "generic_stored_nominal.rs"]
 mod stored_nominal;
 #[path = "generic_store.rs"]
@@ -164,13 +168,28 @@ pub(super) fn specialize_products_with_context<'a>(
         super::source_context::SourceIdentityContext<'_>,
     )>,
 ) -> CompileResult<Cow<'a, Module>> {
+    specialize_products_with_runtime(module, limits, products, context, None)
+}
+
+pub(super) fn specialize_products_with_runtime<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(
+        &[zil_base::SourceUnit],
+        super::source_context::SourceIdentityContext<'_>,
+    )>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
         Some(prepared) => {
-            specialize_products_prepared(&prepared, &remaining, products, true, context)
+            specialize_products_prepared(&prepared, &remaining, products, true, context, runtime_ct)
                 .map(|module| Cow::Owned(module.into_owned()))
         }
-        None => specialize_products_prepared(module, &remaining, products, false, context),
+        None => {
+            specialize_products_prepared(module, &remaining, products, false, context, runtime_ct)
+        }
     }
 }
 
@@ -183,8 +202,12 @@ fn specialize_products_prepared<'a>(
         &[zil_base::SourceUnit],
         super::source_context::SourceIdentityContext<'_>,
     )>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    if runtime_ct.is_some() {
+        names_budget.note_source_identity();
+    }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
@@ -306,8 +329,8 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
+            runtime_ct,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -326,8 +349,8 @@ fn specialize_products_prepared<'a>(
                     &aliased.pattern_types,
                     budget,
                     products,
-                    has_associated,
-                    has_generic_methods,
+                    (has_associated, has_generic_methods),
+                    runtime_ct,
                 )
             }
             None => specialize_with_budget(
@@ -336,8 +359,8 @@ fn specialize_products_prepared<'a>(
                 &BTreeMap::new(),
                 budget,
                 products,
-                has_associated,
-                has_generic_methods,
+                (has_associated, has_generic_methods),
+                runtime_ct,
             ),
         }
         .map(Cow::Owned)
@@ -374,8 +397,8 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
+            runtime_ct,
         )
         .map(Cow::Owned)
         .map_err(|error| vec![error]);
@@ -400,8 +423,8 @@ fn specialize_products_prepared<'a>(
         &BTreeMap::new(),
         names_budget,
         products,
-        has_associated,
-        has_generic_methods,
+        (has_associated, has_generic_methods),
+        runtime_ct,
     )
     .map(Cow::Owned)
     .map_err(|error| vec![error])
@@ -413,9 +436,10 @@ fn specialize_with_budget<'a>(
     pattern_types: &'a BTreeMap<String, TypeRef>,
     mut budget: Budget<'a>,
     products: &mut products::Products,
-    has_associated: bool,
-    has_generic_methods: bool,
+    type_features: (bool, bool),
+    runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
+    let (has_associated, has_generic_methods) = type_features;
     source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
     let methods =
@@ -431,7 +455,15 @@ fn specialize_with_budget<'a>(
     let module = prepared.as_ref().unwrap_or(module);
     let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
     let module = lifted.as_ref().unwrap_or(module);
-    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
+    let mut engine = Engine::with_budget(
+        module,
+        limits,
+        pattern_types,
+        origins.as_ref(),
+        budget,
+        runtime_ct,
+    )?;
+    engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
     }
@@ -445,7 +477,9 @@ fn specialize_with_budget<'a>(
         pattern_types,
         origins.as_ref(),
         engine.budget,
+        runtime_ct,
     )?;
+    engine.runtime_ct = runtime_ct;
     if engine.nominal_binder_collision {
         return Err(error(
             module.span,
@@ -456,9 +490,19 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
+    runtime_calls: BTreeMap<usize, u32>,
+    runtime_call: Option<u32>,
+    runtime_instance: Option<u32>,
+    runtime_next_instance: u32,
+    runtime_instances: BTreeMap<String, u32>,
     original_module: &'a Module,
     closure_recording: Option<closure_context::Recording>,
     life_scope: Vec<String>,
+    nominal_life_bindings: Vec<(String, crate::stored_types::LexicalLife)>,
+    nominal_captured_lives: Vec<(String, crate::stored_types::LexicalLife)>,
+    next_nominal_capture: usize,
+    nominal_source_actuals: BTreeMap<String, TypeRef>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
@@ -469,6 +513,11 @@ struct Engine<'a> {
     resolved_method_calls: trait_instances::Calls,
     method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
+    // The original full enum result application, captured before a stored
+    // signature replaces it with its physical name. Only body checking reads
+    // this hint; the emitted function header remains physical.
+    source_enum_return: Option<TypeRef>,
+    source_enum_return_active: bool,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
     active_callables: Option<callable::CallableTemplates>,
@@ -545,12 +594,23 @@ impl<'a> Engine<'a> {
         pattern_types: &'a BTreeMap<String, TypeRef>,
         origins: Option<&'a origins::Origins>,
         mut budget: Budget<'a>,
+        runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            runtime_ct,
+            runtime_calls: BTreeMap::new(),
+            runtime_call: None,
+            runtime_instance: None,
+            runtime_next_instance: 0,
+            runtime_instances: BTreeMap::new(),
             original_module: module,
             closure_recording: None,
             life_scope: Vec::new(),
+            nominal_life_bindings: Vec::new(),
+            nominal_captured_lives: Vec::new(),
+            next_nominal_capture: 0,
+            nominal_source_actuals: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
@@ -561,6 +621,8 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            source_enum_return: None,
+            source_enum_return_active: false,
             callable_name: None,
             callable_pair: None,
             active_callables: None,
@@ -699,7 +761,7 @@ impl<'a> Engine<'a> {
                     }
                 }
                 if matches!(parameter.kind, GenericParamKind::Lifetime)
-                    && matches!(item.kind, ItemKind::Aggregate(_))
+                    && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_))
                 {
                     continue;
                 }
@@ -766,11 +828,32 @@ impl<'a> Engine<'a> {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
-                let checked =
-                    consts::definition(f, &mut engine.budget, engine.traits.has_instances, None)?;
+                let ct_types = runtime_ct_phase::symbolic_types(
+                    item,
+                    engine.budget.context.origin,
+                    engine.origins,
+                    module,
+                    engine.runtime_ct,
+                    &mut engine.budget,
+                )?;
+                let source_ids = if ct_types.is_some() {
+                    Some(trait_instances::expression_ids(
+                        &f.body,
+                        &mut engine.budget,
+                    )?)
+                } else {
+                    None
+                };
+                let checked = consts::definition(
+                    f,
+                    &mut engine.budget,
+                    engine.traits.has_instances || ct_types.is_some(),
+                    source_ids,
+                )?;
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
+                        ct_types: ct_types.as_ref(),
                         source_definition: Some(f),
                         expression_origins: checked.source_ids.as_ref(),
                         definition_equations: None,
@@ -838,13 +921,20 @@ impl<'a> Engine<'a> {
                 if a.fields.iter().any(|field| !field.attributes.is_empty()) {
                     return Err(unsupported(item.span, "unexecuted generic field attribute"));
                 }
-                if !matches!(a.kind, AggregateKind::Struct | AggregateKind::Package)
-                    || !a.methods.is_empty()
-                {
+                if !matches!(a.kind, AggregateKind::Struct | AggregateKind::Package) {
                     return Err(unsupported(
                         item.span,
                         "generic resource or methods require capability resolution",
                     ));
+                }
+                if !a.methods.is_empty() {
+                    runtime_ct_phase::check_static_host(
+                        item,
+                        engine.budget.context.origin,
+                        engine.origins,
+                        engine.runtime_ct,
+                        &mut engine.budget,
+                    )?;
                 }
             }
         }
@@ -908,9 +998,21 @@ impl<'a> Engine<'a> {
         while let Some(origins::Pending {
             mut item,
             origin,
+            source_enum_return,
             member_calls,
+            runtime_calls,
         }) = self.pending.pop_front()
         {
+            // The source result belongs to this exact pending item, even if
+            // header preparation enqueued other specializations first.
+            self.source_enum_return = source_enum_return;
+            self.runtime_instance = name(&item)
+                .and_then(|name| self.runtime_instances.get(name))
+                .copied();
+            self.runtime_calls = match runtime_calls {
+                Some(anchors) => anchors,
+                None => self.runtime_call_anchors(&item)?,
+            };
             let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
             let processed = self.with_origin(origin, |engine| engine.item(&mut item));
             self.current_member_calls = previous;
@@ -951,6 +1053,12 @@ impl<'a> Engine<'a> {
             .get(template)
             .cloned()
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
+        if matches!(&item.kind, ItemKind::Aggregate(a) if !a.methods.is_empty()) {
+            return Err(unsupported(
+                span,
+                "generic resource or methods require capability resolution",
+            ));
+        }
         let product =
             matches!(&item.kind, ItemKind::Aggregate(a) if products::parameter(a).is_some());
         let product_arguments = if product {
@@ -1013,7 +1121,7 @@ impl<'a> Engine<'a> {
                 ),
             ));
         }
-        let arguments = parameters
+        let mut arguments = parameters
             .iter()
             .zip(arguments)
             .map(|(parameter, actual)| {
@@ -1029,11 +1137,58 @@ impl<'a> Engine<'a> {
         if dependent {
             return self.retain_store_template(template, item, arguments, span);
         }
+        // The source application still names its complete nominal arguments.
+        // Resolve a qualified Type actual while the enclosing function's
+        // lexical life scope is available, before the ordinary function key
+        // and substitution erase that source relation. CT receives the
+        // original actual separately and authenticates it from the Call.
+        let mut source_arguments = None;
+        let mut class_keys: Option<Vec<Option<String>>> = None;
+        if self.stored_nominals && !self.life_scope.is_empty() {
+            let mut qualified = false;
+            for actual in &arguments {
+                if self.qualified_actual_syntax(actual, 0)? {
+                    qualified = true;
+                }
+            }
+            if qualified {
+                for actual in &arguments {
+                    self.budget.ty(actual)?;
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<Option<String>>(), span)?;
+                }
+                source_arguments = Some(arguments.clone());
+                let mut keys = vec![None; arguments.len()];
+                let mut joint_classes = Vec::new();
+                for (ordinal, actual) in arguments.iter_mut().enumerate() {
+                    if let Some(stored) = self.qualified_type_actual(actual, 0)? {
+                        keys[ordinal] = Some(self.joint_class_key(
+                            &stored.classes,
+                            &mut joint_classes,
+                            span,
+                        )?);
+                    }
+                }
+                class_keys = Some(keys);
+            }
+        }
         let mut key = (
             template.to_owned(),
             arguments
                 .iter()
-                .map(|ty| type_key(ty, &mut self.budget))
+                .enumerate()
+                .map(|(ordinal, ty)| {
+                    let physical = type_key(ty, &mut self.budget)?;
+                    if let Some(classes) =
+                        class_keys.as_ref().and_then(|keys| keys[ordinal].as_ref())
+                    {
+                        self.budget
+                            .identity_work(physical.len().saturating_add(classes.len()), span)?;
+                        Ok(format!("{physical}[{classes}]"))
+                    } else {
+                        Ok(physical)
+                    }
+                })
                 .collect::<R<Vec<_>>>()?,
         );
         let product_scope = if product {
@@ -1086,6 +1241,22 @@ impl<'a> Engine<'a> {
                 },
             );
         }
+        let runtime_substitution = if let Some(source) = source_arguments {
+            for parameter in &parameters {
+                self.budget.text(&parameter.name, parameter.span)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), span)?;
+            }
+            Some(
+                parameters
+                    .iter()
+                    .zip(source)
+                    .map(|(p, ty)| (p.name.clone(), ty))
+                    .collect::<BTreeMap<_, _>>(),
+            )
+        } else {
+            None
+        };
         let substitution: BTreeMap<_, _> = parameters
             .iter()
             .zip(arguments)
@@ -1131,6 +1302,10 @@ impl<'a> Engine<'a> {
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
+        // Anchor actual owned callees before substitutions or CT replacement
+        // can change surrounding syntax. Pending processing consumes these
+        // anchors directly; it never recounts calls in materialized output.
+        let runtime_calls = self.runtime_call_anchors(&instance)?;
         let mut anchors = None;
         if let ItemKind::Function(function) = &item.kind
             && let Some(calls) = self.trait_calls.get(&function.name)
@@ -1151,6 +1326,12 @@ impl<'a> Engine<'a> {
             trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
+        self.runtime_materialize(
+            item,
+            runtime_substitution.as_ref().unwrap_or(&substitution),
+            &generated,
+            &mut instance,
+        )?;
         if let Some(anchors) = anchors {
             let calls =
                 trait_instances::rekey_anchored_calls(&instance, anchors, &mut self.budget)?;
@@ -1229,6 +1410,10 @@ impl<'a> Engine<'a> {
         }
         let origin = self.template_origin(item)?;
         self.enqueue(instance, origin)?;
+        self.pending
+            .back_mut()
+            .expect("just enqueued")
+            .runtime_calls = Some(runtime_calls);
         Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
@@ -1251,7 +1436,7 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path, args } => {
                 if self.stored_nominals
                     && path.len() == 1
-                    && self.stored_declaration(&path[0], ty.span)?
+                    && self.stored_application(&path[0], args, ty.span, depth + 1)?
                 {
                     let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
                     *path = vec![name];
@@ -1446,19 +1631,31 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
-                let saved_result = self
-                    .return_type
-                    .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
+                let source_enum_result = self.source_enum_return.is_some();
+                let body_result = self
+                    .source_enum_return
+                    .take()
+                    .or_else(|| f.return_type.clone())
+                    .unwrap_or_else(|| check::unit(f.span));
+                let saved_result = self.return_type.replace(body_result);
+                let saved_source_enum_result =
+                    std::mem::replace(&mut self.source_enum_return_active, source_enum_result);
                 let saved_callables = std::mem::replace(&mut self.active_callables, callable);
                 match &mut f.body {
                     FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
                     FunctionBody::Expression(value) => {
+                        if self.source_enum_return_active
+                            && let Some(result) = &self.return_type
+                        {
+                            self.budget.ty(result)?;
+                        }
                         let expected = self.return_type.clone();
                         self.expr_expected(value, &mut env, expected.as_ref(), 0)?;
                     }
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.source_enum_return_active = saved_source_enum_result;
                 self.active_callables = saved_callables;
                 self.callable_name = saved_callable;
                 self.callable_pair = saved_pair;
@@ -1783,13 +1980,42 @@ impl<'a> Engine<'a> {
             StmtKind::Binding {
                 pattern, ty, value, ..
             } => {
+                let source_enum = if let Some(t) = ty.as_ref()
+                    && self.stored_nominals
+                    && let TypeKind::Named { path, args } = &grouped(t).kind
+                    && path.len() == 1
+                    && {
+                        self.stored_lookup_fee(self.enums.len(), path[0].len(), t.span)?;
+                        self.enums.contains_key(&path[0])
+                    }
+                    && self.stored_application(&path[0], args, t.span, depth + 1)?
+                {
+                    self.budget.ty(t)?;
+                    Some(t.clone())
+                } else {
+                    None
+                };
                 if let Some(t) = ty {
                     self.ty(t, depth + 1)?;
                 }
-                let inferred = self.expr_expected(value, env, ty.as_ref(), depth + 1)?;
-                bind(pattern, ty.clone().or(inferred), env);
+                let inferred = self.expr_expected(
+                    value,
+                    env,
+                    source_enum.as_ref().or(ty.as_ref()),
+                    depth + 1,
+                )?;
+                bind(
+                    pattern,
+                    source_enum.or_else(|| ty.clone()).or(inferred),
+                    env,
+                );
             }
             StmtKind::Return(Some(e)) => {
+                if self.source_enum_return_active
+                    && let Some(result) = &self.return_type
+                {
+                    self.budget.ty(result)?;
+                }
                 let expected = self.return_type.clone();
                 self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
             }

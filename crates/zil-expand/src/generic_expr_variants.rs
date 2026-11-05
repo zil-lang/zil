@@ -367,12 +367,25 @@ impl Engine<'_> {
             unreachable!("expression variant dispatch")
         };
         let result = {
+            let mut source_record = None;
             if let Some(t) = ty
                 && let ExprKind::TypeApply { callee, arguments } = &mut t.kind
                 && let ExprKind::Name(template) = &callee.kind
                 && let Some((declaration, stored)) = self.record_declaration(template, e.span)?
             {
-                if stored {
+                if stored
+                    || (self.stored_nominals
+                        && self.stored_application(template, arguments, e.span, depth + 1)?)
+                {
+                    let source = TypeRef {
+                        span: t.span,
+                        kind: TypeKind::Named {
+                            path: vec![template.clone()],
+                            args: arguments.to_vec(),
+                        },
+                    };
+                    self.budget.ty(&source)?;
+                    source_record = Some(source);
                     let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
                     t.kind = ExprKind::Name(name);
                 } else {
@@ -410,11 +423,15 @@ impl Engine<'_> {
             let record_type = explicit_type.or(base_type);
             for field in fields {
                 if let Some(value) = &mut field.value {
-                    let hint = record_type
-                        .as_ref()
-                        .map(|ty| self.record_field(ty, &field.name))
-                        .transpose()?
-                        .flatten();
+                    let hint = if let Some(source) = &source_record {
+                        self.source_record_field(source, &field.name)?
+                    } else {
+                        record_type
+                            .as_ref()
+                            .map(|ty| self.record_field(ty, &field.name))
+                            .transpose()?
+                            .flatten()
+                    };
                     self.expr_expected(value, env, hint.as_ref(), depth + 1)?;
                 }
             }
@@ -512,6 +529,10 @@ impl Engine<'_> {
                 self.ty(t, depth + 1)?;
             }
             let saved = std::mem::replace(&mut self.return_type, return_type.clone());
+            // This closure owns a separate result hint. The enclosing stored
+            // enum's source clone charge resumes only after its body returns.
+            let saved_source_enum_result =
+                std::mem::replace(&mut self.source_enum_return_active, false);
             self.closure_recording = recording;
             let body_result = match body {
                 ArrowBody::Block(b) => self.block(b, &mut inner, depth + 1),
@@ -523,6 +544,7 @@ impl Engine<'_> {
             };
             let recording = self.closure_recording.take();
             self.return_type = saved;
+            self.source_enum_return_active = saved_source_enum_result;
             body_result?;
             if let Some(recording) = recording {
                 *context = ClosureContextMarker::untrusted(

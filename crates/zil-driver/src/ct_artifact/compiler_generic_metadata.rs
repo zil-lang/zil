@@ -299,6 +299,19 @@ impl Builder<'_, '_> {
                 slot.ok_or_else(|| error(span, "CT complete type argument cannot be inferred"))
             })
             .collect::<R<Vec<_>>>()?;
+        if concrete
+            .iter()
+            .any(|graph| !graph.ambient_classes.is_empty())
+        {
+            return self.contextual_metadata_call(
+                declaration,
+                concrete,
+                actual,
+                &actual_types,
+                expected,
+                span,
+            );
+        }
         let (parameters, result) = self
             .compiler
             .metadata_instance_header(declaration, &concrete)?;

@@ -8,6 +8,7 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    pub(crate) runtime_instances: Vec<crate::runtime_ct::RuntimeInstance>,
     pub(crate) closure_contexts: closure_context::Ledger,
     pub(crate) callable_contexts: callable_context::Ledger,
     pub(super) rich_aliases: Vec<TypeRef>,

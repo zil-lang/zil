@@ -191,6 +191,42 @@ pub(super) struct Frame {
     bindings: Vec<Option<Rigid>>,
 }
 impl Frame {
+    pub(super) fn nominal(
+        parameters: &[GenericParam],
+        arguments: &[GenericArg],
+        source: &Function,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Self> {
+        if parameters.len() != arguments.len() {
+            return Err(error(span, "generic record argument arity mismatch"));
+        }
+        let mut frame = Self {
+            names: Vec::new(),
+            bindings: Vec::new(),
+        };
+        for (parameter, argument) in parameters.iter().zip(arguments) {
+            budget.node(span, 0)?;
+            match (&parameter.kind, argument) {
+                (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                    let ordinal = declared(name, source, budget, span)?;
+                    budget.text(&parameter.name, span)?;
+                    budget.lineage_bytes(std::mem::size_of::<(String, Option<Rigid>)>(), span)?;
+                    frame.names.push(parameter.name.clone());
+                    frame.bindings.push(Some(Rigid::Declared(ordinal)));
+                }
+                (GenericParamKind::Type(_), GenericArg::Type(_))
+                | (GenericParamKind::Const(_), GenericArg::Const(_)) => {}
+                _ => {
+                    return Err(error(
+                        span,
+                        "generic record actual kind differs from its declared binder",
+                    ));
+                }
+            }
+        }
+        Ok(frame)
+    }
     pub(super) fn new(
         generic: &str,
         source: &Function,

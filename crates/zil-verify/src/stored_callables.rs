@@ -26,11 +26,51 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> Check<bool> {
+    if f.foreign.is_none() {
+        return Ok(false);
+    }
+    b.spend(f.parameters.len().saturating_add(1))?;
+    if !f.blocks.is_empty()
+        || !f.values.is_empty()
+        || f.environment.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.result_mode != PassingMode::Infer
+        || f.storage_life.is_some()
+        || f.reference_return_bound.is_some()
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || !scalar(&f.return_type)
+    {
+        return Ok(false);
+    }
+    for parameter in &f.parameters {
+        if !f
+            .locals
+            .get(parameter.0 as usize)
+            .is_some_and(|l| scalar(&l.ty))
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
+}
+
+pub(super) fn lending(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_some()
+        && !d.lending_captures.is_empty()
+        && d.kind != CallableKind::FnOnce
+        && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
+}
+pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
+    if lending(d) { &Type::Unit } else { &d.result }
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module
         .closures
         .get(id.0 as usize)
-        .is_some_and(|d| d.lending_captures.is_empty() && scalar(&d.result))
+        .is_some_and(|d| (d.lending_captures.is_empty() && scalar(&d.result)) || lending(d))
 }
 pub(super) fn shared_input(t: &Type) -> bool {
     if scalar(t) {
@@ -68,14 +108,14 @@ pub(super) fn captured_profile(d: &ClosureDefinition, b: &mut Budget) -> Check<(
     }
     for ty in &d.captures {
         super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
-        if !(shared_input(ty) || d.kind == CallableKind::FnOnce && super::stored_owned::owner(ty)) {
+        if !(shared_input(ty) || super::stored_owned::owner(ty)) {
             return Err(unsupported(
                 "captured Fixed requires shared/scalar captures or a finite class-free genuine Once owner",
                 None,
             ));
         }
     }
-    if !d.lending_captures.is_empty() || !scalar(&d.result) {
+    if !((d.lending_captures.is_empty() && scalar(&d.result)) || lending(d)) {
         return Err(unsupported(
             "captured Fixed requires a scalar nonlending result",
             None,
@@ -135,7 +175,7 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> Check<()> {
             super::signature_life::closure_relation(
                 &d.parameters,
                 &d.captures,
-                &d.result,
+                life_result(d),
                 c,
                 Some(f.span),
             )?;
@@ -232,6 +272,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
+        InstructionKind::BorrowCapture { mutable: false, .. } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .is_some_and(lending),
         _ => called(module, f, &i.kind).is_some(),
     }
 }
@@ -261,6 +305,32 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let d = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| lending(d))
+                .ok_or_else(|| bad("capture address lacks a real lending environment"))?;
+            let payload = d
+                .captures
+                .get(*index as usize)
+                .filter(|ty| scalar(ty))
+                .ok_or_else(|| {
+                    bad("capture address must name an inline scalar environment field")
+                })?;
+            super::stored_flow::type_work(payload, &b.limits.clone(), b)?;
+            let result = i.result.and_then(|id| f.values.get(id.0 as usize));
+            if !matches!(result,Some(Type::Address {mutable:false,inner}) if inner.as_ref()==payload)
+            {
+                return Err(bad(
+                    "capture address actual result differs from its environment field",
+                ));
+            }
+            return Ok(());
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::WriteCapture { index, .. } => {
             let d = f
                 .environment
@@ -313,9 +383,14 @@ pub(super) fn types(
     if d.storage_life.is_some()
         && matches!(i.kind, InstructionKind::CallClosureOnce { .. })
         && d.kind != zil_ir::CallableKind::FnOnce
+        && (!matches!(
+            d.kind,
+            zil_ir::CallableKind::Fn | zil_ir::CallableKind::FnMut
+        ) || !scalar(&d.result)
+            || !d.lending_captures.is_empty())
     {
         return Err(unsupported(
-            "captured Fixed Once adaptation requires actual owning mode accounting",
+            "captured Fixed Once adaptation requires an actual nonlending scalar entry",
             Some(i.span),
         ));
     }
@@ -446,7 +521,7 @@ pub(super) fn roles(module: &TypedModule, graphs: &[FunctionGraph], b: &mut Budg
                         super::signature_life::closure_relation(
                             &d.parameters,
                             &d.captures,
-                            &d.result,
+                            life_result(d),
                             life,
                             Some(entry.span),
                         )?;

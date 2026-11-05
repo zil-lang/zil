@@ -211,7 +211,7 @@ fn known_single_arm_create_retains_its_existing_cfg_boundary() {
 }
 
 #[test]
-fn shared_formal_and_multiple_roots_stay_closed() {
+fn mutable_enum_formal_is_checked_while_shared_and_multiple_roots_stay_closed() {
     let shared = PENDING.replace("let target=&mut value", "let target=&value");
     let report = compile_source(&source(&shared), &CompileOptions::default());
     assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
@@ -228,17 +228,21 @@ fn shared_formal_and_multiple_roots_stay_closed() {
     let report = compile_source(&source(&formal), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("exact whole local owner"))
-    );
+    assert_eq!(report.verification_runs, 1);
+    let input = source(&formal);
+    let ast = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &ast).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::default();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     let joined = format!(
         "{prefix}fn work(flag:bool)->i32{{var x=E.Left(R{{code:65}},1);var y=E.Right(2,R{{code:67}});let target=if flag{{&mut x}}else{{&mut y}};*target=E.Right(42,R{{code:66}});return 42;}}fn main()->i32{{return work(true);}}"
     );
@@ -293,7 +297,7 @@ fn shared_formal_and_multiple_roots_stay_closed() {
 }
 
 #[test]
-fn raw_payload_description_transport_stays_explicitly_closed() {
+fn raw_payload_description_read_obeys_actual_resource_retirement() {
     // Legal source uses the payload before replacement. The raw neighbor then
     // retains an actual weak description, not its address loan, across Commit.
     let text = "resource R{code:i32}enum E{Left(manages R,i32),Right(i32,manages R),Empty}fn main()->i32{var value=E.Left(R{code:65},1);match value{E.Left(ref r,_)=>{let n=r.code;let target=&mut value;*target=E.Right(2,R{code:66});return n;},E.Right(_,_)=>{return 0;},E.Empty()=>{return 0;}}}";
@@ -377,28 +381,35 @@ fn raw_payload_description_transport_stays_explicitly_closed() {
         .iter_mut()
         .find(|b| b.instructions.iter().any(|i| i.result == Some(read)))
         .unwrap();
-    let pos = block
-        .instructions
-        .iter()
-        .position(|i| i.result == Some(read))
-        .unwrap();
-    let operation = block.instructions.remove(pos);
-    let reserve = block
-        .instructions
-        .iter()
-        .position(|i| matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }))
-        .unwrap();
-    block.instructions.insert(reserve, operation);
-    for (name, neighbor) in [("before Commit", before), ("after Commit", typed)] {
-        let error = zil_analyze::analyze(&neighbor, &limits)
-            .expect_err("payload weak-Desc transport remains closed");
-        assert!(
-            error.iter().any(|d| d
-                .message
-                .contains("instruction cannot produce the claimed resource kind")),
-            "{name}: {error:?}"
-        );
+    // Both construction and consumption precede the actual mutable borrow.
+    // Merely moving ReadDesc before Reserve would still overlap that window.
+    let mut operations = Vec::new();
+    for value in [desc, read] {
+        let pos = block
+            .instructions
+            .iter()
+            .position(|i| i.result == Some(value))
+            .unwrap();
+        operations.push(block.instructions.remove(pos));
     }
+    let borrow = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::BorrowLocalMut { .. }))
+        .expect("actual replacement starts a mutable local borrow");
+    block.instructions.splice(borrow..borrow, operations);
+    let plan = zil_analyze::analyze(&before, &limits).unwrap();
+    zil_verify::verify_module(before.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&before, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let errors = zil_analyze::analyze(&typed, &limits)
+        .expect_err("the later descriptor consumer needs the retired resource");
+    assert!(
+        errors.iter().any(|d| d.code == "E-ANALYZE-IR"
+            && d.message
+                .contains("head transition invalidates a description required later")),
+        "{errors:?}"
+    );
 }
 
 #[test]

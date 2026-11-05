@@ -2,6 +2,15 @@
 //! reconstructed independently by Analyze and Verify, never by these checks.
 use super::*;
 
+mod nominal;
+mod retained;
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum InventoryPhase {
+    Core,
+    Resolved,
+}
+
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
         Diagnostic::limit(
@@ -46,6 +55,41 @@ pub(super) fn aggregate<'a>(
         "E-STORED-IDENTITY",
         Span::default(),
         "stored instance has no actual aggregate declaration",
+    ))
+}
+
+pub(super) fn enum_declaration<'a>(
+    core: &'a CoreModule,
+    name: &str,
+    left: &mut usize,
+) -> R<&'a CoreEnum> {
+    enum_from(&core.enums, core.module_id, name, left)
+}
+
+pub(super) fn enum_from<'a>(
+    enums: &'a [CoreEnum],
+    module: zil_base::ModuleId,
+    name: &str,
+    left: &mut usize,
+) -> R<&'a CoreEnum> {
+    for declaration in enums {
+        fee(
+            left,
+            declaration
+                .name
+                .len()
+                .saturating_add(name.len())
+                .saturating_add(40),
+            declaration.span,
+        )?;
+        if name == declaration.name || name == format!("@module{}:{}", module.0, declaration.name) {
+            return Ok(declaration);
+        }
+    }
+    Err(error(
+        "E-STORED-IDENTITY",
+        Span::default(),
+        "stored Enum has no actual declaration",
     ))
 }
 
@@ -122,7 +166,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         }
     }
     let mut names = std::collections::BTreeSet::new();
-    for instance in &core.life_instances {
+    for (index, instance) in core.life_instances.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
         let declaration = declarations.get(&instance.declaration).ok_or_else(|| {
             error(
@@ -131,28 +175,30 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance declaration is absent",
             )
         })?;
-        let Type::BorrowedStorage { storage, life } = &instance.ty else {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             return Err(error(
                 "E-STORED-TYPE",
                 span,
                 "stored instance is unqualified",
             ));
         };
-        let Type::Record { name, fields } = storage.as_ref() else {
-            return Err(unsupported(
-                span,
-                "stored nominal kind requires its consumer",
-            ));
-        };
-        if declaration.kind != LifeNominalKind::Record
-            || declaration.parameters.len() != instance.arguments.len()
-        {
+        if declaration.parameters.len() != instance.arguments.len() {
             return Err(error(
                 "E-STORED-IDENTITY",
                 span,
                 "stored instance kind or full argument arity differs",
             ));
         }
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } if declaration.kind == LifeNominalKind::Record => name,
+            Type::Enum { name, .. } if declaration.kind == LifeNominalKind::Enum => name,
+            _ => {
+                return Err(unsupported(
+                    span,
+                    "stored nominal kind requires its actual consumer",
+                ));
+            }
+        };
         fee(
             left,
             name.len()
@@ -167,97 +213,139 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "multiple stored instances claim the same actual declaration layout",
             ));
         }
-        let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
-        if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
-            return Err(error(
-                "E-STORED-TYPE",
-                actual.span,
-                "stored instance differs from actual aggregate kind or layout",
-            ));
-        }
-        for ((name, ty), field) in fields.iter().zip(&actual.fields) {
+        if let Type::Enum { variants, .. } = storage.as_ref() {
+            let actual = enum_declaration(core, name, left)?;
             fee(
                 left,
-                name.len().saturating_add(field.name.len()),
-                field.span,
+                actual.variants.len().saturating_add(variants.len()),
+                actual.span,
             )?;
-            for checked in [ty, &field.ty] {
-                let cost = inference::type_snapshot_work(
-                    checked,
+            if actual.variants.len() != variants.len() {
+                return Err(error(
+                    "E-STORED-TYPE",
+                    actual.span,
+                    "stored Enum variant count differs from actual declaration",
+                ));
+            }
+            for ((name, fields), (decl_name, decl_fields)) in variants.iter().zip(&actual.variants)
+            {
+                fee(
+                    left,
+                    name.len()
+                        .saturating_add(decl_name.len())
+                        .saturating_add(fields.len())
+                        .saturating_add(decl_fields.len()),
+                    actual.span,
+                )?;
+                if name != decl_name || fields.len() != decl_fields.len() {
+                    return Err(error(
+                        "E-STORED-TYPE",
+                        actual.span,
+                        "stored Enum variant differs from actual declaration",
+                    ));
+                }
+                for (field, declared) in fields.iter().zip(decl_fields) {
+                    for ty in [field, declared] {
+                        let work = inference::type_snapshot_work(
+                            ty,
+                            actual.span,
+                            &Limits {
+                                max_analysis_steps: *left,
+                                ..limits.clone()
+                            },
+                        )?;
+                        fee(left, work, actual.span)?;
+                    }
+                    if field != declared {
+                        return Err(error(
+                            "E-STORED-TYPE",
+                            actual.span,
+                            "stored Enum payload differs from actual declaration",
+                        ));
+                    }
+                }
+            }
+        } else if let Type::Record { fields, .. } = storage.as_ref() {
+            let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
+            if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
+                return Err(error(
+                    "E-STORED-TYPE",
+                    actual.span,
+                    "stored instance differs from actual aggregate kind or layout",
+                ));
+            }
+            for ((name, ty), field) in fields.iter().zip(&actual.fields) {
+                fee(
+                    left,
+                    name.len().saturating_add(field.name.len()),
                     field.span,
+                )?;
+                for checked in [ty, &field.ty] {
+                    let cost = inference::type_snapshot_work(
+                        checked,
+                        field.span,
+                        &Limits {
+                            max_analysis_steps: *left,
+                            ..limits.clone()
+                        },
+                    )?;
+                    fee(left, cost, field.span)?;
+                }
+                if name != &field.name || ty != &field.ty {
+                    return Err(error(
+                        "E-STORED-TYPE",
+                        field.span,
+                        "stored instance physical fields differ from actual declaration",
+                    ));
+                }
+            }
+        }
+        nominal::rows(core, instance, limits, left, InventoryPhase::Core)?;
+        for prior in &core.life_instances[..index] {
+            if prior.declaration == instance.declaration
+                && nominal::same_key(prior, instance, limits, left)?
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "one complete nominal actual vector has multiple semantic types",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Resolver alone rebuilt these instances from the actual checked declarations
+/// and fields. Recheck their complete resolved semantic graph and physical
+/// qualification; the unchanged stable declaration identities were checked at
+/// entry and do not need a second quadratic identity scan.
+pub(super) fn resolved_inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
+    let span = Span::default();
+    for (index, instance) in core.life_instances.iter().enumerate() {
+        nominal::rows(core, instance, limits, left, InventoryPhase::Resolved)?;
+        for prior in &core.life_instances[..index] {
+            for ty in [&prior.ty, &instance.ty] {
+                let work = inference::type_snapshot_work(
+                    ty,
+                    span,
                     &Limits {
                         max_analysis_steps: *left,
                         ..limits.clone()
                     },
                 )?;
-                fee(left, cost, field.span)?;
+                fee(left, work, span)?;
             }
-            if name != &field.name || ty != &field.ty {
+            if prior.ty == instance.ty
+                || (prior.declaration == instance.declaration
+                    && nominal::same_key(prior, instance, limits, left)?)
+            {
                 return Err(error(
-                    "E-STORED-TYPE",
-                    field.span,
-                    "stored instance physical fields differ from actual declaration",
+                    "E-STORED-IDENTITY",
+                    span,
+                    "resolved nominal instance has a duplicate complete type or semantic actual key",
                 ));
             }
-        }
-        let mut rows = life.nominal_arguments.iter();
-        for (ordinal, (parameter, argument)) in declaration
-            .parameters
-            .iter()
-            .zip(&instance.arguments)
-            .enumerate()
-        {
-            fee(left, 1, span)?;
-            match (parameter, argument) {
-                (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(value))
-                    if *ty == value.ty()
-                        && matches!(
-                            value,
-                            Constant::Bool(_)
-                                | Constant::I32(_)
-                                | Constant::I64(_)
-                                | Constant::U64(_)
-                                | Constant::Usize(_)
-                                | Constant::U8(_)
-                                | Constant::U16(_)
-                        ) => {}
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class)) => {
-                    let row = rows.next().ok_or_else(|| {
-                        error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime actual occurrence is absent",
-                        )
-                    })?;
-                    if !row.path.is_empty()
-                        || row.declaration != instance.declaration
-                        || row.argument as usize != ordinal
-                        || row.binder != *class
-                        || *class >= life.binder_count
-                    {
-                        return Err(error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime occurrence differs from full actual position",
-                        ));
-                    }
-                }
-                _ => {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        span,
-                        "stored nominal full argument kind differs",
-                    ));
-                }
-            }
-        }
-        if rows.next().is_some() {
-            return Err(error(
-                "E-STORED-IDENTITY",
-                span,
-                "extra nominal lifetime actual occurrence",
-            ));
         }
     }
     Ok(())
@@ -344,6 +432,58 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { .. })
 }
 
+/// Narrow value-only qualification for an actual nested stored field. This
+/// never enables an Address/Desc, owning leaf, or generic Copy classification.
+pub(super) fn pure_value(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if !matches!(ty, Type::BorrowedStorage { .. }) {
+        return Ok(false);
+    }
+    let cost = inference::type_snapshot_work(
+        ty,
+        span,
+        &Limits {
+            max_analysis_steps: *left,
+            ..limits.clone()
+        },
+    )?;
+    fee(left, cost, span)?;
+    if !retained::pure(ty, span, left)? {
+        return Ok(false);
+    }
+    shape(ty, left, limits.max_call_depth, span)?;
+    Ok(true)
+}
+
+/// Finite inline products may contain independently qualified pure children.
+/// Reconstruct every child boundary; this grants no physical slot or loan.
+pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if !retained::pure(ty, span, left)? {
+        return Ok(false);
+    }
+    // ErrorUnion has a separate sum consumer. Its qualified descendants need
+    // ErrorArm metadata paths before an inline Copy constructor may use them.
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        fee(left, 1, span)?;
+        match ty {
+            Type::ErrorUnion { .. } => return Ok(false),
+            Type::BorrowedStorage { storage, .. } => pending.push(storage),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    fee(left, 1, span)?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Array { element, .. } => pending.push(element),
+            _ => {}
+        }
+    }
+    retained::expected(ty, limits.max_call_depth, span, left)?;
+    Ok(true)
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }
@@ -358,10 +498,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if !matches!(storage.as_ref(), Type::Record { .. }) || !life.retained.is_empty() {
+    if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
+        || (!life.retained.is_empty() && !life.slots.is_empty())
+        || (matches!(storage.as_ref(), Type::Enum { .. })
+            && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
+    {
         return Err(unsupported(
             span,
-            "stored nested/opaque carrier qualification requires its consumer",
+            "stored kind or mixed address/retained qualification requires its consumer",
         ));
     }
     struct Walk<'a> {
@@ -420,6 +564,62 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         path.pop();
                     }
                 }
+                Type::Enum { name, variants } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "stored Enum has a real address or ownership payload",
+                        ));
+                    }
+                    fee(self.left, name.len(), self.span)?;
+                    if name.is_empty() {
+                        return Err(error(
+                            "E-STORED-TYPE",
+                            self.span,
+                            "stored Enum has empty identity",
+                        ));
+                    }
+                    for (variant, (variant_name, fields)) in variants.iter().enumerate() {
+                        fee(
+                            self.left,
+                            variant_name.len().saturating_add(fields.len()),
+                            self.span,
+                        )?;
+                        if variant_name.is_empty() {
+                            return Err(error(
+                                "E-STORED-TYPE",
+                                self.span,
+                                "stored Enum variant has empty name",
+                            ));
+                        }
+                        for (index, field) in fields.iter().enumerate() {
+                            path.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            }));
+                            self.ty(field, path, depth + 1)?;
+                            path.pop();
+                        }
+                    }
+                }
+                Type::Array { element, .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "stored Array has a real address or ownership leaf",
+                        ));
+                    }
+                    // Element is a type-class path, never a physical slot.
+                    self.ty(element, path, depth + 1)?;
+                }
+                Type::BorrowedStorage { .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "retained physical leaf needs a real borrowing consumer",
+                        ));
+                    }
+                }
                 other => {
                     if !closed_copy(other, self.left, depth + 1, self.limit, self.span)? {
                         return Err(unsupported(
@@ -463,12 +663,6 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 .saturating_add(1),
             span,
         )?;
-        if !row.path.is_empty() {
-            return Err(unsupported(
-                span,
-                "nested nominal life actual needs its complete type context",
-            ));
-        }
         if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
             return Err(error(
                 "E-STORED-TYPE",
@@ -502,6 +696,40 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             ));
         }
         classes.insert(slot.binder);
+    }
+    let actual_retained = retained::expected(storage, depth_limit, span, walk.left)?;
+    fee(walk.left, life.retained.len(), span)?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(error(
+            "E-STORED-TYPE",
+            span,
+            "physical retained class coverage differs",
+        ));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            walk.left,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(classes.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained classes are not canonical",
+            ));
+        }
+        classes.insert(row.binder);
     }
     if classes.is_empty() || classes.len() != life.binder_count as usize {
         return Err(error(

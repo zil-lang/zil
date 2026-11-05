@@ -1,11 +1,12 @@
-//! Original nongeneric struct namespaces for static mixed CT-only factories.
+//! Original struct namespaces: CT-only definitions are indexed eagerly; ordinary
+//! pure static members enter the actual CT dependency graph on demand.
 //! Names select an AST binding; only its original host/member nodes name rows.
 use super::*;
 
 #[derive(Clone, Copy)]
 pub(super) struct MemberLocation<'a> {
     pub declaration: usize,
-    host: &'a s::Item,
+    pub(super) host: &'a s::Item,
 }
 
 impl<'a> Compiler<'a> {
@@ -13,7 +14,7 @@ impl<'a> Compiler<'a> {
         let s::ItemKind::Aggregate(aggregate) = &host.kind else {
             return Ok(());
         };
-        if !aggregate.generics.is_empty() || aggregate.kind != s::AggregateKind::Struct {
+        if aggregate.kind != s::AggregateKind::Struct {
             return Ok(());
         }
         for item in &aggregate.methods {
@@ -21,11 +22,7 @@ impl<'a> Compiler<'a> {
             let s::ItemKind::Function(function) = &item.kind else {
                 continue;
             };
-            self.budget
-                .work(function.generics.len().saturating_mul(3), item.span)?;
-            if !Self::mixed_parameters(&function.generics) {
-                continue;
-            }
+            self.budget.work(function.generics.len(), item.span)?;
             let mut receiver = false;
             for parameter in &function.params {
                 self.budget
@@ -96,7 +93,7 @@ impl<'a> Compiler<'a> {
         path: &[String],
         span: Span,
     ) -> R<Option<usize>> {
-        if self.member_hosts.is_empty() || !(2..=3).contains(&path.len()) {
+        if !(2..=3).contains(&path.len()) {
             return Ok(None);
         }
         let (module, host_name, member_name) = if path.len() == 2 {
@@ -125,7 +122,7 @@ impl<'a> Compiler<'a> {
             };
             (module, &path[1], &path[2])
         };
-        let mut host = None;
+        let mut host = self.generated_named_item(module, host_name, span)?;
         for item in &self.modules[module].syntax.items {
             self.budget.work(1, span)?;
             let s::ItemKind::Aggregate(aggregate) = &item.kind else {
@@ -172,10 +169,58 @@ impl<'a> Compiler<'a> {
                 return Ok(Some(location.declaration));
             }
         }
-        Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "CT member calls require an original nongeneric struct and a static mixed CT-only factory",
-            Some(span),
-        )])
+        // Directory selection grants no CT effects or Copy capability. The
+        // ordinary function is checked by the same actual dependency compiler
+        // used for a top-level function; it is never reclassified CT-only.
+        if aggregate.kind != s::AggregateKind::Struct {
+            return Err(forbidden(
+                span,
+                "CT static member requires its actual ordinary struct host",
+            ));
+        }
+        let s::ItemKind::Function(function) = &item.kind else {
+            unreachable!()
+        };
+        for parameter in &function.params {
+            self.budget.work(parameter.name.len().min(4) + 1, span)?;
+            if parameter.name == "self" {
+                return Err(forbidden(
+                    span,
+                    "CT static member cannot consume a runtime receiver",
+                ));
+            }
+        }
+        self.budget.node(span)?;
+        self.budget.work(
+            self.declarations
+                .len()
+                .saturating_add(self.member_hosts.len()),
+            span,
+        )?;
+        Budget::take(
+            &mut self.budget.bytes,
+            self.declarations
+                .len()
+                .saturating_add(1)
+                .saturating_mul(std::mem::size_of::<Declaration>())
+                .saturating_add(
+                    self.member_hosts
+                        .len()
+                        .saturating_add(1)
+                        .saturating_mul(std::mem::size_of::<MemberLocation>()),
+                ),
+            span,
+            "CT actual ordinary member directory backing exhausted",
+        )?;
+        self.declarations.reserve_exact(1);
+        self.member_hosts.reserve_exact(1);
+        let declaration = self.declarations.len();
+        self.member_hosts.push(MemberLocation { declaration, host });
+        self.declarations.push(Declaration {
+            module,
+            item,
+            function,
+        });
+        Ok(Some(declaration))
     }
 }

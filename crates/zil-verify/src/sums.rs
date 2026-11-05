@@ -6,14 +6,30 @@ mod partial_places;
 pub(super) mod replacements;
 
 pub(super) fn owned_enum(ty: &Type) -> bool {
-    matches!(ty, Type::Enum { .. }) && !ty.is_copy_value()
+    matches!(ty, Type::Enum { .. }) && owned_leaf(ty)
 }
 
 pub(super) fn owned(ty: &Type) -> bool {
     matches!(
         ty,
         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-    ) && !ty.is_copy_value()
+    ) && owned_leaf(ty)
+}
+
+fn owned_leaf(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(_) => true,
+        Type::Tuple(fields) => fields.iter().any(owned_leaf),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().any(|(_, field)| owned_leaf(field))
+        }
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(owned_leaf)),
+        Type::ErrorUnion { error, result } => owned_leaf(error) || owned_leaf(result),
+        Type::Array { element, .. } => owned_leaf(element),
+        _ => false,
+    }
 }
 
 fn bad(span: Option<Span>, message: impl Into<String>) -> Diagnostic {
@@ -29,7 +45,7 @@ pub(super) fn needs_shape(ty: &Type, budget: &mut Budget) -> Check<bool> {
     let mut pending = vec![(ty, false, false)];
     while let Some((ty, in_error, in_product)) = pending.pop() {
         match ty {
-            Type::Tuple(_) if !ty.is_copy_value() => return Ok(true),
+            Type::Tuple(_) if owned(ty) => return Ok(true),
             Type::Enum { .. } if owned_enum(ty) => return Ok(true),
             Type::ErrorUnion { error, result } => {
                 if (in_product || in_error) && owned(ty) {
@@ -70,6 +86,11 @@ pub(super) fn check_type_for(
         resources::charge_payload(ty, budget)?;
         if ty.is_copy_value() {
             check_type(ty, span)?;
+            continue;
+        }
+        if stored_flow::pure_inline(module, ty, budget)?
+            || stored_flow::pure_read(module, ty, budget)?
+        {
             continue;
         }
         match ty {

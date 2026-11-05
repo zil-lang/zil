@@ -92,6 +92,89 @@ impl Builder<'_, '_> {
                     .ok_or_else(|| error(span, "CT record relocation output is unreachable"))?;
             }
         }
+        if !self.compiler.source_instance_calls.is_empty() {
+            self.compiler.budget.work(
+                self.compiler.source_instance_calls.len().saturating_mul(2),
+                span,
+            )?;
+            for row in &self.compiler.source_instance_calls {
+                if row.caller != self.id {
+                    continue;
+                }
+                if let Some((block, instruction)) = row.execution {
+                    blocks
+                        .get(block.0 as usize)
+                        .ok_or_else(|| error(span, "CT source execution block absent"))?;
+                    let call = self
+                        .blocks
+                        .get(block.0 as usize)
+                        .and_then(|block| block.instructions.get(instruction as usize))
+                        .ok_or_else(|| error(span, "CT source execution instruction absent"))?;
+                    if !matches!(&call.kind,CtInstructionKind::Call{function,..} if *function==row.instance)
+                        || row
+                            .occurrence
+                            .is_some_and(|(b, v)| b != block || call.result != Some(v))
+                    {
+                        return Err(error(
+                            span,
+                            "CT source execution locator differs from its actual Call",
+                        ));
+                    }
+                }
+                if let Some((block, value)) = row.occurrence {
+                    let block = blocks
+                        .get(block.0 as usize)
+                        .ok_or_else(|| error(span, "CT source call occurrence block is absent"))?;
+                    let value = values
+                        .get(value.0 as usize)
+                        .ok_or_else(|| error(span, "CT source call occurrence value is absent"))?;
+                    if block.is_some() != value.is_some() {
+                        return Err(error(
+                            span,
+                            "CT source call occurrence has inconsistent reachability",
+                        ));
+                    }
+                }
+            }
+            self.compiler.source_instance_calls.retain_mut(|row| {
+                if row.caller != self.id {
+                    return true;
+                }
+                if let Some((block, instruction)) = row.execution {
+                    let Some(block) = blocks[block.0 as usize] else {
+                        return false;
+                    };
+                    row.execution = Some((block, instruction));
+                }
+                let Some((block, value)) = row.occurrence else {
+                    return true;
+                };
+                match (blocks[block.0 as usize], values[value.0 as usize]) {
+                    (Some(block), Some(value)) => {
+                        row.occurrence = Some((block, value));
+                        true
+                    }
+                    _ => false,
+                }
+            });
+        }
+        if !self.compiler.source_type_sites.is_empty() {
+            self.compiler
+                .budget
+                .work(self.compiler.source_type_sites.len(), span)?;
+            self.compiler.source_type_sites.retain_mut(|row| {
+                if row.caller != self.id {
+                    return true;
+                }
+                match values.get(row.value.0 as usize).copied().flatten() {
+                    Some(value) => {
+                        row.value = value;
+                        true
+                    }
+                    None => false,
+                }
+            });
+        }
         let mut result = Vec::new();
         for (index, block) in std::mem::take(&mut self.blocks).into_iter().enumerate() {
             self.compiler.budget.work(1, span)?;
@@ -212,7 +295,8 @@ impl Builder<'_, '_> {
                     | CtInstructionKind::Load(_)
                     | CtInstructionKind::TypePrimitive(_)
                     | CtInstructionKind::TypeBuiltin(_)
-                    | CtInstructionKind::TypeName(_) => {}
+                    | CtInstructionKind::TypeName(_)
+                    | CtInstructionKind::TypeInContext { .. } => {}
                 }
             }
             let value = |v: CtValueId| -> R<CtValueId> {

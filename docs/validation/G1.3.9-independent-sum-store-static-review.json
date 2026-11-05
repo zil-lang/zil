@@ -1,0 +1,195 @@
+{
+  "task": "G1.3.9",
+  "reviewer": "/root/g33_complete",
+  "implementation_author": "/root/g13_complete",
+  "reviewed_commit": "9a0408bfbda65d994a1929f87fd9647655ec037e",
+  "review_kind": "Independent static production review plus separately constructed no-replacement qualification controls",
+  "verdict": "No additional static blocker found; full author/independent executable acceptance pending root replay after first EnumStore qualification failure",
+  "reviewed_delta_base": "c4cf8764",
+  "reviewed_production_sha256": {
+    "crates/zil-analyze/src/budget.rs": "c77bd58f507b2dc609a8c9880e2c9cf5cd10a3a60126b973886f9facee0a82bb",
+    "crates/zil-analyze/src/head_loans.rs": "8a0154292f8ddffb68cd67b45de6137838350788a3cecd48e387f2a6278eecdd",
+    "crates/zil-analyze/src/place_replacements/origins.rs": "9e3d6e387a0e171807cffdff3756a692bcd5b1a49481f1ca5f9dc50ebb2d386a",
+    "crates/zil-analyze/src/place_replacements/tests.rs": "6c768f1e4fe0b18b12dcd71b78c222ede888483f5eef13f5b80d6397368a06f6",
+    "crates/zil-analyze/src/resources.rs": "60db0ad46c41d9f33e7b4426c91e291915476b563d994b19ad12cefa05cd8fa1",
+    "crates/zil-analyze/src/resources/replacements.rs": "649474b3e7f8ac7438cceae8dd4dc72b3e0fc969e8629989721838f75a32de85",
+    "crates/zil-analyze/src/resources/replacements/package.rs": "536e569c86e30d2671b78a2a45b693456614c827c51d915af762e460b6ea298f",
+    "crates/zil-analyze/src/resources/replacements/public_roles.rs": "a8e06db5430ec8f3ad6c886f842954acbccff3fee0e9eb8d832b8dc12425567a",
+    "crates/zil-analyze/src/resources/replacements/whole_enum.rs": "ef4c9d69bf4a31af6017ac439abf2ce8f56f52b776bc3b105906698ad1af8f1e",
+    "crates/zil-analyze/src/resources/sums.rs": "d16a790c58b0700a95b5d981a813015540dce15e59be7f5925f24ae63f31615c",
+    "crates/zil-backend-llvm/src/emit/replacements.rs": "91b8e171e48c65ee624c1a584c0158f8f72b758ae70a8f6f8f300fb9ee9f6739",
+    "crates/zil-types/src/owning_place_replace.rs": "5f78bb0fc34c32cab91a189ca41b56465020e3222e1e8a5a99ac4f056a99d22f",
+    "crates/zil-verify/src/place_replacements/actual.rs": "bb7991cad48931714bec23c1034ea785eca965ca6125308e4d7e262a0ea65b3b",
+    "crates/zil-verify/src/place_replacements/tests.rs": "b58ec6fe82e2098d34178d1d0b7654a236a9adc84388367196d1053184d93093",
+    "crates/zil-verify/src/resources.rs": "e79eb03d26850ee8950e6c1e00c056d517544a241792549c5dc153a46d3a9416",
+    "crates/zil-verify/src/resources/public_roles.rs": "c3230f65a87e1e5a8f628f52c3f82f84c461913d99231c608441d3617dbe3c8c",
+    "crates/zil-verify/src/resources/replacements.rs": "6c89c37081b056e4098a2e6ff74af2cd4af9851decc62e58472c7fb9287457bf",
+    "crates/zil-verify/src/sums/replacements.rs": "0c4114e4038e0dc737cb7f0c93c0acc004e82066ed4150cb8345b8c351d5e615"
+  },
+  "scope_findings": [
+    {
+      "finding": "Keep TupleStore positive, retain EnumStore negative",
+      "evidence": "Types owned_shapes.rs and dynamic_store.rs unchanged from fd261b22. Inferred tuple contains Managed(OwnedStore), whereas explicit Enum field Store<P> is raw OwnedStore and its declaration is outside ordinary owned shape. Root test correction 9a0408bfb preserves this boundary; no producer broadening required."
+    },
+    {
+      "finding": "Whole ordinary Sum is existing shape composition",
+      "evidence": "Types whole_sum_endpoint requires paid complete owning tree and root-empty path for Tuple/ErrorUnion and newly composed Enum profile. A closed/whole_enum::ordinary requires owned+ordinary_result+own Sum admission. V at_type/enum_endpoint independently reconstructs actual mutable destination, validates canonical shapes, and marks own Sum recipe only after proof."
+    },
+    {
+      "finding": "New free-helper owning result keeps independent resource proof",
+      "evidence": "A package::ordinary_result recursively checks finite scalar/Managed/Product/Sum and revalidates Store canonical definition via ordinary_owned. V helper_owned_result separately charge_payload/check_type_for. Existing actual result_mode Create/Give resource transfer is still checked; environment helper remains Copy-result-only. Wrong fresh origin cannot be repaired by must-Commit presence."
+    },
+    {
+      "finding": "Commit preserves destination responsibility and old cleanup age",
+      "evidence": "A whole_enum::apply requires live old shell/complete Sum, excludes live old head descriptions and replaces only with actual staged RHS. V resource commit keeps shell debt, checks old live descriptions/whole fields, transfers RHS per-field freshness; own Sum transfer requires incoming completeness and kills retired-instance observations. Abort never publishes RHS; activation kernels independently retain prepared reservation suspension check."
+    },
+    {
+      "finding": "Store prefix responsibility is retained",
+      "evidence": "A/V actual origins reconstruct complete actual Store element and resource parent. Element replacement neither constructs an element nor adds prefix debt or fresh permission. Store invalidation remains bounded to original parent identity and live-element descriptions; sealed callback invalidation stays Unsupported. Canonical metadata is checked independently in each kernel."
+    },
+    {
+      "finding": "Public callback bridge imports may-write only",
+      "evidence": "Each kernel independently enumerates actual possible invocations from authenticated public trace and actual Closure argument, substitutes actual captures, and rejects private helper nonlocal replacement/Store effects. Analyze may_only excludes must-Commit; Verify strong condition excludes may_only. Ordinary callees cannot publish their private replacement effects through public helper. Trace presence alone grants no fresh or unique destination authority."
+    },
+    {
+      "finding": "Machine cleanup uses existing actual recipe",
+      "evidence": "Backend validates complete finite endpoint, calls existing drop_plan symbol for owning Sum/tuple or managed Store helper, then publishes already-prepared RHS by Store. No recoverable operation inserted between old cleanup and publish; caller parent flags/lexical age unchanged. Actual native order still requires root replay of later cases."
+    },
+    {
+      "finding": "Budget migration is conditional",
+      "evidence": "Types shape traversals are paid before pending extensions; A ordinary_result/whole_enum/tree comparisons separately charged, V independently charge_payload/comparison costs. A replacement_error_sums is false unless an actual ErrorUnion endpoint exists, so legacy no-replacement lane does not acquire that scan. No global old limit or gate changed in reviewed delta. Exact old N/new profiles must still be executed; static charging review is not performance evidence."
+    }
+  ],
+  "independent_qualification_controls": {
+    "binary": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+    "binary_sha256": "50ab44fa1aebc926fa919c93019ad30344aa06f3deb5d6fb57f937b9f4185f02",
+    "available_old_tree": "d49001092b6b98f04bfaf2185f67fe20d36862fe",
+    "binding_limit": "Binary reused as pre-change qualification control, not asserted to be rebuilt from exact fd baseline. Entire zil-types source tree d490..fd has no diff; changed Expand source_context_lineage irrelevant to these no-closure probes. Native/replacement behavior of current candidate is not established by these controls.",
+    "command": "/workspace/.zil-env/target-G1.3.5.2/debug/zil check <probe.zil> --stop-after types --json --emit-dir <separate-output>",
+    "probes": {
+      "tuple-store-local": {
+        "source": "extern \"C\" fn putchar(code:i32)->i32;\nresource R{code:i32}\nimpl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage P{manages owner:R;n:i32}\nfn populated(code:i32)->Store<P> contract{result(create)}{let cells:Store<P>=store_new();store_reserve(cells,1);store_push(cells,P{owner:R{code:code},n:42});return give cells}\nfn work()->i32{let value=(populated(65),0);let (cells,n)=value;let current=store_at(cells,0);return current.n+n}\nfn main()->i32{let seen=work();unsafe{putchar(48+seen/10);putchar(48+seen%10);putchar(10)}return 0}\n",
+        "source_sha256": "55f70c8c72c9f72b2080087695d26ba117e8528e51413aabf419ae773f264c41",
+        "report": {
+          "status": "Success",
+          "phase": "types",
+          "diagnostics": [],
+          "artifacts": {
+            "core": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/core.txt",
+            "ct-core": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/ct-core.txt",
+            "interfaces": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/interfaces.txt",
+            "source-map": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/source-map.txt",
+            "syntax": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/syntax.txt",
+            "task-interfaces": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/task-interfaces.txt",
+            "typed": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-emit/typed.txt"
+          },
+          "input_fingerprint": "17e0b3cd7b3894d65ef98564977da54d7fd4968d67e6ab576ac6e951901cda4a",
+          "seconds": 0.015799879,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/tuple-store-local-no-replacement.zil"
+          },
+          "scalar_interfaces": [
+            {
+              "module": 0,
+              "signature_fingerprint": "f7adacadf4c42bf1b6f7bdffc94c59704f0d61b06a273fc6b681aaf62be674df",
+              "implementation_fingerprint": "55f70c8c72c9f72b2080087695d26ba117e8528e51413aabf419ae773f264c41",
+              "contract_fingerprint": null,
+              "result_origins": null,
+              "callable_contracts": null,
+              "callable_returns": null,
+              "exports": []
+            }
+          ]
+        },
+        "report_sha256": "cbed4f05627fc6036f62ff28c7e7781c5b05c23b2c3648e37717b17c4843e759"
+      },
+      "enum-store-helper": {
+        "source": "extern \"C\" fn putchar(code:i32)->i32;\nresource R{code:i32}\nimpl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}\npackage P{manages owner:R;n:i32}\nfn populated(code:i32)->Store<P> contract{result(create)}{let cells:Store<P>=store_new();store_reserve(cells,1);store_push(cells,P{owner:R{code:code},n:42});return give cells}\nenum E{Left(Store<P>),Right(Store<P>)}\nfn work()->i32{let value=E.Left(populated(65));match value{E.Left(cells)=>{let current=store_at(cells,0);return current.n},E.Right(cells)=>{let current=store_at(cells,0);return current.n}}}\nfn main()->i32{let seen=work();unsafe{putchar(48+seen/10);putchar(48+seen%10);putchar(10)}return 0}\n",
+        "source_sha256": "29f758407d73ee850052a514a3c13aff777434752d458adf4f7c50387c1ba65d",
+        "report": {
+          "status": "Unsupported",
+          "phase": "types",
+          "diagnostics": [
+            {
+              "phase": "types",
+              "category": "Unsupported",
+              "code": "E-UNSUPPORTED",
+              "message": "enum payload requires finite Copy or an ordinary complete owned value",
+              "span": {
+                "file": 0,
+                "start": 328,
+                "end": 366
+              },
+              "notes": []
+            }
+          ],
+          "artifacts": {
+            "core": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/enum-store-helper-emit/core.txt",
+            "ct-core": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/enum-store-helper-emit/ct-core.txt",
+            "source-map": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/enum-store-helper-emit/source-map.txt",
+            "syntax": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/enum-store-helper-emit/syntax.txt"
+          },
+          "input_fingerprint": "9794a0b94d6af5784b24f5f589d63de4e47b334890d4be8de436ae769b5c0e87",
+          "seconds": 0.016354514,
+          "cache_hit": false,
+          "commands": [],
+          "native_codegen": null,
+          "disk_cache": "disabled",
+          "query_events": [
+            {
+              "phase": "parse",
+              "disposition": "executed"
+            },
+            {
+              "phase": "expand",
+              "disposition": "executed"
+            },
+            {
+              "phase": "ct",
+              "disposition": "executed"
+            },
+            {
+              "phase": "types",
+              "disposition": "executed"
+            }
+          ],
+          "verification_runs": 0,
+          "source_files": {
+            "0": "/workspace/.zil-env/G3.3.9-tmp/g13-independent-scope/enum-store-helper-no-replacement.zil"
+          },
+          "scalar_interfaces": []
+        },
+        "report_sha256": "f86fe669e6e4d374899019b74220494cac060509a3ebec8d0e7f1b0ec757bc48"
+      }
+    }
+  },
+  "verification_independence": "No author test/check helper or Analyze proof called to derive review conclusions. Qualification controls independently edit original Source to remove replacement. No new full raw/Wire executable claim is made by this static review; root must independently replay/forge actual IR as assigned.",
+  "remaining": [
+    "Root replay wholeSum/native including TupleStore after correction; prior native target stopped at first unsupported EnumStore",
+    "Combined G13/G33 and G44 integration acceptance",
+    "Any formal old-budget/Product gate decision remains integrator-owned"
+  ]
+}

@@ -1,0 +1,105 @@
+{
+  "source": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+  "rows": [
+    {
+      "label": "contract-raw",
+      "source": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g4463_array_signature_cannot_drop_its_complete_class_contract",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "seconds": 24.12,
+      "log_sha256": "c781bef3a82addd00598ca596c779bb6e9c8b351d0fdf0f5f007e48903a39996",
+      "passed": 0,
+      "failed": 1
+    },
+    {
+      "label": "closure-fee",
+      "source": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g3326_captured_source_native_full_results_and_budget",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 5.35,
+      "log_sha256": "fc980078fdd31b8678c6626a469e4140fca9f5e4e792e5f1b0d54f4bc61b358a",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "label": "dag-fee",
+      "source": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "generic_regressions",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g338_actual_dag_budget_boundaries_and_old_tail_fees",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.91,
+      "log_sha256": "9ce668106207fc6c91f99ff0af258ca93a8ec0d1ae98dfb31d93b792fd3638a2",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "label": "ct-negative",
+      "source": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g445_actual_source_record_relocation_has_independent_call_and_life_proofs",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 11.53,
+      "log_sha256": "ff1f5ffc186ac809990ea5712608affeae07bffcfe8f927a0613695ee34a71bc",
+      "passed": 1,
+      "failed": 0
+    }
+  ],
+  "head_after": "05d88ce7ca4df3578b144c8e8cb66b5b70e99d67",
+  "dirty_after": "",
+  "scope": "Exact targeted execution; raw-contract control harness failures retained, not formal acceptance",
+  "passed": 3,
+  "failed": 1
+}

@@ -51,6 +51,10 @@ fn dependency(
     }
     let mut changed = false;
     match ty {
+        Type::BorrowedStorage { storage, life } => {
+            stored_borrows::shape(life, remaining)?;
+            changed |= dependency(storage, remaining, limits, depth + 1)?;
+        }
         Type::FunctionPointer { parameters, result }
         | Type::BorrowedFunctionPointer {
             parameters, result, ..

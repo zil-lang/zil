@@ -1372,6 +1372,17 @@ CT5的源上下文与图内owner分域：CtTypeRef.ambient_classes把本图实�
 共同40接续改变类行及可调用关系字节后，公共schema/Wire统一为40，TypedModule/TypeIdentity及LifeInventory域V40、StorageLifeContract域2、CallableParameterContract域6；CT schema及相关artifact/program/provider/dependency/function/value域为5。未改变布局的CallableReturnContract域3保留。历史Wire39/CT4不复用新版布局；表示发布与各消费者实际准入分别记录，未迁移消费者不能接收新形状。所有新表、路径、端口叶、上下文键、映射和clone在扫描/增长前从同一请求剩余额度预费；数字owner不能触发无界递归。codec只证明有限运输，独立实际根、权限、清理及源码/机器消费者仍必须分别落地。未接通的旧消费者显式拒绝新形状，不能默默忽略非空元数据。
 
 
+CT6 接续 CT4/CT5 的完整 Type 图与实际上下文契约，新增 `CtInstructionKind::TypeInContext { ty: CtTypeRef } -> CtTy::Type`。指令携带完整根图，不新增可独立制造的 Lifetime 值，不把 Type 加入普通常量表；数值节点、schema、生产者 witness 和 span 均不授予来源或访问资格。独立消费者核验物理 DAG、词法 owner、完整实参类别、名义声明/可见性和每个 ambient 端点；真实 Type 表达式及调用实参须从不可变源码结构位置和实际实例替换恢复，不能只比较同一生产者生成的两份字段。调用实参种类正确不等于所选 life 正确。
+
+CT6 的 `CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>` 显式保留实际词法宿主上下文；宿主与成员各自使用 Definition 或本声明完整有序 Instantiated 实参，成员向量不得混入宿主参数。父边须与原声明或经核生成声明的真实词法父链一致，有限、无环，且在完整上下文键中保留。无 life 的泛型宿主仍可携带真实 Type/Const 实参；它不凭空声明 life。原 free scope 的 enclosing 为 None，关系与费用保持既有路径。
+
+带上下文 Type 的执行、调用返回、缓存运输和重实体化必须保留共同 ValueContext，沿已核真实来源保持关系，不将抽出的节点重新命名为自由 life。VM 对入口、构造及结果继续调用独立受计费图核验；不能仅删除 ambient 拒绝条件。完整图扫描、源码定位、比较、克隆、参数替换、失败和容量增长在执行前使用同一请求剩余额度计费；旧无上下文路径不因新指令额外构造账本。
+
+运行时泛型体的 CT 入口只可由独立冻结消费者在实际原始 Call、callee 原 Definition、完整 Type/Const/Life 实参及原 CT 子表达式根全部核验后，授予绑定完整行及原始行位置的精确 Definition/Instantiated scope 根。已核父链根先于入口 Type 图建立 first-use，不能仅按未核 raw 顺序授信。`authorized_runtime_scope_root` 默认拒绝，计数接口只提供比较费用上界；同形图和生产者 recipe 不授予权限。无 life 参数的真实实例仍须同样认证。授权根不豁免参数种类、完整向量、有限无环依赖、first-use 或 unused-row 检查；额外无关行、声明/ordinal 替换及重排均须拒绝，完整图比较和遍历预付。
+
+CT6 的 artifact/program/provider/dependency/function/value 版本域和专用封包同步迁移，拒绝旧 CT5 字节作为新版输入；运行时 schema/Wire 不因这条 CT 专用指令变更。上述为后继实施合同，公共表示可运输不代表泛型宿主、生成声明、运行时泛型体 CT 相位或完整语言已经验收；各项仍须真实源码、独立反例、预算边界及机器消费者证据。
+
+
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 
 普通 Struct 的直接 Copy 参数约束（320）：在已有普通泛型 Struct 范围，类型参数可声明直接保留 `Copy` bound；每个 bound 只约束其具名参数，其余无 bound 参数保持原规则，不据此推断整个 Struct 为 Copy。字段声明及嵌套泛型应用在定义期核验，未使用的声明同样检查；内层 Copy obligation 须由当前真实 binder 的已声明约束证明，不能等实际 i32 特化后补证。实际实例逐一验证受约束参数的完整普通 Copy 资格，包含未出现在字段中的 phantom 参数；透明别名正规化、名义身份与完整实例键沿现有规则。此片不开放 aggregate where、任意 trait bound、Package/Resource 的新约束、方法或默认字段；既有字段资格保持。新增遍历/类型比较在增长前累计收费，默认额度不变，源正反例、实例身份和预算以及原生结果须实际核回。
@@ -1393,9 +1404,9 @@ CT5的源上下文与图内owner分域：CtTypeRef.ambient_classes把本图实�
 
 有限混合拥有State profile（197）：在194的唯一F与唯一直接函数`T:Copy`基础上，允许一个无聚合bound的`package State<T,F>`或`State<F,T>`保存唯一直接callable字段及有限Copy数据，继续满足既有Package资源字段、完整责任与清理规则。State外壳也可提供普通T推导约束；参数求值一次，F身份只由实际环境确定。原始名义声明和完整规范化普通T决定数据族，真实ClosureId决定具体环境；phantom T、不同模块同名或同布局名义类型不能合并，相同实际T的透明别名和不同词法F/G应归一。普通T所有复制、遍历、键构造及字段扫描在原额度中先计费。未调用定义也检查Copy能力；Copy不授予字段、数值或callable操作。State整体不获得Copy，多callback字段、多个环境角色的拥有State、aggregate上的一般bound及动态擦除不由本片开放。192真实sibling字段权限、FnOnce责任和独立Analyze/Verify保持。
 
-有限多角色同步helper profile（196）：允许至多两个直接F、&F或&mut F环境形参，可来自同一callable泛型或分别F/G，普通Copy T沿194规则。每个真实形参位置是独立角色；相同ClosureId仅表示类型/布局，不表示同一运行时实例或apart。相同泛型的角色使用一致bound和传递模式；不同F/G可有各自已核模式。实例键按callable泛型声明顺序包含全部实际ClosureId，不能按角色到达或布局猜类型。角色表按真实形参位置严格排序且唯一，完全覆盖环境参数；一份联合有序Finite/Flow调用语言记录`{parameter, kind}`事件，保留分支相关性、先后顺序及Return/Trap/无返回前缀。各角色独立的计数或轨迹笛卡尔积不能替代联合合同。
+有限多角色同步helper profile（196，G3.3.10 接续）：允许请求额度内有限多个直接F、&F或&mut F环境形参，可来自同一callable泛型或多个独立callable参数，普通Copy T沿194规则。每个真实形参位置是独立角色；相同ClosureId仅表示类型/布局，不表示同一运行时实例或apart。相同泛型的角色使用一致bound和传递模式；不同F/G可有各自已核模式。实例键按callable泛型声明顺序包含全部实际ClosureId，不能按角色到达或布局猜类型。角色表按真实形参位置严格排序且唯一，完全覆盖环境参数；一份联合有序Finite/Flow调用语言记录`{parameter, kind}`事件，保留分支相关性、先后顺序及Return/Trap/无返回前缀。各角色独立的计数或轨迹笛卡尔积不能替代联合合同。
 
-Types、Analyze和Verify分别从实际参数、值/局部传播、CFG及每个静态child调用点的实参替换重建角色事实与联合轨迹；Verify不调用前两阶段求证。每次普通调用按源顺序准备所有实参，并同时检查全部实际窗口；重借或自身窗口豁免只对当前角色成立，不能联合角色权限。写上界、Hold/Call和Owned/Borrowed清理按真实角色环境分别代入；未知或混合来源不能当空集合。有限无回边路径逐角色限制FnOnce至多一次，有可达回边且存在FnOnce角色仍Unsupported。首片多角色限同步不逃逸及Copy结果；多角色lending/拥有State投影、dyn、async与持久保存不由本片开放。所有角色、事件、来源集合、实例键和child替换/队列/复制在分配或扩张前按现有额度收费；默认额度不提高。公共表示变更发布schema/Wire25和新指纹域，旧版本明确拒绝。上述两profile的实际准入完成状态以精确实现和非作者验收为准，登记不等于实现。
+Types、Analyze和Verify分别从实际参数、值/局部传播、CFG及每个静态child调用点的实参替换重建角色事实与联合轨迹；Verify不调用前两阶段求证。每次普通调用按源顺序准备所有实参，并同时检查全部实际窗口；重借或自身窗口豁免只对当前角色成立，不能联合角色权限。写上界、Hold/Call和Owned/Borrowed清理按真实角色环境分别代入；未知或混合来源不能当空集合。有限无回边路径逐角色限制FnOnce至多一次；G3.3.9 接续允许可达回边，各核分别从真实 CFG 重建来源、激活及逐角色责任的不动点。每次动态激活的实际拥有角色只能消费或清理一次；所有正常退出结清剩余责任，回边不能恢复已消费的原参数、复制拥有责任或跳过清理。旧无环成功路径保持原证明；只有独立发现实际环后才进入循环求证，额度失败不重试。队列、状态复制和新增扫描在增长前预费，并限制待处理队列的物理大小。首片多角色限同步不逃逸及Copy结果；多角色lending/拥有State投影、dyn、async与持久保存不由本片开放。所有角色、事件、来源集合、实例键和child替换/队列/复制在分配或扩张前按现有额度收费；默认额度不提高。公共表示变更发布schema/Wire25和新指纹域，旧版本明确拒绝。上述两profile的实际准入完成状态以精确实现和非作者验收为准，登记不等于实现。
 
 
 有限同F双字段拥有State profile（200）：沿197的单callable类型身份，允许一个完整Package保存一或两个直接、自含、同F的callable字段，普通Copy T仍沿194/197规则。唯一F类型绑定不合并两个实际环境值；相同ClosureId的不同字段始终是独立位置与责任。新增拥有构造入口可按值接收至多两个同F且同声明模式的直接实参，返回该完整State；新增双输入入口的其余形参仅限既有有限Copy值或直接Managed值，不引入额外State、Desc或地址参数；既有单输入入口保持原规则；以实际签名、字段与转交行为识别，不依赖函数名。既有单State参数操作保持，首片不由此开放State加replacement F、两个State参数、F/G State或嵌套callable字段。

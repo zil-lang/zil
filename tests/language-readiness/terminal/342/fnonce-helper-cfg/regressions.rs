@@ -161,7 +161,44 @@ fn g338_actual_dag_budget_boundaries_and_old_tail_fees() {
                 }
             }
             if let Some(known) = known {
-                assert_eq!(low, known[phase], "{label}/{phase}");
+                // G3.3.10 replaces u8 marks by a pointer-sized actual-role key
+                // plus flags. This exact old source has one 4-local/12-SSA
+                // table in each independent helper consumer: 16 * 15 = 240
+                // added physical units on this 64-bit host. Keep old N red.
+                let slots: usize = raw
+                    .functions
+                    .iter()
+                    .filter(|f| f.callable_contract.is_some())
+                    .map(|f| f.locals.len() + f.values.len())
+                    .sum();
+                assert_eq!(slots, 16);
+                let physical_delta = slots * (std::mem::size_of::<(usize, u8)>() - 1);
+                assert!(
+                    check(known[phase])
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
+                );
+                // G4's complete nominal graph checks add 98/178 work in
+                // these independent kernels. Actual retained-boundary scans
+                // add 25*3 / 41*3 respectively; neither is staged CFG work.
+                let nominal_delta = if phase == 0 { 98 } else { 178 };
+                let retained_delta = if phase == 0 { 25 * 3 } else { 41 * 3 };
+                assert_eq!(
+                    low,
+                    known[phase] + physical_delta + nominal_delta + retained_delta,
+                    "{label}/{phase}"
+                );
+                assert!(
+                    check(known[phase] + physical_delta)
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
+                );
+                eprintln!(
+                    "G338 old-tail phase{phase} prior N={} now ResourceLimit; Origin +{physical_delta}, nominal graph +{nominal_delta}, retained scans +{retained_delta}",
+                    known[phase],
+                );
             }
             eprintln!("G338 {label} phase{phase} N={low}/N-1/fresh/retry");
         }

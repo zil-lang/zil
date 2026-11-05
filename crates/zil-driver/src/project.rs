@@ -79,7 +79,25 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
         ast::ItemKind::Import(import) if matches!(import.path.as_slice(),
             [a, b] if a == "std" && (b == "meta" || b == "syntax")))
     });
+    let runtime_generic_ct = parsed.module.items.iter().any(|item| {
+        matches!(&item.kind, ast::ItemKind::Function(function)
+            if function.generics.iter().any(|parameter| !matches!(parameter.kind, ast::GenericParamKind::Lifetime))
+            && parsed.tokens.iter().any(|token| token.span.start >= function.span.start
+                && token.span.end <= function.span.end && token.text(&source.text) == "#"))
+    });
+    // Candidate routing only. A real static-host call, its complete source
+    // actuals, effects and successful execution are checked by the CT consumer.
+    // An unrelated #(7) cannot qualify any of these ordinary methods.
+    let static_namespace_ct = parsed.module.items.iter().any(|item| {
+        matches!(&item.kind, ast::ItemKind::Aggregate(host)
+            if !host.generics.is_empty() && !host.methods.is_empty())
+    }) && parsed
+        .tokens
+        .iter()
+        .any(|token| token.text(&source.text) == "#");
     standard
+        || runtime_generic_ct
+        || static_namespace_ct
         || parsed.type_meta_candidate
         || parsed.tokens.iter().any(|token| {
             token.kind == zil_syntax::token::TokenKind::Identifier
@@ -616,6 +634,8 @@ impl CompilationSession {
                         })?;
                     }
                 }
+                let runtime_phase = ct_result.as_mut().and_then(|result|
+                    result.take_runtime_phase(&project.modules, &parsed, &project.paths));
                 let generated_syntax = ct_result.as_ref().map(|result| result.modules.iter().collect::<Vec<_>>());
                 let syntax = generated_syntax.as_deref().unwrap_or(selected_syntax);
                 let context=zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
@@ -629,16 +649,22 @@ impl CompilationSession {
                         zil_expand::source_context::DeclarationPlacement::Original
                     },
                 };
-                for (module, map) in zil_expand::expand_program_with_limits_target_context(
-                    &project.modules,
-                    syntax,
-                    &runtime_imports,
-                    ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref()).unwrap_or(&options.limits),
-                    &options.target,
-                    context,
-                )? {
+                let expand_limits = ct_result.as_ref().and_then(|result| result.lineage_remaining.as_ref()).unwrap_or(&options.limits);
+                let expanded = if let Some(phase) = &runtime_phase {
+                    zil_expand::expand_program_with_runtime_ct(
+                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context, phase,
+                    )?
+                } else {
+                    zil_expand::expand_program_with_limits_target_context(
+                        &project.modules, syntax, &runtime_imports, expand_limits, &options.target, context,
+                    )?
+                };
+                for (module, map) in expanded {
                     modules.push(module);
                     maps.push(map);
+                }
+                if let Some(phase) = runtime_phase {
+                    ct_result.as_mut().expect("runtime phase came from materialization").finish_runtime_phase(phase)?;
                 }
                 Ok(RawSnapshot::Project(Arc::new(ExpandedProject {
                     core: Arc::new(CoreProgram {

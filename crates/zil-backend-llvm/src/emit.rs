@@ -122,7 +122,12 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     let sum_helpers = bind_lir(verified, lir, options.entry)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
-        stored_borrows::reserve_emission(lir, verified.limits(), &mut copy_plans.remaining_work)?;
+        stored_borrows::reserve_emission(
+            lir,
+            verified.limits(),
+            &copy_plans.values,
+            &mut copy_plans.remaining_work,
+        )?;
     }
     let task_meter = tasks::Meter::new(copy_plans.remaining_work);
     let task_cleanup_helpers = drop_plan::task_helpers(verified, &task_meter)?;
@@ -764,8 +769,10 @@ fn bind_lir(
                 .storage_life
                 .as_ref()
                 .is_some_and(|life| life.fixed_binder_count > 0)
-            && closure.lending_captures.is_empty()
-            && closure.result.is_b0_scalar();
+            && ((closure.lending_captures.is_empty() && closure.result.is_b0_scalar())
+                || (!closure.lending_captures.is_empty()
+                    && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                    && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())));
         let qualified_signature = verified.uses_stored_borrows()
             && closure.captures.iter().all(|t| {
                 matches!(
@@ -820,7 +827,7 @@ fn bind_lir(
                     || sum_capture_address(ty)
                     // The exact capability/LIR comparison above already binds
                     // origin admission; use the existing pointer field layout.
-                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+                    || ty.is_package_address()
                     // The exact VerifiedModule binding above carries the
                     // independently checked owning Store capture contract.
                     // Borrowed descriptions do not gain an owning ABI here.
@@ -891,6 +898,7 @@ fn bind_lir(
                 && !packages::supported_value_type(ty, lir.resources)
                 && !errors::supported_type(ty, lir.resources)
                 && !arrays::supported_type(ty, lir.resources)
+                && !stored_borrows::pure_storage_address(ty)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -1959,7 +1967,7 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 };
-                let Type::Array { length, .. } = inner.as_ref() else {
+                let Type::Array { length, .. } = enums::storage_shape(inner) else {
                     return invalid(
                         "E-CODEGEN-CFG",
                         "index projection requires an array",
@@ -3262,7 +3270,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let result = instruction.result.expect("verified array operation result");
         let ty = &self.function.values[aggregate.0 as usize];
-        let Type::Array { element, length } = ty else {
+        let Type::Array { element, length } = enums::storage_shape(ty) else {
             return unsupported("verified index lost array type", Some(instruction.span));
         };
         let element = (**element).clone();
@@ -3449,7 +3457,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) =>
+                )
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Ok("ptr".into())
         }
@@ -3499,7 +3508,7 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || shared_qualified_capture_address(ty)
             || sum_capture_address(ty)
             || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-            || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+            || ty.is_package_address()
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
@@ -3537,7 +3546,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) =>
+                )
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Ok(8)
         }
@@ -3594,7 +3604,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !shared_qualified_capture_address(field)
                     && !sum_capture_address(field)
                     && !matches!(field,Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-                    && !(field.is_package_address() && matches!(field, Type::Address { mutable: false, .. }))
+                    && !field.is_package_address()
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))

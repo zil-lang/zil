@@ -1,0 +1,14 @@
+{
+  "source_base": "fac10b690503024a0f4717c18b44f2b7d8ee07af",
+  "working_diff": "Only exact endpoint diagnostic assertion and this evidence",
+  "authorization": "Root granted ONE existing exact lib filtered test and held heavy window",
+  "command": "cargo test --locked --offline -p zil-driver --lib -j1 --features llvm-api ct_artifact::execute::mixed_instance_tests::g445_actual_source_record_relocation_has_independent_call_and_life_proofs -- --exact --nocapture",
+  "passed": 1,
+  "failed": 0,
+  "build_seconds_rounded": 65,
+  "test_seconds": 0.01,
+  "log_sha256": "22169abdd90a2e5efd84fbf1ce534cfcc9d0ead04a5d921d1c82f5831394b5aa",
+  "scope": "Both original source fixtures; ledger and SSA mutations; source/target genuine-life endpoint swap; full Type/Const call-vector mutation; complete nominal schema-vector and context-node mutation; raw and Wire decoder routes",
+  "semantic_or_consumer_change": false,
+  "next": "Root may resume heavy window; no additional author tests run"
+}

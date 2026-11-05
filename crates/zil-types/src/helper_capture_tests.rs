@@ -121,7 +121,12 @@ fn fixture(
     (function, bounds)
 }
 
-fn check(scoped: bool, captured: u32, forwarded: bool, work: usize) -> R<(Vec<u8>, Vec<u8>)> {
+fn check(
+    scoped: bool,
+    captured: u32,
+    forwarded: bool,
+    work: usize,
+) -> R<(Vec<Origin>, Vec<Origin>)> {
     let (function, bounds) = fixture(scoped, captured, forwarded);
     let limits = Limits {
         max_analysis_steps: work,
@@ -206,8 +211,9 @@ fn same_identity_fresh_and_supplied_values_cannot_mix_inside_a_capture() {
 
 #[test]
 fn disjoint_borrowed_local_capture_keeps_exact_fresh_work_boundaries() {
-    // With-local previously cost 41/47: one prepaid queue entry and its
-    // two-unit capture audit add three. Ordinary-local stays at 37/43.
+    // Keep the old measured traversal controls. The seven actual origin slots
+    // now pay their full physical record size, including padding, before alloc.
+    // This is an explicit size migration, not a widened work allowance.
     for (scoped, forwarded, n) in [
         (true, false, 44),
         (true, true, 50),
@@ -215,8 +221,23 @@ fn disjoint_borrowed_local_capture_keeps_exact_fresh_work_boundaries() {
         (false, true, 43),
     ] {
         let expected = check(scoped, 2, forwarded, 10_000).unwrap();
-        assert_eq!(expected.1[2], if scoped { 16 } else { 32 });
-        assert_eq!(expected.1[0], 0);
+        let (function, _) = fixture(scoped, 2, forwarded);
+        let physical_delta = (function.locals.len() + function.values.len())
+            * (std::mem::size_of::<Origin>() - std::mem::size_of::<u8>());
+        assert_eq!(
+            check(scoped, 2, forwarded, n).unwrap_err().category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let n = n + physical_delta;
+        assert_eq!(
+            expected.1[2],
+            if scoped {
+                Origin::BODY
+            } else {
+                Origin::CONCRETE
+            }
+        );
+        assert_eq!(expected.1[0], Origin::EMPTY);
         assert_eq!(check(scoped, 2, forwarded, n).unwrap(), expected);
         assert_eq!(check(scoped, 2, forwarded, n).unwrap(), expected);
         assert_eq!(
@@ -377,7 +398,7 @@ fn a_single_element_parameter_bridge_does_not_authorize_an_aggregate_call() {
     captures.clear();
     let mut state = closures::State::new(0, &Limits::default());
     let (_, origins) = environment_origins(&function, &bounds, &mut state, span()).unwrap();
-    assert_eq!(origins[1], 2);
+    assert_eq!(origins[1], Origin::supplied(1, false));
     let call = Instruction {
         result: None,
         kind: InstructionKind::Call {

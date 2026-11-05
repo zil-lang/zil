@@ -47,6 +47,128 @@ pub(super) fn substituted(
     .ty(&mut ty);
     Ok(ty)
 }
+
+fn source_field_actuals(
+    formals: &[GenericParam],
+    arguments: &[GenericArg],
+    field: &TypeRef,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    if formals.len() != arguments.len() {
+        return Err(error(
+            field.span,
+            "source field needs full ordered nominal actuals",
+        ));
+    }
+    let mut substitutions = BTreeMap::new();
+    let mut lives = BTreeMap::new();
+    for (formal, argument) in formals.iter().zip(arguments) {
+        budget.text(&formal.name, formal.span)?;
+        match (&formal.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                budget.text(name, field.span)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, String)>(), field.span)?;
+                lives.insert(formal.name.clone(), name.clone());
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), field.span)?;
+                substitutions.insert(formal.name.clone(), ty.clone());
+            }
+            (GenericParamKind::Const(_), arg) => {
+                let value = consts::argument(arg, Some(formal), budget)?;
+                let value = consts::normalize(formal, &value, budget)?;
+                budget.ty(&value)?;
+                budget.lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), field.span)?;
+                substitutions.insert(formal.name.clone(), value);
+            }
+            _ => {
+                return Err(error(
+                    field.span,
+                    "source field actual kind differs from formal",
+                ));
+            }
+        }
+    }
+    budget.ty(field)?;
+    let mut actual = field.clone();
+    // Rebind only lifetimes written in the declaration. A caller's Type
+    // actual may contain the same spelling with a different lexical owner;
+    // inserting it first would capture that unrelated lifetime.
+    source_field_lives(&mut actual, &lives, budget, 0)?;
+    budget.substituted_type(&actual, &substitutions)?;
+    Substitution {
+        substitutions: &substitutions,
+    }
+    .ty(&mut actual);
+    Ok(actual)
+}
+
+fn source_field_lives(
+    ty: &mut TypeRef,
+    lives: &BTreeMap<String, String>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
+    match &mut ty.kind {
+        TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+            for argument in args {
+                match argument {
+                    GenericArg::Lifetime(name) => {
+                        budget.text(name, ty.span)?;
+                        if let Some(actual) = lives.get(name) {
+                            budget.text(actual, ty.span)?;
+                            *name = actual.clone();
+                        }
+                    }
+                    GenericArg::Type(inner) => source_field_lives(inner, lives, budget, depth + 1)?,
+                    GenericArg::Const(_) => {}
+                }
+            }
+        }
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => {
+            if let Some(name) = lifetime
+                && let Some(actual) = lives.get(name)
+            {
+                budget.text(name, ty.span)?;
+                budget.text(actual, ty.span)?;
+                *name = actual.clone();
+            }
+            source_field_lives(inner, lives, budget, depth + 1)?;
+        }
+        TypeKind::Group(inner) | TypeKind::Optional(inner) => {
+            source_field_lives(inner, lives, budget, depth + 1)?
+        }
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
+            for field in fields {
+                source_field_lives(field, lives, budget, depth + 1)?;
+            }
+        }
+        TypeKind::Array { element, .. } => source_field_lives(element, lives, budget, depth + 1)?,
+        TypeKind::Error { error, result } => {
+            source_field_lives(error, lives, budget, depth + 1)?;
+            source_field_lives(result, lives, budget, depth + 1)?;
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            for parameter in params {
+                source_field_lives(parameter, lives, budget, depth + 1)?;
+            }
+            source_field_lives(result, lives, budget, depth + 1)?;
+        }
+        TypeKind::ForLifetime { .. } if !lives.is_empty() => {
+            return Err(unsupported(
+                ty.span,
+                "source field nested lifetime binder needs scoped substitution",
+            ));
+        }
+        _ => {}
+    }
+    Ok(())
+}
 pub(super) fn context(
     decl: &EnumDecl,
     expected: Option<&TypeRef>,
@@ -188,6 +310,25 @@ pub(super) fn validate_declaration(
             return Err(unsupported(variant.span, "record enum variants"));
         }
     }
+    if decl
+        .generics
+        .iter()
+        .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+    {
+        for variant in &decl.variants {
+            for field in fields(decl, &variant.name, variant.span)? {
+                if field.manages {
+                    return Err(unsupported(field.span, "owned generic enum payload"));
+                }
+                scoped_shape(&field.ty, &decl.generics, nominals, budget, 0)?;
+            }
+        }
+        // Every physical specialization is subsequently checked by the
+        // stored nominal producer, Copy registration and three consumers.
+        // The legacy layout walker represents formals as Type-only and
+        // cannot faithfully encode this declaration's Life ordinals.
+        return Ok(());
+    }
     let variables = decl
         .generics
         .iter()
@@ -213,6 +354,140 @@ pub(super) fn validate_declaration(
         }
     }
     layout(&ty, &variables, nominals, &mut BTreeSet::new(), budget, 0)
+}
+
+fn scoped_formal<'a>(
+    formals: &'a [GenericParam],
+    name: &str,
+    budget: &mut Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<Option<&'a GenericParam>> {
+    for formal in formals {
+        budget.node(formal.span, depth)?;
+        budget.text(&formal.name, formal.span)?;
+        budget.text(name, span)?;
+        if formal.name == name {
+            return Ok(Some(formal));
+        }
+    }
+    Ok(None)
+}
+
+fn scoped_shape(
+    ty: &TypeRef,
+    formals: &[GenericParam],
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
+    match &ty.kind {
+        TypeKind::Named { path, args } if path.len() == 1 => {
+            let name = &path[0];
+            if let Some(formal) = scoped_formal(formals, name, budget, ty.span, depth + 1)? {
+                if !matches!(formal.kind, GenericParamKind::Type(_)) || !args.is_empty() {
+                    return Err(error(
+                        ty.span,
+                        "scoped enum payload formal needs a bare Type parameter",
+                    ));
+                }
+                return Ok(());
+            }
+            if matches!(
+                name.as_str(),
+                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64" | "bool" | "void"
+            ) {
+                if !args.is_empty() {
+                    return Err(error(ty.span, "scalar enum payload has type actuals"));
+                }
+                return Ok(());
+            }
+            budget.identity_work(
+                nominals.len().saturating_mul(name.len().saturating_add(1)),
+                ty.span,
+            )?;
+            let item = nominals
+                .get(name)
+                .ok_or_else(|| error(ty.span, "unknown scoped enum payload nominal"))?;
+            let parameters = params(item);
+            if parameters.len() != args.len() {
+                return Err(error(
+                    ty.span,
+                    "scoped enum payload needs full actual arity",
+                ));
+            }
+            for (parameter, actual) in parameters.iter().zip(args) {
+                budget.node(parameter.span, depth + 1)?;
+                match (&parameter.kind, actual) {
+                    (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                        budget.text(name, ty.span)?;
+                        if !scoped_formal(formals, name, budget, ty.span, depth + 1)?
+                            .is_some_and(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                        {
+                            return Err(error(
+                                ty.span,
+                                "scoped enum payload lifetime is not a declaration binder",
+                            ));
+                        }
+                    }
+                    (GenericParamKind::Type(_), GenericArg::Type(inner)) => {
+                        scoped_shape(inner, formals, nominals, budget, depth + 1)?
+                    }
+                    (GenericParamKind::Const(domain), arg) => {
+                        let carrier = consts::argument(arg, Some(parameter), budget)?;
+                        let value = consts::expression(&carrier).ok_or_else(|| {
+                            unsupported(ty.span, "scoped enum payload const has no expression")
+                        })?;
+                        if let ExprKind::Name(name) = &value.kind {
+                            let Some(source) =
+                                scoped_formal(formals, name, budget, ty.span, depth + 1)?
+                            else {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const lacks a source binder",
+                                ));
+                            };
+                            let GenericParamKind::Const(source_domain) = &source.kind else {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const binder kind differs",
+                                ));
+                            };
+                            if type_key(domain, budget)? != type_key(source_domain, budget)? {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const domain differs",
+                                ));
+                            }
+                        } else {
+                            consts::normalize(parameter, &carrier, budget)?;
+                        }
+                    }
+                    _ => return Err(error(ty.span, "scoped enum payload actual kind differs")),
+                }
+            }
+            Ok(())
+        }
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+            for field in fields {
+                scoped_shape(field, formals, nominals, budget, depth + 1)?;
+            }
+            Ok(())
+        }
+        TypeKind::Array {
+            element,
+            length: Some(length),
+        } => {
+            array_length(length)?;
+            scoped_shape(element, formals, nominals, budget, depth + 1)
+        }
+        TypeKind::Group(inner) => scoped_shape(inner, formals, nominals, budget, depth + 1),
+        _ => Err(unsupported(
+            ty.span,
+            "scoped enum payload requires finite Copy type syntax",
+        )),
+    }
 }
 // Validate every written type argument, including phantom arguments which do
 // not contribute fields to the layout walk.
@@ -441,6 +716,148 @@ impl Engine<'_> {
         };
         let variant = variant.to_owned();
         let raw_fields = fields(decl, &variant, span)?;
+        let source_application = explicit.or_else(|| {
+            expected.and_then(|ty| match &grouped(ty).kind {
+                TypeKind::Named { path, args } if path.as_slice() == [decl.name.as_str()] => {
+                    Some(args.as_slice())
+                }
+                _ => None,
+            })
+        });
+        let scoped_enum = decl
+            .generics
+            .iter()
+            .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+        let stored_enum = self.stored_nominals
+            && (scoped_enum
+                || if let Some(args) = source_application {
+                    self.stored_application(&decl.name, args, span, depth + 1)?
+                } else {
+                    false
+                });
+        if stored_enum {
+            let source_arguments = if let Some(explicit) = explicit {
+                if explicit.len() != decl.generics.len() {
+                    return Err(error(
+                        span,
+                        "stored enum constructor needs full ordered actuals",
+                    ));
+                }
+                for argument in explicit {
+                    self.budget.node(span, depth)?;
+                    match argument {
+                        GenericArg::Type(ty) => self.budget.ty(ty)?,
+                        GenericArg::Lifetime(name) => self.budget.text(name, span)?,
+                        GenericArg::Const(value) => self.budget.const_expression(value)?,
+                    }
+                }
+                explicit.to_vec()
+            } else {
+                let source_expected = expected.ok_or_else(|| {
+                    unsupported(
+                        span,
+                        "stored enum constructor needs source actuals or a full source context",
+                    )
+                })?;
+                let TypeKind::Named { path, args } = &grouped(source_expected).kind else {
+                    return Err(unsupported(
+                        span,
+                        "stored enum constructor needs nominal source context",
+                    ));
+                };
+                if path.as_slice() != [decl.name.as_str()] || args.len() != decl.generics.len() {
+                    return Err(unsupported(
+                        span,
+                        "stored enum constructor source context differs",
+                    ));
+                }
+                self.budget.ty(source_expected)?;
+                args.clone()
+            };
+            let supplied = arguments.as_ref().map_or(0, |a| a.len());
+            if supplied != raw_fields.len() {
+                return Err(error(
+                    span,
+                    "stored enum constructor payload arity mismatch",
+                ));
+            }
+            if let Some(values) = arguments {
+                for (value, field) in values.iter_mut().zip(raw_fields) {
+                    if value.spread {
+                        return Err(unsupported(value.span, "enum payload tuple spread"));
+                    }
+                    let mut hint = source_field_actuals(
+                        &decl.generics,
+                        &source_arguments,
+                        &field.ty,
+                        &mut self.budget,
+                    )?;
+                    self.ty(&mut hint, depth + 1)?;
+                    let actual = if let Some(actual) =
+                        self.expr_expected(&mut value.value, env, Some(&hint), depth + 1)?
+                    {
+                        actual
+                    } else {
+                        self.value_hint(&value.value, env, depth + 1, true)?
+                            .ok_or_else(|| {
+                                error(value.span, "stored enum payload type cannot be inferred")
+                            })?
+                    };
+                    let actual = self.original_type(&actual)?;
+                    let expected = self.original_type(&hint)?;
+                    if type_key(&actual, &mut self.budget)?
+                        != type_key(&expected, &mut self.budget)?
+                    {
+                        return Err(error(
+                            value.span,
+                            "stored enum payload differs from source field",
+                        ));
+                    }
+                }
+            }
+            for argument in &source_arguments {
+                match argument {
+                    GenericArg::Type(ty) => self.budget.ty(ty)?,
+                    GenericArg::Lifetime(name) => self.budget.text(name, span)?,
+                    GenericArg::Const(value) => self.budget.const_expression(value)?,
+                }
+            }
+            let mut actuals = source_arguments.clone();
+            let (generated, classes) =
+                self.stored_nominal(&decl.name, &mut actuals, span, depth + 1)?;
+            if let Some(expected) = expected
+                && let TypeKind::Named { path, args } = &grouped(expected).kind
+                && path.as_slice() == [decl.name.as_str()]
+            {
+                self.budget.ty(expected)?;
+                let mut expected_args = args.clone();
+                let (expected_name, expected_classes) =
+                    self.stored_nominal(&decl.name, &mut expected_args, span, depth + 1)?;
+                if generated != expected_name || classes != expected_classes {
+                    return Err(error(
+                        span,
+                        "stored enum constructor differs from source context",
+                    ));
+                }
+            }
+            callee.kind = ExprKind::Member {
+                object: Box::new(Expr {
+                    kind: ExprKind::Name(generated.clone()),
+                    span,
+                }),
+                member: MemberName::Name(variant),
+            };
+            // Keep the real source actuals in the expression environment for
+            // a later pattern. The AST callee already names the physical enum;
+            // a generated name alone cannot recover the caller's classes.
+            return Ok(Some(TypeRef {
+                span,
+                kind: TypeKind::Named {
+                    path: vec![decl.name.clone()],
+                    args: source_arguments,
+                },
+            }));
+        }
         let mut found = BTreeMap::new();
         let vars = decl
             .generics
@@ -654,6 +1071,41 @@ impl Engine<'_> {
                 if raw.len() != arguments.len() {
                     return Err(error(pattern.span, "enum pattern payload arity mismatch"));
                 }
+                let scoped_enum = decl
+                    .generics
+                    .iter()
+                    .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+                let stored_enum = self.stored_nominals
+                    && (scoped_enum
+                        || self.stored_application(&decl.name, args, pattern.span, depth + 1)?);
+                if stored_enum {
+                    if args.len() != decl.generics.len() {
+                        return Err(error(
+                            pattern.span,
+                            "stored enum pattern needs full source actuals",
+                        ));
+                    }
+                    self.budget.ty(&written)?;
+                    let mut instance_args = args.clone();
+                    let (instance, _) = self.stored_nominal(
+                        &decl.name,
+                        &mut instance_args,
+                        pattern.span,
+                        depth + 1,
+                    )?;
+                    path[0] = instance;
+                    for (child, field) in arguments.iter_mut().zip(raw) {
+                        let mut actual = source_field_actuals(
+                            &decl.generics,
+                            args,
+                            &field.ty,
+                            &mut self.budget,
+                        )?;
+                        self.ty(&mut actual, depth + 1)?;
+                        self.enum_pattern(child, Some(&actual), env, depth + 1)?;
+                    }
+                    return Ok(());
+                }
                 let mut found = BTreeMap::new();
                 for (p, arg) in decl.generics.iter().zip(args) {
                     let GenericArg::Type(t) = arg else {
@@ -680,6 +1132,14 @@ impl Engine<'_> {
         Ok(())
     }
     pub(super) fn record_field(&mut self, ty: &TypeRef, member: &str) -> R<Option<TypeRef>> {
+        let Some(mut result) = self.source_record_field(ty, member)? else {
+            return Ok(None);
+        };
+        self.ty(&mut result, 0)?;
+        Ok(Some(result))
+    }
+
+    pub(super) fn source_record_field(&mut self, ty: &TypeRef, member: &str) -> R<Option<TypeRef>> {
         let original = self.original_type(ty)?;
         let TypeKind::Named { path, args } = &grouped(&original).kind else {
             return Ok(None);
@@ -697,17 +1157,28 @@ impl Engine<'_> {
         if decl.generics.len() != args.len() {
             return Err(error(ty.span, "generic record argument arity mismatch"));
         }
-        let mut found = BTreeMap::new();
-        for (p, arg) in decl.generics.iter().zip(args) {
-            let GenericArg::Type(t) = arg else {
-                return Err(unsupported(ty.span, "const record argument"));
-            };
-            self.budget.ty(t)?;
-            found.insert(p.name.clone(), t.clone());
+        if decl
+            .generics
+            .iter()
+            .all(|p| matches!(p.kind, GenericParamKind::Type(_)))
+            && args.iter().all(|arg| matches!(arg, GenericArg::Type(_)))
+        {
+            let mut found = BTreeMap::new();
+            for (p, arg) in decl.generics.iter().zip(args) {
+                let GenericArg::Type(t) = arg else {
+                    unreachable!()
+                };
+                self.budget.ty(t)?;
+                found.insert(p.name.clone(), t.clone());
+            }
+            return Ok(Some(substituted(&field.ty, &found, &mut self.budget)?));
         }
-        let mut result = substituted(&field.ty, &found, &mut self.budget)?;
-        self.ty(&mut result, 0)?;
-        Ok(Some(result))
+        Ok(Some(source_field_actuals(
+            &decl.generics,
+            args,
+            &field.ty,
+            &mut self.budget,
+        )?))
     }
     pub(super) fn call_hints(
         &mut self,

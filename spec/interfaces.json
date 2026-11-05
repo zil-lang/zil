@@ -571,6 +571,19 @@
       "finish": "Explicit nonclosed finish faults without freeing, as the existing Task protocol; no static Closed refinement is claimed. Unknown pollable Direct automatic Drop is rejected until actual independent Closed or synchronous-close proof exists.",
       "identity": "Typed/Type/LifeInventory domainsV42 and Wire42 reject older envelopes; prior synchronous tags remain unchanged, CT5 unchanged. All actual provider IDs, operands, environment and lifetime/cleanup dependencies retained and prepaid.",
       "admission": "Transport-only publication is separate from source, independent Analyze/Verify, Task frame and native event-queue consumers. Unimplemented consumers explicitly return Unsupported, including unused new declarations and types."
+    },
+    "contextual_type_production_ct6": {
+      "runtime_scope_roots": "Default-deny independent original Call + callee Definition + full Type/Const/Life vector + CT expression-root authentication may authorize only exact positional Definition/Instantiated rows, including no-life instances; independently checked parent roots seed first use before entry type graphs. Count is a prepaid comparison bound only; all kind, vector, bounded acyclic dependency, first-use and unused-row checks remain mandatory. Producer recipes, same-shaped declarations and unrelated extra rows grant no authority; runtime Wire unchanged.",
+      "authority": "_zil_design.md §18.1 CT6 successor to common40/CT5",
+      "state": "ContractToImplement",
+      "ct_schema_version": 6,
+      "instruction": "CtInstructionKind::TypeInContext { ty: CtTypeRef } -> CtTy::Type; complete rooted graph, no free lifetime value or Type constant",
+      "identity": "CT artifact/program/provider/dependency/function/value v6 and CT-only envelope migration; runtime schema/Wire unchanged by this instruction",
+      "source_authentication": "Independent immutable AST structural Type/Call site resolution, full original generic ordinals and actual instance vectors; source lifetimes cannot be authenticated by equality between producer graph and producer witness",
+      "independent_consumers": "Physical graph, lexical owner, ambient first-use, scope/actual metadata, nominal visibility and complete type identity; VM uses the independent metered graph checker and retains ValueContext through Type results/materialization",
+      "accounting": "Prepay scanning, source traversal, comparisons, copying, substitutions, failure and capacity growth from the same remaining request budget; preserve old closed paths",
+      "acceptance": "Actual Source producers/consumers, joint graph-and-witness and call-actual swaps, raw/Wire version and graph controls, N/N-1/fresh, cache identity, full native observations; transport/schema presence is not parent completion",
+      "enclosing_scope": "CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>; authentic lexical host edge with independent Definition/Instantiated own actuals, bounded acyclic parent graph and full contextual identity; free scopes None"
     }
   },
   "schemas": [

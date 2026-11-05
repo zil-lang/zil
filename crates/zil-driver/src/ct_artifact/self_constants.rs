@@ -940,6 +940,9 @@ impl Materializer<'_, '_> {
                 let s::ItemKind::Const(c) = &mut i.members[ordinal].kind else {
                     unreachable!("plan constant")
                 };
+                if let Some(previous) = &c.value {
+                    self.clear_expression_source_sites(previous)?;
+                }
                 c.value = Some(value);
                 output_bytes = output_bytes.saturating_add(26);
             } else {
@@ -977,7 +980,25 @@ impl Materializer<'_, '_> {
                 let s::ItemKind::Impl(i) = &mut module.items[implementation].kind else {
                     unreachable!("plan impl")
                 };
+                // A Vec reallocation moves inline nodes. Preserve only the
+                // already authenticated mapping; the synthesized default has
+                // no original expression authority.
+                self.environment.budget.reserve_temporary_bytes(
+                    i.members.len() as u64
+                        * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>()
+                            as u64,
+                )?;
+                let mut sites = Vec::with_capacity(i.members.len());
+                for member in &i.members {
+                    sites.push(self.take_item_sites(member)?);
+                }
+                let bytes = sites.capacity() as u64
+                    * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>() as u64;
                 i.members.push(emitted);
+                for (member, sites) in i.members.iter().zip(sites) {
+                    self.restore_item_sites(member, sites)?;
+                }
+                self.environment.budget.release_temporary_bytes(bytes);
             }
         }
         for instance in &plan.instances {

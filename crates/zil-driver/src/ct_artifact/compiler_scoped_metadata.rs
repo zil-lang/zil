@@ -9,27 +9,48 @@ impl<'a> Compiler<'a> {
         span: Span,
     ) -> R<Option<SourceLifeScope>> {
         self.budget.work(1, span)?;
-        if definition.generation_path.is_some()
-            || self.modules[module].source.module_id != definition.module
-        {
+        if self.modules[module].source.module_id != definition.module {
             return Err(error(
                 span,
-                "CT lexical owner has no original declaration lineage",
+                "CT lexical owner has no matching source module",
             ));
         }
         let max_depth = self.budget.limits.max_call_depth;
-        let Some(original) = source_scope::original_function(
-            self.modules[module].syntax,
-            definition.declaration,
-            max_depth,
-            |work| self.budget.work(work, span),
-        )?
-        else {
-            return Ok(None);
+        let (original, tree) = if definition.generation_path.is_some() {
+            let catalog = self.generated_catalog.ok_or_else(|| {
+                error(
+                    span,
+                    "CT generated lexical owner has no frozen source catalog",
+                )
+            })?;
+            let Some((row, original)) = source_scope::generated_original_function(
+                catalog,
+                definition,
+                max_depth,
+                |work| self.budget.work(work, span),
+            )?
+            else {
+                return Err(error(
+                    span,
+                    "CT generated lexical owner has no actual frozen declaration",
+                ));
+            };
+            (original, source_sites::SourceTreeId::Generated(row as u32))
+        } else {
+            let Some(original) = source_scope::original_function(
+                self.modules[module].syntax,
+                definition.declaration,
+                max_depth,
+                |work| self.budget.work(work, span),
+            )?
+            else {
+                return Ok(None);
+            };
+            (original, source_sites::SourceTreeId::Original)
         };
         let item = original.item;
         let function = original.function;
-        if original.generic_host {
+        if original.generic_host && self.active_host.is_none() && !self.checking_generics {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Ct,
                 "CT member scope requires its actual enclosing generic context",
@@ -55,18 +76,21 @@ impl<'a> Compiler<'a> {
                 ));
             }
         }
-        if binders.is_empty() {
-            return Ok(None);
-        }
         // Spans can diagnose a mismatch only after the actual ordinal selected
         // the original declaration. Equal/shared spans do not select an owner.
-        if span.file != item.span.file || span.start < item.span.start || span.end > item.span.end {
+        if tree == source_sites::SourceTreeId::Original
+            && (span.file != item.span.file
+                || span.start < item.span.start
+                || span.end > item.span.end)
+        {
             return Err(error(
                 span,
                 "scoped query is outside its actual original definition",
             ));
         }
         Ok(Some(SourceLifeScope {
+            tree,
+            enclosing: self.active_host,
             definition: definition.clone(),
             span: item.span,
             binders,
@@ -82,6 +106,61 @@ impl<'a> Compiler<'a> {
         depth: usize,
         span: Span,
     ) -> R<CtTy> {
+        let site = self.source_site_for_arguments(module, args, span)?;
+        let (context, actual_parameters, sources) =
+            self.source_scoped_nominal_graph(module, owner, item, args, depth, span)?;
+        let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
+        else {
+            unreachable!()
+        };
+        let CtTypeNode::Nominal { arguments, .. } = &context.nodes[storage.0 as usize] else {
+            unreachable!()
+        };
+        let mut schema_args = Vec::new();
+        for argument in arguments {
+            self.budget.node(span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtSchemaArgument>(),
+                span,
+                "CT scoped schema argument bytes exhausted",
+            )?;
+            schema_args.push(match argument {
+                CtTypeArgument::Type(id) => CtSchemaArgument::TypeInContext(*id),
+                CtTypeArgument::Scalar(value) => CtSchemaArgument::Scalar(value.clone()),
+                CtTypeArgument::Lifetime(value) => CtSchemaArgument::Lifetime(*value),
+            });
+        }
+        // Pay both the instance table and later private source-binding capture.
+        self.budget.metadata(&context, span)?;
+        self.budget.work(actual_parameters.len() + 32, span)?;
+        Budget::take(
+            &mut self.budget.bytes,
+            std::mem::size_of::<SourceLifeBinding>() + actual_parameters.len() * 4,
+            span,
+            "CT scoped source binding bytes exhausted",
+        )?;
+        let previous_site = self.current_nominal_site.replace(site);
+        let result = self.closed_nominal_context(
+            owner,
+            item,
+            schema_args,
+            Some((context, actual_parameters, sources)),
+            depth + 1,
+            span,
+        );
+        self.current_nominal_site = previous_site;
+        result
+    }
+    pub(super) fn source_scoped_nominal_graph(
+        &mut self,
+        module: usize,
+        owner: usize,
+        item: &'a s::Item,
+        args: &[s::GenericArg],
+        depth: usize,
+        span: Span,
+    ) -> R<(CtTypeRef, Vec<u32>, Option<Vec<CtAmbientLifeReference>>)> {
         self.budget.depth(depth, span)?;
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(a) => &a.generics,
@@ -95,9 +174,11 @@ impl<'a> Compiler<'a> {
             .source_life_scope
             .as_ref()
             .ok_or_else(|| error(span, "nominal lifetime has no actual lexical source owner"))?;
-        if scope.span.file != span.file
-            || span.start < scope.span.start
-            || span.end > scope.span.end
+        if self.metadata_life_bindings.is_none()
+            && scope.tree == source_sites::SourceTreeId::Original
+            && (scope.span.file != span.file
+                || span.start < scope.span.start
+                || span.end > scope.span.end)
         {
             return Err(error(
                 span,
@@ -110,31 +191,19 @@ impl<'a> Compiler<'a> {
             args.len().saturating_mul(
                 std::mem::size_of::<CtTypeArgument>()
                     + std::mem::size_of::<zil_ir::NominalLifeArgument>()
-                    + 4,
+                    + 4
+                    + std::mem::size_of::<CtAmbientLifeReference>(),
             ),
             span,
             "CT scoped argument vector bytes exhausted",
         )?;
         let mut actual_parameters = Vec::with_capacity(args.len());
+        let mut actual_sources = Vec::with_capacity(args.len());
         let mut nodes = Vec::new();
+        let mut nested_ambient = Vec::new();
         let mut arguments = Vec::with_capacity(args.len());
         let mut rows = Vec::with_capacity(args.len());
-        self.budget
-            .work(self.modules[owner].syntax.items.len(), span)?;
-        let ordinal = self.modules[owner]
-            .syntax
-            .items
-            .iter()
-            .position(|actual| std::ptr::eq(actual, item))
-            .ok_or_else(|| error(span, "scoped nominal is not an actual original item"))?;
-        let symbol = CtSymbolId {
-            module: self.modules[owner].source.module_id,
-            declaration: zil_base::NodeId(
-                u32::try_from(ordinal)
-                    .map_err(|_| error(span, "nominal original ordinal overflow"))?,
-            ),
-            generation_path: None,
-        };
+        let symbol = self.item_symbol(owner, item)?;
         for (ordinal, (parameter, arg)) in parameters.iter().zip(args).enumerate() {
             self.budget.node(span)?;
             Budget::take(
@@ -145,34 +214,16 @@ impl<'a> Compiler<'a> {
             )?;
             match (&parameter.kind, arg) {
                 (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
-                    let scope = self
-                        .source_life_scope
-                        .as_ref()
-                        .ok_or_else(|| error(span, "nominal lifetime scope disappeared"))?;
-                    let mut actual = None;
-                    for (bound, ordinal) in scope.binders.iter().rev() {
-                        self.budget
-                            .work(name.len().min(bound.len()).saturating_add(1), span)?;
-                        if name == bound {
-                            actual = Some(*ordinal);
-                            break;
-                        }
-                    }
-                    let actual = actual.ok_or_else(|| {
-                        error(
-                            span,
-                            "nominal lifetime is not declared in the actual source definition",
-                        )
-                    })?;
-                    self.budget.work(actual_parameters.len() + 1, span)?;
-                    let binder = if let Some(index) =
-                        actual_parameters.iter().position(|old| *old == actual)
-                    {
-                        index as u32
-                    } else {
-                        actual_parameters.push(actual);
-                        (actual_parameters.len() - 1) as u32
-                    };
+                    let actual = self.ambient_actual(name, span)?;
+                    self.budget.work(actual_sources.len() + 1, span)?;
+                    let binder =
+                        if let Some(index) = actual_sources.iter().position(|old| *old == actual) {
+                            index as u32
+                        } else {
+                            actual_parameters.push(actual.parameter);
+                            actual_sources.push(actual);
+                            (actual_sources.len() - 1) as u32
+                        };
                     arguments.push(CtTypeArgument::Lifetime(CtLifetimeArgument {
                         owner: CtTypeNodeId(u32::MAX),
                         binder: zil_ir::StorageBinder::Fixed(binder),
@@ -194,6 +245,26 @@ impl<'a> Compiler<'a> {
                     self.budget.metadata(&graph, span)?;
                     let offset = u32::try_from(nodes.len())
                         .map_err(|_| error(span, "scoped graph ID overflow"))?;
+                    if !graph.ambient_classes.is_empty() {
+                        self.budget.work(graph.ambient_classes.len(), span)?;
+                        Budget::take(
+                            &mut self.budget.bytes,
+                            nested_ambient
+                                .len()
+                                .saturating_add(graph.ambient_classes.len())
+                                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                            span,
+                            "CT nested ambient class backing exhausted",
+                        )?;
+                        nested_ambient.reserve_exact(graph.ambient_classes.len());
+                        for mut row in graph.ambient_classes {
+                            row.owner.0 =
+                                row.owner.0.checked_add(offset).ok_or_else(|| {
+                                    error(span, "CT nested ambient owner overflow")
+                                })?;
+                            nested_ambient.push(row);
+                        }
+                    }
                     for mut node in graph.nodes {
                         let mut invalid = false;
                         metadata::ids(&mut node, |id| {
@@ -266,46 +337,26 @@ impl<'a> Compiler<'a> {
             .ok_or_else(|| error(span, "ambient nominal lost actual definition"))?
             .definition
             .clone();
-        let instance = &self.source_life_scope.as_ref().unwrap().instance;
-        if let CtScopeInstance::Instantiated(actuals) = instance {
-            Self::actual_cost(&mut self.budget, actuals, span)?;
-        }
-        let scope = CtAmbientLifeScope {
-            declaration: definition,
-            binder_site: Vec::new(),
-            instance: self.source_life_scope.as_ref().unwrap().instance.clone(),
-        };
         self.budget
-            .work(self.ambient_life_scopes.len().saturating_mul(32), span)?;
-        if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
-            for candidate in &self.ambient_life_scopes {
-                if candidate.declaration == scope.declaration
-                    && matches!(candidate.instance, CtScopeInstance::Instantiated(_))
-                {
-                    self.budget.scope_comparison(candidate, span)?;
-                    self.budget.scope_comparison(&scope, span)?;
-                }
-            }
-        }
-        let scope_id = if let Some(index) = self
-            .ambient_life_scopes
+            .work(actual_sources.len().saturating_add(32), span)?;
+        let single_scope = actual_sources.first().map(|source| source.scope);
+        let multi_owner = actual_sources
             .iter()
-            .position(|old| old == &scope)
-        {
-            index
-        } else {
+            .any(|source| Some(source.scope) != single_scope)
+            || single_scope.is_some_and(|id| {
+                self.ambient_life_scopes[id.0 as usize].declaration != definition
+            });
+        if multi_owner {
             Budget::take(
                 &mut self.budget.bytes,
-                std::mem::size_of::<CtAmbientLifeScope>(),
+                actual_sources
+                    .len()
+                    .saturating_mul(std::mem::size_of::<CtAmbientLifeReference>()),
                 span,
-                "CT ambient scope table bytes exhausted",
+                "CT complete ambient source references exhausted",
             )?;
-            self.ambient_life_scopes.push(scope);
-            self.ambient_life_scopes.len() - 1
-        };
-        let scope_id = CtAmbientScopeId(
-            u32::try_from(scope_id).map_err(|_| error(span, "CT ambient scope ID overflow"))?,
-        );
+        }
+        let sources = multi_owner.then(|| actual_sources.clone());
         self.budget.work(actual_parameters.len(), span)?;
         Budget::take(
             &mut self.budget.bytes,
@@ -315,18 +366,32 @@ impl<'a> Compiler<'a> {
             span,
             "CT ambient mapping bytes exhausted",
         )?;
-        let ambient_classes = actual_parameters
+        let ambient_classes = actual_sources
             .iter()
             .enumerate()
-            .map(|(class, parameter)| CtAmbientClassBinding {
+            .map(|(class, source)| CtAmbientClassBinding {
                 owner: fixed,
                 class: class as u32,
-                source: CtAmbientLifeReference {
-                    scope: scope_id,
-                    parameter: *parameter,
-                },
+                source: *source,
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let ambient_classes = if nested_ambient.is_empty() {
+            ambient_classes
+        } else {
+            self.budget.work(ambient_classes.len(), span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                nested_ambient
+                    .len()
+                    .saturating_add(ambient_classes.len())
+                    .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                span,
+                "CT joint ambient class backing exhausted",
+            )?;
+            nested_ambient.reserve_exact(ambient_classes.len());
+            nested_ambient.extend(ambient_classes);
+            nested_ambient
+        };
         let context = self.meta_normalize(
             CtTypeRef {
                 nodes,
@@ -336,45 +401,7 @@ impl<'a> Compiler<'a> {
             span,
         )?;
         self.budget.metadata(&context, span)?;
-        let CtTypeNode::BorrowedStorage { storage, .. } = context.nodes[context.root.0 as usize]
-        else {
-            unreachable!()
-        };
-        let CtTypeNode::Nominal { arguments, .. } = &context.nodes[storage.0 as usize] else {
-            unreachable!()
-        };
-        let mut schema_args = Vec::new();
-        for argument in arguments {
-            self.budget.node(span)?;
-            Budget::take(
-                &mut self.budget.bytes,
-                std::mem::size_of::<CtSchemaArgument>(),
-                span,
-                "CT scoped schema argument bytes exhausted",
-            )?;
-            schema_args.push(match argument {
-                CtTypeArgument::Type(id) => CtSchemaArgument::TypeInContext(*id),
-                CtTypeArgument::Scalar(value) => CtSchemaArgument::Scalar(value.clone()),
-                CtTypeArgument::Lifetime(value) => CtSchemaArgument::Lifetime(*value),
-            });
-        }
-        // Pay both the instance table and later private source-binding capture.
-        self.budget.metadata(&context, span)?;
-        self.budget.work(actual_parameters.len() + 32, span)?;
-        Budget::take(
-            &mut self.budget.bytes,
-            std::mem::size_of::<SourceLifeBinding>() + actual_parameters.len() * 4,
-            span,
-            "CT scoped source binding bytes exhausted",
-        )?;
-        self.closed_nominal_context(
-            owner,
-            item,
-            schema_args,
-            Some((context, actual_parameters)),
-            depth + 1,
-            span,
-        )
+        Ok((context, actual_parameters, sources))
     }
     pub(super) fn registered_scoped_data_type(&mut self, graph: &CtTypeRef, span: Span) -> R<CtTy> {
         for (enumeration, count) in [(false, self.records.len()), (true, self.enums.len())] {

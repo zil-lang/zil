@@ -51,6 +51,13 @@ impl Budget<'_> {
         let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
             return Ok(());
         };
+        self.scope_actuals_comparison(actuals, span)
+    }
+    pub(super) fn scope_actuals_comparison(
+        &mut self,
+        actuals: &[CtScopeActual],
+        span: Span,
+    ) -> R<()> {
         self.work(
             actuals
                 .len()
@@ -372,6 +379,30 @@ impl Compiler<'_> {
         self.budget.metadata(&graph, span)?;
         let offset =
             u32::try_from(nodes.len()).map_err(|_| error(span, "CT metadata ID overflow"))?;
+        // Ambient owners are graph-local node references too. Moving only the
+        // physical nodes would silently erase the actual external life source.
+        if !graph.ambient_classes.is_empty() {
+            self.budget.work(graph.ambient_classes.len(), span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                self.metadata_ambient
+                    .len()
+                    .saturating_add(graph.ambient_classes.len())
+                    .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                span,
+                "CT metadata ambient relocation backing exhausted",
+            )?;
+            self.metadata_ambient
+                .reserve_exact(graph.ambient_classes.len());
+            for mut row in graph.ambient_classes {
+                row.owner.0 = row
+                    .owner
+                    .0
+                    .checked_add(offset)
+                    .ok_or_else(|| error(span, "CT metadata ambient owner overflow"))?;
+                self.metadata_ambient.push(row);
+            }
+        }
         for mut node in graph.nodes {
             let mut failed = false;
             ids(&mut node, |id| match id.0.checked_add(offset) {
@@ -413,19 +444,80 @@ impl Compiler<'_> {
         )?;
         result
     }
+    pub(super) fn metadata_source_has_ambient(&mut self, ty: &s::TypeRef, depth: usize) -> R<bool> {
+        self.budget.depth(depth, ty.span)?;
+        self.budget.work(1, ty.span)?;
+        match &ty.kind {
+            s::TypeKind::Named { path, args } => {
+                if path.len() == 1
+                    && args.is_empty()
+                    && let Some(graph) = self.metadata_binding(&path[0], ty.span)?
+                {
+                    return Ok(!graph.ambient_classes.is_empty()
+                        || matches!(
+                            graph.nodes.get(graph.root.0 as usize),
+                            Some(CtTypeNode::BorrowedStorage { .. })
+                        ));
+                }
+                for arg in args {
+                    match arg {
+                        s::GenericArg::Lifetime(_) => return Ok(true),
+                        s::GenericArg::Type(inner)
+                            if self.metadata_source_has_ambient(inner, depth + 1)? =>
+                        {
+                            return Ok(true);
+                        }
+                        _ => {}
+                    }
+                }
+                Ok(false)
+            }
+            s::TypeKind::Tuple(parts) | s::TypeKind::Union(parts) => {
+                for part in parts {
+                    if self.metadata_source_has_ambient(part, depth + 1)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            s::TypeKind::Group(inner) | s::TypeKind::Array { element: inner, .. } => {
+                self.metadata_source_has_ambient(inner, depth + 1)
+            }
+            _ => Ok(false),
+        }
+    }
+
     pub(super) fn metadata_type(
         &mut self,
         module: usize,
         ty: &s::TypeRef,
         depth: usize,
     ) -> R<CtTypeRef> {
+        if let s::TypeKind::Named { path, args } = &ty.kind
+            && args
+                .iter()
+                .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+            && !self.checking_generics
+        {
+            let (owner, item) = self.named_item(module, path, ty.span)?;
+            if self.metadata_graph_only {
+                return self
+                    .source_scoped_nominal_graph(module, owner, item, args, depth + 1, ty.span)
+                    .map(|(graph, _, _)| graph);
+            }
+            let data = self.source_scoped_nominal(module, owner, item, args, depth + 1, ty.span)?;
+            return self.metadata_data(&data, ty.span, depth + 1);
+        }
+        let prior_ambient = std::mem::take(&mut self.metadata_ambient);
         let mut nodes = Vec::new();
-        let root = self.meta_source(module, ty, depth, &mut nodes)?;
+        let root = self.meta_source(module, ty, depth, &mut nodes);
+        let ambient_classes = std::mem::replace(&mut self.metadata_ambient, prior_ambient);
+        let root = root?;
         self.meta_normalize(
             CtTypeRef {
                 nodes,
                 root,
-                ambient_classes: Vec::new(),
+                ambient_classes,
             },
             ty.span,
         )
@@ -449,6 +541,16 @@ impl Compiler<'_> {
     ) -> R<CtTypeNodeId> {
         self.budget.depth(depth, ty.span)?;
         let span = ty.span;
+        if lifetimes.is_empty()
+            && !self.checking_generics
+            && let s::TypeKind::Named { args, .. } = &ty.kind
+            && args
+                .iter()
+                .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+        {
+            let graph = self.metadata_type(module, ty, depth + 1)?;
+            return self.meta_append(nodes, graph, span);
+        }
         let node = match &ty.kind {
             s::TypeKind::Group(inner) => {
                 return self.meta_scoped(module, inner, depth + 1, nodes, lifetimes);
@@ -716,6 +818,12 @@ impl Compiler<'_> {
         self.meta_push(nodes, node, span)
     }
     pub(super) fn metadata_data(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<CtTypeRef> {
+        let prior_ambient = std::mem::take(&mut self.metadata_ambient);
+        let result = self.metadata_data_inner(ty, span, depth);
+        self.metadata_ambient = prior_ambient;
+        result
+    }
+    fn metadata_data_inner(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<CtTypeRef> {
         self.budget.depth(depth, span)?;
         let mut nodes = Vec::new();
         let node = match ty {
@@ -783,11 +891,12 @@ impl Compiler<'_> {
             }
         };
         let root = self.meta_push(&mut nodes, node, span)?;
+        let ambient_classes = std::mem::take(&mut self.metadata_ambient);
         self.meta_normalize(
             CtTypeRef {
                 nodes,
                 root,
-                ambient_classes: Vec::new(),
+                ambient_classes,
             },
             span,
         )

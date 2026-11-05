@@ -79,6 +79,9 @@ impl<'a> Compiler<'a> {
         symbol: &CtSymbolId,
         span: Span,
     ) -> R<(usize, &'a s::Item)> {
+        if let Some(declaration) = self.generated_declaration(symbol, span)? {
+            return Ok(declaration);
+        }
         self.budget.work(self.modules.len(), span)?;
         if symbol.generation_path.is_some() {
             return Err(error(
@@ -162,6 +165,9 @@ impl<'a> Compiler<'a> {
             .get(graph.root.0 as usize)
             .ok_or_else(|| error(span, "Copy metadata root is absent"))?;
         match node {
+            CtTypeNode::BorrowedStorage { .. } if self.metadata_graph_only => {
+                self.copy_metadata_nominal(graph, depth + 1, span)
+            }
             CtTypeNode::BorrowedStorage { .. } => {
                 self.copy_registered_scoped_data(graph, depth, span)
             }
@@ -201,7 +207,7 @@ impl<'a> Compiler<'a> {
         owner: usize,
         item: &'a s::Item,
         arguments: Vec<CtSchemaArgument>,
-        context: Option<(CtTypeRef, Vec<u32>)>,
+        context: Option<(CtTypeRef, Vec<u32>, Option<Vec<CtAmbientLifeReference>>)>,
         depth: usize,
         span: Span,
     ) -> R<CtTy> {
@@ -299,16 +305,16 @@ impl<'a> Compiler<'a> {
                 if let Some(graph) = old_context {
                     self.budget.metadata(graph, span)?;
                 }
-                if let Some((graph, _)) = &context {
+                if let Some((graph, _, _)) = &context {
                     self.budget.metadata(graph, span)?;
                 }
                 if *old_args == arguments && old_context.as_ref() == context.as_ref().map(|c| &c.0)
                 {
-                    if let Some((_, parameters)) = &context {
+                    if let Some((_, parameters, sources)) = &context {
                         self.budget.work(self.source_life_bindings.len(), span)?;
                         let binding = self
                             .source_life_bindings
-                            .iter()
+                            .iter_mut()
                             .find(|b| b.enumeration != record && b.schema as usize == id)
                             .ok_or_else(|| error(span, "scoped schema lost its source binding"))?;
                         self.budget
@@ -319,12 +325,25 @@ impl<'a> Compiler<'a> {
                             .ok_or_else(|| error(span, "scoped schema reuse has no source owner"))?
                             .definition;
                         self.budget.work(32, span)?;
-                        if &binding.definition != definition || &binding.parameters != parameters {
+                        self.budget.work(
+                            sources.as_ref().map_or(0, Vec::len)
+                                + binding.sources.as_ref().map_or(0, Vec::len),
+                            span,
+                        )?;
+                        if &binding.definition != definition
+                            || &binding.parameters != parameters
+                            || &binding.sources != sources
+                        {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Ct,
                                 "different ambient lifetimes require distinct serialized source scope identity",
                                 Some(span),
                             )]);
+                        }
+                        if binding.caller.is_none() && self.current_source_function.is_some() {
+                            binding.caller = self.current_source_function;
+                            binding.site = self.current_nominal_site;
+                            binding.parent = self.source_nominal_parent;
                         }
                     }
                     return Ok(if record {
@@ -365,7 +384,63 @@ impl<'a> Compiler<'a> {
             });
             CtTy::Enum(CtEnumSchemaId((self.enums.len() - 1) as u32))
         };
-        if let Some((_, parameters)) = context {
+        // Only the selected original nominal's complete lifetime argument
+        // vector may name its real field binders. A strict Some table prevents
+        // a field spelling from falling back to the caller's unrelated binder.
+        let mut life_bindings = Vec::new();
+        if let Some((graph, _, _)) = &context {
+            let schema_arguments = match id {
+                CtTy::Record(id) => &self.records[id.0 as usize].arguments,
+                CtTy::Enum(id) => &self.enums[id.0 as usize].arguments,
+                _ => unreachable!(),
+            };
+            self.budget.work(parameters.len().saturating_mul(2), span)?;
+            let count = parameters
+                .iter()
+                .filter(|p| matches!(p.kind, s::GenericParamKind::Lifetime))
+                .count();
+            Budget::take(
+                &mut self.budget.bytes,
+                count.saturating_mul(std::mem::size_of::<(String, CtAmbientLifeReference)>()),
+                span,
+                "CT nominal field life binding backing exhausted",
+            )?;
+            life_bindings.reserve_exact(count);
+            for (parameter, argument) in parameters.iter().zip(schema_arguments) {
+                if !matches!(parameter.kind, s::GenericParamKind::Lifetime) {
+                    continue;
+                }
+                let CtSchemaArgument::Lifetime(argument) = argument else {
+                    return Err(error(span, "CT nominal field life actual has another kind"));
+                };
+                let zil_ir::StorageBinder::Fixed(class) = argument.binder else {
+                    return Err(error(
+                        span,
+                        "CT nominal field life actual is not a fixed class",
+                    ));
+                };
+                self.budget.work(graph.ambient_classes.len(), span)?;
+                let mut matches = graph
+                    .ambient_classes
+                    .iter()
+                    .filter(|row| row.owner == argument.owner && row.class == class);
+                let source = matches
+                    .next()
+                    .ok_or_else(|| {
+                        error(span, "CT nominal field life actual has no ambient source")
+                    })?
+                    .source;
+                if matches.next().is_some() {
+                    return Err(error(
+                        span,
+                        "CT nominal field life actual has repeated ambient sources",
+                    ));
+                }
+                self.budget.text(&parameter.name, span)?;
+                life_bindings.push((parameter.name.clone(), source));
+            }
+        }
+        if let Some((_, parameters, sources)) = context {
             let definition = self
                 .source_life_scope
                 .as_ref()
@@ -374,19 +449,30 @@ impl<'a> Compiler<'a> {
                 .clone();
             self.budget.work(parameters.len() + 32, span)?;
             self.source_life_bindings.push(SourceLifeBinding {
+                parent: self.source_nominal_parent,
                 enumeration: !record,
                 schema: match id {
                     CtTy::Record(id) => id.0,
                     CtTy::Enum(id) => id.0,
                     _ => unreachable!(),
                 },
+                caller: self.current_source_function,
                 definition,
                 parameters,
+                sources,
+                site: self.current_nominal_site,
             });
         }
         let old_meta = std::mem::replace(&mut self.metadata_bindings, metadata_bindings);
         let old_data = std::mem::take(&mut self.bindings);
         let old_scalars = std::mem::replace(&mut self.scalar_bindings, scalar_bindings);
+        let old_lives = self.metadata_life_bindings.replace(life_bindings);
+        let parent = match id {
+            CtTy::Record(id) => SourceSchemaId::Record(id),
+            CtTy::Enum(id) => SourceSchemaId::Enum(id),
+            _ => unreachable!(),
+        };
+        let old_parent = self.source_nominal_parent.replace(parent);
         let result = (|| {
             match (&item.kind, &id) {
                 (s::ItemKind::Aggregate(a), CtTy::Record(id)) => {
@@ -446,6 +532,8 @@ impl<'a> Compiler<'a> {
         self.bindings = old_data;
         self.metadata_bindings = old_meta;
         self.scalar_bindings = old_scalars;
+        self.metadata_life_bindings = old_lives;
+        self.source_nominal_parent = old_parent;
         result
     }
     pub(super) fn canonical_data_sum(&mut self, members: Vec<CtTy>, span: Span) -> R<CtTy> {

@@ -157,7 +157,7 @@ fn saved_desc_and_borrowed_closure_carriers_remain_live() {
 }
 
 #[test]
-fn unresolved_address_callables_keep_their_independent_type_fences() {
+fn indirect_pointer_stays_closed_and_capture_checks_actual_retirement() {
     let pointer = BAD.replace("reset(&mut packet);", "let f=reset;f(&mut packet);");
     let report = compile_source(&source(&pointer), &CompileOptions::default());
     assert_eq!(
@@ -176,20 +176,9 @@ fn unresolved_address_callables_keep_their_independent_type_fences() {
     let callback = format!(
         "{PREFIX}fn reset(target:&mut P){{target.owner=R{{code:66}};}}fn run<F:FnMut(i32)->i32>(f:&mut F)->i32{{return f(0);}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};let old=packet.owner;let parent=&mut packet;var f=move(x:i32)->i32=>{{reset(parent);return x;}};run(&mut f);return old.code;}}"
     );
-    let report = compile_source(&source(&callback), &CompileOptions::default());
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("mutable Product capture"))
-    );
+    // The capture profile is now implemented. This unsafe program must reach
+    // the real retirement proof instead of the old Types capability fence.
+    check(&callback, true);
 }
 
 #[test]

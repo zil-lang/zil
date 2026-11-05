@@ -1,0 +1,20 @@
+{
+  "goal": "11eea5da0",
+  "stage": "G4.4.5.4 B recursive pure composite relocation",
+  "source_commit": "31f2bc042ef26885663bee1fc45cae2bdb283e7a",
+  "working_tree": "clean at launch; source-auth later reported a short runtime.rs write/restore interval, so next run must bind a fresh clean source",
+  "command": "cargo test -p zil-driver --lib g4454_ -j2 -- --skip native --nocapture",
+  "environment": {
+    "source": "/workspace/.zil-env/env.sh",
+    "TMPDIR": "/workspace/.zil-env/G4.4.5.3-tmp",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target344",
+    "CARGO_PROFILE_TEST_STRIP": "symbols"
+  },
+  "exit_code": 101,
+  "result": "CompileBlocked; no g4454 test ran",
+  "diagnostic": "E0062 invocation_context_runtime_tests.rs:111 parents specified twice (first at110)",
+  "log": "/workspace/tmp-G4.4.6/g4454-first-source.log",
+  "log_sha256": "09f2124a12f83a403c6faeabd70eeeaa14e9ff1813e8a8dffde21304e5e939f4",
+  "resolution_commit": "903ffa4b8 test(ct): remove duplicate runtime parent fixture initializer",
+  "limits": "No Source, independent relocation, native, or quota pass is claimed from this run."
+}

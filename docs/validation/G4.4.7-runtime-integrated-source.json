@@ -1,0 +1,66 @@
+{
+  "task": "G4.4.7",
+  "date": "2026-11-05",
+  "status": "IntegratedRuntimeSourceMatrixPassParentPending",
+  "source_commit": "c898927d7f7eba08d3aa86389ec574d14a00ffad",
+  "source_dirty": false,
+  "command": "cargo test -p zil-driver --test aggregates g447_runtime_ct -- --nocapture",
+  "target": "/workspace/.zil-env/target344",
+  "tmpdir": "/workspace/.zil-env/G4.4.5.3-tmp",
+  "result": {
+    "passed": 10,
+    "failed": 0,
+    "compile_seconds": 11.43,
+    "test_seconds": 0.92,
+    "log": "/workspace/.zil-env/G4.4.5.3-tmp/runtime-fifth-source-tests.log",
+    "log_sha256": "b4b0f00c56e990ab66a7aa249152477d7b6cd27ebd23b397ff2c5aa2a3667d88"
+  },
+  "complete_native_outputs": {
+    "mixed_type_const_life": "42\n",
+    "multiple_instances": "16\n",
+    "const_without_life": "8\n",
+    "nested_parent": "8\n",
+    "nested_after_ct": "17\n",
+    "inferred_literal_type": "8\n",
+    "generated_free": "8\n"
+  },
+  "per_positive_case": [
+    "Two compile_source requests in same CompilationSession, each verification_runs=1",
+    "compile_project verification_runs=1",
+    "Clang O0 and O2 complete stdout comparisons"
+  ],
+  "negative_controls": [
+    "Unused CT runtime capture and illegal ordinary generic operation rejected",
+    "Generic aggregate runtime method retains actual plain and CT Unsupported boundary"
+  ],
+  "request_boundaries": {
+    "fixture": "ct6-runtime-multiple-instances.zil",
+    "work": 99526,
+    "nodes": 3386,
+    "steps": 18,
+    "bytes": 54459,
+    "controls": "Each N/N-1/cold/warm/fresh via existing g44_source_request_boundary; no default quota increase"
+  },
+  "first_integrated_attempt": {
+    "source_commit": "76340664b163f51c4c5c319e6d7def9850f02afa",
+    "passed": 8,
+    "failed": 2,
+    "log": "/workspace/.zil-env/G4.4.5.3-tmp/runtime-fourth-source-tests.log",
+    "log_sha256": "499d720e15e4bae97097b0a12910aac40a5b781ac80b80147c4a6b32c622975c",
+    "failed_cases": [
+      "nested_parent",
+      "nested_after_ct"
+    ],
+    "phase": "Ct",
+    "category": "SafeReject",
+    "message": "scoped query is outside its actual original definition",
+    "fix": "c898927d7 selects each independently resolved original parent function span for its diagnostic containment check; immutable AST/actual Call authentication retained"
+  },
+  "remaining": [
+    "Latest indexed-root and parent-frame independent lib controls need integrated replay (earlier auth10 Pass at 2c9440cc5)",
+    "New whole-generated-deferred-body Expand raw mutation test needs execution",
+    "Runtime actual Type containing caller life nominal needs metadata-only graph construction without unused value schema/caller forgery",
+    "Host/static Source matrix and B/C joint producer-consumer integration pending",
+    "Parent formal gates and final acceptance by root"
+  ]
+}

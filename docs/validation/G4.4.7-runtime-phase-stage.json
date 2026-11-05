@@ -1,0 +1,64 @@
+{
+  "status": "ImplementationFrozenAwaitingIntegratedRuntimeTests",
+  "task": "G4.4.7",
+  "date": "2026-11-05 UTC",
+  "implementation_revision": "a0f3f6b4d",
+  "source_dependency": "18dd21a2c (normal merge; independent runtime parent-frame consumer subsequently developed in shared CT tree)",
+  "checks": [
+    {
+      "command": "cargo check -p zil-expand -j1",
+      "result": "Pass",
+      "seconds": 3.81,
+      "scope": "runtime parent ledger and pre-materialization call anchors"
+    },
+    {
+      "command": "cargo check -p zil-driver --test aggregates -j1",
+      "result": "Pass",
+      "seconds": 9.42,
+      "scope": "complete bridge and generated deferred body validation"
+    },
+    {
+      "command": "cargo check -p zil-expand --tests -j1",
+      "result": "Pass",
+      "seconds": 10.98,
+      "scope": "complete generated-body raw controls; test-only hook callers corrected"
+    },
+    {
+      "command": "cargo check -p zil-driver --tests -j1",
+      "result": "BlockedByKnownDependencyTestLiteral",
+      "detail": "Stable 18dd invocation_context_runtime_tests.rs:108 lacks parents in RuntimeEntrySource; shared CT author owns and is updating it. Driver library itself compiled."
+    }
+  ],
+  "last_executed_runtime_source_tests": {
+    "source_stage": "shared CT tree at reported clean 2c9440cc5, before applied nominal relocation aae44cfb1",
+    "log_sha256": "8faf816532f25bf7c0462dc2b93d67c2390efaf8af99ed02e0c1c99f95b8441e",
+    "passed": 2,
+    "failed": 2,
+    "accepted": [
+      "Type/Const runtime generic #N: Source twice in same CompilationSession, Project, Clang O0/O2 output 8",
+      "Unused runtime capture rejected by CT; ordinary unused unconstrained operation retains Unsupported"
+    ],
+    "failures": [
+      "Mixed Type/Const/Life source rejected during qualified generic body equality",
+      "Multiple mixed instances rejected at same equality"
+    ],
+    "followup": "aae44cfb1 fixes source nominal constructor relocation and full Type/Const/Life field projection; not yet executed in this worktree."
+  },
+  "pending_execution": [
+    "g447_runtime_ct_*: 10 Source/project/native/negative/budget controls in aggregates",
+    "generated_runtime_ct_requires_the_complete_frozen_deferred_body: Expand raw source-control test",
+    "Independent parent/inferred/generated runtime source admission controls owned by CT authors",
+    "All four exact runtime request balances N/N-1/cold/warm/fresh and recovery"
+  ],
+  "safety_boundaries": [
+    "Original complete Type/Const/Life order; life refers to own original Definition full ordinal",
+    "Same retained CT Environment and actual Products; no second specialization",
+    "Every unused definition checks computed CT type and its ordinary generic body",
+    "Actual earlier parent instances and pre-substitution callee Box anchors retained; no recount after CT folding",
+    "Generated deferred functions require whole frozen Item equality before normalization; closure lineage remains Unavailable",
+    "Generated non-deferred parents remain rejected without complete body correspondence",
+    "Ordinary generic aggregate methods retain existing Unsupported guard; CT-only host/member consumers are separate",
+    "No runtime Wire/schema/gate/Cargo.lock edits in this phase task"
+  ],
+  "acceptance": "No complete E acceptance or mixed-life/native pass is claimed until integrated execution finishes."
+}

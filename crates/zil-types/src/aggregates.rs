@@ -427,9 +427,10 @@ fn resolve_indexed(
     let generic = aggregate_templates::Index::new(&generic_modules, limits, remaining)
         .map_err(|e| vec![e])?;
     let mut stored_instances = BTreeMap::new();
-    for (inventory, aggregates, module) in std::iter::once((
+    for (inventory, aggregates, enums, module) in std::iter::once((
         core.life_instances.as_slice(),
         core.aggregates.as_slice(),
+        core.enums.as_slice(),
         core.module_id,
     ))
     .chain(
@@ -441,6 +442,7 @@ fn resolve_indexed(
                 (
                     source.life_instances.as_slice(),
                     source.aggregates.as_slice(),
+                    source.enums.as_slice(),
                     source.module_id,
                 )
             }),
@@ -449,8 +451,9 @@ fn resolve_indexed(
             let Type::BorrowedStorage { storage, .. } = &instance.ty else {
                 continue;
             };
-            let Type::Record { name, .. } = storage.as_ref() else {
-                continue;
+            let name = match storage.as_ref() {
+                Type::Record { name, .. } | Type::Enum { name, .. } => name,
+                _ => continue,
             };
             aggregate_templates::spend(
                 remaining,
@@ -460,12 +463,18 @@ fn resolve_indexed(
                 Span::default(),
             )
             .map_err(|e| vec![e])?;
-            let actual =
-                stored::aggregate(aggregates, module, name, remaining).map_err(|e| vec![e])?;
-            if stored_instances
-                .insert(actual.name.as_str(), instance)
-                .is_some()
-            {
+            let actual_name = match storage.as_ref() {
+                Type::Record { .. } => stored::aggregate(aggregates, module, name, remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str(),
+                Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
+                    .map_err(|e| vec![e])?
+                    .name
+                    .as_str(),
+                _ => unreachable!(),
+            };
+            if stored_instances.insert(actual_name, instance).is_some() {
                 return Err(vec![error(
                     "E-STORED-IDENTITY",
                     Span::default(),
@@ -561,11 +570,28 @@ fn resolve_indexed(
     }
     let mut resolved_enums = core.enums.clone();
     for declaration in &mut resolved_enums {
-        let Type::Enum { variants, .. } = resolver
+        let resolved = resolver
             .ty(&Type::Named(declaration.name.clone()), 0, declaration.span)
-            .map_err(|e| vec![e])?
-        else {
-            unreachable!()
+            .map_err(|e| vec![e])?;
+        let variants = match resolved {
+            Type::Enum { variants, .. } => variants,
+            Type::BorrowedStorage { storage, .. } => match *storage {
+                Type::Enum { variants, .. } => variants,
+                _ => {
+                    return Err(vec![error(
+                        "E-STORED-TYPE",
+                        declaration.span,
+                        "resolved stored Enum has no physical variant layout",
+                    )]);
+                }
+            },
+            _ => {
+                return Err(vec![error(
+                    "E-ENUM-TYPE",
+                    declaration.span,
+                    "resolved Enum has no physical variant layout",
+                )]);
+            }
         };
         declaration.variants = variants;
     }
@@ -682,20 +708,30 @@ fn resolve_indexed(
         let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             unreachable!("checked stored inventory");
         };
-        let Type::Record { name, .. } = storage.as_ref() else {
-            unreachable!("checked stored inventory");
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } | Type::Enum { name, .. } => name,
+            _ => unreachable!("checked stored inventory"),
         };
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
-        let actual = stored::aggregate(
-            &core.aggregates,
-            core.module_id,
-            name,
-            &mut resolver.remaining,
-        )
-        .map_err(|e| vec![e])?;
+        let actual_name = match storage.as_ref() {
+            Type::Record { .. } => stored::aggregate(
+                &core.aggregates,
+                core.module_id,
+                name,
+                &mut resolver.remaining,
+            )
+            .map_err(|e| vec![e])?
+            .name
+            .as_str(),
+            Type::Enum { .. } => stored::enum_declaration(&core, name, &mut resolver.remaining)
+                .map_err(|e| vec![e])?
+                .name
+                .as_str(),
+            _ => unreachable!("checked stored inventory"),
+        };
         let ty = resolver
-            .ty(&Type::Named(actual.name.clone()), 0, Span::default())
+            .ty(&Type::Named(actual_name.to_owned()), 0, Span::default())
             .map_err(|e| vec![e])?;
         let mut arguments = Vec::new();
         for argument in &instance.arguments {
@@ -729,6 +765,7 @@ fn resolve_indexed(
     core.functions = functions;
     core.enums = resolved_enums;
     core.life_instances = resolved_life_instances;
+    stored::resolved_inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     Ok(core)
 }
 
@@ -898,6 +935,278 @@ impl Resolver<'_> {
         self.remaining -= 1;
         Ok(())
     }
+    // Keep name/declaration construction temporaries out of each ordinary
+    // Array/Tuple recursion frame. In debug/default-stack builds this branch's
+    // full Type/metadata locals otherwise live in every call to ty(). The
+    // dispatcher already charged the actual visit; keep the branch's original
+    // budget, validation, cache and active-declaration order unchanged.
+    #[inline(never)]
+    fn nominal_type(&mut self, name: &str, depth: usize, span: Span) -> R<Type> {
+        if self.active.contains(name) {
+            return Err(error(
+                "E-INFINITE-LAYOUT",
+                span,
+                "recursive by-value aggregate has infinite layout",
+            ));
+        }
+        if let Some(cached) = self.cache.get(name) {
+            if matches!(cached, Type::BorrowedStorage { .. }) {
+                let cost = inference::type_snapshot_work(
+                    cached,
+                    span,
+                    &Limits {
+                        max_analysis_steps: self.remaining,
+                        ..self.generic_limits.clone()
+                    },
+                )?;
+                aggregate_templates::spend(&mut self.remaining, cost, span)?;
+                return Ok(cached.clone());
+            }
+            let mut pending = vec![cached];
+            while let Some(t) = pending.pop() {
+                if self.remaining == 0 {
+                    return Err(Diagnostic::limit(
+                        Phase::Types,
+                        "aggregate expansion budget exceeded",
+                        Some(span),
+                    ));
+                }
+                self.remaining -= 1;
+                match t {
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                        pending.extend(fields.iter().map(|(_, t)| t))
+                    }
+                    Type::Enum { variants, .. } => {
+                        pending.extend(variants.iter().flat_map(|(_, fields)| fields))
+                    }
+                    Type::Tuple(fields) => pending.extend(fields),
+                    Type::Array { element, .. }
+                    | Type::Slice { element }
+                    | Type::OwnedStore { element } => pending.push(element),
+                    Type::ErrorUnion { error, result } => {
+                        pending.push(error);
+                        pending.push(result);
+                    }
+                    Type::Managed(payload) | Type::Desc(payload) => pending.push(payload),
+                    _ => {}
+                }
+            }
+            return Ok(cached.clone());
+        }
+        self.active.insert(name.to_owned());
+        let result = if let Some(declaration) = self.enum_declarations.get(name).copied() {
+            if !self.stored_instances.is_empty() {
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    name.len()
+                        .saturating_add(1)
+                        .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                    span,
+                )?;
+            }
+            let stored_instance = self.stored_instances.get(name).copied();
+            let mut variants = Vec::new();
+            let mut owns = false;
+            for (variant, raw_fields) in &declaration.variants {
+                let mut fields = Vec::new();
+                for field in raw_fields {
+                    let ty = self.ty(field, depth + 1, declaration.span)?;
+                    let copy = ty.is_copy_value()
+                        || (stored_instance.is_some()
+                            && stored::pure_inline(
+                                &ty,
+                                &mut self.remaining,
+                                &self.generic_limits,
+                                declaration.span,
+                            )?);
+                    owns |= !copy;
+                    if !copy && !owned_shapes::value(&ty) {
+                        return Err(unsupported(
+                            declaration.span,
+                            "enum payload requires finite Copy or an ordinary complete owned value",
+                        ));
+                    }
+                    fields.push(ty);
+                }
+                variants.push((variant.clone(), fields));
+            }
+            if name.starts_with("$generic_$builtinOption340_")
+                || name.starts_with("$generic_$stdTaskPoll343_")
+            {
+                for (_, fields) in &variants {
+                    for field in fields {
+                        let work =
+                            inference::type_snapshot_work(field, span, &self.generic_limits)?;
+                        self.remaining = self
+                            .remaining
+                            .checked_sub(work.saturating_mul(4))
+                            .ok_or_else(|| {
+                                Diagnostic::limit(
+                                    Phase::Types,
+                                    "Option identity work budget exceeded",
+                                    Some(span),
+                                )
+                            })?;
+                    }
+                }
+            }
+            let ty = Type::Enum {
+                name: enums::nominal_name(self.owners[name], name, &variants),
+                variants,
+            };
+            if owns {
+                owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
+            }
+            if let Some(instance) = stored_instance {
+                let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                    unreachable!()
+                };
+                let work = inference::type_snapshot_work(
+                    &instance.ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: self.remaining,
+                        ..self.generic_limits.clone()
+                    },
+                )?;
+                aggregate_templates::spend(&mut self.remaining, work, span)?;
+                let qualified = Type::BorrowedStorage {
+                    storage: Box::new(ty),
+                    life: life.clone(),
+                };
+                stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                qualified
+            } else {
+                ty
+            }
+        } else {
+            let d = self.declarations[name];
+            if !self.stored_instances.is_empty() {
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    name.len()
+                        .saturating_add(1)
+                        .saturating_mul(self.stored_instances.len().saturating_add(1)),
+                    span,
+                )?;
+            }
+            let stored_instance = self.stored_instances.get(name).copied();
+            let mut fields = Vec::new();
+            let mut new_shape = false;
+            for f in &d.fields {
+                let ty = self.field_type(f, depth + 1)?;
+                if !(ty.is_copy_value()
+                    || (d.kind == AggregateKind::Struct
+                        && stored::pure_inline(
+                            &ty,
+                            &mut self.remaining,
+                            &self.generic_limits,
+                            f.span,
+                        )?)
+                    || (stored_instance.is_some()
+                        && stored::pure_value(
+                            &ty,
+                            &mut self.remaining,
+                            &self.generic_limits,
+                            f.span,
+                        )?)
+                    || (stored_instance.is_some()
+                        && matches!(ty, Type::Address { mutable: false, .. }))
+                    || (d.kind == AggregateKind::Package
+                        && !f.manages
+                        && d.name.starts_with("$generic_")
+                        && matches!(&ty, Type::Named(name) if self.callable_names.contains(name)))
+                    || (d.kind == AggregateKind::Package
+                        && !f.manages
+                        && packages::array_field_supported(&ty))
+                    || (d.kind == AggregateKind::Package
+                        && !f.manages
+                        && matches!(ty, Type::Package { .. })
+                        && packages::product::owned_supported(&ty))
+                    || (d.kind == AggregateKind::Package
+                        && f.manages
+                        && matches!(ty, Type::Managed(_))
+                        && resources::supported(&ty)))
+                {
+                    if d.kind == AggregateKind::Package
+                        && !f.manages
+                        && ((matches!(ty, Type::Package { .. }) && owned_shapes::value(&ty))
+                            || owned_shapes::sum(&ty))
+                    {
+                        new_shape = true;
+                    } else {
+                        return Err(unsupported(
+                            f.span,
+                            "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
+                        ));
+                    }
+                }
+                fields.push((f.name.clone(), ty));
+            }
+            let name = format!("@module{}:{}", self.owners[name], name);
+            if d.kind == AggregateKind::Package {
+                let ty = Type::Package { name, fields };
+                if new_shape {
+                    owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
+                }
+                if packages::product::nested(&ty) && packages::product::owned_supported(&ty) {
+                    packages::product::validate_owned(
+                        &ty,
+                        &mut self.remaining,
+                        self.depth_limit,
+                        span,
+                    )?;
+                } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
+                    return Err(unsupported(
+                        span,
+                        "package requires at least one manages field or complete owning child",
+                    ));
+                }
+                ty
+            } else {
+                let payload = Type::Record { name, fields };
+                if d.kind == AggregateKind::Resource {
+                    Type::Desc(Box::new(payload))
+                } else if let Some(instance) = stored_instance {
+                    let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                        unreachable!()
+                    };
+                    let work = inference::type_snapshot_work(
+                        &instance.ty,
+                        span,
+                        &Limits {
+                            max_analysis_steps: self.remaining,
+                            ..self.generic_limits.clone()
+                        },
+                    )?;
+                    aggregate_templates::spend(&mut self.remaining, work, span)?;
+                    let qualified = Type::BorrowedStorage {
+                        storage: Box::new(payload),
+                        life: life.clone(),
+                    };
+                    stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                    qualified
+                } else {
+                    payload
+                }
+            }
+        };
+        self.active.remove(name);
+        if matches!(result, Type::BorrowedStorage { .. }) {
+            let cost = inference::type_snapshot_work(
+                &result,
+                span,
+                &Limits {
+                    max_analysis_steps: self.remaining,
+                    ..self.generic_limits.clone()
+                },
+            )?;
+            aggregate_templates::spend(&mut self.remaining, cost, span)?;
+        }
+        self.cache.insert(name.to_owned(), result.clone());
+        Ok(result)
+    }
+
     fn ty(&mut self, ty: &Type, depth: usize, span: Span) -> R<Type> {
         self.charge(depth, span)?;
         if let Type::Named(name) = ty
@@ -936,227 +1245,7 @@ impl Resolver<'_> {
                 if self.declarations.contains_key(name)
                     || self.enum_declarations.contains_key(name) =>
             {
-                if self.active.contains(name) {
-                    return Err(error(
-                        "E-INFINITE-LAYOUT",
-                        span,
-                        "recursive by-value aggregate has infinite layout",
-                    ));
-                }
-                if let Some(cached) = self.cache.get(name) {
-                    if matches!(cached, Type::BorrowedStorage { .. }) {
-                        let cost = inference::type_snapshot_work(
-                            cached,
-                            span,
-                            &Limits {
-                                max_analysis_steps: self.remaining,
-                                ..self.generic_limits.clone()
-                            },
-                        )?;
-                        aggregate_templates::spend(&mut self.remaining, cost, span)?;
-                        return Ok(cached.clone());
-                    }
-                    let mut pending = vec![cached];
-                    while let Some(t) = pending.pop() {
-                        if self.remaining == 0 {
-                            return Err(Diagnostic::limit(
-                                Phase::Types,
-                                "aggregate expansion budget exceeded",
-                                Some(span),
-                            ));
-                        }
-                        self.remaining -= 1;
-                        match t {
-                            Type::Record { fields, .. } | Type::Package { fields, .. } => {
-                                pending.extend(fields.iter().map(|(_, t)| t))
-                            }
-                            Type::Enum { variants, .. } => {
-                                pending.extend(variants.iter().flat_map(|(_, fields)| fields))
-                            }
-                            Type::Tuple(fields) => pending.extend(fields),
-                            Type::Array { element, .. }
-                            | Type::Slice { element }
-                            | Type::OwnedStore { element } => pending.push(element),
-                            Type::ErrorUnion { error, result } => {
-                                pending.push(error);
-                                pending.push(result);
-                            }
-                            Type::Managed(payload) | Type::Desc(payload) => pending.push(payload),
-                            _ => {}
-                        }
-                    }
-                    return Ok(cached.clone());
-                }
-                self.active.insert(name.clone());
-                let result = if let Some(declaration) = self.enum_declarations.get(name).copied() {
-                    let mut variants = Vec::new();
-                    let mut owns = false;
-                    for (variant, raw_fields) in &declaration.variants {
-                        let mut fields = Vec::new();
-                        for field in raw_fields {
-                            let ty = self.ty(field, depth + 1, declaration.span)?;
-                            let copy = ty.is_copy_value();
-                            owns |= !copy;
-                            if !copy && !owned_shapes::value(&ty) {
-                                return Err(unsupported(
-                                    declaration.span,
-                                    "enum payload requires finite Copy or an ordinary complete owned value",
-                                ));
-                            }
-                            fields.push(ty);
-                        }
-                        variants.push((variant.clone(), fields));
-                    }
-                    if name.starts_with("$generic_$builtinOption340_")
-                        || name.starts_with("$generic_$stdTaskPoll343_")
-                    {
-                        for (_, fields) in &variants {
-                            for field in fields {
-                                let work = inference::type_snapshot_work(
-                                    field,
-                                    span,
-                                    &self.generic_limits,
-                                )?;
-                                self.remaining = self
-                                    .remaining
-                                    .checked_sub(work.saturating_mul(4))
-                                    .ok_or_else(|| {
-                                        Diagnostic::limit(
-                                            Phase::Types,
-                                            "Option identity work budget exceeded",
-                                            Some(span),
-                                        )
-                                    })?;
-                            }
-                        }
-                    }
-                    let ty = Type::Enum {
-                        name: enums::nominal_name(self.owners[name], name, &variants),
-                        variants,
-                    };
-                    if owns {
-                        owned_shapes::validate(&ty, &mut self.remaining, self.depth_limit, span)?;
-                    }
-                    ty
-                } else {
-                    let d = self.declarations[name];
-                    if !self.stored_instances.is_empty() {
-                        aggregate_templates::spend(
-                            &mut self.remaining,
-                            name.len()
-                                .saturating_add(1)
-                                .saturating_mul(self.stored_instances.len().saturating_add(1)),
-                            span,
-                        )?;
-                    }
-                    let stored_instance = self.stored_instances.get(name.as_str()).copied();
-                    let mut fields = Vec::new();
-                    let mut new_shape = false;
-                    for f in &d.fields {
-                        let ty = self.field_type(f, depth + 1)?;
-                        if !(ty.is_copy_value()
-                            || (stored_instance.is_some()
-                                && matches!(ty, Type::Address { mutable: false, .. }))
-                            || (d.kind == AggregateKind::Package
-                                && !f.manages
-                                && d.name.starts_with("$generic_")
-                                && matches!(&ty, Type::Named(name) if self.callable_names.contains(name)))
-                            || (d.kind == AggregateKind::Package
-                                && !f.manages
-                                && packages::array_field_supported(&ty))
-                            || (d.kind == AggregateKind::Package
-                                && !f.manages
-                                && matches!(ty, Type::Package { .. })
-                                && packages::product::owned_supported(&ty))
-                            || (d.kind == AggregateKind::Package
-                                && f.manages
-                                && matches!(ty, Type::Managed(_))
-                                && resources::supported(&ty)))
-                        {
-                            if d.kind == AggregateKind::Package
-                                && !f.manages
-                                && ((matches!(ty, Type::Package { .. })
-                                    && owned_shapes::value(&ty))
-                                    || owned_shapes::sum(&ty))
-                            {
-                                new_shape = true;
-                            } else {
-                                return Err(unsupported(
-                                    f.span,
-                                    "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
-                                ));
-                            }
-                        }
-                        fields.push((f.name.clone(), ty));
-                    }
-                    let name = format!("@module{}:{}", self.owners[name], name);
-                    if d.kind == AggregateKind::Package {
-                        let ty = Type::Package { name, fields };
-                        if new_shape {
-                            owned_shapes::validate(
-                                &ty,
-                                &mut self.remaining,
-                                self.depth_limit,
-                                span,
-                            )?;
-                        }
-                        if packages::product::nested(&ty) && packages::product::owned_supported(&ty)
-                        {
-                            packages::product::validate_owned(
-                                &ty,
-                                &mut self.remaining,
-                                self.depth_limit,
-                                span,
-                            )?;
-                        } else if !d.fields.iter().any(|f| f.manages) && !owned_shapes::value(&ty) {
-                            return Err(unsupported(
-                                span,
-                                "package requires at least one manages field or complete owning child",
-                            ));
-                        }
-                        ty
-                    } else {
-                        let payload = Type::Record { name, fields };
-                        if d.kind == AggregateKind::Resource {
-                            Type::Desc(Box::new(payload))
-                        } else if let Some(instance) = stored_instance {
-                            let Type::BorrowedStorage { life, .. } = &instance.ty else {
-                                unreachable!()
-                            };
-                            let work = inference::type_snapshot_work(
-                                &instance.ty,
-                                span,
-                                &Limits {
-                                    max_analysis_steps: self.remaining,
-                                    ..self.generic_limits.clone()
-                                },
-                            )?;
-                            aggregate_templates::spend(&mut self.remaining, work, span)?;
-                            let qualified = Type::BorrowedStorage {
-                                storage: Box::new(payload),
-                                life: life.clone(),
-                            };
-                            stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
-                            qualified
-                        } else {
-                            payload
-                        }
-                    }
-                };
-                self.active.remove(name);
-                if matches!(result, Type::BorrowedStorage { .. }) {
-                    let cost = inference::type_snapshot_work(
-                        &result,
-                        span,
-                        &Limits {
-                            max_analysis_steps: self.remaining,
-                            ..self.generic_limits.clone()
-                        },
-                    )?;
-                    aggregate_templates::spend(&mut self.remaining, cost, span)?;
-                }
-                self.cache.insert(name.clone(), result.clone());
-                result
+                self.nominal_type(name, depth, span)?
             }
             ty @ Type::Package { .. } if packages::product::nested(ty) => {
                 if packages::product::owned_supported(ty) {
@@ -1858,6 +1947,17 @@ impl<'a> Builder<'a, '_> {
         object: &CoreExpr,
         member: &str,
     ) -> Option<&'a Signature> {
+        if let Some(ty) = self.known_type_ref(object) {
+            let ty = match ty {
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::Managed(payload) => payload.as_ref(),
+                    other => other,
+                },
+                Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+                other => other,
+            };
+            return resolve_type_method(ty, member, self.signatures, self.imports);
+        }
         let ty = self.known_type(object)?;
         let ty = match ty {
             Type::Address { inner, .. } => match *inner {
@@ -1886,17 +1986,16 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let receiver = &signature.parameters[0];
-        let (first, actual) = if matches!(receiver, Type::Address { .. })
-            && !matches!(self.known_type(object), Some(Type::Address { .. }))
-        {
-            let (value, ty) = self.borrow_place_mode(
-                object,
-                matches!(receiver, Type::Address { mutable: true, .. }),
-            )?;
-            (value, ty)
-        } else {
-            self.argument_expr(object, receiver)?
-        };
+        let (first, actual) =
+            if matches!(receiver, Type::Address { .. }) && !self.known_address(object) {
+                let (value, ty) = self.borrow_place_mode(
+                    object,
+                    matches!(receiver, Type::Address { mutable: true, .. }),
+                )?;
+                (value, ty)
+            } else {
+                self.argument_expr(object, receiver)?
+            };
         self.member_owner(&actual, owner, span)?;
         self.same(&actual, receiver, object.span)?;
         let mut arguments = vec![self.stage_argument(first, receiver, object.span)?];
@@ -1943,7 +2042,14 @@ impl<'a> Builder<'a, '_> {
             unreachable!("expression dispatcher variant")
         };
         let (mut element, length) = match expected {
-            Some(Type::Array { element, length }) => (Some((**element).clone()), *length),
+            Some(Type::Array { element, length }) => {
+                if !element.is_copy_value()
+                    && stored::pure_inline(element, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(element, 1, 0, e.span)?;
+                }
+                (Some((**element).clone()), *length)
+            }
             _ => (None, items.len() as u32),
         };
         if length as usize != items.len() {
@@ -1958,6 +2064,11 @@ impl<'a> Builder<'a, '_> {
         for v in items {
             let (id, t) = self.owned_array_input(v, element.as_ref())?;
             if element.is_none() {
+                if !t.is_copy_value()
+                    && stored::pure_inline(&t, &mut self.match_work_left, self.limits, v.span)?
+                {
+                    self.closures.snapshot_type(&t, 1, 0, v.span)?;
+                }
                 element = Some(t.clone());
             }
             self.same(&t, element.as_ref().expect("known array element"), v.span)?;
@@ -1978,13 +2089,19 @@ impl<'a> Builder<'a, '_> {
         if let Type::Array { element, length } = &ty {
             self.check_owned_array_closure(element, *length, e.span)?;
         }
-        if !owned && !ty.is_copy_value() {
+        let qualified_pure = !owned
+            && !ty.is_copy_value()
+            && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+        if !owned && !ty.is_copy_value() && !qualified_pure {
             return Err(unsupported(
                 e.span,
                 "array elements require finite Copy values or a nonempty homogeneous Package or self-contained Closure array",
             ));
         }
         let fields = self.commit_arguments(staged, e.span)?;
+        if qualified_pure {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((
             self.value(
                 if owned {
@@ -2014,14 +2131,17 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
-            || dynamic_store::borrow_expression(object)
-        {
+        if self.known_address(object) || dynamic_store::borrow_expression(object) {
             let (address, ty) = self.borrow_place(e)?;
             let Type::Address { inner, .. } = ty else {
                 unreachable!()
             };
             let ty = *inner;
+            if !ty.is_copy_value()
+                && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+            {
+                self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+            }
             return Ok((
                 self.value(InstructionKind::ReadAddress { address }, ty.clone(), e.span)?,
                 ty,
@@ -2044,6 +2164,11 @@ impl<'a> Builder<'a, '_> {
             ));
         }
         let ty = *element;
+        if !ty.is_copy_value()
+            && stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((
             self.value(
                 InstructionKind::ExtractIndex { aggregate, index },
@@ -2075,7 +2200,9 @@ impl<'a> Builder<'a, '_> {
             types.push(t);
         }
         let ty = Type::Tuple(types);
-        if !ty.is_copy_value() {
+        let pure = ty.is_copy_value()
+            || stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?;
+        if !pure {
             owned_shapes::validate(
                 &ty,
                 &mut self.match_work_left,
@@ -2084,11 +2211,14 @@ impl<'a> Builder<'a, '_> {
             )?;
         }
         let fields = self.commit_arguments(staged, e.span)?;
-        let kind = if ty.is_copy_value() {
+        let kind = if pure {
             InstructionKind::MakeAggregate { fields }
         } else {
             InstructionKind::MakeOwnedTuple { fields }
         };
+        if pure && !ty.is_copy_value() {
+            self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+        }
         Ok((self.value(kind, ty.clone(), e.span)?, ty))
     }
 
@@ -2114,6 +2244,12 @@ impl<'a> Builder<'a, '_> {
         let mut slots = vec![None; decl.len()];
         let mut guarded = vec![None; decl.len()];
         for (name, value) in fields {
+            if let Some((_, actual)) = decl.iter().find(|(field, _)| field == name)
+                && !actual.is_copy_value()
+                && stored::pure_inline(actual, &mut self.match_work_left, self.limits, value.span)?
+            {
+                self.closures.snapshot_type(actual, 1, 0, value.span)?;
+            }
             let (i, t) = field(payload, name, value.span)?;
             if slots[i as usize].is_some() {
                 return Err(error(
@@ -2155,6 +2291,11 @@ impl<'a> Builder<'a, '_> {
         } else {
             slots.into_iter().map(Option::unwrap).collect()
         };
+        if !ty.is_copy_value()
+            && stored::pure_inline(ty, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(ty, 2, 0, e.span)?;
+        }
         Ok((
             self.value(
                 if matches!(ty, Type::Managed(_)) {
@@ -2197,8 +2338,20 @@ impl<'a> Builder<'a, '_> {
                     "duplicate update field",
                 ));
             }
+            if let Type::Record { fields, .. } = &actual
+                && let Some((_, field)) = fields.iter().find(|(field, _)| field == name)
+                && !field.is_copy_value()
+                && stored::pure_inline(field, &mut self.match_work_left, self.limits, value.span)?
+            {
+                self.closures.snapshot_type(field, 1, 0, value.span)?;
+            }
             let (index, t) = field(&actual, name, value.span)?;
             let value = self.expr(value, Some(&t))?.0;
+            if !actual.is_copy_value()
+                && stored::pure_inline(&actual, &mut self.match_work_left, self.limits, e.span)?
+            {
+                self.closures.snapshot_type(&actual, 1, 0, e.span)?;
+            }
             current = self.value(
                 InstructionKind::UpdateField {
                     aggregate: current,
@@ -2222,11 +2375,9 @@ impl<'a> Builder<'a, '_> {
         else {
             unreachable!("expression dispatcher variant")
         };
-        if self
-            .known_type(object)
-            .as_ref()
-            .is_some_and(|ty| stored::shared_value(ty) || stored::shared_address(ty))
-        {
+        if self.known_type_is(object, |ty| {
+            stored::shared_value(ty) || stored::shared_address(ty)
+        }) {
             let (storage, address_ty) = self.projection_base(object, false)?;
             let Type::Address { inner, .. } = &address_ty else {
                 unreachable!()
@@ -2248,7 +2399,10 @@ impl<'a> Builder<'a, '_> {
                     ty,
                 ));
             }
-            if !ty.is_copy_value() {
+            if !ty.is_copy_value()
+                && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, e.span)?
+                && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
+            {
                 return Err(unsupported(
                     e.span,
                     "nested stored field requires its complete projection consumer",
@@ -2265,6 +2419,9 @@ impl<'a> Builder<'a, '_> {
                 },
                 e.span,
             )?;
+            if !ty.is_copy_value() {
+                self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+            }
             return Ok((
                 self.value(
                     InstructionKind::ReadAddress {
@@ -2276,16 +2433,14 @@ impl<'a> Builder<'a, '_> {
                 ty,
             ));
         }
-        if matches!(self.known_type(object), Some(Type::Package { .. }))
+        if self.known_type_is(object, |ty| matches!(ty, Type::Package { .. }))
             && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()
         {
             return self.package_field(object, member, owner.as_ref(), e.span);
         }
-        if matches!(
-            self.known_type(object),
-            Some(Type::Managed(_) | Type::Desc(_))
-        ) && !self.indirect_place(e)
+        if self.known_type_is(object, |ty| matches!(ty, Type::Managed(_) | Type::Desc(_)))
+            && !self.indirect_place(e)
             && self.method_signature(object, member).is_none()
         {
             return self.resource_field(object, member, owner.as_ref(), e.span);
@@ -2311,7 +2466,7 @@ impl<'a> Builder<'a, '_> {
         })();
         self.closures.snapshot(before - remaining, e.span)?;
         if owned_tuple_place?
-            || matches!(self.known_type(object), Some(Type::Address { .. }))
+            || self.known_address(object)
             || dynamic_store::borrow_expression(object)
             || self.indirect_place(e)
         {
@@ -2336,6 +2491,13 @@ impl<'a> Builder<'a, '_> {
         }
         let (aggregate, ty) = self.expr(object, None)?;
         self.member_owner(&ty, owner.as_ref(), e.span)?;
+        if let Type::Record { fields, .. } = stored::physical(&ty)
+            && let Some((_, actual)) = fields.iter().find(|(name, _)| name == member)
+            && !actual.is_copy_value()
+            && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(actual, 2, 0, e.span)?;
+        }
         let (index, field_ty) = field(&ty, member, e.span)?;
         Ok((
             self.value(
