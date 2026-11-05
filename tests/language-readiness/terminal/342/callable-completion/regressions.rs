@@ -310,6 +310,13 @@ fn g339_completion_exact_two_kernel_budgets() {
     let target = zil_base::TargetProfile::host_llvm();
     for (case, text) in [
         ("cyclic", include_str!("loop-transfer.zil")),
+        (
+            "conditional-cleanup",
+            include_str!("loop-consume-break.zil"),
+        ),
+        ("five-role", include_str!("five-role-drop-lending.zil")),
+        ("retained-managed", include_str!("nonconsuming-managed.zil")),
+        ("give-companion", include_str!("managed-companion.zil")),
         ("drop", include_str!("two-role-user-drop.zil")),
         ("lending", include_str!("qualified-lending-mut.zil")),
     ] {
