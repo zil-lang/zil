@@ -2494,7 +2494,6 @@ mod float_tests {
                     .module(),
                 &typed
             );
-            eprintln!("CT6 generated {name} raw/Wire Pass");
         }
         for dimension in 0..3 {
             let mut limits = allowance();
