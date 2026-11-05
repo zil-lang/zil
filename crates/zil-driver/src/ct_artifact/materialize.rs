@@ -1656,6 +1656,16 @@ impl Materializer<'_, '_> {
         match &mut item.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
                 if runtime_phase::deferred(f, &mut self.environment.budget, self.max_depth)? {
+                    self.environment
+                        .budget
+                        .reserve_analysis_work(f.params.len() as u64)?;
+                    if f.params.iter().any(|parameter| parameter.name == "self") {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Ct,
+                            "generic function specialization",
+                            Some(item.span),
+                        )]);
+                    }
                     self.runtime_deferred = true;
                     return Ok(());
                 }
