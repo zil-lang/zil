@@ -7100,28 +7100,55 @@ fn g335_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels()
                 errors.iter().any(|d| if mutation < 2 {
                     d.message.contains("class")
                 } else {
-                    d.message.contains("kind")
-                        || d.message.contains("callable")
-                        || d.message.contains("mode")
+                    // Verify rejects this forged instruction at its finite
+                    // stored-profile inventory, before the relation proof.
+                    d.category == ResultCategory::Unsupported
+                        && d.message.contains("outside the checked stored profile")
                 }),
                 "{mutation}: {errors:?}"
             );
         }
     }
-    // The same actual Source yields a well-typed candidate with an outstanding
-    // exclusive receiver loan, independently rejected by both kernel paths.
-    let bad=zil_types::check(&g334_core(include_str!("../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil")),&target,&limits).unwrap();
+    // Start with two actual same-type environments at disjoint physical locals.
+    // Redirect only the first receiver borrow onto the second actual local;
+    // SSA/CFG initialization facts remain unchanged, so Verify reaches loans.
+    let disjoint = include_str!("../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil")
+        .replace("let held=&mut f;", "var g=f;let held=&mut g;");
+    let mut bad = zil_types::check(&g334_core(&disjoint), &target, &limits).unwrap();
+    let mut forged = zil_analyze::analyze(&bad, &limits).unwrap();
+    zil_verify::verify_module(bad.clone(), forged.clone(), &target, &limits).unwrap();
+    let caller = bad.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions)
+        .filter(|i| matches!(i.kind, InstructionKind::BorrowLocalMut {local} if matches!(f.locals[local.0 as usize].ty, Type::Closure(_))))
+        .count() == 2).unwrap();
+    let receivers = caller
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match i.kind {
+            InstructionKind::BorrowLocalMut { local }
+                if matches!(caller.locals[local.0 as usize].ty, Type::Closure(_)) =>
+            {
+                Some(local)
+            }
+            _ => None,
+        })
+        .collect::<Vec<_>>();
+    assert_ne!(receivers[0], receivers[1]);
+    let instruction = caller
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::BorrowLocalMut {local} if local==receivers[0]))
+        .unwrap();
+    instruction.kind = InstructionKind::BorrowLocalMut {
+        local: receivers[1],
+    };
     assert!(
         zil_analyze::analyze(&bad, &limits)
             .unwrap_err()
             .iter()
             .any(|d| d.message.contains("overlaps"))
     );
-    let mut forged = zil_analyze::analyze(
-        &zil_types::check(&g334_core(G335_STATEFUL), &target, &limits).unwrap(),
-        &limits,
-    )
-    .unwrap();
     forged.module_fingerprint = bad.fingerprint();
     let wire = wire::encode_module_candidate(&bad, &forged, &limits).unwrap();
     for errors in [
@@ -7221,8 +7248,9 @@ fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
         match mutation {
             0 => bad.functions[helper].callable_parameters[0].kind = CallableKind::FnOnce,
             1 => {
-                let role = &mut bad.functions[helper].callable_parameters[0];
-                bad.functions[helper].parameters[role.index as usize].ty = Type::Address {
+                let function = &mut bad.functions[helper];
+                let role = &function.callable_parameters[0];
+                function.parameters[role.index as usize].ty = Type::Address {
                     mutable: false,
                     inner: Box::new(Type::Named(role.generic_name.clone())),
                 };
