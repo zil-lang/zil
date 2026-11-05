@@ -162,6 +162,14 @@ impl RuntimePhase<'_> {
         definition: &RuntimeDefinition,
         environment: &mut Environment<'_>,
     ) -> CompileResult<Declaration> {
+        if definition.origin.closure_sites
+            != zil_expand::source_context::ClosureSiteLineage::Original
+        {
+            return Err(category(
+                "runtime CT transformed declaration requires retained source call correspondence",
+                Span::default(),
+            ));
+        }
         if definition.member.is_some() {
             return Err(category(
                 "runtime CT member specialization needs its actual member ledger",
@@ -226,6 +234,42 @@ impl RuntimePhase<'_> {
     }
 }
 impl Declaration {
+    fn runtime_call(
+        &self,
+        ordinal: u32,
+        environment: &mut Environment<'_>,
+    ) -> CompileResult<SourceSite> {
+        let item = self.item(environment)?;
+        let mut address = None;
+        zil_expand::runtime_ct::observe_explicit_calls(
+            item,
+            environment.remaining_limits_for_input().max_call_depth,
+            |event| match event {
+                zil_expand::runtime_ct::RuntimeCallEvent::Work(work) => {
+                    environment.budget.reserve_analysis_work(work as u64)
+                }
+                zil_expand::runtime_ct::RuntimeCallEvent::Call {
+                    expression,
+                    ordinal: selected,
+                } => {
+                    if selected == ordinal {
+                        address = Some(expression as *const s::Expr as usize);
+                    }
+                    Ok(())
+                }
+            },
+        )?;
+        self.site(
+            address.ok_or_else(|| {
+                category(
+                    "runtime CT actual explicit source call is absent",
+                    item.span,
+                )
+            })?,
+            environment,
+        )
+    }
+
     fn item<'a>(&'a self, environment: &mut Environment<'_>) -> CompileResult<&'a s::Item> {
         compiler::source_scope::original_declaration(
             self.source.module(),
@@ -240,30 +284,6 @@ impl Declaration {
                 self.source.module().span,
             )
         })
-    }
-    fn expression(
-        &self,
-        ordinal: u32,
-        environment: &mut Environment<'_>,
-    ) -> CompileResult<SourceSite> {
-        let item = self.item(environment)?;
-        let mut scan = Scan {
-            max_depth: environment.remaining_limits_for_input().max_call_depth,
-            budget: &mut environment.budget,
-            next: 0,
-            selected: Some(ordinal),
-            address: None,
-            roots: Vec::new(),
-            roots_only: false,
-        };
-        zil_expand::ct_selection::Visitor::item(&mut scan, item, 0)?;
-        let address = scan.address.ok_or_else(|| {
-            category(
-                "runtime CT original expression ordinal is absent",
-                item.span,
-            )
-        })?;
-        self.site(address, environment)
     }
     fn site(&self, address: usize, environment: &mut Environment<'_>) -> CompileResult<SourceSite> {
         compiler::source_sites::select_in_tree(
@@ -302,26 +322,24 @@ impl RuntimeCt for RuntimePhase<'_> {
         let mut environment = self.environment.borrow_mut();
         synchronize(&mut environment, remaining)?;
         let declaration = self.declaration(definition, &mut environment)?;
-        let outer = declaration.expression(ordinal, &mut environment)?;
-        let located = compiler::source_sites::select_in_tree(
-            declaration.source.module(),
-            declaration.tree,
-            Selection::Site(outer),
-            remaining.max_call_depth,
-            |work| environment.budget.reserve_analysis_work(work as u64),
-        )?
-        .ok_or_else(|| category("symbolic runtime CT root is absent", Span::default()))?;
-        let SourceNode::Expr(s::Expr {
-            kind: s::ExprKind::MetaEval(inner),
-            ..
-        }) = located.node
-        else {
-            return Err(category(
-                "symbolic runtime CT root is not the actual meta expression",
-                Span::default(),
-            ));
+        let item = declaration.item(&mut environment)?;
+        let mut scan = Scan {
+            max_depth: remaining.max_call_depth,
+            budget: &mut environment.budget,
+            next: 0,
+            selected: None,
+            address: None,
+            roots: Vec::new(),
+            roots_only: false,
         };
-        let site = declaration.site(inner.as_ref() as *const s::Expr as usize, &mut environment)?;
+        zil_expand::ct_selection::Visitor::item(&mut scan, item, 0)?;
+        let address = *scan.roots.get(ordinal as usize).ok_or_else(|| {
+            category(
+                "symbolic runtime CT meta-expression ordinal is absent",
+                item.span,
+            )
+        })?;
+        let site = declaration.site(address, &mut environment)?;
         let result = environment.check_runtime_definition_expression(&declaration.symbol, site)?;
         *remaining = environment.remaining_limits_for_input();
         Ok(result)
@@ -343,7 +361,8 @@ impl RuntimeCt for RuntimePhase<'_> {
         synchronize(&mut environment, remaining)?;
         let declaration = self.declaration(&instance.definition, &mut environment)?;
         let caller = self.declaration(&instance.call.caller, &mut environment)?;
-        let call_site = caller.expression(instance.call.expression_ordinal, &mut environment)?;
+        let call_site =
+            caller.runtime_call(instance.call.explicit_call_ordinal, &mut environment)?;
         let original = declaration.item(&mut environment)?;
         let mut scan = Scan {
             max_depth: remaining.max_call_depth,
