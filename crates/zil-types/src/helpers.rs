@@ -595,6 +595,17 @@ impl Builder<'_, '_> {
             arguments.len().saturating_add(signature.callable.len()),
             span,
         )?;
+        if signature.callable.len() > 2 {
+            // Every actual position can compare with every callable role;
+            // the extra comparison covers the owned-State lookup as well.
+            self.closures.snapshot(
+                arguments
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(signature.callable.len()),
+                span,
+            )?;
+        }
         for (index, (argument, ty)) in arguments.iter().zip(&signature.parameters).enumerate() {
             let (value, actual) = if signature
                 .state_parameter
@@ -1791,6 +1802,9 @@ fn forwarded_contract(
         role_count.saturating_mul(3).saturating_add(arguments.len()),
         instruction.span,
     )?;
+    if role_count > 2 {
+        state.snapshot(arguments.len().saturating_mul(role_count), instruction.span)?;
+    }
     let mut roles = Vec::with_capacity(role_count);
     let mut concrete = BTreeSet::new();
     for (parameter, value) in arguments.iter().enumerate() {

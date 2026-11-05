@@ -341,6 +341,12 @@ pub(super) fn contract(
                     state,
                     instruction.span,
                 )?;
+                if forwarded.roles.len() > 2 {
+                    state.snapshot(
+                        addition.calls.saturating_mul(forwarded.roles.len()),
+                        instruction.span,
+                    )?;
+                }
                 let mut child = state.helper_functions[position]
                     .callable_contract
                     .as_ref()
