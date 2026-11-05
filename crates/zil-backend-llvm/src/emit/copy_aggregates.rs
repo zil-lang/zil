@@ -466,8 +466,9 @@ pub(super) fn pointer(value: ValueId) -> m::Val {
 // reserve has already bounded/paid this complete type walk and its depth.
 // Estimate the existing canonical store's actual repeated field operations
 // without allocating aggregate_fields or expanding an array in the planner.
-fn canonical_payload_work(ty: &Type) -> usize {
+pub(super) fn canonical_payload_work(ty: &Type) -> usize {
     match ty {
+        Type::BorrowedStorage { storage, .. } => canonical_payload_work(storage),
         Type::Unit => 0,
         Type::Bool => 2,
         Type::Array { element, length } => canonical_payload_work(element)

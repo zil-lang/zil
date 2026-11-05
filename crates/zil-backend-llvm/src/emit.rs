@@ -3264,7 +3264,7 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         let result = instruction.result.expect("verified array operation result");
         let ty = &self.function.values[aggregate.0 as usize];
-        let Type::Array { element, length } = ty else {
+        let Type::Array { element, length } = enums::storage_shape(ty) else {
             return unsupported("verified index lost array type", Some(instruction.span));
         };
         let element = (**element).clone();
