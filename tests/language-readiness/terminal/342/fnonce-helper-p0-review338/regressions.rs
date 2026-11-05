@@ -68,10 +68,10 @@ fn p0_g338_independent_source_and_raw_wire_path_mutations() {
             .enumerate()
             .find_map(|(b, block)| {
                 block.instructions.iter().enumerate().find_map(|(i, op)| {
-                    if op.result == Some(callee) {
-                        if let InstructionKind::TakeLocal { local } = op.kind {
-                            return Some((b, i, local));
-                        }
+                    if op.result == Some(callee)
+                        && let InstructionKind::TakeLocal { local } = op.kind
+                    {
+                        return Some((b, i, local));
                     }
                     None
                 })
@@ -88,10 +88,10 @@ fn p0_g338_independent_source_and_raw_wire_path_mutations() {
             .iter()
             .rev()
             .find_map(|i| {
-                if let InstructionKind::Store { local, .. } = i.kind {
-                    if matches!(helper.locals[local.0 as usize].ty, Type::Closure(_)) {
-                        return Some(local);
-                    }
+                if let InstructionKind::Store { local, .. } = i.kind
+                    && matches!(helper.locals[local.0 as usize].ty, Type::Closure(_))
+                {
+                    return Some(local);
                 }
                 None
             })
