@@ -375,8 +375,13 @@ impl FrozenInvocationContext {
             return Err(unsupported("CT nominal field schema dependency cycles"));
         }
         if stack.len() == stack.capacity() {
-            budget.reserve_temporary_bytes(std::mem::size_of::<SourceSchemaId>() as u64)?;
+            let width = std::mem::size_of::<SourceSchemaId>() as u64;
+            let old_bytes = stack.capacity() as u64 * width;
+            let new_bytes = (stack.len() as u64 + 1).saturating_mul(width);
+            budget.reserve_analysis_work(stack.len() as u64)?;
+            budget.reserve_temporary_bytes(new_bytes)?;
             stack.reserve_exact(1);
+            budget.release_temporary_bytes(old_bytes);
         }
         stack.push(id);
         let result = (|| {
@@ -477,6 +482,54 @@ impl FrozenInvocationContext {
         stack.pop();
         result
     }
+    fn nominal_binding_origin(
+        &self,
+        binding: &SourceLifeBinding,
+        position: usize,
+        facts: &SourceCompilation,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<CtFunctionId> {
+        let mut current = binding;
+        let mut before = position;
+        let mut claimed = binding.caller;
+        let mut depth = 0;
+        loop {
+            step(budget, depth)?;
+            budget.reserve_analysis_work(32)?;
+            if current.definition != binding.definition {
+                return Err(unsupported(
+                    "CT nominal field parent belongs to another actual source definition",
+                ));
+            }
+            if let Some(caller) = current.caller {
+                if claimed.is_some_and(|old| old != caller) {
+                    return Err(unsupported(
+                        "CT nominal field parent belongs to another actual source invocation",
+                    ));
+                }
+                claimed = Some(caller);
+            }
+            let Some(parent) = current.parent else {
+                let root = current.caller.ok_or_else(|| {
+                    unsupported("CT nominal schema root has no authentic original function")
+                })?;
+                if claimed != Some(root) {
+                    return Err(unsupported(
+                        "CT nominal field chain has no unique actual root invocation",
+                    ));
+                }
+                return Ok(root);
+            };
+            budget.reserve_analysis_work(before as u64)?;
+            let (position, parent) = facts.bindings[..before].iter().enumerate()
+                .find(|(_, candidate)| schema_id(candidate) == parent)
+                .ok_or_else(|| unsupported("CT nominal field parent is missing, cyclic or not earlier in its actual source chain"))?;
+            current = parent;
+            before = position;
+            depth += 1;
+        }
+    }
+
     pub(super) fn validate_nominal_field_source(
         &self,
         binding: &SourceLifeBinding,
@@ -490,22 +543,7 @@ impl FrozenInvocationContext {
         let parent = binding
             .parent
             .ok_or_else(|| unsupported("CT nominal field parent is absent"))?;
-        budget.reserve_analysis_work(position as u64)?;
-        let parent_binding = facts.bindings[..position]
-            .iter()
-            .find(|old| schema_id(old) == parent)
-            .ok_or_else(|| {
-                unsupported(
-                    "CT nominal field parent is missing, cyclic or not independently admitted",
-                )
-            })?;
-        if parent_binding.caller != binding.caller
-            || parent_binding.definition != binding.definition
-        {
-            return Err(unsupported(
-                "CT nominal field parent belongs to another actual source invocation",
-            ));
-        }
+        let caller = self.nominal_binding_origin(binding, position, facts, budget)?;
         let (_, _, parent_graph) = self.schema_parts(parent, raw, budget)?;
         let parent_graph = parent_graph.ok_or_else(|| {
             unsupported("CT nominal field closed parent needs its own source certificate")
@@ -522,9 +560,6 @@ impl FrozenInvocationContext {
                 "CT nominal field parent lacks an independently checked exact graph",
             ));
         }
-        let caller = parent_binding.caller.ok_or_else(|| {
-            unsupported("CT nominal field parent has no authentic original function")
-        })?;
         let function = raw
             .functions
             .get(caller.0 as usize)
@@ -552,14 +587,13 @@ impl FrozenInvocationContext {
     pub(super) fn validate_nominal_schema_fields(
         &self,
         binding: &SourceLifeBinding,
+        position: usize,
         facts: &SourceCompilation,
         raw: &CtArtifactProgram,
         index: &SourceIndex,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
-        let caller = binding
-            .caller
-            .ok_or_else(|| unsupported("CT nominal schema has no authentic original function"))?;
+        let caller = self.nominal_binding_origin(binding, position, facts, budget)?;
         let function = raw.functions.get(caller.0 as usize).ok_or_else(|| {
             unsupported("CT nominal schema original function placement is absent")
         })?;
