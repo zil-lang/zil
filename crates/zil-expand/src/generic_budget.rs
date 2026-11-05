@@ -9,6 +9,7 @@ pub(crate) struct Budget<'a> {
     nodes: usize,
     work: usize,
     temporary_bytes: Option<usize>,
+    lineage_bytes: usize,
     enum_profiles: BTreeSet<Span>,
     enum_header: Option<Span>,
     primitive_binders: bool,
@@ -30,6 +31,7 @@ impl<'a> Budget<'a> {
             nodes: limits.max_nodes,
             work: limits.max_analysis_steps,
             temporary_bytes: None,
+            lineage_bytes: 0,
             enum_profiles: BTreeSet::new(),
             enum_header: None,
             primitive_binders: false,
@@ -68,7 +70,10 @@ impl<'a> Budget<'a> {
         Limits {
             max_nodes: self.nodes,
             max_analysis_steps: self.work,
-            max_source_bytes: self.temporary_bytes.unwrap_or(self.limits.max_source_bytes),
+            max_source_bytes: self
+                .temporary_bytes
+                .unwrap_or(self.limits.max_source_bytes)
+                .saturating_sub(self.lineage_bytes),
             ..self.limits.clone()
         }
     }
@@ -76,10 +81,17 @@ impl<'a> Budget<'a> {
     /// Every prepaid syntax/key visit bounds the allocation it can authorize;
     /// ordinary expansion keeps its existing node/work-only ledger.
     pub(crate) fn limit_temporary_bytes(&mut self, bytes: usize) {
-        self.temporary_bytes = Some(bytes);
+        self.temporary_bytes = Some(bytes.saturating_add(self.lineage_bytes));
     }
     fn temporary(&mut self, bytes: usize, span: Span) -> R<()> {
         if let Some(left) = &mut self.temporary_bytes {
+            if bytes > left.saturating_sub(self.lineage_bytes) {
+                return Err(Diagnostic::limit(
+                    Phase::Expand,
+                    "declaration lineage temporary bytes exhausted",
+                    Some(span),
+                ));
+            }
             *left = left.checked_sub(bytes).ok_or_else(|| {
                 Diagnostic::limit(
                     Phase::Expand,
@@ -94,8 +106,46 @@ impl<'a> Budget<'a> {
         self.nodes = self.nodes.min(remaining.max_nodes);
         self.work = self.work.min(remaining.max_analysis_steps);
         if let Some(bytes) = &mut self.temporary_bytes {
-            *bytes = (*bytes).min(remaining.max_source_bytes);
+            *bytes = (*bytes).min(
+                remaining
+                    .max_source_bytes
+                    .saturating_add(self.lineage_bytes),
+            );
+        } else if self.lineage_bytes != 0 {
+            self.lineage_bytes = self.lineage_bytes.max(
+                self.limits
+                    .max_source_bytes
+                    .saturating_sub(remaining.max_source_bytes),
+            );
         }
+    }
+    /// New declaration headers and member vectors are real allocations even
+    /// when the older AST planner uses only its node/work ledger. Keep that
+    /// marginal allocation quota separate instead of enabling unrelated AST
+    /// temporary charges for every old node visit.
+    pub(crate) fn lineage_bytes(&mut self, bytes: usize, span: Span) -> R<()> {
+        self.work = self.work.checked_sub(bytes.max(1)).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "declaration lineage copy work exhausted",
+                Some(span),
+            )
+        })?;
+        if bytes > self.remaining_limits().max_source_bytes {
+            return Err(Diagnostic::limit(
+                Phase::Expand,
+                "declaration lineage bytes exhausted",
+                Some(span),
+            ));
+        }
+        self.lineage_bytes = self.lineage_bytes.checked_add(bytes).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "declaration lineage bytes overflow",
+                Some(span),
+            )
+        })?;
+        Ok(())
     }
     pub(crate) fn note_enum_profile(&mut self, span: Span) -> R<()> {
         self.node(span, 0)?;

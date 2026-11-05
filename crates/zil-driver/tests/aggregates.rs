@@ -9510,3 +9510,28 @@ fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
         }
     }
 }
+
+#[test]
+fn g443_original_static_member_factories_reach_native_full_values() {
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}

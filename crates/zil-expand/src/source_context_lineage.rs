@@ -85,7 +85,14 @@ pub(crate) fn capture_original_impl(
                 budget.node(module.span, 0)?;
                 let mut origins = Origins::single(module, false, &mut budget)?;
                 origins.capture_identities(module, false, &resolved, &mut budget)?;
-                let mut items = Vec::new();
+                budget.lineage_bytes(
+                    module
+                        .items
+                        .len()
+                        .saturating_mul(std::mem::size_of::<DeclarationOrigin>()),
+                    module.span,
+                )?;
+                let mut items = Vec::with_capacity(module.items.len());
                 for (ordinal, item) in module.items.iter().enumerate() {
                     budget.node(item.span, 0)?;
                     let original = origins.get(ordinal, item.span)?.declaration;

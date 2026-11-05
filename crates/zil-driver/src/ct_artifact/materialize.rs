@@ -17,6 +17,8 @@ use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::{GeneratedSyntax, ParseResult, ast as s};
 #[path = "associated_constants.rs"]
 mod associated_constants;
+#[path = "materialize_member_lineage.rs"]
+mod member_lineage;
 #[path = "self_constant_coverage.rs"]
 mod self_constant_coverage;
 #[path = "self_constants.rs"]
@@ -205,6 +207,7 @@ struct Materializer<'a, 'b> {
     max_depth: usize,
     track_declarations: bool,
     declaration_lineage_preserved: bool,
+    member_retentions: Vec<member_lineage::MemberRetention>,
     generated_context: bool,
     // The revision is sampled at the actual original top-level item visit.
     // Changed rows move with retained original ordinals, never with spans.
@@ -1492,10 +1495,17 @@ impl Materializer<'_, '_> {
             self.environment
                 .budget
                 .reserve_analysis_work(original_count as u64)?;
-            if retained.into_iter().ne(0..original_count) {
-                // The current public ledger has top-level rows only. Member
-                // ordinals cannot be recovered after deleting nested items.
-                self.declaration_lineage_preserved = false;
+            if retained.iter().copied().ne(0..original_count) {
+                // Preserve supported original deletion events; unknown or
+                // generated member changes keep the old unavailable state.
+                let recorded = if !generated && let Some(host) = inherited {
+                    self.record_member_retention(module, host, original_count, &retained)?
+                } else {
+                    false
+                };
+                if !recorded {
+                    self.declaration_lineage_preserved = false;
+                }
             }
         }
         Ok(())
@@ -2133,6 +2143,7 @@ pub(crate) fn materialize(
         max_depth: limits.max_call_depth,
         track_declarations: declaration_origins.is_some(),
         declaration_lineage_preserved: true,
+        member_retentions: Vec::new(),
         generated_context: false,
         closure_site_revision: 0,
         changed_closure_sites: BTreeSet::new(),
@@ -2156,6 +2167,7 @@ pub(crate) fn materialize(
                     module.span,
                 ));
             }
+            materializer.attach_member_retentions(module.id, &mut rows.items)?;
             let original_count = rows.items.len();
             materializer
                 .environment
@@ -2586,6 +2598,7 @@ mod scoped_tests {
                 max_depth: limits.max_call_depth,
                 track_declarations: false,
                 declaration_lineage_preserved: true,
+                member_retentions: Vec::new(),
                 generated_context: false,
                 closure_site_revision: 0,
                 changed_closure_sites: BTreeSet::new(),
