@@ -1220,6 +1220,7 @@ impl Flow<'_> {
                     replacements::CheckPoint {
                         validate: check,
                         live: self.after.get(b).and_then(|row| row.get(position)),
+                        output: i.result,
                     },
                     budget,
                 )?;

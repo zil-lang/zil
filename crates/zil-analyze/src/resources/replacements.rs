@@ -6,11 +6,13 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
+mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
 pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
     pub(super) live: Option<&'a Live>,
+    pub(super) output: Option<ValueId>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum StoreInvalidation {
@@ -413,6 +415,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         if parents.is_empty() {
             return Err(error(
@@ -663,6 +666,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         let rows = &flow.effects[callee].replacements;
         fee(b, rows.len())?;
@@ -690,6 +694,10 @@ impl Program {
                         None,
                     )]);
                 }
+                // The actual Commit keys form a may-retire projection. Their
+                // birth rows remain conservative may-write unions; presence
+                // neither proves must-Commit nor grants a fresh origin.
+                retirement::check(flow, state, &at, point, b)?;
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
@@ -737,6 +745,7 @@ impl Program {
         let CheckPoint {
             validate: check,
             live,
+            ..
         } = point;
         let f = flow.function;
         match &i.kind {
@@ -765,6 +774,11 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
+                    // The old local path had the same missing consumer as a
+                    // call. Check actual leaf retirement independently here.
+                    if matches!(d.ty, Type::Managed(_)) {
+                        retirement::check(flow, state, &target, point, b)?;
+                    }
                     if matches!(d.ty, Type::Package { .. }) {
                         package::apply(flow, state, &target, *value, point, b)?;
                     } else if matches!(d.ty, Type::Enum { .. }) {
