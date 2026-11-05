@@ -6,9 +6,9 @@
 
 [源码与恢复参考](README.md) · [分支、更新与备份规则](AGENTS.md) · [精简前完整记录](https://github.com/zil-lang/zil/blob/fc3dff269a882ef2850c4f9dba2acf6031ac4439/goal.md)
 
-按能力分类，每类一张树形表格；子任务紧接父任务，编号列用缩进与连接线表示从属，父任务加粗。范围、状态、优先级、负责人和进展横向分栏；连接线不属于任务 ID。
+按能力分类，主表显示各项任务；子任务放在所属任务下的独立子表，默认折叠。展开后仍保留范围、状态、优先级、负责人和进展列，不使用四级标题。
 
-父任务汇总完整范围，子任务记录具体交付，父子不重复计数。尚未拆完的范围保留在父项；已列子任务全部完成不等于父任务完成，也不据此计算完成率。
+父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
 ## G1 · 基础类型与模式
 
@@ -16,14 +16,22 @@
 | --- | --- | --- | --- | --- | --- |
 | G1.1 | 有限Option、记录式枚举、usize/u64原生及CT链、拥有Tuple和混合Tuple/Enum部分移动 | 已合入 | — | — | [已合入证据][e37]；一般模式组合另列。 |
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
-| <a id="g1-3-children"></a>**G1.3** | **拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环** | 部分实现 | P0 | root | 局部 Package/Enum、字段/Store、退休检查及 Direct 整体 helper 的 Unit/有限 Copy/错误返回已合入，见 G1.3.4–8；一般非局部/capture/Store、loan/pin 与更广失败责任组合仍缺。 |
-| ├─ G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 已合入 | — | — | [PR41 验收][e-pr41]；真实来源、旧值/新临时值清理及多根反例已闭合。 |
-| ├─ G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 已合入 | — | — | [PR42 验收][e-pr42]；有限载荷、真实来源与失败清理已闭合，既有单已知变体精度边界保留。 |
-| ├─ G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 已合入 | — | — | [PR42 验收][e-pr42]；两核按实际根/字段/捕获独立检查，拒绝旧描述后用并保留合法分离调用。原误拒、旧断言失败及修正记录保留。 |
-| ├─ G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 已合入 | — | — | [PR43 验收][e-pr43]；两核及独审 Source/raw/Wire/机器消费者通过。首片 Direct Unit，Fresh 限单块单 Commit 无调用，保留实际来源、旧描述失效与 caller 清理年龄。 |
-| ├─ G1.3.8 | 整体 Package helper 的非 Unit/错误返回、失败时旧值保留与清理 | 已合入 | — | — | [PR44 验收][e-pr44]；Direct helper 有限普通 Copy/错误返回已到 Source/raw/Wire/双后端；实际 Commit/Abort、旧值及临时清理成立，非 Unit 不授 Fresh。 |
-| └─ G1.3.9 | 拥有值替换剩余组合：非局部 Package/Enum、capture/Store、loan/pin 与失败清理 | 实现待验 | P0 | sol · 拥有替换 | 联合源码 `be526bdf` 的 11 项已全过，含 Source/raw/Wire、Clang/API O0/O2；整体 ErrorUnion 清理函数漏生成已复现并修复。现有合法组合和最近 loan/责任反例闭合，正式共同验收待执行。实施：[task/G1.3.9](https://github.com/zil-lang/zil/tree/task/G1.3.9)；父项仍待完整验收。 |
+| **G1.3** | **拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环** | 部分实现 | P0 | root | 局部 Package/Enum、字段/Store、退休检查及 Direct 整体 helper 的 Unit/有限 Copy/错误返回已合入，见 G1.3.4–8；剩余组合已由 G1.3.9 实现并通过限定联合测试，父项等待正式共同验收。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
+
+<details>
+<summary>G1.3 · 子任务（6 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 已合入 | — | — | [PR41 验收][e-pr41]；真实来源、旧值/新临时值清理及多根反例已闭合。 |
+| G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 已合入 | — | — | [PR42 验收][e-pr42]；有限载荷、真实来源与失败清理已闭合，既有单已知变体精度边界保留。 |
+| G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 已合入 | — | — | [PR42 验收][e-pr42]；两核按实际根/字段/捕获独立检查，拒绝旧描述后用并保留合法分离调用。原误拒、旧断言失败及修正记录保留。 |
+| G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 已合入 | — | — | [PR43 验收][e-pr43]；两核及独审 Source/raw/Wire/机器消费者通过。首片 Direct Unit，Fresh 限单块单 Commit 无调用，保留实际来源、旧描述失效与 caller 清理年龄。 |
+| G1.3.8 | 整体 Package helper 的非 Unit/错误返回、失败时旧值保留与清理 | 已合入 | — | — | [PR44 验收][e-pr44]；Direct helper 有限普通 Copy/错误返回已到 Source/raw/Wire/双后端；实际 Commit/Abort、旧值及临时清理成立，非 Unit 不授 Fresh。 |
+| G1.3.9 | 拥有值替换剩余组合：非局部 Package/Enum、capture/Store、loan/pin 与失败清理 | 实现待验 | P0 | sol · 拥有替换 | 联合源码 `be526bdf` 的 11 项已全过，含 Source/raw/Wire、Clang/API O0/O2；整体 ErrorUnion 清理函数漏生成已复现并修复。现有合法组合和最近 loan/责任反例闭合，正式共同验收待执行。实施：[task/G1.3.9](https://github.com/zil-lang/zil/tree/task/G1.3.9)；父项仍待完整验收。 |
+
+</details>
 
 ## G2 · 泛型与 trait
 
@@ -40,17 +48,25 @@
 | --- | --- | --- | --- | --- | --- |
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
-| <a id="g3-3-children"></a>**G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 部分实现 | P0 | root | 真实 Fn/FnMut、有限 owning FnOnce free-helper 及一般无环来源流已合入，见 G3.3.4–8；循环、更广 CFG、lending、Managed 转交、多 F 及用户 Drop 责任组合仍缺。 普通闭包 Value 的 give F 按规范保持拒绝。 |
-| ├─ G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
-| ├─ G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 已合入 | — | — | [PR41 验收][e-pr41]；phantom 错误来源已修复，源码、两核与机器消费者通过。 |
-| ├─ G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 已合入 | — | — | [PR42 验收][e-pr42]；同一真实环境两次状态变化、物理共享捕获与独立来源核验已到机器，旧 None 费用回归已修复。 |
-| ├─ G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
-| ├─ G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
-| ├─ G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 已合入 | — | — | [PR44 验收][e-pr44]；消费前分支、一般无环合流、合法 Drop 分支的实际参数/Local/SSA 来源由两核独立证明；旧快路预算保持。循环、lending、多 F/用户 Drop 仍另缺。 |
-| ├─ G3.3.9 | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
-| └─ G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | [365235ae](https://github.com/zil-lang/zil/commit/365235ae94785e63daedbdd48cbcbc0fbd5c436c)：真实源码目标 20/0、三层来源等价 6/0；正在与 G3.3.9 的 lending/Drop 合并验证，不把分支通过数相加。 |
+| **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 部分实现 | P0 | root | 真实 Fn/FnMut、有限 owning FnOnce free-helper 及一般无环来源流已合入，见 G3.3.4–8；剩余组合已由 G3.3.9–10 实现并通过限定测试，父项等待独审与正式共同验收。 普通闭包 Value 的 give F 按规范保持拒绝。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
+
+<details>
+<summary>G3.3 · 子任务（8 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
+| G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 已合入 | — | — | [PR41 验收][e-pr41]；phantom 错误来源已修复，源码、两核与机器消费者通过。 |
+| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 已合入 | — | — | [PR42 验收][e-pr42]；同一真实环境两次状态变化、物理共享捕获与独立来源核验已到机器，旧 None 费用回归已修复。 |
+| G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
+| G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 已合入 | — | — | [PR43 验收][e-pr43]；两核全图身份、一次消费、raw/Wire、预算与机器完整值通过。限 entry 消费后两个退出块；独立双环境结果198。 |
+| G3.3.8 | 拥有 helper 消费前分支及更一般无环 CFG 的实际来源 | 已合入 | — | — | [PR44 验收][e-pr44]；消费前分支、一般无环合流、合法 Drop 分支的实际参数/Local/SSA 来源由两核独立证明；旧快路预算保持。循环、lending、多 F/用户 Drop 仍另缺。 |
+| G3.3.9 | 闭包 helper 剩余组合：循环、lending、多个 F、Managed 转交和用户 Drop | 实现待验 | P0 | sol · 闭包/life | 已完成循环实际来源、逐 role 身份、非消费 Managed 与 lending/用户 Drop 组合；同 F 多个参数位置及 Fn/FnMut→Once 责任已补齐；作者冻结 `00cae775` 限定 16/0、52 次双后端原生运行、27 条预算边界与实际 raw/Wire 责任反例通过。独审及联合正式验收仍需收齐。实施：[task/G3.3.9](https://github.com/zil-lang/zil/tree/task/G3.3.9)；give F 规范反例保留。 |
+| G3.3.10 | 多 callable 参数的完整实例键与逐角色来源消费者 | 实现待验 | P0 | sol · callable | [365235ae](https://github.com/zil-lang/zil/commit/365235ae94785e63daedbdd48cbcbc0fbd5c436c)：真实源码目标 20/0、三层来源等价 6/0；正在与 G3.3.9 的 lending/Drop 合并验证，不把分支通过数相加。 |
+
+</details>
 
 ## G4 · Type / Syntax 与编译期计算
 
@@ -59,20 +75,53 @@
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
 | G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 已合入 | — | — | [本批验收][e41]；CT4 全序号及原源重实体化已通过共同验收。 |
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 已合入 | — | — | [本批验收][e41]；CT5 实际上下文、键与物理字节计费已通过共同验收。 |
-| <a id="g4-4-children"></a>**G4.4** | **完整实例实际参数向量、成员/生成作用域、重定位与声明归属** | 部分实现 | P0 | root | free/原始静态成员、嵌套标量及跨工厂纯标量 Phantom 返回已合入，见 G4.4.2–5.1；带life的Type结果、非标量纯字段、ambient Type 实参、泛型 host/member/generated 归属及运行时泛型体 CT 相位仍缺。 |
-| ├─ G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 已合入 | — | — | [PR41 验收][e-pr41]；完整向量、作用域、复用深度计费及实际消费者通过。 |
-| ├─ G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 已合入 | — | — | [PR42 验收][e-pr42]；实际原声明身份、物理复制/扫描费用、预算、语义缓存与原生消费者通过。 |
-| ├─ G4.4.4 | 原始 CT factory 嵌套 Type/Const/Life 显式转发的标量结果 | 已合入 | — | — | [PR43 验收][e-pr43]；无占位结构体的3层转发、原成员嵌套调用及身份负控通过，真实向量/作用域和容量预付闭合。Phantom跨工厂结果及泛型宿主另缺。 |
-| ├─ <a id="g4-4-5-children"></a>**G4.4.5** | **嵌套 CT 跨工厂返回 Phantom/Type 的实际 life 归属与重定位** | 部分实现 | P0 | root | 纯标量 Phantom 返回及真实 life 端点证明已由 G4.4.5.1 合入；非标量纯字段和带life的Type构造/跨工厂结果仍缺，后者见 G4.4.5.3。 |
-| │　├─ G4.4.5.1 | 跨工厂 Phantom 返回的纯标量字段复制与真实 life 端点核验 | 已合入 | — | — | [PR45 验收][e-pr45]；双方原 schema/完整实参保留，独立核真实 Call、字段复制及 Definition/ordinal 端点。完整u64/负数/小数/Unit、两life和四余额边界闭合，并修复既存Unit回写错误。 |
-| │　├─ G4.4.5.3 | 带life的Type值构造与跨工厂返回的声明归属 | 进行中 | P0 | sol · CT | 实施 TypeInContext 完整图生产、真实源码 Type/Call 端点独核、CT6 编码及 ValueContext 返回；astra 复核公共认证边界。实施：[task/G4.4.5.3](https://github.com/zil-lang/zil/tree/task/G4.4.5.3)，尚未验收。 |
-| │　└─ G4.4.5.4 | 非标量纯字段跨工厂返回：Tuple/Array/Record/Enum 递归重构 | 进行中 | P0 | sol · CT | 接续 G4.4.5.1；原始 Tuple/Array/Record/Enum 组合已到实际 Source/机器完整 u64 结果，新增带 life 嵌套字段、最近反例与独立预算控制仍在复核。与 G4.4.5.3 同分支，保留旧标量费用快路。 |
-| ├─ **G4.4.6** | ambient Type 实参、泛型宿主/成员及生成作用域的实际归属 | 进行中 | P0 | sol · CT / 生成 | G4.4.5.3 接 host/member 完整上下文；[task/G4.4.6](https://github.com/zil-lang/zil/tree/task/G4.4.6) 接实际生成树、发射位置与独立来源核验；生成片 3 组真实源码、6 次 Clang 原生运行和 9 个预算边界已限定通过。ambient Type 完整元数据与运行时相位组合继续验证，父项未验收。 |
-| │　├─ G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。原 ambient Type Source/native/semantic-cache 完整身份已在联合提交 `612117d5` 复核通过；物理子字段复制及最近 raw/Wire 反例继续验证，不把首例通过当作子项全验收。 |
-| │　└─ G4.4.6.2 | CT 显式调用后泛型静态宿主的定义与后继消费 | 进行中 | P0 | sol · 生成/宿主 | [task/G4.4.6.2](https://github.com/zil-lang/zil/tree/task/G4.4.6.2)：完整 host/member 源码已越过 life annotation，仍被 Expand 泛型宿主方法门阻断；保留普通方法、原源与未用定义义务，区分 CT 归属消费和普通 runtime 方法资格。 |
-| └─ **G4.4.7** | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 联合矩阵 12/0 已通过真实 Source/project/Clang O0/O2 及四类预算边界；包括带 life nominal 的 Type 实参与 CT Type 值消费。[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
-| 　　└─ G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：原 `leaf<Phantom<life,T,N>>` 与 CT Type 值两源在冻结 `c7b63633` 已 Source/project/native8 通过，并在联合 runtime 12 项重放通过；修正定义期 Copy 先行键和过早实参正规化，完整原实参仍由原 Call 独核。 |
+| **G4.4** | **完整实例实际参数向量、成员/生成作用域、重定位与声明归属** | 部分实现 | P0 | root | free/原始静态成员、嵌套标量及跨工厂纯标量 Phantom 返回已合入，见 G4.4.2–5.1；带life的Type结果、非标量纯字段、ambient Type 实参、泛型 host/member/generated 归属及运行时泛型体 CT 相位仍缺。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
+
+<details>
+<summary>G4.4 · 子任务（6 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 已合入 | — | — | [PR41 验收][e-pr41]；完整向量、作用域、复用深度计费及实际消费者通过。 |
+| G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 已合入 | — | — | [PR42 验收][e-pr42]；实际原声明身份、物理复制/扫描费用、预算、语义缓存与原生消费者通过。 |
+| G4.4.4 | 原始 CT factory 嵌套 Type/Const/Life 显式转发的标量结果 | 已合入 | — | — | [PR43 验收][e-pr43]；无占位结构体的3层转发、原成员嵌套调用及身份负控通过，真实向量/作用域和容量预付闭合。Phantom跨工厂结果及泛型宿主另缺。 |
+| **G4.4.5** | **嵌套 CT 跨工厂返回 Phantom/Type 的实际 life 归属与重定位** | 部分实现 | P0 | root | 纯标量 Phantom 返回及真实 life 端点证明已由 G4.4.5.1 合入；非标量纯字段和带life的Type构造/跨工厂结果仍缺，后者见 G4.4.5.3。 |
+| **G4.4.6** | ambient Type 实参、泛型宿主/成员及生成作用域的实际归属 | 进行中 | P0 | sol · CT / 生成 | G4.4.5.3 接 host/member 完整上下文；[task/G4.4.6](https://github.com/zil-lang/zil/tree/task/G4.4.6) 接实际生成树、发射位置与独立来源核验；生成片 3 组真实源码、6 次 Clang 原生运行和 9 个预算边界已限定通过。ambient Type 完整元数据与运行时相位组合继续验证，父项未验收。 |
+| **G4.4.7** | 运行时泛型体中的 CT 相位与完整 Type/Const/Life 实例 | 进行中 | P0 | astra · 相位难点 | 联合矩阵 13/0 已通过真实 Source/project/Clang O0/O2 及四类预算边界；包括带 life nominal 的 Type 实参与 CT Type 值消费。[task/G4.4.7](https://github.com/zil-lang/zil/tree/task/G4.4.7) 接实际单态化入口，保留未用泛型定义检查与独立真实 Call 认证；life 保持原定义绑定。尚未验收。 |
+
+<details>
+<summary>G4.4.5 · 子任务（3 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G4.4.5.1 | 跨工厂 Phantom 返回的纯标量字段复制与真实 life 端点核验 | 已合入 | — | — | [PR45 验收][e-pr45]；双方原 schema/完整实参保留，独立核真实 Call、字段复制及 Definition/ordinal 端点。完整u64/负数/小数/Unit、两life和四余额边界闭合，并修复既存Unit回写错误。 |
+| G4.4.5.3 | 带life的Type值构造与跨工厂返回的声明归属 | 进行中 | P0 | sol · CT | 实施 TypeInContext 完整图生产、真实源码 Type/Call 端点独核、CT6 编码及 ValueContext 返回；astra 复核公共认证边界。实施：[task/G4.4.5.3](https://github.com/zil-lang/zil/tree/task/G4.4.5.3)，尚未验收。 |
+| G4.4.5.4 | 非标量纯字段跨工厂返回：Tuple/Array/Record/Enum 递归重构 | 进行中 | P0 | sol · CT | 接续 G4.4.5.1；原始 Tuple/Array/Record/Enum 组合已到实际 Source/机器完整 u64 结果，新增带 life 嵌套字段、最近反例与独立预算控制仍在复核。与 G4.4.5.3 同分支，保留旧标量费用快路。 |
+
+</details>
+
+<details>
+<summary>G4.4.6 · 子任务（3 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G4.4.6.1 | qualified Type 实参的完整名义元数据及物理字段消费者 | 进行中 | P0 | sol · 独立三核 / root · 源映射 | [task/G4.4.6.1](https://github.com/zil-lang/zil/tree/task/G4.4.6.1)：Types、Analyze、Verify 分别重建 TypeArgument 名义行与完整实例；root 接原泛型形参到物理字段的实际映射。原 ambient Type Source/native/semantic-cache 完整身份已在联合提交 `612117d5` 复核通过；物理子字段复制及最近 raw/Wire 反例继续验证，不把首例通过当作子项全验收。 |
+| G4.4.6.2 | CT 显式调用后泛型静态宿主的定义与后继消费 | 进行中 | P0 | sol · 生成/宿主 | [task/G4.4.6.2](https://github.com/zil-lang/zil/tree/task/G4.4.6.2)：首轮 8 项测试 3 过、5 失败；正在补单源入口导流、真实执行成功的 CT 调用回执、Const 实参域与符号上下文清理依赖。生成宿主正例及普通 runtime 双门已过；未用兄弟定义和完整原源认证由独审复核。 |
+| G4.4.6.3 | 带 life 的纯 Enum 与数组字段：完整名义关系、递归消费者及原生运行 | 进行中 | P0 | sol · 源码 / 三核 / LLVM | 原递归合同缺口已明确；三组按文件并行实现，复用 Variant/Element 元数据路径，保留完整真实类型和原 life 关系。当前未通过 Source 联合验收，不将原普通枚举正例视为本项完成。 |
+
+</details>
+
+<details>
+<summary>G4.4.7 · 子任务（1 项）</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G4.4.7.1 | runtime 泛型 Type 实参的 scoped 名义正规化与实例键 | 进行中 | P0 | sol · 实例键 | [task/G4.4.7.1](https://github.com/zil-lang/zil/tree/task/G4.4.7.1)：原 `leaf<Phantom<life,T,N>>` 与 CT Type 值两源在冻结 `c7b63633` 已 Source/project/native8 通过，并在联合 runtime 13 项重放通过；修正定义期 Copy 先行键和过早实参正规化，完整原实参仍由原 Call 独核。 |
+
+</details>
+
+</details>
 
 ## G5 · 动态抽象
 
