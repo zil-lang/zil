@@ -233,6 +233,7 @@ impl Preview {
 struct Materializer<'a, 'b> {
     runtime_binding: Option<runtime_phase::RuntimeBinding<'a>>,
     runtime_deferred: bool,
+    eager_closed_scalars: bool,
     environment: &'a mut Environment<'b>,
     sources: &'b [SourceUnit],
     parsed: &'b [Arc<ParseResult>],
@@ -1701,6 +1702,11 @@ impl Materializer<'_, '_> {
                 if let Some(ty) = &mut f.return_type {
                     self.ty(module, ty, owner, depth + 1)?;
                 }
+                let previous_eager = self.eager_closed_scalars;
+                self.eager_closed_scalars = f
+                    .generics
+                    .iter()
+                    .any(|parameter| !matches!(parameter.kind, s::GenericParamKind::Lifetime));
                 self.runtime_scopes
                     .push(f.params.iter().map(|param| param.name.clone()).collect());
                 let result = match &mut f.body {
@@ -1709,6 +1715,7 @@ impl Materializer<'_, '_> {
                     s::FunctionBody::Declaration => Ok(()),
                 };
                 self.runtime_scopes.pop();
+                self.eager_closed_scalars = previous_eager;
                 result?;
             }
             s::ItemKind::Aggregate(a) => {
@@ -2156,6 +2163,36 @@ impl Materializer<'_, '_> {
                 ));
             }
             s::ExprKind::MetaEval(inner) => {
+                if self.runtime_binding.is_none()
+                    && self.eager_closed_scalars
+                    && runtime_phase::closed_scalar(
+                        inner,
+                        &mut self.environment.budget,
+                        self.max_depth,
+                        depth + 1,
+                    )?
+                {
+                    let evaluated = self.expression_data(module, owner, inner, None)?;
+                    if evaluated.context.is_some() || !matches!(evaluated.value, CtValue::Scalar(_))
+                    {
+                        return Err(category(
+                            "closed scalar CT root returned another value category",
+                            expression.span,
+                        ));
+                    }
+                    self.environment.budget.release_value(&evaluated.value);
+                    self.clear_expression_source_sites(expression)?;
+                    // The VM checked this context-free literal, but its default
+                    // scalar domain is not the receiving native domain. Move
+                    // the original spelling/Group to preserve expected typing.
+                    let s::ExprKind::MetaEval(inner) =
+                        std::mem::replace(&mut expression.kind, s::ExprKind::Tuple(Vec::new()))
+                    else {
+                        unreachable!()
+                    };
+                    *expression = *inner;
+                    return Ok(());
+                }
                 if self.runtime_binding.is_none() && !self.uses_ct_domain(module, inner)? {
                     // Ordinary scalar, Copy record, enum and opaque CT values
                     // retain the established producer and receiving type
@@ -2371,6 +2408,7 @@ pub(crate) fn materialize<'a>(
     let mut materializer = Materializer {
         runtime_binding: None,
         runtime_deferred: false,
+        eager_closed_scalars: false,
         environment: &mut environment,
         sources,
         parsed,
@@ -2406,11 +2444,13 @@ pub(crate) fn materialize<'a>(
             .find(|p| p.module.id == module.id)
             .ok_or_else(|| category("original clone module absent", module.span))?
             .clone();
-        materializer.bind_source_items(
-            &original.module,
-            &module.items,
-            compiler::source_sites::SourceTreeId::Original,
-        )?;
+        if original_declarations {
+            materializer.bind_source_items(
+                &original.module,
+                &module.items,
+                compiler::source_sites::SourceTreeId::Original,
+            )?;
+        }
         materializer.self_constants(module)?;
         let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
         materializer.release_bound_source_sites();
@@ -2863,6 +2903,7 @@ mod scoped_tests {
             let mut materializer = Materializer {
                 runtime_binding: None,
                 runtime_deferred: false,
+                eager_closed_scalars: false,
                 environment: &mut environment,
                 sources,
                 parsed: parsed_slice,
@@ -3384,6 +3425,49 @@ mod scoped_tests {
                 );
             }
         }
+    }
+    #[test]
+    fn closed_generic_scalar_is_materialized_even_with_an_unrelated_deferred_root() {
+        let original = include_str!(
+            "../../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil"
+        );
+        let text = format!(
+            "{} fn unrelated<#N:i32>()->i32{{return #(N)}}",
+            original.replace("return f(x)", "return #(42)")
+        );
+        let source = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "closed-generic-ct.zil",
+            &text,
+        );
+        let report = crate::CompilationSession::default()
+            .compile_source(&source, &crate::CompileOptions::default());
+        assert_eq!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        // Moving a checked literal still leaves the unused native definition
+        // under ordinary expected-type checking; no callable bound is erased.
+        let bad = SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "unused-closed-ct.zil",
+            "fn bad<F:FnMut()->i32>(f:&mut F)->bool{return #(42)}fn main()->i32{return 0}",
+        );
+        let report = crate::CompilationSession::default()
+            .compile_source(&bad, &crate::CompileOptions::default());
+        assert_ne!(
+            report.status,
+            zil_base::ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Types);
+        assert!(!report.to_json().contains("ordinary Copy"));
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {

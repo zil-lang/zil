@@ -1803,7 +1803,23 @@ impl FrozenInvocationContext {
                 if path.len() != 1 || path[0] != parameter.name || !args.is_empty() {
                     continue;
                 }
-                self.source_expression_type(&value.value, graph, env, raw, index, budget, 0)?;
+                let mut value = &value.value;
+                let mut depth = 0;
+                while let s::ExprKind::Group(inner) = &value.kind {
+                    step(budget, depth)?;
+                    depth += 1;
+                    value = inner;
+                }
+                step(budget, depth)?;
+                // Type expressions are values of Type, not nominal instances.
+                // Only an actual record constructor proves this inferred T;
+                // local names require a separate lexical binding proof.
+                let s::ExprKind::Record { ty: Some(ty), .. } = &value.kind else {
+                    return Err(unsupported(
+                        "CT inferred ambient Type requires an independently typed original value constructor",
+                    ));
+                };
+                self.source_expression_type(ty, graph, env, raw, index, budget, depth + 1)?;
                 constrained = true;
             }
             if !constrained {

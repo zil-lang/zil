@@ -93,8 +93,10 @@ impl Materializer<'_, '_> {
                 Ok(())
             })?;
         }
+        let complete = ordinal == canonical.len();
+        drop(canonical);
         budget.release_temporary_bytes(bytes);
-        if ordinal != canonical.len() {
+        if !complete {
             return Err(category("clone omits frozen source nodes", source.span));
         }
         Ok(())
@@ -190,9 +192,9 @@ impl Materializer<'_, '_> {
         if ordinal != sites.len() {
             return Err(category("moved source omits nodes", item.span));
         }
-        budget.release_temporary_bytes(
-            sites.capacity() as u64 * std::mem::size_of::<Option<SourceSite>>() as u64,
-        );
+        let bytes = sites.capacity() as u64 * std::mem::size_of::<Option<SourceSite>>() as u64;
+        drop(sites);
+        budget.release_temporary_bytes(bytes);
         Ok(())
     }
     pub(super) fn discard_item_sites(&mut self, item: &s::Item) -> CompileResult<()> {
@@ -218,7 +220,9 @@ impl Materializer<'_, '_> {
     }
     pub(super) fn release_bound_source_sites(&mut self) {
         let bound = std::mem::take(&mut self.bound_source_sites);
-        self.environment.budget.release_temporary_bytes(bound.bytes);
+        let bytes = bound.bytes;
+        drop(bound);
+        self.environment.budget.release_temporary_bytes(bytes);
     }
     pub(super) fn clear_expression_source_sites(
         &mut self,

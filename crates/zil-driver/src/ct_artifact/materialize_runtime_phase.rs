@@ -70,7 +70,7 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
 // Closed scalar syntax has no binding lookup, so it is safe to evaluate in
 // the original definition even when unrelated native generic binders are not
 // CT Copy types. Every such root still uses the ordinary verified CT pipeline.
-fn closed_scalar(
+pub(super) fn closed_scalar(
     expression: &s::Expr,
     budget: &mut zil_ct::CtExecutionBudget,
     max_depth: usize,
@@ -84,16 +84,12 @@ fn closed_scalar(
         ));
     }
     Ok(match &expression.kind {
-        s::ExprKind::Literal(
-            s::Literal::Bool(_) | s::Literal::Integer(_) | s::Literal::Float(_),
-        ) => true,
-        s::ExprKind::Group(inner) | s::ExprKind::Unary { operand: inner, .. } => {
-            closed_scalar(inner, budget, max_depth, depth + 1)?
+        s::ExprKind::Literal(s::Literal::Bool(_) | s::Literal::Float(_)) => true,
+        s::ExprKind::Literal(s::Literal::Integer(text)) => {
+            budget.reserve_analysis_work(text.len() as u64)?;
+            zil_types::parse_integer_literal(text, None, false, expression.span).is_ok()
         }
-        s::ExprKind::Binary { left, right, .. } => {
-            closed_scalar(left, budget, max_depth, depth + 1)?
-                && closed_scalar(right, budget, max_depth, depth + 1)?
-        }
+        s::ExprKind::Group(inner) => closed_scalar(inner, budget, max_depth, depth + 1)?,
         _ => false,
     })
 }
@@ -547,6 +543,7 @@ impl<'a, 'b> Materializer<'a, 'b> {
         Self {
             runtime_binding: Some(binding),
             runtime_deferred: false,
+            eager_closed_scalars: false,
             environment,
             sources,
             parsed,
