@@ -484,12 +484,11 @@ fn solve(
                     {
                         return Err(closed());
                     }
-                    if std::ptr::eq(&i.kind, call) || i.kind == *call {
-                        if f.values.get(callee.0 as usize) != Some(&Type::Closure(id))
-                            || answer.replace(actual).is_some_and(|old| old != actual)
-                        {
-                            return Err(closed());
-                        }
+                    if (std::ptr::eq(&i.kind, call) || i.kind == *call)
+                        && (f.values.get(callee.0 as usize) != Some(&Type::Closure(id))
+                            || answer.replace(actual).is_some_and(|old| old != actual))
+                    {
+                        return Err(closed());
                     }
                     frame.move_carrier(
                         mask,
