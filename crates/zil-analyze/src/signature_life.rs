@@ -230,6 +230,13 @@ fn relation_inner(
                 // Capture admission and the independent resource kernel still
                 // establish its finite payload, actual mode and responsibility.
                 || capture && matches!(target, Type::Managed(_))
+                // An actual helper's finite Managed companion is a carrier,
+                // not a class-bearing input. Body/resource proofs still settle it.
+                || self.allow_callback && self.inputs.is_none()
+                    && matches!(base, StorageBase::Parameter(_))
+                    && matches!(target, Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::Record { fields, .. }
+                            if fields.iter().all(|(_, ty)| super::stored_callables::scalar(ty))))
                 || self.allow_callback
                     && self.inputs.is_none()
                     && matches!(target, Type::Closure(_)))

@@ -796,6 +796,12 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         let ty = &f.locals[p.0 as usize].ty;
         type_work(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
+        if f.callable_contract.is_some()
+            && let Type::Managed(payload) = ty
+            && let Type::Record { fields, .. } = payload.as_ref()
+        {
+            b.spend(fields.len().saturating_mul(2))?;
+        }
         has_fixed_environment |= fixed_environment(module, ty);
         parameters.push(ty.clone());
     }
