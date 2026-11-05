@@ -129,9 +129,24 @@ impl Materializer<'_, '_> {
                 self.environment.budget.reserve_analysis_work(work as u64)
             })?
             .ok_or_else(|| category("clone source is not an actual declaration", item.span))?;
-        let mut canonical = Vec::new();
-        let mut temporary = 0;
         let budget = &mut self.environment.budget;
+        let mut source_count = 0usize;
+        compiler::source_sites::observe_item(
+            source.item,
+            module.id,
+            tree_id,
+            self.max_depth,
+            |event| {
+                match event {
+                    SiteEvent::Work(work) => budget.reserve_analysis_work(work as u64)?,
+                    SiteEvent::Node(_) => source_count += 1,
+                }
+                Ok(())
+            },
+        )?;
+        let temporary = source_count as u64 * std::mem::size_of::<(bool, SourceSite)>() as u64;
+        budget.reserve_temporary_bytes(temporary)?;
+        let mut canonical = Vec::with_capacity(source_count);
         let inventory = &self.canonical_source_sites;
         compiler::source_sites::observe_item(
             source.item,
@@ -145,10 +160,6 @@ impl Materializer<'_, '_> {
                         budget.reserve_analysis_work(
                             1 + inventory.len().checked_ilog2().unwrap_or(0) as u64,
                         )?;
-                        budget.reserve_temporary_bytes(
-                            std::mem::size_of::<(bool, SourceSite)>() as u64,
-                        )?;
-                        temporary += std::mem::size_of::<(bool, SourceSite)>() as u64;
                         canonical.push((
                             matches!(node.node, SourceNode::Type(_)),
                             *inventory.get(&key(node.node)).ok_or_else(|| {

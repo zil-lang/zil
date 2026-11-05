@@ -8,6 +8,8 @@ mod cfg;
 mod domain;
 #[path = "compiler_expr.rs"]
 mod expr;
+#[path = "compiler_generated.rs"]
+mod generated;
 #[path = "compiler_generics.rs"]
 mod generics;
 #[path = "compiler_host_context.rs"]
@@ -24,18 +26,16 @@ mod record_relocation;
 mod selection;
 #[path = "compiler_source_scope.rs"]
 pub(super) mod source_scope;
+#[path = "compiler_source_sites.rs"]
+mod source_site_events;
+#[path = "source_sites.rs"]
+pub(super) mod source_sites;
 #[path = "compiler_symbolic_calls.rs"]
 mod symbolic_calls;
 #[path = "compiler_symbolic_nominal.rs"]
 mod symbolic_nominal;
 #[path = "compiler_types.rs"]
 mod types;
-#[path = "source_sites.rs"]
-pub(super) mod source_sites;
-#[path = "compiler_source_sites.rs"]
-mod source_site_events;
-#[path = "compiler_generated.rs"]
-mod generated;
 use std::collections::{BTreeMap, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span};
 use zil_ir::ct_artifact::*;
@@ -339,6 +339,7 @@ pub(crate) struct SourceLifeBinding {
     pub site: Option<source_sites::SourceSite>,
 }
 struct SourceLifeScope {
+    tree: source_sites::SourceTreeId,
     enclosing: Option<CtAmbientScopeId>,
     definition: CtSymbolId,
     span: Span,
@@ -353,7 +354,12 @@ struct Compiler<'a> {
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
-    mixed_selected: Vec<(usize, Vec<CtScopeActual>, Option<CtAmbientScopeId>, CtFunctionId)>,
+    mixed_selected: Vec<(
+        usize,
+        Vec<CtScopeActual>,
+        Option<CtAmbientScopeId>,
+        CtFunctionId,
+    )>,
     pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
@@ -766,7 +772,10 @@ pub(crate) fn compile_scoped_at_source<'a>(
     compiler.generated_catalog = catalog;
     compiler.index_generated()?;
     compiler.entry_source_site = source_site;
-    compiler.entry_source_expression = match &request.entry { Entry::Expression {expression,..} => Some(*expression), _ => None };
+    compiler.entry_source_expression = match &request.entry {
+        Entry::Expression { expression, .. } => Some(*expression),
+        _ => None,
+    };
     compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
     // are compiled only when actually referenced by the pure CT call graph.
@@ -942,9 +951,18 @@ pub(crate) fn definitions_entry(
     modules: &[SourceModule<'_>],
     limits: &mut Limits,
 ) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
+    definitions_entry_with_catalog(modules, limits, None)
+}
+pub(crate) fn definitions_entry_with_catalog<'a>(
+    modules: &'a [SourceModule<'a>],
+    limits: &mut Limits,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
     let initial_nodes = limits.max_nodes;
     let initial_bytes = limits.max_source_bytes;
     let mut compiler = Compiler::indexed(modules, limits)?;
+    compiler.generated_catalog = catalog;
+    compiler.index_generated()?;
     let indexed_nodes = compiler.budget.nodes;
     let indexed_bytes = compiler.budget.bytes;
     let definitions = compiler.check_generic_definitions();
@@ -990,6 +1008,16 @@ pub(crate) fn uses_ct_domain(
     limits: &mut Limits,
 ) -> R<bool> {
     selection::uses(modules, module, expression, parameters, limits)
+}
+pub(crate) fn uses_ct_domain_with_catalog<'a>(
+    modules: &'a [SourceModule<'a>],
+    module: ModuleId,
+    expression: &s::Expr,
+    parameters: &[(String, CtTy)],
+    limits: &mut Limits,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<bool> {
+    selection::uses_with_catalog(modules, module, expression, parameters, limits, catalog)
 }
 
 #[path = "compiler_metadata.rs"]

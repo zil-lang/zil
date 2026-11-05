@@ -9,23 +9,44 @@ impl<'a> Compiler<'a> {
         span: Span,
     ) -> R<Option<SourceLifeScope>> {
         self.budget.work(1, span)?;
-        if definition.generation_path.is_some()
-            || self.modules[module].source.module_id != definition.module
-        {
+        if self.modules[module].source.module_id != definition.module {
             return Err(error(
                 span,
-                "CT lexical owner has no original declaration lineage",
+                "CT lexical owner has no matching source module",
             ));
         }
         let max_depth = self.budget.limits.max_call_depth;
-        let Some(original) = source_scope::original_function(
-            self.modules[module].syntax,
-            definition.declaration,
-            max_depth,
-            |work| self.budget.work(work, span),
-        )?
-        else {
-            return Ok(None);
+        let (original, tree) = if definition.generation_path.is_some() {
+            let catalog = self.generated_catalog.ok_or_else(|| {
+                error(
+                    span,
+                    "CT generated lexical owner has no frozen source catalog",
+                )
+            })?;
+            let Some((row, original)) = source_scope::generated_original_function(
+                catalog,
+                definition,
+                max_depth,
+                |work| self.budget.work(work, span),
+            )?
+            else {
+                return Err(error(
+                    span,
+                    "CT generated lexical owner has no actual frozen declaration",
+                ));
+            };
+            (original, source_sites::SourceTreeId::Generated(row as u32))
+        } else {
+            let Some(original) = source_scope::original_function(
+                self.modules[module].syntax,
+                definition.declaration,
+                max_depth,
+                |work| self.budget.work(work, span),
+            )?
+            else {
+                return Ok(None);
+            };
+            (original, source_sites::SourceTreeId::Original)
         };
         let item = original.item;
         let function = original.function;
@@ -60,13 +81,18 @@ impl<'a> Compiler<'a> {
         }
         // Spans can diagnose a mismatch only after the actual ordinal selected
         // the original declaration. Equal/shared spans do not select an owner.
-        if span.file != item.span.file || span.start < item.span.start || span.end > item.span.end {
+        if tree == source_sites::SourceTreeId::Original
+            && (span.file != item.span.file
+                || span.start < item.span.start
+                || span.end > item.span.end)
+        {
             return Err(error(
                 span,
                 "scoped query is outside its actual original definition",
             ));
         }
         Ok(Some(SourceLifeScope {
+            tree,
             enclosing: self.active_host,
             definition: definition.clone(),
             span: item.span,
@@ -97,9 +123,10 @@ impl<'a> Compiler<'a> {
             .source_life_scope
             .as_ref()
             .ok_or_else(|| error(span, "nominal lifetime has no actual lexical source owner"))?;
-        if scope.span.file != span.file
-            || span.start < scope.span.start
-            || span.end > scope.span.end
+        if scope.tree == source_sites::SourceTreeId::Original
+            && (scope.span.file != span.file
+                || span.start < scope.span.start
+                || span.end > scope.span.end)
         {
             return Err(error(
                 span,
@@ -122,22 +149,7 @@ impl<'a> Compiler<'a> {
         let mut nested_ambient = Vec::new();
         let mut arguments = Vec::with_capacity(args.len());
         let mut rows = Vec::with_capacity(args.len());
-        self.budget
-            .work(self.modules[owner].syntax.items.len(), span)?;
-        let ordinal = self.modules[owner]
-            .syntax
-            .items
-            .iter()
-            .position(|actual| std::ptr::eq(actual, item))
-            .ok_or_else(|| error(span, "scoped nominal is not an actual original item"))?;
-        let symbol = CtSymbolId {
-            module: self.modules[owner].source.module_id,
-            declaration: zil_base::NodeId(
-                u32::try_from(ordinal)
-                    .map_err(|_| error(span, "nominal original ordinal overflow"))?,
-            ),
-            generation_path: None,
-        };
+        let symbol = self.item_symbol(owner, item)?;
         for (ordinal, (parameter, arg)) in parameters.iter().zip(args).enumerate() {
             self.budget.node(span)?;
             Budget::take(
@@ -201,15 +213,19 @@ impl<'a> Compiler<'a> {
                         self.budget.work(graph.ambient_classes.len(), span)?;
                         Budget::take(
                             &mut self.budget.bytes,
-                            nested_ambient.len().saturating_add(graph.ambient_classes.len())
+                            nested_ambient
+                                .len()
+                                .saturating_add(graph.ambient_classes.len())
                                 .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
                             span,
                             "CT nested ambient class backing exhausted",
                         )?;
                         nested_ambient.reserve_exact(graph.ambient_classes.len());
                         for mut row in graph.ambient_classes {
-                            row.owner.0 = row.owner.0.checked_add(offset)
-                                .ok_or_else(|| error(span, "CT nested ambient owner overflow"))?;
+                            row.owner.0 =
+                                row.owner.0.checked_add(offset).ok_or_else(|| {
+                                    error(span, "CT nested ambient owner overflow")
+                                })?;
                             nested_ambient.push(row);
                         }
                     }
@@ -353,7 +369,9 @@ impl<'a> Compiler<'a> {
             self.budget.work(ambient_classes.len(), span)?;
             Budget::take(
                 &mut self.budget.bytes,
-                nested_ambient.len().saturating_add(ambient_classes.len())
+                nested_ambient
+                    .len()
+                    .saturating_add(ambient_classes.len())
                     .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
                 span,
                 "CT joint ambient class backing exhausted",
