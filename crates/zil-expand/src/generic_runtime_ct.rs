@@ -108,7 +108,7 @@ pub(super) fn symbolic_types(
             continue;
         }
         let candidate_origin = origins.get(ordinal, candidate.span)?;
-        if candidate_origin.declaration.module != definition.module {
+        if candidate_origin.compiler || candidate_origin.declaration.module != definition.module {
             continue;
         }
         let original = origins.identity(candidate_origin.declaration, budget, candidate.span)?;
@@ -309,6 +309,9 @@ impl Engine<'_> {
         self.budget
             .lineage_bytes(std::mem::size_of::<(String, u32)>(), template.span)?;
         self.runtime_instances.insert(generated.to_owned(), id);
+        self.budget
+            .lineage_bytes(std::mem::size_of::<RuntimeInstance>(), template.span)?;
+        self.products.runtime_instances.push(recipe);
         Ok(())
     }
 }
