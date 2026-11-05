@@ -1,7 +1,9 @@
 //! Qualified callbacks with inline scalar environments. Metadata is checked
 //! against the actual definition and receiver; roles use parameter positions.
 use super::*;
+mod foreign;
 mod staged;
+pub(super) use foreign::regions as foreign_regions;
 
 pub(super) fn scalar(t: &Type) -> bool {
     matches!(

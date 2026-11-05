@@ -1379,6 +1379,18 @@ fn step(
                 Some(i.span),
             ));
         }
+        InstructionKind::ForeignCall { function, .. } => {
+            let declaration = module
+                .functions
+                .get(function.0 as usize)
+                .ok_or_else(|| err("foreign scalar entry is absent"))?;
+            if !super::stored_callables::scalar_foreign(declaration, b)? {
+                return Err(err(
+                    "stored foreign call requires an actual scalar-only declaration",
+                ));
+            }
+        }
+        InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
         InstructionKind::Call {
             function,
             arguments,
@@ -1387,7 +1399,7 @@ fn step(
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| err("call target absent"))?;
-            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
+            if callee.foreign.is_some()
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
