@@ -18,7 +18,7 @@
 | G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 已合入 | — | — | [PR41 验收][e-pr41]；真实来源、旧值/新临时值清理及多根反例已闭合。 |
 | G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 已合入 | — | — | [PR42 验收][e-pr42]；有限载荷、真实来源与失败清理已闭合，既有单已知变体精度边界保留。 |
 | G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 已合入 | — | — | [PR42 验收][e-pr42]；两核按实际根/字段/捕获独立检查，拒绝旧描述后用并保留合法分离调用。原误拒、旧断言失败及修正记录保留。 |
-| G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 进行中 | P0 | Analyze / Verify / 独审（sol high） | 两核独立施工，真实 Source、反例和机器消费者提前复核；现有票据/后端可复用，必须写入与新来源分别证明。[源码](https://github.com/zil-lang/zil/tree/task/G1.3.7)。 |
+| G1.3.7 | 通过可变 helper 整体替换 Package：借入端点、责任转交与准确的返回后来源 | 实现待验 | P0 | root | 两核及独审 Source/raw/Wire/机器消费者通过，[PR43](https://github.com/zil-lang/zil/pull/43) 共同验收中；首片 Direct Unit，Fresh 限单块单 Commit 无调用，错误返回与更广组合另缺。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -41,7 +41,7 @@
 | G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 已合入 | — | — | [PR41 验收][e-pr41]；phantom 错误来源已修复，源码、两核与机器消费者通过。 |
 | G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 已合入 | — | — | [PR42 验收][e-pr42]；同一真实环境两次状态变化、物理共享捕获与独立来源核验已到机器，旧 None 费用回归已修复。 |
 | G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 已合入 | — | — | [PR42 验收][e-pr42]；两核独立恢复实际参数暂存来源，消费真实环境一次。限单 F、有限 scalar resource 与共享 Tag，give/lending/用户 Drop 另列。 |
-| G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 进行中 | P0 | callable（sol high） | 真实源定位到单块限制；首片限定 entry 唯一消费后分叉到两个退出块，两核独立检查全图身份与清理，不扩一般 CFG、give 或用户 Drop。 |
+| G3.3.7 | 有限拥有 FnOnce helper 在消费完成后的动态分支 | 实现待验 | P0 | root | 两核、raw/Wire、预算及机器完整值通过，独立双环境结果198通过；[PR43](https://github.com/zil-lang/zil/pull/43) 共同验收中。限 entry 消费后两个退出块，不扩一般 CFG/give/用户 Drop。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
@@ -55,7 +55,7 @@
 | G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root | free factory 及原始非泛型静态成员已合入，见 G4.4.2–3；泛型 host/member/generated 归属与重定位、运行时泛型体内 CT 相位及嵌套 mixed forwarding 仍缺。 |
 | G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 已合入 | — | — | [PR41 验收][e-pr41]；完整向量、作用域、复用深度计费及实际消费者通过。 |
 | G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 已合入 | — | — | [PR42 验收][e-pr42]；实际原声明身份、物理复制/扫描费用、预算、语义缓存与原生消费者通过。 |
-| G4.4.4 | 原始 free CT factory 的嵌套 Type/Const/Life 显式转发 | 进行中 | P0 | CT（sol high） | 真实源首拒为 symbolic full-actual forwarding；实现实际符号绑定及完整向量身份，不扩泛型宿主或公共 schema。 |
+| G4.4.4 | 原始 CT factory 嵌套 Type/Const/Life 显式转发的标量结果 | 实现待验 | P0 | root | 无占位结构体的3层实际转发已通过，原成员嵌套调用有独审；身份捕获与容量预付修复进入 [PR43](https://github.com/zil-lang/zil/pull/43) 验收。Phantom跨工厂结果及泛型宿主仍缺。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
