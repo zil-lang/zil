@@ -78,7 +78,7 @@ fn g4461_actual_pure_fields_retained_source_raw_wire() {
                 |i| matches!(&i.ty, Type::BorrowedStorage{life,..} if !life.retained.is_empty()),
             )
             .unwrap();
-        for mutation in 0..5 {
+        for mutation in 0..6 {
             let mut hostile = raw.clone();
             let Type::BorrowedStorage { life, .. } = &mut hostile.life_instances[outer].ty else {
                 unreachable!()
@@ -91,6 +91,26 @@ fn g4461_actual_pure_fields_retained_source_raw_wire() {
                 2 => life.retained[0].class += 1,
                 3 => life.retained[0].binder = life.binder_count,
                 4 => life.retained.push(life.retained[0].clone()),
+                5 => {
+                    let Type::BorrowedStorage { storage, .. } =
+                        &mut hostile.life_instances[outer].ty
+                    else {
+                        unreachable!()
+                    };
+                    let Type::Record { fields, .. } = storage.as_mut() else {
+                        unreachable!()
+                    };
+                    let Type::BorrowedStorage { storage, .. } = &mut fields[0].1 else {
+                        unreachable!()
+                    };
+                    let Type::Record { fields, .. } = storage.as_mut() else {
+                        unreachable!()
+                    };
+                    fields[0].1 = Type::Address {
+                        mutable: false,
+                        inner: Box::new(Type::I32),
+                    };
+                }
                 _ => unreachable!(),
             }
             assert!(
@@ -147,7 +167,7 @@ fn g4461_actual_core_nested_type_metadata_controls() {
         .iter()
         .position(|i| i.ty == *child_type)
         .unwrap();
-    for mutation in 0..6 {
+    for mutation in 0..8 {
         let mut hostile = core.clone();
         match mutation {
             0..=3 => {
@@ -173,6 +193,38 @@ fn g4461_actual_core_nested_type_metadata_controls() {
             }
             5 => {
                 hostile.life_instances[outer].arguments[0] = LifeNominalActual::Type(Type::I32);
+            }
+            6 => {
+                let mut alternate = hostile.life_instances[outer].clone();
+                let Type::BorrowedStorage { storage, .. } = &mut alternate.ty else {
+                    unreachable!()
+                };
+                let Type::Record { name, .. } = storage.as_mut() else {
+                    unreachable!()
+                };
+                let mut aggregate = hostile
+                    .aggregates
+                    .iter()
+                    .find(|a| {
+                        *name == a.name
+                            || *name == format!("@module{}:{}", hostile.module_id.0, a.name)
+                    })
+                    .unwrap()
+                    .clone();
+                aggregate.name.push_str("_alternate_physical_identity");
+                *name = format!("@module{}:{}", hostile.module_id.0, aggregate.name);
+                hostile.aggregates.push(aggregate);
+                hostile.life_instances.push(alternate);
+            }
+            7 => {
+                let mut alternate = hostile.life_instances[child].clone();
+                let actual = alternate
+                    .arguments
+                    .iter_mut()
+                    .find(|a| matches!(a, LifeNominalActual::Const(_)))
+                    .unwrap();
+                *actual = LifeNominalActual::Const(zil_ir::Constant::I32(43));
+                hostile.life_instances.push(alternate);
             }
             _ => unreachable!(),
         }
