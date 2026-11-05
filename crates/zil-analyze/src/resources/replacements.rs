@@ -6,6 +6,7 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
+mod whole_enum;
 #[derive(Clone, Copy)]
 pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
@@ -116,7 +117,8 @@ fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
-            || package::field(ty, b)?.is_some(),
+            || package::field(ty, b)?.is_some()
+            || whole_enum::admitted(ty, b)?,
     )
 }
 impl Program {
@@ -174,7 +176,7 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
-                if matches!(definition.ty, Type::Package { .. }) {
+                if matches!(definition.ty, Type::Package { .. } | Type::Enum { .. }) {
                     packages = true;
                     fee(b, definition.path.len().saturating_add(1))?;
                     let targets = match &definition.base {
@@ -193,12 +195,16 @@ impl Program {
                     if targets.len() != 1 {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
-                            "Package replacement requires one actual local root",
+                            "complete replacement requires one actual local root",
                             None,
                         )]);
                     }
                     for target in &targets {
-                        package::local(f, target, b)?;
+                        if matches!(definition.ty, Type::Enum { .. }) {
+                            whole_enum::local(f, target, b)?;
+                        } else {
+                            package::local(f, target, b)?;
+                        }
                     }
                 }
                 if !closed(&definition.ty, b)? {
@@ -761,6 +767,8 @@ impl Program {
                 for target in self.targets(f, &d.base, &d.path, b)? {
                     if matches!(d.ty, Type::Package { .. }) {
                         package::apply(flow, state, &target, *value, point, b)?;
+                    } else if matches!(d.ty, Type::Enum { .. }) {
+                        whole_enum::apply(flow, state, &target, *value, point, b)?;
                     } else {
                         self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
                     }
