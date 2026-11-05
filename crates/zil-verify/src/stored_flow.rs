@@ -525,7 +525,8 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
 }
 
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if ty.is_copy_value()
+    if module.life_instances.is_empty()
+        || ty.is_copy_value()
         || !matches!(
             ty,
             Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
@@ -874,9 +875,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         let ty = &f.locals[p.0 as usize].ty;
         type_work(ty, &b.limits.clone(), b)?;
         type_work(ty, &b.limits.clone(), b)?;
+        let new_nominal = |ty: &Type| {
+            matches!(ty, Type::BorrowedStorage { storage, life }
+            if life.slots.is_empty()
+                && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty()))
+        };
         if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || new_nominal(ty)
             || matches!(ty, Type::Address { inner, .. }
-                if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                    || new_nominal(inner))
         {
             type_work(ty, &b.limits.clone(), b)?;
         }
@@ -891,9 +900,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     }
     type_work(&f.return_type, &b.limits.clone(), b)?;
     type_work(&f.return_type, &b.limits.clone(), b)?;
+    let new_nominal = |ty: &Type| {
+        matches!(ty, Type::BorrowedStorage { storage, life }
+        if life.slots.is_empty()
+            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                || !life.retained.is_empty()))
+    };
     if (matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value())
+        || new_nominal(&f.return_type)
         || matches!(&f.return_type, Type::Address { inner, .. }
-            if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+            if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                || new_nominal(inner))
     {
         type_work(&f.return_type, &b.limits.clone(), b)?;
     }

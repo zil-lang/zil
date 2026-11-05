@@ -7,6 +7,14 @@ fn pure_array_value(ty: &Type) -> bool {
     if !matches!(ty, Type::Array { .. }) {
         return false;
     }
+    pure_value_tree(ty)
+}
+
+fn pure_nominal_value(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
+}
+
+fn pure_value_tree(ty: &Type) -> bool {
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
         match current {
@@ -236,8 +244,9 @@ fn relation_inner(
                 (ty, false)
             };
             if let Type::BorrowedStorage { storage, life } = target {
-                if !matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
-                    || !life.retained.is_empty()
+                if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty())
+                    && !pure_nominal_value(target)
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,

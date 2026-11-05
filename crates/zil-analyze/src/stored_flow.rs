@@ -424,7 +424,7 @@ pub(super) fn qualification(
 
 /// Copy only a fully qualified physical value without runtime borrowing or
 /// ownership leaves. The address is still checked by the CFG access proof.
-fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
@@ -457,7 +457,8 @@ fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<b
 /// Pure inline products have no runtime targets. Every qualified descendant
 /// still needs one complete, independently checked nominal instance.
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if ty.is_copy_value()
+    if module.life_instances.is_empty()
+        || ty.is_copy_value()
         || !matches!(
             ty,
             Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
@@ -743,9 +744,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
         b.type_work(ty, true, "stored signature type clone and relation")?;
+        let new_nominal = |ty: &Type| {
+            matches!(ty, Type::BorrowedStorage { storage, life }
+            if life.slots.is_empty()
+                && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty()))
+        };
         if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || new_nominal(ty)
             || matches!(ty, Type::Address { inner, .. }
-                if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                    || new_nominal(inner))
         {
             b.type_work(ty, false, "pure Array signature relation walk")?;
         }

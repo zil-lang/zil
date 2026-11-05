@@ -7,6 +7,14 @@ fn pure_array_value(ty: &Type) -> bool {
     if !matches!(ty, Type::Array { .. }) {
         return false;
     }
+    pure_value_tree(ty)
+}
+
+fn pure_nominal_value(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
+}
+
+fn pure_value_tree(ty: &Type) -> bool {
     let mut pending = vec![ty];
     while let Some(current) = pending.pop() {
         match current {
@@ -244,8 +252,9 @@ fn relation_inner(
         };
         match actual {
             Type::BorrowedStorage { storage, life } => {
-                if !matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
-                    || !life.retained.is_empty()
+                if (!matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
+                    || !life.retained.is_empty())
+                    && !pure_nominal_value(actual)
                 {
                     return Err(unsupported(
                         "signature owning/nested carrier consumer is not implemented",
