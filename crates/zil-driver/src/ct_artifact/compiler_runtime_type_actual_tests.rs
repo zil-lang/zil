@@ -1,10 +1,16 @@
 //! Type actuals carry source-authenticated metadata, without inventing a CT
 //! value-schema caller for a native parent that is absent from the CT CFG.
-use super::*;
+use crate::ct_artifact::compiler::{
+    runtime_context::{RuntimeEntryFrame, RuntimeEntrySource},
+    source_scope, source_sites, *,
+};
 use crate::ct_artifact::{invocation_context::FrozenInvocationContext, source_index::SourceIndex};
 use std::collections::BTreeMap;
-use zil_base::{FileId, Fingerprint, Limits, ModuleId, NodeId, SourceUnit};
+use std::sync::Arc;
+use zil_base::{Diagnostic, FileId, Fingerprint, Limits, ModuleId, NodeId, SourceUnit};
 use zil_expand::runtime_ct::RuntimeArgument;
+use zil_ir::{Constant, ct_artifact::*};
+use zil_syntax::ast as s;
 
 struct Fixture {
     context: FrozenInvocationContext,
@@ -183,8 +189,8 @@ fn fixture(field: &str) -> Result<Fixture, Vec<Diagnostic>> {
 #[test]
 fn runtime_qualified_type_actual_has_no_forged_value_schema_caller() {
     let mut f = fixture("i32").unwrap_or_else(|errors| panic!("{errors:?}"));
-    assert!(f.raw.records.is_empty());
-    assert!(f.raw.enums.is_empty());
+    assert!(f.raw.record_schemas.is_empty());
+    assert!(f.raw.enum_schemas.is_empty());
     assert!(f.facts.bindings.is_empty());
     assert_eq!(f.facts.runtime_frames.len(), 2);
     f.context

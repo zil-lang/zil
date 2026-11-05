@@ -727,7 +727,3 @@ impl Compiler<'_> {
         Ok(s::TypeRef { span, kind })
     }
 }
-
-#[cfg(test)]
-#[path = "compiler_runtime_type_actual_tests.rs"]
-mod tests;
