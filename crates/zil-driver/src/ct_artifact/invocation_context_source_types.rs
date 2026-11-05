@@ -678,6 +678,11 @@ impl FrozenInvocationContext {
             return self.source_named(path, args, graph, id, env, raw, index, budget, depth + 1);
         }
         match (&source.kind, node) {
+            // Source `()` is an empty tuple; the CT graph canonically stores
+            // Unit as a primitive. Only that exact zero-field source qualifies.
+            (T::Tuple(types), CtTypeNode::Primitive(CtScalarTy::Unit)) if types.is_empty() => {
+                Ok(())
+            }
             (T::Tuple(types), CtTypeNode::Tuple(ids))
             | (T::Union(types), CtTypeNode::AnonymousSum(ids)) => {
                 budget.reserve_analysis_work(types.len() as u64 + ids.len() as u64)?;
