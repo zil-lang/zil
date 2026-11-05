@@ -204,6 +204,9 @@ impl FrozenInvocationContext {
             modules: parsed.to_vec(),
         })))
     }
+    pub(super) fn active_scope_count(&self) -> usize {
+        self.active.len()
+    }
     pub(super) fn has_scopes(&self) -> bool {
         !self.active.is_empty()
     }
@@ -314,6 +317,47 @@ impl FrozenInvocationContext {
         debug_assert!(out.capacity() <= size);
         Ok(out)
     }
+    fn charge_instance_lookup(
+        &self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        if !matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+            return Ok(());
+        }
+        let query =
+            super::execute::value_context::ambient_cost(std::slice::from_ref(scope), budget)?;
+        budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+        for row in &self.active {
+            if row.raw.declaration == scope.declaration
+                && matches!(row.raw.instance, CtScopeInstance::Instantiated(_))
+            {
+                let prior = super::execute::value_context::ambient_cost(
+                    std::slice::from_ref(&row.raw),
+                    budget,
+                )?;
+                budget.reserve_analysis_work(query.saturating_add(prior))?;
+            }
+        }
+        Ok(())
+    }
+    pub(super) fn parameter_count_paid(
+        &self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<usize>> {
+        self.charge_instance_lookup(scope, budget)?;
+        Ok(self.parameter_count(scope))
+    }
+    pub(super) fn parameter_kind_paid(
+        &self,
+        scope: &CtAmbientLifeScope,
+        ordinal: usize,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<CtScopeParameterKind>> {
+        self.charge_instance_lookup(scope, budget)?;
+        Ok(self.parameter_kind(scope, ordinal))
+    }
     pub(super) fn validate_scope(
         &self,
         scope: &CtAmbientLifeScope,
@@ -324,6 +368,7 @@ impl FrozenInvocationContext {
                 .saturating_mul(32)
                 .saturating_add(scope.binder_site.len() as u64),
         )?;
+        self.charge_instance_lookup(scope, budget)?;
         if self.identity(scope).is_none() {
             return Err(unsupported(
                 "CT ambient scope is not this actual invocation",
@@ -341,7 +386,7 @@ impl FrozenInvocationContext {
             .get(reference.scope.0 as usize)
             .ok_or_else(|| unsupported("CT ambient scope reference has no retained inventory"))?;
         self.validate_scope(scope, budget)?;
-        if self.parameter_kind(scope, reference.parameter as usize)
+        if self.parameter_kind_paid(scope, reference.parameter as usize, budget)?
             != Some(CtScopeParameterKind::Lifetime)
         {
             return Err(unsupported(

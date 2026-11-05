@@ -37,6 +37,20 @@ impl FrozenInvocationContext {
                     "CT call ledger declaration differs from actual placement",
                 ));
             }
+            if let Some(pool) = source_scopes.get(call.caller_scope_id.0 as usize)
+                && matches!(pool.instance, CtScopeInstance::Instantiated(_))
+                && matches!(call.caller_scope.instance, CtScopeInstance::Instantiated(_))
+            {
+                let left = super::super::execute::value_context::ambient_cost(
+                    std::slice::from_ref(pool),
+                    budget,
+                )?;
+                let right = super::super::execute::value_context::ambient_cost(
+                    std::slice::from_ref(&call.caller_scope),
+                    budget,
+                )?;
+                budget.reserve_analysis_work(left.saturating_add(right))?;
+            }
             if source_scopes.get(call.caller_scope_id.0 as usize) != Some(&call.caller_scope) {
                 return Err(unsupported("CT call ledger caller scope placement differs"));
             }
@@ -86,6 +100,7 @@ impl FrozenInvocationContext {
             }
             let row = self.call_scope(call, budget)?;
             budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+            self.charge_instance_lookup(&row.raw, budget)?;
             if !self.active.iter().any(|active| active.raw == row.raw) {
                 self.active.reserve_exact(1);
                 self.active.push(row);

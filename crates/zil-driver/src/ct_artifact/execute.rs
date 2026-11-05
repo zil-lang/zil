@@ -2176,3 +2176,7 @@ pub(super) struct EvaluatedData {
     pub value: CtValue,
     pub context: Option<value_context::ValueContext>,
 }
+
+#[cfg(test)]
+#[path = "mixed_instance_tests.rs"]
+mod mixed_instance_tests;
