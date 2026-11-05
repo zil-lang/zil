@@ -1,0 +1,253 @@
+{
+  "task": "G1.3.5.1",
+  "kind": "independent Verify author limited validation; not non-author review or common acceptance",
+  "baseline": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+  "goal_read": "06d62b592",
+  "production_commit": "64a081b25",
+  "source_test_freeze": "433683132",
+  "producer_handoff": "e390bdce50568ffd83b69c18e91a0eee6e72793d",
+  "source_machine_handoff": "714d76433",
+  "public_schema": 42,
+  "spec_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "normative_sha256": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+  "environment": {
+    "worktree": "/workspace/zil-G1.3.5.1",
+    "target": "/workspace/.zil-env/target-G1.3.5.1",
+    "tmpdir": "/workspace/.zil-env/G1.3.5.1-tmp",
+    "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo_jobs": 2,
+    "setup": ". /workspace/.zil-env/env.sh; override CARGO_TARGET_DIR and TMPDIR with the listed exclusive paths"
+  },
+  "scope": {
+    "new": "complete ordinary Enum at actual singleton whole body-owned nonparameter local; each owning arm one direct Managed<CopyRecord>, scalar/Unit companions; Copy/empty arms permitted",
+    "closed": [
+      "projected Enum endpoint",
+      "formal/nonlocal/helper/capture/Store endpoint",
+      "nested owning payload",
+      "whole ErrorUnion endpoint",
+      "partial old shell"
+    ],
+    "unchanged": [
+      "Managed and finite whole Package behavior",
+      "public Reserve/Commit/Abort",
+      "schema/Wire/ABI and default budgets"
+    ]
+  },
+  "production": [
+    {
+      "path": "/workspace/zil-G1.3.5.1/crates/zil-verify/src/place_replacements/actual.rs",
+      "sha256": "4cfb7811c72e724295da3253c6b063859bb89ab2bade9112e8dace7f3d198267",
+      "bytes": 27372
+    },
+    {
+      "path": "/workspace/zil-G1.3.5.1/crates/zil-verify/src/sums/replacements.rs",
+      "sha256": "df9817f6a7d2afc7cc7fe904d17e50b8a943bb63c57a336e118b3ed7a8ba962a",
+      "bytes": 31578
+    }
+  ],
+  "source_witnesses": [
+    {
+      "path": "/workspace/zil-G1.3.5.1/tests/language-readiness/terminal/340/replace-enum-terminal-pending.zil",
+      "sha256": "a86e09bdc93b7622e69655593cceb41eec12813459344f3cf6025b826f3902f7",
+      "bytes": 669
+    },
+    {
+      "path": "/workspace/zil-G1.3.5.1/tests/language-readiness/terminal/340/replace-enum-terminal-failure.zil",
+      "sha256": "b915ffc6c87f7dd1ef199bee069a5a090603f00152389336f463131ac862d62d",
+      "bytes": 615
+    }
+  ],
+  "test_source": {
+    "path": "/workspace/zil-G1.3.5.1/tests/language-readiness/terminal/340/enum_replacement_verify.rs",
+    "sha256": "82f4a48f96b2aee854938f69b87a06e7c2dfe3fcc035777b9de80a2f2d2cf92b",
+    "bytes": 23673
+  },
+  "evidence_layers": {
+    "source": "parse -> Expand -> Types real ReserveAddress empty path/Commit complete Enum (and Abort on failure) -> Analyze candidate -> independent Verify raw/Wire. Tests use Analyze only to produce an untrusted candidate; Verify core calls no Analyze/Types proof.",
+    "source_derived_raw": "wrong same-payload Unpack tag, old tag observation moved before preparation, old-root/leaf take during pin, missing Abort/prepared Enum Drop, actual multi-root address candidate with honest Holds, descriptor injection and result-mode mutation are raw/Wire neighbors, not original Source acceptance.",
+    "component": "one exact Content unit test is included in the 382 library tests; not added to the count again.",
+    "native": "shared strict runtime oracle Source is frozen, but this independent Verify author ran no native acceptance; machine implementation/strict backend execution evidence belongs to G1.3.5 author and physical review to separate reviewers."
+  },
+  "controls": [
+    {
+      "case": "runtime old/new differing arms and different owned field ordinal",
+      "result": "real tickets and raw/Wire pass; shared Source oracle now AB266/CD168, SHA bound below; native result is not this author evidence"
+    },
+    {
+      "case": "Incoming old Enum -> newly-created runtime Left/Right RHS -> create Managed result",
+      "result": "Source raw/Wire pass"
+    },
+    {
+      "case": "Created old -> actual given incoming leaf wrapped in runtime Left/Right -> give result",
+      "result": "Source raw/Wire pass; changing actual result mode to create rejects E-VERIFY-RESOURCE fresh"
+    },
+    {
+      "case": "same-type payload wrong Unpack tag after replacement",
+      "result": "E-VERIFY-SUM selected tag in raw/Wire"
+    },
+    {
+      "case": "same-root address selected by both CFG branches / different actual roots",
+      "result": "same-root Source raw/Wire pass; honest multi-root raw/Wire Unsupported one independently reconstructed actual target"
+    },
+    {
+      "case": "old runtime tag snapshot reused after Commit",
+      "result": "real generic PlaceTagLocal Source baseline pass; hoisted actual observation rejects E-VERIFY-SUM current; equivalent specialized VariantTagLocal raw route separately passes before hoist and rejects after"
+    },
+    {
+      "case": "RHS takes old whole root or old managed leaf while reserved",
+      "result": "both raw/Wire E-BORROW-REPLACEMENT-PIN before Commit complete-old check"
+    },
+    {
+      "case": "full prepared Enum + later failed RHS argument",
+      "result": "real Source raw/Wire pass with Abort, prepared Enum cleanup before old root; missing Abort E-VERIFY-PLACE-REPLACE leaks; missing prepared Enum Drop E-VERIFY-RESOURCE"
+    },
+    {
+      "case": "empty and scalar-only arm both directions",
+      "result": "actual Source with independent runtime old/new bools passes both kernels/raw/Wire; no inactive-arm leaf debt invented"
+    },
+    {
+      "case": "injected weak payload Desc from actual ref-pattern address",
+      "result": "original Source uses ReadAddress and passes; raw DescribeAddress/ReadDesc before Commit rejects RESOURCE no independently grounded source; after Commit rejects earlier BORROW-CONFLICT active address window. Neither is claimed to exercise replacement no_live_description retirement."
+    },
+    {
+      "case": "known single constructor -> exhaustive match -> create result precision",
+      "result": "ordinary no-replacement Direct Source also RESOURCE fresh rejects; preserved existing boundary, not a fake positive or newly supported precision"
+    }
+  ],
+  "current_request_limits": {
+    "shared_source_sha256": "a86e09bdc93b7622e69655593cceb41eec12813459344f3cf6025b826f3902f7",
+    "raw_wire_work": 152448,
+    "whole_source_verify": {
+      "work": 152448,
+      "nodes": 349,
+      "source_bytes": 669,
+      "depth": 11
+    },
+    "whole_source_analyze_work": 111234,
+    "checks": "fixed N; N-1 ResourceLimit; fresh/warm/retry; warm active_query_count zero; successful whole Source verification_runs one; raw/Wire fresh fingerprint stable"
+  },
+  "old_profiles": {
+    "Managed_error_arm": {
+      "Analyze": 46908,
+      "Verify": 97818
+    },
+    "whole_Package": {
+      "Analyze": 13945,
+      "Verify": 28743
+    },
+    "Store_replacement": {
+      "Analyze": 19754,
+      "Verify": 54842
+    }
+  },
+  "final_checks": [
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/ten-source-fixed.log",
+      "sha256": "7b44d2280fdc744b16e11f2405eadc53d0bad01ca134a772856e34c9da554068",
+      "bytes": 1769,
+      "command": "cargo test -p zil-driver --test aggregates g135_enum_verify -j2 -- --nocapture",
+      "result": "10 passed, 0 failed; no repeated earlier runs added"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/final-verify-lib.log",
+      "sha256": "b183a6dec65eb6c0fe6d62b54ffe30c98861f1ce905af100ddabb0b2c4989f7f",
+      "bytes": 35686,
+      "command": "cargo test -p zil-verify --lib -j2",
+      "result": "382 passed, 0 failed"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/old-managed-budget.log",
+      "sha256": "21ae4c7c053e2ff9724fc2bf0894cbd6c750d4bb5cbdb5e994da626d89c11ef5",
+      "bytes": 439,
+      "command": "cargo test -p zil-driver --test aggregates terminal340_owner_replacement_error_arm_alias_budget -j2 -- --nocapture",
+      "result": "1 passed; old fixed Analyze46908/Verify97818"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/old-package-budget.log",
+      "sha256": "fcc94e6feb844f0d8ecf8b2f09a7a0617be889401ac3e644e65a32ba46cf3cb5",
+      "bytes": 462,
+      "command": "cargo test -p zil-driver --test aggregates terminal340_package_terminal_exact_request_budget -j2 -- --nocapture",
+      "result": "1 passed; old fixed Analyze13945/Verify28743"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/old-store-budget.log",
+      "sha256": "d93681b8352c330cb69199942d49d6141ab9c3837811065e16e6a29fffb66c2b",
+      "bytes": 611,
+      "command": "cargo test -p zil-driver --test impl180_store_mut owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries -j2 -- --nocapture",
+      "result": "1 passed; old fixed Analyze19754/Verify54842"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/strict-fixed.log",
+      "sha256": "db37e38318334496130c32aa108740316210b3a1769e28679400744003f5ebb8",
+      "bytes": 135,
+      "command": "cargo clippy -p zil-verify --lib -p zil-driver --test aggregates -j2 -- -D warnings",
+      "result": "passed"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/final-fmt.log",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "bytes": 0,
+      "command": "cargo fmt --all --check",
+      "result": "passed"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/final-architecture-fixed.log",
+      "sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817",
+      "bytes": 78,
+      "command": "cargo metadata --no-deps --format-version 1 > listed local cargo-metadata.json; node tools/check-architecture.mjs --metadata listed local cargo-metadata.json",
+      "result": "passed 15 crates, 38 edges"
+    }
+  ],
+  "observed_initial_failures": [
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/weak-desc-first.log",
+      "sha256": "bab70a397949a46b1c3fcdd95491a0c8ee031b834b3dd8f32c24709866741b93",
+      "bytes": 1009,
+      "command": "first g135_enum_verify_actual_weak_payload test",
+      "result": "fixture assumed ref Source emitted ReadDesc; actual Source emitted ReadAddress, zero mutations assertion failed; not a proof result"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/weak-desc-shape.log",
+      "sha256": "386d8faf2ce05e18a40b5a7dcb8e22a1e87a6363ae95ea61eacaca3a89d93228",
+      "bytes": 105882,
+      "command": "temporary actual Typed debug inspection",
+      "result": "same zero-mutation failure, local dump identified real Load/AddressField/ReadAddress; debug print removed from final tests"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/weak-desc-raw-before-after.log",
+      "sha256": "2b650fb1040425c97e18f234d1c393c890f74dcde20d8574c17c563209916b31",
+      "bytes": 1222,
+      "command": "corrected raw descriptor route with a mistaken before-Commit positive expectation",
+      "result": "before-Commit RESOURCE no independently grounded source rejected; execution stopped before after-Commit case. A subsequent message prematurely said same after result and was explicitly corrected."
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/eight-source-tests.log",
+      "sha256": "7788df8f9e07a3e1e5c35a4ed679dd59bda25e7f86eb15ee37c14d9184f9cf9b",
+      "bytes": 1909,
+      "command": "eight-control intermediate run",
+      "result": "7 passed, weak Desc assertion failed because actual after-Commit rejection was BORROW-CONFLICT rather than before-Commit RESOURCE; final test records both precise stages"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/strict-first.log",
+      "sha256": "fcea8bc602cd06d8e7aa2460c83ff849e1bc9d13b77923332134c3d54f648efc",
+      "bytes": 2029,
+      "command": "first strict Clippy",
+      "result": "test-only collapsible_if failure; fixed without production change"
+    },
+    {
+      "path": "/workspace/.zil-env/G1.3.5.1-tmp/final-architecture.log",
+      "sha256": "51a0423a3cd6221d3fc0d2b8abd6e5cec35120bb092eb2ef9a2f743eba40805f",
+      "bytes": 80,
+      "command": "node tools/check-architecture.mjs without metadata argument",
+      "result": "usage error; corrected exact metadata invocation passed"
+    }
+  ],
+  "orchestration_note": "An accidental second identical Cargo invocation waited on this exclusive target lock and was terminated (143); it did not supply acceptance evidence. Only the first compiled. Its initial shared log was partially overwritten, so final checks use separate clean logs.",
+  "rust_four_goals": {
+    "safety": "finite independent-kernel Source/raw/Wire and regression evidence only; no self-review",
+    "runtime_memory": "existing inline Enum representation/public tickets; no new runtime allocation or ABI claimed; Rust-relative timing/RSS unmeasured",
+    "compilation": "actual request costs paid; exact new and retained old boundaries checked; defaults unchanged",
+    "maintenance": "small private replacement changes, existing target reuse, no schema; comparative maintenance cost and product-level net breakthrough unmeasured"
+  },
+  "remaining": "Non-author review and common integration belong to root. Known-constructor create precision and raw payload Desc capability remain the measured ordinary boundaries above; wider G1.3 endpoints/combinations are not declared complete. Raw logs/dumps remain only at absolute local paths, never committed."
+}

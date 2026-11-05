@@ -202,6 +202,34 @@ impl Builder<'_, '_> {
                     return Ok(false);
                 }
             }
+            Type::Enum { variants, .. } => {
+                self.closures.snapshot_type(at, 2, 0, target.span)?;
+                self.closures.snapshot(variants.len(), target.span)?;
+                let mut owning = false;
+                for (_, fields) in variants {
+                    self.closures.snapshot(fields.len(), target.span)?;
+                    let mut owners = 0;
+                    for field in fields {
+                        if let Type::Managed(payload) = field {
+                            if !matches!(payload.as_ref(), Type::Record { .. })
+                                || !payload.is_copy_value()
+                            {
+                                return Ok(false);
+                            }
+                            owners += 1;
+                        } else if !field.is_b0_scalar() {
+                            return Ok(false);
+                        }
+                    }
+                    if owners > 1 {
+                        return Ok(false);
+                    }
+                    owning |= owners == 1;
+                }
+                if !owning {
+                    return Ok(false);
+                }
+            }
             _ => return Ok(false),
         }
         if !*mutable {

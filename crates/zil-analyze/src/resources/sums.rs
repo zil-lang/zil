@@ -608,6 +608,33 @@ impl Facts {
         }
         Ok(false)
     }
+    /// Replace a singleton complete local with the actual prepared RHS tree.
+    /// Copying the tagged tree preserves each real leaf's origin alternatives.
+    pub(super) fn replace_enum(
+        &mut self,
+        local: LocalId,
+        rhs: ValueId,
+        plan: &Plan,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        let incoming = self.value(rhs, budget)?;
+        let old = self.local(local, budget)?;
+        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.node, Node::Sum(_)) {
+            return Err(error(
+                "whole Enum replacement requires actual tagged contents",
+            ));
+        }
+        if check && (!old.complete(budget)? || !incoming.complete(budget)?) {
+            return Err(error(
+                "whole Enum replacement cannot repair missing old or RHS contents",
+            ));
+        }
+        self.invalidate(local, plan, budget)?;
+        budget.lookup(self.locals.len(), "whole Enum definite local publication")?;
+        self.locals.insert(local, incoming);
+        Ok(())
+    }
     pub(super) fn unpack_birth(
         &self,
         l: LocalId,
