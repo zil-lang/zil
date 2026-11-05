@@ -182,6 +182,60 @@ impl<'a> Budget<'a> {
             _ => Ok(false),
         }
     }
+    /// Physical representation only, after all prior admission paths failed.
+    /// Keep the full verified type: an empty stored slot inventory and ordinary
+    /// inline leaves do not provide an address, loan or owning capability.
+    pub(super) fn pure_composite(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
+        self.pay(ty, depth)?;
+        match ty {
+            Type::BorrowedStorage { storage, life } => {
+                self.stored_shape(life)?;
+                if !life.slots.is_empty() {
+                    return Ok(false);
+                }
+                self.pure_composite(storage, depth + 1)
+            }
+            Type::Tuple(fields) => {
+                for field in fields {
+                    if !self.pure_composite(field, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Type::Record { fields, .. } => {
+                for (_, field) in fields {
+                    if !self.pure_composite(field, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+                Ok(true)
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for field in fields {
+                        if !self.pure_composite(field, depth + 1)? {
+                            return Ok(false);
+                        }
+                    }
+                }
+                Ok(true)
+            }
+            Type::Array { element, .. } => self.pure_composite(element, depth + 1),
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16 => Ok(true),
+            _ => Ok(false),
+        }
+    }
+
     fn copy_work(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         if let Type::BorrowedFunctionPointer { life, .. } = ty {
             self.stored_contract(life)?;
@@ -345,6 +399,127 @@ fn limit() -> Vec<Diagnostic> {
 
 #[cfg(test)]
 mod impl243_tests {
+    fn pure_leaf() -> Type {
+        Type::BorrowedStorage {
+            storage: Box::new(Type::Record {
+                name: "Leaf".into(),
+                fields: vec![("bits".into(), Type::U64)],
+            }),
+            life: zil_ir::StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![zil_ir::NominalLifeArgument {
+                    path: vec![],
+                    declaration: zil_ir::LifeDeclarationId {
+                        module: zil_base::ModuleId(0),
+                        declaration: zil_base::NodeId(1),
+                        compiler: false,
+                    },
+                    argument: 0,
+                    binder: 0,
+                }],
+            },
+        }
+    }
+
+    #[test]
+    fn g4463_lower_qualified_array_preserves_metadata_and_shared_budget() {
+        // Isolated Lower representation probe: this raw type is not source or
+        // nominal authority. Actual Source tests traverse Verify beforehand.
+        let ty = Type::Array {
+            element: Box::new(pure_leaf()),
+            length: 4096,
+        };
+        let defaults = zil_base::Limits::default();
+        let mut measured = Budget::new(&defaults);
+        assert!(measured.pure_composite(&ty, 0).unwrap());
+        let needed = measured.work;
+        let nodes = measured.nodes;
+        let limits = zil_base::Limits {
+            max_analysis_steps: needed,
+            max_nodes: nodes,
+            ..defaults.clone()
+        };
+        let mut exact = Budget::new(&limits);
+        assert!(exact.pure_composite(&ty, 0).unwrap());
+        assert_eq!(exact.work, needed);
+        assert_eq!(exact.nodes, nodes);
+        assert_eq!(
+            exact.pure_composite(&ty, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let short = zil_base::Limits {
+            max_analysis_steps: needed - 1,
+            ..defaults.clone()
+        };
+        assert_eq!(
+            Budget::new(&short).pure_composite(&ty, 0).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert!(Budget::new(&limits).pure_composite(&ty, 0).unwrap());
+        let one = Type::Array {
+            element: Box::new(pure_leaf()),
+            length: 1,
+        };
+        let mut homogeneous = Budget::new(&defaults);
+        assert!(homogeneous.pure_composite(&one, 0).unwrap());
+        assert_eq!(
+            homogeneous.work, needed,
+            "Lower visits homogeneous element metadata once; codegen pays physical cardinality"
+        );
+        let Type::Array { element, length } = &ty else {
+            unreachable!()
+        };
+        assert_eq!(*length, 4096);
+        let Type::BorrowedStorage { life, .. } = element.as_ref() else {
+            unreachable!()
+        };
+        assert_eq!(life.nominal_arguments[0].argument, 0);
+        assert_eq!(life.nominal_arguments[0].binder, 0);
+        eprintln!("g4463 Lower pure qualified Array workN={needed} nodesN={nodes}");
+    }
+
+    #[test]
+    fn g4463_lower_new_pure_path_rejects_inactive_targets_and_slots() {
+        let limits = zil_base::Limits::default();
+        let mut choice = Type::Enum {
+            name: "Choice".into(),
+            variants: vec![("Value".into(), vec![pure_leaf()])],
+        };
+        assert!(Budget::new(&limits).pure_composite(&choice, 0).unwrap());
+        let Type::Enum { variants, .. } = &mut choice else {
+            unreachable!()
+        };
+        variants.push((
+            "Inactive".into(),
+            vec![Type::Address {
+                inner: Box::new(Type::U64),
+                mutable: false,
+            }],
+        ));
+        assert!(!Budget::new(&limits).pure_composite(&choice, 0).unwrap());
+        let managed = Type::Array {
+            element: Box::new(Type::Managed(Box::new(Type::ByteBuffer))),
+            length: 4096,
+        };
+        assert!(!Budget::new(&limits).pure_composite(&managed, 0).unwrap());
+        let mut leaf = pure_leaf();
+        let Type::BorrowedStorage { life, .. } = &mut leaf else {
+            unreachable!()
+        };
+        life.slots.push(zil_ir::StorageLifeSlot {
+            path: vec![],
+            binder: 0,
+            mode: zil_ir::StoredBorrowMode::SharedAddress,
+        });
+        let slotted = Type::Array {
+            element: Box::new(leaf),
+            length: 4096,
+        };
+        assert!(!Budget::new(&limits).pure_composite(&slotted, 0).unwrap());
+    }
+
     #[test]
     fn callable40_lower_complete_relation_uses_existing_remaining_ledger() {
         use zil_ir::{
