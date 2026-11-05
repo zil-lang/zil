@@ -2275,6 +2275,26 @@ impl<'a, 'c> Builder<'a, 'c> {
                 },
                 _ => None,
             },
+            CoreExprKind::Member { object, member, .. } => {
+                let base = self.known_type_ref(object)?;
+                let base = match base {
+                    Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                        inner.as_ref()
+                    }
+                    other => other,
+                };
+                if matches!(base, Type::Package { .. }) {
+                    return None;
+                }
+                match stored::physical(base) {
+                    Type::Record { fields, .. } => fields
+                        .iter()
+                        .find(|(name, _)| name == member)
+                        .map(|(_, ty)| ty),
+                    Type::Tuple(fields) => member.parse::<usize>().ok().and_then(|i| fields.get(i)),
+                    _ => None,
+                }
+            }
             _ => None,
         }
     }
