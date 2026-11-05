@@ -530,3 +530,12 @@ direct/borrowed fast paths keep their exact boundaries, and new traversal work
 is charged to the current request. This adds useful owning callback composition
 without an implicit heap box, RC or lock. Broader environments and lending,
 and same-semantics Rust runtime/RSS/compile/maintenance costs, remain unproven.
+
+The resource correction closes an accepted-main stale-description case across
+a mutating helper. Each kernel reconstructs actual Commit retirement and
+checks complete source pairs through real calls and captures. The safety
+condition preserves separate objects and sibling fields instead of treating
+different symbolic inputs as either automatically disjoint or always aliased.
+It adds no runtime ownership mechanism and grants no new Fresh/must-Commit
+capability. This is a concrete safety correction; broad-language safety and
+same-semantics Rust cost comparisons still require their existing product gates.
