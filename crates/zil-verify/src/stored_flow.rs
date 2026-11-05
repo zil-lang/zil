@@ -511,7 +511,8 @@ pub(super) fn qualification(
 /// This admits only a qualified pure value, retaining its complete semantic
 /// type. The ordinary read's actual pointer/loan proof remains mandatory.
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
+    if !b.pure_nominal
+        || !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
@@ -525,7 +526,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
 }
 
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if module.life_instances.is_empty()
+    if !b.pure_nominal
         || ty.is_copy_value()
         || !matches!(
             ty,
@@ -748,6 +749,9 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
     }
     for (i, instance) in module.life_instances.iter().enumerate() {
         type_work(&instance.ty, limits, b)?;
+        if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
+            b.pure_nominal = true;
+        }
         physical(&instance.ty, limits, b)?;
         let (storage, _) = qualified(&instance.ty)
             .ok_or_else(|| err("nominal instance has no complete qualified type"))?;

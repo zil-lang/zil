@@ -425,7 +425,8 @@ pub(super) fn qualification(
 /// Copy only a fully qualified physical value without runtime borrowing or
 /// ownership leaves. The address is still checked by the CFG access proof.
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
+    if !b.pure_nominal
+        || !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
@@ -457,7 +458,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Comp
 /// Pure inline products have no runtime targets. Every qualified descendant
 /// still needs one complete, independently checked nominal instance.
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    if module.life_instances.is_empty()
+    if !b.pure_nominal
         || ty.is_copy_value()
         || !matches!(
             ty,
@@ -588,6 +589,9 @@ pub(super) fn inventory(
     }
     for (index, instance) in module.life_instances.iter().enumerate() {
         shape_work(&instance.ty, limits, b)?;
+        if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
+            b.pure_nominal = true;
+        }
         let Some((storage, _)) = carrier(&instance.ty) else {
             return Err(failure(
                 "nominal stored instance has no complete qualified type",
