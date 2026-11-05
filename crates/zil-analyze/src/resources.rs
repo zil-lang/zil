@@ -1221,6 +1221,7 @@ impl Flow<'_> {
                         validate: check,
                         live: self.after.get(b).and_then(|row| row.get(position)),
                         output: i.result,
+                        position: Some((b, position)),
                     },
                     budget,
                 )?;
@@ -3588,6 +3589,7 @@ pub(super) fn check_module(
                 Some(&program),
             )?;
         }
+        program.close_retirement_pairs(module, graphs, budget)?;
     }
     Ok(())
 }
