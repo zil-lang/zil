@@ -288,8 +288,8 @@ fn cyclic_cfg_cannot_claim_an_empty_or_truncated_finite_language() {
 }
 
 #[test]
-fn zero_event_fn_once_cycle_stays_an_explicit_scope_limit() {
-    let (mut module, candidate) = baseline(
+fn zero_event_fn_once_cycle_is_legal_but_actual_once_consumption_cannot_repeat() {
+    let (mut module, mut candidate) = baseline(
         "fn idle<F:Fn()->i32>(f:F,n:i32)->i32{var i=n;while i>0{i-=1}return i}fn main()->i32{let f=move()=>7;return idle(f,3)}",
     );
     let claim = module
@@ -302,12 +302,59 @@ fn zero_event_fn_once_cycle_stays_an_explicit_scope_limit() {
     };
     assert!(graph.nodes.iter().all(|node| node.calls.is_empty()));
     claim.roles[0].kind = CallableKind::FnOnce;
+    let limits = Limits::default();
+    candidate.module_fingerprint = module.fingerprint();
+    zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate, &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+
+    // Unlike the idle cycle above, this actual loop really invokes its role
+    // on the backedge. Upgrade both the real operation and exact event claim,
+    // preserving SSA slots and the independently derived candidate plan.
+    let (mut module, candidate) = baseline(
+        "fn repeat<F:Fn()->i32>(f:F,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=f();i+=1}return sum}fn main()->i32{let f=move()=>7;return repeat(f,3)-21}",
+    );
+    let helper = module
+        .functions
+        .iter_mut()
+        .find(|function| function.callable_contract.is_some())
+        .unwrap();
+    let mut actual_calls = 0;
+    for instruction in helper
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let InstructionKind::CallClosure { callee, arguments } = &instruction.kind {
+            instruction.kind = InstructionKind::CallClosureOnce {
+                callee: *callee,
+                arguments: arguments.clone(),
+            };
+            actual_calls += 1;
+        }
+    }
+    assert_eq!(actual_calls, 1);
+    let claim = helper.callable_contract.as_mut().unwrap();
+    assert_eq!(claim.roles.len(), 1);
+    claim.roles[0].kind = CallableKind::FnOnce;
+    let CallableTraces::Flow(graph) = &mut claim.traces else {
+        panic!("actual invocation loop must preserve a Flow");
+    };
+    let mut actual_events = 0;
+    for event in graph.nodes.iter_mut().flat_map(|node| &mut node.calls) {
+        assert_eq!(event.parameter, claim.roles[0].parameter);
+        assert_eq!(event.kind, CallableKind::Fn);
+        event.kind = CallableKind::FnOnce;
+        actual_events += 1;
+    }
+    assert_eq!(actual_events, actual_calls);
     reject(
-        "zero-event-once",
+        "actual-once-consuming-backedge",
         module,
         candidate,
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
+        ResultCategory::SafeReject,
+        "E-VERIFY-CALLABLE-CONTRACT",
     );
 }
 
