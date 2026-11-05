@@ -1,7 +1,7 @@
 {
   "task": "G1.3.4.1",
   "status": "AuthorLimitedPassPendingIndependentReview",
-  "source_commit": "1e046d70663a67b8ef1962c73d50048019ca906b",
+  "source_commit": "020927cbe8d91b55aa30b2b3a197b84c25612737",
   "independent_verify_core_commit": "e4bffc9e597e54b4b0da1066338371408c2c1e3d",
   "producer_join": "d1fa34c5f",
   "accepted_baseline": "6d4d3e1182001290f87cc0105f9c5a64d769b153",
@@ -11,16 +11,18 @@
     "spec_hash": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
     "normative_hash": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8"
   },
-  "scope": "Actual body-owned complete flat local Package root, exactly one direct Managed<Copy Record> plus scalar Copy fields; original Managed endpoint preserved.",
+  "scope": "One independently reconstructed actual body-owned complete flat local Package root, exactly one direct Managed<Copy Record> plus scalar Copy fields; original Managed endpoint preserved.",
   "closed": [
     "formal and nonlocal Package roots",
     "borrowed or captured or helper or Store whole Package endpoints",
     "partial old shell",
     "nested Package endpoint",
     "whole Sum endpoint",
-    "unknown actual root"
+    "unknown actual root",
+    "multi-target whole Package address, including a real branch join of distinct locals"
   ],
   "implementation": [
+    "Whole Package selection independently requires exactly one actual target before reserve or commit. Two branches selecting the same root deduplicate to one and remain legal; distinct roots cannot each receive an exact Fresh update.",
     "Content transfers the complete actual Product and its RHS leaf alternatives without inventing Fresh.",
     "Resource transfer preserves shell debt and lexical cleanup age, requires old field live and no later old Desc, and consumes staged RHS once.",
     "Optional preexisting nested Product provenance lanes are synchronized for the flat replacement before whole move/embed/take; this does not admit a nested replacement endpoint.",
@@ -42,7 +44,8 @@
     "crates/zil-verify/src/resources/replacements.rs": "d48243de05378a0478f036ae5fdfef233adbb6893fc896281e1eb51fb4da735f",
     "crates/zil-verify/src/resources/replacements/tests.rs": "6ff37a6697ea77e82815f6b3826f717d67a91835f8cbcb64d8f4113128c230f3",
     "crates/zil-verify/src/resources/product.rs": "4af875101117653c788a639351e7b7a3d70201d053ecc4852a11864dc62c7091",
-    "crates/zil-driver/tests/aggregates.rs": "d8a2aab98cb12be9555c35d749ec85bdbf0e7997794eba5051f9f93b0fffee9f"
+    "crates/zil-driver/tests/aggregates.rs": "81066e30d24b112fc93d3be4411cecc3267ad8d4cee999789ee1b8f263d63b04",
+    "crates/zil-verify/src/place_replacements/actual.rs": "8dcb0024b9bd479c6df521da23f75a29049be568cad9aa3e5c37e91375243be6"
   },
   "commands": [
     {
@@ -59,8 +62,8 @@
         "--",
         "--nocapture"
       ],
-      "passed": 8,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-package-second.log",
+      "passed": 9,
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-package.log",
       "exit": 0
     },
     {
@@ -76,7 +79,7 @@
         "--nocapture"
       ],
       "passed": 370,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-verify-lib.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-verify-lib.log",
       "exit": 0
     },
     {
@@ -95,7 +98,7 @@
         "--nocapture"
       ],
       "passed": 1,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-managed-budget.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-managed-budget.log",
       "exit": 0
     },
     {
@@ -114,7 +117,7 @@
         "--nocapture"
       ],
       "passed": 1,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-store-budget.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-store-budget.log",
       "exit": 0
     },
     {
@@ -133,7 +136,7 @@
         "--nocapture"
       ],
       "passed": 1,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-product-budget.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-product-budget.log",
       "exit": 0
     },
     {
@@ -149,7 +152,7 @@
         "-D",
         "warnings"
       ],
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-clippy-verify.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-clippy-verify.log",
       "exit": 0
     },
     {
@@ -166,7 +169,7 @@
         "-D",
         "warnings"
       ],
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-clippy-aggregates.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-clippy-aggregates.log",
       "exit": 0
     },
     {
@@ -176,7 +179,7 @@
         "--all",
         "--check"
       ],
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-fmt.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-fmt.log",
       "exit": 0
     },
     {
@@ -184,9 +187,9 @@
         "node",
         "tools/check-architecture.mjs",
         "--metadata",
-        "/workspace/.zil-env/G1.3.4.1-tmp/final-metadata.json"
+        "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-metadata.json"
       ],
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-architecture.log",
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-architecture.log",
       "checked_crates": 15,
       "checked_edges": 38,
       "exit": 0
@@ -203,7 +206,7 @@
         "--stop-after",
         "verify",
         "--emit-dir",
-        "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success",
+        "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success",
         "--json"
       ],
       "build": "cargo run --locked -j2 -p zil-cli --bin zil -- <the success check argv>",
@@ -221,8 +224,9 @@
       "verification_runs": 1,
       "cache_hit": false,
       "native_codegen": null,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-cli-success.log",
-      "stage_snapshot": "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success"
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-cli-success.log",
+      "stage_snapshot": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success",
+      "source_commit": "020927cbe8d91b55aa30b2b3a197b84c25612737"
     },
     {
       "source": "tests/language-readiness/terminal/340/replace-package-terminal-failure.zil",
@@ -234,7 +238,7 @@
         "--stop-after",
         "verify",
         "--emit-dir",
-        "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure",
+        "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure",
         "--json"
       ],
       "build": "same already built CLI",
@@ -252,13 +256,15 @@
       "verification_runs": 1,
       "cache_hit": false,
       "native_codegen": null,
-      "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-cli-failure.log",
-      "stage_snapshot": "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure"
+      "log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-cli-failure.log",
+      "stage_snapshot": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure",
+      "source_commit": "020927cbe8d91b55aa30b2b3a197b84c25612737"
     }
   ],
   "new_controls": {
-    "source_and_source_derived_tests": 8,
+    "source_and_source_derived_tests": 9,
     "raw_and_wire": [
+      "Real Source if-CFG alias join with honest multi-root Hold claim: distinct roots Give/Create raw/Wire all reject Unsupported; both branches selecting one actual local Give/Create raw/Wire remain valid.",
       "valid success and failed RHS preparation",
       "missing/renamed/duplicate actual resource definition",
       "real Drop entry changed to Suspend rejects early E-VERIFY-RESOURCE",
@@ -270,7 +276,7 @@
       "partial old field cleanup conflicts with retained parent alias before Content/debt",
       "flat root replacement coexisting with existing nested Product: actual fresh RHS create promotion passes, incoming RHS promotion rejects"
     ],
-    "origin_test_level": "The optional Product test starts from real parsed Source with a valid give contract and promotes only raw Typed result mode to Create. It is independent Verify evidence, not accepted Source create or native evidence.",
+    "origin_test_level": "The optional Product test starts from real parsed Source with a valid give contract and promotes only raw Typed result mode to Create. It is independent Verify evidence, not accepted Source create or native evidence. The same-root branch positive likewise promotes only the real Source give contract to raw Create; distinct-root Create is rejected before transfer.",
     "component_tests": "Three hand-built resource-transfer unit tests and one hand-built Product Content unit test are contained in the 370 Verify tests, not additional Source or native counts."
   },
   "budgets": {
@@ -304,7 +310,7 @@
     "defaults_increased": false
   },
   "history": {
-    "classification": "Historical prefreeze worktree runs are not rebound to final commit; no repeated test totals are accumulated.",
+    "classification": "Previous prefreeze runs retain their own source identity and do not replace this exact-source correction; no repeated totals are accumulated.",
     "resumed_first_run": {
       "source_commit": "91ab21d82",
       "passed": 7,
@@ -312,7 +318,23 @@
       "meaning": "Test expected SUM for partial field cleanup; actual retained-alias loan rejected earlier with E-BORROW-CONFLICT. The final assertion binds that actual stage; no unsafe acceptance occurred.",
       "log": "/workspace/.zil-env/G1.3.4.1-tmp/resume-package-first.log"
     },
-    "older_failures": "Original package component assertions first expected later resource diagnostics and union provenance; original pin Source-derived counterexample first hit MOVE then HOLD before its actual matching child/claim was prepared. Original logs and subsequent successful retries retained verbatim under history. No historical partial run replaces final exact-source results."
+    "older_failures": "Original package component assertions first expected later resource diagnostics and union provenance; original pin Source-derived counterexample first hit MOVE then HOLD before its actual matching child/claim was prepared. Original logs and subsequent successful retries retained verbatim under history. No historical partial run replaces final exact-source results.",
+    "previous_author_freeze": {
+      "source_commit": "1e046d70663a67b8ef1962c73d50048019ca906b",
+      "compact_receipt_commit": "466b0aa895844e6b3330b2ba2461c0e82e9f8878",
+      "status": "SupersededByMultiRootCorrection",
+      "not_final_acceptance": true
+    },
+    "multi_root": {
+      "discovery": "Non-author g8 static review; reproduced by this author before correction.",
+      "prefixed_production_commit": "1e046d70663a67b8ef1962c73d50048019ca906b",
+      "candidate_method": "Real Source branch join Typed CFG. Temporarily reserve direct Local(x) to obtain a valid candidate with unchanged SSA and honest multi-root Holds; restore original address reserve and optionally promote raw result mode to Create.",
+      "prefixed_result": "Give/Create times raw/Wire: all four were accepted; flag=false replaces y while x retains an incoming leaf.",
+      "prefixed_log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-prefixed-all.log",
+      "fixed_result": "All four reject Unsupported at actual target selection. Same-root two-branch positives pass.",
+      "fixed_log": "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-package.log",
+      "native_execution": false
+    }
   },
   "native": {
     "count_in_this_receipt": 0,
@@ -321,12 +343,12 @@
   },
   "review": {
     "author_review_claim": false,
-    "independent_review": "Pending exact source commit",
+    "independent_review": "Pending g8 non-author review of exact source 020927cbe8d91b55aa30b2b3a197b84c25612737",
     "formal_full_suite": "Not run by this author",
     "main_merge": "Not performed"
   },
   "rust_goals": {
-    "safety": "Finite real source and independent actual-root, affine-ticket, debt, origin, pin and epoch obligations tested; no full language theorem.",
+    "safety": "Finite actual-root, affine-ticket, debt, origin, pin and epoch evidence; non-author discovery exposed multi-root overstatement and the exact-source correction independently closes it. No full language theorem.",
     "runtime_memory": "Unmeasured relative to Rust; no timing, RSS or native claim here.",
     "expression_maintenance": "Original local Package replacement Source now passes the independent kernel; general shapes and maintenance comparisons remain unmeasured.",
     "compile_cost": "Actual paid Product work has exact N/N-1/fresh controls and old fixed budgets remain; no compile-time superiority claim.",
@@ -339,58 +361,34 @@
     "validation/product-gates.json"
   ],
   "executables_sha256": {
-    "/workspace/.zil-env/target344-G1.3.4.1/debug/zil": "ab23f7d39f3dd7f5b7bb5ac88bfd8bf28aa19a06432ce9c2a5df5090560fcf36",
-    "/workspace/.zil-env/target344-G1.3.4.1/debug/deps/aggregates-69ffa20fbaa0b0e1": "87e57d904eb6bfa7492ffb7d076775a460f5820fc8ca0bddfda5c326f9fddc8a"
+    "/workspace/.zil-env/target344-G1.3.4.1/debug/zil": "19ce42f978e1b3e3013c04723cd96a6f82df0d24ec12119699b4bdb83bfd44c6",
+    "/workspace/.zil-env/target344-G1.3.4.1/debug/deps/aggregates-69ffa20fbaa0b0e1": "7982709d42bfb7196d38a7e726430be8468ee500b10adddde0b83e8ce8787ce6"
   },
   "local_raw_sha256": {
-    "/workspace/.zil-env/G1.3.4.1-tmp/actual-epoch.log": "d2effce3eaf51a6dcf98c25fb8cdd864759ce320e59604ed5c43909051c7bad1",
-    "/workspace/.zil-env/G1.3.4.1-tmp/actual-source-first.log": "e4a2cac5663fbf0f3237caba54f67b6df2e8886f8403f47081a8f47b804158a8",
-    "/workspace/.zil-env/G1.3.4.1-tmp/actual-source-verify-first.log": "2fd3234e30e760bd8de034c1403153e0cba736fa1da2a235a32e54988aeac66a",
-    "/workspace/.zil-env/G1.3.4.1-tmp/content-component-final.log": "cdf9c58b0e97df35be774b983ea71adcacf5158138f5f963fc2f8c676ef9b54a",
-    "/workspace/.zil-env/G1.3.4.1-tmp/initial-verify.log": "c2d19ab94cd8ce2257040a8344334b257b13cfa6cd35d4f964e568d102e2856e",
-    "/workspace/.zil-env/G1.3.4.1-tmp/package-components.log": "5945d043c239f5d8c90672726452124264c8e1300f7eec8fdc288e4574ebc900",
-    "/workspace/.zil-env/G1.3.4.1-tmp/package-components2.log": "b5b77dcd3fbee9bd7dbd09eab6a6a90542c25d3b08204edd834f0b0b613ff4ad",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-package-first.log": "4e01cda6d0571f77c113823107b6ef42628d605e040f4d62e0c15175f1233224",
-    "/workspace/.zil-env/G1.3.4.1-tmp/source-five-controls.log": "62ae2a9d79c245b8eb3482dc50dcdc6110a7c3916666206242802fa2b60f84ab",
-    "/workspace/.zil-env/G1.3.4.1-tmp/source-five-controls2.log": "2fc8405ce95ea101b6b9ef59b5a6560dfe4c7b8c7e465a135cc43beb279fb5fd",
-    "/workspace/.zil-env/G1.3.4.1-tmp/source-five-controls3.log": "4e6321511422ab03e84cca503084110e92a0696960cb64588a9ea3a895b65ff8",
-    "/workspace/.zil-env/G1.3.4.1-tmp/source-four-controls.log": "df4fd2554f283d47cc672b5642ddcdf739e734251a1a0d39cab1b8e68980246a",
-    "/workspace/.zil-env/G1.3.4.1-tmp/whole-component-final.log": "1b95a91eedf8b3c193e36d58939b7eeb86c3002ec17bb418320b83b4dcd50f7c",
-    "/workspace/.zil-env/G1.3.4.1-tmp/whole-component.log": "ee421d8300d64a50608d49be0fe834b6522b323f68ea555df2856fc1c4e01a5c",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-architecture.log": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-cli-failure.log": "2ec03e04ef9911fedbb0096dfe040b03c0141dc511a0b4b1cb993fe36c6774d8",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-cli-success.log": "9b6d023a89abf249e5bb7a193bc368c0829559fbeb0487bbc2f86d1efdc9d0a1",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-clippy-aggregates.log": "f51426c9ebf64a32deb9718ea2c32db52e14e670e09f629e98118e23b3e81458",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-clippy-verify.log": "6645768e544e0e16f9faa3f00f3fa136208004265e8baf994e58014827d5e19c",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-managed-budget.log": "704cb11afdcd734c3ee0208e926c97995f149b4b41e90235dc69c87ce700f6f3",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-package.log": "74ed00fbd7cd8d20cbdfc34f28b39c98b72569290782d36f54a3f243c7ade54e",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-product-budget.log": "691bcf49c1d0d6efb10dbbdc79daf027a45a377cf004fc0f6a10e390d643a33d",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure/candidate.txt": "cf758a04c4c6840b31b182d98eb3ee410abcf80696b7268d3c66c5497e41b2df",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure/interfaces.txt": "2d74cf1cb6f78e46b620c20fbb4a1245b4a4933a13e2ebd452bf981f072263e3",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure/typed.txt": "198c7f5e53f61e4847f8fcb9e62351eedc742ddfa0b6aa5159d239b50e32b7f8",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure/verified-interfaces.txt": "e0ccfdb8b9431ca2b84cab674303ce270001a1a669bf8dc61e33f817968f0e8e",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-failure/verified.txt": "6cf5a7fc430e1385b14760d5a7be086c3723b0ed879db6f45cc99ebf115c0f44",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success/candidate.txt": "0bdf825d776ce4fe32b3f6d7566a3e1e5d22946bec5e514da4f76961398f3917",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success/interfaces.txt": "30777689af1367957625ab4f01b4347ad4c71ad8a4b5bbda56279ff622b1b818",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success/typed.txt": "2014513a2009820606eb10cae2f0ff8800a3dddef557f2dc85e7279e0eba517c",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success/verified-interfaces.txt": "a65985d60c7febdae06e47be8f1c9b0ce1dc54ac89c61272a8f04e44fa822f37",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-source-success/verified.txt": "f351cc9b66517f7ebe70ccccc84afeaed95acff6978130a5cb0724702dcbbfde",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-store-budget.log": "0138a709ab5f5e5a04e88c56f8373c46724112082059e95b404d37c6a3e3e986",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-fixed-verify-lib.log": "adfa0a86f2f846175fa7bfca113806055c48789b92fc6acc5ea8423de05a287f",
+    "/workspace/.zil-env/G1.3.4.1-tmp/multi-root-prefixed-all.log": "e11af4315fc20c52b5a2448678bbe29d6b08a9735ae4fd072b52527eafad34d2",
     "/workspace/.zil-env/G1.3.4.1-tmp/resume-compiler.txt": "f22d5e4e9ced367e774ce5bc140d9e6b1235c1882fec80d011044851f3ae6369",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-architecture.log": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-cli-failure.log": "d2ebfc8648dc680ebf1deb727e11622409d0b861de2e5f4fada390cd3b358135",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-cli-success.log": "d1629427c2ba5123e7d5f9236739bed41e6ad1acfb4c8b3987aeca09cae44ada",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-clippy-aggregates.log": "aebfe14f01e5d1e716d96c6f4c1a3bf970a4cbd8ad27a04a3ebeab2dee779540",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-clippy-verify.log": "015c5e68f8105edb4b6870e60bd9e6179818c93765d1d4012a288fc50e56f282",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-managed-budget.log": "ed2d4bb8633e9da62b09f979b3a198a7821f7dbd55d2a74ae291c634eefd78a0",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-product-budget.log": "220a89c697fa4563126212cdbf9654b2720961eab0419450520837cd8c682098",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-old-store-budget.log": "de812e5564daa51163264c3d1d91a98d651304513a09ed98f7d1a21673b32446",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-package-second.log": "b92bbf480b1f9e1db335c430f09d4502fefeaf03cf5b5e4633b214d943fb4c3a",
-    "/workspace/.zil-env/G1.3.4.1-tmp/resume-verify-lib.log": "a7284125274ee1f83c2193194e1083aa41b036e1ca10ceb31970e1ae04d7ce60",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/candidate.txt": "cf758a04c4c6840b31b182d98eb3ee410abcf80696b7268d3c66c5497e41b2df",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/core.txt": "a5bf808205a32ebbd2e46c394e08bc3b750147c71a9fbb6623ee366804f3511c",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/ct-core.txt": "a5bf808205a32ebbd2e46c394e08bc3b750147c71a9fbb6623ee366804f3511c",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/interfaces.txt": "2d74cf1cb6f78e46b620c20fbb4a1245b4a4933a13e2ebd452bf981f072263e3",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/source-map.txt": "b44e2d7c69cb2881309536f061fee274a5924f2a9241270d0c7be91d0fc33dcf",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/syntax.txt": "7f844639507b5efc5dc4ee3712abf8e722835db89154edaff0d26b56d43a585d",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/task-interfaces.txt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/typed.txt": "198c7f5e53f61e4847f8fcb9e62351eedc742ddfa0b6aa5159d239b50e32b7f8",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/verified-interfaces.txt": "e0ccfdb8b9431ca2b84cab674303ce270001a1a669bf8dc61e33f817968f0e8e",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/verified-task-interfaces.txt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-failure/verified.txt": "6cf5a7fc430e1385b14760d5a7be086c3723b0ed879db6f45cc99ebf115c0f44",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/candidate.txt": "0bdf825d776ce4fe32b3f6d7566a3e1e5d22946bec5e514da4f76961398f3917",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/core.txt": "3c0670ec9c47ce94c8fbeebd9f211dffef014371f5d001c321959e74b90b99b6",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/ct-core.txt": "3c0670ec9c47ce94c8fbeebd9f211dffef014371f5d001c321959e74b90b99b6",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/interfaces.txt": "30777689af1367957625ab4f01b4347ad4c71ad8a4b5bbda56279ff622b1b818",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/source-map.txt": "d2fd96cf62f2c9dc0251b8cf1df025a2aee79d259a8cc8691adf51b1dd6a4692",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/syntax.txt": "4a2116dc3d6dde3ae78ae8d1a1adbfa59aa9bff8207c140c72568fc82c57bda7",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/task-interfaces.txt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/typed.txt": "2014513a2009820606eb10cae2f0ff8800a3dddef557f2dc85e7279e0eba517c",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/verified-interfaces.txt": "a65985d60c7febdae06e47be8f1c9b0ce1dc54ac89c61272a8f04e44fa822f37",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/verified-task-interfaces.txt": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
-    "/workspace/.zil-env/G1.3.4.1-tmp/final-source-success/verified.txt": "f351cc9b66517f7ebe70ccccc84afeaed95acff6978130a5cb0724702dcbbfde"
+    "/workspace/.zil-env/G1.3.4.1-tmp/resume-package-first.log": "4e01cda6d0571f77c113823107b6ef42628d605e040f4d62e0c15175f1233224"
   },
   "raw_evidence_policy": "Raw logs and stage IR remain local only, untracked; these absolute workspace paths and hashes are an index, not repository links or an archived evidence delivery."
 }
