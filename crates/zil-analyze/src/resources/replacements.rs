@@ -906,7 +906,7 @@ impl Program {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
                             let owners = package::borrowed(flow.module, f, &target, b)?;
-                            fee(b, owners.len())?;
+                            fee(b, owners.len().saturating_sub(1))?;
                             for index in owners {
                                 let mut leaf = target.clone();
                                 fee(b, leaf.path.len().saturating_add(1))?;

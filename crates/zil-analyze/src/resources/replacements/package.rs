@@ -234,7 +234,7 @@ pub(super) fn complete(
             "complete Package replacement needs its live old shell",
         ));
     }
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for &index in &owners {
         if !exact(
             &copied(state, Place::PackageField { local, index }, b)?,
@@ -287,7 +287,7 @@ pub(super) fn apply(
     }
     // The generic Package Fact is Incoming. Recover the actual *owned field*
     // of this fully prepared RHS instead of inventing a fresh leaf from it.
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for index in owners {
         let incoming = product::birth(state, product::Carrier::Value(rhs), &[index], b)?;
         let place = Place::PackageField { local, index };

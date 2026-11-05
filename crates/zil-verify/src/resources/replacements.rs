@@ -653,7 +653,7 @@ impl Plan {
                                     "whole replacement requires every old field live",
                                 ));
                             }
-                            b.spend(owners.len())?;
+                            b.spend(owners.len().saturating_sub(1))?;
                             for owner in owners {
                                 let field =
                                     fields.get(owner).copied().flatten().ok_or_else(|| {
