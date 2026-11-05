@@ -1057,17 +1057,31 @@ impl Check<'_, '_, '_> {
                         };
                         let mut map = Substitutions::new();
                         if let Some(args) = explicit {
-                            for ((ordinal, _), arg) in f
-                                .generics
-                                .iter()
-                                .enumerate()
-                                .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                                .zip(args)
-                            {
-                                if let GenericArg::Type(t) = arg {
-                                    let fact = self.ty(t, scope, depth + 1)?;
+                            if args.len() == f.generics.len() {
+                                for (ordinal, (formal, arg)) in
+                                    f.generics.iter().zip(args).enumerate()
+                                {
+                                    let fact =
+                                        self.free_actual(formal, arg, scope, e.span, depth + 1)?;
                                     self.lookup(map.len(), 2, e.span)?;
                                     map.insert(Binder(owner, ordinal), fact);
+                                }
+                            } else {
+                                // Retain the existing short, all-Type profile;
+                                // a life-bearing full application must never
+                                // slide its ordinals through this zip.
+                                for ((ordinal, _), arg) in f
+                                    .generics
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
+                                    .zip(args)
+                                {
+                                    if let GenericArg::Type(t) = arg {
+                                        let fact = self.ty(t, scope, depth + 1)?;
+                                        self.lookup(map.len(), 2, e.span)?;
+                                        map.insert(Binder(owner, ordinal), fact);
+                                    }
                                 }
                             }
                         }
@@ -1098,6 +1112,65 @@ impl Check<'_, '_, '_> {
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    fn free_actual(
+        &mut self,
+        formal: &GenericParam,
+        actual: &GenericArg,
+        scope: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        self.budget.node(span, depth)?;
+        match (&formal.kind, actual) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                match self.binder(scope, name, span)? {
+                    Some((binder, true)) => Ok(Fact::Class(binder)),
+                    _ => Err(unsupported(
+                        span,
+                        "free CT life actual has no original source binder",
+                    )),
+                }
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, scope, depth + 1),
+            (GenericParamKind::Const(domain), arg) => {
+                let carrier = consts::argument(arg, Some(formal), self.budget)?;
+                let value = consts::expression(&carrier).ok_or_else(|| {
+                    unsupported(span, "free CT const actual has no source expression")
+                })?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let binder = scope
+                        .parameters
+                        .iter()
+                        .find(|p| p.name == *name && matches!(p.kind, GenericParamKind::Const(_)));
+                    let binder = binder.or_else(|| {
+                        consts::symbolic_parameter(&self.functions[scope.owner], name)
+                            .map(|(_, p)| p)
+                    });
+                    let Some(GenericParam {
+                        kind: GenericParamKind::Const(actual_domain),
+                        ..
+                    }) = binder
+                    else {
+                        return Err(unsupported(
+                            span,
+                            "free CT symbolic const has no original source binder",
+                        ));
+                    };
+                    if type_key(domain, self.budget)? != type_key(actual_domain, self.budget)? {
+                        return Err(unsupported(span, "free CT symbolic const domain differs"));
+                    }
+                } else {
+                    consts::normalize(formal, &carrier, self.budget)?;
+                }
+                Ok(Fact::Unknown)
+            }
+            _ => Err(unsupported(
+                span,
+                "free CT actual kind differs from full ordinal",
+            )),
+        }
     }
 
     // Resolve a CT host/member call from the actual source AST and inventory.
