@@ -97,7 +97,7 @@ impl FunctionEmitter<'_> {
                 .iter()
                 .filter(|(_, t)| matches!(t, Type::Managed(_)))
                 .count()
-                == 1
+                > 0
                 && fields.iter().all(|(_, t)| match t {
                     Type::Managed(p) => {
                         matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()

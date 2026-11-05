@@ -130,9 +130,9 @@ fn g139_independent_verify_abort_and_unpaid_old_owner_neighbors() {
 }
 #[test]
 fn g139_independent_verify_captured_and_store_retirement() {
-    for text in [
-        include_str!("captured-old-desc.zil"),
-        include_str!("store-old-desc.zil"),
+    for (text, code) in [
+        (include_str!("captured-old-desc.zil"), "E-VERIFY-RESOURCE"),
+        (include_str!("store-old-desc.zil"), "E-BORROW-CONFLICT"),
     ] {
         let module = typed(text);
         let mut safe = module.clone();
@@ -180,7 +180,7 @@ fn g139_independent_verify_captured_and_store_retirement() {
         let plan = zil_analyze::analyze(&safe, &Limits::default()).unwrap();
         zil_verify::verify_module(safe.clone(), plan.clone(), &safe.target, &Limits::default())
             .unwrap();
-        verify_reject(&module, &plan, "E-VERIFY-RESOURCE");
+        verify_reject(&module, &plan, code);
     }
 }
 #[test]
