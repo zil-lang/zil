@@ -3,6 +3,8 @@
 use super::*;
 use std::collections::BTreeMap;
 mod owned;
+#[path = "stored_flow_pure_copy.rs"]
+mod pure_copy;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -1430,6 +1432,23 @@ fn transfer(
             state.locals.remove(local);
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
+        _ if pure_copy::operation(&i.kind) => {
+            pure_copy::types(f, i, b)?;
+            for input in resources::uses(&i.kind) {
+                let payload = get(input)?;
+                if !payload.pointer.targets.is_empty()
+                    || !payload.pointer.loans.is_empty()
+                    || !payload.slots.is_empty()
+                    || !payload.held.targets.is_empty()
+                    || !payload.held.loans.is_empty()
+                    || !payload.environment.is_empty()
+                {
+                    return Err(failure(
+                        "ordinary pure Copy input carries actual stored target permissions",
+                    ));
+                }
+            }
+        }
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
@@ -2415,6 +2434,7 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
                     InstructionKind::Constant(_)
@@ -2482,25 +2502,11 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
+            if pure_copy::operation(&i.kind) {
+                pure_copy::types(f, i, b)?;
+            }
             match &i.kind {
-                InstructionKind::ExtractField { aggregate, index } => {
-                    let ty = value_type(f, *aggregate)?;
-                    b.type_work(ty, false, "stored profile ordinary Copy field extraction")?;
-                    let child = match ty {
-                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
-                        Type::Tuple(fields) => fields.get(*index as usize),
-                        _ => None,
-                    }
-                    .ok_or_else(|| failure("Copy extraction has no actual inline field"))?;
-                    if !ty.is_copy_value() || !super::stored_callables::scalar(child) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
-                            Some(i.span),
-                        )]);
-                    }
-                    result(child, b)?;
-                }
+                InstructionKind::ExtractField { .. } => {}
                 InstructionKind::ConvertInteger { value, target }
                 | InstructionKind::ConvertNumber { value, target } => {
                     if !value_type(f, *value)?.is_numeric() || !target.is_numeric() {
