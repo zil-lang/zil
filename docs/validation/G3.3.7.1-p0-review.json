@@ -6,14 +6,15 @@
   "baseline": "fcdea036500945b51991b044a00bbbcc8578ade7",
   "goal_reference": "f14fdb1f18c0519de249992f138f9c899d60205c",
   "implementation_checkpoints": {
-    "G3.3.7": null,
-    "G4.4.4": "a5304e7d89e901eb821639aa2627e7e83cb88241"
+    "G3.3.7": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
+    "G4.4.4": "1c9666c95"
   },
   "static_observations": [
     "G4.4.4 queues the callee universal declaration check before call-site symbolic header substitution.",
     "Type, const declaration/ordinal/domain and life declaration/ordinal remain distinct in the private symbolic header path.",
     "The declaration-check CFG is discarded; this is not independent raw artifact admission evidence.",
-    "G3.3.7 WIP inventories exact entry/two-leaf topology and whole-function SSA uses independently in Analyze and Verify; no stable-source verdict yet."
+    "G3.3.7 exact checkpoint 4c642615915c77c101cbe6dea5cbe7c3aa31f3d4 independently inventories entry/two-terminal-leaf topology, whole-function SSA identity, closed effects and entry-local chain recovery; no static blocker found in that exact scope.",
+    "G4.4.4 projection removes public scopes only when no source binding guard or published graph root references ambient classes; private call/scope ledger remains complete. Type actuals carrying ambient life only in the private ledger need an execution probe."
   ],
   "requested_negative_controls": [
     "Same ClosureId is insufficient: duplicate SSA definitions, extra uses and terminator escape in another block must reject.",
@@ -32,5 +33,47 @@
     "No general acyclic owning helper CFG claim.",
     "No generic host, generated context or runtime generic CT phase claim.",
     "No Rust cost comparison or product-level breakthrough claim."
+  ],
+  "fixture_inputs": [
+    {
+      "path": "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+      "sha256": "994a5e5032066b50853237ab29d932ccaa053852d9d9b183c468963aff492a89",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-domain.zil",
+      "sha256": "e574d949fca859f597c97bb22b0ace74ec9c7b602f7c4dba8790ff0ab02863c6",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
+      "sha256": "4ce28cb5e3db89496be2f743a9c03881e35ab57c343cf94a658d4292bdfd6d4e",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
+      "sha256": "38a748c381b52c5f9765c21b835a85f03cddee184a491dc2bd0eec94fae51fa3",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-type-identity.zil",
+      "sha256": "55ad4639e39502a85aebee15f873fc2002e97ed8cc2f65917747e6a3b3d134da",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+      "sha256": "2860c094996de9c3e261be47bb8c6ea966a5a686f3117987d8a721a7787c24a1",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+      "sha256": "aa4a9b23cd366d0009b194e4ccb806a611dcebf8402e0652fac0d71508b2d606",
+      "execution": "NotRun"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
+      "sha256": "5a7d6270e262a826f3fb49f958c2cfb8e83a8146b7f78b7df414df1b8f18c534",
+      "execution": "NotRun"
+    }
   ]
 }
