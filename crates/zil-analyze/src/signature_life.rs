@@ -1,6 +1,42 @@
 //! Semantic class equations are not target origins or access paths.
 use super::*;
 
+// The signature relation assigns no loan to a value-only Array. The module
+// preflight separately validates every qualified child and its exact instance.
+fn pure_array_value(ty: &Type) -> bool {
+    if !matches!(ty, Type::Array { .. }) {
+        return false;
+    }
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::BorrowedStorage { storage, life } if life.slots.is_empty() => {
+                pending.push(storage)
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
     let rows = c.bindings.len().saturating_add(c.classes.len());
     b.spend(
@@ -226,6 +262,7 @@ fn relation_inner(
                     return Err(bad("signature pointee is outside the implemented profile"));
                 }
             } else if !(target.is_copy_value()
+                || pure_array_value(target)
                 // A direct owned field contributes no class/borrow position.
                 // Capture admission and the independent resource kernel still
                 // establish its finite payload, actual mode and responsibility.

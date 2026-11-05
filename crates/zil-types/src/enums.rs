@@ -342,6 +342,31 @@ pub(super) fn project_definitions(
                     _ => {}
                 }
             }
+            let mut qualified_payload = false;
+            for (_, fields) in &e.variants {
+                for field in fields {
+                    if !field.is_copy_value()
+                        && stored::pure_inline(field, remaining, limits, e.span)
+                            .map_err(|e| vec![e])?
+                    {
+                        qualified_payload = true;
+                    }
+                }
+            }
+            if qualified_payload {
+                // The project namespace copies this complete source variant
+                // vector before looking up any stored instance.
+                for (name, fields) in &e.variants {
+                    *remaining = remaining
+                        .checked_sub(name.len().saturating_add(fields.len()).saturating_add(1))
+                        .ok_or_else(limit)?;
+                    for field in fields {
+                        let work = inference::type_snapshot_work(field, e.span, limits)
+                            .map_err(|e| vec![e])?;
+                        *remaining = remaining.checked_sub(work).ok_or_else(limit)?;
+                    }
+                }
+            }
             let physical = Type::Enum {
                 name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
                 variants: e.variants.clone(),

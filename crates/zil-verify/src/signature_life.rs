@@ -1,6 +1,42 @@
 //! Independent canonical semantic-class checking. Rows do not supply roots.
 use super::*;
 
+// Only the actual type graph can establish a value-only Array. Its nested
+// qualified instances are checked independently in module preflight.
+fn pure_array_value(ty: &Type) -> bool {
+    if !matches!(ty, Type::Array { .. }) {
+        return false;
+    }
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::BorrowedStorage { storage, life } if life.slots.is_empty() => {
+                pending.push(storage)
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
     let n = c.bindings.len().saturating_add(c.classes.len());
     b.spend(
@@ -215,6 +251,7 @@ fn relation_inner(
             t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
+                    || pure_array_value(t)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());
