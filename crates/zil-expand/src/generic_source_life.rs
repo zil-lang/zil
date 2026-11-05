@@ -1030,7 +1030,7 @@ impl Check<'_, '_, '_> {
                 let mut output = Fact::Unknown;
                 if root.is_none() {
                     if let Some(member) =
-                        self.member_call_result(callee, scope, e.span, depth + 1)?
+                        self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
                     {
                         return Ok(member);
                     }
@@ -1106,6 +1106,7 @@ impl Check<'_, '_, '_> {
     fn member_call_result(
         &mut self,
         callee: &Expr,
+        value_arity: usize,
         caller: &Scope<'_>,
         span: Span,
         depth: usize,
@@ -1149,6 +1150,12 @@ impl Check<'_, '_, '_> {
                 self.budget.text(&function.name, span)?;
                 if function.name != *method {
                     continue;
+                }
+                if function.params.len() != value_arity {
+                    return Err(unsupported(
+                        span,
+                        "source member value argument arity differs",
+                    ));
                 }
                 let Some(host_args) = host_args else {
                     return Ok(None);
@@ -1214,7 +1221,10 @@ impl Check<'_, '_, '_> {
                 }
             }
             (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, caller, depth + 1),
-            (GenericParamKind::Const(_), GenericArg::Const(_)) => Ok(Fact::Unknown),
+            (GenericParamKind::Const(_), GenericArg::Const(_)) => Err(unsupported(
+                span,
+                "source member const actual needs its complete domain proof",
+            )),
             _ => Err(unsupported(
                 span,
                 "source member actual kind differs from full ordinal",
