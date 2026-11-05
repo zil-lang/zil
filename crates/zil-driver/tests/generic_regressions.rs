@@ -6617,12 +6617,30 @@ fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
         }
         text.push_str("fn main()->i32{return 0}");
         let core = g334_core(&text);
-        assert!(
-            core.functions
-                .iter()
-                .flat_map(|f| &f.callable_parameters)
-                .all(|r| r.source_life.is_none())
-        );
+        let roles: Vec<_> = core
+            .functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .collect();
+        if replacement.contains(",G:") {
+            // Multiple real roles now keep their original source-bound
+            // contexts. Runtime positions and full source ordinals differ.
+            assert_eq!(roles.len(), 2);
+            for (position, role) in roles.iter().enumerate() {
+                assert_eq!(role.index, position as u32);
+                assert_eq!(role.generic_index, position as u32);
+                let original = role.source_life.as_ref().unwrap();
+                assert_eq!(original.generic_parameter, position as u32 + 1);
+                assert_eq!(original.bound_ordinal, 0);
+                assert_eq!(original.parameters.len(), 3);
+                assert_eq!(original.named_fixed.len(), 1);
+                assert!(!original.inputs.is_empty());
+                assert!(role.life.is_some());
+            }
+        } else {
+            assert_eq!(roles.len(), 1);
+            assert!(roles[0].source_life.is_none());
+        }
         let report = compile_source(
             &source(&text),
             &CompileOptions {
@@ -8050,11 +8068,11 @@ fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage
     );
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.verification_runs, 0);
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-next/regressions.rs"]
