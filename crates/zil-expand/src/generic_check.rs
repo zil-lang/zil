@@ -3315,6 +3315,16 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        if let ExprKind::MetaEval(inner) = &e.kind {
+            let max_depth = self.budget.remaining_limits().max_call_depth;
+            if crate::runtime_ct::native_scalar_root(inner, max_depth, |work| {
+                self.budget.identity_work(work, e.span).map_err(|e| vec![e])
+            })
+            .map_err(|mut errors| errors.remove(0))?
+            {
+                return self.expr(inner, state, expected, borrowing);
+            }
+        }
         match &e.kind {
             ExprKind::MetaEval(_) if self.ct_types.is_some() => {
                 let ordinal = self

@@ -9,6 +9,7 @@ struct Expressions<'a, 'b> {
     next: u32,
     has_ct: bool,
     meta: BTreeMap<usize, u32>,
+    meta_next: u32,
 }
 impl crate::ct_selection::Visitor for Expressions<'_, '_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
@@ -28,18 +29,29 @@ impl crate::ct_selection::Visitor for Expressions<'_, '_> {
                 "runtime CT expression ordinal overflow",
             )]
         })?;
-        self.has_ct |= matches!(
-            expression.kind,
-            ExprKind::MetaEval(_) | ExprKind::MetaBlock(_)
-        );
-        if matches!(expression.kind, ExprKind::MetaEval(_)) {
-            self.budget
-                .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)
-                .map_err(|e| vec![e])?;
-            let meta_ordinal = u32::try_from(self.meta.len())
-                .map_err(|_| vec![error(expression.span, "runtime CT meta ordinal overflow")])?;
-            self.meta
-                .insert(expression as *const Expr as usize, meta_ordinal);
+        if matches!(expression.kind, ExprKind::MetaBlock(_)) {
+            self.has_ct = true;
+        }
+        if let ExprKind::MetaEval(inner) = &expression.kind {
+            let meta_ordinal = self.meta_next;
+            self.meta_next = self
+                .meta_next
+                .checked_add(1)
+                .ok_or_else(|| vec![error(expression.span, "runtime CT meta ordinal overflow")])?;
+            let max_depth = self.budget.remaining_limits().max_call_depth;
+            let native = crate::runtime_ct::native_scalar_root(inner, max_depth, |work| {
+                self.budget
+                    .identity_work(work, expression.span)
+                    .map_err(|e| vec![e])
+            })?;
+            if !native {
+                self.has_ct = true;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)
+                    .map_err(|e| vec![e])?;
+                self.meta
+                    .insert(expression as *const Expr as usize, meta_ordinal);
+            }
         }
         self.budget
             .identity_work(
@@ -120,6 +132,7 @@ pub(super) fn symbolic_types(
         next: 0,
         has_ct: false,
         meta: BTreeMap::new(),
+        meta_next: 0,
     };
     crate::ct_selection::Visitor::item(&mut visitor, item, 0).map_err(|mut e| e.remove(0))?;
     if !visitor.has_ct {
@@ -284,6 +297,7 @@ impl Engine<'_> {
             next: 0,
             has_ct: false,
             meta: BTreeMap::new(),
+            meta_next: 0,
         };
         crate::ct_selection::Visitor::item(&mut visitor, template, 0)
             .map_err(|mut e| e.remove(0))?;
@@ -373,6 +387,7 @@ impl Engine<'_> {
             next: 0,
             has_ct: false,
             meta: BTreeMap::new(),
+            meta_next: 0,
         };
         crate::ct_selection::Visitor::item(&mut visitor, instance, 0)
             .map_err(|mut e| e.remove(0))?;
