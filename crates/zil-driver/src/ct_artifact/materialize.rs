@@ -2191,11 +2191,15 @@ pub(crate) fn materialize(
                 .environment
                 .budget
                 .reserve_analysis_work(original_count as u64)?;
+            materializer.environment.budget.reserve_temporary_bytes(
+                original_count as u64
+                    * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64,
+            )?;
             let mut retained = retained
                 .ok_or_else(|| category("retained declaration positions absent", module.span))?
                 .into_iter()
                 .peekable();
-            let mut moved = Vec::new();
+            let mut moved = Vec::with_capacity(original_count);
             for (ordinal, mut row) in std::mem::take(&mut rows.items).into_iter().enumerate() {
                 if retained.peek() == Some(&ordinal) {
                     if !materializer.changed_closure_sites.is_empty() {
@@ -2214,10 +2218,6 @@ pub(crate) fn materialize(
                                 zil_expand::source_context::ClosureSiteLineage::Unavailable;
                         }
                     }
-                    materializer
-                        .environment
-                        .budget
-                        .reserve_temporary_bytes(std::mem::size_of_val(&row) as u64)?;
                     moved.push(row);
                     retained.next();
                 }

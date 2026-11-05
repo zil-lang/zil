@@ -9633,3 +9633,95 @@ fn g443_member_requests_pay_all_current_ledgers() {
         eprintln!("G4.4.3 real retained-member Source {ledger} N={n}; N-1/cold/warm/fresh agree");
     }
 }
+
+#[test]
+fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
+    use zil_driver::{CompilationSession, DiskCacheStatus};
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+    );
+    let changed = text
+        .replace("Phantom<'s,i32,35>", "Phantom<'s,i32,36>")
+        .replace("make::<i32,35,'s>", "make::<i32,36,'s>");
+    let make_start = text.find("    fn make<").unwrap();
+    let read_start = text.find("    fn read<").unwrap();
+    let read_end = read_start + text[read_start..].find("\n    }").unwrap() + "\n    }".len();
+    let reordered = format!(
+        "{}{}\n{}{}",
+        &text[..make_start],
+        &text[read_start..read_end],
+        text[make_start..read_start].trim_end(),
+        &text[read_end..]
+    );
+    assert_ne!(changed, text);
+    assert_ne!(reordered, text);
+    let dir = Temp::new();
+    let mut session = CompilationSession::default();
+    for (ordinal, (input, output)) in [
+        (text, b"42\n".as_slice()),
+        (text, b"42\n".as_slice()),
+        (changed.as_str(), b"43\n".as_slice()),
+        (reordered.as_str(), b"42\n".as_slice()),
+        (text, b"42\n".as_slice()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = session.compile_project(
+            &review329_project(&[("main", input)]),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                backend: zil_driver::NativeBackend::Clang,
+                output: Some(dir.0.join(format!("program-{ordinal}"))),
+                semantic_cache: Some(dir.0.join("cache")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        if matches!(ordinal, 1 | 4) {
+            assert_eq!(report.disk_cache, DiskCacheStatus::Hit);
+        }
+        assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+        let observed = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert!(observed.status.success());
+        assert_eq!(observed.stdout, output);
+    }
+    let store = dir.0.join("cache/semantic-v4");
+    let mut candidates = 0;
+    for entry in fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|ext| ext != "candidate") {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("actual cache candidate absent")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        candidates += 1;
+    }
+    assert_eq!(candidates, 3);
+    eprintln!(
+        "G4.4.3 actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
+    );
+}

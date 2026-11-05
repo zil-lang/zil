@@ -68,6 +68,7 @@ fn validate_events(
             Span::default(),
         ));
     }
+    budget.reserve_analysis_work(parsed.len() as u64)?;
     let module = parsed
         .iter()
         .find(|module| module.module.id == host.module)
