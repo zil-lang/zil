@@ -1165,11 +1165,7 @@ impl Builder<'_, '_> {
                 &self.compiler.declarations[declaration].function.generics,
             )
         {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Ct,
-                "nested mixed CT calls require symbolic full-actual forwarding",
-                Some(span),
-            )]);
+            return self.abstract_mixed_call(declaration, explicit, arguments, depth, span);
         }
         if !self.compiler.checking_generics
             && Compiler::mixed_parameters(

@@ -20,6 +20,8 @@ mod quote;
 mod selection;
 #[path = "compiler_source_scope.rs"]
 pub(super) mod source_scope;
+#[path = "compiler_symbolic_calls.rs"]
+mod symbolic_calls;
 #[path = "compiler_symbolic_nominal.rs"]
 mod symbolic_nominal;
 #[path = "compiler_types.rs"]
