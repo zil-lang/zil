@@ -446,6 +446,16 @@ fn ordinary_local_product_mutable_helper_reborrows_and_cleanup() {
 
 #[test]
 fn ordinary_local_product_mutable_helper_nearest_rejections() {
+    // G1.3.9 admits this actual nonescaping Product capture; all surrounding
+    // live-loan, missing-owner and escape neighbors remain independent rejects.
+    let captured = product315("let held=&mut panel;let f=()=>held.count;return f()", "");
+    let module = typed(&captured);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    native("capture315", &captured, "", 0);
     for (label, body, helpers, category) in [
         (
             "shared-live315",
@@ -506,12 +516,6 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
             "both(&mut panel,&mut panel);return 0",
             "fn both(a:&mut Panel,b:&mut Panel){a.count+=1;b.count+=1}",
             ResultCategory::SafeReject,
-        ),
-        (
-            "capture315",
-            "let held=&mut panel;let f=()=>held.count;return f()",
-            "",
-            ResultCategory::Unsupported,
         ),
         (
             "return315",
