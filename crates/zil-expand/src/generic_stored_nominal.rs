@@ -21,6 +21,95 @@ pub(super) fn has_life(item: &Item) -> bool {
 }
 
 impl<'a> Engine<'a> {
+    fn capture_actual_life(
+        &mut self,
+        name: &mut String,
+        span: Span,
+        captured: &mut Vec<(String, LexicalLife)>,
+    ) -> R<()> {
+        let class = self.source_life(name, span)?;
+        let nonce = self.next_nominal_capture;
+        self.next_nominal_capture = nonce.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Expand,
+                "source class capture identity exhausted",
+                Some(span),
+            )
+        })?;
+        // `$` is a distinct source token, never part of a source identifier.
+        // The label is only an index into the class captured before erasure.
+        self.budget.identity_work(32, span)?;
+        let token = format!("$captured_life_{nonce}");
+        self.budget.text(&token, span)?;
+        self.budget
+            .lineage_bytes(std::mem::size_of::<(String, LexicalLife)>(), span)?;
+        captured.push((token.clone(), class));
+        *name = token;
+        Ok(())
+    }
+
+    fn capture_actual_type(
+        &mut self,
+        ty: &mut TypeRef,
+        captured: &mut Vec<(String, LexicalLife)>,
+        depth: usize,
+    ) -> R<()> {
+        self.budget.node(ty.span, depth)?;
+        match &mut ty.kind {
+            TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+                for arg in args {
+                    match arg {
+                        GenericArg::Lifetime(name) => {
+                            self.capture_actual_life(name, ty.span, captured)?
+                        }
+                        GenericArg::Type(inner) => {
+                            self.capture_actual_type(inner, captured, depth + 1)?
+                        }
+                        GenericArg::Const(_) => {}
+                    }
+                }
+            }
+            TypeKind::Reference {
+                lifetime, inner, ..
+            } => {
+                if let Some(name) = lifetime {
+                    self.capture_actual_life(name, ty.span, captured)?;
+                }
+                self.capture_actual_type(inner, captured, depth + 1)?;
+            }
+            TypeKind::Group(inner) | TypeKind::Optional(inner) => {
+                self.capture_actual_type(inner, captured, depth + 1)?
+            }
+            TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
+                for field in fields {
+                    self.capture_actual_type(field, captured, depth + 1)?;
+                }
+            }
+            TypeKind::Array { element, .. } => {
+                self.capture_actual_type(element, captured, depth + 1)?
+            }
+            TypeKind::Error { error, result } => {
+                self.capture_actual_type(error, captured, depth + 1)?;
+                self.capture_actual_type(result, captured, depth + 1)?;
+            }
+            TypeKind::Function { params, result }
+            | TypeKind::ForeignFunction { params, result, .. } => {
+                for parameter in params {
+                    self.capture_actual_type(parameter, captured, depth + 1)?;
+                }
+                self.capture_actual_type(result, captured, depth + 1)?;
+            }
+            TypeKind::ForLifetime { .. } => {
+                return Err(unsupported(
+                    ty.span,
+                    "qualified Type actual with nested lifetime binder needs its own source scope",
+                ));
+            }
+            _ => {}
+        }
+        Ok(())
+    }
+
     fn stored_physical_field(
         &mut self,
         physical: &mut TypeRef,
@@ -137,8 +226,12 @@ impl<'a> Engine<'a> {
                             "compound scoped physical field lacks complete source relation",
                         ));
                     };
-                    self.budget.text(&source_name.join("."), original.span)?;
-                    self.budget.text(&physical_name.join("."), physical.span)?;
+                    for name in source_name {
+                        self.budget.text(name, original.span)?;
+                    }
+                    for name in physical_name {
+                        self.budget.text(name, physical.span)?;
+                    }
                     if source_name != physical_name || source_args.len() != physical_args.len() {
                         return Err(error(
                             physical.span,
@@ -157,7 +250,18 @@ impl<'a> Engine<'a> {
                         std::mem::size_of::<(
                             Vec<zil_ir::LifeTypeProjection>,
                             stored_types::QualifiedActual,
-                        )>(),
+                        )>()
+                        .saturating_add(
+                            path.len()
+                                .saturating_mul(std::mem::size_of::<zil_ir::LifeTypeProjection>()),
+                        ),
+                        physical.span,
+                    )?;
+                    self.budget.identity_work(
+                        direct
+                            .len()
+                            .saturating_add(1)
+                            .saturating_mul(path.len().saturating_add(1)),
                         physical.span,
                     )?;
                     direct.insert(path.clone(), actual);
@@ -523,13 +627,14 @@ impl<'a> Engine<'a> {
                 for item in &self.products.storage.instances {
                     self.budget.node(ty.span, depth)?;
                     if let zil_ir::Type::BorrowedStorage { storage, .. } = &item.instance.ty
-                        && let zil_ir::Type::Record { name, .. } = storage.as_ref()
+                        && let zil_ir::Type::Record { name, .. } | zil_ir::Type::Enum { name, .. } =
+                            storage.as_ref()
                     {
                         self.budget.text(name, ty.span)?;
                     }
                 }
                 let instance = self.products.storage.instances.iter().find(|item|
-                    matches!(&item.instance.ty, zil_ir::Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), zil_ir::Type::Record { name, .. } if name == &generated)))
+                    matches!(&item.instance.ty, zil_ir::Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), zil_ir::Type::Record { name, .. } | zil_ir::Type::Enum { name, .. } if name == &generated)))
                     .ok_or_else(|| error(ty.span, "stored nominal instance output absent"))?;
                 let zil_ir::Type::BorrowedStorage { life, .. } = &instance.instance.ty else {
                     unreachable!()
@@ -601,6 +706,17 @@ impl<'a> Engine<'a> {
         }
     }
     pub(super) fn source_life(&mut self, name: &str, span: Span) -> R<LexicalLife> {
+        for (token, _) in &self.nominal_captured_lives {
+            self.budget.text(token, span)?;
+            self.budget.text(name, span)?;
+        }
+        if let Some((_, life)) = self
+            .nominal_captured_lives
+            .iter()
+            .find(|(token, _)| token == name)
+        {
+            return Ok(*life);
+        }
         for (formal, _) in &self.nominal_life_bindings {
             self.budget.text(formal, span)?;
             self.budget.text(name, span)?;
@@ -710,6 +826,7 @@ impl<'a> Engine<'a> {
         let mut local_classes = Vec::new();
         let mut qualified_actuals = BTreeMap::new();
         let mut source_actuals = BTreeMap::new();
+        let mut captured_lives = Vec::new();
         for (ordinal, (formal, actual)) in formals.iter().zip(arguments.iter_mut()).enumerate() {
             self.budget.node(formal.span, depth)?;
             self.budget.text(&formal.name, formal.span)?;
@@ -739,7 +856,9 @@ impl<'a> Engine<'a> {
                     self.budget.text(&formal.name, ty.span)?;
                     self.budget
                         .lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), ty.span)?;
-                    source_actuals.insert(formal.name.clone(), ty.clone());
+                    let mut source = ty.clone();
+                    self.capture_actual_type(&mut source, &mut captured_lives, depth + 1)?;
+                    source_actuals.insert(formal.name.clone(), source);
                     if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
                         let class_key =
                             self.joint_class_key(&actual.classes, &mut local_classes, span)?;
@@ -850,121 +969,137 @@ impl<'a> Engine<'a> {
             self.budget
                 .lineage_bytes(std::mem::size_of::<(String, LexicalLife)>(), span)?;
         }
+        self.budget.lineage_bytes(
+            captured_lives
+                .len()
+                .saturating_mul(std::mem::size_of::<(String, LexicalLife)>()),
+            span,
+        )?;
         let previous_lives = std::mem::replace(&mut self.nominal_life_bindings, lives.clone());
         let previous_source = std::mem::replace(&mut self.nominal_source_actuals, source_actuals);
+        let capture_mark = self.nominal_captured_lives.len();
+        self.nominal_captured_lives.extend(captured_lives);
         let mut direct_fields = BTreeMap::new();
-        match (&mut instance.kind, &item.kind) {
-            (ItemKind::Aggregate(physical), ItemKind::Aggregate(source)) => {
-                physical.name.clone_from(&generated);
-                for (index, (field, original)) in
-                    physical.fields.iter_mut().zip(&source.fields).enumerate()
-                {
-                    let step = zil_ir::PlaceProjection::Field(
-                        u32::try_from(index)
-                            .map_err(|_| error(field.span, "stored field ordinal overflow"))?,
-                    );
-                    self.stored_physical_field(
-                        &mut field.ty,
-                        &original.ty,
-                        formals,
-                        &qualified_actuals,
-                        &mut vec![zil_ir::LifeTypeProjection::Place(step)],
-                        &mut direct_fields,
-                        depth + 1,
-                    )?;
-                }
-            }
-            (ItemKind::Enum(physical), ItemKind::Enum(source)) => {
-                physical.name.clone_from(&generated);
-                if physical.variants.len() != source.variants.len() {
-                    return Err(error(span, "stored enum variant count differs"));
-                }
-                for (variant_index, (variant, original)) in physical
-                    .variants
-                    .iter_mut()
-                    .zip(&source.variants)
-                    .enumerate()
-                {
-                    if variant.name != original.name {
-                        return Err(error(variant.span, "stored enum variant order differs"));
+        let field_result = (|| -> R<()> {
+            match (&mut instance.kind, &item.kind) {
+                (ItemKind::Aggregate(physical), ItemKind::Aggregate(source)) => {
+                    physical.name.clone_from(&generated);
+                    for (index, (field, original)) in
+                        physical.fields.iter_mut().zip(&source.fields).enumerate()
+                    {
+                        let step = zil_ir::PlaceProjection::Field(
+                            u32::try_from(index)
+                                .map_err(|_| error(field.span, "stored field ordinal overflow"))?,
+                        );
+                        self.stored_physical_field(
+                            &mut field.ty,
+                            &original.ty,
+                            formals,
+                            &qualified_actuals,
+                            &mut vec![zil_ir::LifeTypeProjection::Place(step)],
+                            &mut direct_fields,
+                            depth + 1,
+                        )?;
                     }
-                    let variant_ordinal = u32::try_from(variant_index)
-                        .map_err(|_| error(variant.span, "stored variant ordinal overflow"))?;
-                    match (&mut variant.fields, &original.fields) {
-                        (VariantFields::Unit, VariantFields::Unit) => {}
-                        (VariantFields::Tuple(fields), VariantFields::Tuple(source_fields))
-                            if fields.len() == source_fields.len() =>
-                        {
-                            for (index, (field, original)) in
-                                fields.iter_mut().zip(source_fields).enumerate()
-                            {
-                                let step =
-                                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
-                                        variant: variant_ordinal,
-                                        index: u32::try_from(index).map_err(|_| {
-                                            error(
-                                                field.span,
-                                                "stored variant field ordinal overflow",
-                                            )
-                                        })?,
-                                    });
-                                self.stored_physical_field(
-                                    &mut field.ty,
-                                    &original.ty,
-                                    formals,
-                                    &qualified_actuals,
-                                    &mut vec![zil_ir::LifeTypeProjection::Place(step)],
-                                    &mut direct_fields,
-                                    depth + 1,
-                                )?;
-                            }
+                }
+                (ItemKind::Enum(physical), ItemKind::Enum(source)) => {
+                    physical.name.clone_from(&generated);
+                    if physical.variants.len() != source.variants.len() {
+                        return Err(error(span, "stored enum variant count differs"));
+                    }
+                    for (variant_index, (variant, original)) in physical
+                        .variants
+                        .iter_mut()
+                        .zip(&source.variants)
+                        .enumerate()
+                    {
+                        if variant.name != original.name {
+                            return Err(error(variant.span, "stored enum variant order differs"));
                         }
-                        (VariantFields::Record(fields), VariantFields::Record(source_fields))
-                            if fields.len() == source_fields.len() =>
-                        {
-                            for (index, (field, original)) in
-                                fields.iter_mut().zip(source_fields).enumerate()
+                        let variant_ordinal = u32::try_from(variant_index)
+                            .map_err(|_| error(variant.span, "stored variant ordinal overflow"))?;
+                        match (&mut variant.fields, &original.fields) {
+                            (VariantFields::Unit, VariantFields::Unit) => {}
+                            (VariantFields::Tuple(fields), VariantFields::Tuple(source_fields))
+                                if fields.len() == source_fields.len() =>
                             {
-                                if field.name != original.name {
-                                    return Err(error(
-                                        field.span,
-                                        "stored variant record field order differs",
-                                    ));
+                                for (index, (field, original)) in
+                                    fields.iter_mut().zip(source_fields).enumerate()
+                                {
+                                    let step = zil_ir::PlaceProjection::Variant(
+                                        zil_ir::VariantProjection {
+                                            variant: variant_ordinal,
+                                            index: u32::try_from(index).map_err(|_| {
+                                                error(
+                                                    field.span,
+                                                    "stored variant field ordinal overflow",
+                                                )
+                                            })?,
+                                        },
+                                    );
+                                    self.stored_physical_field(
+                                        &mut field.ty,
+                                        &original.ty,
+                                        formals,
+                                        &qualified_actuals,
+                                        &mut vec![zil_ir::LifeTypeProjection::Place(step)],
+                                        &mut direct_fields,
+                                        depth + 1,
+                                    )?;
                                 }
-                                let step =
-                                    zil_ir::PlaceProjection::Variant(zil_ir::VariantProjection {
-                                        variant: variant_ordinal,
-                                        index: u32::try_from(index).map_err(|_| {
-                                            error(
-                                                field.span,
-                                                "stored variant field ordinal overflow",
-                                            )
-                                        })?,
-                                    });
-                                self.stored_physical_field(
-                                    &mut field.ty,
-                                    &original.ty,
-                                    formals,
-                                    &qualified_actuals,
-                                    &mut vec![zil_ir::LifeTypeProjection::Place(step)],
-                                    &mut direct_fields,
-                                    depth + 1,
-                                )?;
                             }
-                        }
-                        _ => {
-                            return Err(error(
-                                variant.span,
-                                "stored enum variant physical fields differ",
-                            ));
+                            (
+                                VariantFields::Record(fields),
+                                VariantFields::Record(source_fields),
+                            ) if fields.len() == source_fields.len() => {
+                                for (index, (field, original)) in
+                                    fields.iter_mut().zip(source_fields).enumerate()
+                                {
+                                    if field.name != original.name {
+                                        return Err(error(
+                                            field.span,
+                                            "stored variant record field order differs",
+                                        ));
+                                    }
+                                    let step = zil_ir::PlaceProjection::Variant(
+                                        zil_ir::VariantProjection {
+                                            variant: variant_ordinal,
+                                            index: u32::try_from(index).map_err(|_| {
+                                                error(
+                                                    field.span,
+                                                    "stored variant field ordinal overflow",
+                                                )
+                                            })?,
+                                        },
+                                    );
+                                    self.stored_physical_field(
+                                        &mut field.ty,
+                                        &original.ty,
+                                        formals,
+                                        &qualified_actuals,
+                                        &mut vec![zil_ir::LifeTypeProjection::Place(step)],
+                                        &mut direct_fields,
+                                        depth + 1,
+                                    )?;
+                                }
+                            }
+                            _ => {
+                                return Err(error(
+                                    variant.span,
+                                    "stored enum variant physical fields differ",
+                                ));
+                            }
                         }
                     }
                 }
+                _ => unreachable!(),
             }
-            _ => unreachable!(),
-        }
+            Ok(())
+        })();
         self.nominal_life_bindings = previous_lives;
         self.nominal_source_actuals = previous_source;
+        self.nominal_captured_lives.truncate(capture_mark);
+        field_result?;
         let declaration = LifeNominalDeclaration {
             id: declaration_id,
             identity: stable_identity,
