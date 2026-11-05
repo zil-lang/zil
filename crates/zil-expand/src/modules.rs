@@ -694,11 +694,9 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
                 if input.definition.module==definition.module && definition.member.is_none()
                     && left.declaration==right.declaration && left.identity==right.identity
                     && left.closure_sites==right.closure_sites && left.retained_members==right.retained_members
-                    && generated
+                    && generated && selected.replace(input.item).is_some()
                 {
-                    if selected.replace(input.item).is_some() {
-                        return Err(error("E-SOURCE-IDENTITY",actual.span,"CT namespace input placement is ambiguous"));
-                    }
+                    return Err(error("E-SOURCE-IDENTITY",actual.span,"CT namespace input placement is ambiguous"));
                 }
             }
             let input = selected.ok_or_else(||error("E-SOURCE-IDENTITY",actual.span,"CT namespace input has no actual source correspondence"))?;
