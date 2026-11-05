@@ -112,12 +112,10 @@ fn walk(
             b.type_work(&child.ty, true, "nominal metadata identity")?;
             shape_work(ty, limits, b)?;
             b.type_work(ty, true, "nominal metadata identity")?;
-            if child.ty == *ty {
-                if selected.replace(child).is_some() {
-                    return Err(failure(
-                        "Type actual has ambiguous complete nominal instances",
-                    ));
-                }
+            if child.ty == *ty && selected.replace(child).is_some() {
+                return Err(failure(
+                    "Type actual has ambiguous complete nominal instances",
+                ));
             }
         }
         let child =

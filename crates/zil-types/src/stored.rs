@@ -5,6 +5,12 @@ use super::*;
 mod nominal;
 mod retained;
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(super) enum InventoryPhase {
+    Core,
+    Resolved,
+}
+
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
         Diagnostic::limit(
@@ -203,7 +209,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 ));
             }
         }
-        nominal::rows(core, instance, limits, left)?;
+        nominal::rows(core, instance, limits, left, InventoryPhase::Core)?;
         for prior in &core.life_instances[..index] {
             if prior.declaration == instance.declaration
                 && nominal::same_key(prior, instance, limits, left)?
@@ -212,6 +218,41 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                     "E-STORED-IDENTITY",
                     span,
                     "one complete nominal actual vector has multiple semantic types",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+/// Resolver alone rebuilt these instances from the actual checked declarations
+/// and fields. Recheck their complete resolved semantic graph and physical
+/// qualification; the unchanged stable declaration identities were checked at
+/// entry and do not need a second quadratic identity scan.
+pub(super) fn resolved_inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
+    let span = Span::default();
+    for (index, instance) in core.life_instances.iter().enumerate() {
+        nominal::rows(core, instance, limits, left, InventoryPhase::Resolved)?;
+        for prior in &core.life_instances[..index] {
+            for ty in [&prior.ty, &instance.ty] {
+                let work = inference::type_snapshot_work(
+                    ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: *left,
+                        ..limits.clone()
+                    },
+                )?;
+                fee(left, work, span)?;
+            }
+            if prior.ty == instance.ty
+                || (prior.declaration == instance.declaration
+                    && nominal::same_key(prior, instance, limits, left)?)
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "resolved nominal instance has a duplicate complete type or semantic actual key",
                 ));
             }
         }

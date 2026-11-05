@@ -2866,7 +2866,7 @@ fn actual_instructions(
                         failure("actual field is absent or crosses non-inline storage")
                     })?;
                     b.type_work(child, true, "stored actual ordinary inline projection")?;
-                    if !child.is_copy_value() {
+                    if !child.is_copy_value() && !pure_read(module, child, b)? {
                         return Err(failure(
                             "stored borrowed leaf must use actual slot-load protocol",
                         ));

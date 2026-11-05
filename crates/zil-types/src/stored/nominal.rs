@@ -6,8 +6,9 @@ pub(super) fn rows(
     instance: &LifeNominalInstance,
     limits: &Limits,
     left: &mut usize,
+    phase: InventoryPhase,
 ) -> R<()> {
-    walk(module, instance, limits, left, &mut Vec::new()).map(|_| ())
+    walk(module, instance, limits, left, &mut Vec::new(), phase).map(|_| ())
 }
 
 fn walk(
@@ -16,6 +17,7 @@ fn walk(
     limits: &Limits,
     left: &mut usize,
     active: &mut Vec<usize>,
+    phase: InventoryPhase,
 ) -> R<Vec<NominalLifeArgument>> {
     let span = Span::default();
     fee(left, active.len().saturating_add(1), span)?;
@@ -36,7 +38,9 @@ fn walk(
     }
     fee(left, 1, span)?;
     active.push(identity);
-    shape(&instance.ty, left, limits.max_call_depth, span)?;
+    if phase == InventoryPhase::Resolved {
+        shape(&instance.ty, left, limits.max_call_depth, span)?;
+    }
     let Type::BorrowedStorage { storage, life } = &instance.ty else {
         return Err(error(
             "E-STORED-IDENTITY",
@@ -129,7 +133,7 @@ fn walk(
         )?;
         fee(left, work, span)?;
         if !matches!(ty, Type::BorrowedStorage { .. }) {
-            if !context_free_copy(ty, left)? {
+            if !context_free_copy(ty, left, phase)? {
                 return Err(error(
                     "E-STORED-IDENTITY",
                     span,
@@ -159,14 +163,12 @@ fn walk(
                 },
             )?;
             fee(left, work, span)?;
-            if child.ty == *ty {
-                if selected.replace(child).is_some() {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        span,
-                        "Type actual has ambiguous complete nominal instances",
-                    ));
-                }
+            if child.ty == *ty && selected.replace(child).is_some() {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "Type actual has ambiguous complete nominal instances",
+                ));
             }
         }
         let child = selected.ok_or_else(|| {
@@ -176,7 +178,7 @@ fn walk(
                 "Type actual has no complete nominal instance",
             )
         })?;
-        let child_rows = walk(module, child, limits, left, active)?;
+        let child_rows = walk(module, child, limits, left, active, phase)?;
         let Type::BorrowedStorage {
             life: child_life, ..
         } = &child.ty
@@ -274,13 +276,18 @@ fn walk(
     Ok(expected)
 }
 
-fn context_free_copy(ty: &Type, left: &mut usize) -> R<bool> {
+fn context_free_copy(ty: &Type, left: &mut usize, phase: InventoryPhase) -> R<bool> {
     let span = Span::default();
     fee(left, 1, span)?;
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         fee(left, 1, span)?;
         match ty {
+            Type::Named(name) if phase == InventoryPhase::Core => {
+                // This is pending name resolution, never Copy authority.
+                // The mandatory Resolved pass admits no Named actual.
+                fee(left, name.len(), span)?;
+            }
             Type::BorrowedFunctionPointer { .. } | Type::BorrowedStorage { .. } => {
                 return Ok(false);
             }
