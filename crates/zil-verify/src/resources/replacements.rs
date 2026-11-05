@@ -194,6 +194,23 @@ impl Plan {
         if !point.validate || !self.active_pairs {
             return Ok(());
         }
+        if target.steps.is_empty()
+            && let actual::Base::Local(local) = target.base
+            && matches!(transfer.f.locals[local.0 as usize].ty, Type::Package { .. })
+        {
+            let shell = transfer.slots.managed_local[local.0 as usize]
+                .ok_or_else(|| bad(point.span, "whole helper target has no owning shell debt"))?;
+            let fields = transfer.slots.fields(local);
+            b.spend(fields.len().saturating_add(1))?;
+            if state.debt[shell] != LIVE
+                || fields.iter().flatten().any(|&field| state.debt[field] != LIVE)
+            {
+                return Err(bad(point.span,
+                    "whole helper replacement needs the live shell and every old field responsibility"));
+            }
+            // The helper replaces the instance inside these existing slots.
+            // No debt is created and no lexical cleanup age is reset here.
+        }
         retirement::observe(self, transfer, state, target, point, b)
     }
     pub(super) fn seed_sources(

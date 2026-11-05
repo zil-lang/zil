@@ -13,6 +13,7 @@ pub(super) struct Context<'a> {
     actual: &'a actual::Program,
     places: &'a [Inventory],
     summaries: &'a [Rows],
+    whole_must: &'a [bool],
     written: RefCell<Rows>,
     store_calls: &'a RefCell<BTreeSet<usize>>,
 }
@@ -133,6 +134,74 @@ pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
     }
     Ok(owner)
 }
+/// This private lane admits one real mutable Package parameter. Other inputs
+/// may only prepare a scalar or a complete finite owning RHS; they cannot
+/// introduce a second address, capture, Store or callable authority.
+fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bool> {
+    if f.foreign.is_some()
+        || f.environment.is_some()
+        || f.call_kind != zil_ir::CallKind::Direct
+        || f.return_type != Type::Unit
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+    {
+        return Ok(false);
+    }
+    let Type::Address { mutable: true, inner: endpoint } =
+        &f.locals[f.parameters[parameter as usize].0 as usize].ty
+    else { return Ok(false) };
+    if package_owner(endpoint, b)?.is_none() {
+        return Ok(false);
+    }
+    b.spend(f.parameters.len())?;
+    for (index, local) in f.parameters.iter().enumerate() {
+        if index == parameter as usize { continue; }
+        let ty = &f.locals[local.0 as usize].ty;
+        match ty {
+            Type::Unit | Type::Bool | Type::I32 | Type::I64 | Type::U64
+            | Type::Usize | Type::F32 | Type::F64 | Type::U8 | Type::U16 => {},
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. })
+                && payload.is_copy_value() => {},
+            Type::Package { .. } if ty == endpoint.as_ref() => {},
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
+/// Deliberately bounded must-Commit proof. A single normal-return block with
+/// exactly one real Commit and no call cannot skip, repeat, abort after, or
+/// overwrite that Commit through a nested helper. Wider CFGs retain may rows.
+fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bool> {
+    if f.blocks.len() != 1 || f.entry.0 != 0
+        || !matches!(f.blocks[0].terminator, Terminator::Return(_)) {
+        return Ok(false);
+    }
+    let mut commits = 0usize;
+    let mut whole = false;
+    for instruction in &f.blocks[0].instructions {
+        b.spend(1)?;
+        match instruction.kind {
+            InstructionKind::CommitPlaceReplace { reservation, .. } => {
+                commits += 1;
+                whole = matches!(places.get(reservation, b)?.ty, Type::Package { .. });
+            }
+            InstructionKind::Call { .. }
+            | InstructionKind::CallClosure { .. }
+            | InstructionKind::CallClosureShared { .. }
+            | InstructionKind::CallClosureMut { .. }
+            | InstructionKind::CallClosureOnce { .. }
+            | InstructionKind::CallClosureBorrowed { .. }
+            | InstructionKind::WithForeignCallback { .. }
+            | InstructionKind::WithScopedThread { .. }
+            | InstructionKind::WithSyncCell { .. }
+            | InstructionKind::SuspendCall { .. }
+            | InstructionKind::TaskYield => return Ok(false),
+            _ => {},
+        }
+    }
+    Ok(commits == 1 && whole)
+}
 /// Finite whole-Enum endpoint, not ordinary Sum qualification. Each owning
 /// arm has one direct canonical Copy-record leaf and scalar/Unit companions.
 fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
@@ -192,7 +261,11 @@ fn merge_row(
     }
     b.spend(work)?;
     if let Some(old) = rows.get_mut(target) {
-        merge_leaf(old, value, b)
+        if matches!((&*old, value), (Content::Product(_), Content::Product(_))) {
+            old.merge(value, b)
+        } else {
+            merge_leaf(old, value, b)
+        }
     } else {
         b.spend(target.steps.len().saturating_add(1))?;
         value.cost(b)?;
@@ -277,7 +350,12 @@ pub(crate) fn at_type<'a>(
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
-        if !whole_local || (package_owner(ty, b)?.is_none() && !enum_endpoint(ty, b)?) {
+        let whole_input = target.steps.is_empty()
+            && if let actual::Base::Input(p) = target.base {
+                package_helper(f, p, b)?
+            } else { false };
+        if (!whole_local && !whole_input)
+            || (package_owner(ty, b)?.is_none() && !enum_endpoint(ty, b)?) {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",
                 None,
@@ -410,6 +488,7 @@ impl Context<'_> {
         state: &mut State,
         target: &actual::Target,
         value: &Content,
+        strong: bool,
         validate: bool,
         b: &mut Budget,
     ) -> Check<()> {
@@ -421,13 +500,20 @@ impl Context<'_> {
                 }
                 selected(&state.locals[local.0 as usize], &target.steps, validate, b)?;
                 state.locals[local.0 as usize].cost(b)?;
-                update(
-                    Arc::make_mut(&mut state.locals[local.0 as usize]),
-                    &target.steps,
-                    value,
-                    validate,
-                    b,
-                )?;
+                if !strong && target.steps.is_empty()
+                    && matches!(value, Content::Product(_)) {
+                    // A may-Commit preserves ordinary initialized access, but
+                    // a no-write return must retain the old leaf's origin.
+                    Arc::make_mut(&mut state.locals[local.0 as usize]).merge(value, b)?;
+                } else {
+                    update(
+                        Arc::make_mut(&mut state.locals[local.0 as usize]),
+                        &target.steps,
+                        value,
+                        validate,
+                        b,
+                    )?;
+                }
                 if target.steps.is_empty()
                     && matches!(flow.f.locals[local.0 as usize].ty, Type::Enum { .. })
                 {
@@ -484,6 +570,13 @@ impl Context<'_> {
                     "replacement call has no actual selected destination",
                 ));
             }
+            let whole = matches!(payload, Content::Product(_));
+            if whole && targets.len() != 1 {
+                return Err(unsupported(
+                    "whole Package helper needs one independently reconstructed actual destination",
+                    None,
+                ));
+            }
             let incoming = flow.instantiate(payload, arguments, state, b)?;
             for target in targets {
                 if matches!(target.base, actual::Base::Element(_)) {
@@ -491,7 +584,8 @@ impl Context<'_> {
                     b.spend(needed.len().saturating_add(1))?;
                     needed.insert(entry);
                 }
-                self.apply(flow, state, &target, &incoming, validate, b)?;
+                self.apply(flow, state, &target, &incoming,
+                    !whole || self.whole_must[entry], validate, b)?;
             }
         }
         Ok(())
@@ -527,11 +621,12 @@ impl Context<'_> {
             InstructionKind::CommitPlaceReplace { reservation, value } => {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
                 let incoming = state.values[value.0 as usize].duplicate(b)?;
-                if validate && matches!(place.ty, Type::Enum { .. }) && !incoming.complete(b)? {
-                    return Err(invalid("whole Enum replacement RHS is not complete"));
+                if validate && matches!(place.ty, Type::Package { .. } | Type::Enum { .. })
+                    && !incoming.complete(b)? {
+                    return Err(invalid("whole replacement RHS is not complete"));
                 }
                 for target in self.actual.selected(f, place, b)? {
-                    self.apply(flow, state, &target, &incoming, validate, b)?;
+                    self.apply(flow, state, &target, &incoming, true, validate, b)?;
                 }
             }
             InstructionKind::Call {
@@ -655,9 +750,11 @@ pub(super) fn check(
     let mut places = Vec::with_capacity(module.functions.len());
     let mut result = Vec::with_capacity(module.functions.len());
     let mut effects = vec![Rows::new(); module.functions.len()];
+    let mut whole_must_rows = Vec::with_capacity(module.functions.len());
     let store_calls = RefCell::new(BTreeSet::new());
     for (f, graph) in module.functions.iter().zip(graphs) {
         let inventory = Inventory::reconstruct(module, f, b)?;
+        whole_must_rows.push(whole_must(f, &inventory, b)?);
         if f.foreign.is_none() {
             inventory.activation_entries(f, graph, b)?;
         }
@@ -675,6 +772,7 @@ pub(super) fn check(
                 actual: &actual,
                 places: &places,
                 summaries: &effects,
+                whole_must: &whole_must_rows,
                 written: RefCell::new(Rows::new()),
                 store_calls: &store_calls,
             };
@@ -701,6 +799,7 @@ pub(super) fn check(
             actual: &actual,
             places: &places,
             summaries: &effects,
+            whole_must: &whole_must_rows,
             written: RefCell::new(Rows::new()),
             store_calls: &store_calls,
         };
