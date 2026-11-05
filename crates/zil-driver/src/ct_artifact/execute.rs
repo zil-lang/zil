@@ -1012,10 +1012,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1057,10 +1058,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1159,10 +1161,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1234,10 +1237,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1344,10 +1348,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1467,10 +1472,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1552,10 +1558,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1667,10 +1674,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1745,10 +1753,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1964,10 +1973,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -2029,10 +2039,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -2126,6 +2137,7 @@ mod tests {
             &limits,
         )
         .unwrap();
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
@@ -2233,6 +2245,7 @@ mod tests {
         )
         .unwrap();
         let origins = Arc::new(origins.unwrap());
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
