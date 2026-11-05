@@ -465,6 +465,22 @@ pub(super) fn qualification(
     Ok(())
 }
 
+/// This admits only a qualified pure value, retaining its complete semantic
+/// type. The ordinary read's actual pointer/loan proof remains mandatory.
+pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. }))
+    {
+        return Ok(false);
+    }
+    let limits = b.limits.clone();
+    type_work(ty, &limits, b)?;
+    if !retained::pure(ty, b)? {
+        return Ok(false);
+    }
+    qualification(module, ty, &limits, b)?;
+    Ok(true)
+}
+
 pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
     for f in &module.functions {
         for block in &f.blocks {
@@ -1310,6 +1326,20 @@ fn step(
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
+        InstructionKind::ReadAddress { address } => {
+            let Type::Address { inner, .. } = vt(f, *address)? else {
+                return Err(err("read transfer has no actual Address"));
+            };
+            if qualified(inner).is_some() && !pure_read(module, inner, b)? {
+                return Err(err(
+                    "read transfer would erase actual borrowed/owned leaves",
+                ));
+            }
+            // Access checks retain the actual pointer's permissions and loans.
+            // This proven pure payload has no runtime leaves to transfer;
+            // the complete result type preserves the semantic class mapping.
+            // Do not turn the containing storage root into a phantom target.
+        }
         InstructionKind::WriteAddress { address, .. } => {
             let Type::Address { inner, .. } = vt(f, *address)? else {
                 return Err(err("write base lacks an actual Address type"));
@@ -1327,7 +1357,6 @@ fn step(
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
-        | InstructionKind::ReadAddress { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}

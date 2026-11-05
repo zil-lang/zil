@@ -420,6 +420,38 @@ pub(super) fn qualification(
     Ok(())
 }
 
+/// Copy only a fully qualified physical value without runtime borrowing or
+/// ownership leaves. The address is still checked by the CFG access proof.
+fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. }))
+    {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "pure stored ReadAddress complete payload")?;
+    if !retained::pure(ty, b)? {
+        return Ok(false);
+    }
+    physical(ty, b)?;
+    let mut count = 0usize;
+    for instance in &module.life_instances {
+        b.type_work(
+            &instance.ty,
+            false,
+            "pure stored ReadAddress instance identity",
+        )?;
+        b.type_work(ty, false, "pure stored ReadAddress actual identity")?;
+        if instance.ty == *ty {
+            count += 1;
+        }
+    }
+    if count != 1 {
+        return Err(failure(
+            "pure stored read lacks one complete nominal instance",
+        ));
+    }
+    Ok(true)
+}
+
 fn identity_work(id: &LifeDeclarationIdentity, b: &mut Budget) -> CompileResult<()> {
     fee(
         b,
@@ -1420,6 +1452,20 @@ fn transfer(
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
+        InstructionKind::ReadAddress { address } => {
+            let Type::Address { inner, .. } = value_type(f, *address)? else {
+                return Err(failure("read transfer lacks an actual Address"));
+            };
+            if carrier(inner).is_some() && !pure_read(module, inner, b)? {
+                return Err(failure(
+                    "read transfer cannot erase actual borrowed/owned leaves",
+                ));
+            }
+            // Only the source Address permission is used by access checking.
+            // A pure value has no borrowed targets to copy: the full result
+            // type carries its nominal/retained classes, without rooting them
+            // in the storage bytes or inventing a loan from a phantom class.
+        }
         InstructionKind::WriteAddress { address, .. } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("write base is not an actual Address"));
@@ -1437,7 +1483,6 @@ fn transfer(
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
-        | InstructionKind::ReadAddress { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
@@ -2602,7 +2647,7 @@ fn actual_instructions(
                         return Err(failure("read base is not an Address"));
                     };
                     b.type_work(inner, true, "stored actual ordinary read payload")?;
-                    if !inner.is_copy_value() {
+                    if !inner.is_copy_value() && !pure_read(module, inner, b)? {
                         return Err(failure(
                             "ordinary read cannot copy stored carrier/borrow leaf",
                         ));
