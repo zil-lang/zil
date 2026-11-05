@@ -1,0 +1,127 @@
+{
+  "binary_source_commit": "17f63e34181c4fd5b9bb8653abfde159c2e74c46",
+  "verify_source_commit": "a7d69074c08af9ceedc59afcc23d3eb8993d8d7f",
+  "binary_sha256": "5d0f1fb237f7795f1cd4791d8a7d2a72dfa4821e85dd0e365de918a7847514f1",
+  "scope": "Source through Verify; no native execution; before sparse must-summary fee correction",
+  "cases": [
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_conditional_create.zil",
+      "sha256": "f1a214f12d227332c7535e32143a68c093e2e739e47e73bca4a2625834e865ba",
+      "exit": 1,
+      "report": {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: create result forwards an incoming responsibility",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "input_fingerprint": "45619b602af3ae9bb9c61a699b5ae879131a51848b5f61f7d8335f806f707d6f",
+        "cache_hit": false
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_conditional_reborrow.zil",
+      "sha256": "114ab1646c63d32e0c5b98af37aab53ad903d70de5eb1401a95d23e1b87d6049",
+      "exit": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "input_fingerprint": "4700c5e2e06915f91dbda8a67bcab8ed45f13f58904c1c3f01c710da05359f34",
+        "cache_hit": false
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_fresh_create.zil",
+      "sha256": "275897dfd2baef6f210cbfdb20eba76a11af23e3220d53caefb7371028247a1b",
+      "exit": 0,
+      "report": {
+        "status": "Success",
+        "phase": "verify",
+        "diagnostics": [],
+        "verification_runs": 1,
+        "input_fingerprint": "bc23693b0b3f8f3f3607c9f9f2494fa3a2f094266ec1903e80dd943862f7c251",
+        "cache_hit": false
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_incoming_create.zil",
+      "sha256": "aeae795016707ff853d61e368c46ffc8723214c8bb26a7034699e6021a8ba21e",
+      "exit": 1,
+      "report": {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: create result forwards an incoming responsibility",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "input_fingerprint": "12e8c1a2c38de9b023e159fc96ae5689884a9f98defc414578aecfff07639cd7",
+        "cache_hit": false
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_old_desc.zil",
+      "sha256": "773cdfca7ee95cd89d3905069f9f8c15aaa7cd83a25b9bacb5e69e1e2b84b2b7",
+      "exit": 1,
+      "report": {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "input_fingerprint": "c6dea5c47f0c90a1da8d6c2f0b7b22302d79924667cdbe7ed0e0ebd04fdbd436",
+        "cache_hit": false
+      }
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_verify_wrong_target_create.zil",
+      "sha256": "43dee685cbad33cec2737e2147782dce175abfdd83bbb8f7f40653be318aa6af",
+      "exit": 1,
+      "report": {
+        "status": "SafeReject",
+        "phase": "analyze",
+        "diagnostics": [
+          {
+            "phase": "analyze",
+            "category": "SafeReject",
+            "code": "E-ANALYZE-IR",
+            "message": "resource closure: create result forwards an incoming responsibility",
+            "span": null,
+            "notes": []
+          }
+        ],
+        "verification_runs": 0,
+        "input_fingerprint": "a36781ad23a1590a634bd0a2b02ca389727ae674c57253afc0b10e3c93b566e4",
+        "cache_hit": false
+      }
+    }
+  ],
+  "commands": [
+    "source /workspace/.zil-env/env.sh",
+    "/workspace/.zil-env/target-G1.3.5.2/debug/zil check SOURCE --stop-after verify --json"
+  ],
+  "interpretation": "Two real Source cases reached Verify and passed; four negative Sources first reject in Analyze and are not independent Verify rejection evidence. Independent resource/Content components and reviewer raw/Wire controls are separate."
+}
