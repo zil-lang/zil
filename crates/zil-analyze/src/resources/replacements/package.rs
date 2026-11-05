@@ -85,6 +85,10 @@ pub(super) fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     Ok(true)
 }
 
+pub(super) struct Admission {
+    pub(super) owners: Vec<u32>,
+    pub(super) legacy_must: bool,
+}
 // The borrowed shell stays the caller's responsibility. Admission binds the
 // actual mutable parameter and complete endpoint, independently of the ticket.
 pub(super) fn borrowed(
@@ -92,7 +96,7 @@ pub(super) fn borrowed(
     f: &TypedFunction,
     target: &Target,
     b: &mut Budget,
-) -> CompileResult<Vec<u32>> {
+) -> CompileResult<Admission> {
     if f.foreign.is_some()
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
@@ -136,7 +140,11 @@ pub(super) fn borrowed(
     else {
         return Err(unsupported());
     };
-    let index = field(inner, b)?.ok_or_else(unsupported)?;
+    let owners = field(inner, b)?.ok_or_else(unsupported)?;
+    let mut legacy_must = f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && parameter.is_some()
+        && owners.len() == 1;
     fee(b, f.parameters.len())?;
     for (p, local) in f.parameters.iter().enumerate() {
         if parameter == Some(p as u32) {
@@ -147,41 +155,15 @@ pub(super) fn borrowed(
         let managed = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
         let address =
             matches!(ty, Type::Address { inner: other, .. } if other.as_ref() == inner.as_ref());
+        legacy_must &= !address;
         if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address) {
             return Err(unsupported());
         }
     }
-    Ok(index)
-}
-
-// Preserve the original must lane exactly. Other actual addresses/captures
-// can export may-retirement but cannot turn an Incoming caller leaf into Fresh.
-pub(super) fn must_input(
-    f: &TypedFunction,
-    target: &Target,
-    b: &mut Budget,
-) -> CompileResult<bool> {
-    if f.environment.is_some() || f.call_kind != CallKind::Direct {
-        return Ok(false);
-    }
-    let origins::Root::Parameter(parameter) = target.root else {
-        return Ok(false);
-    };
-    let ty = &f.locals[f.parameters[parameter as usize].0 as usize].ty;
-    let Type::Address { inner, .. } = ty else {
-        return Ok(false);
-    };
-    if !field(inner, b)?.is_some_and(|owners| owners.len() == 1) {
-        return Ok(false);
-    }
-    fee(b, f.parameters.len())?;
-    for (p, local) in f.parameters.iter().enumerate() {
-        if p != parameter as usize && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
-        {
-            return Ok(false);
-        }
-    }
-    Ok(true)
+    Ok(Admission {
+        owners,
+        legacy_must,
+    })
 }
 
 // Only the proved normal-return Commit replaces provenance. It leaves the
@@ -234,7 +216,7 @@ pub(super) fn complete(
             "complete Package replacement needs its live old shell",
         ));
     }
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for &index in &owners {
         if !exact(
             &copied(state, Place::PackageField { local, index }, b)?,
@@ -287,7 +269,7 @@ pub(super) fn apply(
     }
     // The generic Package Fact is Incoming. Recover the actual *owned field*
     // of this fully prepared RHS instead of inventing a fresh leaf from it.
-    fee(b, owners.len())?;
+    fee(b, owners.len().saturating_sub(1))?;
     for index in owners {
         let incoming = product::birth(state, product::Carrier::Value(rhs), &[index], b)?;
         let place = Place::PackageField { local, index };

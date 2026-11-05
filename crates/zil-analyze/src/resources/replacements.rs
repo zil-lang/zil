@@ -231,13 +231,13 @@ impl Program {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 package::local(f, target, b)?;
                             } else {
-                                package::borrowed(module, f, target, b)?;
+                                let admission = package::borrowed(module, f, target, b)?;
                                 b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
                                 // Non-Unit/error results add no exit-sensitive
                                 // must fact: their provenance stays may-only.
                                 if f.return_type == Type::Unit
                                     && f.blocks.len() == 1
-                                    && package::must_input(f, target, b)?
+                                    && admission.legacy_must
                                 {
                                     whole_helpers.insert(f.id);
                                 }
@@ -905,8 +905,8 @@ impl Program {
                         if matches!(target.root, origins::Root::Local(_)) {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
-                            let owners = package::borrowed(flow.module, f, &target, b)?;
-                            fee(b, owners.len())?;
+                            let owners = package::borrowed(flow.module, f, &target, b)?.owners;
+                            fee(b, owners.len().saturating_sub(1))?;
                             for index in owners {
                                 let mut leaf = target.clone();
                                 fee(b, leaf.path.len().saturating_add(1))?;
