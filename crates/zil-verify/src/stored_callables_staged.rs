@@ -609,7 +609,8 @@ mod tests {
                         &m.closures[0],
                         &mut Budget::new(&limits)
                     )
-                    .is_err(),
+                    .is_ok()
+                        == (name == "self-loop"),
                     "{name}"
                 );
             }

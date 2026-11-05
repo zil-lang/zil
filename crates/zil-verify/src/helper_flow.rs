@@ -556,10 +556,7 @@ fn classify(
                     })
                 }))
         {
-            return Err(unsupported(
-                "cyclic FnOnce helper requires an additional consumption contract",
-                Some(f.span),
-            ));
+            scoped_consumption(&flow, roles, budget, f)?;
         }
         return Ok(CallableTraces::Flow(flow));
     }
