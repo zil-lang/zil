@@ -1527,9 +1527,10 @@ fn owning_store_call_invalidation_has_exact_prepaid_fresh_and_warm_boundaries() 
         "store-call-invalidation-budget.zil",
         &text,
     );
-    // G1.3.6: previous Analyze23731; actual external Commit helper requires
-    // exact descriptor origins/point-state and forwarding inventory (+450).
-    for (stage, expected_n) in [(Stage::Analyze, 24181), (Stage::Verify, 63080)] {
+    // G1.3.6: previous A23731/V63080; the actual external Commit helper
+    // requires independent exact origins/point-state/retirement routing:
+    // Analyze +450 and Verify +740, with unchanged source/default limits.
+    for (stage, expected_n) in [(Stage::Analyze, 24181), (Stage::Verify, 63820)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
