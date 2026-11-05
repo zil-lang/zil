@@ -8178,7 +8178,6 @@ fn terminal340_package_terminal_source_types_and_analyze() {
 }
 
 #[test]
-<<<<<<< HEAD
 fn terminal340_package_terminal_resource_identity_raw_and_wire() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
@@ -8424,7 +8423,125 @@ fn terminal340_package_terminal_desc_closure_carriers_remain_live() {
                 .any(|d| d.message.contains("description required later")),
             "borrowed={borrowed}: {}",
             report.to_json()
-=======
+        );
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_exact_request_budget() {
+    let input = source(include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+    ));
+    for stage in [Stage::Analyze, Stage::Verify] {
+        let options = |work| CompileOptions {
+            stop_after: stage,
+            limits: Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+            ..CompileOptions::default()
+        };
+        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let report = compile_source(&input, &options(mid));
+            match report.status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                _ => panic!("{}", report.to_json()),
+            }
+        }
+        assert_eq!(
+            low,
+            if stage == Stage::Analyze {
+                13_945
+            } else {
+                28_743
+            },
+            "{stage:?}: actual Package work changed"
+        );
+        let mut warm = zil_driver::CompilationSession::default();
+        for (work, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&input, &options(work)),
+                warm.compile_source(&input, &options(work)),
+            ] {
+                assert_eq!(report.status, expected, "{}", report.to_json());
+                if expected == ResultCategory::ResourceLimit {
+                    assert_eq!(
+                        report.phase,
+                        if stage == Stage::Analyze {
+                            Phase::Analyze
+                        } else {
+                            Phase::Verify
+                        }
+                    );
+                } else if stage == Stage::Verify {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        println!("G1.3.4 whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
+    }
+}
+
+#[test]
+fn terminal340_package_terminal_new_provenance_and_temporary_native() {
+    let fresh = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+    );
+    let reverse = fresh.replace(
+        "package P{manages owner:R;n:i32}",
+        "package P{n:i32;manages owner:R}",
+    );
+    let given = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+    )
+    .replace("result(create)", "result(give)");
+    let temporary = include_str!(
+        "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+    )
+    .replace(
+        "assemble(give spare:R,n:i32)->P{return P{owner:R{code:n},n:42}}",
+        "assemble(spare:P,n:i32)->P{return spare}",
+    )
+    .replace(
+        "assemble(R{code:66},fail()?)",
+        "assemble(P{owner:R{code:66},n:42},fail()?)",
+    );
+    for (name, text, expected) in [
+        (
+            "fresh leaf replaces incoming body-local leaf",
+            fresh,
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "incoming RHS retains give origin",
+            given.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "owned field declared second",
+            reverse.as_str(),
+            b"AB42\n".as_slice(),
+        ),
+        (
+            "whole Package temporary abort",
+            temporary.as_str(),
+            b"BA42\n".as_slice(),
+        ),
+    ] {
+        eprintln!("G1.3.4 new native case {name}");
+        review329_native_entry_output(&[("main", text)], "main", expected);
+    }
+}
+
+#[test]
 fn terminal340_package_terminal_independent_verify_and_wire() {
     let target = TargetProfile::default();
     let limits = Limits::default();
@@ -8615,73 +8732,11 @@ fn terminal340_package_terminal_actual_parent_pin_is_not_type_apartness() {
         assert!(
             errors.iter().any(|e| e.code == "E-BORROW-REPLACEMENT-PIN"),
             "wire={wire}: {errors:?}"
->>>>>>> 020927cbe8d91b55aa30b2b3a197b84c25612737
         );
     }
 }
 
 #[test]
-<<<<<<< HEAD
-fn terminal340_package_terminal_exact_request_budget() {
-    let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
-    ));
-    for stage in [Stage::Analyze, Stage::Verify] {
-        let options = |work| CompileOptions {
-            stop_after: stage,
-            limits: Limits {
-                max_analysis_steps: work,
-                ..Limits::default()
-            },
-            ..CompileOptions::default()
-        };
-        let (mut low, mut high) = (1, Limits::default().max_analysis_steps);
-        while low < high {
-            let mid = low + (high - low) / 2;
-            let report = compile_source(&input, &options(mid));
-            match report.status {
-                ResultCategory::Success => high = mid,
-                ResultCategory::ResourceLimit => low = mid + 1,
-                _ => panic!("{}", report.to_json()),
-            }
-        }
-        assert_eq!(
-            low,
-            if stage == Stage::Analyze {
-                13_945
-            } else {
-                28_743
-            },
-            "{stage:?}: actual Package work changed"
-        );
-        let mut warm = zil_driver::CompilationSession::default();
-        for (work, expected) in [
-            (low, ResultCategory::Success),
-            (low - 1, ResultCategory::ResourceLimit),
-            (low, ResultCategory::Success),
-        ] {
-            for report in [
-                compile_source(&input, &options(work)),
-                warm.compile_source(&input, &options(work)),
-            ] {
-                assert_eq!(report.status, expected, "{}", report.to_json());
-                if expected == ResultCategory::ResourceLimit {
-                    assert_eq!(
-                        report.phase,
-                        if stage == Stage::Analyze {
-                            Phase::Analyze
-                        } else {
-                            Phase::Verify
-                        }
-                    );
-                } else if stage == Stage::Verify {
-                    assert_eq!(report.verification_runs, 1);
-                }
-            }
-            assert_eq!(warm.active_query_count(), 0);
-        }
-        println!("G1.3.4 whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
-=======
 fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
@@ -8868,60 +8923,10 @@ fn terminal340_package_terminal_actual_tickets_complete_shell_and_rhs_once() {
                 "mode={mode} wire={wire}: {errors:?}"
             );
         }
->>>>>>> 020927cbe8d91b55aa30b2b3a197b84c25612737
     }
 }
 
 #[test]
-<<<<<<< HEAD
-fn terminal340_package_terminal_new_provenance_and_temporary_native() {
-    let fresh = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
-    );
-    let reverse = fresh.replace(
-        "package P{manages owner:R;n:i32}",
-        "package P{n:i32;manages owner:R}",
-    );
-    let given = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
-    )
-    .replace("result(create)", "result(give)");
-    let temporary = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
-    )
-    .replace(
-        "assemble(give spare:R,n:i32)->P{return P{owner:R{code:n},n:42}}",
-        "assemble(spare:P,n:i32)->P{return spare}",
-    )
-    .replace(
-        "assemble(R{code:66},fail()?)",
-        "assemble(P{owner:R{code:66},n:42},fail()?)",
-    );
-    for (name, text, expected) in [
-        (
-            "fresh leaf replaces incoming body-local leaf",
-            fresh,
-            b"AB42\n".as_slice(),
-        ),
-        (
-            "incoming RHS retains give origin",
-            given.as_str(),
-            b"AB42\n".as_slice(),
-        ),
-        (
-            "owned field declared second",
-            reverse.as_str(),
-            b"AB42\n".as_slice(),
-        ),
-        (
-            "whole Package temporary abort",
-            temporary.as_str(),
-            b"BA42\n".as_slice(),
-        ),
-    ] {
-        eprintln!("G1.3.4 new native case {name}");
-        review329_native_entry_output(&[("main", text)], "main", expected);
-=======
 fn terminal340_package_terminal_actual_same_type_wrong_root_with_matching_hold() {
     let input = source(
         "resource R{code:i32}package P{manages owner:R;n:i32}fn main()->i32{var packet=P{owner:R{code:65},n:0};var other=P{owner:R{code:67},n:0};let old=other.owner;let target=&mut packet;*target=P{owner:R{code:66},n:42};return old.code+packet.n}",
@@ -9124,6 +9129,5 @@ fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
                 "create={create} wire={wire}: {errors:?}"
             );
         }
->>>>>>> 020927cbe8d91b55aa30b2b3a197b84c25612737
     }
 }
