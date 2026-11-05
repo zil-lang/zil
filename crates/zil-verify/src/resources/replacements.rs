@@ -17,6 +17,7 @@ struct Point {
     validate: bool,
     span: Span,
     sealed: bool,
+    output: Option<usize>,
 }
 struct Invocation<'a> {
     entry: usize,
@@ -214,6 +215,9 @@ impl Plan {
                 let Some(slot) = *slot else {
                     continue;
                 };
+                if Some(slot) == point.output {
+                    continue;
+                }
                 if transfer.after[point.block][point.position][slot] {
                     let roots = &state.desc[slot];
                     b.spend(roots.len())?;
@@ -232,13 +236,17 @@ impl Plan {
             }
             Ok(())
         } else {
-            no_live_description(
-                state,
-                &transfer.after[point.block][point.position],
-                root,
-                point.span,
-                b,
-            )
+            let after = &transfer.after[point.block][point.position];
+            if let Some(output) = point.output {
+                // The call has not produced this carrier yet, including when
+                // a loop revisits the same SSA definition. It is not old debt.
+                b.spend(after.len())?;
+                let mut old = after.clone();
+                old[output] = false;
+                no_live_description(state, &old, root, point.span, b)
+            } else {
+                no_live_description(state, after, root, point.span, b)
+            }
         }
     }
     fn invalidate_store(
@@ -476,6 +484,9 @@ impl Plan {
             validate,
             span: instruction.span,
             sealed: false,
+            output: instruction
+                .result
+                .and_then(|value| transfer.slots.desc_value[value.0 as usize]),
         };
         let facts = &self.actual.functions[f.id.0 as usize];
         let scoped = match instruction.kind {
