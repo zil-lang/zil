@@ -164,13 +164,23 @@ pub(super) fn specialize_products_with_context<'a>(
         super::source_context::SourceIdentityContext<'_>,
     )>,
 ) -> CompileResult<Cow<'a, Module>> {
+    specialize_products_with_runtime(module, limits, products, context, None)
+}
+
+pub(super) fn specialize_products_with_runtime<'a>(
+    module: &'a Module,
+    limits: &Limits,
+    products: &mut products::Products,
+    context: Option<(&[zil_base::SourceUnit], super::source_context::SourceIdentityContext<'_>)>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
         Some(prepared) => {
-            specialize_products_prepared(&prepared, &remaining, products, true, context)
+            specialize_products_prepared(&prepared, &remaining, products, true, context, runtime_ct)
                 .map(|module| Cow::Owned(module.into_owned()))
         }
-        None => specialize_products_prepared(module, &remaining, products, false, context),
+        None => specialize_products_prepared(module, &remaining, products, false, context, runtime_ct),
     }
 }
 
@@ -183,8 +193,10 @@ fn specialize_products_prepared<'a>(
         &[zil_base::SourceUnit],
         super::source_context::SourceIdentityContext<'_>,
     )>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> CompileResult<Cow<'a, Module>> {
     let mut names_budget = Budget::new(limits);
+    if runtime_ct.is_some() { names_budget.note_source_identity(); }
     names_budget.target_pointer_width = products.target_pointer_width.unwrap_or(64);
     super::lifetimes::validate(module, &mut names_budget)?;
     let mut has_where = false;
@@ -308,6 +320,7 @@ fn specialize_products_prepared<'a>(
             products,
             has_associated,
             has_generic_methods,
+            runtime_ct,
         )
         .map(Cow::Owned)
         .map_err(|e| vec![e]);
@@ -402,6 +415,7 @@ fn specialize_products_prepared<'a>(
         products,
         has_associated,
         has_generic_methods,
+        runtime_ct,
     )
     .map(Cow::Owned)
     .map_err(|error| vec![error])
@@ -415,6 +429,7 @@ fn specialize_with_budget<'a>(
     products: &mut products::Products,
     has_associated: bool,
     has_generic_methods: bool,
+    runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
     source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
@@ -432,6 +447,7 @@ fn specialize_with_budget<'a>(
     let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
     let module = lifted.as_ref().unwrap_or(module);
     let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
+    engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
     }
@@ -446,6 +462,7 @@ fn specialize_with_budget<'a>(
         origins.as_ref(),
         engine.budget,
     )?;
+    engine.runtime_ct = runtime_ct;
     if engine.nominal_binder_collision {
         return Err(error(
             module.span,
@@ -456,6 +473,11 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
+    runtime_calls: BTreeMap<usize, u32>,
+    runtime_call: Option<u32>,
+    runtime_instance: Option<u32>,
+    runtime_next_instance: u32,
     original_module: &'a Module,
     closure_recording: Option<closure_context::Recording>,
     life_scope: Vec<String>,
@@ -548,6 +570,11 @@ impl<'a> Engine<'a> {
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            runtime_ct: None,
+            runtime_calls: BTreeMap::new(),
+            runtime_call: None,
+            runtime_instance: None,
+            runtime_next_instance: 0,
             original_module: module,
             closure_recording: None,
             life_scope: Vec::new(),
