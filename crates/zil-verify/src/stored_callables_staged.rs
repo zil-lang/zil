@@ -372,7 +372,7 @@ mod tests {
     fn g336_staged_verify_local_origin_and_hostile_neighbors() {
         let original = model();
         assert!(resolve(&original, &mut Budget::new(&Limits::default())).unwrap());
-        for case in 0..12 {
+        for case in 0..13 {
             let mut m = original.clone();
             let f = &mut m.functions[0];
             let instructions = &mut f.blocks[0].instructions;
@@ -421,6 +421,12 @@ mod tests {
                     op(None, InstructionKind::DropClosure { local: LocalId(2) }),
                 ),
                 11 => instructions.insert(2, op(None, InstructionKind::StorageDead(LocalId(2)))),
+                12 => {
+                    f.values.push(Type::I32);
+                    let mut duplicate = instructions[4].clone();
+                    duplicate.result = Some(ValueId(4));
+                    instructions.push(duplicate);
+                }
                 _ => unreachable!(),
             }
             assert!(

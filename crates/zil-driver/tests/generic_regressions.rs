@@ -7372,6 +7372,242 @@ const G336_REVERSE: &str = include_str!(
 );
 
 #[test]
+fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let caller = include_str!(
+        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/actual-caller-good.zil"
+    );
+    let spare = include_str!(
+        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/owned-ssa-spare.zil"
+    );
+    for text in [G336_OWNED, G336_REVERSE, spare, caller] {
+        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let helper = raw
+            .functions
+            .iter()
+            .find(|f| f.callable_contract.is_some())
+            .unwrap();
+        let stage = helper
+            .blocks
+            .iter()
+            .flat_map(|bb| &bb.instructions)
+            .find_map(|i| match i.kind {
+                InstructionKind::Store { local, value }
+                    if matches!(helper.locals[local.0 as usize].ty, Type::Closure(_)) =>
+                {
+                    Some((local, value))
+                }
+                _ => None,
+            })
+            .unwrap();
+        assert!(
+            !helper.parameters.contains(&stage.0),
+            "real staging was removed"
+        );
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        if text != G336_OWNED {
+            continue;
+        }
+        for case in 0..5 {
+            let mut changed = raw.clone();
+            let mut added = None;
+            let f = &mut changed.functions[helper.id.0 as usize];
+            let bb = f.blocks.iter_mut().find(|bb| bb.instructions.iter().any(|i| matches!(i.kind, InstructionKind::Store { local, .. } if local == stage.0))).unwrap();
+            let store = bb
+                .instructions
+                .iter()
+                .position(
+                    |i| matches!(i.kind, InstructionKind::Store { local, .. } if local == stage.0),
+                )
+                .unwrap();
+            match case {
+                0 => { let duplicate = bb.instructions[store].clone(); bb.instructions.insert(store + 1, duplicate); }
+                1 => bb.instructions.iter_mut().find(|i| i.result == Some(stage.1)).unwrap().kind = InstructionKind::TakeLocal { local: stage.0 },
+                2 => bb.instructions.iter_mut().find(|i| matches!(i.kind, InstructionKind::TakeLocal { local } if local == stage.0)).unwrap().kind = InstructionKind::Load(stage.0),
+                3 => bb.terminator = Terminator::Jump(bb.id),
+                4 => {
+                    let mut duplicate = bb.instructions.iter().find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. })).unwrap().clone();
+                    let index = bb.instructions.iter().position(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. })).unwrap();
+                    let value = ValueId(f.values.len() as u32);
+                    f.values.push(Type::I32);
+                    duplicate.result = Some(value);
+                    added = Some(value);
+                    bb.instructions.insert(index + 1, duplicate);
+                }
+                _ => unreachable!(),
+            }
+            let mut claim = plan.clone();
+            if let Some(value) = added {
+                claim.functions[helper.id.0 as usize].holds.push(ValueHold {
+                    value,
+                    roots: vec![],
+                });
+            }
+            claim.module_fingerprint = changed.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+            for wire in [false, true] {
+                let result = if wire {
+                    zil_verify::verify_module_bytes(&bytes, &target, &limits)
+                } else {
+                    zil_verify::verify_module(changed.clone(), claim.clone(), &target, &limits)
+                };
+                let errors = result.unwrap_err();
+                assert!(
+                    errors.iter().any(|d| matches!(
+                        d.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )),
+                    "case {case}/{wire}: {errors:?}"
+                );
+                eprintln!(
+                    "G336 actual helper neighbor {case} wire={wire}: {}",
+                    errors[0].message
+                );
+            }
+        }
+    }
+    // Equal runtime Type bytes do not identify the actual shared class. This
+    // reuses the earlier genuine right-parameter SSA rather than inventing one.
+    let raw = zil_types::check(&g334_core(caller), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let mut changed = raw.clone();
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "apply" || f.name.ends_with(":apply"))
+        .unwrap();
+    let right = f.parameters[1];
+    let value = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, InstructionKind::Load(local) if local == right))
+        .unwrap()
+        .result
+        .unwrap();
+    let call = f.blocks.iter_mut().flat_map(|b| &mut b.instructions).find(|i| matches!(i.kind, InstructionKind::Call { function, .. } if raw.functions[function.0 as usize].callable_contract.is_some())).unwrap();
+    let InstructionKind::Call { arguments, .. } = &mut call.kind else {
+        unreachable!()
+    };
+    assert_eq!(
+        f.values[value.0 as usize],
+        f.values[arguments[1].0 as usize]
+    );
+    arguments[1] = value;
+    let mut claim = plan.clone();
+    claim.module_fingerprint = changed.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(changed, claim, &target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        eprintln!("G336 actual equal-Type wrong class: {}", errors[0].message);
+    }
+    let mut changed = raw.clone();
+    let f = changed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "apply" || f.name.ends_with(":apply"))
+        .unwrap();
+    let bb = f.blocks.iter_mut().find(|bb| bb.instructions.iter().any(|i| matches!(i.kind, InstructionKind::Call { function, .. } if raw.functions[function.0 as usize].callable_contract.is_some()))).unwrap();
+    let index = bb.instructions.iter().position(|i| matches!(i.kind, InstructionKind::Call { function, .. } if raw.functions[function.0 as usize].callable_contract.is_some())).unwrap();
+    let mut duplicate = bb.instructions[index].clone();
+    let value = ValueId(f.values.len() as u32);
+    f.values.push(Type::I32);
+    duplicate.result = Some(value);
+    bb.instructions.insert(index + 1, duplicate);
+    let mut claim = plan;
+    claim.functions[f.id.0 as usize].holds.push(ValueHold {
+        value,
+        roots: vec![],
+    });
+    claim.module_fingerprint = changed.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&changed, &claim, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(changed, claim, &target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        eprintln!(
+            "G336 actual caller duplicate owned SSA: {}",
+            errors[0].message
+        );
+    }
+}
+
+#[test]
+fn g336_verify_staged_actual_source_work_boundary() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let raw = zil_types::check(&g334_core(G336_OWNED), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    for wire in [false, true] {
+        let check = |n| {
+            let tight = Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            };
+            if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &tight)
+            } else {
+                zil_verify::verify_module(raw.clone(), plan.clone(), &target, &tight)
+            }
+        };
+        let expected = check(limits.max_analysis_steps).unwrap().fingerprint();
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            match check(middle) {
+                Ok(_) => high = middle,
+                Err(errors)
+                    if errors
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit) =>
+                {
+                    low = middle + 1
+                }
+                Err(errors) => panic!("{errors:?}"),
+            }
+        }
+        for n in [low, low - 1, low, low] {
+            let result = check(n);
+            if n == low {
+                assert_eq!(result.unwrap().fingerprint(), expected);
+            } else {
+                assert!(
+                    result
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
+                );
+            }
+        }
+        eprintln!(
+            "G336 genuine staged owning Source Verify wire={wire} N={low}; N-1/fresh/repeated/retry"
+        );
+    }
+}
+
+#[test]
 fn g336_actual_owning_source_types_forms_owned_receiver_and_complete_relations() {
     use zil_ir::*;
     let limits = Limits::default();
