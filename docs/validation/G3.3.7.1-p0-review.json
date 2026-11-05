@@ -1,0 +1,347 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/p0_cross_review",
+  "verdict": "Pending",
+  "scope": "Early non-author static review; not acceptance",
+  "baseline": "fcdea036500945b51991b044a00bbbcc8578ade7",
+  "goal_reference": "f14fdb1f18c0519de249992f138f9c899d60205c",
+  "implementation_checkpoints": {
+    "G3.3.7": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
+    "G4.4.4": "1c9666c95586f6011862aa67d2b609aea79d420d"
+  },
+  "static_observations": [
+    "G4.4.4 queues the callee universal declaration check before call-site symbolic header substitution.",
+    "Type, const declaration/ordinal/domain and life declaration/ordinal remain distinct in the private symbolic header path.",
+    "The declaration-check CFG is discarded; this is not independent raw artifact admission evidence.",
+    "G3.3.7 exact checkpoint 4c642615915c77c101cbe6dea5cbe7c3aa31f3d4 independently inventories entry/two-terminal-leaf topology, whole-function SSA identity, closed effects and entry-local chain recovery; no static blocker found in that exact scope.",
+    "G4.4.4 projection removes public scopes only when no source binding guard or published graph root references ambient classes; private call/scope ledger remains complete. Type actuals carrying ambient life only in the private ledger need an execution probe."
+  ],
+  "requested_negative_controls": [
+    "Same ClosureId is insufficient: duplicate SSA definitions, extra uses and terminator escape in another block must reject.",
+    "Other-block owner Load/Store/Take/activation/exposure and any backedge must reject; terminal Drop/Dead still rely on independent ownership checks.",
+    "Equal concrete Type/Const/Life actuals must not validate a bad universal declaration.",
+    "Const domain mismatch, original ordinal mismatch and sibling life scope forgery must reject independently."
+  ],
+  "execution": {
+    "source_checks": 11,
+    "raw_or_wire_checks": 0,
+    "native_executions": 0,
+    "builds": 0,
+    "status": "Partial; CT lineage correctness defect reproduced; owning candidate not yet in tested CLI"
+  },
+  "limitations": [
+    "No general acyclic owning helper CFG claim.",
+    "No generic host, generated context or runtime generic CT phase claim.",
+    "No Rust cost comparison or product-level breakthrough claim."
+  ],
+  "fixture_inputs": [
+    {
+      "path": "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+      "sha256": "994a5e5032066b50853237ab29d932ccaa053852d9d9b183c468963aff492a89"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-domain.zil",
+      "sha256": "e574d949fca859f597c97bb22b0ace74ec9c7b602f7c4dba8790ff0ab02863c6"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
+      "sha256": "4ce28cb5e3db89496be2f743a9c03881e35ab57c343cf94a658d4292bdfd6d4e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
+      "sha256": "38a748c381b52c5f9765c21b835a85f03cddee184a491dc2bd0eec94fae51fa3"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-type-identity.zil",
+      "sha256": "55ad4639e39502a85aebee15f873fc2002e97ed8cc2f65917747e6a3b3d134da"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+      "sha256": "2860c094996de9c3e261be47bb8c6ea966a5a686f3117987d8a721a7787c24a1"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar-with-unused-struct.zil",
+      "sha256": "37e154ba294acc3cf62b4d0999cd386e040d57620b44b546825ceec1d9030186"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+      "sha256": "aa4a9b23cd366d0009b194e4ccb806a611dcebf8402e0652fac0d71508b2d606"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
+      "sha256": "5a7d6270e262a826f3fb49f958c2cfb8e83a8146b7f78b7df414df1b8f18c534"
+    }
+  ],
+  "tested_binary": {
+    "source_commit": "17f63e34181c4fd5b9bb8653abfde159c2e74c46",
+    "sha256_before_and_after": "5d0f1fb237f7795f1cd4791d8a7d2a72dfa4821e85dd0e365de918a7847514f1",
+    "path": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+    "CT_production_commit": "1c9666c95586f6011862aa67d2b609aea79d420d",
+    "G3.3.7_candidate_included": false,
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib"
+  },
+  "source_results": [
+    {
+      "path": "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "staged owning callback needs one unexposed acyclic parameter transfer",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "12aa56e435cfeb283ac13d051043ce534cab0b1546fac17816fb2d0f9962ee92"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-domain.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-domain.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT abstract scalar argument domain differs",
+          "span": {
+            "file": 0,
+            "start": 208,
+            "end": 230
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "9d2d95e596898ca6db13b1b87256ef9d142d57e0b303c0c2d7c0e0d1c6257f69"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "f7db1569a42004873f33bafb1a6c60d608c463006aa5b47de1d073d9b54fb3fe"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "68dd6b7eafbfd00f78d250511187f2b98099d1473026ec263d424bd0f132820c"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-type-identity.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-type-identity.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "df926980b93e0437b5c380f4352fed688d576a924796b4d9030760c19bd85929"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 298,
+            "end": 322
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "3ac7dc42b45fcb0993da55aa6aaa290632bfece52d6b8bafe652092729dc3dee"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "CT ambient scope requires original declaration lineage",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "466a79c62d175e7749c3321e2c936fdf3b0b085f8b719efaba3fdd3e6814d63e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
+      "command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "nominal lifetime is not bound by its actual enclosing metadata scope",
+          "span": {
+            "file": 0,
+            "start": 237,
+            "end": 254
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "80eb279369ff0009b4219d9a16a9c4db7b46231a842ec93227c1c31f08ba4b06"
+    }
+  ],
+  "lineage_neighbors": [
+    {
+      "name": "author",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "name": "author-no-unused-struct",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "CT ambient scope requires original declaration lineage",
+          "span": null,
+          "notes": []
+        }
+      ]
+    },
+    {
+      "name": "ours-plus-unused-struct",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    }
+  ],
+  "findings": [
+    {
+      "id": "CT-lineage-without-unused-aggregate",
+      "severity": "Correctness blocker for ordinary scalar nested forwarding",
+      "status": "Reproduced; author notified",
+      "trigger": "Remove an entirely unused life-generic struct from a successful nested mixed scalar factory source.",
+      "actual": "Unsupported at CT: CT ambient scope requires original declaration lineage; verification_runs=0. Adding the unused struct restores Success/Verify1.",
+      "cause": "zil-expand/src/source_context_lineage.rs Discovery::item inventories Aggregate/Enum generic parameters but no Function generic parameters, so original lineage is not captured for pure mixed CT function sources.",
+      "required_followup": "Capture actual original lineage for the new source capability without a dummy declaration; preserve the original failure and add a nearest valid source check."
+    }
+  ]
+}
