@@ -1,16 +1,16 @@
 {
   "task": "G3.3.5",
   "kind": "author limited stateful qualified FnMut free-helper slice",
-  "source_and_tests_commit": "1e83849dd600e880f3dbc7cb3bc884d4dc745745",
+  "source_and_tests_commit": "bfd84b224a4b5089a7b8bd1c1503be5b80505faf",
   "baseline": "dd72e6b2e5a0a7d1f549f6feb95142300fe1d6ee",
   "production_files_sha256": {
     "crates/zil-expand/src/callable_context_lower.rs": "f9f9497a3e57355584cf0f5a87cb1a54ebc52f1473f8c93d02aa52107fde8c3c",
     "crates/zil-expand/src/generic_callable_context.rs": "af2a692b730239b01cb595f3676ae5adfa276f1eecfda1c89cd901c69ece53ed",
-    "crates/zil-expand/src/generic_stored_nominal.rs": "449164405773d0ce336f5754f58f4dd522fbd53d234bf41803586396ad7ce9d8",
+    "crates/zil-expand/src/generic_stored_nominal.rs": "efd66f4aed5c14dbc337c2267ad0de9128076cf212e170d28ce99070b176b0d9",
     "crates/zil-types/src/helpers/source_life.rs": "8a66fabd088b2f0343e572c80de084ae6ec5cd0bc7db77d779be7095646563b4"
   },
   "tests_and_sources_sha256": {
-    "crates/zil-driver/tests/generic_regressions.rs": "092acdf9b862e79850351f89c4563c02577c09bdc5dcf9c8a15bff15c0edca84",
+    "crates/zil-driver/tests/generic_regressions.rs": "da17c72fd74cb603ddbf88d73cd76810a7703307520f3996bec8899423fccbaa",
     "tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil": "98effe34b0efd69ee7a270cc4b919ee50cef204eb8707b649e88382966a55721",
     "tests/language-readiness/terminal/342/fnmut-helper-bridge/fn-adapted-control.zil": "f6b5cbe8b0cd253dbcef8f0e7b10ffd8bcea93432a2aeb4a00caf7b57c0c5349",
     "tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil": "f6ca88f8bf5e865d6a9e65d259baf5f74fec79583a0421410617a30090c2cee1",
@@ -69,6 +69,12 @@
       "zil-driver lib+generic_regressions llvm-api -D warnings",
       "cargo fmt --all --check",
       "git diff --check"
+    ],
+    "final_g335_log": "g335-budget-revision.log;4/0+12native; Types8601/N-1/fresh unchanged",
+    "strict_revision_logs": [
+      "revision-strict-libs.log",
+      "revision-strict-driver.log",
+      "revision-fmt.log"
     ]
   },
   "source_and_raw_scope": {
@@ -119,11 +125,15 @@
     "/workspace/.zil-env/G3.3.5-tmp/old-direct1611.log": "4b6d9b4f7aab083ff1a535ee5b5fe8b24e92b743b353ae329468bd974b729160",
     "/workspace/.zil-env/G3.3.5-tmp/strict-libs.log": "eafe2733c7840a8b7569f51d00d08c26c8a2410fe424d077dbb16e3e072284ac",
     "/workspace/.zil-env/G3.3.5-tmp/strict-driver.log": "3b4428bf09ed75d6c118a7c504b0a6b633e853b16ff4a7d6906113eed588cdb4",
-    "/workspace/.zil-env/G3.3.5-tmp/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    "/workspace/.zil-env/G3.3.5-tmp/fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "/workspace/.zil-env/G3.3.5-tmp/g335-budget-revision.log": "2bc5534158e3cf206171fc5538809ab47b53f355127f7abbf1237da2556f4d01",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-strict-libs.log": "8eb20303a7e57be5072023d55fb8ea4aff835c22412a2e25f0e5162e7d10ffc8",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-strict-driver.log": "6c0fc9d4215047a7193d8931d684e1d9d2545932d8333a1c62b56c26ad38ca84",
+    "/workspace/.zil-env/G3.3.5-tmp/revision-fmt.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
   },
   "test_executable": {
     "path": "/workspace/.zil-env/target342-G3.3.5/debug/deps/generic_regressions-6ecdb24ac684ead8",
-    "sha256": "d6d670ea6c9c5861749146b31aa65092fb9c61c0fa78881ed02dc3b835e3f795"
+    "sha256": "6006bdc7ed2264f111d2c3e174c27da43e5df0aaa1c601b9f54eeee80acc9274"
   },
   "independent_review": "pending exact non-author receipt; root formal acceptance separate",
   "Rust_goals": {
@@ -131,5 +141,17 @@
     "safety": "source/raw/Wire physical class/receiver/loan controls; independent kernels unchanged",
     "runtime": "no new carrier/allocation/RC/lock/table; no RSS or throughput benchmark claim",
     "implementation": "four private production files; reuse actual fullordinal/header/fullrole formation; no compile-time advantage measured"
+  },
+  "superseded_pre_revision": {
+    "source_and_tests": "1e83849dd600e880f3dbc7cb3bc884d4dc745745",
+    "docs": "f7de024a0",
+    "status": "PendingBudgetRevision, superseded by receiver-mode prefilter; no runtime safety acceptance defect claimed",
+    "reason": "Fn bound with exclusive receiver unused old None could reach paid prepare template before returning None. Minimum threshold can be equal while an earlier phase has additional work."
+  },
+  "budget_revision": {
+    "scope": "one selected-bound constant-size mode read; no additional generic/header/name scan or allocation",
+    "static_fee_path": "existing parameter walk marks unsupported nonstored receiver mode profilefalse; callable_parameter.filter then yields None before prepare_callable_context. Its additional paid callable::template is not called; all existing ordinary AST/header work remains charged.",
+    "actual_old_None": "F:Fn(&Tag<s>)->i32 with &mut F, unused correct body, remains NoSome and Success/Verify1",
+    "old_boundaries_binding": "previous old668/1611/8344/21782 logs bind1e838; final revision independent review rebinds its own exact old limits; no relabeling of stale executable runs"
   }
 }
