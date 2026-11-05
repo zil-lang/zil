@@ -300,6 +300,28 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { .. })
 }
 
+/// Narrow value-only qualification for an actual nested stored field. This
+/// never enables an Address/Desc, owning leaf, or generic Copy classification.
+pub(super) fn pure_value(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    if !matches!(ty, Type::BorrowedStorage { .. }) {
+        return Ok(false);
+    }
+    let cost = inference::type_snapshot_work(
+        ty,
+        span,
+        &Limits {
+            max_analysis_steps: *left,
+            ..limits.clone()
+        },
+    )?;
+    fee(left, cost, span)?;
+    if !retained::pure(ty, span, left)? {
+        return Ok(false);
+    }
+    shape(ty, left, limits.max_call_depth, span)?;
+    Ok(true)
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }
