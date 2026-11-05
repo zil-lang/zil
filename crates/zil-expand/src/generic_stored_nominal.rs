@@ -627,6 +627,8 @@ impl<'a> Engine<'a> {
         let classes = produced.classes;
         if existing.is_none() {
             physical.generics.clear();
+            self.traits
+                .register_copy_shape(&instance, &mut self.budget)?;
             self.stored_lookup_fee(self.instances.len(), key_bytes, span)?;
             self.budget.text(&generated, span)?;
             self.instances.insert(key, generated.clone());

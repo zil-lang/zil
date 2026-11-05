@@ -30,6 +30,7 @@ pub(super) fn concrete_storage(
         active: BTreeSet::new(),
         depth: 0,
         symbolic: None,
+        instantiated: None,
     }
     .copy(ty)
 }
@@ -41,12 +42,26 @@ pub(super) fn require(
     variables: &BTreeSet<String>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    require_registered(ty, nominals, None, available, variables, budget)
+}
+
+/// Physical items are recorded only at the actual stored specialization step.
+/// This directory locates source shapes; it is not a Copy certificate.
+pub(super) fn require_registered<'n>(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &'n Item>,
+    instantiated: Option<&'n BTreeMap<String, Item>>,
+    available: &trait_bounds::Bounds,
+    variables: &BTreeSet<String>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     Shape {
         nominals,
         budget,
         active: BTreeSet::new(),
         depth: 0,
         symbolic: Some((available, variables)),
+        instantiated,
     }
     .copy(ty)
     .map(|_| ())
@@ -63,6 +78,7 @@ pub(super) fn require(
 
 struct Shape<'s, 'b, 'n, 'l> {
     nominals: &'s BTreeMap<String, &'n Item>,
+    instantiated: Option<&'n BTreeMap<String, Item>>,
     budget: &'b mut Budget<'l>,
     active: BTreeSet<String>,
     depth: usize,
@@ -70,6 +86,20 @@ struct Shape<'s, 'b, 'n, 'l> {
 }
 
 impl<'n> Shape<'_, '_, 'n, '_> {
+    fn nominal(&mut self, name: &str, span: Span) -> R<Option<&'n Item>> {
+        if let Some(instantiated) = self.instantiated.filter(|items| !items.is_empty()) {
+            self.budget.identity_work(
+                (1 + instantiated.len().checked_ilog2().unwrap_or(0) as usize)
+                    .saturating_mul(name.len().saturating_add(1)),
+                span,
+            )?;
+            if let Some(item) = instantiated.get(name) {
+                return Ok(Some(item));
+            }
+        }
+        Ok(self.nominals.get(name).copied())
+    }
+
     fn substitute(
         &mut self,
         ty: &TypeRef,
@@ -96,7 +126,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         let Some(Item {
             kind: ItemKind::Aggregate(aggregate),
             ..
-        }) = self.nominals.get(&path.join("."))
+        }) = self.nominal(&path.join("."), ty.span)?
         else {
             return Err(error(
                 ty.span,
@@ -251,7 +281,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                         "StoreElement requires a finite nonrecursive layout",
                     ));
                 }
-                let outcome = match self.nominals.get(&name) {
+                let outcome = match self.nominal(&name, ty.span)? {
                     Some(Item {
                         kind: ItemKind::Aggregate(a),
                         ..
@@ -328,7 +358,9 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     }
                     _ => Err(error(
                         ty.span,
-                        format!("StoreElement fields require finite Copy or explicit direct manages resources: unresolved nominal {name}"),
+                        format!(
+                            "StoreElement fields require finite Copy or explicit direct manages resources: unresolved nominal {name}"
+                        ),
                     )),
                 };
                 self.active.remove(key.as_ref());
