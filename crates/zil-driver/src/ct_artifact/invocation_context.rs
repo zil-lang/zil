@@ -103,16 +103,6 @@ impl FrozenInvocationContext {
     ) -> CompileResult<Option<Arc<Self>>> {
         Self::freeze_at_source(entry, parsed, index, origins, None, None, budget)
     }
-    pub(super) fn freeze_with_catalog(
-        entry: &Entry<'_>,
-        parsed: &[Arc<ParseResult>],
-        index: &SourceIndex,
-        origins: Option<&Arc<Vec<ModuleDeclarationOrigins>>>,
-        catalog: Option<&zil_expand::source_context::GeneratedSourceCatalog>,
-        budget: &mut CtExecutionBudget,
-    ) -> CompileResult<Option<Arc<Self>>> {
-        Self::freeze_at_source(entry, parsed, index, origins, catalog, None, budget)
-    }
     #[allow(clippy::too_many_arguments)]
     pub(super) fn freeze_at_source(
         entry: &Entry<'_>,
@@ -559,41 +549,39 @@ impl FrozenInvocationContext {
     ) -> CompileResult<(&'a CtSymbolId, u32)> {
         let mut visited = Vec::new();
         let mut bytes = 0u64;
-        let result = (|| {
-            loop {
-                self.validate_reference(scopes, reference, budget)?;
-                budget.reserve_analysis_work(visited.len() as u64 + 1)?;
-                if visited.contains(&reference) {
-                    return Err(unsupported("CT actual life reference cycle"));
+        let result = (|| loop {
+            self.validate_reference(scopes, reference, budget)?;
+            budget.reserve_analysis_work(visited.len() as u64 + 1)?;
+            if visited.contains(&reference) {
+                return Err(unsupported("CT actual life reference cycle"));
+            }
+            if visited.len() >= budget.remaining().max_call_depth as usize {
+                return Err(vec![Diagnostic::limit(
+                    Phase::Ct,
+                    "CT actual life reference depth exceeded",
+                    None,
+                )]);
+            }
+            let scope = &scopes[reference.scope.0 as usize];
+            match &scope.instance {
+                CtScopeInstance::Definition => {
+                    return Ok((&scope.declaration, reference.parameter));
                 }
-                if visited.len() >= budget.remaining().max_call_depth as usize {
-                    return Err(vec![Diagnostic::limit(
-                        Phase::Ct,
-                        "CT actual life reference depth exceeded",
-                        None,
-                    )]);
-                }
-                let scope = &scopes[reference.scope.0 as usize];
-                match &scope.instance {
-                    CtScopeInstance::Definition => {
-                        return Ok((&scope.declaration, reference.parameter));
-                    }
-                    CtScopeInstance::Instantiated(actuals) => {
-                        let Some(CtScopeActual::Lifetime(next)) =
-                            actuals.get(reference.parameter as usize)
-                        else {
-                            return Err(unsupported(
-                                "CT actual life reference selects another parameter kind",
-                            ));
-                        };
-                        budget.reserve_temporary_bytes(
-                            std::mem::size_of::<CtAmbientLifeReference>() as u64,
-                        )?;
-                        bytes += std::mem::size_of::<CtAmbientLifeReference>() as u64;
-                        visited.reserve_exact(1);
-                        visited.push(reference);
-                        reference = *next;
-                    }
+                CtScopeInstance::Instantiated(actuals) => {
+                    let Some(CtScopeActual::Lifetime(next)) =
+                        actuals.get(reference.parameter as usize)
+                    else {
+                        return Err(unsupported(
+                            "CT actual life reference selects another parameter kind",
+                        ));
+                    };
+                    budget.reserve_temporary_bytes(
+                        std::mem::size_of::<CtAmbientLifeReference>() as u64,
+                    )?;
+                    bytes += std::mem::size_of::<CtAmbientLifeReference>() as u64;
+                    visited.reserve_exact(1);
+                    visited.push(reference);
+                    reference = *next;
                 }
             }
         })();
