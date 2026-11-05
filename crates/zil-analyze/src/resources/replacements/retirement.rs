@@ -55,11 +55,10 @@ fn canonical(f: &TypedFunction, place: &Target, b: &mut Budget) -> CompileResult
                 local: bound,
                 index,
             } = i.kind
+                && bound == local
             {
-                if bound == local {
-                    place.root = origins::Root::Capture(index);
-                    break;
-                }
+                place.root = origins::Root::Capture(index);
+                break;
             }
         }
     }
@@ -514,14 +513,14 @@ impl Program {
                     for block in &f.blocks {
                         fee(b, block.instructions.len())?;
                         for i in &block.instructions {
-                            if let InstructionKind::FunctionRef { function } = i.kind {
-                                if !self.retirement_pairs.borrow()[function.0 as usize].is_empty() {
-                                    return Err(vec![Diagnostic::unsupported(
-                                        Phase::Analyze,
-                                        "indirect function reference cannot erase actual retirement separation obligations",
-                                        Some(i.span),
-                                    )]);
-                                }
+                            if let InstructionKind::FunctionRef { function } = i.kind
+                                && !self.retirement_pairs.borrow()[function.0 as usize].is_empty()
+                            {
+                                return Err(vec![Diagnostic::unsupported(
+                                    Phase::Analyze,
+                                    "indirect function reference cannot erase actual retirement separation obligations",
+                                    Some(i.span),
+                                )]);
                             }
                         }
                     }
