@@ -297,7 +297,7 @@ fn mutable_enum_formal_is_checked_while_shared_and_multiple_roots_stay_closed() 
 }
 
 #[test]
-fn raw_payload_description_read_obeys_the_actual_borrow_window() {
+fn raw_payload_description_read_obeys_actual_resource_retirement() {
     // Legal source uses the payload before replacement. The raw neighbor then
     // retains an actual weak description, not its address loan, across Commit.
     let text = "resource R{code:i32}enum E{Left(manages R,i32),Right(i32,manages R),Empty}fn main()->i32{var value=E.Left(R{code:65},1);match value{E.Left(ref r,_)=>{let n=r.code;let target=&mut value;*target=E.Right(2,R{code:66});return n;},E.Right(_,_)=>{return 0;},E.Empty()=>{return 0;}}}";
@@ -403,9 +403,11 @@ fn raw_payload_description_read_obeys_the_actual_borrow_window() {
     let wire = zil_ir::wire::encode_module_candidate(&before, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     let errors = zil_analyze::analyze(&typed, &limits)
-        .expect_err("the later descriptor consumer overlaps the mutable window");
+        .expect_err("the later descriptor consumer needs the retired resource");
     assert!(
-        errors.iter().any(|d| d.code == "E-BORROW-CONFLICT"),
+        errors.iter().any(|d| d.code == "E-ANALYZE-IR"
+            && d.message
+                .contains("head transition invalidates a description required later")),
         "{errors:?}"
     );
 }
