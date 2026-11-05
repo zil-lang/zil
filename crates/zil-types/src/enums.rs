@@ -209,51 +209,59 @@ pub(super) fn definitions(
     limits: &Limits,
     left: &mut usize,
 ) -> R<BTreeMap<String, Type>> {
-    let mut result = BTreeMap::new();
-    for e in &core.enums {
-        let physical = Type::Enum {
+    if !core.life_instances.iter().any(|instance| {
+        matches!(&instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Enum { .. }))
+    }) {
+        // Preserve the established all-ordinary Enum namespace and its budget.
+        return Ok(core.enums.iter().map(|e| (e.name.clone(), Type::Enum {
             name: nominal_name(core.module_id.0, &e.name, &e.variants),
             variants: e.variants.clone(),
-        };
-        let cost = inference::type_snapshot_work(&physical, e.span, limits)?;
-        *left = left.checked_sub(cost).ok_or_else(|| {
+        })).collect());
+    }
+    let mut result = BTreeMap::new();
+    for e in &core.enums {
+        let physical_name = nominal_name(core.module_id.0, &e.name, &e.variants);
+        let limit = || {
             Diagnostic::limit(
                 Phase::Types,
-                "enum constructor inventory budget exceeded",
+                "qualified Enum constructor inventory budget exceeded",
                 Some(e.span),
             )
-        })?;
+        };
+        *left = left
+            .checked_sub(physical_name.len().saturating_add(e.name.len()))
+            .ok_or_else(limit)?;
         let mut actual = None;
         for instance in &core.life_instances {
             let Type::BorrowedStorage { storage, .. } = &instance.ty else {
                 continue;
             };
+            let Type::Enum { name, variants } = storage.as_ref() else {
+                continue;
+            };
             let cost = inference::type_snapshot_work(&instance.ty, e.span, limits)?;
-            *left = left.checked_sub(cost.saturating_add(1)).ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "enum constructor inventory budget exceeded",
-                    Some(e.span),
-                )
-            })?;
-            if storage.as_ref() == &physical && actual.replace(instance.ty.clone()).is_some() {
-                return Err(error(
-                    "E-STORED-IDENTITY",
-                    e.span,
-                    "enum constructor has multiple complete stored identities",
-                ));
+            *left = left.checked_sub(cost.saturating_add(1)).ok_or_else(limit)?;
+            if name == &physical_name && variants == &e.variants {
+                if actual.replace(&instance.ty).is_some() {
+                    return Err(error(
+                        "E-STORED-IDENTITY",
+                        e.span,
+                        "enum constructor has multiple complete stored identities",
+                    ));
+                }
             }
         }
-        let ty = actual.unwrap_or(physical);
-        *left = left
-            .checked_sub(e.name.len().saturating_add(ty.name().len()))
-            .ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "enum constructor inventory budget exceeded",
-                    Some(e.span),
-                )
-            })?;
+        let ty = if let Some(actual) = actual {
+            let cost = inference::type_snapshot_work(actual, e.span, limits)?;
+            *left = left.checked_sub(cost).ok_or_else(limit)?;
+            actual.clone()
+        } else {
+            // Ordinary declarations in mixed modules still use their old shape.
+            Type::Enum {
+                name: physical_name,
+                variants: e.variants.clone(),
+            }
+        };
         result.insert(e.name.clone(), ty);
     }
     Ok(result)
@@ -747,6 +755,11 @@ impl Builder<'_, '_> {
         }
         if let Some(expected) = expected {
             self.same(ty, expected, span)?;
+        }
+        if matches!(ty, Type::BorrowedStorage { .. }) {
+            // The qualified result is copied into both the returned semantic
+            // type and the actual SSA MakeVariant result.
+            self.closures.snapshot_type(ty, 2, 0, span)?;
         }
         let output_ty = ty.clone();
         if owned_shapes::enumeration(ty) {
