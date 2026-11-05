@@ -221,7 +221,9 @@ pub(super) fn parameter(
     b.spend(block.instructions.len())?;
     let mut before = None;
     for (index, instruction) in block.instructions.iter().enumerate() {
-        if !finite_instruction(&instruction.kind) {
+        if !finite_instruction(&instruction.kind)
+            && !super::super::stored_owned::instruction(f, &instruction.kind)
+        {
             return Err(bad(
                 "staged callback body exposes storage or unsupported effects",
             ));

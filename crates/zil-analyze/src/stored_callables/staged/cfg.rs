@@ -21,6 +21,9 @@ struct Frame {
     activated: Vec<u8>,
     retired: Vec<bool>,
     done: (u8, Vec<u8>),
+    // Only cyclic frames retain the correlation between an actual role and
+    // its possible carrier positions. The final column is settled.
+    routes: Vec<Vec<bool>>,
 }
 impl Frame {
     fn merge(&mut self, other: &Self, b: &mut Budget) -> CompileResult<bool> {
@@ -52,6 +55,13 @@ impl Frame {
             changed |= *left != (*left | *right);
             *left |= *right;
         }
+        for (left, right) in self.routes.iter_mut().zip(&other.routes) {
+            b.spend(left.len().saturating_add(1), "cyclic actual carrier union")?;
+            for (left, right) in left.iter_mut().zip(right) {
+                changed |= !*left && *right;
+                *left |= *right;
+            }
+        }
         Ok(changed)
     }
     fn copy(&self, b: &mut Budget) -> CompileResult<Self> {
@@ -64,7 +74,58 @@ impl Frame {
                 .saturating_add(1),
             "owning CFG frame clone",
         )?;
+        for row in &self.routes {
+            b.spend(row.len().saturating_add(1), "cyclic carrier snapshot")?;
+        }
         Ok(self.clone())
+    }
+    fn move_carrier(
+        &mut self,
+        role: usize,
+        from: usize,
+        to: usize,
+        b: &mut Budget,
+    ) -> CompileResult<()> {
+        if self.routes.is_empty() {
+            return Ok(());
+        }
+        let row = self.routes.get_mut(role).ok_or_else(closed)?;
+        b.spend(row.len(), "cyclic actual unique carrier transfer")?;
+        if !row.get(from).copied().unwrap_or(false)
+            || row
+                .iter()
+                .enumerate()
+                .any(|(i, present)| i != from && *present)
+        {
+            return Err(closed());
+        }
+        row[from] = false;
+        *row.get_mut(to).ok_or_else(closed)? = true;
+        Ok(())
+    }
+    fn drop_carrier(&mut self, local: usize, b: &mut Budget) -> CompileResult<()> {
+        for (role, row) in self.routes.iter_mut().enumerate() {
+            b.spend(
+                row.len().saturating_add(1),
+                "cyclic conditional carrier cleanup",
+            )?;
+            let end = row.len() - 1;
+            if row[local] {
+                row[local] = false;
+                row[end] = true;
+            }
+            let state = if row[end] {
+                if row[..end].iter().any(|v| *v) { 3 } else { 2 }
+            } else {
+                1
+            };
+            if role == 0 {
+                self.done.0 = state;
+            } else {
+                self.done.1[role - 1] = state;
+            }
+        }
+        Ok(())
     }
 }
 fn edges(block: &BasicBlock) -> CompileResult<[Option<usize>; 2]> {
@@ -262,18 +323,37 @@ fn solve(
     if roles.len() > 1 {
         b.spend(roles.len(), "dynamic owning debt allocation")?;
     }
+    let route_width = f
+        .locals
+        .len()
+        .saturating_add(f.values.len())
+        .saturating_add(1);
+    if cyclic {
+        b.spend(
+            roles.len().saturating_mul(route_width.saturating_add(1)),
+            "cyclic carrier matrix allocation",
+        )?;
+    }
     let mut initial = Frame {
         locals: vec![Origin::Empty; f.locals.len()],
         values: vec![Origin::Empty; f.values.len()],
         activated: vec![1; f.locals.len()],
         retired: vec![false; f.locals.len()],
         done: (1, vec![1; roles.len() - 1]),
+        routes: if cyclic {
+            vec![vec![false; route_width]; roles.len()]
+        } else {
+            Vec::new()
+        },
     };
     if roles.len() > 1 {
         b.spend(roles.len(), "actual owning role seeds")?;
     }
     for (index, role) in roles.iter().enumerate() {
         if role.cleanup == zil_ir::CallableCleanup::Borrowed {
+            if cyclic {
+                initial.routes[index][route_width - 1] = true;
+            }
             if index == 0 {
                 initial.done.0 = 2;
             } else {
@@ -283,6 +363,9 @@ fn solve(
             let p = role.parameter as usize;
             let local = f.parameters[p].0 as usize;
             initial.locals[local] = Origin::Input(p);
+            if cyclic {
+                initial.routes[index][local] = true;
+            }
             initial.activated[local] = 2;
         }
     }
@@ -353,6 +436,7 @@ fn solve(
                     let value = result
                         .filter(|v| f.values.get(v.0 as usize) == Some(&f.locals[l].ty))
                         .ok_or_else(closed)?;
+                    frame.move_carrier(mask, l, f.locals.len() + value.0 as usize, b)?;
                     frame.values[value.0 as usize] = origin;
                     frame.locals[l] = Origin::Empty;
                 }
@@ -378,6 +462,7 @@ fn solve(
                     {
                         return Err(closed());
                     }
+                    frame.move_carrier(mask, f.locals.len() + v, l, b)?;
                     frame.locals[l] = frame.values[v];
                     frame.values[v] = Origin::Empty;
                 }
@@ -386,7 +471,7 @@ fn solve(
                     if arguments.iter().any(|v| closure_value(f, *v)) {
                         return Err(closed());
                     }
-                    let value = frame.values.get_mut(callee.0 as usize).ok_or_else(closed)?;
+                    let value = frame.values.get(callee.0 as usize).ok_or_else(closed)?;
                     let Origin::Input(actual) = *value else {
                         return Err(closed());
                     };
@@ -406,7 +491,13 @@ fn solve(
                             return Err(closed());
                         }
                     }
-                    *value = Origin::Empty;
+                    frame.move_carrier(
+                        mask,
+                        f.locals.len() + callee.0 as usize,
+                        route_width - 1,
+                        b,
+                    )?;
+                    frame.values[callee.0 as usize] = Origin::Empty;
                     if mask == 0 {
                         frame.done.0 = 2;
                     } else {
@@ -415,26 +506,31 @@ fn solve(
                 }
                 InstructionKind::DropClosure { local } if closure_local(f, *local) => {
                     let l = local.0 as usize;
-                    match frame.locals[l] {
-                        Origin::Input(actual) => {
-                            let mask = debt(roles, actual, b)?;
-                            if (if mask == 0 {
-                                frame.done.0
-                            } else {
-                                frame.done.1[mask - 1]
-                            }) != 1
-                            {
-                                return Err(closed());
+                    if cyclic {
+                        frame.drop_carrier(l, b)?;
+                        frame.locals[l] = Origin::Empty;
+                    } else {
+                        match frame.locals[l] {
+                            Origin::Input(actual) => {
+                                let mask = debt(roles, actual, b)?;
+                                if (if mask == 0 {
+                                    frame.done.0
+                                } else {
+                                    frame.done.1[mask - 1]
+                                }) != 1
+                                {
+                                    return Err(closed());
+                                }
+                                if mask == 0 {
+                                    frame.done.0 = 2;
+                                } else {
+                                    frame.done.1[mask - 1] = 2;
+                                }
+                                frame.locals[l] = Origin::Empty;
                             }
-                            if mask == 0 {
-                                frame.done.0 = 2;
-                            } else {
-                                frame.done.1[mask - 1] = 2;
-                            }
-                            frame.locals[l] = Origin::Empty;
+                            Origin::Empty => {}
+                            _ => return Err(closed()),
                         }
-                        Origin::Empty => {}
-                        _ => return Err(closed()),
                     }
                     frame.retired[l] = true;
                     if cyclic {
@@ -539,8 +635,18 @@ fn solve(
                     .saturating_add(roles.len().saturating_sub(1)),
                 "owning CFG return debt inventory",
             )?;
+            for row in &frame.routes {
+                b.spend(
+                    row.len().saturating_add(1),
+                    "cyclic final carrier inventory",
+                )?;
+            }
             if frame.done.0 != 2
                 || frame.done.1.iter().any(|state| *state != 2)
+                || frame
+                    .routes
+                    .iter()
+                    .any(|row| !row[route_width - 1] || row[..route_width - 1].iter().any(|v| *v))
                 || frame
                     .locals
                     .iter()

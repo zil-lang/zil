@@ -7,6 +7,9 @@ struct State {
     slots: Vec<(usize, u8)>,
     values: Vec<usize>,
     settled: (u8, Vec<u8>),
+    // Cyclic only: sorted possible positions per actual role. Zero is settled,
+    // odd positions are SSA carriers and positive even positions local carriers.
+    carriers: Vec<Vec<usize>>,
 }
 fn failure() -> Diagnostic {
     bad("acyclic owning callback has no unique live actual parameter origin")
@@ -42,6 +45,9 @@ fn copy(state: &State, b: &mut Budget) -> Check<State> {
             .saturating_add(state.settled.1.len())
             .saturating_add(1),
     )?;
+    for row in &state.carriers {
+        b.spend(row.len().saturating_add(1))?;
+    }
     Ok(state.clone())
 }
 fn join(target: &mut State, source: &State, b: &mut Budget) -> Check<()> {
@@ -68,6 +74,57 @@ fn join(target: &mut State, source: &State, b: &mut Budget) -> Check<()> {
     target.settled.0 |= source.settled.0;
     for (left, right) in target.settled.1.iter_mut().zip(&source.settled.1) {
         *left |= *right;
+    }
+    for (to, from) in target.carriers.iter_mut().zip(&source.carriers) {
+        b.spend(from.len().saturating_add(1))?;
+        for position in from {
+            b.spend(to.len().saturating_add(1))?;
+            if let Err(index) = to.binary_search(position) {
+                to.insert(index, *position);
+            }
+        }
+    }
+    Ok(())
+}
+
+fn local_carrier(local: LocalId) -> usize {
+    (local.0 as usize) * 2 + 2
+}
+fn value_carrier(value: ValueId) -> usize {
+    (value.0 as usize) * 2 + 1
+}
+fn relocate(state: &mut State, role: usize, from: usize, to: usize, b: &mut Budget) -> Check<()> {
+    if state.carriers.is_empty() {
+        return Ok(());
+    }
+    let row = state.carriers.get_mut(role).ok_or_else(failure)?;
+    b.spend(row.len().saturating_add(1))?;
+    if row.as_slice() != [from] {
+        return Err(failure());
+    }
+    row[0] = to;
+    Ok(())
+}
+fn conditional_cleanup(state: &mut State, position: usize, b: &mut Budget) -> Check<()> {
+    for (role, row) in state.carriers.iter_mut().enumerate() {
+        b.spend(row.len().saturating_mul(2).saturating_add(1))?;
+        if let Ok(index) = row.binary_search(&position) {
+            row.remove(index);
+            if row.first() != Some(&0) {
+                row.insert(0, 0);
+            }
+        }
+        let status = match row.first() {
+            Some(0) if row.len() == 1 => 2,
+            Some(0) => 3,
+            Some(_) => 1,
+            None => return Err(failure()),
+        };
+        if role == 0 {
+            state.settled.0 = status;
+        } else {
+            state.settled.1[role - 1] = status;
+        }
     }
     Ok(())
 }
@@ -235,10 +292,18 @@ fn solve(
                         .saturating_mul(2)
                         .saturating_add(f.values.len()),
                 )?;
+                if cyclic {
+                    b.spend(roles.len().saturating_mul(2))?;
+                }
                 let mut state = State {
                     slots: vec![(0, 1); f.locals.len()],
                     values: vec![0; f.values.len()],
                     settled: (1, vec![1; roles.len() - 1]),
+                    carriers: if cyclic {
+                        vec![vec![0]; roles.len()]
+                    } else {
+                        Vec::new()
+                    },
                 };
                 if roles.len() > 1 {
                     b.spend(roles.len())?;
@@ -253,6 +318,9 @@ fn solve(
                     } else {
                         let position = role.parameter as usize;
                         let parameter = f.parameters[position];
+                        if cyclic {
+                            state.carriers[index][0] = local_carrier(parameter);
+                        }
                         *state
                             .slots
                             .get_mut(parameter.0 as usize)
@@ -310,7 +378,7 @@ fn solve(
                 }
                 match &instruction.kind {
                     InstructionKind::TakeLocal { local } if owner_slot(f, *local) => {
-                        let source = state.slots.get_mut(local.0 as usize).ok_or_else(failure)?;
+                        let source = *state.slots.get(local.0 as usize).ok_or_else(failure)?;
                         let mask = consumption(roles, source.0, b)?;
                         if source.1 != 2
                             || (if mask == 0 {
@@ -327,13 +395,20 @@ fn solve(
                                 f.values.get(v.0 as usize) == Some(&f.locals[local.0 as usize].ty)
                             })
                             .ok_or_else(failure)?;
+                        relocate(
+                            &mut state,
+                            mask,
+                            local_carrier(*local),
+                            value_carrier(value),
+                            b,
+                        )?;
                         state.values[value.0 as usize] = source.0;
-                        source.0 = 0;
+                        state.slots[local.0 as usize].0 = 0;
                     }
                     InstructionKind::Store { local, value } if owner_slot(f, *local) => {
-                        let source = state.values.get_mut(value.0 as usize).ok_or_else(failure)?;
-                        let dest = state.slots.get_mut(local.0 as usize).ok_or_else(failure)?;
-                        let mask = consumption(roles, *source, b)?;
+                        let source = *state.values.get(value.0 as usize).ok_or_else(failure)?;
+                        let dest = *state.slots.get(local.0 as usize).ok_or_else(failure)?;
+                        let mask = consumption(roles, source, b)?;
                         if roles
                             .iter()
                             .any(|role| f.parameters[role.parameter as usize] == *local)
@@ -349,19 +424,23 @@ fn solve(
                         {
                             return Err(failure());
                         }
-                        dest.0 = *source;
-                        *source = 0;
+                        relocate(
+                            &mut state,
+                            mask,
+                            value_carrier(*value),
+                            local_carrier(*local),
+                            b,
+                        )?;
+                        state.slots[local.0 as usize].0 = source;
+                        state.values[value.0 as usize] = 0;
                     }
                     InstructionKind::CallClosureOnce { callee, arguments } => {
                         b.spend(arguments.len())?;
                         if arguments.iter().any(|v| owner_value(f, *v)) {
                             return Err(failure());
                         }
-                        let source = state
-                            .values
-                            .get_mut(callee.0 as usize)
-                            .ok_or_else(failure)?;
-                        let mask = consumption(roles, *source, b)?;
+                        let source = *state.values.get(callee.0 as usize).ok_or_else(failure)?;
+                        let mask = consumption(roles, source, b)?;
                         if (if mask == 0 {
                             state.settled.0
                         } else {
@@ -375,9 +454,10 @@ fn solve(
                                 return Err(failure());
                             }
                             found = true;
-                            answer = Some(*source - 1);
+                            answer = Some(source - 1);
                         }
-                        *source = 0;
+                        relocate(&mut state, mask, value_carrier(*callee), 0, b)?;
+                        state.values[callee.0 as usize] = 0;
                         if mask == 0 {
                             state.settled.0 = 2;
                         } else {
@@ -385,24 +465,30 @@ fn solve(
                         }
                     }
                     InstructionKind::DropClosure { local } if owner_slot(f, *local) => {
-                        let slot = &mut state.slots[local.0 as usize];
-                        if slot.0 != 0 {
-                            let mask = consumption(roles, slot.0, b)?;
-                            if (if mask == 0 {
-                                state.settled.0
-                            } else {
-                                state.settled.1[mask - 1]
-                            }) != 1
-                            {
-                                return Err(failure());
-                            }
-                            slot.0 = 0;
-                            if mask == 0 {
-                                state.settled.0 = 2;
-                            } else {
-                                state.settled.1[mask - 1] = 2;
+                        if cyclic {
+                            conditional_cleanup(&mut state, local_carrier(*local), b)?;
+                            state.slots[local.0 as usize].0 = 0;
+                        } else {
+                            let slot = &mut state.slots[local.0 as usize];
+                            if slot.0 != 0 {
+                                let mask = consumption(roles, slot.0, b)?;
+                                if (if mask == 0 {
+                                    state.settled.0
+                                } else {
+                                    state.settled.1[mask - 1]
+                                }) != 1
+                                {
+                                    return Err(failure());
+                                }
+                                slot.0 = 0;
+                                if mask == 0 {
+                                    state.settled.0 = 2;
+                                } else {
+                                    state.settled.1[mask - 1] = 2;
+                                }
                             }
                         }
+                        let slot = &mut state.slots[local.0 as usize];
                         slot.1 = if cyclic { 1 } else { slot.1 | 4 };
                     }
                     InstructionKind::StorageLive(local) if owner_slot(f, *local) => {
@@ -446,9 +532,11 @@ fn solve(
                             .saturating_add(state.values.len())
                             .saturating_add(roles.len().saturating_sub(1)),
                     )?;
+                    b.spend(state.carriers.len())?;
                     if value.is_some_and(|v| owner_value(f, v))
                         || state.settled.0 != 2
                         || state.settled.1.iter().any(|status| *status != 2)
+                        || state.carriers.iter().any(|row| row.as_slice() != [0])
                         || state.slots.iter().any(|s| s.0 != 0)
                         || state.values.iter().any(|v| *v != 0)
                     {
@@ -469,6 +557,9 @@ fn solve(
                         .saturating_add(state.values.len())
                         .saturating_add(1),
                 )?;
+                for row in &state.carriers {
+                    b.spend(row.len().saturating_add(1))?;
+                }
                 changed |= outputs[node].as_ref() != Some(&state);
             }
             outputs[node] = Some(state);
