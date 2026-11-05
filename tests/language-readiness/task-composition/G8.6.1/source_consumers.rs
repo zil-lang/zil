@@ -1,5 +1,7 @@
 //! Actual complete Enum continuation source, machine and request controls.
 use super::*;
+#[path = "analyze_frames.rs"]
+mod analyze_frames;
 const OWNED_ENUM861: &str = include_str!("owned-enum-saved.zil");
 
 #[test]
@@ -78,6 +80,16 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let pair = include_str!("owned-enum-two-leaves.zil");
     let prepared = include_str!("owned-enum-prepared.zil");
+    let direct = OWNED_ENUM861
+        .replace("    task_yield();\n", "")
+        .replace(
+            "    var task=task_create(worker,give input)?;",
+            "    let ordinary=Token{code:66};let direct=worker(give ordinary);\n    var task=task_create(worker,give input)?;",
+        )
+        .replace(
+            "    drive(&mut task);\n    drive(&mut task);",
+            "    drive(&mut task);",
+        );
     let empty = OWNED_ENUM861
         .replace(
             "fn worker(give token:Token)->i32 {",
@@ -89,6 +101,7 @@ fn g861_complete_enum_native_whole_slot_lifecycle() {
         );
     let inputs = [
         ("complete", OWNED_ENUM861.to_owned(), "PAR", 0),
+        ("direct-body-and-adapter", direct, "BAR", 0),
         (
             "cancel",
             OWNED_ENUM861.replace(
@@ -278,8 +291,12 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
     .into_iter()
     .enumerate()
     {
-        let report = session.compile_source(
-            &source(text),
+        let report = session.compile_project(
+            &zil_driver::ProjectSources {
+                root: ModuleId(0),
+                modules: vec![source(text)],
+                paths: std::collections::BTreeMap::new(),
+            },
             &CompileOptions {
                 backend: zil_driver::NativeBackend::Clang,
                 stop_after: Stage::Build,
@@ -295,6 +312,14 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
+        if matches!(ordinal, 1 | 4) {
+            assert_eq!(
+                report.disk_cache,
+                zil_driver::DiskCacheStatus::Hit,
+                "{}",
+                report.to_json()
+            );
+        }
         assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
         let observed = std::process::Command::new(&report.artifacts["executable"])
             .output()

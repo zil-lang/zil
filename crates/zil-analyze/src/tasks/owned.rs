@@ -125,6 +125,91 @@ fn complete_enum(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(true)
 }
+fn enum_resource<'a>(
+    module: &'a TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<&'a zil_ir::ResourceDefinition> {
+    let Type::Record { name, .. } = payload else {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            span,
+            "complete Enum leaf requires an actual inline resource Record",
+        ));
+    };
+    budget.spend(
+        module.resources.len().saturating_add(1),
+        "Enum resource inventory",
+    )?;
+    let mut selected = None;
+    for resource in &module.resources {
+        budget.type_work(payload, false, "Enum resource query identity")?;
+        budget.type_work(&resource.payload, false, "Enum resource candidate identity")?;
+        budget.spend(
+            name.len().min(resource.name.len()).saturating_add(1),
+            "Enum resource name identity",
+        )?;
+        let same_payload = resource.payload == *payload;
+        let same_name = resource.name == *name;
+        if same_name || same_payload {
+            if name.is_empty() || !same_name || !same_payload || selected.is_some() {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    span,
+                    "complete Enum leaf resource identity is not unique and canonical",
+                ));
+            }
+            selected = Some(resource);
+        }
+    }
+    let resource = selected.ok_or_else(|| {
+        reject(
+            "E-VERIFY-TASK",
+            span,
+            "complete Enum leaf has no actual resource",
+        )
+    })?;
+    if let Some(id) = resource.teardown {
+        budget.spend(8, "Enum resource teardown entry")?;
+        let f = module.functions.get(id.0 as usize).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum teardown entry is absent",
+            )
+        })?;
+        if f.id != id
+            || f.foreign.is_some()
+            || f.environment.is_some()
+            || f.call_kind != CallKind::Direct
+            || f.callable_contract.is_some()
+            || f.callable_return_contract.is_some()
+            || f.reference_return_bound.is_some()
+            || f.storage_life.is_some()
+            || f.return_type != Type::Unit
+            || f.result_mode != PassingMode::Infer
+            || f.parameters.len() != 1
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum resource teardown has an invalid actual entry",
+            ));
+        }
+        let receiver = local_type(f, f.parameters[0], span)?;
+        budget.type_work(receiver, false, "Enum teardown actual receiver")?;
+        budget.type_work(payload, false, "Enum teardown expected receiver")?;
+        if !matches!(receiver, Type::Desc(actual) if actual.as_ref()==payload) {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum teardown receiver differs from its actual resource",
+            ));
+        }
+    }
+    Ok(resource)
+}
 fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.spend(1, "actual frame storage constructor")?;
     match t {
@@ -408,20 +493,24 @@ pub(super) fn profile(
         }
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
-                for _ in &module.resources {
-                    budget.type_work(payload, false, "actual task resource equality")?;
-                }
-                let resource = module
-                    .resources
-                    .iter()
-                    .find(|r| r.payload == **payload)
-                    .ok_or_else(|| {
-                        reject(
-                            "E-VERIFY-TASK",
-                            span,
-                            "owned task slot has no actual resource",
-                        )
-                    })?;
+                let resource = if enum_storage {
+                    enum_resource(module, payload, budget, span)?
+                } else {
+                    for _ in &module.resources {
+                        budget.type_work(payload, false, "actual task resource equality")?;
+                    }
+                    module
+                        .resources
+                        .iter()
+                        .find(|r| r.payload == **payload)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                span,
+                                "owned task slot has no actual resource",
+                            )
+                        })?
+                };
                 if let Some(drop) = resource.teardown
                     && checked.insert(drop)
                 {
