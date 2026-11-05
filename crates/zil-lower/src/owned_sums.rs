@@ -182,6 +182,18 @@ impl<'a> Budget<'a> {
             _ => Ok(false),
         }
     }
+    /// Local/SSA representation only. The verifier already proved this actual
+    /// root address and access mode; only the outer pointer is transparent.
+    /// pure_composite still rejects every embedded target-bearing leaf.
+    pub(super) fn pure_value_or_address(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
+        if let Type::Address { inner, .. } = ty {
+            self.pay(ty, depth)?;
+            self.pure_composite(inner, depth + 1)
+        } else {
+            self.pure_composite(ty, depth)
+        }
+    }
+
     /// Physical representation only, after all prior admission paths failed.
     /// Keep the full verified type: an empty stored slot inventory and ordinary
     /// inline leaves do not provide an address, loan or owning capability.

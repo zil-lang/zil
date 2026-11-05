@@ -235,6 +235,13 @@ pub(super) fn representation_type(t: &Type) -> bool {
         || pure_composite(t)
 }
 
+/// An actual verified root pointer to pure storage. Never use this predicate
+/// for the pointee's fields: pure_composite rejects nested Address nodes.
+/// The complete type visit was prepaid before physical representation queries.
+pub(super) fn pure_storage_address(t: &Type) -> bool {
+    matches!(t, Type::Address { inner, .. } if pure_composite(inner))
+}
+
 // reserve_callable_metadata has already bounded and paid the complete type
 // walk before bind_lir calls this predicate. All variant payloads are visited,
 // including inactive ones; no address or owning/resource leaf enters this new
