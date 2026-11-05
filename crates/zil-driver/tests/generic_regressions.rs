@@ -7363,3 +7363,83 @@ fn g335_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
         "G335 {runs} real Source native runs; stateful complete42 and43 individually checked before stdout4243, exit0/no fallback"
     );
 }
+
+const G336_OWNED: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/helper-owned-byvalue.zil"
+);
+const G336_REVERSE: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/reverse-owned-byvalue.zil"
+);
+
+#[test]
+fn g336_actual_owning_source_types_forms_owned_receiver_and_complete_relations() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    for text in [G336_OWNED, G336_REVERSE] {
+        let core = g334_core(text);
+        let bound = g334_role(&core);
+        assert_eq!(bound.kind, CallableKind::FnOnce);
+        if text == G336_REVERSE {
+            let context = bound.source_life.as_ref().unwrap();
+            assert_eq!(
+                (context.generic_parameter, bound.generic_index, bound.index),
+                (1, 0, 1)
+            );
+            assert_eq!(context.named_fixed[0].parameter, 2);
+        }
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let definition = &raw.closures[0];
+        assert_eq!(definition.kind, CallableKind::FnOnce);
+        let Type::Managed(payload) = &definition.captures[0] else {
+            panic!("true owning environment required")
+        };
+        assert_eq!(raw.resources.len(), 1);
+        assert_eq!(payload.as_ref(), &raw.resources[0].payload);
+        assert!(raw.resources[0].teardown.is_none());
+        assert!(
+            matches!(&definition.captures[1],Type::Address{mutable:false,inner}if matches!(inner.as_ref(),Type::BorrowedStorage{life,..}if life.binder_count==1&&matches!(life.slots.as_slice(),[slot]if slot.binder==0&&slot.mode==StoredBorrowMode::SharedAddress)))
+        );
+        let entry = &raw.functions[definition.function.0 as usize];
+        assert_eq!(entry.storage_life, definition.storage_life);
+        assert!(
+            entry
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::TakeCapture { index: 0 }))
+        );
+        let helper = raw
+            .functions
+            .iter()
+            .find(|f| f.callable_contract.is_some())
+            .unwrap();
+        let role = &helper.callable_contract.as_ref().unwrap().roles[0];
+        assert_eq!(role.kind, CallableKind::FnOnce);
+        assert_eq!(role.cleanup, CallableCleanup::Owned);
+        assert_eq!(role.life, definition.storage_life);
+        assert_eq!(
+            helper.locals[helper.parameters[role.parameter as usize].0 as usize].ty,
+            Type::Closure(definition.id)
+        );
+        for class in 0..definition.storage_life.as_ref().unwrap().fixed_binder_count {
+            assert!(helper.storage_life.as_ref().unwrap().classes.iter().any(
+                |row| row.position.base == StorageBase::Parameter(role.parameter)
+                    && row.position.path.is_empty()
+                    && row.position.class == class
+            ));
+        }
+        assert!(
+            helper
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+        );
+        let take=helper.blocks.iter().flat_map(|b|&b.instructions).find(|i|matches!(i.kind,InstructionKind::TakeLocal{local}if local==helper.parameters[role.parameter as usize])).unwrap();
+        assert_eq!(
+            helper.values[take.result.unwrap().0 as usize],
+            Type::Closure(definition.id)
+        );
+    }
+}
