@@ -154,7 +154,8 @@
         "g1361_verify_nonlocal_desc_alias_and_read_before_retirement"
       ],
       "patch_sha256": "1609e5120c14cf955c1f9146f36c0faeb1f94f6b652dd5420d9e7de781067adc",
-      "release_compiler_kept_from_full_gate_source": true
+      "release_compiler_kept_from_full_gate_source": true,
+      "patch_sha256_serialization": "UTF-8 of git diff --unified=0 fa1cb955f966cd66aea13dbfacc5a100ed5a53c1 0b9cb0a8ee3360116655d2abd82891aea534e149 -- tests/language-readiness/terminal/340/helper_retirement_verify.rs, with Python str.strip() applied before hashing (1160 bytes)."
     },
     "result": {
       "source": "0b9cb0a8ee3360116655d2abd82891aea534e149",
