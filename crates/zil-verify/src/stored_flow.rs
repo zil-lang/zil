@@ -2,6 +2,8 @@
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
 
+mod nominal;
+
 type Path = Vec<PlaceProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Source {
@@ -392,12 +394,6 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     };
     for row in &shape.nominal_arguments {
         b.spend(row.path.len().saturating_add(1))?;
-        if !row.path.is_empty() {
-            return Err(unsupported(
-                "nested nominal class mapping is not yet implemented",
-                None,
-            ));
-        }
         class(row.binder, b)?;
     }
     for (path, row) in actual.iter().zip(&shape.slots) {
@@ -624,7 +620,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
     for (i, instance) in module.life_instances.iter().enumerate() {
         type_work(&instance.ty, limits, b)?;
         physical(&instance.ty, limits, b)?;
-        let (storage, shape) = qualified(&instance.ty)
+        let (storage, _) = qualified(&instance.ty)
             .ok_or_else(|| err("nominal instance has no complete qualified type"))?;
         b.spend(declarations.len())?;
         let d = declarations
@@ -643,54 +639,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         if d.parameters.len() != instance.arguments.len() {
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
-        let mut lifetime_rows = Vec::new();
-        b.spend(instance.arguments.len())?;
-        for (ordinal, (formal, actual)) in d.parameters.iter().zip(&instance.arguments).enumerate()
-        {
-            match (formal, actual) {
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class))
-                    if *class < shape.binder_count =>
-                {
-                    b.spend(1)?;
-                    lifetime_rows.push((ordinal as u32, *class));
-                }
-                (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
-                    type_work(ty, limits, b)?;
-                    if !ty.is_copy_value() {
-                        return Err(unsupported(
-                            "metadata-only borrowed Type actual needs qualified context checking",
-                            None,
-                        ));
-                    }
-                }
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(c)) if c.ty() == *ty => {
-                    b.spend(match c {
-                        Constant::WideString(data) => data.len().saturating_add(1),
-                        _ => 1,
-                    })?;
-                }
-                _ => {
-                    return Err(err(
-                        "full nominal actual kind or local fixed class differs from declaration",
-                    ));
-                }
-            }
-        }
-        if lifetime_rows.len() != shape.nominal_arguments.len() {
-            return Err(err("nominal lifetime relation coverage is incomplete"));
-        }
-        for ((ordinal, class), row) in lifetime_rows.iter().zip(&shape.nominal_arguments) {
-            b.spend(row.path.len().saturating_add(1))?;
-            if !row.path.is_empty()
-                || row.declaration != d.id
-                || row.argument != *ordinal
-                || row.binder != *class
-            {
-                return Err(err(
-                    "nominal relation differs from actual declaration, ordinal or local class",
-                ));
-            }
-        }
+        nominal::rows(module, instance, limits, b)?;
         for previous in &module.life_instances[..i] {
             type_work(&previous.ty, limits, b)?;
             type_work(&instance.ty, limits, b)?;

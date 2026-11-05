@@ -1,0 +1,191 @@
+//! Private nominal metadata proof. No physical target or permission is produced.
+use super::*;
+
+pub(super) fn rows(
+    module: &TypedModule,
+    instance: &LifeNominalInstance,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    walk(module, instance, limits, b, &mut Vec::new()).map(|_| ())
+}
+
+fn walk(
+    module: &TypedModule,
+    instance: &LifeNominalInstance,
+    limits: &Limits,
+    b: &mut Budget,
+    active: &mut Vec<usize>,
+) -> CompileResult<Vec<NominalLifeArgument>> {
+    fee(b, active.len().saturating_add(1))?;
+    if active.len() > limits.max_call_depth {
+        return Err(failure("nominal Type argument recursion depth exceeded"));
+    }
+    let identity = instance as *const LifeNominalInstance as usize;
+    if active.contains(&identity) {
+        return Err(failure("cyclic nominal Type argument identity"));
+    }
+    fee(b, 1)?;
+    active.push(identity);
+    physical(&instance.ty, b)?;
+    let Type::BorrowedStorage { storage, life } = &instance.ty else {
+        return Err(failure("nominal metadata has no qualified type"));
+    };
+    fee(b, module.life_declarations.len())?;
+    let decl = module
+        .life_declarations
+        .iter()
+        .find(|d| d.id == instance.declaration)
+        .ok_or_else(|| failure("nominal metadata declaration is absent"))?;
+    if decl.id.compiler
+        || !matches!(
+            (decl.kind, storage.as_ref()),
+            (LifeNominalKind::Record, Type::Record { .. })
+        )
+        || decl.parameters.len() != instance.arguments.len()
+    {
+        return Err(failure(
+            "nominal metadata kind or full actual arity differs",
+        ));
+    }
+    fee(
+        b,
+        instance
+            .arguments
+            .len()
+            .saturating_add(life.nominal_arguments.len()),
+    )?;
+    let mut expected = Vec::new();
+    // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.
+    for (ordinal, (formal, actual)) in decl.parameters.iter().zip(&instance.arguments).enumerate() {
+        match (formal, actual) {
+            (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class))
+                if *class < life.binder_count =>
+            {
+                fee(b, 1)?;
+                expected.push(NominalLifeArgument {
+                    path: Vec::new(),
+                    declaration: decl.id,
+                    argument: ordinal as u32,
+                    binder: *class,
+                });
+            }
+            (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
+            (LifeParameterKind::Const(ty), LifeNominalActual::Const(c))
+                if c.ty() == *ty
+                    && matches!(
+                        c,
+                        Constant::Bool(_)
+                            | Constant::I32(_)
+                            | Constant::I64(_)
+                            | Constant::U64(_)
+                            | Constant::Usize(_)
+                            | Constant::U8(_)
+                            | Constant::U16(_)
+                    ) => {}
+            _ => {
+                return Err(failure(
+                    "nominal metadata actual kind or class differs from full formal",
+                ));
+            }
+        }
+    }
+    for (ordinal, actual) in instance.arguments.iter().enumerate() {
+        let LifeNominalActual::Type(ty) = actual else {
+            continue;
+        };
+        shape_work(ty, limits, b)?;
+        b.type_work(ty, true, "nominal metadata identity")?;
+        if !matches!(ty, Type::BorrowedStorage { .. }) {
+            if !ty.is_copy_value() {
+                return Err(failure(
+                    "non-nominal borrowed Type actual requires its semantic metadata consumer",
+                ));
+            }
+            continue;
+        }
+        // Full equality resolves actual semantic identity; names and row claims never select a child.
+        let mut selected = None;
+        for child in &module.life_instances {
+            shape_work(&child.ty, limits, b)?;
+            b.type_work(&child.ty, true, "nominal metadata identity")?;
+            shape_work(ty, limits, b)?;
+            b.type_work(ty, true, "nominal metadata identity")?;
+            if child.ty == *ty {
+                if selected.replace(child).is_some() {
+                    return Err(failure(
+                        "Type actual has ambiguous complete nominal instances",
+                    ));
+                }
+            }
+        }
+        let child =
+            selected.ok_or_else(|| failure("Type actual has no complete nominal instance"))?;
+        let child_rows = walk(module, child, limits, b, active)?;
+        let mut mapping = Vec::<(u32, u32)>::new();
+        for child_row in child_rows {
+            let row = life
+                .nominal_arguments
+                .get(expected.len())
+                .ok_or_else(|| failure("nested nominal lifetime row is absent"))?;
+            fee(
+                b,
+                row.path
+                    .len()
+                    .saturating_add(child_row.path.len())
+                    .saturating_add(mapping.len())
+                    .saturating_add(2),
+            )?;
+            let mut path = Vec::with_capacity(child_row.path.len().saturating_add(1));
+            path.push(LifeTypeProjection::TypeArgument(ordinal as u32));
+            path.extend_from_slice(&child_row.path);
+            if row.path != path
+                || row.declaration != child_row.declaration
+                || row.argument != child_row.argument
+                || row.binder >= life.binder_count
+            {
+                return Err(failure(
+                    "nested nominal row differs from actual Type argument graph",
+                ));
+            }
+            if let Some((_, target)) = mapping.iter().find(|(class, _)| *class == child_row.binder)
+            {
+                if *target != row.binder {
+                    return Err(failure("one Type argument local class maps inconsistently"));
+                }
+            } else {
+                fee(b, 1)?;
+                mapping.push((child_row.binder, row.binder));
+            }
+            fee(b, 1)?;
+            expected.push(NominalLifeArgument {
+                path,
+                declaration: child_row.declaration,
+                argument: child_row.argument,
+                binder: row.binder,
+            });
+        }
+    }
+    if expected.len() != life.nominal_arguments.len() {
+        return Err(failure(
+            "nominal lifetime metadata coverage differs from complete actual graph",
+        ));
+    }
+    for (actual, row) in expected.iter().zip(&life.nominal_arguments) {
+        fee(
+            b,
+            actual
+                .path
+                .len()
+                .saturating_add(row.path.len())
+                .saturating_add(1),
+        )?;
+        if actual != row {
+            return Err(failure(
+                "nominal metadata order, declaration, ordinal or class differs",
+            ));
+        }
+    }
+    active.pop();
+    Ok(expected)
+}

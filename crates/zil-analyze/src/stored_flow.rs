@@ -1,6 +1,8 @@
 //! Actual stored targets are distinct from the bytes containing their pointers.
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
+
+mod nominal;
 use std::collections::BTreeMap;
 mod owned;
 
@@ -492,7 +494,7 @@ pub(super) fn inventory(
     }
     for (index, instance) in module.life_instances.iter().enumerate() {
         shape_work(&instance.ty, limits, b)?;
-        let Some((storage, life)) = carrier(&instance.ty) else {
+        let Some((storage, _)) = carrier(&instance.ty) else {
             return Err(failure(
                 "nominal stored instance has no complete qualified type",
             ));
@@ -526,63 +528,7 @@ pub(super) fn inventory(
                 "nominal instance omits full generic actual ordinals",
             ));
         }
-        let mut lives = Vec::new();
-        for (ordinal, (formal, actual)) in
-            decl.parameters.iter().zip(&instance.arguments).enumerate()
-        {
-            match (formal, actual) {
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class))
-                    if *class < life.binder_count =>
-                {
-                    fee(b, 1)?;
-                    lives.push((ordinal as u32, *class));
-                }
-                (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
-                    shape_work(ty, limits, b)?;
-                    b.type_work(ty, true, "nominal full type actual")?;
-                    if !ty.is_copy_value() {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "borrowed metadata-only Type actual requires the qualified context consumer",
-                            None,
-                        )]);
-                    }
-                }
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(value))
-                    if value.ty() == *ty =>
-                {
-                    fee(
-                        b,
-                        match value {
-                            Constant::WideString(data) => data.len().saturating_add(1),
-                            _ => 1,
-                        },
-                    )?;
-                }
-                _ => {
-                    return Err(failure(
-                        "nominal actual kind, ordinal or local fixed class is invalid",
-                    ));
-                }
-            }
-        }
-        if lives.len() != life.nominal_arguments.len() {
-            return Err(failure(
-                "nominal lifetime metadata coverage differs from full actuals",
-            ));
-        }
-        for ((ordinal, class), row) in lives.iter().zip(&life.nominal_arguments) {
-            fee(b, row.path.len().saturating_add(1))?;
-            if !row.path.is_empty()
-                || row.declaration != decl.id
-                || row.argument != *ordinal
-                || row.binder != *class
-            {
-                return Err(failure(
-                    "nominal lifetime row differs from actual declaration/ordinal/class",
-                ));
-            }
-        }
+        nominal::rows(module, instance, limits, b)?;
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;
@@ -850,7 +796,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let mut next = 0u32;
     for row in &life.nominal_arguments {
         fee(b, row.path.len().saturating_add(1))?;
-        if !row.path.is_empty() || row.binder >= life.binder_count {
+        if row.binder >= life.binder_count {
             return Err(failure(
                 "nested nominal stored relation is not supported by the physical slice",
             ));

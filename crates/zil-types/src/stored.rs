@@ -2,6 +2,8 @@
 //! reconstructed independently by Analyze and Verify, never by these checks.
 use super::*;
 
+mod nominal;
+
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
         Diagnostic::limit(
@@ -131,7 +133,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance declaration is absent",
             )
         })?;
-        let Type::BorrowedStorage { storage, life } = &instance.ty else {
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
             return Err(error(
                 "E-STORED-TYPE",
                 span,
@@ -200,65 +202,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 ));
             }
         }
-        let mut rows = life.nominal_arguments.iter();
-        for (ordinal, (parameter, argument)) in declaration
-            .parameters
-            .iter()
-            .zip(&instance.arguments)
-            .enumerate()
-        {
-            fee(left, 1, span)?;
-            match (parameter, argument) {
-                (LifeParameterKind::Type, LifeNominalActual::Type(_)) => {}
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(value))
-                    if *ty == value.ty()
-                        && matches!(
-                            value,
-                            Constant::Bool(_)
-                                | Constant::I32(_)
-                                | Constant::I64(_)
-                                | Constant::U64(_)
-                                | Constant::Usize(_)
-                                | Constant::U8(_)
-                                | Constant::U16(_)
-                        ) => {}
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class)) => {
-                    let row = rows.next().ok_or_else(|| {
-                        error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime actual occurrence is absent",
-                        )
-                    })?;
-                    if !row.path.is_empty()
-                        || row.declaration != instance.declaration
-                        || row.argument as usize != ordinal
-                        || row.binder != *class
-                        || *class >= life.binder_count
-                    {
-                        return Err(error(
-                            "E-STORED-IDENTITY",
-                            span,
-                            "nominal lifetime occurrence differs from full actual position",
-                        ));
-                    }
-                }
-                _ => {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        span,
-                        "stored nominal full argument kind differs",
-                    ));
-                }
-            }
-        }
-        if rows.next().is_some() {
-            return Err(error(
-                "E-STORED-IDENTITY",
-                span,
-                "extra nominal lifetime actual occurrence",
-            ));
-        }
+        nominal::rows(core, instance, limits, left)?;
     }
     Ok(())
 }
@@ -463,12 +407,6 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 .saturating_add(1),
             span,
         )?;
-        if !row.path.is_empty() {
-            return Err(unsupported(
-                span,
-                "nested nominal life actual needs its complete type context",
-            ));
-        }
         if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
             return Err(error(
                 "E-STORED-TYPE",
