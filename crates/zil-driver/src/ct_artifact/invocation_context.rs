@@ -88,7 +88,7 @@ pub(super) struct FrozenInvocationContext {
     authenticated_types: Vec<source_types::AuthenticatedTypeSite>,
     authenticated_schemas: Vec<source_types::AuthenticatedSchemaSite>,
     runtime_scope_id: Option<CtAmbientScopeId>,
-    runtime_root_active: Vec<usize>,
+    runtime_root_active: Vec<(CtAmbientScopeId, usize)>,
     entry_site: Option<super::compiler::source_sites::SourceSite>,
     entry_definition: CtSymbolId,
     generated_catalog: Option<zil_expand::source_context::GeneratedSourceCatalog>,

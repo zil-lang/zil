@@ -3,11 +3,16 @@
 //! to the callee's own unchanged original definition binder.
 use super::source_types::{scalar_domain, step};
 use super::*;
-use crate::ct_artifact::compiler::{
-    runtime_context::RuntimeEntrySource,
-    source_sites::{SourceNode, SourceTreeId},
-};
+use crate::ct_artifact::compiler::{runtime_context::RuntimeEntrySource, source_sites::SourceNode};
 use zil_expand::runtime_ct::RuntimeArgument;
+
+#[derive(Clone, Copy)]
+struct RuntimeFrame<'a> {
+    definition: &'a CtSymbolId,
+    caller: &'a CtSymbolId,
+    call_site: crate::ct_artifact::compiler::source_sites::SourceSite,
+    arguments: &'a [RuntimeArgument],
+}
 
 impl FrozenInvocationContext {
     #[allow(clippy::too_many_arguments)]
@@ -31,60 +36,70 @@ impl FrozenInvocationContext {
             budget,
         )
     }
-    pub(in crate::ct_artifact) fn extend_runtime_entry(
-        &mut self,
-        source: &RuntimeEntrySource,
+
+    // A raw row is only a locator. Every field, full ordinal, and actual is
+    // independently checked against the original call in the admitted caller.
+    #[allow(clippy::too_many_arguments)]
+    fn validate_runtime_frame(
+        &self,
+        frame: RuntimeFrame<'_>,
+        rows: &crate::ct_artifact::compiler::SourceRuntimeFrame,
+        caller_scope: &CtAmbientLifeScope,
+        caller_id: CtAmbientScopeId,
+        root: bool,
         raw: &CtArtifactProgram,
         index: &SourceIndex,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
         budget.reserve_analysis_work(96)?;
-        if source.definition != self.entry_definition
-            || source.definition.generation_path.is_some()
-            || source.caller.generation_path.is_some()
-            || source.call_site.tree != SourceTreeId::Original
-            || source.expression_site.tree != SourceTreeId::Original
-            || self.entry_site != Some(source.expression_site)
-        {
+        if &caller_scope.declaration != frame.caller {
             return Err(unsupported(
-                "CT runtime entry has no authentic original source coordinates",
+                "CT runtime parent chain does not select the actual original caller",
             ));
         }
-        let target_scope = self
-            .active
-            .first()
-            .ok_or_else(|| unsupported("CT runtime entry original definition scope absent"))?;
-        if target_scope.raw.declaration != source.definition
-            || target_scope.raw.enclosing.is_some()
-            || target_scope.raw.instance != CtScopeInstance::Definition
-        {
+        let (_, target, _) = self.source_function_source(frame.definition, budget)?;
+        if target.lexical_parent.is_some() {
             return Err(unsupported(
-                "CT runtime entry base is not its original lifetime-polymorphic definition",
+                "CT runtime member requires its separately authenticated enclosing instance",
             ));
         }
-        let (_, target, tree) = self.source_function_source(&source.definition, budget)?;
-        if tree.is_some() || target.lexical_parent.is_some() {
-            return Err(unsupported(
-                "CT runtime entry currently requires an original free generic definition",
-            ));
-        }
-        let caller_scope = CtAmbientLifeScope {
-            declaration: source.caller.clone(),
-            enclosing: None,
-            binder_site: Vec::new(),
-            instance: CtScopeInstance::Definition,
-        };
-        let (_, caller, caller_tree) = self.source_function_source(&source.caller, budget)?;
+        let (_, caller, _) = self.source_function_source(frame.caller, budget)?;
         budget.reserve_analysis_work(caller.function.generics.len() as u64 + 1)?;
-        if caller_tree.is_some()
-            || caller.lexical_parent.is_some()
-            || !caller.function.generics.is_empty()
-        {
+        if caller.lexical_parent.is_some() || (root && !caller.function.generics.is_empty()) {
             return Err(unsupported(
-                "CT runtime call requires an original free nongeneric caller until parent instances are authenticated",
+                "CT runtime root requires an actual free nongeneric caller",
             ));
         }
-        let call_site = self.source_location(source.call_site, budget)?;
+        if !root {
+            self.validate_scope(caller_scope, budget)?;
+        }
+        let base = raw
+            .ambient_life_scopes
+            .get(rows.base.0 as usize)
+            .ok_or_else(|| unsupported("CT runtime original Definition row is absent"))?;
+        let instance = raw
+            .ambient_life_scopes
+            .get(rows.instance.0 as usize)
+            .ok_or_else(|| unsupported("CT runtime complete instance row is absent"))?;
+        budget.reserve_analysis_work(64)?;
+        if &base.declaration != frame.definition
+            || &instance.declaration != frame.definition
+            || base.enclosing.is_some()
+            || instance.enclosing.is_some()
+            || !base.binder_site.is_empty()
+            || !instance.binder_site.is_empty()
+            || base.instance != CtScopeInstance::Definition
+        {
+            return Err(unsupported(
+                "CT runtime frame rows do not select its actual original free declaration",
+            ));
+        }
+        let CtScopeInstance::Instantiated(actuals) = &instance.instance else {
+            return Err(unsupported(
+                "CT runtime frame lacks its complete actual instance",
+            ));
+        };
+        let call_site = self.source_location(frame.call_site, budget)?;
         if !call_site
             .function
             .is_some_and(|f| std::ptr::eq(f, caller.function))
@@ -116,85 +131,35 @@ impl FrozenInvocationContext {
         let mut path = Vec::new();
         let checked = (|| {
             self.source_path(callee, &mut path, budget, 0)?;
-            let (actual_target, _) = self.source_symbol(
-                &source.caller,
-                source.call_site.module,
-                &path,
-                index,
-                budget,
-            )?;
+            let (actual_target, _) =
+                self.source_symbol(frame.caller, frame.call_site.module, &path, index, budget)?;
             budget.reserve_analysis_work(32)?;
-            if actual_target != source.definition {
+            if &actual_target != frame.definition {
                 return Err(unsupported(
                     "CT runtime call does not select the actual original generic definition",
                 ));
             }
-            let mut base_id = None;
-            let mut instance_id = None;
-            for (position, scope) in raw.ambient_life_scopes.iter().enumerate() {
-                budget.reserve_analysis_work(32)?;
-                if scope.declaration != source.definition {
-                    continue;
-                }
-                if scope.enclosing.is_some() || !scope.binder_site.is_empty() {
-                    return Err(unsupported(
-                        "CT runtime original free scope has unexpected lexical metadata",
-                    ));
-                }
-                match &scope.instance {
-                    CtScopeInstance::Definition => {
-                        if base_id.replace(CtAmbientScopeId(position as u32)).is_some() {
-                            return Err(unsupported(
-                                "CT runtime original Definition scope repeats",
-                            ));
-                        }
-                    }
-                    CtScopeInstance::Instantiated(_) => {
-                        if instance_id
-                            .replace(CtAmbientScopeId(position as u32))
-                            .is_some()
-                        {
-                            return Err(unsupported(
-                                "CT runtime entry has ambiguous full instance scopes",
-                            ));
-                        }
-                    }
-                }
-            }
-            let base_id = base_id.ok_or_else(|| {
-                unsupported("CT runtime original lifetime-polymorphic Definition row absent")
-            })?;
-            let instance_id = instance_id
-                .ok_or_else(|| unsupported("CT runtime complete Type/Const instance row absent"))?;
-            let instance = &raw.ambient_life_scopes[instance_id.0 as usize];
-            let CtScopeInstance::Instantiated(actuals) = &instance.instance else {
-                unreachable!()
-            };
             budget.reserve_analysis_work(
                 (target.function.generics.len()
-                    + source.arguments.len()
+                    + frame.arguments.len()
                     + actuals.len()
                     + arguments.len()) as u64,
             )?;
             if target.function.generics.len() != actuals.len()
-                || actuals.len() != source.arguments.len()
+                || actuals.len() != frame.arguments.len()
             {
                 return Err(unsupported(
                     "CT runtime actual vector loses an original complete generic ordinal",
                 ));
             }
-            let env = self.source_environment(
-                &caller_scope,
-                CtAmbientScopeId(u32::MAX),
-                &raw.ambient_life_scopes,
-                budget,
-            )?;
+            let env =
+                self.source_environment(caller_scope, caller_id, &raw.ambient_life_scopes, budget)?;
             let mut explicit = arguments.iter();
             for (ordinal, ((parameter, recipe), actual)) in target
                 .function
                 .generics
                 .iter()
-                .zip(&source.arguments)
+                .zip(frame.arguments)
                 .zip(actuals)
                 .enumerate()
             {
@@ -206,7 +171,7 @@ impl FrozenInvocationContext {
                         CtScopeActual::Lifetime(reference),
                     ) => {
                         if *original != ordinal as u32
-                            || reference.scope != base_id
+                            || reference.scope != rows.base
                             || reference.parameter != ordinal as u32
                         {
                             return Err(unsupported(
@@ -262,35 +227,263 @@ impl FrozenInvocationContext {
                     "CT runtime source has additional actuals without an authenticated definition-phase rule",
                 ));
             }
-            Ok(instance_id)
+            Ok(())
         })();
         budget.release_temporary_bytes(budget.live_temporary_bytes().saturating_sub(before));
-        let instance_id = checked?;
-        let instance = &raw.ambient_life_scopes[instance_id.0 as usize];
-        let base = self.active.first().unwrap();
-        let cost = super::super::execute::value_context::ambient_cost(
-            std::slice::from_ref(instance),
+        checked
+    }
+
+    fn runtime_existing_scope(
+        &self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Option<usize>> {
+        budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+        self.charge_instance_lookup(scope, budget)?;
+        Ok(self.active.iter().position(|active| &active.raw == scope))
+    }
+
+    // Definition identities and parameter kinds come from the real immutable
+    // declaration. Parent recipes and raw scope rows cannot supply either.
+    fn admit_runtime_definition(
+        &mut self,
+        scope: &CtAmbientLifeScope,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<usize> {
+        if let Some(existing) = self.runtime_existing_scope(scope, budget)? {
+            return Ok(existing);
+        }
+        let (_, original, tree) = self.source_function_source(&scope.declaration, budget)?;
+        let origins = self
+            .origins
+            .as_ref()
+            .ok_or_else(|| unsupported("CT runtime declaration has no original lineage"))?;
+        budget.reserve_analysis_work(origins.len() as u64)?;
+        let identity_before = budget.live_temporary_bytes();
+        let generated_identity;
+        let identity = if let Some(tree) = tree {
+            let catalog = self.generated_catalog.as_ref().ok_or_else(|| {
+                unsupported("CT runtime generated declaration has no frozen catalog")
+            })?;
+            budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+            let row = catalog
+                .trees
+                .iter()
+                .position(|candidate| std::ptr::eq(&**candidate, tree))
+                .ok_or_else(|| unsupported("CT runtime generated declaration tree is absent"))?;
+            generated_identity =
+                super::generated::root_identity(catalog, row, original.top, origins, budget)?;
+            &generated_identity
+        } else {
+            &origins
+                .iter()
+                .find(|row| row.module == scope.declaration.module)
+                .and_then(|row| row.items.get(original.top))
+                .ok_or_else(|| unsupported("CT runtime declaration original namespace is absent"))?
+                .identity
+        };
+        let temporary_identity = budget
+            .live_temporary_bytes()
+            .saturating_sub(identity_before);
+        let bytes = super::super::execute::value_context::ambient_cost(
+            std::slice::from_ref(scope),
+            budget,
+        )?
+        .saturating_add(identity_cost(identity, budget)?)
+        .saturating_add(std::mem::size_of::<ActiveScope>() as u64)
+        .saturating_add(
+            original.function.generics.len() as u64
+                * std::mem::size_of::<CtScopeParameterKind>() as u64,
+        );
+        budget.reserve_temporary_bytes(bytes)?;
+        let mut parameters = Vec::with_capacity(original.function.generics.len());
+        for parameter in &original.function.generics {
+            step(budget, 0)?;
+            parameters.push(match &parameter.kind {
+                s::GenericParamKind::Type(_) => CtScopeParameterKind::Type,
+                s::GenericParamKind::Lifetime => CtScopeParameterKind::Lifetime,
+                s::GenericParamKind::Const(domain) => {
+                    CtScopeParameterKind::Scalar(scalar_domain(domain, budget)?)
+                }
+            });
+        }
+        let active = ActiveScope {
+            raw: scope.clone(),
+            identity: identity.clone(),
+            parameters,
+        };
+        budget.release_temporary_bytes(temporary_identity);
+        self.active.reserve_exact(1);
+        let index = self.active.len();
+        self.active.push(active);
+        self.bytes = self.bytes.saturating_add(bytes);
+        Ok(index)
+    }
+    fn admit_runtime_instance(
+        &mut self,
+        scope: &CtAmbientLifeScope,
+        base: usize,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<usize> {
+        if let Some(existing) = self.runtime_existing_scope(scope, budget)? {
+            return Ok(existing);
+        }
+        let base = self
+            .active
+            .get(base)
+            .ok_or_else(|| unsupported("CT runtime original definition admission is absent"))?;
+        let bytes = super::super::execute::value_context::ambient_cost(
+            std::slice::from_ref(scope),
             budget,
         )?
         .saturating_add(identity_cost(&base.identity, budget)?)
+        .saturating_add(std::mem::size_of::<ActiveScope>() as u64)
         .saturating_add(
             base.parameters.len() as u64 * std::mem::size_of::<CtScopeParameterKind>() as u64,
-        )
-        .saturating_add(std::mem::size_of::<ActiveScope>() as u64)
-        .saturating_add(2 * std::mem::size_of::<usize>() as u64);
-        budget.reserve_temporary_bytes(cost)?;
+        );
+        budget.reserve_temporary_bytes(bytes)?;
         let active = ActiveScope {
-            raw: instance.clone(),
+            raw: scope.clone(),
             identity: base.identity.clone(),
             parameters: base.parameters.clone(),
         };
-        self.runtime_root_active.reserve_exact(2);
-        self.runtime_root_active.push(0);
-        self.runtime_root_active.push(self.active.len());
         self.active.reserve_exact(1);
+        let index = self.active.len();
         self.active.push(active);
-        self.runtime_scope_id = Some(instance_id);
-        self.bytes = self.bytes.saturating_add(cost);
+        self.bytes = self.bytes.saturating_add(bytes);
+        Ok(index)
+    }
+
+    pub(in crate::ct_artifact) fn extend_runtime_entry(
+        &mut self,
+        source: &RuntimeEntrySource,
+        rows: &[crate::ct_artifact::compiler::SourceRuntimeFrame],
+        raw: &CtArtifactProgram,
+        index: &SourceIndex,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        budget.reserve_analysis_work(64)?;
+        if source.definition != self.entry_definition
+            || self.entry_site != Some(source.expression_site)
+        {
+            return Err(unsupported(
+                "CT runtime entry has no authentic frozen source coordinates",
+            ));
+        }
+        if self.runtime_scope_id.is_some() || !self.runtime_root_active.is_empty() {
+            return Err(unsupported(
+                "CT runtime invocation already admitted its complete source chain",
+            ));
+        }
+        let count = source
+            .parents
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| unsupported("CT runtime source parent chain length overflow"))?;
+        budget.reserve_analysis_work(count as u64 + rows.len() as u64)?;
+        if rows.len() != count {
+            return Err(unsupported(
+                "CT runtime source chain loses a complete original frame",
+            ));
+        }
+        if count > budget.remaining().max_call_depth as usize {
+            return Err(vec![Diagnostic::limit(
+                Phase::Ct,
+                "CT runtime source parent chain exceeds depth budget",
+                None,
+            )]);
+        }
+        let root_caller = source
+            .parents
+            .first()
+            .map_or(&source.caller, |frame| &frame.caller);
+        let root_scope = CtAmbientLifeScope {
+            declaration: root_caller.clone(),
+            enclosing: None,
+            binder_site: Vec::new(),
+            instance: CtScopeInstance::Definition,
+        };
+        let frames = source
+            .parents
+            .iter()
+            .map(|frame| RuntimeFrame {
+                definition: &frame.definition,
+                caller: &frame.caller,
+                call_site: frame.call_site,
+                arguments: &frame.arguments,
+            })
+            .chain(std::iter::once(RuntimeFrame {
+                definition: &source.definition,
+                caller: &source.caller,
+                call_site: source.call_site,
+                arguments: &source.arguments,
+            }));
+        let mut previous = None;
+        let mut roots = Vec::new();
+        let mut root_bytes = 0u64;
+        let admitted = (|| {
+            for (position, (frame, row)) in frames.zip(rows).enumerate() {
+                let caller_id = previous.unwrap_or(CtAmbientScopeId(u32::MAX));
+                let caller_scope = if let Some(previous) = previous {
+                    raw.ambient_life_scopes
+                        .get(previous.0 as usize)
+                        .ok_or_else(|| {
+                            unsupported("CT runtime authenticated parent scope placement is absent")
+                        })?
+                } else {
+                    &root_scope
+                };
+                self.validate_runtime_frame(
+                    frame,
+                    row,
+                    caller_scope,
+                    caller_id,
+                    position == 0,
+                    raw,
+                    index,
+                    budget,
+                )?;
+                let base = &raw.ambient_life_scopes[row.base.0 as usize];
+                let instance = &raw.ambient_life_scopes[row.instance.0 as usize];
+                let base = self.admit_runtime_definition(base, budget)?;
+                let instance = self.admit_runtime_instance(instance, base, budget)?;
+                for (id, active) in [(row.base, base), (row.instance, instance)] {
+                    budget.reserve_analysis_work(roots.len() as u64 * 2)?;
+                    if let Some((_, admitted)) = roots.iter().find(|(row, _)| *row == id) {
+                        if *admitted != active {
+                            return Err(unsupported(
+                                "CT runtime reused row changed its independently admitted scope",
+                            ));
+                        }
+                        continue;
+                    }
+                    // The producer's interner is independently reconstructed:
+                    // fresh frame rows form one exact prefix; repeated complete
+                    // scopes reuse that prefix row instead of creating aliases.
+                    if id.0 as usize != roots.len()
+                        || roots.iter().any(|(_, admitted)| *admitted == active)
+                    {
+                        return Err(unsupported(
+                            "CT runtime rows do not follow the canonical original-call frame prefix",
+                        ));
+                    }
+                    let bytes = std::mem::size_of::<(CtAmbientScopeId, usize)>() as u64;
+                    budget.reserve_temporary_bytes(bytes)?;
+                    root_bytes += bytes;
+                    roots.reserve_exact(1);
+                    roots.push((id, active));
+                }
+                previous = Some(row.instance);
+            }
+            Ok(())
+        })();
+        if let Err(error) = admitted {
+            budget.release_temporary_bytes(root_bytes);
+            return Err(error);
+        }
+        self.runtime_root_active = roots;
+        self.runtime_scope_id = previous;
+        self.bytes = self.bytes.saturating_add(root_bytes);
         Ok(())
     }
     pub(in crate::ct_artifact) fn authenticated_runtime_scope_root_count(&self) -> usize {
@@ -298,12 +491,14 @@ impl FrozenInvocationContext {
     }
     pub(in crate::ct_artifact) fn authorized_runtime_scope_root(
         &self,
+        index: usize,
         scope: &CtAmbientLifeScope,
     ) -> bool {
         self.runtime_root_active
-            .iter()
-            .filter_map(|index| self.active.get(*index))
-            .any(|active| &active.raw == scope)
+            .get(index)
+            .filter(|(id, _)| id.0 as usize == index)
+            .and_then(|(_, active)| self.active.get(*active))
+            .is_some_and(|active| &active.raw == scope)
     }
 }
 

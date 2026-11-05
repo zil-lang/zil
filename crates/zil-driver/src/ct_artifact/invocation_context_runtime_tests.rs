@@ -12,6 +12,7 @@ struct Fixture {
     context: FrozenInvocationContext,
     raw: CtArtifactProgram,
     source: RuntimeEntrySource,
+    rows: Vec<compiler::SourceRuntimeFrame>,
     index: SourceIndex,
     budget: CtExecutionBudget,
 }
@@ -106,6 +107,8 @@ fn fixture() -> Fixture {
         .site
     };
     let source = RuntimeEntrySource {
+        parents: Vec::new(),
+        parents: Vec::new(),
         definition: definition.clone(),
         caller,
         call_site: site(call),
@@ -135,7 +138,7 @@ fn fixture() -> Fixture {
         requested_queries: Vec::new(),
     };
     let modules = index.modules(&sources, &syntax);
-    let (raw, _) = compiler::compile_scoped_runtime_at_source(
+    let (raw, facts) = compiler::compile_scoped_runtime_at_source(
         CompileRequest {
             target_pointer_width: 64,
             modules: &modules,
@@ -169,6 +172,7 @@ fn fixture() -> Fixture {
         context,
         raw,
         source,
+        rows: facts.runtime_frames,
         index,
         budget,
     }
@@ -177,7 +181,7 @@ fn fixture() -> Fixture {
 fn runtime_original_call_authenticates_complete_type_const_and_definition_life() {
     let mut f = fixture();
     f.context
-        .extend_runtime_entry(&f.source, &f.raw, &f.index, &mut f.budget)
+        .extend_runtime_entry(&f.source, &f.rows, &f.raw, &f.index, &mut f.budget)
         .unwrap();
     assert_eq!(f.raw.ambient_life_scopes.len(), 2);
     assert_eq!(f.context.authenticated_runtime_scope_root_count(), 2);
@@ -185,7 +189,8 @@ fn runtime_original_call_authenticates_complete_type_const_and_definition_life()
         f.raw
             .ambient_life_scopes
             .iter()
-            .all(|scope| f.context.authorized_runtime_scope_root(scope))
+            .enumerate()
+            .all(|(index, scope)| f.context.authorized_runtime_scope_root(index, scope))
     );
 }
 #[test]
@@ -219,7 +224,7 @@ fn runtime_original_call_rejects_coordinated_actual_kind_and_ordinal_substitutio
         }
         assert!(
             f.context
-                .extend_runtime_entry(&f.source, &f.raw, &f.index, &mut f.budget)
+                .extend_runtime_entry(&f.source, &f.rows, &f.raw, &f.index, &mut f.budget)
                 .is_err(),
             "runtime original-call substitution {attack}"
         );
@@ -230,7 +235,7 @@ fn runtime_original_call_rejects_coordinated_actual_kind_and_ordinal_substitutio
 fn runtime_source_authority_rejects_unrelated_and_reordered_scope_roots_after_wire() {
     let mut f = fixture();
     f.context
-        .extend_runtime_entry(&f.source, &f.raw, &f.index, &mut f.budget)
+        .extend_runtime_entry(&f.source, &f.rows, &f.raw, &f.index, &mut f.budget)
         .unwrap();
     let limits = Limits::default();
     let verify = |raw: &CtArtifactProgram| {
@@ -259,14 +264,20 @@ fn runtime_source_authority_rejects_unrelated_and_reordered_scope_roots_after_wi
             0 => {
                 let mut row = raw.ambient_life_scopes[0].clone();
                 row.declaration = f.source.caller.clone();
-                assert!(!f.context.authorized_runtime_scope_root(&row));
+                assert!(
+                    !f.context
+                        .authorized_runtime_scope_root(raw.ambient_life_scopes.len(), &row)
+                );
                 raw.ambient_life_scopes.push(row);
             }
             1 => raw.ambient_life_scopes.swap(0, 1),
             2 => {
                 let mut row = raw.ambient_life_scopes[1].clone();
                 row.binder_site.push(0);
-                assert!(!f.context.authorized_runtime_scope_root(&row));
+                assert!(
+                    !f.context
+                        .authorized_runtime_scope_root(raw.ambient_life_scopes.len(), &row)
+                );
                 raw.ambient_life_scopes.push(row);
             }
             _ => raw
