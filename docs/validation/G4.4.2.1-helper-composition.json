@@ -9,7 +9,7 @@
     "other_scopes": "G4.4.2 CT instance vectors and G1.3.4 complete local Package replacement separately reviewed; new async work remains a separate branch."
   },
   "correction_source": "449852818ee8d2199b63bd5e1c05da403728d9dc",
-  "correction_current_review": "Pending exact-revision independent replay; earlier Pass superseded",
+  "correction_current_review": "PassLimited: exact449 production and tests independently reviewed; dd72 changes only task/proposal scope records.",
   "final_composition_before_gate": "f804e154ffc94c34fff320f054f7f9f5ce72ddea",
   "byte_equal_to_correction": {
     ".task/G3.3.4.md": "7d18f533e12ccc48aa760d432cde8d5c515e6663296da45725174053f9d2e0e5",
@@ -61,5 +61,7 @@
     "all_original_function_names_retained": true,
     "additional_scopes": "G8.6.1 modules and already reviewed G1/G4 controls; formal full suite runs on final composition"
   },
-  "scope": "Only single class0 / one physical SharedAddress slot may produce and consume Some source helper context. Phantom original Source is preserved verbatim as a rejection; unused None retains its old path."
+  "scope": "Only single class0 / one physical SharedAddress slot may produce and consume Some source helper context. Phantom original Source is preserved verbatim as a rejection; unused None retains its old path.",
+  "final_review_sha256": "34d230f722762db4192c28f82c5134971d88e595fe2b3da5a3ed71997c03ca2b",
+  "final_tested_source": "fbe572f0474ad4a4665dfd49f628ae3abc5bc03a"
 }

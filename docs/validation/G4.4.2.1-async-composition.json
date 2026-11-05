@@ -25,5 +25,12 @@
     "tests/language-readiness/task-composition/G8.6.1/owned-enum-view-across-yield.zil": "c610d9e53af4be1d03c279cc9e472c03238802efd97682071da4bef1d91c9ec0"
   },
   "scope": "Complete ordinary owning Enum local/SSA Task<i32> frames and internal shared read views; general owned results, external borrowed frame ports and partial Sum remain incomplete.",
-  "root_acceptance": "Pending common gates; independent slice counts not added to formal suite counts"
+  "root_acceptance": "Pending common gates; independent slice counts not added to formal suite counts",
+  "post_composition_test_only_correction": {
+    "source": "fbe572f0474ad4a4665dfd49f628ae3abc5bc03a",
+    "file": "tests/language-readiness/task-composition/G8.6.1/verify_frames.rs",
+    "difference": "Only Suspend-teardown rejection diagnostic expectation changes from TASK to earlier canonical RESOURCE; production and all Source inputs unchanged.",
+    "review": "G4.4.2.1-diagnostic-review.json",
+    "root_default_affected_target": "129 passed / 0 failed; reference full suite separately recorded."
+  }
 }

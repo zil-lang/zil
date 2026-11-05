@@ -53,5 +53,40 @@
   "limitations": [
     "No full suite rerun; original4739/1 retained. No production/schema/norm changes by reviewer.",
     "This1test is an additional combination control, not duplicated into original21 count. All Cargo stopped after this run."
-  ]
+  ],
+  "second_combination_static_addendum": {
+    "previous_receipt_sha256": "c2793459dc4072a4fe830e763053f8a6d41a54d536ac92b99a65d3b1cefd950c",
+    "commit": "fbe572f0474ad4a4665dfd49f628ae3abc5bc03a",
+    "base": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+    "reviewer_execution": "static only; no new Cargo/build/run for this second addendum",
+    "independently_checked_diff": "Only verify_frames.rs expected condition becomes E-VERIFY-RESOURCE for all3 modes. Actual malformed Token teardown Suspend remains unchanged; raw verify_module and real verify_module_bytes each unwrap_err and exact-code assertion stay intact.",
+    "ordering": "Same8bf6 Direct resource teardown guard in resources::check_definitions precedes tasks::module. Suspend teardown now correctly rejects RESOURCE first, not TASK. No production or permission weakening.",
+    "include_scope": "rg of crates/tests/Cargo found exactly one path include: crates/zil-driver/tests/generic_regressions.rs4514-4515. No other target includes this file.",
+    "root_executed_not_reviewer": {
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--test",
+        "generic_regressions"
+      ],
+      "reported_commit": "fbe572f0474ad4a4665dfd49f628ae3abc5bc03a",
+      "passed": 129,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G4.4.2.1-common-run/default-affected.log",
+      "log_sha256": "afcf32fcc3a5f69d39dd3529452ec181b0e9aa4e4907530df57da3300b723b4c",
+      "reviewer_log_inspected": true,
+      "actual_implication": "Named G8 test Pass requires its3 modes x raw+verify_module_bytes loop all complete, including mode2 both paths. Success stdout is captured by harness, not individually emitted in this default log."
+    },
+    "root_composed_acceptance_not_reviewer_fullrun": {
+      "result_json": "/workspace/.zil-env/G4.4.2.1-common-run/default-result.json",
+      "sha256": "f53753c66aba3c96d3a4c27a85de8e664987f9507469cfc7b2292de8e3fc46b3",
+      "reported_passed": 4761,
+      "reused_other_groups": 421,
+      "reused_passed": 4632,
+      "basis": "Root supplied exact source/config/dependency-input identity and rustc dep-info3 generic configs; reviewer independently checked one-file actual diff and sole target include, read result and pass log, did not rerun421 groups or rescan all Cargo dependency files. Original7a4760/1 retained as original attempt, not retrospectively relabeled pass."
+    },
+    "blocking_findings": []
+  }
 }
