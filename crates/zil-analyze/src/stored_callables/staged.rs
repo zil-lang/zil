@@ -1,6 +1,7 @@
 //! Identity-only recovery for a finite owning receiver. This never establishes
 //! initialization, liveness, ownership, or permission to execute the call.
 use super::*;
+mod cfg;
 mod tail;
 
 fn closed() -> Vec<Diagnostic> {
@@ -65,7 +66,17 @@ pub(super) fn parameter(
     b.spend(f.blocks.len(), "staged single-block control inventory")?;
     let fork = f.blocks.len() != 1;
     let block = if fork {
-        tail::entry(f, b)?
+        match tail::entry(f, b) {
+            Ok(block) => block,
+            Err(errors)
+                if errors
+                    .iter()
+                    .all(|d| d.category != zil_base::ResultCategory::ResourceLimit) =>
+            {
+                return cfg::parameter(f, kind, d.id, b);
+            }
+            Err(errors) => return Err(errors),
+        }
     } else {
         let block = &f.blocks[0];
         if block.id != f.entry

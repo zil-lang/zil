@@ -105,7 +105,13 @@ pub(super) fn parameter(
     }
     let fork = f.blocks.len() != 1;
     let block = if fork {
-        super::staged_tail::entry(f, b)?
+        match super::staged_tail::entry(f, b) {
+            Ok(block) => block,
+            Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
+                return super::staged_cfg::parameter(f, call, d, b);
+            }
+            Err(error) => return Err(error),
+        }
     } else {
         let block = &f.blocks[0];
         if f.entry != block.id
