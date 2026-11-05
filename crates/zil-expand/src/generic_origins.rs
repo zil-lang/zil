@@ -325,6 +325,7 @@ impl Origins {
                 };
                 DeclarationOrigin {
                     closure_sites: crate::source_context::ClosureSiteLineage::Original,
+                    retained_members: None,
                     declaration: NodeId(
                         u32::try_from(ordinal).map_err(|_| {
                             error(item.span, "source declaration identity exhausted")
