@@ -226,7 +226,7 @@ impl<'a> Environment<'a> {
                 .saturating_add(128),
         )?;
         self.index
-            .register_generated_tree(&tree, self.limits, &mut self.budget)?;
+            .register_generated_tree(&tree, &self.limits, &mut self.budget)?;
         self.budget.release_temporary_bytes(seen_bytes);
         self.generated_catalog.trees.reserve_exact(1);
         self.generated_catalog.trees.push(tree);

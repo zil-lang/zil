@@ -879,11 +879,12 @@ impl Compiler<'_> {
             }
         };
         let root = self.meta_push(&mut nodes, node, span)?;
+        let ambient_classes = std::mem::take(&mut self.metadata_ambient);
         self.meta_normalize(
             CtTypeRef {
                 nodes,
                 root,
-                ambient_classes: std::mem::take(&mut self.metadata_ambient),
+                ambient_classes,
             },
             span,
         )

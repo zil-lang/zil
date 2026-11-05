@@ -35,6 +35,7 @@ pub(crate) struct LocatedNode<'a> {
 }
 #[derive(Clone, Copy)]
 pub(crate) enum Selection {
+    All,
     Expr(usize),
     Type(usize),
     Arguments(usize),
@@ -97,13 +98,46 @@ pub(crate) fn relative_node<'a>(
         pay,
     )
 }
+#[derive(Clone, Copy)]
+pub(crate) enum SiteEvent<'a> {
+    Work(usize),
+    Node(LocatedNode<'a>),
+}
+pub(crate) fn observe<'a>(
+    module: &'a s::Module,
+    tree: SourceTreeId,
+    max_depth: usize,
+    observer: impl FnMut(SiteEvent<'a>) -> R<()>,
+) -> R<()> {
+    walk_source_nodes(module, tree, Selection::All, None, max_depth, observer).map(|_| ())
+}
 fn select_from_node<'a>(
     module: &'a s::Module,
     tree: SourceTreeId,
     selection: Selection,
     root: Option<SourceNode<'a>>,
     max_depth: usize,
-    pay: impl FnMut(usize) -> R<()>,
+    mut pay: impl FnMut(usize) -> R<()>,
+) -> R<Option<LocatedNode<'a>>> {
+    walk_source_nodes(
+        module,
+        tree,
+        selection,
+        root,
+        max_depth,
+        |event| match event {
+            SiteEvent::Work(work) => pay(work),
+            SiteEvent::Node(_) => Ok(()),
+        },
+    )
+}
+fn walk_source_nodes<'a>(
+    module: &'a s::Module,
+    tree: SourceTreeId,
+    selection: Selection,
+    root: Option<SourceNode<'a>>,
+    max_depth: usize,
+    pay: impl FnMut(SiteEvent<'a>) -> R<()>,
 ) -> R<Option<LocatedNode<'a>>> {
     struct Walk<'a, F> {
         module: zil_base::ModuleId,
@@ -115,12 +149,12 @@ fn select_from_node<'a>(
         max_depth: usize,
         pay: F,
     }
-    impl<'a, F: FnMut(usize) -> R<()>> Walk<'a, F> {
+    impl<'a, F: FnMut(SiteEvent<'a>) -> R<()>> Walk<'a, F> {
         fn step(&mut self, depth: usize) -> R<bool> {
             if self.found.is_some() {
                 return Ok(false);
             }
-            (self.pay)(1)?;
+            (self.pay)(SiteEvent::Work(1))?;
             if depth > self.max_depth {
                 return Err(vec![Diagnostic::limit(
                     Phase::Ct,
@@ -140,6 +174,11 @@ fn select_from_node<'a>(
                 .next
                 .checked_add(1)
                 .ok_or_else(|| error(Span::default(), "CT source site ordinal overflow"))?;
+            (self.pay)(SiteEvent::Node(LocatedNode {
+                site,
+                node,
+                function: self.function,
+            }))?;
             let matched = match (&self.selection, node) {
                 (Selection::Site(target), _) => *target == site,
                 (Selection::Expr(target), SourceNode::Expr(_))

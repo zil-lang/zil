@@ -212,10 +212,20 @@ impl FrozenInvocationContext {
             let parent_id = call
                 .enclosing
                 .ok_or_else(|| unsupported("CT member instance has no actual lexical host"))?;
-            let parent=source_scopes.get(parent_id.0 as usize).ok_or_else(||unsupported("CT member enclosing scope placement is absent"))?;
-            self.validate_scope(parent,budget)?;
+            let parent = source_scopes
+                .get(parent_id.0 as usize)
+                .ok_or_else(|| unsupported("CT member enclosing scope placement is absent"))?;
+            self.validate_scope(parent, budget)?;
             budget.reserve_analysis_work(64)?;
-            if parent.declaration.module!=call.callee.module || Some(parent.declaration.declaration)!=original.lexical_parent || parent.declaration.generation_path!=call.callee.generation_path || parent.enclosing.is_some() {return Err(unsupported("CT member enclosing scope is not the actual lexical host"));}
+            if parent.declaration.module != call.callee.module
+                || Some(parent.declaration.declaration) != original.lexical_parent
+                || parent.declaration.generation_path != call.callee.generation_path
+                || parent.enclosing.is_some()
+            {
+                return Err(unsupported(
+                    "CT member enclosing scope is not the actual lexical host",
+                ));
+            }
         } else if call.enclosing.is_some() {
             return Err(unsupported(
                 "CT free or nongeneric member instance has an unexpected enclosing host",
