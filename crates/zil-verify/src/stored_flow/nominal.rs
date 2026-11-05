@@ -52,6 +52,7 @@ fn walk(
             .len()
             .saturating_add(life.nominal_arguments.len()),
     )?;
+    physical_instances(module, storage, limits, b)?;
     let mut expected = Vec::new();
     // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.
     for (ordinal, (formal, actual)) in decl.parameters.iter().zip(&instance.arguments).enumerate() {
@@ -232,4 +233,43 @@ fn context_free_copy(ty: &Type, b: &mut Budget) -> Check<bool> {
         }
     }
     Ok(true)
+}
+
+fn physical_instances(
+    module: &TypedModule,
+    storage: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> Check<()> {
+    let mut todo = vec![storage];
+    while let Some(ty) = todo.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::BorrowedStorage { .. } => {
+                let mut count = 0usize;
+                for child in &module.life_instances {
+                    type_work(ty, limits, b)?;
+                    type_work(&child.ty, limits, b)?;
+                    if child.ty == *ty {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(err(
+                        "physical retained nominal child lacks a unique complete instance",
+                    ));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                b.spend(fields.len())?;
+                todo.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                todo.extend(fields);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }

@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod retained;
 
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
@@ -302,7 +303,9 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if !matches!(storage.as_ref(), Type::Record { .. }) || !life.retained.is_empty() {
+    if !matches!(storage.as_ref(), Type::Record { .. })
+        || (!life.retained.is_empty() && !life.slots.is_empty())
+    {
         return Err(unsupported(
             span,
             "stored nested/opaque carrier qualification requires its consumer",
@@ -362,6 +365,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         path.push(PlaceProjection::Field(index));
                         self.ty(field, path, depth + 1)?;
                         path.pop();
+                    }
+                }
+                Type::BorrowedStorage { .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "retained physical leaf needs a real borrowing consumer",
+                        ));
                     }
                 }
                 other => {
@@ -440,6 +451,40 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             ));
         }
         classes.insert(slot.binder);
+    }
+    let actual_retained = retained::expected(storage, depth_limit, span, walk.left)?;
+    fee(walk.left, life.retained.len(), span)?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(error(
+            "E-STORED-TYPE",
+            span,
+            "physical retained class coverage differs",
+        ));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            walk.left,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(classes.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained classes are not canonical",
+            ));
+        }
+        classes.insert(row.binder);
     }
     if classes.is_empty() || classes.len() != life.binder_count as usize {
         return Err(error(

@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod retained;
 
 type Path = Vec<PlaceProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -306,7 +307,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_)) || !shape.retained.is_empty() {
+    if !matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        || (!shape.retained.is_empty() && !shape.slots.is_empty())
+    {
         return Err(unsupported(
             "nested retained/nominal stored carrier needs its independent consumer",
             None,
@@ -360,6 +363,13 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     todo.push((child, p));
                 }
             }
+            Type::BorrowedStorage { .. } => {
+                if !retained::pure(t, b)? {
+                    return Err(err(
+                        "retained physical leaf needs a real borrowing consumer",
+                    ));
+                }
+            }
             child => {
                 type_work(child, limits, b)?;
                 if !child.is_copy_value() {
@@ -372,7 +382,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         }
     }
     if actual.len() != shape.slots.len()
-        || (actual.is_empty() && shape.nominal_arguments.is_empty())
+        || (actual.is_empty() && shape.nominal_arguments.is_empty() && shape.retained.is_empty())
     {
         return Err(err("stored physical leaf coverage is incomplete"));
     }
@@ -401,6 +411,20 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         if path != &row.path || row.mode != StoredBorrowMode::SharedAddress {
             return Err(err(
                 "actual physical stored path or mode differs from declared leaf",
+            ));
+        }
+        class(row.binder, b)?;
+    }
+    let actual_retained = retained::expected(storage, limits, b)?;
+    b.spend(shape.retained.len())?;
+    if actual_retained.len() != shape.retained.len() {
+        return Err(err("physical retained class coverage differs"));
+    }
+    for ((path, local), row) in actual_retained.iter().zip(&shape.retained) {
+        b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
+        if path != &row.path || *local != row.class {
+            return Err(err(
+                "retained row differs from actual physical boundary/class",
             ));
         }
         class(row.binder, b)?;

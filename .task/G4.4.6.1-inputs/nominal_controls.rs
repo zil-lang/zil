@@ -4,6 +4,91 @@ use zil_driver::{CompileOptions, Stage};
 use zil_ir::{LifeNominalActual, LifeNominalKind, LifeParameterKind, LifeTypeProjection, Type};
 
 #[test]
+fn g4461_actual_pure_fields_retained_source_raw_wire() {
+    for text in [
+        "struct Phantom<life a,T:Copy,#N:i32>{n:i32}struct Wrap<T:Copy>{value:T}fn result<life s>(p:&'s i32)->i32{let w=Wrap::<Phantom<'s,i32,42>>{value:Phantom::<'s,i32,42>{n:42}};return w.value.n}fn main()->i32{let n=0;return result(&n)}",
+        "struct Phantom<life a>{n:i32}struct Wrap<T:Copy,U:Copy>{left:T;right:(U)}fn result<life a,life b>(p:&'a i32,q:&'b i32)->i32{let w=Wrap::<Phantom<'a>,Phantom<'b>>{left:Phantom::<'a>{n:20},right:Phantom::<'b>{n:22}};return w.left.n+w.right.n}fn main()->i32{let p=0;let q=1;return result(&p,&q)}",
+    ] {
+        let source = zil_base::SourceUnit::new(
+            zil_base::FileId(0),
+            zil_base::ModuleId(0),
+            "g4461-fields.zil",
+            text,
+        );
+        let options = CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        };
+        let report = zil_driver::compile_source(&source, &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let limits = Limits::default();
+        let target = zil_base::TargetProfile::host_llvm();
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        let core = zil_expand::expand_with_map_limits_target_context(
+            &source,
+            &syntax,
+            &limits,
+            &target,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: source.module_id,
+                aliases: &Default::default(),
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        )
+        .unwrap()
+        .core;
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
+        let outer = raw
+            .life_instances
+            .iter()
+            .position(
+                |i| matches!(&i.ty, Type::BorrowedStorage{life,..} if !life.retained.is_empty()),
+            )
+            .unwrap();
+        for mutation in 0..5 {
+            let mut hostile = raw.clone();
+            let Type::BorrowedStorage { life, .. } = &mut hostile.life_instances[outer].ty else {
+                unreachable!()
+            };
+            match mutation {
+                0 => {
+                    life.retained.pop();
+                }
+                1 => life.retained[0].path = vec![LifeTypeProjection::TypeArgument(0)],
+                2 => life.retained[0].class += 1,
+                3 => life.retained[0].binder = life.binder_count,
+                4 => life.retained.push(life.retained[0].clone()),
+                _ => unreachable!(),
+            }
+            assert!(
+                zil_analyze::analyze(&hostile, &limits).is_err(),
+                "Analyze accepted retained mutation {mutation}"
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = hostile.fingerprint();
+            let bytes = zil_ir::wire::encode_module_candidate(&hostile, &claim, &limits).unwrap();
+            assert!(
+                zil_verify::verify_module(hostile, claim, &target, &limits).is_err(),
+                "Verify accepted retained mutation {mutation}"
+            );
+            assert!(
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).is_err(),
+                "Wire accepted retained mutation {mutation}"
+            );
+        }
+    }
+}
+
+#[test]
 fn g4461_actual_core_nested_type_metadata_controls() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),

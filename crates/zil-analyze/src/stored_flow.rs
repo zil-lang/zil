@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod retained;
 use std::collections::BTreeMap;
 mod owned;
 
@@ -723,7 +724,9 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_)) || !life.retained.is_empty() {
+    if !matches!(storage, Type::Record { .. } | Type::Tuple(_))
+        || (!life.retained.is_empty() && !life.slots.is_empty())
+    {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "nested retained/nominal stored carriers require their independent consumer",
@@ -774,6 +777,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     path.pop();
                 }
             }
+            Type::BorrowedStorage { .. } => {
+                if !retained::pure(ty, b)? {
+                    return Err(failure(
+                        "retained physical leaf needs a real borrowing consumer",
+                    ));
+                }
+            }
             t => {
                 b.type_work(t, true, "stored ordinary physical field")?;
                 if !t.is_copy_value() {
@@ -788,7 +798,8 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(storage, &mut Vec::new(), &mut actual, b)?;
-    if actual.len() != life.slots.len() || (actual.is_empty() && life.nominal_arguments.is_empty())
+    if actual.len() != life.slots.len()
+        || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
     {
         return Err(failure("physical stored slot coverage is incomplete"));
     }
@@ -831,6 +842,33 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             next = next
                 .checked_add(1)
                 .ok_or_else(|| failure("binder overflow"))?;
+        }
+    }
+    let actual_retained = retained::expected(storage, b)?;
+    fee(b, life.retained.len())?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(failure("physical retained class coverage differs"));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            b,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(seen.len())
+                .saturating_add(1),
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(failure(
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if seen.insert(row.binder) {
+            if row.binder != next {
+                return Err(failure("retained classes are not canonical"));
+            }
+            next = next
+                .checked_add(1)
+                .ok_or_else(|| failure("retained class overflow"))?;
         }
     }
     if next != life.binder_count {
