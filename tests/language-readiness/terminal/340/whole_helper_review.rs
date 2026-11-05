@@ -12,6 +12,8 @@ const APART: &str = include_str!("whole-helper/g137_review_apart_desc.zil");
 const SUCCESS: &str = include_str!("whole-helper/g137_review_success.zil");
 const ARGUMENT_FAILURE: &str = include_str!("whole-helper/g137_review_argument_failure.zil");
 const WRONG_ACTUAL: &str = include_str!("whole-helper/g137_review_wrong_actual_give.zil");
+const INCOMING_PACKAGE: &str = include_str!("whole-helper/g137_review_incoming_package_give.zil");
+const SHELL_AGE: &str = include_str!("whole-helper/g137_review_shell_age.zil");
 const LOCAL_FAILURE: &str = include_str!("replace-package-terminal-failure.zil");
 const FAILURE: &str = include_str!("whole-helper/g137_review_failure.zil");
 
@@ -61,6 +63,8 @@ fn g137_review_types_has_actual_parameter_ticket_and_complete_rhs() {
         FAILURE,
         ARGUMENT_FAILURE,
         WRONG_ACTUAL,
+        INCOMING_PACKAGE,
+        SHELL_AGE,
     ] {
         let module = typed(text);
         let f = module.functions.iter().find(|f| f.name == "reset").unwrap();
@@ -110,6 +114,8 @@ fn g137_review_source_continuation_actual_origins_and_apart() {
         SUCCESS,
         ARGUMENT_FAILURE,
         WRONG_ACTUAL,
+        INCOMING_PACKAGE,
+        SHELL_AGE,
     ] {
         candidate(text);
     }
@@ -132,6 +138,7 @@ fn g137_review_source_continuation_actual_origins_and_apart() {
         INCOMING.replace("result(give)", "result(create)"),
         CONDITIONAL.replace("result(give)", "result(create)"),
         WRONG_ACTUAL.replace("result(give)", "result(create)"),
+        INCOMING_PACKAGE.replace("result(give)", "result(create)"),
     ] {
         let report = compile_source(
             &source(&text),
@@ -156,6 +163,7 @@ fn g137_review_verify_incoming_and_no_write_do_not_grant_create() {
         (INCOMING, "incoming"),
         (CONDITIONAL, "conditional"),
         (WRONG_ACTUAL, "wrong"),
+        (INCOMING_PACKAGE, "incoming"),
     ] {
         let (mut module, plan) = candidate(text);
         module
@@ -283,6 +291,7 @@ fn g137_review_native_complete_result_and_failed_rhs_old_value() {
             for (name, text, expected) in [
                 ("success", SUCCESS, b"AB42\n".as_slice()),
                 ("argument-failure", ARGUMENT_FAILURE, b"BA42\n".as_slice()),
+                ("shell-age", SHELL_AGE, b"ACB42\n".as_slice()),
             ] {
                 // Both independent kernels run before any executable is made.
                 candidate(text);
