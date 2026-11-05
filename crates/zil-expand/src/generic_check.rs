@@ -62,7 +62,10 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let callable = callable::template(function, budget)?;
     let class_scope = role_check::Scope::new(
         source_definition.unwrap_or(function),
-        callable.is_some(),
+        // A computed CT nominal retains its original definition's full life
+        // ordinals. Compare those symbolic classes locally; they never become
+        // an ordinary monomorphization cache key or a runtime permission.
+        callable.is_some() || ct_types.is_some(),
         budget,
     )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
