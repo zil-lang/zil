@@ -121,7 +121,12 @@ fn fixture(
     (function, bounds)
 }
 
-fn check(scoped: bool, captured: u32, forwarded: bool, work: usize) -> R<(Vec<u8>, Vec<u8>)> {
+fn check(
+    scoped: bool,
+    captured: u32,
+    forwarded: bool,
+    work: usize,
+) -> R<(Vec<Origin>, Vec<Origin>)> {
     let (function, bounds) = fixture(scoped, captured, forwarded);
     let limits = Limits {
         max_analysis_steps: work,

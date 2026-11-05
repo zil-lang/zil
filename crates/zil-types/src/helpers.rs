@@ -1,6 +1,9 @@
 //! Bounded concrete instantiation of a retained callable template. Bodies are
 //! checked in the defining module; consumers receive a normal direct call.
 use super::*;
+#[path = "helper_origin.rs"]
+mod origin;
+use origin::Origin;
 #[path = "helpers/source_life.rs"]
 pub(super) mod source_life;
 
@@ -18,16 +21,58 @@ mod capture_tests;
 
 pub(super) type TemplateKey = (ModuleId, NodeId);
 pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
-/// The finite two-type profile uses a fixed ordered binding vector. Empty
-/// entries are part of identity; runtime values never enter this type key.
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
-pub(super) struct Bindings(pub [Option<ClosureId>; 2]);
+/// Inline legacy keys retain their old allocation/charge path. Larger ordered
+/// keys share compiler metadata only; this is never a runtime environment RC.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub(super) enum Bindings {
+    Inline([Option<ClosureId>; 2]),
+    Extended(Rc<Vec<Option<ClosureId>>>),
+}
+impl Default for Bindings {
+    fn default() -> Self {
+        Self::Inline([None; 2])
+    }
+}
 pub(super) type Instance = (TemplateKey, Bindings);
 impl Bindings {
-    pub(super) fn bind(&mut self, index: u32, id: ClosureId, span: Span) -> R<()> {
-        let slot = self.0.get_mut(index as usize).ok_or_else(|| {
-            unsupported(span, "callable type index is outside the finite profile")
+    fn slots(&self) -> &[Option<ClosureId>] {
+        match self {
+            Self::Inline(slots) => slots,
+            Self::Extended(slots) => slots,
+        }
+    }
+    /// Additional comparison work beyond the old fixed two-slot key.
+    pub(super) fn extra_key_work(&self) -> usize {
+        self.slots().len().saturating_sub(2)
+    }
+    pub(super) fn bind(
+        &mut self,
+        index: u32,
+        id: ClosureId,
+        span: Span,
+        state: &mut closures::State,
+    ) -> R<()> {
+        let index = index as usize;
+        let required = index.checked_add(1).ok_or_else(|| {
+            Diagnostic::limit(Phase::Types, "callable binding size overflow", Some(span))
         })?;
+        if required > self.slots().len() {
+            // Bound and pay the full new physical vector before allocation.
+            state.snapshot(required.saturating_add(self.slots().len()), span)?;
+            let mut slots = Vec::with_capacity(required);
+            slots.extend_from_slice(self.slots());
+            slots.resize(required, None);
+            *self = Self::Extended(Rc::new(slots));
+        }
+        if let Self::Extended(slots) = self {
+            if Rc::strong_count(slots) > 1 {
+                state.snapshot(slots.len(), span)?;
+            }
+        }
+        let slot = match self {
+            Self::Inline(slots) => &mut slots[index],
+            Self::Extended(slots) => &mut Rc::make_mut(slots)[index],
+        };
         if slot.is_some_and(|prior| prior != id) {
             return Err(error(
                 "E-TYPE-MISMATCH",
@@ -38,14 +83,15 @@ impl Bindings {
         *slot = Some(id);
         Ok(())
     }
-    pub(super) fn get(self, index: u32, span: Span) -> R<ClosureId> {
-        self.0
-            .get(index as usize)
-            .and_then(|id| *id)
+    pub(super) fn get(&self, index: u32, span: Span) -> R<ClosureId> {
+        self.optional(index)
             .ok_or_else(|| unsupported(span, "concrete callable type binding is absent"))
     }
-    fn label(self) -> String {
-        self.0
+    pub(super) fn optional(&self, index: u32) -> Option<ClosureId> {
+        self.slots().get(index as usize).and_then(|id| *id)
+    }
+    fn label(&self) -> String {
+        self.slots()
             .iter()
             .flatten()
             .map(|id| id.0.to_string())
@@ -107,11 +153,10 @@ pub(super) fn validate_template(
     let reject = || {
         unsupported(
             function.span,
-            "one or two finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
+            "finite nonescaping callable roles, a single lending role, or a bounded same-F owning State constructor are implemented",
         )
     };
-    if bounds.len() > 2
-        || function.foreign.is_some()
+    if function.foreign.is_some()
         || function.receiver.is_some()
         || bounds.windows(2).any(|pair| pair[0].index >= pair[1].index)
     {
@@ -208,9 +253,12 @@ pub(super) fn validate_template(
     {
         return Err(reject());
     }
-    let mut present = [false; 2];
     for bound in bounds {
-        if bound.generic_index >= 2
+        if (bound.generic_index > 0
+            && !bounds
+                .iter()
+                .any(|prior| prior.generic_index == bound.generic_index - 1))
+            || bound.generic_index as usize >= bounds.len()
             || bound.generic_name.is_empty()
             || bound.kind == CallableKind::FunctionPointer
             || !(closures::supported_signature(&bound.parameters, &bound.result)
@@ -222,7 +270,6 @@ pub(super) fn validate_template(
         {
             return Err(reject());
         }
-        present[bound.generic_index as usize] = true;
         let parameter = function
             .parameters
             .get(bound.index as usize)
@@ -233,6 +280,11 @@ pub(super) fn validate_template(
                 && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name))
         {
             return Err(reject());
+        }
+        if bounds.len() > 2 {
+            for _ in bounds {
+                prepay(&Type::Unit, function.span)?;
+            }
         }
         for prior in bounds.iter().take_while(|prior| prior.index < bound.index) {
             if (prior.generic_index == bound.generic_index)
@@ -267,7 +319,7 @@ pub(super) fn validate_template(
             _ => {}
         }
     }
-    if !present[0] {
+    if !bounds.iter().any(|bound| bound.generic_index == 0) {
         return Err(reject());
     }
     if owned_state
@@ -511,8 +563,13 @@ impl Builder<'_, '_> {
                     );
                 self.closures
                     .snapshot(work.saturating_mul(2), argument.span)?;
-                let matched =
-                    state_origins::match_type(ty, &actual, &signature.callable, argument.span)?;
+                let matched = state_origins::match_type(
+                    ty,
+                    &actual,
+                    &signature.callable,
+                    argument.span,
+                    self.closures,
+                )?;
                 if state_origins::replacement_signature(signature) {
                     let state = signature.state_parameter.as_ref().expect("State source");
                     let declaration = &state.bindings[0];
@@ -529,7 +586,12 @@ impl Builder<'_, '_> {
                         .find(|bound| bound.index == state.index)
                         .expect("validated State source");
                     let closure = matched.get(bound.generic_index, argument.span)?;
-                    environments.bind(bound.generic_index, closure, argument.span)?;
+                    environments.bind(
+                        bound.generic_index,
+                        closure,
+                        argument.span,
+                        self.closures,
+                    )?;
                     for field in &declaration.fields {
                         self.require_state_kind(argument, Some(*field), closure, bound.kind)?;
                     }
@@ -636,7 +698,7 @@ impl Builder<'_, '_> {
                         .or(self.factory_value_kind(value, argument.span)?);
                 }
                 self.validate_bound(closure, bound, owned_state, argument.span)?;
-                environments.bind(bound.generic_index, closure, argument.span)?;
+                environments.bind(bound.generic_index, closure, argument.span, self.closures)?;
                 (value, actual)
             } else {
                 let (value, actual) = self.argument_expr(argument, ty)?;
@@ -767,9 +829,12 @@ impl Builder<'_, '_> {
         bindings: Bindings,
         span: Span,
     ) -> R<FunctionId> {
-        self.closures
-            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
-        if let Some(id) = self.closures.helper_instances.get(&(key, bindings)) {
+        self.closures.snapshot(
+            plan::tree_work(self.closures.helper_instances.len())
+                .saturating_mul(bindings.extra_key_work().saturating_add(1)),
+            span,
+        )?;
+        if let Some(id) = self.closures.helper_instances.get(&(key, bindings.clone())) {
             return Ok(*id);
         }
         if self.closures.active_helpers.contains(&key) {
@@ -778,12 +843,15 @@ impl Builder<'_, '_> {
                 "recursive local callable instantiation has no finite dependency plan",
             ));
         }
-        self.instantiate_plan(plan::Node::Callable((key, bindings)), span)?;
-        self.closures
-            .snapshot(plan::tree_work(self.closures.helper_instances.len()), span)?;
+        self.instantiate_plan(plan::Node::Callable((key, bindings.clone())), span)?;
+        self.closures.snapshot(
+            plan::tree_work(self.closures.helper_instances.len())
+                .saturating_mul(bindings.extra_key_work().saturating_add(1)),
+            span,
+        )?;
         self.closures
             .helper_instances
-            .get(&(key, bindings))
+            .get(&(key, bindings.clone()))
             .copied()
             .ok_or_else(|| unsupported(span, "completed helper instance is absent from its plan"))
     }
@@ -832,7 +900,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(template.snapshot_work, span)?;
         let state_uses = state_origins::collect(
             &template.function,
-            bindings,
+            bindings.clone(),
             &template.context,
             self.closures,
             self.limits,
@@ -916,12 +984,14 @@ impl Builder<'_, '_> {
         aggregate_templates::rebind_callable_function(
             &mut function,
             bounds,
-            bindings,
+            &bindings,
             self.closures,
             self.limits,
             span,
         )?;
         self.closures.snapshot(24, span)?;
+        self.closures
+            .snapshot(bindings.extra_key_work().saturating_mul(12), span)?;
         let label = bindings.label();
         let id = self.closures.allocate_function(span)?;
         function.name = format!("{}::<env{}>", function.name, label);
@@ -948,7 +1018,17 @@ impl Builder<'_, '_> {
             self.closures,
         )?;
         builder.state_uses = state_uses;
-        if forward.is_some() || builder.closures.forward_callers.contains(&(key, bindings)) {
+        builder.closures.snapshot(
+            plan::tree_work(builder.closures.forward_callers.len())
+                .saturating_mul(bindings.extra_key_work()),
+            span,
+        )?;
+        if forward.is_some()
+            || builder
+                .closures
+                .forward_callers
+                .contains(&(key, bindings.clone()))
+        {
             builder.forward_modes(span)?;
         }
         if owned_state && builder.state_uses.is_none() {
@@ -1106,6 +1186,11 @@ impl Builder<'_, '_> {
             },
         });
         self.closures.helper_functions.push(typed);
+        self.closures.snapshot(
+            plan::tree_work(self.closures.helper_instances.len())
+                .saturating_mul(bindings.extra_key_work()),
+            span,
+        )?;
         self.closures.helper_instances.insert((key, bindings), id);
         Ok(id)
     }
@@ -1354,17 +1439,17 @@ fn environment_origins(
     bounds: &[CoreCallableParameter],
     state: &mut closures::State,
     span: Span,
-) -> R<(Vec<u8>, Vec<u8>)> {
+) -> R<(Vec<Origin>, Vec<Origin>)> {
     state.snapshot(
-        function.locals.len().saturating_add(function.values.len()),
+        Origin::table_work(function.locals.len().saturating_add(function.values.len())),
         span,
     )?;
-    let mut locals = vec![0u8; function.locals.len()];
-    let mut values = vec![0u8; function.values.len()];
+    let mut locals = vec![Origin::EMPTY; function.locals.len()];
+    let mut values = vec![Origin::EMPTY; function.values.len()];
     state.snapshot(bounds.len(), span)?;
     for (role, bound) in bounds.iter().enumerate() {
         let parameter = function.parameters[bound.index as usize];
-        locals[parameter.0 as usize] = 1 << role;
+        locals[parameter.0 as usize] = Origin::supplied(role, false);
     }
     let tables = Rc::clone(&state.helper_tables);
     let mut scoped_bodies = None;
@@ -1401,9 +1486,9 @@ fn environment_origins(
                     state.snapshot(1, instruction.span)?;
                     concrete_captures.push(instruction);
                     if scoped_bodies.as_ref().unwrap().contains(&result) {
-                        16
+                        Origin::BODY
                     } else {
-                        32
+                        Origin::CONCRETE
                     }
                 }
                 InstructionKind::Load(_)
@@ -1417,7 +1502,7 @@ fn environment_origins(
                 | InstructionKind::ExtractField { .. }
                 | InstructionKind::ExtractIndex { .. }
                 | InstructionKind::TakeOwnedArrayElement { index: 0, .. }
-                | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => 0,
+                | InstructionKind::BorrowOwnedArrayElement { index: 0, .. } => Origin::EMPTY,
                 InstructionKind::Call {
                     function: callee, ..
                 } => {
@@ -1444,14 +1529,14 @@ fn environment_origins(
                         state.forward_results.contains_key(callee)
                     };
                     if forwarded {
-                        0
+                        Origin::EMPTY
                     } else if factory {
-                        4
+                        Origin::FACTORY
                     } else {
-                        8
+                        Origin::UNKNOWN
                     }
                 }
-                _ => 8,
+                _ => Origin::UNKNOWN,
             };
         }
     }
@@ -1489,14 +1574,14 @@ fn environment_origins(
                         let prior = locals[local.0 as usize];
                         locals[local.0 as usize] |= values[value.0 as usize];
                         changed |= prior != locals[local.0 as usize];
-                        0
+                        Origin::EMPTY
                     }
                     InstructionKind::Call {
                         function: callee,
                         ref arguments,
                     } => {
                         if state.forward_results.is_empty() {
-                            0
+                            Origin::EMPTY
                         } else {
                             state.snapshot(
                                 plan::tree_work(state.forward_results.len()),
@@ -1506,16 +1591,16 @@ fn environment_origins(
                                 .forward_results
                                 .get(&callee)
                                 .and_then(|index| arguments.get(*index as usize))
-                                .map_or(0, |argument| values[argument.0 as usize])
+                                .map_or(Origin::EMPTY, |argument| values[argument.0 as usize])
                         }
                     }
                     InstructionKind::Store { local, value } => {
                         let prior = locals[local.0 as usize];
                         locals[local.0 as usize] |= values[value.0 as usize];
                         changed |= prior != locals[local.0 as usize];
-                        0
+                        Origin::EMPTY
                     }
-                    _ => 0,
+                    _ => Origin::EMPTY,
                 };
                 if let Some(result) = instruction.result {
                     let prior = values[result.0 as usize];
@@ -1538,9 +1623,8 @@ fn environment_origins(
         )?;
         if inputs.iter().chain(extra).any(|value| {
             let index = value.0 as usize;
-            values[index] & 3 != 0
-                || (environment_carrier_type(&function.values[index])
-                    && !matches!(values[index], 4 | 16 | 32))
+            values[index].has_role()
+                || (environment_carrier_type(&function.values[index]) && !values[index].concrete())
         }) {
             return Err(unsupported(
                 instruction.span,
@@ -1555,7 +1639,7 @@ fn environment_origins(
         state.snapshot(captures.len().saturating_add(1), instruction.span)?;
         if captures
             .iter()
-            .any(|value| values[value.0 as usize] & 3 != 0)
+            .any(|value| values[value.0 as usize].has_role())
         {
             return Err(unsupported(
                 instruction.span,
@@ -1575,7 +1659,7 @@ struct Forwarded {
 fn forwarded_contract(
     function: &TypedFunction,
     instruction: &Instruction,
-    origins: &[u8],
+    origins: &[Origin],
     bounds: &[CoreCallableParameter],
     state: &mut closures::State,
 ) -> R<Option<Forwarded>> {
@@ -1591,9 +1675,9 @@ fn forwarded_contract(
     for value in arguments {
         if environment_type(&function.values[value.0 as usize]) {
             has_environment = true;
-        } else if origins[value.0 as usize] & 3 != 0
+        } else if origins[value.0 as usize].has_role()
             || (environment_carrier_type(&function.values[value.0 as usize])
-                && !matches!(origins[value.0 as usize], 4 | 16 | 32))
+                && !origins[value.0 as usize].concrete())
         {
             return Err(unsupported(
                 instruction.span,
@@ -1642,7 +1726,7 @@ fn forwarded_contract(
                 unsupported(instruction.span, "nested helper environment role is absent")
             })?;
         let mask = origins[value.0 as usize];
-        if mask == 4 || mask == 32 || mask == 16 {
+        if mask.concrete() {
             state.snapshot(
                 plan::tree_work(concrete.len()).saturating_add(1),
                 instruction.span,
@@ -1650,19 +1734,15 @@ fn forwarded_contract(
             concrete.insert(child.0);
             continue;
         }
-        let caller = if mask == 1 {
-            bounds.first()
-        } else if mask == 2 {
-            bounds.get(1)
-        } else {
-            None
-        }
-        .ok_or_else(|| {
-            unsupported(
-                instruction.span,
-                "nested helper environment is not one actual supplied role",
-            )
-        })?;
+        let caller = mask
+            .index()
+            .and_then(|index| bounds.get(index))
+            .ok_or_else(|| {
+                unsupported(
+                    instruction.span,
+                    "nested helper environment is not one actual supplied role",
+                )
+            })?;
         let returns_input = state.helper_functions[position]
             .callable_return_contract
             .as_ref()
@@ -1686,4 +1766,113 @@ fn forwarded_contract(
         roles,
         concrete,
     }))
+}
+
+#[cfg(test)]
+mod origin_classification_tests {
+    use super::*;
+    fn mark(mask: u8) -> Origin {
+        let mut found = Origin::EMPTY;
+        for (bit, origin) in [
+            (1, Origin::supplied(0, false)),
+            (2, Origin::supplied(1, false)),
+            (4, Origin::FACTORY),
+            (8, Origin::UNKNOWN),
+            (16, Origin::BODY),
+            (32, Origin::CONCRETE),
+        ] {
+            if mask & bit != 0 {
+                found |= origin;
+            }
+        }
+        found
+    }
+    fn bounds(count: usize) -> Vec<CoreCallableParameter> {
+        (0..count)
+            .map(|index| CoreCallableParameter {
+                index: index as u32 + 10,
+                generic_index: index as u32,
+                generic_name: format!("F{index}"),
+                kind: CallableKind::Fn,
+                parameters: vec![],
+                result: Type::I32,
+                life: None,
+                source_life: None,
+                closed_environment: false,
+            })
+            .collect()
+    }
+    #[test]
+    fn legacy_masks_match_actual_callback_and_capture_classifiers() {
+        let bounds = bounds(2);
+        for mask in 0..64 {
+            let origin = mark(mask);
+            assert_eq!(origin.has_role(), mask & 3 != 0);
+            assert_eq!(origin.concrete(), matches!(mask, 4 | 16 | 32));
+            for borrowed in [false, true] {
+                let instruction = Instruction {
+                    result: None,
+                    span: Span::new(zil_base::FileId(0), 0, 1),
+                    kind: if borrowed {
+                        InstructionKind::CallClosureBorrowed {
+                            callee: ValueId(0),
+                            arguments: vec![],
+                            kind: CallableKind::Fn,
+                        }
+                    } else {
+                        InstructionKind::CallClosure {
+                            callee: ValueId(0),
+                            arguments: vec![],
+                        }
+                    },
+                };
+                let actual = flow::callback(&instruction, &[], &[origin], &bounds)
+                    .map(|event| event.map(|event| event.parameter));
+                let expected = match mask {
+                    1 => Some(Some(10)),
+                    2 => Some(Some(11)),
+                    4 if !borrowed => Some(None),
+                    16 | 32 => Some(None),
+                    _ => None,
+                };
+                assert_eq!(actual.ok(), expected, "mask={mask} borrowed={borrowed}");
+            }
+        }
+    }
+    #[test]
+    fn later_roles_never_overlap_local_producer_classifications() {
+        let bounds = bounds(96);
+        let instruction = Instruction {
+            result: None,
+            span: Span::new(zil_base::FileId(0), 0, 1),
+            kind: InstructionKind::CallClosure {
+                callee: ValueId(0),
+                arguments: vec![],
+            },
+        };
+        for role in 0..bounds.len() {
+            let mark = Origin::supplied(role, false);
+            assert_eq!(
+                flow::callback(&instruction, &[], &[mark], &bounds)
+                    .unwrap()
+                    .unwrap()
+                    .parameter,
+                role as u32 + 10
+            );
+            assert!(!mark.concrete());
+            for other in 0..bounds.len() {
+                if role != other {
+                    assert!(
+                        flow::callback(
+                            &instruction,
+                            &[],
+                            &[mark | Origin::supplied(other, false)],
+                            &bounds
+                        )
+                        .is_err()
+                    );
+                }
+            }
+        }
+    }
 }

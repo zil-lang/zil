@@ -395,29 +395,22 @@ fn each_owned_role_cleans_its_own_uncalled_environment() {
     native("owned-choice", &[("main", source)], "AB", 0);
 }
 #[test]
-fn cyclic_helper_with_any_once_role_stays_unsupported() {
+fn cyclic_helper_with_unused_once_role_keeps_its_cleanup() {
     let source = "fn run<F:FnOnce()->i32,G:Fn()->i32>(once:F,repeat:&G,n:i32)->i32{var i=0;while i<n{repeat();i+=1};return 0}fn main()->i32{let f=move()=>1;let g=move()=>2;return run(f,&g,0)}";
     let case = Case::new("cyclic-once");
     let report = compile(&case, &[("main", source)], None);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Types);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("cyclic FnOnce"))
-    );
+    assert_eq!(report.verification_runs, 1);
 }
 #[test]
 fn unused_bad_templates_and_extra_roles_do_not_gain_capabilities() {
     for source in [
         "fn bad<T:Copy,F:Fn()->i32,G:Fn()->i32>(a:&F,b:&G,value:T)->T{return value+value}fn main()->i32{return 0}",
-        "fn bad<F:Fn()->i32>(a:&F,b:&F,c:&F)->i32{return a()+b()+c()}fn main()->i32{return 0}",
         "fn bad<F:Fn()->i32>(a:F,b:&F)->i32{return a()+b()}fn main()->i32{return 0}",
     ] {
         let case = Case::new("closed");
@@ -450,4 +443,203 @@ fn actual_non_copy_once_environment_cannot_fill_two_owned_roles() {
         report.to_json()
     );
     assert!(!report.artifacts.contains_key("executable"));
+}
+
+const FOUR_ROLE_SOURCE: &str = r#"
+fn leaf<A:Fn(i32)->i32,B:Fn(i32)->i32,C:Fn(i32)->i32,D:Fn(i32)->i32>(a:&A,b:&B,c:&C,d:&D,x:i32)->i32{return a(b(c(d(x))))}
+fn route<F:Fn(i32)->i32,G:Fn(i32)->i32,H:Fn(i32)->i32,I:Fn(i32)->i32>(f:&F,g:&G,h:&H,i:&I,x:i32)->i32{return leaf(i,h,g,f,x)}
+fn main()->i32{let f=move(x:i32)=>x+1;let g=move(x:i32)=>x*2;let h=move(x:i32)=>x-3;let i=move(x:i32)=>x*5;return route(&f,&g,&h,&i,4)-35}
+"#;
+
+#[test]
+fn four_callable_binders_preserve_actual_child_permutation() {
+    let module = typed(FOUR_ROLE_SOURCE);
+    let contracts: Vec<_> = module
+        .functions
+        .iter()
+        .filter_map(|f| f.callable_contract.as_ref())
+        .collect();
+    assert_eq!(contracts.len(), 2);
+    assert!(contracts.iter().all(|c| c.roles.len() == 4));
+    let paths: Vec<_> = contracts
+        .iter()
+        .flat_map(|c| c.traces.as_finite().unwrap())
+        .map(|p| p.calls.iter().map(|e| e.parameter).collect::<Vec<_>>())
+        .collect();
+    assert!(paths.contains(&vec![3, 2, 1, 0]), "{paths:?}");
+    assert!(paths.contains(&vec![0, 1, 2, 3]), "{paths:?}");
+    native(
+        "four-callable-binders",
+        &[("main", FOUR_ROLE_SOURCE)],
+        "",
+        0,
+    );
+}
+
+#[test]
+fn third_and_fourth_role_event_swap_rejects_raw_and_wire() {
+    let original = typed(FOUR_ROLE_SOURCE);
+    let mut forged = original.clone();
+    let contract = forged
+        .functions
+        .iter_mut()
+        .find_map(|f| f.callable_contract.as_mut())
+        .unwrap();
+    let zil_ir::CallableTraces::Finite(paths) = &mut contract.traces else {
+        panic!("finite source")
+    };
+    for path in paths {
+        for event in &mut path.calls {
+            event.parameter = match event.parameter {
+                2 => 3,
+                3 => 2,
+                other => other,
+            };
+        }
+    }
+    // Analyze must reconstruct the supplied contract, and raw Verify must do
+    // so independently even with a genuine candidate for the original body.
+    assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
+    let candidate = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(
+            forged.clone(),
+            candidate.clone(),
+            &forged.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    let wire =
+        zil_ir::wire::encode_module_candidate(&forged, &candidate, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn third_and_fourth_actual_alias_and_once_reuse_do_not_gain_permission() {
+    let sources = [
+        "fn run<F:FnMut()->i32,G:FnMut()->i32,H:FnMut()->i32,I:FnMut()->i32>(f:&mut F,g:&mut G,h:&mut H,i:&mut I)->i32{return f()+g()+h()+i()}fn main()->i32{var a=0;var b=0;var c=0;var f=move()=>{a+=1;return a};var g=move()=>{b+=1;return b};var h=move()=>{c+=1;return c};return run(&mut f,&mut g,&mut h,&mut h)}",
+        "fn bad<F:FnOnce()->i32,G:FnOnce()->i32,H:FnOnce()->i32,I:FnOnce()->i32>(f:F,g:G,h:H,i:I)->i32{return f()+g()+h()+i()+h()}fn main()->i32{let f=move()=>1;let g=move()=>2;let h=move()=>3;let i=move()=>4;return bad(f,g,h,i)}",
+        "fn unused<F:Fn()->i32,G:Fn()->i32,H:FnOnce()->i32,I:Fn()->i32>(f:&F,g:&G,h:&H,i:&I)->i32{return i()}fn main()->i32{return 0}",
+    ];
+    for (index, source) in sources.iter().enumerate() {
+        let case = Case::new(&format!("four-role-deny-{index}"));
+        let report = compile(&case, &[("main", source)], None);
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        if index == 0 {
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                matches!(report.phase, Phase::Analyze | Phase::Verify),
+                "{}",
+                report.to_json()
+            );
+        }
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
+fn three_same_generic_shared_roles_keep_three_actual_positions() {
+    let source = "fn all<F:Fn()->i32>(a:&F,b:&F,c:&F)->i32{return a()+b()+c()}fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main()->i32{let a=make(1);let b=make(2);let c=make(3);return all(&a,&b,&c)-6}";
+    let module = typed(source);
+    let contract = module
+        .functions
+        .iter()
+        .find_map(|f| f.callable_contract.as_ref())
+        .unwrap();
+    assert_eq!(contract.roles.len(), 3);
+    assert!(
+        contract
+            .roles
+            .iter()
+            .all(|r| r.closure == contract.roles[0].closure)
+    );
+}
+
+fn role_budget_boundary(
+    mut run: impl FnMut(usize) -> Result<(), Vec<zil_base::Diagnostic>>,
+) -> usize {
+    let mut high = Limits::default().max_analysis_steps;
+    assert!(run(high).is_ok());
+    let mut low = 0;
+    while low + 1 < high {
+        let middle = low + (high - low) / 2;
+        if run(middle).is_ok() {
+            high = middle;
+        } else {
+            low = middle;
+        }
+    }
+    assert!(run(high).is_ok());
+    let below = run(high - 1).unwrap_err();
+    assert!(
+        below
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit),
+        "{below:?}"
+    );
+    assert!(run(high).is_ok());
+    high
+}
+
+#[test]
+fn one_two_and_four_role_physical_tables_have_paid_fresh_boundaries() {
+    for (label, source) in [
+        ("one", ORIGINALS[0].1),
+        ("two", ORIGINALS[6].1),
+        ("four", FOUR_ROLE_SOURCE),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "role-budget.zil", source);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let core = zil_expand::expand(&unit, &syntax).unwrap();
+        let types = role_budget_boundary(|n| {
+            zil_types::check(
+                &core,
+                &TargetProfile::host_llvm(),
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|_| ())
+        });
+        let module =
+            zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+        let analyze = role_budget_boundary(|n| {
+            zil_analyze::analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|_| ())
+        });
+        let candidate = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+        let verify = role_budget_boundary(|n| {
+            zil_verify::verify_module(
+                module.clone(),
+                candidate.clone(),
+                &module.target,
+                &Limits {
+                    max_analysis_steps: n,
+                    ..Limits::default()
+                },
+            )
+            .map(|_| ())
+        });
+        println!(
+            "G3.3.10 {label}: Types={types}, Analyze={analyze}, Verify={verify}; N/N-1/fresh N"
+        );
+    }
 }

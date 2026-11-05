@@ -301,12 +301,8 @@ pub(super) fn reconstruct(
                 // A checked Fresh factory contributes this actual owned value,
                 // not a wrapper parameter role. Parameter returns propagated
                 // their actual argument provenance before reaching this site.
-                let concrete_body = stage == 1 && matches!(mark, 4 | 16);
-                let parameter = match mark {
-                    1 => origins.parameters.first().copied(),
-                    2 => origins.parameters.get(1).copied(),
-                    _ => None,
-                };
+                let concrete_body = stage == 1 && (mark == Origin::FACTORY || mark == Origin::BODY);
+                let parameter = origins.parameter(mark);
                 if parameter.is_none() && !concrete_body {
                     return Err(bad(
                         f,
