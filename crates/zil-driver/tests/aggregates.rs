@@ -10115,6 +10115,12 @@ fn g4453_host_complete_context_and_ordinary_static_member() {
         include_str!(
             "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
         ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
+        ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
