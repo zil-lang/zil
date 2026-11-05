@@ -8337,7 +8337,9 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil"
     ));
-    for (stage, expected_n) in [(Stage::Analyze, 46908), (Stage::Verify, 97818)] {
+    // G1.3.6: previous Analyze N46908; actual local retirement/liveness and
+    // paid producer eligibility add40. Verify retains its independent bound.
+    for (stage, expected_n) in [(Stage::Analyze, 46948), (Stage::Verify, 97818)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
@@ -8845,7 +8847,8 @@ fn terminal340_package_terminal_exact_request_budget() {
         assert_eq!(
             low,
             if stage == Stage::Analyze {
-                13_945
+                // G1.3.6 paid producer exclusion inventory: previous13945+9.
+                13_954
             } else {
                 28_743
             },
