@@ -8062,3 +8062,6 @@ mod g337_tail;
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-cfg/regressions.rs"]
 mod g338_cfg;
+
+#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs"]
+mod p0_g338_review;
