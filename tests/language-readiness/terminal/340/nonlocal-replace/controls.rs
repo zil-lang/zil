@@ -323,6 +323,14 @@ fn g139_public_role_capture_current_contract_probe() {
     }
     let result = zil_analyze::analyze(&module, &Limits::default());
     println!("G139 public-role actual Analyze result {result:?}");
+    if result.is_err() {
+        for function in &module.functions {
+            println!(
+                "G139 rejected actual function {} {:?}",
+                function.name, function.blocks
+            );
+        }
+    }
     assert!(result.is_ok(), "{result:?}");
     assert!(
         module
