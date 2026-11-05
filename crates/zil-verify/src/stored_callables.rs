@@ -3,6 +3,8 @@
 use super::*;
 #[path = "stored_callables_staged.rs"]
 mod staged;
+#[path = "stored_callables_staged_cfg.rs"]
+mod staged_cfg;
 #[path = "stored_callables_staged_tail.rs"]
 mod staged_tail;
 fn bad(message: &str) -> Diagnostic {

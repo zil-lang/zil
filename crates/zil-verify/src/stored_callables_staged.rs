@@ -105,7 +105,13 @@ pub(super) fn parameter(
     }
     let fork = f.blocks.len() != 1;
     let block = if fork {
-        super::staged_tail::entry(f, b)?
+        match super::staged_tail::entry(f, b) {
+            Ok(block) => block,
+            Err(error) if error.category != zil_base::ResultCategory::ResourceLimit => {
+                return super::staged_cfg::parameter(f, call, d, b);
+            }
+            Err(error) => return Err(error),
+        }
     } else {
         let block = &f.blocks[0];
         if f.entry != block.id
@@ -556,6 +562,57 @@ mod tests {
                 .is_err(),
                 "{name}"
             );
+        }
+    }
+    #[allow(dead_code)]
+    mod cfg_fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/342/fnonce-helper-cfg/cfg_neighbors.rs"
+        ));
+    }
+    #[test]
+    fn g338_verify_actual_origin_dag_joins_and_path_retirement() {
+        let limits = Limits::default();
+        for drop_branch in [false, true] {
+            let mut m = model();
+            cfg_fixture::diamond(&mut m.functions[0], drop_branch);
+            let f = &m.functions[0];
+            let call = &f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap()
+                .kind;
+            assert!(
+                super::super::role(&m, f, call, &m.closures[0], &mut Budget::new(&limits))
+                    .unwrap()
+                    .is_some()
+            );
+            if drop_branch {
+                continue;
+            }
+            for (name, changed) in cfg_fixture::hostile(f) {
+                let call = &changed
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                    .unwrap()
+                    .kind;
+                assert!(
+                    super::super::role(
+                        &m,
+                        &changed,
+                        call,
+                        &m.closures[0],
+                        &mut Budget::new(&limits)
+                    )
+                    .is_err(),
+                    "{name}"
+                );
+            }
         }
     }
 }

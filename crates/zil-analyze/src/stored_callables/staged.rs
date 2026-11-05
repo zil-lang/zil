@@ -1,6 +1,7 @@
 //! Identity-only recovery for a finite owning receiver. This never establishes
 //! initialization, liveness, ownership, or permission to execute the call.
 use super::*;
+mod cfg;
 mod tail;
 
 fn closed() -> Vec<Diagnostic> {
@@ -65,7 +66,17 @@ pub(super) fn parameter(
     b.spend(f.blocks.len(), "staged single-block control inventory")?;
     let fork = f.blocks.len() != 1;
     let block = if fork {
-        tail::entry(f, b)?
+        match tail::entry(f, b) {
+            Ok(block) => block,
+            Err(errors)
+                if errors
+                    .iter()
+                    .all(|d| d.category != zil_base::ResultCategory::ResourceLimit) =>
+            {
+                return cfg::parameter(f, kind, d.id, b);
+            }
+            Err(errors) => return Err(errors),
+        }
     } else {
         let block = &f.blocks[0];
         if block.id != f.entry
@@ -422,6 +433,49 @@ mod tests {
                 super::super::role(&m, &changed, &kind, &mut Budget::new(&limits)).is_err(),
                 "{name}"
             );
+        }
+    }
+    #[allow(dead_code)]
+    mod cfg_fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/342/fnonce-helper-cfg/cfg_neighbors.rs"
+        ));
+    }
+    #[test]
+    fn g338_analyze_actual_origin_dag_joins_and_path_retirement() {
+        let limits = Limits::default();
+        for drop_branch in [false, true] {
+            let (m, mut f, _) = model(true);
+            cfg_fixture::diamond(&mut f, drop_branch);
+            let call = &f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap()
+                .kind;
+            assert!(
+                super::super::role(&m, &f, call, &mut Budget::new(&limits))
+                    .unwrap()
+                    .is_some()
+            );
+            if drop_branch {
+                continue;
+            }
+            for (name, changed) in cfg_fixture::hostile(&f) {
+                let call = &changed
+                    .blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                    .unwrap()
+                    .kind;
+                assert!(
+                    super::super::role(&m, &changed, call, &mut Budget::new(&limits)).is_err(),
+                    "{name}"
+                );
+            }
         }
     }
 }
