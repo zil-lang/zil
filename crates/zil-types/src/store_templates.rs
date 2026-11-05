@@ -543,7 +543,8 @@ impl Builder<'_, '_> {
         self.closures
             .snapshot(signature_work.saturating_mul(8), span)?;
         let mut errors = Vec::new();
-        signature_errors(&function, &mut errors);
+        let mut signature_left = self.limits.max_analysis_steps;
+        signature_errors(&function, &mut errors, self.limits, &mut signature_left)?;
         if let Some(error) = errors.into_iter().next() {
             return Err(error);
         }

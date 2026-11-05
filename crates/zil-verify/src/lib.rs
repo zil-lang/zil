@@ -1330,6 +1330,12 @@ fn check_function_signature_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        return stored_flow::qualification(module, ty, &budget.limits.clone(), budget);
+    }
+    if stored_flow::pure_inline(module, ty, budget)? {
+        return Ok(());
+    }
     match ty {
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
@@ -1371,6 +1377,21 @@ fn check_local_type(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> Check<bool> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        stored_flow::qualification(module, ty, &budget.limits.clone(), budget)?;
+        return Ok(false);
+    }
+    if stored_flow::pure_inline(module, ty, budget)? {
+        return Ok(false);
+    }
+    if let Type::Address {
+        inner,
+        mutable: false,
+    } = ty
+        && stored_flow::pure_inline(module, inner, budget)?
+    {
+        return Ok(false);
+    }
     if resources::arrays::is_owned_type(ty) {
         return resources::arrays::check_internal_single_slot_type_for(module, ty, span, budget);
     }

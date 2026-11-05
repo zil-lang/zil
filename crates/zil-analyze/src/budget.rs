@@ -404,8 +404,13 @@ fn local_value(
     ty: &Type,
     span: Span,
     module: &TypedModule,
+    limits: &Limits,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if matches!(ty, Type::BorrowedStorage { .. }) {
+        super::stored_flow::qualification(module, ty, limits, budget)?;
+        return Ok(false);
+    }
     if let Type::Address { inner, .. } = ty
         && matches!(
             inner.as_ref(),
@@ -426,6 +431,15 @@ fn local_value(
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
+    } else if super::stored_flow::pure_inline(module, ty, budget)? {
+        Ok(false)
+    } else if let Type::Address {
+        inner,
+        mutable: false,
+    } = ty
+        && super::stored_flow::pure_inline(module, inner, budget)?
+    {
+        Ok(false)
     } else {
         legacy_value(ty, span, module).map(|_| false)
     }
@@ -1274,7 +1288,8 @@ pub(super) fn preflight(
         }
         budget.input(1, "return type preflight")?;
         let mut sum_function = budget.sum_type(&function.return_type)?;
-        let mut product_store = local_value(&function.return_type, function.span, module, budget)?;
+        let mut product_store =
+            local_value(&function.return_type, function.span, module, limits, budget)?;
         let scoped_aggregate = |ty: &Type| {
             matches!(ty, Type::Package { .. })
                 || super::resources::owned_error(ty)
@@ -1290,6 +1305,7 @@ pub(super) fn preflight(
                 &function.locals[parameter.0 as usize].ty,
                 function.span,
                 module,
+                limits,
                 budget,
             )?;
         }
@@ -1306,13 +1322,13 @@ pub(super) fn preflight(
             }
             budget.input(local.name.len(), "local metadata")?;
             sum_function |= budget.sum_type(&local.ty)?;
-            product_store |= local_value(&local.ty, local.span, module, budget)?;
+            product_store |= local_value(&local.ty, local.span, module, limits, budget)?;
             package |= scoped_aggregate(&local.ty);
         }
         for ty in &function.values {
             budget.input(1, "value type preflight")?;
             sum_function |= budget.sum_type(ty)?;
-            product_store |= local_value(ty, function.span, module, budget)?;
+            product_store |= local_value(ty, function.span, module, limits, budget)?;
             package |= scoped_aggregate(ty);
         }
         for block in &function.blocks {

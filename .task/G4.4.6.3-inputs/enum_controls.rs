@@ -61,6 +61,16 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
     let raw = zil_types::check(&core, &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut missing = raw.clone();
+    missing.life_instances.remove(enum_index);
+    assert!(
+        zil_analyze::analyze(&missing, &limits).is_err(),
+        "Analyze accepted a qualified Enum with no complete instance"
+    );
+    assert!(
+        zil_verify::verify_module(missing, plan.clone(), &target, &limits).is_err(),
+        "Verify accepted a qualified Enum with no complete instance"
+    );
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
     let Type::BorrowedStorage { storage, life } = &raw.life_instances[enum_index].ty else {
@@ -128,4 +138,26 @@ fn g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery() {
             "Verify accepted a real borrowing or owning payload"
         );
     }
+    let mut hidden = raw.clone();
+    let Type::BorrowedStorage { storage, .. } = &mut hidden.life_instances[enum_index].ty else {
+        unreachable!()
+    };
+    let Type::Enum { variants, .. } = storage.as_mut() else {
+        unreachable!()
+    };
+    variants[1].1[1] = Type::Array {
+        element: Box::new(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        }),
+        length: 2,
+    };
+    assert!(
+        zil_analyze::analyze(&hidden, &limits).is_err(),
+        "Analyze accepted a hidden Array Address"
+    );
+    assert!(
+        zil_verify::verify_module(hidden, plan, &target, &limits).is_err(),
+        "Verify accepted a hidden Array Address"
+    );
 }

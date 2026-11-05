@@ -489,7 +489,7 @@ pub(super) fn qualification(
     physical(ty, limits, b)?;
     let (storage, _) =
         qualified(ty).ok_or_else(|| err("expected an actual qualified stored type"))?;
-    if matches!(storage, Type::Record { .. }) {
+    if matches!(storage, Type::Record { .. } | Type::Enum { .. }) {
         let mut matches = 0usize;
         b.spend(module.life_instances.len())?;
         for instance in &module.life_instances {
@@ -521,6 +521,63 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
         return Ok(false);
     }
     qualification(module, ty, &limits, b)?;
+    Ok(true)
+}
+
+pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if ty.is_copy_value()
+        || !matches!(
+            ty,
+            Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+        )
+        || !retained::pure(ty, b)?
+    {
+        return Ok(false);
+    }
+    let limits = b.limits.clone();
+    type_work(ty, &limits, b)?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        b.spend(1)?;
+        match current {
+            Type::BorrowedStorage { storage, .. } => {
+                physical(current, &limits, b)?;
+                let mut count = 0usize;
+                for instance in &module.life_instances {
+                    type_work(&instance.ty, &limits, b)?;
+                    type_work(current, &limits, b)?;
+                    if instance.ty == *current {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(err(
+                        "pure inline child has no unique complete nominal instance",
+                    ));
+                }
+                pending.push(storage);
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return Ok(false),
+        }
+    }
     Ok(true)
 }
 

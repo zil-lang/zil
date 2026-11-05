@@ -403,7 +403,7 @@ pub(super) fn qualification(
     shape_work(ty, limits, b)?;
     physical(ty, b)?;
     let (storage, _) = carrier(ty).ok_or_else(|| failure("expected a qualified carrier"))?;
-    if matches!(storage, Type::Record { .. }) {
+    if matches!(storage, Type::Record { .. } | Type::Enum { .. }) {
         fee(b, module.life_instances.len())?;
         let mut present = false;
         for instance in &module.life_instances {
@@ -450,6 +450,64 @@ fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<b
         return Err(failure(
             "pure stored read lacks one complete nominal instance",
         ));
+    }
+    Ok(true)
+}
+
+/// Pure inline products have no runtime targets. Every qualified descendant
+/// still needs one complete, independently checked nominal instance.
+pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if ty.is_copy_value()
+        || !matches!(
+            ty,
+            Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+        )
+        || !retained::pure(ty, b)?
+    {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "pure inline complete payload")?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        fee(b, 1)?;
+        match current {
+            Type::BorrowedStorage { storage, .. } => {
+                physical(current, b)?;
+                let mut count = 0usize;
+                for instance in &module.life_instances {
+                    b.type_work(&instance.ty, false, "pure inline nominal identity")?;
+                    b.type_work(current, false, "pure inline actual identity")?;
+                    if instance.ty == *current {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "pure inline child has no unique complete nominal instance",
+                    ));
+                }
+                pending.push(storage);
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return Ok(false),
+        }
     }
     Ok(true)
 }

@@ -239,6 +239,9 @@ fn signatures(
         ) {
             errors.push(diagnostic);
         }
+        if f.type_parameters.is_empty() {
+            signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+        }
         if signatures
             .insert(
                 f.name.clone(),
@@ -282,10 +285,6 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
-        if !f.type_parameters.is_empty() {
-            continue;
-        }
-        signature_errors(f, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -293,7 +292,21 @@ fn signatures(
     Ok(signatures)
 }
 
-fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
+fn signature_errors(
+    f: &CoreFunction,
+    errors: &mut Vec<Diagnostic>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    fn pure_array(ty: &Type, span: Span, limits: &Limits, left: &mut usize) -> R<bool> {
+        if !matches!(ty, Type::Array { .. }) || ty.is_copy_value() {
+            return Ok(false);
+        }
+        // Signature and typed header each copy the complete qualified type.
+        inference::charge_type_snapshot(ty, span, limits, left, 2)?;
+        stored::pure_inline(ty, left, limits, span)
+    }
+    let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
     if f.return_type.is_package_address() {
         errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
     }
@@ -316,6 +329,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || forwarding::bound(f).is_some()
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
+        || pure_result
         || f.return_type.is_scalar_or_address()
         || stored::shared_value(&f.return_type)
         || stored::shared_address(&f.return_type)
@@ -360,7 +374,9 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         {
             continue;
         }
+        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?;
         if !(p.ty.is_copy_value()
+            || pure_parameter
             || p.ty.is_scalar_or_address()
             || stored::shared_value(&p.ty)
             || stored::shared_address(&p.ty)
@@ -399,6 +415,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             errors.push(unsupported(p.span, "resource/address parameter mode"))
         }
     }
+    Ok(())
 }
 
 pub fn check(
