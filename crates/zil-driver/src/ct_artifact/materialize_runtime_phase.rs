@@ -336,6 +336,18 @@ pub(super) struct RuntimeBinding<'a> {
 }
 
 impl RuntimeCt for RuntimePhase<'_> {
+    fn check_static_host(
+        &self,
+        definition: &RuntimeDefinition,
+        actual: &s::Item,
+        remaining: &mut Limits,
+    ) -> CompileResult<()> {
+        let mut environment = self.environment.borrow_mut();
+        synchronize(&mut environment,remaining)?;
+        let result = environment.check_static_host(definition,actual);
+        *remaining = environment.remaining_limits_for_input();
+        result
+    }
     fn definition_expression(
         &self,
         definition: &RuntimeDefinition,

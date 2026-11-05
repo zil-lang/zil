@@ -101,6 +101,15 @@ impl Builder<'_, '_> {
                 if row.caller != self.id {
                     continue;
                 }
+                if let Some((block,instruction)) = row.execution {
+                    blocks.get(block.0 as usize).ok_or_else(||error(span,"CT source execution block absent"))?;
+                    let call = self.blocks.get(block.0 as usize)
+                        .and_then(|block|block.instructions.get(instruction as usize))
+                        .ok_or_else(||error(span,"CT source execution instruction absent"))?;
+                    if !matches!(&call.kind,CtInstructionKind::Call{function,..} if *function==row.instance)
+                        || row.occurrence.is_some_and(|(b,v)|b!=block || call.result!=Some(v))
+                    { return Err(error(span,"CT source execution locator differs from its actual Call")); }
+                }
                 if let Some((block, value)) = row.occurrence {
                     let block = blocks
                         .get(block.0 as usize)
@@ -119,6 +128,10 @@ impl Builder<'_, '_> {
             self.compiler.source_instance_calls.retain_mut(|row| {
                 if row.caller != self.id {
                     return true;
+                }
+                if let Some((block,instruction)) = row.execution {
+                    let Some(block) = blocks[block.0 as usize] else {return false};
+                    row.execution = Some((block,instruction));
                 }
                 let Some((block, value)) = row.occurrence else {
                     return true;

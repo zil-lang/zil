@@ -651,6 +651,14 @@ impl<'a> Engine<'a> {
                 ));
             }
         };
+        if let ItemKind::Aggregate(aggregate) = &item.kind
+            && !aggregate.methods.is_empty()
+        {
+            return Err(unsupported(
+                span,
+                "generic resource or methods require capability resolution",
+            ));
+        }
         for _ in formals {
             self.budget.node(span, depth)?;
         }

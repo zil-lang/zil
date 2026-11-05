@@ -17,6 +17,8 @@ use zil_base::{
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::ParseResult;
+#[path = "execute_static_host.rs"]
+mod static_host;
 
 fn error(message: &str, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -44,6 +46,7 @@ pub(super) struct Environment<'a> {
     target: &'a TargetProfile,
     source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
     pub(super) generated_catalog: zil_expand::source_context::GeneratedSourceCatalog,
+    static_host_invocations: Vec<static_host::Invocation>,
 }
 
 impl<'a> Environment<'a> {
@@ -164,6 +167,7 @@ impl<'a> Environment<'a> {
             target,
             source_origins: None,
             generated_catalog: Default::default(),
+            static_host_invocations: Vec::new(),
         })
     }
 
@@ -726,6 +730,10 @@ impl<'a> Environment<'a> {
             }),
             Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
         };
+        // Missing source origins may need a required capture once fresh source
+        // calls are known. Defer this one freeze, rather than fail before the
+        // existing call-triggered capture or repeat the old no-call scan.
+        let delayed_original_freeze = runtime_source.is_none() && self.source_origins.is_none();
         let mut invocation_context = if let Some(source) = runtime_source {
             self.require_source_origins()?;
             super::invocation_context::FrozenInvocationContext::freeze_runtime_at_source(
@@ -737,6 +745,8 @@ impl<'a> Environment<'a> {
                 source,
                 &mut self.budget,
             )?
+        } else if delayed_original_freeze {
+            None
         } else {
             super::invocation_context::FrozenInvocationContext::freeze_at_source(
                 &entry,
@@ -811,6 +821,20 @@ impl<'a> Environment<'a> {
                     Some(&self.generated_catalog),
                     source_site,
                     true,
+                    &mut self.budget,
+                )?;
+        }
+        if delayed_original_freeze && invocation_context.is_none() {
+            invocation_context =
+                super::invocation_context::FrozenInvocationContext::freeze_at_source(
+                    retry_entry.as_ref().ok_or_else(|| {
+                        error("source freezing lost its immutable entry", span)
+                    })?,
+                    self.parsed,
+                    &self.index,
+                    self.source_origins.as_ref(),
+                    Some(&self.generated_catalog),
+                    source_site,
                     &mut self.budget,
                 )?;
         }
@@ -906,8 +930,15 @@ impl<'a> Environment<'a> {
             target: self.target,
             snapshot: &self.snapshot,
         };
-        let (value, _usage) =
-            zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget).map_err(
+        self.budget.reserve_analysis_work(source_bindings.calls.len() as u64)?;
+        let has_host_calls = source_bindings.calls.iter().any(|call|call.enclosing.is_some());
+        let evaluated = if has_host_calls {
+            zil_ct::evaluate_ct_artifact_with_completed_calls(&verified,arguments,&reader,&mut self.budget)
+        } else {
+            zil_ct::evaluate_ct_artifact(&verified,arguments,&reader,&mut self.budget)
+                .map(|(value,usage)|(value,usage,Vec::new()))
+        };
+        let (value, _usage, completed_calls) = evaluated.map_err(
                 |mut errors| {
                     for diagnostic in &mut errors {
                         if diagnostic.span.is_none() {
@@ -948,7 +979,24 @@ impl<'a> Environment<'a> {
         } else {
             None
         };
-        if context.is_none()
+        self.budget.reserve_analysis_work((source_bindings.calls.len() as u64).saturating_mul(completed_calls.len() as u64))?;
+        let retain_host = source_bindings.calls.iter().any(|call| call.enclosing.is_some()
+            && call.execution.is_some_and(|(block,instruction)|completed_calls.iter().any(|event|
+                event.caller==call.caller && event.block==block && event.instruction==instruction && event.callee==call.instance)));
+        if retain_host {
+            // Only a successful independently admitted, verified AND evaluated
+            // request reaches this private event constructor.
+            self.retain_static_host_invocation(
+                expected,
+                source_bindings.calls,
+                source_bindings.scopes,
+                invocation_context.as_ref().ok_or_else(|| error("CT namespace lost its authentic invocation",span))?.clone(),
+                completed_calls,
+            )?;
+        } else {
+            self.budget.release_temporary_bytes(completed_calls.capacity() as u64 * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64);
+        }
+        if context.is_none() && !retain_host
             && let Some(invocation_context) = invocation_context
         {
             self.budget

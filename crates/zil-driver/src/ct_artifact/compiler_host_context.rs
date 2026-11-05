@@ -224,6 +224,18 @@ impl<'a> Compiler<'a> {
         let names = self.generic_names(&aggregate.generics, &[], span)?;
         let mut bindings = Vec::new();
         for name in names {
+            // A member binder shadows the same spelling in its lexical host.
+            // Keep both actual owners; do not let the host's first-match data
+            // binding replace the member's abstract Type parameter.
+            let mut shadowed = false;
+            for parameter in member_parameters {
+                self.budget
+                    .work(parameter.name.len().min(name.len()) + 1, span)?;
+                shadowed |= parameter.name == name;
+            }
+            if shadowed {
+                continue;
+            }
             self.budget.node(span)?;
             self.budget.text(&name, span)?;
             let ty = CtTy::Record(CtRecordSchemaId(u32::MAX - self.symbolic.len() as u32));

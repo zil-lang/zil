@@ -11,7 +11,7 @@ mod generated_spans;
 mod generics;
 mod lifetimes;
 mod record_enums;
-pub use generated_spans::remap_generated_spans;
+pub use generated_spans::{remap_generated_spans,remap_generated_spans_metered};
 mod mapping;
 mod modules;
 mod project_traits;

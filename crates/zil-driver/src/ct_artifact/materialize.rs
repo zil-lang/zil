@@ -2455,7 +2455,7 @@ pub(crate) fn materialize<'a>(
     let runtime_deferred = materializer.runtime_deferred;
     drop(materializer);
     Ok(Materialized {
-        runtime_environment: runtime_deferred.then_some(environment),
+        runtime_environment: (runtime_deferred || environment.has_static_host_uses()).then_some(environment),
         capture_usage: (
             (limits.max_analysis_steps - capture_remaining.max_analysis_steps) as u64,
             (limits.max_nodes - capture_remaining.max_nodes) as u64,

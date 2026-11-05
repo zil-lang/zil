@@ -276,6 +276,12 @@ impl<'c, 'a> Builder<'c, 'a> {
             });
         Ok(())
     }
+    pub(super) fn execution_call_position(&mut self,span:Span)->R<(CtBlockId,u32)> {
+        self.compiler.budget.node(span)?;
+        let position = u32::try_from(self.blocks[self.current.0 as usize].instructions.len())
+            .map_err(|_|error(span,"CT source call instruction ordinal overflow"))?;
+        Ok((self.current,position))
+    }
     pub fn emit(&mut self, kind: CtInstructionKind, ty: CtTy, span: Span) -> R<Value> {
         self.compiler.budget.node(span)?;
         Budget::take(

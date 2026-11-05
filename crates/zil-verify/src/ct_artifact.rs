@@ -1523,6 +1523,13 @@ fn check_instruction(
                     "CT argument type differs from callee parameter",
                 )?;
             }
+            // The actual Unit callee has no value to bind. Keep all target,
+            // visibility, arity and argument checks above; other instructions
+            // and non-Unit Calls retain their result-presence obligations.
+            if instruction.result.is_none() && callee.result_type == CtTy::Scalar(CtScalarTy::Unit)
+            {
+                return Ok(None);
+            }
             callee.result_type.clone()
         }
         K::TypePrimitive(_) | K::TypeBuiltin(_) => CtTy::Type,

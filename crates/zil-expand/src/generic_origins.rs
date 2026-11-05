@@ -770,7 +770,7 @@ fn validate_retained_members(
     Ok(())
 }
 
-pub(super) fn pay_identity(
+pub(crate) fn pay_identity(
     identity: &LifeDeclarationIdentity,
     budget: &mut Budget<'_>,
     span: Span,
