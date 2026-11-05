@@ -19,6 +19,12 @@ pub(crate) fn admit(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
     budget.type_work(ty, true, "ordinary Sum admission")?;
     fn walk(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<(bool, bool)> {
         budget.spend(1, "ordinary Sum shape")?;
+        if !ty.is_copy_value()
+            && (super::super::stored_flow::pure_inline(module, ty, budget)?
+                || super::super::stored_flow::pure_read(module, ty, budget)?)
+        {
+            return Ok((false, false));
+        }
         match ty {
             Type::Managed(_) => {
                 if dynamic_store::is_owned_carrier(ty) {

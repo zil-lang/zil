@@ -6,7 +6,70 @@ use super::*;
 struct Ports {
     outer: Option<usize>,
     classes: Vec<usize>,
+    keys: Vec<(Vec<LifeTypeProjection>, u32)>,
     environment: bool,
+}
+fn pure_class_keys(
+    ty: &Type,
+    path: &mut Vec<LifeTypeProjection>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if path.len() > b.partial_depth {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "actual pure class path exceeds type depth",
+            None,
+        )]);
+    }
+    b.spend(1, "actual pure composite class inventory")?;
+    match ty {
+        Type::BorrowedStorage { life, .. } => {
+            for class in 0..life.binder_count {
+                b.spend(path.len().saturating_add(1), "actual pure class path")?;
+                out.push((path.clone(), class));
+            }
+        }
+        Type::Array { element, .. } => {
+            path.push(LifeTypeProjection::Element);
+            pure_class_keys(element, path, out, b)?;
+            path.pop();
+        }
+        Type::Tuple(fields) => {
+            for (index, field) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                pure_class_keys(field, path, out, b)?;
+                path.pop();
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (index, (_, field)) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                pure_class_keys(field, path, out, b)?;
+                path.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, field) in fields.iter().enumerate() {
+                    path.push(LifeTypeProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        },
+                    )));
+                    pure_class_keys(field, path, out, b)?;
+                    path.pop();
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
 }
 struct Equations {
     parent: Vec<usize>,
@@ -102,17 +165,32 @@ impl Equations {
         } else {
             ty
         };
-        let count = if let Type::BorrowedStorage { life, .. } = ty {
-            life.binder_count as usize
-        } else if let Type::Closure(id) = ty {
-            module
+        let mut keys = Vec::new();
+        if let Type::Closure(id) = ty {
+            let count = module
                 .closures
                 .get(id.0 as usize)
                 .and_then(|d| d.storage_life.as_ref())
-                .map_or(0, |life| life.fixed_binder_count as usize)
-        } else {
-            0
-        };
+                .map_or(0, |life| life.fixed_binder_count);
+            for class in 0..count {
+                keys.push((
+                    if outer.is_some() {
+                        vec![LifeTypeProjection::Pointee]
+                    } else {
+                        Vec::new()
+                    },
+                    class,
+                ));
+            }
+        } else if !ty.is_copy_value() {
+            let mut path = if outer.is_some() {
+                vec![LifeTypeProjection::Pointee]
+            } else {
+                Vec::new()
+            };
+            pure_class_keys(ty, &mut path, &mut keys, b)?;
+        }
+        let count = keys.len();
         b.spend(count, "class port allocation")?;
         let mut classes = Vec::with_capacity(count);
         for _ in 0..count {
@@ -121,6 +199,7 @@ impl Equations {
         Ok(Ports {
             outer,
             classes,
+            keys,
             environment: matches!(ty, Type::Closure(_)) && count != 0,
         })
     }
@@ -155,6 +234,68 @@ fn shape(ty: &Type) -> Option<&StorageLifeShape> {
     } else {
         None
     }
+}
+fn link_projection(
+    parent_ty: &Type,
+    parent: &Ports,
+    child: &Ports,
+    step: LifeTypeProjection,
+    e: &mut Equations,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let (physical, prefix) = if let Type::Address { inner, .. } = parent_ty {
+        (inner.as_ref(), vec![LifeTypeProjection::Pointee])
+    } else {
+        (parent_ty, Vec::new())
+    };
+    for (index, (path, class)) in child.keys.iter().enumerate() {
+        let retained = if let Type::BorrowedStorage { life, .. } = physical {
+            life.retained.as_slice()
+        } else {
+            &[]
+        };
+        let full_len = path.len().saturating_add(1);
+        let lookup_work = parent
+            .keys
+            .iter()
+            .fold(0usize, |n, (p, _)| {
+                n.saturating_add(p.len().saturating_add(full_len).saturating_add(1))
+            })
+            .saturating_add(retained.iter().fold(0usize, |n, row| {
+                n.saturating_add(row.path.len().saturating_add(full_len).saturating_add(1))
+            }))
+            .saturating_add(full_len.saturating_mul(3))
+            .saturating_add(1);
+        b.spend(lookup_work, "actual projected class lookup")?;
+        let tail = if path.first() == Some(&LifeTypeProjection::Pointee) {
+            &path[1..]
+        } else {
+            path.as_slice()
+        };
+        let mut full = vec![step.clone()];
+        full.extend_from_slice(tail);
+        let parent_class = if let Type::BorrowedStorage { life, .. } = physical {
+            let row = life
+                .retained
+                .iter()
+                .find(|row| row.path == full && row.class == *class)
+                .ok_or_else(|| bad("projected qualified child lacks actual retained class path"))?;
+            parent
+                .keys
+                .iter()
+                .position(|(path, local)| path == &prefix && *local == row.binder)
+        } else {
+            let mut wanted = prefix.clone();
+            wanted.extend(full);
+            parent
+                .keys
+                .iter()
+                .position(|(path, local)| path == &wanted && local == class)
+        }
+        .ok_or_else(|| bad("projected class has no exact parent type path"))?;
+        e.equal(parent.classes[parent_class], child.classes[index], b)?;
+    }
+    Ok(())
 }
 fn variables(
     c: &StorageLifeContract,
@@ -208,10 +349,22 @@ fn bind(
     }
     for row in &c.classes {
         if row.position.base == base {
-            let actual = p
-                .classes
-                .get(row.position.class as usize)
-                .ok_or_else(|| bad("qualified class has no actual carrier position"))?;
+            let lookup_work = p.keys.iter().fold(0usize, |n, (path, _)| {
+                n.saturating_add(
+                    path.len()
+                        .saturating_add(row.position.path.len())
+                        .saturating_add(1),
+                )
+            });
+            b.spend(lookup_work, "actual signature class path selection")?;
+            let index = p
+                .keys
+                .iter()
+                .position(|(path, class)| {
+                    *path == row.position.path && *class == row.position.class
+                })
+                .ok_or_else(|| bad("qualified class has no exact actual type path"))?;
+            let actual = &p.classes[index];
             e.equal(*actual, select(v, row.binder)?, b)?;
         }
     }
@@ -467,9 +620,39 @@ fn check_with(
                         e.copy(out, &values[address.0 as usize], b)?;
                     }
                 }
-                InstructionKind::AddressField { address, .. }
-                | InstructionKind::AddressIndex { address, .. }
-                | InstructionKind::AddressSlice { address, .. } => {
+                InstructionKind::AddressIndex { address, .. } => {
+                    if let Some(out) = out {
+                        let parent = &values[address.0 as usize];
+                        if let (Some(a), Some(z)) = (out.outer, parent.outer) {
+                            e.equal(a, z, b)?;
+                        }
+                        link_projection(
+                            &f.values[address.0 as usize],
+                            parent,
+                            out,
+                            LifeTypeProjection::Element,
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::AddressField { address, index } => {
+                    if let Some(out) = out {
+                        let parent = &values[address.0 as usize];
+                        if let (Some(a), Some(z)) = (out.outer, parent.outer) {
+                            e.equal(a, z, b)?;
+                        }
+                        link_projection(
+                            &f.values[address.0 as usize],
+                            parent,
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::AddressSlice { address, .. } => {
                     if let (Some(out), Some(parent)) =
                         (out.and_then(|o| o.outer), values[address.0 as usize].outer)
                     {
@@ -524,6 +707,131 @@ fn check_with(
                                 b,
                             )?;
                         }
+                    }
+                    if let (Some(out), Some(id)) = (out, i.result) {
+                        let parent_ty = &f.values[id.0 as usize];
+                        for (index, field) in fields.iter().enumerate() {
+                            let step = if matches!(parent_ty, Type::Array { .. }) {
+                                LifeTypeProjection::Element
+                            } else {
+                                LifeTypeProjection::Place(PlaceProjection::Field(index as u32))
+                            };
+                            link_projection(
+                                parent_ty,
+                                out,
+                                &values[field.0 as usize],
+                                step,
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::ReadAddress { address } => {
+                    if let Some(out) = out {
+                        let input = &values[address.0 as usize];
+                        if out.classes.len() != input.classes.len() {
+                            return Err(bad("pure projection class arity differs"));
+                        }
+                        for (a, z) in out.classes.iter().zip(&input.classes) {
+                            e.equal(*a, *z, b)?;
+                        }
+                    }
+                }
+                InstructionKind::ExtractIndex { aggregate, .. } => {
+                    if let Some(out) = out {
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            &values[aggregate.0 as usize],
+                            out,
+                            LifeTypeProjection::Element,
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ExtractField { aggregate, index } => {
+                    if let Some(out) = out {
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            &values[aggregate.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ReadVariant {
+                    value,
+                    variant,
+                    index,
+                } => {
+                    if let Some(out) = out {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::Variant(
+                                zil_ir::VariantProjection {
+                                    variant: *variant,
+                                    index: *index,
+                                },
+                            )),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::MakeVariant { variant, fields } => {
+                    if let (Some(out), Some(id)) = (out, i.result) {
+                        for (index, field) in fields.iter().enumerate() {
+                            link_projection(
+                                &f.values[id.0 as usize],
+                                out,
+                                &values[field.0 as usize],
+                                LifeTypeProjection::Place(PlaceProjection::Variant(
+                                    zil_ir::VariantProjection {
+                                        variant: *variant,
+                                        index: index as u32,
+                                    },
+                                )),
+                                &mut e,
+                                b,
+                            )?;
+                        }
+                    }
+                }
+                InstructionKind::UpdateField {
+                    aggregate,
+                    index,
+                    value,
+                } => {
+                    if let Some(out) = out {
+                        e.copy(out, &values[aggregate.0 as usize], b)?;
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::UpdateIndex {
+                    aggregate, value, ..
+                } => {
+                    if let Some(out) = out {
+                        e.copy(out, &values[aggregate.0 as usize], b)?;
+                        link_projection(
+                            &f.values[aggregate.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Element,
+                            &mut e,
+                            b,
+                        )?;
                     }
                 }
                 InstructionKind::Call {
