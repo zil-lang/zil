@@ -7610,14 +7610,12 @@ fn ct5_member_own_life_context_reaches_native() {
     let report = compile_source(&source(generated), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(report.diagnostics.iter().any(|d| {
-        d.message
-            .contains("transformed declarations require explicit source lineage")
-    }));
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", generated)], "main", b"42\n");
     let scalar_generated = generated
         .replace("struct Phantom<life s>{n:i32}\n", "")
         .replace("<life s>", "")
@@ -9585,11 +9583,43 @@ fn g443_member_factories_keep_source_boundaries_and_definition_checks() {
         valid.replace("make::<i32,42,'s>", "make::<i32,true,'s>"),
         valid.replace("make::<i32,42,'s>", "make::<i32,42,'other>"),
         valid.replace("(marker:Type)", "(self:Self,marker:Type)"),
-        valid
-            .replace("struct Maker{", "struct Maker<X:Copy>{")
-            .replace("Maker.make::<", "Maker::<bool>.make::<"),
     ] {
         let report = compile_source(&source(&text), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+    let host = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-complete-member.zil"
+    );
+    assert_eq!(
+        host,
+        valid
+            .replace("struct Maker{", "struct Maker<X:Copy>{")
+            .replace("Maker.make::<", "Maker::<bool>.make::<")
+    );
+    let report = compile_source(&source(host), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", host)], "main", b"42\n");
+    for wrong in [
+        host.replace("Maker::<bool>", "Maker"),
+        host.replace("Maker::<bool>", "Maker::<bool,bool>"),
+        host.replace("Maker::<bool>", "Maker::<42>"),
+        host.replace("make::<i32,42,'s>", "make::<i32,42>"),
+    ] {
+        let report = compile_source(&source(&wrong), &CompileOptions::default());
         assert!(
             matches!(
                 report.status,
