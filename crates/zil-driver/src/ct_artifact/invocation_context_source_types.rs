@@ -1534,6 +1534,85 @@ impl FrozenInvocationContext {
         budget.release_temporary_bytes(budget.live_temporary_bytes().saturating_sub(before));
         result
     }
+    fn function_environment<'a>(
+        &'a self,
+        function: &CtFunction,
+        facts: &SourceCompilation,
+        raw: &'a CtArtifactProgram,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<SourceEnvironment<'a>> {
+        let mut selected = None;
+        budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+        for active in &self.active {
+            if active.raw.declaration != function.definition {
+                continue;
+            }
+            let authentic = match &active.raw.instance {
+                CtScopeInstance::Definition => {
+                    budget.reserve_analysis_work(facts.calls.len() as u64)?;
+                    !facts.calls.iter().any(|call| call.instance == function.id)
+                }
+                CtScopeInstance::Instantiated(actuals) => {
+                    let mut found = false;
+                    for call in &facts.calls {
+                        budget.reserve_analysis_work(32)?;
+                        if call.instance != function.id
+                            || call.callee != active.raw.declaration
+                            || call.enclosing != active.raw.enclosing
+                        {
+                            continue;
+                        }
+                        let cost = super::super::execute::value_context::ambient_cost(
+                            std::slice::from_ref(&active.raw),
+                            budget,
+                        )?;
+                        budget.reserve_analysis_work(cost)?;
+                        if &call.actuals == actuals {
+                            found = true;
+                        }
+                    }
+                    found
+                }
+            };
+            if authentic && selected.replace(&active.raw).is_some() {
+                return Err(unsupported(
+                    "CT source Type function has ambiguous independently authenticated instances",
+                ));
+            }
+        }
+        let scope = selected.ok_or_else(|| {
+            unsupported("CT source Type function lacks an authentic complete instance")
+        })?;
+        // A callee whose only ambient data arrives inside T need not publish
+        // a row for its own unused life parameters. Its private actual-call
+        // environment remains authoritative; it creates no graph scope handle.
+        let mut scope_id = CtAmbientScopeId(u32::MAX);
+        for (id, candidate) in raw.ambient_life_scopes.iter().enumerate() {
+            budget.reserve_analysis_work(32)?;
+            if candidate.declaration != scope.declaration || candidate.enclosing != scope.enclosing
+            {
+                continue;
+            }
+            let cost = super::super::execute::value_context::ambient_cost(
+                std::slice::from_ref(candidate),
+                budget,
+            )?
+            .saturating_add(super::super::execute::value_context::ambient_cost(
+                std::slice::from_ref(scope),
+                budget,
+            )?);
+            budget.reserve_analysis_work(cost)?;
+            if candidate == scope {
+                if scope_id.0 != u32::MAX {
+                    return Err(unsupported(
+                        "CT source Type actual instance has repeated graph scope rows",
+                    ));
+                }
+                scope_id = CtAmbientScopeId(id as u32);
+            }
+        }
+        self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)
+    }
     pub(in crate::ct_artifact) fn validate_type_contexts(
         &mut self,
         facts: &SourceCompilation,
@@ -1632,59 +1711,8 @@ impl FrozenInvocationContext {
             };
             self.validate_entry_slice(event.site, &function.definition, budget)?;
             let location = self.source_location(event.site, budget)?;
-            let mut scope_id = None;
-            for (id, scope) in raw.ambient_life_scopes.iter().enumerate() {
-                budget.reserve_analysis_work(32)?;
-                if scope.declaration != function.definition {
-                    continue;
-                }
-                let authentic = match &scope.instance {
-                    CtScopeInstance::Definition => {
-                        budget.reserve_analysis_work(facts.calls.len() as u64)?;
-                        !facts.calls.iter().any(|c| c.instance == function.id)
-                    }
-                    CtScopeInstance::Instantiated(actuals) => {
-                        let mut found = false;
-                        for call in &facts.calls {
-                            budget.reserve_analysis_work(32)?;
-                            if call.instance == function.id {
-                                let cost = super::super::execute::value_context::ambient_cost(
-                                    std::slice::from_ref(scope),
-                                    budget,
-                                )?;
-                                budget.reserve_analysis_work(cost)?;
-                                if &call.actuals == actuals
-                                    && call.callee == scope.declaration
-                                    && call.enclosing == scope.enclosing
-                                {
-                                    found = true;
-                                }
-                            }
-                        }
-                        found
-                    }
-                };
-                if authentic {
-                    if scope_id.replace(CtAmbientScopeId(id as u32)).is_some() {
-                        return Err(unsupported(
-                            "CT source Type function has ambiguous actual source instances",
-                        ));
-                    }
-                }
-            }
-            let scope_id = scope_id.ok_or_else(|| {
-                unsupported("CT source Type function lacks an authentic complete instance")
-            })?;
-            let scope = &raw.ambient_life_scopes[scope_id.0 as usize];
-            self.validate_scope(scope, budget)?;
-            self.match_location(
-                location,
-                graph,
-                &self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)?,
-                raw,
-                index,
-                budget,
-            )?;
+            let environment = self.function_environment(function, facts, raw, budget)?;
+            self.match_location(location, graph, &environment, raw, index, budget)?;
             let cost = super::super::execute::value_context::graph_cost(graph, budget)?
                 + std::mem::size_of::<AuthenticatedTypeSite>() as u64;
             budget.reserve_temporary_bytes(cost)?;
