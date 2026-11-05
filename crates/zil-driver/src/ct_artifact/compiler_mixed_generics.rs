@@ -211,6 +211,7 @@ impl Compiler<'_> {
                 "CT life actual is not declared by its authentic lexical owner",
             )
         })?;
+        let scope = self.source_life_scope.as_ref().unwrap();
         let definition = scope.definition.clone();
         // Pay nested metadata before copying the actual source scope.
         match &scope.instance {
