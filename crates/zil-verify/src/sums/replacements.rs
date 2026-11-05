@@ -134,6 +134,57 @@ pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
     }
     Ok(owner)
 }
+/// Result shape only; the independent module/type checks validate nominal
+/// identity and actual instructions. No borrow or owner can leave this lane.
+fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
+    // Preserve the accepted Unit helper's previous constant-time path.
+    if matches!(ty, Type::Unit) {
+        return Ok(true);
+    }
+    let mut first = Some(ty);
+    let mut pending = Vec::new();
+    while let Some(ty) = first.take().or_else(|| pending.pop()) {
+        b.spend(1)?;
+        match ty {
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16 => {}
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?;
+                pending.push(element);
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, ty)| ty));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
 /// This private lane admits one real mutable Package parameter. Other inputs
 /// may only prepare a scalar or a complete finite owning RHS; they cannot
 /// introduce a second address, capture, Store or callable authority.
@@ -141,10 +192,12 @@ fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bo
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.call_kind != zil_ir::CallKind::Direct
-        || f.return_type != Type::Unit
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
     {
+        return Ok(false);
+    }
+    if !helper_copy_result(&f.return_type, b)? {
         return Ok(false);
     }
     let Type::Address {
