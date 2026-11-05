@@ -427,6 +427,7 @@ struct State {
     // rebuilt here. Empty on the historical flat path; never a public proof.
     product_fresh: Vec<u8>,
     desc: Vec<BTreeSet<Root>>,
+    retirement: Vec<replacements::Sources>,
     // An edge a -> b means b may have been initialized later while a remained live.
     newer: Vec<BTreeSet<usize>>,
 }
@@ -452,6 +453,7 @@ struct Slots {
     local_count: usize,
     debt_count: usize,
     desc_count: usize,
+    retirement: bool,
 }
 
 impl Slots {
@@ -653,6 +655,7 @@ impl Slots {
             local_count,
             debt_count,
             desc_count,
+            retirement: false,
         })
     }
 
@@ -685,7 +688,15 @@ impl Slots {
             package_fresh.push(vec![INPUT; width]);
         }
         budget.spend(self.product.width())?;
+        if self.retirement {
+            budget.spend(self.desc_count)?;
+        }
         Ok(State {
+            retirement: if self.retirement {
+                vec![replacements::Sources::default(); self.desc_count]
+            } else {
+                vec![]
+            },
             debt: vec![EMPTY; self.debt_count],
             fresh: vec![0; self.debt_count],
             package_fresh,
@@ -697,6 +708,12 @@ impl Slots {
 }
 
 fn state_cost(s: &State, budget: &mut Budget) -> Check<()> {
+    if !s.retirement.is_empty() {
+        budget.spend(s.retirement.len())?;
+        for sources in &s.retirement {
+            sources.cost(budget)?;
+        }
+    }
     budget.spend(
         s.debt
             .len()
@@ -726,6 +743,9 @@ fn clone_state(s: &State, budget: &mut Budget) -> Check<State> {
 fn merge(target: &mut State, source: &State, budget: &mut Budget) -> Check<bool> {
     state_cost(source, budget)?;
     let mut changed = false;
+    for (a, b) in target.retirement.iter_mut().zip(&source.retirement) {
+        changed |= a.merge(b, budget)?;
+    }
     for (a, b) in target
         .debt
         .iter_mut()
@@ -2300,6 +2320,9 @@ impl Transfer<'_> {
                     }
                 }
             }
+            if let Some(plan) = self.replacements {
+                plan.source_step(self, state, instruction, budget)?;
+            }
             if validate {
                 task_frames::finish(f, b, i, task_before, state, budget)?;
             }
@@ -2415,7 +2438,7 @@ fn run_function_data(
     if let Some(plan) = replacements {
         plan.extend_slots(f, &mut slots, budget)?;
     }
-    if slots.debt_count == 0 && slots.desc_count == 0 {
+    if slots.debt_count == 0 && slots.desc_count == 0 && !slots.retirement {
         return Ok(BTreeSet::new());
     }
     let mut written = if let Some(plan) = replacements {
@@ -2461,6 +2484,9 @@ fn run_function_data(
             let root = Root::Parameter(p as u32);
             initial.desc[index].insert(if matches!(&f.locals[local.0 as usize].ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) { root.store_parent() } else { root });
         }
+    }
+    if let Some(plan) = replacements {
+        plan.seed_sources(module, f, &slots, &mut initial, budget)?;
     }
     if validate {
         task_frames::start(f, &slots, &initial, budget)?;
@@ -2734,6 +2760,7 @@ pub(super) fn check_module(
             graphs,
             &sum_proofs.replacement_writes,
             &sum_proofs.replacement_targets,
+            &sum_proofs.retirement_targets,
             budget,
         )?)
     } else {
@@ -2759,6 +2786,9 @@ pub(super) fn check_module(
             budget,
             replacements.as_ref(),
         )?;
+    }
+    if let Some(plan) = &replacements {
+        plan.close_pairs(module, budget)?;
     }
     Ok(())
 }

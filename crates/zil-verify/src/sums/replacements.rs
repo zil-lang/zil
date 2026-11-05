@@ -710,9 +710,11 @@ pub(super) fn check(
     let mut replacement_writes = Vec::with_capacity(effects.len());
     let needed = store_calls.into_inner();
     let mut replacement_targets = BTreeMap::new();
+    let mut retirement_targets = BTreeMap::new();
     for (entry, effect) in effects.into_iter().enumerate() {
         let mut writes = BTreeSet::new();
         let mut targets = Vec::new();
+        let mut retired = Vec::new();
         b.spend(needed.len())?;
         let transfer = needed.contains(&entry);
         b.spend(effect.len())?;
@@ -730,6 +732,11 @@ pub(super) fn check(
                 if transfer {
                     b.spend(1)?;
                     targets.push(target);
+                } else {
+                    // The exact input/capture ordinal and full route survive
+                    // the boundary. Ordinary write roots lose this identity.
+                    b.spend(target.steps.len().saturating_add(1))?;
+                    retired.push(target);
                 }
             }
         }
@@ -738,11 +745,16 @@ pub(super) fn check(
             b.spend(replacement_targets.len().saturating_add(1))?;
             replacement_targets.insert(entry, targets);
         }
+        if !retired.is_empty() {
+            b.spend(retirement_targets.len().saturating_add(1))?;
+            retirement_targets.insert(entry, retired);
+        }
     }
     Ok(Proofs {
         rows,
         replacement_writes,
         replacement_targets,
+        retirement_targets,
     })
 }
 
