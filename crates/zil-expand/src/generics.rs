@@ -513,6 +513,11 @@ struct Engine<'a> {
     resolved_method_calls: trait_instances::Calls,
     method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
+    // The original full enum result application, captured before a stored
+    // signature replaces it with its physical name. Only body checking reads
+    // this hint; the emitted function header remains physical.
+    source_enum_return: Option<TypeRef>,
+    source_enum_return_active: bool,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
     active_callables: Option<callable::CallableTemplates>,
@@ -616,6 +621,8 @@ impl<'a> Engine<'a> {
             enums: BTreeMap::new(),
             nominals: BTreeMap::new(),
             return_type: None,
+            source_enum_return: None,
+            source_enum_return_active: false,
             callable_name: None,
             callable_pair: None,
             active_callables: None,
@@ -922,8 +929,11 @@ impl<'a> Engine<'a> {
                 }
                 if !a.methods.is_empty() {
                     runtime_ct_phase::check_static_host(
-                        item, engine.budget.context.origin, engine.origins,
-                        engine.runtime_ct, &mut engine.budget,
+                        item,
+                        engine.budget.context.origin,
+                        engine.origins,
+                        engine.runtime_ct,
+                        &mut engine.budget,
                     )?;
                 }
             }
@@ -988,10 +998,14 @@ impl<'a> Engine<'a> {
         while let Some(origins::Pending {
             mut item,
             origin,
+            source_enum_return,
             member_calls,
             runtime_calls,
         }) = self.pending.pop_front()
         {
+            // The source result belongs to this exact pending item, even if
+            // header preparation enqueued other specializations first.
+            self.source_enum_return = source_enum_return;
             self.runtime_instance = name(&item)
                 .and_then(|name| self.runtime_instances.get(name))
                 .copied();
@@ -1040,7 +1054,10 @@ impl<'a> Engine<'a> {
             .cloned()
             .ok_or_else(|| error(span, format!("unknown generic declaration {template}")))?;
         if matches!(&item.kind, ItemKind::Aggregate(a) if !a.methods.is_empty()) {
-            return Err(unsupported(span,"generic resource or methods require capability resolution"));
+            return Err(unsupported(
+                span,
+                "generic resource or methods require capability resolution",
+            ));
         }
         let product =
             matches!(&item.kind, ItemKind::Aggregate(a) if products::parameter(a).is_some());
@@ -1614,19 +1631,31 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
-                let saved_result = self
-                    .return_type
-                    .replace(f.return_type.clone().unwrap_or_else(|| check::unit(f.span)));
+                let source_enum_result = self.source_enum_return.is_some();
+                let body_result = self
+                    .source_enum_return
+                    .take()
+                    .or_else(|| f.return_type.clone())
+                    .unwrap_or_else(|| check::unit(f.span));
+                let saved_result = self.return_type.replace(body_result);
+                let saved_source_enum_result =
+                    std::mem::replace(&mut self.source_enum_return_active, source_enum_result);
                 let saved_callables = std::mem::replace(&mut self.active_callables, callable);
                 match &mut f.body {
                     FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
                     FunctionBody::Expression(value) => {
+                        if self.source_enum_return_active
+                            && let Some(result) = &self.return_type
+                        {
+                            self.budget.ty(result)?;
+                        }
                         let expected = self.return_type.clone();
                         self.expr_expected(value, &mut env, expected.as_ref(), 0)?;
                     }
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.source_enum_return_active = saved_source_enum_result;
                 self.active_callables = saved_callables;
                 self.callable_name = saved_callable;
                 self.callable_pair = saved_pair;
@@ -1951,13 +1980,42 @@ impl<'a> Engine<'a> {
             StmtKind::Binding {
                 pattern, ty, value, ..
             } => {
+                let source_enum = if let Some(t) = ty.as_ref()
+                    && self.stored_nominals
+                    && let TypeKind::Named { path, args } = &grouped(t).kind
+                    && path.len() == 1
+                    && {
+                        self.stored_lookup_fee(self.enums.len(), path[0].len(), t.span)?;
+                        self.enums.contains_key(&path[0])
+                    }
+                    && self.stored_application(&path[0], args, t.span, depth + 1)?
+                {
+                    self.budget.ty(t)?;
+                    Some(t.clone())
+                } else {
+                    None
+                };
                 if let Some(t) = ty {
                     self.ty(t, depth + 1)?;
                 }
-                let inferred = self.expr_expected(value, env, ty.as_ref(), depth + 1)?;
-                bind(pattern, ty.clone().or(inferred), env);
+                let inferred = self.expr_expected(
+                    value,
+                    env,
+                    source_enum.as_ref().or(ty.as_ref()),
+                    depth + 1,
+                )?;
+                bind(
+                    pattern,
+                    source_enum.or_else(|| ty.clone()).or(inferred),
+                    env,
+                );
             }
             StmtKind::Return(Some(e)) => {
+                if self.source_enum_return_active
+                    && let Some(result) = &self.return_type
+                {
+                    self.budget.ty(result)?;
+                }
                 let expected = self.return_type.clone();
                 self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
             }

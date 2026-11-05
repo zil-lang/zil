@@ -18,6 +18,46 @@ enum Pat {
     Ctor(Ctor, Vec<Pat>),
 }
 
+type ScopedEnumActuals = Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>;
+
+// This read is covered by the explicit Type actual traversal paid in
+// mixed_enum_actuals. It observes original source syntax before any nominal
+// type erasure; a generated name never supplies a caller class.
+pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
+    match &ty.kind {
+        TypeKind::Named { args, .. } => args.iter().any(|arg| match arg {
+            GenericArg::Lifetime(_) => true,
+            GenericArg::Type(inner) => scoped_nominal_actual(inner),
+            GenericArg::Const(_) => false,
+        }),
+        TypeKind::Dyn { args, bindings, .. } => {
+            !bindings.is_empty()
+                || args.iter().any(|arg| match arg {
+                    GenericArg::Lifetime(_) => true,
+                    GenericArg::Type(inner) => scoped_nominal_actual(inner),
+                    GenericArg::Const(_) => false,
+                })
+        }
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => lifetime.is_some() || scoped_nominal_actual(inner),
+        TypeKind::Group(inner) | TypeKind::Optional(inner) => scoped_nominal_actual(inner),
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
+            fields.iter().any(scoped_nominal_actual)
+        }
+        TypeKind::Array { element, .. } => scoped_nominal_actual(element),
+        TypeKind::Error { error, result } => {
+            scoped_nominal_actual(error) || scoped_nominal_actual(result)
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            params.iter().any(scoped_nominal_actual) || scoped_nominal_actual(result)
+        }
+        TypeKind::ForLifetime { .. } => true,
+        _ => false,
+    }
+}
+
 impl Check<'_, '_, '_> {
     /// Mixed nominal ordinals come from the actual constructor or its full
     /// source context. Only Type actuals enter the substitution/bound map.
@@ -27,13 +67,48 @@ impl Check<'_, '_, '_> {
         explicit: Option<&[GenericArg]>,
         expected: Option<&TypeRef>,
         span: Span,
-    ) -> R<Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>> {
-        if decl
+        prepaid_explicit: &mut bool,
+        prepaid_context: &mut Option<BTreeMap<String, TypeRef>>,
+    ) -> R<ScopedEnumActuals> {
+        let all_type = decl
             .generics
             .iter()
-            .all(|p| matches!(p.kind, GenericParamKind::Type(_)))
-        {
-            return Ok(None);
+            .all(|p| matches!(p.kind, GenericParamKind::Type(_)));
+        if all_type {
+            if let Some(explicit) = explicit {
+                let mut scoped = false;
+                for argument in explicit {
+                    let GenericArg::Type(ty) = argument else {
+                        return Ok(None);
+                    };
+                    // Reuse the payment in the legacy explicit branch.
+                    self.budget.ty(ty)?;
+                    scoped |= scoped_nominal_actual(ty);
+                }
+                *prepaid_explicit = true;
+                if !scoped {
+                    return Ok(None);
+                }
+            } else {
+                let Some(source) = expected else {
+                    return Ok(None);
+                };
+                let TypeKind::Named { path, .. } = &group(source).kind else {
+                    return Ok(None);
+                };
+                if path.as_slice() != [decl.name.as_str()] {
+                    return Ok(None);
+                }
+                // Context's original unify traverses and pays every actual.
+                // Keep its result so a closed all-Type request pays it once.
+                let mut found = BTreeMap::new();
+                syntax_enum::context(decl, expected, &mut found, self.budget)?;
+                let scoped = found.values().any(scoped_nominal_actual);
+                if !scoped {
+                    *prepaid_context = Some(found);
+                    return Ok(None);
+                }
+            }
         }
         let context = expected.and_then(|expected| match &group(expected).kind {
             TypeKind::Named { path, args } if path.as_slice() == [decl.name.as_str()] => {
@@ -115,7 +190,16 @@ impl Check<'_, '_, '_> {
                 "parametric enum constructor payload arity mismatch",
             ));
         }
-        if let Some((full, found)) = self.mixed_enum_actuals(decl, explicit, expected, e.span)? {
+        let mut prepaid_explicit = false;
+        let mut prepaid_context = None;
+        if let Some((full, found)) = self.mixed_enum_actuals(
+            decl,
+            explicit,
+            expected,
+            e.span,
+            &mut prepaid_explicit,
+            &mut prepaid_context,
+        )? {
             self.traits.check_arguments_scoped(
                 &decl.generics,
                 &found,
@@ -158,7 +242,8 @@ impl Check<'_, '_, '_> {
             .iter()
             .map(|p| p.name.clone())
             .collect::<BTreeSet<_>>();
-        let mut found = BTreeMap::new();
+        let already_context = prepaid_context.is_some();
+        let mut found = prepaid_context.take().unwrap_or_default();
         if let Some(explicit) = explicit {
             if explicit.len() != decl.generics.len() {
                 return Err(error(
@@ -170,11 +255,15 @@ impl Check<'_, '_, '_> {
                 let GenericArg::Type(t) = arg else {
                     return Err(unsupported(e.span, "const enum type argument"));
                 };
-                self.budget.ty(t)?;
+                if !prepaid_explicit {
+                    self.budget.ty(t)?;
+                }
                 found.insert(p.name.clone(), t.clone());
             }
         }
-        syntax_enum::context(decl, expected, &mut found, self.budget)?;
+        if !already_context {
+            syntax_enum::context(decl, expected, &mut found, self.budget)?;
+        }
         for (arg, field) in args.iter().zip(fields) {
             if arg.spread {
                 return Err(unsupported(arg.span, "enum payload tuple spread"));
@@ -241,9 +330,16 @@ impl Check<'_, '_, '_> {
             e.span,
             self.budget,
         )?;
-        if let Some((full, found)) =
-            self.mixed_enum_actuals(declaration, explicit, expected, e.span)?
-        {
+        let mut prepaid_explicit = false;
+        let mut prepaid_context = None;
+        if let Some((full, found)) = self.mixed_enum_actuals(
+            declaration,
+            explicit,
+            expected,
+            e.span,
+            &mut prepaid_explicit,
+            &mut prepaid_context,
+        )? {
             self.traits.check_arguments_scoped(
                 &declaration.generics,
                 &found,
@@ -291,7 +387,8 @@ impl Check<'_, '_, '_> {
             return Ok(Some(actual));
         }
         let variables = record_enums::variables(declaration, self.budget)?;
-        let mut found = BTreeMap::new();
+        let already_context = prepaid_context.is_some();
+        let mut found = prepaid_context.take().unwrap_or_default();
         if let Some(explicit) = explicit {
             if explicit.len() != declaration.generics.len() {
                 return Err(error(e.span, "record enum type argument arity mismatch"));
@@ -301,11 +398,15 @@ impl Check<'_, '_, '_> {
                     return Err(unsupported(e.span, "const enum type argument"));
                 };
                 self.budget.text(&parameter.name, parameter.span)?;
-                self.budget.ty(ty)?;
+                if !prepaid_explicit {
+                    self.budget.ty(ty)?;
+                }
                 found.insert(parameter.name.clone(), ty.clone());
             }
         }
-        syntax_enum::context(declaration, expected, &mut found, self.budget)?;
+        if !already_context {
+            syntax_enum::context(declaration, expected, &mut found, self.budget)?;
+        }
         for (supplied, index) in supplied.iter().zip(order) {
             let shorthand;
             let value = if let Some(value) = &supplied.value {
@@ -414,12 +515,55 @@ impl Check<'_, '_, '_> {
                 .collect();
         }
         let mut found = BTreeMap::new();
+        let mut scoped_type_actual = false;
         for (p, arg) in decl.generics.iter().zip(args) {
             let GenericArg::Type(t) = arg else {
                 return Err(unsupported(ty.span, "const enum argument"));
             };
             self.budget.ty(t)?;
+            scoped_type_actual |= scoped_nominal_actual(t);
             found.insert(p.name.clone(), t.clone());
+        }
+        if scoped_type_actual {
+            nominal_type_actuals(
+                &decl.generics,
+                args,
+                self.source_definition,
+                self.budget,
+                ty.span,
+            )?;
+            if self.budget.has_enum_profiles()
+                && let VariantFields::Record(fields) =
+                    &record_enums::variant(decl, variant, ty.span, self.budget)?.fields
+            {
+                return fields
+                    .iter()
+                    .map(|field| {
+                        nominal_field_type(
+                            &decl.generics,
+                            args,
+                            &field.ty,
+                            self.source_definition,
+                            self.budget,
+                        )
+                    })
+                    .collect();
+            }
+            return syntax_enum::fields(decl, variant, ty.span)?
+                .iter()
+                .map(|field| {
+                    if field.manages {
+                        return Err(unsupported(field.span, "owned generic enum payload"));
+                    }
+                    nominal_field_type(
+                        &decl.generics,
+                        args,
+                        &field.ty,
+                        self.source_definition,
+                        self.budget,
+                    )
+                })
+                .collect();
         }
         if self.budget.has_enum_profiles()
             && let VariantFields::Record(fields) =

@@ -1,0 +1,70 @@
+{
+  "task": "G4.4.6.2",
+  "execution_owner": "ct_generated (author)",
+  "source": "762ede975a8db31d7a070a55ba4164c937b38b14",
+  "tree_clean": true,
+  "dependency": {
+    "original_commit": "e0ecb8338",
+    "author": "ct_source_auth",
+    "local_cherry_pick": "762ede975",
+    "scope": "Only deferred actual receiver keeps original Unsupported qualification; no native-literal interface dependency"
+  },
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "-p",
+    "zil-driver",
+    "--test",
+    "aggregates",
+    "--features",
+    "llvm-api",
+    "ct5_member_own_life_context_reaches_native",
+    "-j2",
+    "--",
+    "--nocapture"
+  ],
+  "result": {
+    "passed": 1,
+    "failed": 0,
+    "compile_seconds": 16.74,
+    "test_seconds": 1.2
+  },
+  "log": "/workspace/tmp-G4.4.6/g4462-ct5-member-final-native.log",
+  "log_sha256": "1b72e3828df452ac553048ee28d91d71617b54c03c445b2e5aa58f160b8751b1",
+  "source_and_native_controls": [
+    "original ct5 member Source/Verify and native",
+    "original complete-life generated member Source/Verify and native (not scalar replacement)",
+    "scalar-generated Source/native control"
+  ],
+  "backends": [
+    "Clang",
+    "LLVM API"
+  ],
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "stdout": "42\n",
+  "stderr": "empty",
+  "verification_runs_per_native_compile": 1,
+  "no_codegen_fallback": true,
+  "llvm_api_input_kind": "builder",
+  "analysis_boundary": {
+    "N": 45985,
+    "N_minus_1": "ResourceLimit",
+    "same_session_retry": "Success",
+    "fresh_session_retry": "Success"
+  },
+  "preserved_negative_assertions": [
+    "generic Host receiver Unsupported / actual enclosing generic context",
+    "own-Type + life mixed receiver Unsupported / generic function specialization",
+    "wrong source lifetime SafeReject"
+  ],
+  "combined_bounded_evidence": [
+    "924eac32f integrated Source 11/0 and CT VM/Raw/Wire 2/0",
+    "36c4846ba original host native 4/0 and migrated generic Maker positive + all negative controls 1/0",
+    "762ede975 complete historical ct5 member test 1/0"
+  ],
+  "limit": "Bounded task evidence, not whole P0 acceptance or formal workspace gate. Final integrated acceptance belongs to root."
+}

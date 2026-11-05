@@ -50,11 +50,25 @@ fn g4454_actual_recursive_values_reach_runtime_types_and_verify() {
         for opcode in [
             "MakeAggregate",
             "ExtractField",
-            "ExtractIndex",
             "MakeVariant",
             "VariantTag",
             "ReadVariant",
         ] {
+            assert!(
+                typed.contains(opcode),
+                "{name}: actual Typed omitted {opcode}"
+            );
+        }
+        // The original ordinary Copy array uses ExtractIndex. A qualified
+        // child keeps its complete type through an actual indexed place and
+        // ReadAddress; requiring ExtractIndex there would reject the new
+        // complete projection consumer before reaching Verify/native checks.
+        let index_ops: &[&str] = if name == "recursive" {
+            &["AddressIndex", "ReadAddress"]
+        } else {
+            &["ExtractIndex"]
+        };
+        for opcode in index_ops {
             assert!(
                 typed.contains(opcode),
                 "{name}: actual Typed omitted {opcode}"

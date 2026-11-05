@@ -448,16 +448,32 @@ fn normalize(
             if runtime_ct.is_some()
                 && matches!(&source_item.kind, ItemKind::Aggregate(a) if !a.generics.is_empty() && !a.methods.is_empty())
             {
-                let source_origin = generics::origins::Origin::source(module.id,ordinal,source_item.span)?;
-                let row = origins.as_ref().and_then(|origins|origins.identities.get(&source_origin.declaration))
-                    .ok_or_else(||error("E-SOURCE-IDENTITY",source_item.span,"CT namespace original input identity absent"))?;
-                generics::origins::pay_identity(&row.identity,visitor.budget,source_item.span)?;
-                generics::origins::pay_declaration_copy(row,visitor.budget,source_item.span)?;
-                visitor.budget.lineage_bytes((static_hosts.len()+1)*std::mem::size_of::<StaticHostInput<'_>>(),source_item.span)?;
+                let source_origin =
+                    generics::origins::Origin::source(module.id, ordinal, source_item.span)?;
+                let row = origins
+                    .as_ref()
+                    .and_then(|origins| origins.identities.get(&source_origin.declaration))
+                    .ok_or_else(|| {
+                        error(
+                            "E-SOURCE-IDENTITY",
+                            source_item.span,
+                            "CT namespace original input identity absent",
+                        )
+                    })?;
+                generics::origins::pay_identity(&row.identity, visitor.budget, source_item.span)?;
+                generics::origins::pay_declaration_copy(row, visitor.budget, source_item.span)?;
+                visitor.budget.lineage_bytes(
+                    (static_hosts.len() + 1) * std::mem::size_of::<StaticHostInput<'_>>(),
+                    source_item.span,
+                )?;
                 static_hosts.reserve_exact(1);
-                static_hosts.push(StaticHostInput{
-                    item:source_item,
-                    definition:crate::runtime_ct::RuntimeDefinition{module:module.id,origin:row.clone(),member:None},
+                static_hosts.push(StaticHostInput {
+                    item: source_item,
+                    definition: crate::runtime_ct::RuntimeDefinition {
+                        module: module.id,
+                        origin: row.clone(),
+                        member: None,
+                    },
                 });
             }
             let mut item = source_item.clone();
@@ -681,52 +697,99 @@ impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
         let result = (|| -> R<&Item> {
             let mut selected = None;
             for input in self.static_hosts {
-                generics::origins::pay_identity(&input.definition.origin.identity,&mut budget,actual.span)?;
-                generics::origins::pay_identity(&definition.origin.identity,&mut budget,actual.span)?;
-                generics::origins::pay_declaration_copy(&input.definition.origin,&mut budget,actual.span)?;
+                generics::origins::pay_identity(
+                    &input.definition.origin.identity,
+                    &mut budget,
+                    actual.span,
+                )?;
+                generics::origins::pay_identity(
+                    &definition.origin.identity,
+                    &mut budget,
+                    actual.span,
+                )?;
+                generics::origins::pay_declaration_copy(
+                    &input.definition.origin,
+                    &mut budget,
+                    actual.span,
+                )?;
                 let left = &input.definition.origin;
                 let right = &definition.origin;
-                let generated = match (&left.generated,&right.generated) {
-                    (None,None) => true,
-                    (Some(l),Some(r)) => l.root==r.root && std::sync::Arc::ptr_eq(&l.tree,&r.tree),
+                let generated = match (&left.generated, &right.generated) {
+                    (None, None) => true,
+                    (Some(l), Some(r)) => {
+                        l.root == r.root && std::sync::Arc::ptr_eq(&l.tree, &r.tree)
+                    }
                     _ => false,
                 };
-                if input.definition.module==definition.module && definition.member.is_none()
-                    && left.declaration==right.declaration && left.identity==right.identity
-                    && left.closure_sites==right.closure_sites && left.retained_members==right.retained_members
+                if input.definition.module == definition.module
+                    && definition.member.is_none()
+                    && left.declaration == right.declaration
+                    && left.identity == right.identity
+                    && left.closure_sites == right.closure_sites
+                    && left.retained_members == right.retained_members
                     && generated
+                    && selected.replace(input.item).is_some()
                 {
-                    if selected.replace(input.item).is_some() {
-                        return Err(error("E-SOURCE-IDENTITY",actual.span,"CT namespace input placement is ambiguous"));
-                    }
+                    return Err(error(
+                        "E-SOURCE-IDENTITY",
+                        actual.span,
+                        "CT namespace input placement is ambiguous",
+                    ));
                 }
             }
-            let input = selected.ok_or_else(||error("E-SOURCE-IDENTITY",actual.span,"CT namespace input has no actual source correspondence"))?;
-            struct CopyMeter<'a,'b>(&'a mut Budget<'b>);
-            impl crate::ct_selection::Visitor for CopyMeter<'_,'_> {
-                fn node(&mut self,span:Span,depth:usize)->CompileResult<()> {
-                    self.0.node(span,depth).map_err(|e|vec![e])?;
-                    self.0.lineage_bytes(std::mem::size_of::<Item>()+std::mem::size_of::<Stmt>()+std::mem::size_of::<Expr>()+std::mem::size_of::<TypeRef>()+std::mem::size_of::<Pattern>(),span).map_err(|e|vec![e])
+            let input = selected.ok_or_else(|| {
+                error(
+                    "E-SOURCE-IDENTITY",
+                    actual.span,
+                    "CT namespace input has no actual source correspondence",
+                )
+            })?;
+            struct CopyMeter<'a, 'b>(&'a mut Budget<'b>);
+            impl crate::ct_selection::Visitor for CopyMeter<'_, '_> {
+                fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                    self.0.node(span, depth).map_err(|e| vec![e])?;
+                    self.0
+                        .lineage_bytes(
+                            std::mem::size_of::<Item>()
+                                + std::mem::size_of::<Stmt>()
+                                + std::mem::size_of::<Expr>()
+                                + std::mem::size_of::<TypeRef>()
+                                + std::mem::size_of::<Pattern>(),
+                            span,
+                        )
+                        .map_err(|e| vec![e])
                 }
-                fn text(&mut self,text:&str,span:Span)->CompileResult<()> {
-                    self.0.text(text,span).map_err(|e|vec![e])?;
-                    self.0.lineage_bytes(text.len(),span).map_err(|e|vec![e])
+                fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+                    self.0.text(text, span).map_err(|e| vec![e])?;
+                    self.0.lineage_bytes(text.len(), span).map_err(|e| vec![e])
                 }
             }
-            crate::ct_selection::Visitor::item(&mut CopyMeter(&mut budget),input,0).map_err(|mut errors|errors.remove(0))?;
+            crate::ct_selection::Visitor::item(&mut CopyMeter(&mut budget), input, 0)
+                .map_err(|mut errors| errors.remove(0))?;
             let mut expected = input.clone();
-            let mut visitor = Visitor{default_nominal:None,const_scope:Names::new(),mode:Mode::Normalize(self.index),module:definition.module,budget:&mut budget};
-            visitor.item(&mut expected,&Names::new(),true,0)?;
+            let mut visitor = Visitor {
+                default_nominal: None,
+                const_scope: Names::new(),
+                mode: Mode::Normalize(self.index),
+                module: definition.module,
+                budget: &mut budget,
+            };
+            visitor.item(&mut expected, &Names::new(), true, 0)?;
             budget.item(&expected)?;
             budget.item(actual)?;
             if expected != *actual {
-                return Err(Diagnostic::unsupported(Phase::Expand,"CT namespace whole input cannot be reproduced by its actual normalizer",Some(actual.span)));
+                return Err(Diagnostic::unsupported(
+                    Phase::Expand,
+                    "CT namespace whole input cannot be reproduced by its actual normalizer",
+                    Some(actual.span),
+                ));
             }
             Ok(input)
         })();
         *remaining = budget.remaining_limits();
-        let input = result.map_err(|error|vec![error])?;
-        self.callback.check_static_host(definition,input,remaining)
+        let input = result.map_err(|error| vec![error])?;
+        self.callback
+            .check_static_host(definition, input, remaining)
     }
     fn definition_expression(
         &self,

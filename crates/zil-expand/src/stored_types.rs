@@ -901,10 +901,10 @@ impl Shape<'_, '_> {
                 length: Some(length),
             } => {
                 let mut original_element = None;
-                if let Some(original) = original {
-                    if let s::TypeKind::Array { element, .. } = &original.kind {
-                        original_element = Some(element.as_ref());
-                    }
+                if let Some(original) = original
+                    && let s::TypeKind::Array { element, .. } = &original.kind
+                {
+                    original_element = Some(element.as_ref());
                 }
                 type_path.push(LifeTypeProjection::Element);
                 let child = self.field(element, original_element, path, type_path, depth + 1)?;
@@ -964,6 +964,9 @@ fn contains_unresolved(ty: &Type) -> bool {
 /// `aggregate` is the actual substituted declaration and `identity` comes from
 /// the original SourceIndex/Origins chain. Names are used only for lookup and
 /// storage spelling, never parsed to reconstruct declaration identity.
+// The full actual vector, original fields, qualified children and direct
+// projection map are independent evidence for one stored instance.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_joint_with_fields(
     aggregate: &s::Aggregate,
     declaration: LifeNominalDeclaration,
@@ -1153,6 +1156,9 @@ pub(super) fn instantiate_joint_with_fields(
     })
 }
 
+// Keep original and physical variants plus both actual maps explicit: merging
+// them would let a generated name stand in for source class evidence.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn instantiate_enum_joint(
     physical: &s::EnumDecl,
     original: &s::EnumDecl,
@@ -1417,8 +1423,9 @@ mod source_tests {
         for source in [
             "enum Empty<life a>{Only}fn read<life a>(p:&'a i32)->i32{let x:Empty<'a>=Empty::<'a>.Only();match x{Empty.Only()=>{return 1}}}fn main(){}",
             "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn read<life a>(p:&'a i32)->i32{let x:Boxed<Leaf<'a>>=Boxed::<Leaf<'a>>.V(Leaf::<'a>{n:3});match x{Boxed.V(v)=>{return v.n}}}fn main(){}",
+            "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn make<life a>(p:&'a i32)->Boxed<Leaf<'a>>{return Boxed.V(Leaf::<'a>{n:1})}fn main(){}",
         ] {
-            expand_text(source).unwrap();
+            expand_text(source).unwrap_or_else(|errors| panic!("{source}: {errors:?}"));
         }
     }
 

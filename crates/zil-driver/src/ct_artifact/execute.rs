@@ -827,9 +827,9 @@ impl<'a> Environment<'a> {
         if delayed_original_freeze && invocation_context.is_none() {
             invocation_context =
                 super::invocation_context::FrozenInvocationContext::freeze_at_source(
-                    retry_entry.as_ref().ok_or_else(|| {
-                        error("source freezing lost its immutable entry", span)
-                    })?,
+                    retry_entry
+                        .as_ref()
+                        .ok_or_else(|| error("source freezing lost its immutable entry", span))?,
                     self.parsed,
                     &self.index,
                     self.source_origins.as_ref(),
@@ -930,33 +930,39 @@ impl<'a> Environment<'a> {
             target: self.target,
             snapshot: &self.snapshot,
         };
-        self.budget.reserve_analysis_work(source_bindings.calls.len() as u64)?;
-        let has_host_calls = source_bindings.calls.iter().any(|call|call.enclosing.is_some());
+        self.budget
+            .reserve_analysis_work(source_bindings.calls.len() as u64)?;
+        let has_host_calls = source_bindings
+            .calls
+            .iter()
+            .any(|call| call.enclosing.is_some());
         let evaluated = if has_host_calls {
-            zil_ct::evaluate_ct_artifact_with_completed_calls(&verified,arguments,&reader,&mut self.budget)
+            zil_ct::evaluate_ct_artifact_with_completed_calls(
+                &verified,
+                arguments,
+                &reader,
+                &mut self.budget,
+            )
         } else {
-            zil_ct::evaluate_ct_artifact(&verified,arguments,&reader,&mut self.budget)
-                .map(|(value,usage)|(value,usage,Vec::new()))
+            zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget)
+                .map(|(value, usage)| (value, usage, Vec::new()))
         };
-        let (value, _usage, completed_calls) = evaluated.map_err(
-                |mut errors| {
-                    for diagnostic in &mut errors {
-                        if diagnostic.span.is_none() {
-                            diagnostic.span = Some(span);
-                        }
-                        if diagnostic.code == "E-CT-ARTIFACT"
-                            && diagnostic
-                                .message
-                                .contains("name_expr needs a value name, not export intent")
-                        {
-                            diagnostic.code = "E-CT-EXPORT-CAPTURE".into();
-                        }
-                    }
-                    errors
-                },
-            )?;
-        self.budget.release_usage_receipt(&_usage);
-        self.budget.release_temporary_bytes(copied_bytes);
+        let (value, _usage, completed_calls) = evaluated.map_err(|mut errors| {
+            for diagnostic in &mut errors {
+                if diagnostic.span.is_none() {
+                    diagnostic.span = Some(span);
+                }
+                if diagnostic.code == "E-CT-ARTIFACT"
+                    && diagnostic
+                        .message
+                        .contains("name_expr needs a value name, not export intent")
+                {
+                    diagnostic.code = "E-CT-EXPORT-CAPTURE".into();
+                }
+            }
+            errors
+        })?;
+        self.budget.release_usage_receipt(_usage);
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;
         let context = if retain_context
@@ -970,19 +976,36 @@ impl<'a> Environment<'a> {
                     | CtTy::List(_)
             ) || matches!(&value, CtValue::Type(graph) if !graph.ambient_classes.is_empty()))
         {
-            Some(value_context::ValueContext::capture(
+            value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings.bindings,
                 invocation_context.clone(),
                 &mut self.budget,
-            )?)
+            )
+            .map(Some)
         } else {
-            None
+            Ok(None)
         };
-        self.budget.reserve_analysis_work((source_bindings.calls.len() as u64).saturating_mul(completed_calls.len() as u64))?;
-        let retain_host = source_bindings.calls.iter().any(|call| call.enclosing.is_some()
-            && call.execution.is_some_and(|(block,instruction)|completed_calls.iter().any(|event|
-                event.caller==call.caller && event.block==block && event.instruction==instruction && event.callee==call.instance)));
+        // Capture can allocate while the independently verified candidate is
+        // still live. Reclaim its charge only after every consumer finishes,
+        // including the error path from capture.
+        drop(verified);
+        self.budget.release_temporary_bytes(copied_bytes);
+        let context = context?;
+        self.budget.reserve_analysis_work(
+            (source_bindings.calls.len() as u64).saturating_mul(completed_calls.len() as u64),
+        )?;
+        let retain_host = source_bindings.calls.iter().any(|call| {
+            call.enclosing.is_some()
+                && call.execution.is_some_and(|(block, instruction)| {
+                    completed_calls.iter().any(|event| {
+                        event.caller == call.caller
+                            && event.block == block
+                            && event.instruction == instruction
+                            && event.callee == call.instance
+                    })
+                })
+        });
         if retain_host {
             // Only a successful independently admitted, verified AND evaluated
             // request reaches this private event constructor.
@@ -990,13 +1013,20 @@ impl<'a> Environment<'a> {
                 expected,
                 source_bindings.calls,
                 source_bindings.scopes,
-                invocation_context.as_ref().ok_or_else(|| error("CT namespace lost its authentic invocation",span))?.clone(),
+                invocation_context
+                    .as_ref()
+                    .ok_or_else(|| error("CT namespace lost its authentic invocation", span))?
+                    .clone(),
                 completed_calls,
             )?;
         } else {
-            self.budget.release_temporary_bytes(completed_calls.capacity() as u64 * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64);
+            let completed_bytes = completed_calls.capacity() as u64
+                * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64;
+            drop(completed_calls);
+            self.budget.release_temporary_bytes(completed_bytes);
         }
-        if context.is_none() && !retain_host
+        if context.is_none()
+            && !retain_host
             && let Some(invocation_context) = invocation_context
         {
             self.budget
@@ -2626,7 +2656,7 @@ mod tests {
             zil_ct::evaluate_ct_artifact(&verified, &[], &reader, &mut environment.budget).unwrap();
         assert!(matches!(value, CtValue::Record { .. }));
         environment.budget.release_value(&value);
-        environment.budget.release_usage_receipt(&usage);
+        environment.budget.release_usage_receipt(usage);
         eprintln!(
             "CT5 actual-source owner {definition_ordinal} raw/Wire independent work boundary {exact}"
         );

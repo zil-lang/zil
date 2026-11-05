@@ -91,7 +91,8 @@ fn physical_layout(ty: &Type) -> CompileResult<Layout> {
                 || matches!(inner.as_ref(), Type::Closure(_))
                 || resource_head_address(ty)
                 || ty.is_exclusive_task_head_address()
-                || ty.is_package_address() =>
+                || ty.is_package_address()
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Layout { size: 8, align: 8 }
         }

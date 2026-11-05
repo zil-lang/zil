@@ -6,6 +6,34 @@ use zil_syntax::ast;
 
 use crate::source_context::DeclarationOrigin;
 
+/// Scheduling only: these roots need no specialization binder lookup. Keep
+/// their original MetaEval and expected-type context in the ordinary scalar
+/// checker; this predicate grants no declaration or expression-site authority.
+pub fn native_scalar_root(
+    mut expression: &ast::Expr,
+    max_depth: usize,
+    mut pay: impl FnMut(usize) -> CompileResult<()>,
+) -> CompileResult<bool> {
+    for depth in 0..=max_depth {
+        pay(1)?;
+        match &expression.kind {
+            ast::ExprKind::Literal(
+                ast::Literal::Bool(_) | ast::Literal::Integer(_) | ast::Literal::Float(_),
+            ) => return Ok(true),
+            ast::ExprKind::Group(inner) if depth < max_depth => expression = inner,
+            ast::ExprKind::Group(_) => {
+                return Err(vec![zil_base::Diagnostic::limit(
+                    zil_base::Phase::Expand,
+                    "native scalar CT root depth exhausted",
+                    Some(expression.span),
+                )]);
+            }
+            _ => return Ok(false),
+        }
+    }
+    unreachable!()
+}
+
 /// One slot in the original declaration's complete generic parameter order.
 /// Runtime specialization retains lifetime polymorphism; a lifetime slot names
 /// its original definition binder, never an inferred caller loan.

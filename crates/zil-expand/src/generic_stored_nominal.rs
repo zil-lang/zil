@@ -110,6 +110,9 @@ impl<'a> Engine<'a> {
         Ok(())
     }
 
+    // The original and physical field, both source maps, both projection paths,
+    // and the recursion budget remain distinct proof inputs at this boundary.
+    #[allow(clippy::too_many_arguments)]
     fn stored_physical_field(
         &mut self,
         physical: &mut TypeRef,
@@ -331,6 +334,7 @@ impl<'a> Engine<'a> {
         let mut ready = VecDeque::new();
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
+                self.source_enum_return = None;
                 self.life_scope.clear();
                 let mut callable_parameters = Vec::new();
                 let mut callable_profile = function.where_clause.is_empty();
@@ -364,6 +368,7 @@ impl<'a> Engine<'a> {
                     }
                     Ok(())
                 })?;
+                pending.source_enum_return = self.source_enum_return.take();
             }
             self.budget.node(pending.item.span, 0)?;
             ready.push_back(pending);
@@ -621,6 +626,38 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
+                }
+                if matches!(base, zil_ir::StorageBase::Result) && type_path.is_empty() {
+                    self.budget.text(&name[0], ty.span)?;
+                    self.stored_lookup_fee(self.enums.len(), name[0].len(), ty.span)?;
+                    if self.enums.contains_key(&name[0]) {
+                        // A return body must see the actual source application,
+                        // including its caller-life Type actuals. Capture it only
+                        // after the stored proof is known, before name erasure.
+                        self.budget.node(ty.span, depth)?;
+                        self.budget.lineage_bytes(
+                            std::mem::size_of::<TypeRef>()
+                                .saturating_add(std::mem::size_of::<String>())
+                                .saturating_add(
+                                    args.len().saturating_mul(std::mem::size_of::<GenericArg>()),
+                                ),
+                            ty.span,
+                        )?;
+                        for argument in args.iter() {
+                            match argument {
+                                GenericArg::Type(actual) => self.budget.ty(actual)?,
+                                GenericArg::Lifetime(life) => self.budget.text(life, ty.span)?,
+                                GenericArg::Const(value) => self.budget.const_expression(value)?,
+                            }
+                        }
+                        self.source_enum_return = Some(TypeRef {
+                            span: ty.span,
+                            kind: TypeKind::Named {
+                                path: name.clone(),
+                                args: args.clone(),
+                            },
+                        });
+                    }
                 }
                 let (generated, classes) =
                     self.stored_nominal(&name[0], args, ty.span, depth + 1)?;

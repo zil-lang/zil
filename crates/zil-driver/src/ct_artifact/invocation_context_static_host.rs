@@ -4,6 +4,9 @@
 use super::*;
 
 impl FrozenInvocationContext {
+    // Source syntax, original call, runtime context and completed execution
+    // traces are independent inputs to authentication of a static host.
+    #[allow(clippy::too_many_arguments)]
     pub(in crate::ct_artifact) fn static_host_source<'a>(
         &'a self,
         call: &SourceInstanceCall,

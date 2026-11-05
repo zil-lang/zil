@@ -241,14 +241,15 @@ pub(super) fn definitions(
             };
             let cost = inference::type_snapshot_work(&instance.ty, e.span, limits)?;
             *left = left.checked_sub(cost.saturating_add(1)).ok_or_else(limit)?;
-            if name == &physical_name && variants == &e.variants {
-                if actual.replace(&instance.ty).is_some() {
-                    return Err(error(
-                        "E-STORED-IDENTITY",
-                        e.span,
-                        "enum constructor has multiple complete stored identities",
-                    ));
-                }
+            if name == &physical_name
+                && variants == &e.variants
+                && actual.replace(&instance.ty).is_some()
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    e.span,
+                    "enum constructor has multiple complete stored identities",
+                ));
             }
         }
         let ty = if let Some(actual) = actual {

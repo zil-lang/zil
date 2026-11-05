@@ -29,7 +29,7 @@ struct Scan<'a> {
     next: u32,
     selected: Option<u32>,
     address: Option<usize>,
-    roots: Vec<usize>,
+    roots: Vec<(usize, bool)>,
     roots_only: bool,
     has_dependent_root: bool,
 }
@@ -54,12 +54,24 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
             self.address = Some(expression as *const s::Expr as usize);
         }
         if let s::ExprKind::MetaEval(inner) = &expression.kind {
-            if self.roots_only && !closed_scalar(inner, self.budget, self.max_depth, depth + 1)? {
+            let native = closed_scalar(inner, self.budget, self.max_depth, depth + 1)?;
+            if !native {
                 self.has_dependent_root = true;
             }
-            self.budget
-                .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
-            self.roots.push(inner.as_ref() as *const s::Expr as usize);
+            if self.roots.len() == self.roots.capacity() {
+                let old = self.roots.capacity();
+                self.budget
+                    .reserve_analysis_work(self.roots.len() as u64 + 1)?;
+                self.budget.reserve_temporary_bytes(
+                    (self.roots.len() as u64 + 1) * std::mem::size_of::<(usize, bool)>() as u64,
+                )?;
+                self.roots.reserve_exact(1);
+                self.budget.release_temporary_bytes(
+                    old as u64 * std::mem::size_of::<(usize, bool)>() as u64,
+                );
+            }
+            self.roots
+                .push((inner.as_ref() as *const s::Expr as usize, native));
             if self.roots_only {
                 return Ok(());
             }
@@ -67,32 +79,64 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
         zil_expand::ct_selection::walk_expression(self, expression, depth)
     }
 }
-// Closed scalar syntax has no binding lookup, so it is safe to evaluate in
-// the original definition even when unrelated native generic binders are not
-// CT Copy types. Every such root still uses the ordinary verified CT pipeline.
+// Classification schedules the old scalar checker; it does not evaluate or
+// replace a literal before its actual receiving expected type is known.
 pub(super) fn closed_scalar(
     expression: &s::Expr,
     budget: &mut zil_ct::CtExecutionBudget,
     max_depth: usize,
     depth: usize,
 ) -> CompileResult<bool> {
-    budget.reserve_analysis_work(1)?;
     if depth > max_depth {
         return Err(category(
-            "closed CT expression depth exhausted",
+            "native scalar CT root depth exhausted",
             expression.span,
         ));
     }
-    Ok(match &expression.kind {
-        s::ExprKind::Literal(s::Literal::Bool(_) | s::Literal::Float(_)) => true,
-        s::ExprKind::Literal(s::Literal::Integer(text)) => {
-            budget.reserve_analysis_work(text.len() as u64)?;
-            zil_types::parse_integer_literal(text, None, false, expression.span).is_ok()
-        }
-        s::ExprKind::Group(inner) => closed_scalar(inner, budget, max_depth, depth + 1)?,
-        _ => false,
+    zil_expand::runtime_ct::native_scalar_root(expression, max_depth - depth, |work| {
+        budget.reserve_analysis_work(work as u64)
     })
 }
+fn same_native_scalar(
+    mut original: &s::Expr,
+    mut output: &s::Expr,
+    budget: &mut zil_ct::CtExecutionBudget,
+    max_depth: usize,
+) -> CompileResult<bool> {
+    for depth in 0..=max_depth {
+        budget.reserve_analysis_work(1)?;
+        match (&original.kind, &output.kind) {
+            (s::ExprKind::Group(a), s::ExprKind::Group(b)) if depth < max_depth => {
+                original = a;
+                output = b;
+            }
+            (s::ExprKind::Group(_), s::ExprKind::Group(_)) => {
+                return Err(category(
+                    "native scalar equality depth exhausted",
+                    output.span,
+                ));
+            }
+            (
+                s::ExprKind::Literal(s::Literal::Bool(a)),
+                s::ExprKind::Literal(s::Literal::Bool(b)),
+            ) => return Ok(a == b),
+            (
+                s::ExprKind::Literal(s::Literal::Integer(a)),
+                s::ExprKind::Literal(s::Literal::Integer(b)),
+            )
+            | (
+                s::ExprKind::Literal(s::Literal::Float(a)),
+                s::ExprKind::Literal(s::Literal::Float(b)),
+            ) => {
+                budget.reserve_analysis_work((a.len() + b.len()) as u64)?;
+                return Ok(a == b);
+            }
+            _ => return Ok(false),
+        }
+    }
+    unreachable!()
+}
+
 pub(super) fn deferred(
     function: &s::Function,
     budget: &mut zil_ct::CtExecutionBudget,
@@ -362,7 +406,7 @@ pub(super) struct RuntimeBinding<'a> {
     caller: CtSymbolId,
     call_site: SourceSite,
     parents: Vec<compiler::runtime_context::RuntimeEntryFrame>,
-    roots: Vec<SourceSite>,
+    roots: Vec<(SourceSite, bool)>,
     cursor: usize,
 }
 
@@ -374,8 +418,8 @@ impl RuntimeCt for RuntimePhase<'_> {
         remaining: &mut Limits,
     ) -> CompileResult<()> {
         let mut environment = self.environment.borrow_mut();
-        synchronize(&mut environment,remaining)?;
-        let result = environment.check_static_host(definition,actual);
+        synchronize(&mut environment, remaining)?;
+        let result = environment.check_static_host(definition, actual);
         *remaining = environment.remaining_limits_for_input();
         result
     }
@@ -400,7 +444,7 @@ impl RuntimeCt for RuntimePhase<'_> {
             has_dependent_root: false,
         };
         zil_expand::ct_selection::Visitor::item(&mut scan, item, 0)?;
-        let address = *scan.roots.get(ordinal as usize).ok_or_else(|| {
+        let (address, _) = *scan.roots.get(ordinal as usize).ok_or_else(|| {
             category(
                 "symbolic runtime CT meta-expression ordinal is absent",
                 item.span,
@@ -482,13 +526,36 @@ impl RuntimeCt for RuntimePhase<'_> {
             roots_only: true,
             has_dependent_root: false,
         };
-        zil_expand::ct_selection::Visitor::item(&mut scan, original, 0)?;
-        let mut roots = Vec::new();
-        for address in scan.roots {
-            environment
-                .budget
-                .reserve_temporary_bytes(std::mem::size_of::<SourceSite>() as u64)?;
-            roots.push(declaration.site(address, &mut environment)?);
+        let s::ItemKind::Function(function) = &original.kind else {
+            return Err(category(
+                "runtime CT original instance is not a function",
+                original.span,
+            ));
+        };
+        // The runtime consumer visits the body only. Literal CT roots in an
+        // unchanged signature remain with the native signature checker and do
+        // not shift the body's exact root cursor.
+        match &function.body {
+            s::FunctionBody::Block(body) => {
+                zil_expand::ct_selection::Visitor::block(&mut scan, body, 0)?
+            }
+            s::FunctionBody::Expression(expression) => {
+                zil_expand::ct_selection::Visitor::expression(&mut scan, expression, 0)?
+            }
+            s::FunctionBody::Declaration => {
+                return Err(category("runtime CT source body absent", original.span));
+            }
+        }
+        let scanned_roots = std::mem::take(&mut scan.roots);
+        drop(scan);
+        let count = scanned_roots.len();
+        environment.budget.reserve_analysis_work(count as u64)?;
+        environment.budget.reserve_temporary_bytes(
+            count as u64 * std::mem::size_of::<(SourceSite, bool)>() as u64,
+        )?;
+        let mut roots = Vec::with_capacity(count);
+        for (address, native) in scanned_roots {
+            roots.push((declaration.site(address, &mut environment)?, native));
         }
         let owner = declaration.symbol.clone();
         let binding = RuntimeBinding {
@@ -555,7 +622,6 @@ impl<'a, 'b> Materializer<'a, 'b> {
         Self {
             runtime_binding: Some(binding),
             runtime_deferred: false,
-            eager_closed_scalars: false,
             environment,
             sources,
             parsed,
@@ -586,6 +652,50 @@ impl<'a, 'b> Materializer<'a, 'b> {
         }
     }
 
+    pub(super) fn retain_native_scalar_root(
+        &mut self,
+        expression: &s::Expr,
+        span: Span,
+    ) -> CompileResult<bool> {
+        if let Some(binding) = &mut self.runtime_binding {
+            self.environment.budget.reserve_analysis_work(1)?;
+            let (site, native) = *binding.roots.get(binding.cursor).ok_or_else(|| {
+                category("runtime CT output root has no original source root", span)
+            })?;
+            if !native {
+                return Ok(false);
+            }
+            let located = compiler::source_sites::select_in_tree(
+                binding.definition.source.module(),
+                site.tree,
+                Selection::Site(site),
+                self.max_depth,
+                |work| self.environment.budget.reserve_analysis_work(work as u64),
+            )?
+            .ok_or_else(|| category("native scalar original source root absent", span))?;
+            let SourceNode::Expr(original) = located.node else {
+                return Err(category(
+                    "native scalar source root is not an expression",
+                    span,
+                ));
+            };
+            if !same_native_scalar(
+                original,
+                expression,
+                &mut self.environment.budget,
+                self.max_depth,
+            )? {
+                return Err(category(
+                    "runtime output changed an original native scalar CT root",
+                    span,
+                ));
+            }
+            binding.cursor += 1;
+            return Ok(true);
+        }
+        closed_scalar(expression, &mut self.environment.budget, self.max_depth, 0)
+    }
+
     pub(super) fn runtime_expression_data(
         &mut self,
         span: Span,
@@ -594,12 +704,18 @@ impl<'a, 'b> Materializer<'a, 'b> {
             .runtime_binding
             .as_mut()
             .expect("runtime context dispatch");
-        let site = *binding.roots.get(binding.cursor).ok_or_else(|| {
+        let (site, native) = *binding.roots.get(binding.cursor).ok_or_else(|| {
             category(
                 "runtime CT instance introduced an unauthenticated expression root",
                 span,
             )
         })?;
+        if native {
+            return Err(category(
+                "native scalar root cannot enter specialization evaluator",
+                span,
+            ));
+        }
         binding.cursor += 1;
         self.environment
             .budget

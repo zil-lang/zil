@@ -3359,6 +3359,16 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        if let ExprKind::MetaEval(inner) = &e.kind {
+            let max_depth = self.budget.remaining_limits().max_call_depth;
+            if crate::runtime_ct::native_scalar_root(inner, max_depth, |work| {
+                self.budget.identity_work(work, e.span).map_err(|e| vec![e])
+            })
+            .map_err(|mut errors| errors.remove(0))?
+            {
+                return self.expr(inner, state, expected, borrowing);
+            }
+        }
         match &e.kind {
             ExprKind::MetaEval(_) if self.ct_types.is_some() => {
                 let ordinal = self
@@ -3461,26 +3471,46 @@ impl Check<'_, '_, '_> {
                 if declaration.generics.len() != args.len() {
                     return Err(error(e.span, "generic record constructor arity mismatch"));
                 }
-                let substitutions = nominal_type_actuals(
-                    &declaration.generics,
-                    &args,
-                    self.source_definition,
-                    self.budget,
-                    e.span,
-                )?;
-                self.traits.check_arguments_scoped(
-                    &declaration.generics,
-                    &substitutions,
-                    (
-                        &self.bounds,
-                        &self.variables,
-                        callable::StoreCallbacks::None,
-                    ),
-                    self.budget,
-                    e.span,
-                    None,
-                    Some(self.source_definition),
-                )?;
+                let all_type = declaration
+                    .generics
+                    .iter()
+                    .all(|p| matches!(p.kind, GenericParamKind::Type(_)));
+                let mut ordinary = all_type;
+                let mut substitutions = BTreeMap::new();
+                if all_type {
+                    for (parameter, argument) in declaration.generics.iter().zip(&args) {
+                        let GenericArg::Type(ty) = argument else {
+                            return Err(unsupported(e.span, "constant generic record constructor"));
+                        };
+                        // The original all-Type traversal pays for observing
+                        // scoped syntax, and its closed branch keeps that fee.
+                        self.budget.ty(ty)?;
+                        ordinary &= !enums::scoped_nominal_actual(ty);
+                        substitutions.insert(parameter.name.clone(), ty.clone());
+                    }
+                }
+                if !ordinary {
+                    substitutions = nominal_type_actuals(
+                        &declaration.generics,
+                        &args,
+                        self.source_definition,
+                        self.budget,
+                        e.span,
+                    )?;
+                    self.traits.check_arguments_scoped(
+                        &declaration.generics,
+                        &substitutions,
+                        (
+                            &self.bounds,
+                            &self.variables,
+                            callable::StoreCallbacks::None,
+                        ),
+                        self.budget,
+                        e.span,
+                        None,
+                        Some(self.source_definition),
+                    )?;
+                }
                 let mut seen = BTreeSet::new();
                 for field in fields {
                     if !seen.insert(&field.name) {
@@ -3499,13 +3529,17 @@ impl Check<'_, '_, '_> {
                             "record field is private to its declaring module",
                         ));
                     }
-                    let want = nominal_field_type(
-                        &declaration.generics,
-                        &args,
-                        &declared.ty,
-                        self.source_definition,
-                        self.budget,
-                    )?;
+                    let want = if ordinary {
+                        substituted_type(&declared.ty, &substitutions, self.budget)?
+                    } else {
+                        nominal_field_type(
+                            &declaration.generics,
+                            &args,
+                            &declared.ty,
+                            self.source_definition,
+                            self.budget,
+                        )?
+                    };
                     let actual = if let Some(value) = &field.value {
                         if declared.manages
                             && stores::element(&want).is_some()

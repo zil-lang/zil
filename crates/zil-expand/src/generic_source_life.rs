@@ -1355,7 +1355,7 @@ impl Check<'_, '_, '_> {
                         .iter()
                         .find(|p| p.name == *name && matches!(p.kind, GenericParamKind::Const(_)));
                     let binder = binder.or_else(|| {
-                        consts::symbolic_parameter(&self.functions[scope.owner], name)
+                        consts::symbolic_parameter(self.functions[scope.owner], name)
                             .map(|(_, p)| p)
                     });
                     let Some(GenericParam {
