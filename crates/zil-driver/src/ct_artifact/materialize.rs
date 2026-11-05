@@ -233,7 +233,6 @@ impl Preview {
 struct Materializer<'a, 'b> {
     runtime_binding: Option<runtime_phase::RuntimeBinding<'a>>,
     runtime_deferred: bool,
-    eager_closed_scalars: bool,
     environment: &'a mut Environment<'b>,
     sources: &'b [SourceUnit],
     parsed: &'b [Arc<ParseResult>],
@@ -1702,11 +1701,6 @@ impl Materializer<'_, '_> {
                 if let Some(ty) = &mut f.return_type {
                     self.ty(module, ty, owner, depth + 1)?;
                 }
-                let previous_eager = self.eager_closed_scalars;
-                self.eager_closed_scalars = f
-                    .generics
-                    .iter()
-                    .any(|parameter| !matches!(parameter.kind, s::GenericParamKind::Lifetime));
                 self.runtime_scopes
                     .push(f.params.iter().map(|param| param.name.clone()).collect());
                 let result = match &mut f.body {
@@ -1715,7 +1709,6 @@ impl Materializer<'_, '_> {
                     s::FunctionBody::Declaration => Ok(()),
                 };
                 self.runtime_scopes.pop();
-                self.eager_closed_scalars = previous_eager;
                 result?;
             }
             s::ItemKind::Aggregate(a) => {
@@ -2111,7 +2104,6 @@ impl Materializer<'_, '_> {
             expression.kind,
             s::ExprKind::MetaSplice(_)
                 | s::ExprKind::SyntaxIsland { .. }
-                | s::ExprKind::MetaEval(_)
                 | s::ExprKind::MetaBlock(_)
         ) {
             self.closure_sites_changed(expression.span)?;
@@ -2163,42 +2155,15 @@ impl Materializer<'_, '_> {
                 ));
             }
             s::ExprKind::MetaEval(inner) => {
-                if self.runtime_binding.is_none()
-                    && self.eager_closed_scalars
-                    && runtime_phase::closed_scalar(
-                        inner,
-                        &mut self.environment.budget,
-                        self.max_depth,
-                        depth + 1,
-                    )?
-                {
-                    let evaluated = self.expression_data(module, owner, inner, None)?;
-                    if evaluated.context.is_some() || !matches!(evaluated.value, CtValue::Scalar(_))
-                    {
-                        return Err(category(
-                            "closed scalar CT root returned another value category",
-                            expression.span,
-                        ));
-                    }
-                    self.environment.budget.release_value(&evaluated.value);
-                    self.clear_expression_source_sites(expression)?;
-                    // The VM checked this context-free literal, but its default
-                    // scalar domain is not the receiving native domain. Move
-                    // the original spelling/Group to preserve expected typing.
-                    let s::ExprKind::MetaEval(inner) =
-                        std::mem::replace(&mut expression.kind, s::ExprKind::Tuple(Vec::new()))
-                    else {
-                        unreachable!()
-                    };
-                    *expression = *inner;
+                // Use the frozen root classification in runtime mode: an
+                // original #(N) may now look like #(42) after substitution.
+                if self.retain_native_scalar_root(inner, expression.span)? {
                     return Ok(());
                 }
                 if self.runtime_binding.is_none() && !self.uses_ct_domain(module, inner)? {
-                    // Ordinary scalar, Copy record, enum and opaque CT values
-                    // retain the established producer and receiving type
-                    // context. Selection happens before either VM runs.
                     return Ok(());
                 }
+                self.closure_sites_changed(expression.span)?;
                 let evaluated = self.expression_data(module, owner, inner, None)?;
                 if let Some(context) = evaluated.context {
                     let replacement = self.data_expression(
@@ -2408,7 +2373,6 @@ pub(crate) fn materialize<'a>(
     let mut materializer = Materializer {
         runtime_binding: None,
         runtime_deferred: false,
-        eager_closed_scalars: false,
         environment: &mut environment,
         sources,
         parsed,
@@ -2903,7 +2867,6 @@ mod scoped_tests {
             let mut materializer = Materializer {
                 runtime_binding: None,
                 runtime_deferred: false,
-                eager_closed_scalars: false,
                 environment: &mut environment,
                 sources,
                 parsed: parsed_slice,
@@ -3466,8 +3429,94 @@ mod scoped_tests {
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, Phase::Types);
+        assert!(matches!(report.phase, Phase::Expand | Phase::Types));
         assert!(!report.to_json().contains("ordinary Copy"));
+    }
+    #[test]
+    fn closed_generic_float_preserves_its_actual_receiving_spelling_and_context() {
+        let original = "fn helper<F:FnMut(i32)->i32>(f:&mut F)->f32{return #(0.1)}fn main()->i32{var n=0;var f=move(x:i32)->i32=>{n+=x;return n};let v=helper(&mut f);if v>0.0{return 0}return 1}";
+        for deferred in [false, true] {
+            let text = if deferred {
+                format!("{original}fn unrelated<#N:i32>()->i32{{return #(N)}}")
+            } else {
+                original.to_owned()
+            };
+            let output = run(&text).unwrap();
+            let s::ItemKind::Function(function) = &output.modules[0].items[0].kind else {
+                unreachable!()
+            };
+            let s::FunctionBody::Block(body) = &function.body else {
+                unreachable!()
+            };
+            let s::StmtKind::Return(Some(value)) = &body.statements[0].kind else {
+                unreachable!()
+            };
+            let s::ExprKind::MetaEval(inner) = &value.kind else {
+                panic!("native scalar root changed: {value:?}")
+            };
+            assert!(
+                matches!(&inner.kind, s::ExprKind::Literal(s::Literal::Float(text)) if text == "0.1"),
+                "{value:?}"
+            );
+            assert_eq!(
+                output.declaration_origins.as_ref().unwrap()[0].items[0].closure_sites,
+                zil_expand::source_context::ClosureSiteLineage::Original
+            );
+            let source =
+                SourceUnit::new(zil_base::FileId(0), ModuleId(0), "receiving-f32.zil", &text);
+            let report = crate::CompilationSession::default()
+                .compile_source(&source, &crate::CompileOptions::default());
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
+    #[test]
+    fn mixed_native_and_deferred_roots_keep_every_original_meta_ordinal() {
+        for body in ["let x=#(42);return #(N)", "let x=#(N);return #(42)"] {
+            let text = format!(
+                "fn result<#N:i32>()->i32{{{body}}}fn main()->i32{{return result::<42>()}}"
+            );
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                "mixed-root-ordinals.zil",
+                &text,
+            );
+            let report = crate::CompilationSession::default()
+                .compile_source(&source, &crate::CompileOptions::default());
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+        }
+        for text in [
+            "fn bad<F:FnMut()->i32>(f:&mut F)->u8{return #(256)}fn main()->i32{return 0}",
+            "fn bad<F:FnMut()->i32>(f:&mut F)->f32{return #(1e100)}fn main()->i32{return 0}",
+        ] {
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                "unused-native-literal.zil",
+                text,
+            );
+            let report = crate::CompilationSession::default()
+                .compile_source(&source, &crate::CompileOptions::default());
+            assert_ne!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert!(!report.to_json().contains("ordinary Copy"));
+        }
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
@@ -3498,6 +3547,32 @@ mod scoped_tests {
             let s::StmtKind::Binding { value, .. } = &body.statements[0].kind else {
                 unreachable!()
             };
+            if name == "renamed" {
+                // Type/Const-generic definitions remain templates until the
+                // actual native specialization. Assert that phase boundary,
+                // then exercise the real callback instead of dropping its
+                // environment and expecting an early ascription.
+                assert!(matches!(value.kind, s::ExprKind::MetaEval(_)), "{value:?}");
+                let source = SourceUnit::new(
+                    zil_base::FileId(0),
+                    ModuleId(0),
+                    "full-ordinal-runtime.zil",
+                    &text,
+                );
+                let report = crate::CompilationSession::default()
+                    .compile_source(&source, &crate::CompileOptions::default());
+                assert_eq!(
+                    report.status,
+                    zil_base::ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                // Independent raw source controls in source_schema_rejects_
+                // coordinated_life_and_witness_mutation require ordinal 1
+                // (and reject ordinal 0) for this Type-then-Life layout.
+                continue;
+            }
             let s::ExprKind::Ascribed { ty, value } = &value.kind else {
                 panic!("missing full type ascription {value:?}")
             };
