@@ -410,6 +410,13 @@ mod tests {
                 .unwrap()
                 .is_some()
         );
+        let mut reordered = f.clone();
+        reordered.blocks.swap(0, 2);
+        assert!(
+            super::super::role(&m, &reordered, &kind, &mut Budget::new(&limits))
+                .unwrap()
+                .is_some()
+        );
         for (name, changed) in tail_fixture::hostile(&f) {
             assert!(
                 super::super::role(&m, &changed, &kind, &mut Budget::new(&limits)).is_err(),

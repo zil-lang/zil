@@ -1,5 +1,6 @@
 use super::*;
 use zil_ir::*;
+#[allow(dead_code)]
 mod neighbors {
     include!("tail_neighbors.rs");
 }

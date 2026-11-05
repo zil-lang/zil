@@ -513,6 +513,26 @@ mod tests {
         let mut m = model();
         tail_fixture::fork(&mut m.functions[0]);
         assert!(resolve(&m, &mut Budget::new(&limits)).unwrap());
+        let mut reordered = m.clone();
+        reordered.functions[0].blocks.swap(0, 2);
+        let f = &reordered.functions[0];
+        let call = f
+            .blocks
+            .iter()
+            .flat_map(|bb| &bb.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+            .unwrap();
+        assert!(
+            super::super::role(
+                &reordered,
+                f,
+                &call.kind,
+                &reordered.closures[0],
+                &mut Budget::new(&limits)
+            )
+            .unwrap()
+            .is_some()
+        );
         for (name, changed) in tail_fixture::hostile(&m.functions[0]) {
             let mut candidate = m.clone();
             candidate.functions[0] = changed;
