@@ -7,7 +7,7 @@
   "goal_reference": "f14fdb1f18c0519de249992f138f9c899d60205c",
   "implementation_checkpoints": {
     "G3.3.7": "4537731f081d3afbd5165963cebb6d92dc71c9ce",
-    "G4.4.4": "27116e352cf8b345956f8a5be62df8a0f3d718fd"
+    "G4.4.4": "13d5e7c495bae80a1817ee351c82b092e394380f"
   },
   "static_observations": [
     "G4.4.4 queues the callee universal declaration check before call-site symbolic header substitution.",
@@ -757,5 +757,18 @@
     "Independent Source checks exercise current Analyze and Verify, but author raw/Wire hostile tests and budget receipts were statically reviewed, not independently rerun here. Root owns final affected-suite/formal integration.",
     "Source check invocation counts include the original failure and controlled source neighbors; they are not distinct capability or accepted-case counts.",
     "The original owning Source was tested once on a CLI without the owning candidate and rejected; this is preserved but not claimed as a candidate regression."
-  ]
+  ],
+  "post_functional_fee_review": {
+    "implementation_commit": "13d5e7c495bae80a1817ee351c82b092e394380f",
+    "verdict": "Pass",
+    "method": "Independent static review; functional/native executions remain bound to 905866c20c37428b069cbb1a25d596b652b43bb5, not this later fee patch.",
+    "observations": [
+      "Four symbol backing vectors prepay full generic arity times their actual element sizes before with_capacity, including unused kind slots.",
+      "Header parameter CtTy and call argument CtValueId capacities are prepaid before allocation; each vector pushes at most the already checked arity.",
+      "String and recursive Type copies retain their preceding text/copy_ty charges; CtSymbolId is fixed-size.",
+      "Header failure restores caller data/metadata/scalar/life bindings.",
+      "Old header allocates an empty Vec::new, then delegates to the original body; this wrapper adds no heap allocation or capacity charge to the old path."
+    ],
+    "new_fee_runtime_boundaries": "Root-coordinated checks; old measured N values are not reused as evidence for this changed allocation charge."
+  }
 }

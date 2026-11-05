@@ -3,8 +3,8 @@
   "reviewer": "/root/p0_cross_review",
   "implementation_author": "/root/g444_ct",
   "verdict": "Pass",
-  "implementation_commit": "27116e352cf8b345956f8a5be62df8a0f3d718fd",
-  "production_commit": "a79c5fb193bbbd4d0b44a221ace025c09f655c44",
+  "implementation_commit": "13d5e7c495bae80a1817ee351c82b092e394380f",
+  "production_commit": "13d5e7c495bae80a1817ee351c82b092e394380f",
   "scope": "Scalar-result nested full-actual forwarding; independent no-dummy full42 O0/O2, bad symbolic identities/domains, and actual nongeneric member host identity full85.",
   "evidence": "docs/validation/G3.3.7.1-p0-review.json",
   "tested_combination": {
@@ -22,5 +22,19 @@
     "No Rust time/RSS/compile/maintenance cost comparison or product-level breakthrough claim."
   ],
   "independent_raw_wire_execution": false,
-  "formal_acceptance": "Root-owned; not performed by this review"
+  "formal_acceptance": "Root-owned; not performed by this review",
+  "previous_functionally_reviewed_checkpoint": "27116e352cf8b345956f8a5be62df8a0f3d718fd",
+  "post_functional_fee_review": {
+    "implementation_commit": "13d5e7c495bae80a1817ee351c82b092e394380f",
+    "verdict": "Pass",
+    "method": "Independent static review; functional/native executions remain bound to 905866c20c37428b069cbb1a25d596b652b43bb5, not this later fee patch.",
+    "observations": [
+      "Four symbol backing vectors prepay full generic arity times their actual element sizes before with_capacity, including unused kind slots.",
+      "Header parameter CtTy and call argument CtValueId capacities are prepaid before allocation; each vector pushes at most the already checked arity.",
+      "String and recursive Type copies retain their preceding text/copy_ty charges; CtSymbolId is fixed-size.",
+      "Header failure restores caller data/metadata/scalar/life bindings.",
+      "Old header allocates an empty Vec::new, then delegates to the original body; this wrapper adds no heap allocation or capacity charge to the old path."
+    ],
+    "new_fee_runtime_boundaries": "Root-coordinated checks; old measured N values are not reused as evidence for this changed allocation charge."
+  }
 }
