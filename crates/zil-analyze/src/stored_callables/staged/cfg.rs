@@ -94,7 +94,7 @@ pub(super) fn parameter(
 ) -> CompileResult<usize> {
     let n = f.blocks.len();
     b.spend(
-        n.saturating_mul(5)
+        n.saturating_mul(8)
             .saturating_add(f.locals.len())
             .saturating_add(f.values.len())
             .saturating_add(f.parameters.len()),
@@ -184,7 +184,7 @@ pub(super) fn parameter(
     let mut visited = 0usize;
     let mut answer = None;
     while let Some(index) = ready.pop() {
-        b.spend(1, "owning CFG actual block visit")?;
+        b.spend(3, "owning CFG actual block visit and edges")?;
         visited += 1;
         let block = &f.blocks[index];
         let mut frame = states[index].take().ok_or_else(closed)?; // unreachable islands fail, even if acyclic
