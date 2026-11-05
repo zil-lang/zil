@@ -13,7 +13,7 @@ pub(super) struct AuthenticatedTypeSite {
     value: CtValueId,
     graph: CtTypeRef,
 }
-struct SourceEnvironment<'a> {
+pub(super) struct SourceEnvironment<'a> {
     function: &'a s::Function,
     scope: &'a CtAmbientLifeScope,
     scope_id: CtAmbientScopeId,
@@ -23,7 +23,7 @@ struct SourceEnvironment<'a> {
         CtAmbientScopeId,
     )>,
 }
-fn step(budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<()> {
+pub(super) fn step(budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<()> {
     budget.reserve_analysis_work(1)?;
     if depth > budget.remaining().max_call_depth as usize {
         return Err(vec![Diagnostic::limit(
@@ -38,7 +38,10 @@ fn eq_text(left: &str, right: &str, budget: &mut CtExecutionBudget) -> CompileRe
     budget.reserve_analysis_work(left.len().min(right.len()) as u64 + 1)?;
     Ok(left == right)
 }
-fn scalar_domain(ty: &s::TypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtScalarTy> {
+pub(super) fn scalar_domain(
+    ty: &s::TypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<CtScalarTy> {
     let mut ty = ty;
     let mut depth = 0;
     while let s::TypeKind::Group(inner) = &ty.kind {
@@ -115,7 +118,7 @@ fn parameter<'a>(
     ))
 }
 impl FrozenInvocationContext {
-    fn source_location<'a>(
+    pub(super) fn source_location<'a>(
         &'a self,
         site: SourceSite,
         budget: &mut CtExecutionBudget,
@@ -198,7 +201,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_environment<'a>(
+    pub(super) fn source_environment<'a>(
         &'a self,
         scope: &'a CtAmbientLifeScope,
         scope_id: CtAmbientScopeId,
@@ -312,7 +315,7 @@ impl FrozenInvocationContext {
             Ok((&module.module, original, None))
         }
     }
-    fn source_symbol<'a>(
+    pub(super) fn source_symbol<'a>(
         &'a self,
         requester: &CtSymbolId,
         module_id: zil_base::ModuleId,
@@ -439,7 +442,7 @@ impl FrozenInvocationContext {
         }
         Ok((symbol, item))
     }
-    fn source_scalar(
+    pub(super) fn source_scalar(
         &self,
         arg: &s::GenericArg,
         domain: CtScalarTy,
@@ -567,7 +570,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_type(
+    pub(super) fn source_type(
         &self,
         source: &s::TypeRef,
         graph: &CtTypeRef,
@@ -1061,7 +1064,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_path(
+    pub(super) fn source_path(
         &self,
         e: &s::Expr,
         out: &mut Vec<String>,
@@ -1541,6 +1544,19 @@ impl FrozenInvocationContext {
         raw: &'a CtArtifactProgram,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<SourceEnvironment<'a>> {
+        if function.id == raw.entry
+            && let Some(scope_id) = self.runtime_scope_id
+        {
+            let scope = raw
+                .ambient_life_scopes
+                .get(scope_id.0 as usize)
+                .ok_or_else(|| unsupported("CT runtime entry scope placement is absent"))?;
+            // The only setter independently checked this exact complete
+            // instance against the real original runtime call. Reconcile it
+            // again with the retained admission before using its environment.
+            self.validate_scope(scope, budget)?;
+            return self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget);
+        }
         let mut selected = None;
         budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
         for active in &self.active {

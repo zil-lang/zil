@@ -4,7 +4,7 @@
 use super::source_types::{scalar_domain, step};
 use super::*;
 use crate::ct_artifact::compiler::{
-    RuntimeEntrySource,
+    runtime_context::RuntimeEntrySource,
     source_sites::{SourceNode, SourceTreeId},
 };
 use zil_expand::runtime_ct::RuntimeArgument;
@@ -292,6 +292,9 @@ impl FrozenInvocationContext {
         self.runtime_scope_id = Some(instance_id);
         self.bytes = self.bytes.saturating_add(cost);
         Ok(())
+    }
+    pub(in crate::ct_artifact) fn authenticated_runtime_scope_root_count(&self) -> usize {
+        self.runtime_root_active.len()
     }
     pub(in crate::ct_artifact) fn authorized_runtime_scope_root(
         &self,
