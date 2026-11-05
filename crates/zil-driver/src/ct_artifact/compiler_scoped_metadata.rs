@@ -76,9 +76,6 @@ impl<'a> Compiler<'a> {
                 ));
             }
         }
-        if binders.is_empty() {
-            return Ok(None);
-        }
         // Spans can diagnose a mismatch only after the actual ordinal selected
         // the original declaration. Equal/shared spans do not select an owner.
         if tree == source_sites::SourceTreeId::Original
