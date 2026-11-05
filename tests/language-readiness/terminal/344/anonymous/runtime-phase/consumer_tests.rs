@@ -82,6 +82,24 @@ fn g447_runtime_ct_checks_unused_definitions() {
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
-    assert!(report.diagnostics.iter().any(|d| d.message == "operation on an unconstrained type parameter requires a declared bound"));
+    assert!(
+        report.diagnostics.iter().any(|d| d.message
+            == "operation on an unconstrained type parameter requires a declared bound")
+    );
     assert_eq!(report.verification_runs, 0);
+}
+
+#[test]
+fn g447_runtime_ct_nested_parent_source_project_native() {
+    runtime_source_project_native(include_str!("../ct6-runtime-nested-parent.zil"), b"8\n");
+}
+
+#[test]
+fn g447_runtime_ct_nested_after_ct_source_project_native() {
+    runtime_source_project_native(include_str!("../ct6-runtime-nested-after-ct.zil"), b"17\n");
+}
+
+#[test]
+fn g447_runtime_ct_inferred_type_source_project_native() {
+    runtime_source_project_native(include_str!("../ct6-runtime-inferred-type.zil"), b"8\n");
 }

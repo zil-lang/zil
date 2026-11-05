@@ -980,12 +980,16 @@ impl<'a> Engine<'a> {
             mut item,
             origin,
             member_calls,
+            runtime_calls,
         }) = self.pending.pop_front()
         {
             self.runtime_instance = name(&item)
                 .and_then(|name| self.runtime_instances.get(name))
                 .copied();
-            self.runtime_bind_calls(&item)?;
+            self.runtime_calls = match runtime_calls {
+                Some(anchors) => anchors,
+                None => self.runtime_call_anchors(&item)?,
+            };
             let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
             let processed = self.with_origin(origin, |engine| engine.item(&mut item));
             self.current_member_calls = previous;
@@ -1206,6 +1210,10 @@ impl<'a> Engine<'a> {
         self.budget.substituted_item(item, &substitution)?;
         consts::prepay_scopes(item, &substitution, &mut self.budget)?;
         let mut instance = item.clone();
+        // Anchor actual owned callees before substitutions or CT replacement
+        // can change surrounding syntax. Pending processing consumes these
+        // anchors directly; it never recounts calls in materialized output.
+        let runtime_calls = self.runtime_call_anchors(&instance)?;
         let mut anchors = None;
         if let ItemKind::Function(function) = &item.kind
             && let Some(calls) = self.trait_calls.get(&function.name)
@@ -1305,6 +1313,10 @@ impl<'a> Engine<'a> {
         }
         let origin = self.template_origin(item)?;
         self.enqueue(instance, origin)?;
+        self.pending
+            .back_mut()
+            .expect("just enqueued")
+            .runtime_calls = Some(runtime_calls);
         Ok(store_templates::Instantiation::Eager(generated))
     }
     fn ty(&mut self, ty: &mut TypeRef, depth: usize) -> R<()> {
