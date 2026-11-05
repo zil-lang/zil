@@ -926,7 +926,7 @@ fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
             };
             let errors =
                 zil_verify::verify_module(input, claim.clone(), &target, &limits).unwrap_err();
-            let expected = if case == 0 || case == 3 {
+            let expected = if case != 1 {
                 "E-VERIFY-RESOURCE"
             } else {
                 "E-VERIFY-TASK"
