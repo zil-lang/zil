@@ -1334,9 +1334,9 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<Value> {
         if self.compiler.checking_generics
-            && Compiler::mixed_parameters(
+            && (Compiler::mixed_parameters(
                 &self.compiler.declarations[declaration].function.generics,
-            )
+            ) || self.compiler.active_host.is_some())
         {
             return self.abstract_mixed_call(declaration, explicit, arguments, depth, span);
         }
