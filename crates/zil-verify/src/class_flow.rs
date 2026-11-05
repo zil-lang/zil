@@ -572,7 +572,7 @@ fn check_with(
                     | InstructionKind::CallClosureOnce { .. } => {
                         let (d, arguments) = super::stored_callables::called(module, f, &i.kind)
                             .ok_or_else(|| bad("call has no actual qualified closure"))?;
-                        let role = super::stored_callables::role(f, &i.kind, b)?;
+                        let role = super::stored_callables::role(module, f, &i.kind, d, b)?;
                         if let Some(definition) = &d.storage_life {
                             if let Some(role) = role {
                                 super::signature_life::charge(role, b)?;
