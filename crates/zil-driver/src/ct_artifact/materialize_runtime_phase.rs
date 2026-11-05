@@ -529,6 +529,7 @@ impl<'a, 'b> Materializer<'a, 'b> {
             }
         }
         let descriptor = compiler::runtime_context::RuntimeEntrySource {
+            parents: Vec::new(),
             definition: binding.definition.symbol.clone(),
             caller: binding.caller.clone(),
             call_site: binding.call_site,

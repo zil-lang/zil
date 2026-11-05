@@ -3,7 +3,16 @@
 use super::*;
 
 #[derive(Clone, Debug)]
+pub(crate) struct RuntimeEntryFrame {
+    pub definition: CtSymbolId,
+    pub caller: CtSymbolId,
+    pub call_site: source_sites::SourceSite,
+    pub arguments: Vec<zil_expand::runtime_ct::RuntimeArgument>,
+}
+
+#[derive(Clone, Debug)]
 pub(crate) struct RuntimeEntrySource {
+    pub parents: Vec<RuntimeEntryFrame>,
     pub definition: CtSymbolId,
     pub caller: CtSymbolId,
     pub call_site: source_sites::SourceSite,
@@ -18,7 +27,6 @@ impl<'a> Compiler<'a> {
         expression: &s::Expr,
         source: &RuntimeEntrySource,
     ) -> R<()> {
-        use zil_expand::runtime_ct::RuntimeArgument as A;
         let span = expression.span;
         let (tree, frozen) = self.frozen_site_module(source.expression_site, span)?;
         let selected = source_sites::select_in_tree(
@@ -69,18 +77,127 @@ impl<'a> Compiler<'a> {
                 "runtime CT expression is outside its actual template owner",
             ));
         }
+        self.budget.depth(source.parents.len(), span)?;
+        let mut previous: Option<(&CtSymbolId, CtAmbientScopeId)> = None;
+        for frame in &source.parents {
+            if previous.is_some_and(|(definition, _)| definition != &frame.caller) {
+                return Err(error(
+                    span,
+                    "runtime CT parent chain does not follow its actual caller",
+                ));
+            }
+            let instance = self.bind_runtime_frame(
+                &frame.definition,
+                &frame.caller,
+                frame.call_site,
+                &frame.arguments,
+                previous.map(|(_, id)| id),
+                span,
+            )?;
+            previous = Some((&frame.definition, instance));
+        }
+        if previous.is_some_and(|(definition, _)| definition != &source.caller) {
+            return Err(error(
+                span,
+                "runtime CT entry caller is not its actual direct parent",
+            ));
+        }
+        self.bind_runtime_frame(
+            &source.definition,
+            &source.caller,
+            source.call_site,
+            &source.arguments,
+            previous.map(|(_, id)| id),
+            span,
+        )?;
+        Ok(())
+    }
+
+    fn intern_runtime_scope(
+        &mut self,
+        scope: CtAmbientLifeScope,
+        span: Span,
+    ) -> R<CtAmbientScopeId> {
+        self.budget.scope_comparison(&scope, span)?;
+        for (index, previous) in self.ambient_life_scopes.iter().enumerate() {
+            self.budget.scope_comparison(previous, span)?;
+            if previous == &scope {
+                return Ok(CtAmbientScopeId(index as u32));
+            }
+        }
+        self.budget.node(span)?;
+        if self.ambient_life_scopes.len() == self.ambient_life_scopes.capacity() {
+            Budget::take(
+                &mut self.budget.bytes,
+                self.ambient_life_scopes
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(std::mem::size_of::<CtAmbientLifeScope>()),
+                span,
+                "runtime CT scope backing exhausted",
+            )?;
+            self.ambient_life_scopes.reserve_exact(1);
+        }
+        let id = CtAmbientScopeId(
+            u32::try_from(self.ambient_life_scopes.len())
+                .map_err(|_| error(span, "runtime CT scope ordinal overflow"))?,
+        );
+        self.ambient_life_scopes.push(scope);
+        Ok(id)
+    }
+
+    fn bind_runtime_frame(
+        &mut self,
+        definition: &CtSymbolId,
+        caller: &CtSymbolId,
+        call_site: source_sites::SourceSite,
+        recipes: &[zil_expand::runtime_ct::RuntimeArgument],
+        parent_instance: Option<CtAmbientScopeId>,
+        span: Span,
+    ) -> R<CtAmbientScopeId> {
+        use zil_expand::runtime_ct::RuntimeArgument as A;
+        let module = self.module_index(definition.module, span)?;
+        let original = if definition.generation_path.is_some() {
+            source_scope::generated_original_function(
+                self.generated_catalog
+                    .ok_or_else(|| error(span, "runtime CT frame catalog absent"))?,
+                definition,
+                self.budget.limits.max_call_depth,
+                |work| self.budget.work(work, span),
+            )?
+            .map(|(_, f)| f)
+        } else {
+            source_scope::original_function(
+                self.modules[module].syntax,
+                definition.declaration,
+                self.budget.limits.max_call_depth,
+                |work| self.budget.work(work, span),
+            )?
+        }
+        .ok_or_else(|| {
+            error(
+                span,
+                "runtime CT frame definition is not an original function",
+            )
+        })?;
+        if original.generic_host {
+            return Err(error(
+                span,
+                "runtime CT frame requires a separately authenticated host",
+            ));
+        }
         let parameters = &original.function.generics;
-        if parameters.len() != source.arguments.len() {
+        if parameters.len() != recipes.len() {
             return Err(error(
                 span,
                 "runtime CT complete source vector arity differs",
             ));
         }
-        let (call_tree, call_module) = self.frozen_site_module(source.call_site, span)?;
+        let (call_tree, call_module) = self.frozen_site_module(call_site, span)?;
         let call = source_sites::select_in_tree(
             call_module,
             call_tree,
-            source_sites::Selection::Site(source.call_site),
+            source_sites::Selection::Site(call_site),
             self.budget.limits.max_call_depth,
             |work| self.budget.work(work, span),
         )?
@@ -108,9 +225,35 @@ impl<'a> Compiler<'a> {
                 "runtime CT original explicit Type/Const vector arity differs",
             ));
         }
-        let caller_module = self.module_index(source.caller.module, span)?;
+        let caller_module = self.module_index(caller.module, span)?;
         self.source_life_scope =
-            self.source_life_scope(caller_module, &source.caller, call_expression.span)?;
+            self.source_life_scope(caller_module, caller, call_expression.span)?;
+        if let Some(parent) = parent_instance {
+            let scope = self
+                .ambient_life_scopes
+                .get(parent.0 as usize)
+                .ok_or_else(|| {
+                    error(span, "runtime CT parent scope is outside actual inventory")
+                })?;
+            self.budget.scope_comparison(scope, span)?;
+            if scope.declaration != *caller {
+                return Err(error(
+                    span,
+                    "runtime CT parent row belongs to another caller",
+                ));
+            }
+            let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
+                return Err(error(
+                    span,
+                    "runtime CT parent must be its actual full instance",
+                ));
+            };
+            Self::actual_cost(&mut self.budget, actuals, span)?;
+            self.source_life_scope
+                .as_mut()
+                .ok_or_else(|| error(span, "runtime CT parent source scope absent"))?
+                .instance = CtScopeInstance::Instantiated(actuals.clone());
+        }
         let mut actuals = Vec::new();
         Budget::take(
             &mut self.budget.bytes,
@@ -122,7 +265,7 @@ impl<'a> Compiler<'a> {
         )?;
         actuals.reserve_exact(parameters.len());
         let mut explicit = arguments.iter();
-        for (ordinal, (parameter, recipe)) in parameters.iter().zip(&source.arguments).enumerate() {
+        for (ordinal, (parameter, recipe)) in parameters.iter().zip(recipes).enumerate() {
             self.budget.node(span)?;
             if let s::GenericParamKind::Lifetime = parameter.kind {
                 if !matches!(recipe, A::LifeDefinition { ordinal: selected } if *selected as usize == ordinal)
@@ -156,30 +299,19 @@ impl<'a> Compiler<'a> {
                 }
             }));
         }
-        self.source_life_scope = self.source_life_scope(module, &source.definition, span)?;
+        self.source_life_scope = self.source_life_scope(module, definition, span)?;
         let scope = self
             .source_life_scope
             .as_ref()
             .ok_or_else(|| error(span, "runtime CT template scope is absent"))?;
         let base = CtAmbientLifeScope {
-            declaration: source.definition.clone(),
+            declaration: definition.clone(),
             enclosing: None,
             binder_site: Vec::new(),
             instance: CtScopeInstance::Definition,
         };
-        self.budget.node(span)?;
-        Budget::take(
-            &mut self.budget.bytes,
-            std::mem::size_of::<CtAmbientLifeScope>(),
-            span,
-            "runtime CT definition row exhausted",
-        )?;
-        let base_id = CtAmbientScopeId(
-            u32::try_from(self.ambient_life_scopes.len())
-                .map_err(|_| error(span, "runtime CT definition row overflow"))?,
-        );
         let _ = scope;
-        self.ambient_life_scopes.push(base);
+        let base_id = self.intern_runtime_scope(base, span)?;
         for (ordinal, slot) in actuals.iter_mut().enumerate() {
             if slot.is_none() {
                 *slot = Some(CtScopeActual::Lifetime(CtAmbientLifeReference {
@@ -217,21 +349,32 @@ impl<'a> Compiler<'a> {
             }
         }
         Self::actual_cost(&mut self.budget, &actuals, span)?;
+        let instance_id = self.intern_runtime_scope(
+            CtAmbientLifeScope {
+                declaration: definition.clone(),
+                enclosing: None,
+                binder_site: Vec::new(),
+                instance: CtScopeInstance::Instantiated(actuals.clone()),
+            },
+            span,
+        )?;
+        self.source_life_scope.as_mut().unwrap().instance = CtScopeInstance::Instantiated(actuals);
         self.budget.node(span)?;
         Budget::take(
             &mut self.budget.bytes,
-            std::mem::size_of::<CtAmbientLifeScope>(),
+            self.runtime_frames
+                .len()
+                .saturating_add(1)
+                .saturating_mul(std::mem::size_of::<SourceRuntimeFrame>()),
             span,
-            "runtime CT instance row exhausted",
+            "runtime CT frame locator backing exhausted",
         )?;
-        self.ambient_life_scopes.push(CtAmbientLifeScope {
-            declaration: source.definition.clone(),
-            enclosing: None,
-            binder_site: Vec::new(),
-            instance: CtScopeInstance::Instantiated(actuals.clone()),
+        self.runtime_frames.reserve_exact(1);
+        self.runtime_frames.push(SourceRuntimeFrame {
+            base: base_id,
+            instance: instance_id,
         });
-        self.source_life_scope.as_mut().unwrap().instance = CtScopeInstance::Instantiated(actuals);
-        Ok(())
+        Ok(instance_id)
     }
 }
 

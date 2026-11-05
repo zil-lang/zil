@@ -298,6 +298,7 @@ enum PendingTypes {
 /// this request-local event ledger to invocation authority.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SourceCompilation {
+    pub runtime_frames: Vec<SourceRuntimeFrame>,
     pub bindings: Vec<SourceLifeBinding>,
     pub calls: Vec<SourceInstanceCall>,
     pub scopes: Vec<CtAmbientLifeScope>,
@@ -318,6 +319,11 @@ pub(crate) struct SourceTypeSite {
     pub caller: CtFunctionId,
     pub value: CtValueId,
     pub site: source_sites::SourceSite,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SourceRuntimeFrame {
+    pub base: CtAmbientScopeId,
+    pub instance: CtAmbientScopeId,
 }
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
@@ -373,6 +379,7 @@ struct Compiler<'a> {
     scalar_bindings: Vec<(String, Constant)>,
     source_life_scope: Option<SourceLifeScope>,
     current_source_function: Option<CtFunctionId>,
+    runtime_frames: Vec<SourceRuntimeFrame>,
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     source_instance_calls: Vec<SourceInstanceCall>,
@@ -441,6 +448,7 @@ impl<'a> Compiler<'a> {
             scalar_bindings: Vec::new(),
             source_life_scope: None,
             current_source_function: None,
+            runtime_frames: Vec::new(),
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             source_instance_calls: Vec::new(),
@@ -947,6 +955,7 @@ fn compile_scoped_context<'a>(
     };
     let retain_scopes = runtime_source.is_some() || compiler.has_ambient_use()?;
     let source_compilation = SourceCompilation {
+        runtime_frames: std::mem::take(&mut compiler.runtime_frames),
         bindings: std::mem::take(&mut compiler.source_life_bindings),
         calls: std::mem::take(&mut compiler.source_instance_calls),
         scopes,
