@@ -13,6 +13,7 @@ pub(super) struct Context<'a> {
     actual: &'a actual::Program,
     places: &'a [Inventory],
     summaries: &'a [Rows],
+    whole_must: &'a [bool],
     written: RefCell<Rows>,
     store_calls: &'a RefCell<BTreeSet<usize>>,
 }
@@ -192,7 +193,11 @@ fn merge_row(
     }
     b.spend(work)?;
     if let Some(old) = rows.get_mut(target) {
-        merge_leaf(old, value, b)
+        if matches!((old, value), (Content::Product(_), Content::Product(_))) {
+            rows.get_mut(target).unwrap().merge(value, b)
+        } else {
+            merge_leaf(rows.get_mut(target).unwrap(), value, b)
+        }
     } else {
         b.spend(target.steps.len().saturating_add(1))?;
         value.cost(b)?;
