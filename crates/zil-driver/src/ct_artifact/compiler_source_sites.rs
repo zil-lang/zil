@@ -103,7 +103,7 @@ impl<'a> Compiler<'a> {
         }
         Ok(None)
     }
-    fn frozen_site_module(
+    pub(super) fn frozen_site_module(
         &mut self,
         site: SourceSite,
         span: Span,

@@ -520,8 +520,17 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<CtValue> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false, None)
-            .map(|output| output.value)
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            false,
+            None,
+            None,
+        )
+        .map(|output| output.value)
     }
     pub(super) fn evaluate_data(
         &mut self,
@@ -531,7 +540,16 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<EvaluatedData> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true, None)
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            true,
+            None,
+            None,
+        )
     }
     pub(super) fn evaluate_data_at_source(
         &mut self,
@@ -550,8 +568,66 @@ impl<'a> Environment<'a> {
             span,
             true,
             Some(site),
+            None,
         )
     }
+    pub(super) fn evaluate_runtime_data_at_source(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        span: Span,
+        source: &compiler::runtime_context::RuntimeEntrySource,
+    ) -> CompileResult<EvaluatedData> {
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            None,
+            &[],
+            span,
+            true,
+            Some(source.expression_site),
+            Some(source),
+        )
+    }
+
+    pub(super) fn check_runtime_definition_expression(
+        &mut self,
+        definition: &CtSymbolId,
+        site: compiler::source_sites::SourceSite,
+    ) -> CompileResult<zil_syntax::ast::TypeRef> {
+        self.require_source_origins()?;
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let modules = self.index.modules(self.sources, &syntax);
+        let before = self.remaining_limits();
+        let mut remaining = before.clone();
+        let result = compiler::runtime_context::check_runtime_definition_expression(
+            &modules,
+            Some(&self.generated_catalog),
+            definition,
+            site,
+            &mut remaining,
+        );
+        self.budget.reserve_analysis_work(
+            before
+                .max_analysis_steps
+                .saturating_sub(remaining.max_analysis_steps) as u64,
+        )?;
+        self.budget
+            .reserve_generated_nodes(before.max_nodes.saturating_sub(remaining.max_nodes) as u64)?;
+        for _ in 0..before.max_functions.saturating_sub(remaining.max_functions) {
+            self.budget.reserve_instance()?;
+        }
+        let bytes = before
+            .max_source_bytes
+            .saturating_sub(remaining.max_source_bytes) as u64;
+        self.budget.reserve_temporary_bytes(bytes)?;
+        // Scratch is released; only the derived result AST survives in Expand.
+        let keep = result.as_ref().map_or(0, |(_, bytes)| *bytes);
+        self.budget
+            .release_temporary_bytes(bytes.saturating_sub(keep));
+        result.map(|(ty, _)| ty)
+    }
+
     fn evaluate_data_impl(
         &mut self,
         entry: Entry<'_>,
@@ -561,6 +637,7 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
         source_site: Option<compiler::source_sites::SourceSite>,
+        runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
@@ -572,6 +649,7 @@ impl<'a> Environment<'a> {
             span,
             retain_context,
             source_site,
+            runtime_source,
         );
         if result.is_err() {
             let keep = (self
@@ -596,6 +674,7 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
         source_site: Option<compiler::source_sites::SourceSite>,
+        runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
         // Fixed-size source seed only; type/category inputs are not proof and
         // are unnecessary when retrying complete lexical freezing after compile.
@@ -616,7 +695,18 @@ impl<'a> Environment<'a> {
             }),
             Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
         };
-        let mut invocation_context =
+        let mut invocation_context = if let Some(source) = runtime_source {
+            self.require_source_origins()?;
+            super::invocation_context::FrozenInvocationContext::freeze_runtime_at_source(
+                &entry,
+                self.parsed,
+                &self.index,
+                self.source_origins.as_ref(),
+                Some(&self.generated_catalog),
+                source,
+                &mut self.budget,
+            )?
+        } else {
             super::invocation_context::FrozenInvocationContext::freeze_at_source(
                 &entry,
                 self.parsed,
@@ -625,23 +715,29 @@ impl<'a> Environment<'a> {
                 Some(&self.generated_catalog),
                 source_site,
                 &mut self.budget,
-            )?;
+            )?
+        };
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, source_bindings) = compiler::compile_scoped_at_source(
-            CompileRequest {
-                target_pointer_width: self.target.pointer_width,
-                modules: &modules,
-                source_fingerprint: self.source_fingerprint,
-                entry,
-                input_tokens,
-                snapshot: &self.snapshot,
-                limits: &selected_limits,
-            },
-            Some(&self.generated_catalog),
-            source_site,
-        )?;
+        let request = CompileRequest {
+            target_pointer_width: self.target.pointer_width,
+            modules: &modules,
+            source_fingerprint: self.source_fingerprint,
+            entry,
+            input_tokens,
+            snapshot: &self.snapshot,
+            limits: &selected_limits,
+        };
+        let (expected, source_bindings) = if let Some(source) = runtime_source {
+            compiler::compile_scoped_runtime_at_source(
+                request,
+                Some(&self.generated_catalog),
+                source,
+            )?
+        } else {
+            compiler::compile_scoped_at_source(request, Some(&self.generated_catalog), source_site)?
+        };
         let declared = expected.budget;
         let before = self.budget.remaining();
         self.budget.reserve_analysis_work(
@@ -672,6 +768,13 @@ impl<'a> Environment<'a> {
                     true,
                     &mut self.budget,
                 )?;
+        }
+        if let Some(source) = runtime_source {
+            invocation_context
+                .as_mut()
+                .and_then(Arc::get_mut)
+                .ok_or_else(|| error("runtime CT requires its frozen original invocation", span))?
+                .extend_runtime_entry(source, &expected, &self.index, &mut self.budget)?;
         }
         if !source_bindings.calls.is_empty() || !source_bindings.relocations.is_empty() {
             let context = invocation_context

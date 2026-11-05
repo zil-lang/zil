@@ -22,6 +22,8 @@ mod mixed_generics;
 mod quote;
 #[path = "compiler_record_relocation.rs"]
 mod record_relocation;
+#[path = "compiler_runtime_context.rs"]
+pub(super) mod runtime_context;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_source_scope.rs"]
@@ -368,6 +370,7 @@ struct Compiler<'a> {
     metadata_bindings: Vec<(String, CtTypeRef)>,
     scalar_bindings: Vec<(String, Constant)>,
     source_life_scope: Option<SourceLifeScope>,
+    current_source_function: Option<CtFunctionId>,
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     source_instance_calls: Vec<SourceInstanceCall>,
@@ -435,6 +438,7 @@ impl<'a> Compiler<'a> {
             metadata_bindings: Vec::new(),
             scalar_bindings: Vec::new(),
             source_life_scope: None,
+            current_source_function: None,
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             source_instance_calls: Vec::new(),
@@ -771,6 +775,21 @@ pub(crate) fn compile_scoped_at_source<'a>(
     catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
     source_site: Option<source_sites::SourceSite>,
 ) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, source_site, None)
+}
+pub(crate) fn compile_scoped_runtime_at_source<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source: &runtime_context::RuntimeEntrySource,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, Some(source.expression_site), Some(source))
+}
+fn compile_scoped_context<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source_site: Option<source_sites::SourceSite>,
+    runtime_source: Option<&runtime_context::RuntimeEntrySource>,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.generated_catalog = catalog;
     compiler.index_generated()?;
@@ -818,6 +837,15 @@ pub(crate) fn compile_scoped_at_source<'a>(
                 Some(owner) => compiler.source_life_scope(module, &owner, expression.span)?,
                 None => None,
             };
+            if let Some(source) = runtime_source {
+                if source.definition != definition {
+                    return Err(error(
+                        expression.span,
+                        "runtime CT recipe owner differs from its original entry",
+                    ));
+                }
+                compiler.bind_runtime_entry(module, expression, source)?;
+            }
             compiler.budget.node(expression.span)?;
             Budget::take(
                 &mut compiler.budget.functions,
@@ -827,6 +855,7 @@ pub(crate) fn compile_scoped_at_source<'a>(
             )?;
             let id = CtFunctionId(compiler.functions.len() as u32);
             compiler.functions.push(None);
+            compiler.current_source_function = Some(id);
             let body = cfg::expression(
                 &mut compiler,
                 id,
@@ -840,6 +869,11 @@ pub(crate) fn compile_scoped_at_source<'a>(
             id
         }
     };
+    if runtime_source.is_some() {
+        compiler.bindings.clear();
+        compiler.metadata_bindings.clear();
+        compiler.scalar_bindings.clear();
+    }
     while let Some((declaration, arguments, id)) = compiler.pending.pop_front() {
         compiler.budget.work(
             compiler
@@ -906,7 +940,7 @@ pub(crate) fn compile_scoped_at_source<'a>(
         }
         compiler.ambient_life_scopes.clone()
     };
-    let retain_scopes = compiler.has_ambient_use()?;
+    let retain_scopes = runtime_source.is_some() || compiler.has_ambient_use()?;
     let source_compilation = SourceCompilation {
         bindings: std::mem::take(&mut compiler.source_life_bindings),
         calls: std::mem::take(&mut compiler.source_instance_calls),

@@ -798,6 +798,7 @@ pub(super) fn function(
     id: CtFunctionId,
     declaration: usize,
 ) -> R<CtFunction> {
+    c.current_source_function = Some(id);
     let d = c.declarations[declaration];
     let (parameters, result) = c.header(declaration)?;
     let definition = c.item_symbol(d.module, d.item)?;
@@ -856,7 +857,19 @@ pub(super) fn expression(
     )?;
     for (name, ty) in parameters {
         b.compiler.budget.ty(ty, 0, expression.span)?;
-        let local = b.bind(name, ty.clone(), false, expression.span)?;
+        let local = if b.compiler.checking_generics
+            && b.compiler
+                .abstract_scalars
+                .iter()
+                .any(|(bound, _)| bound == name)
+        {
+            b.compiler
+                .budget
+                .work(b.compiler.abstract_scalars.len(), expression.span)?;
+            b.bind_declared(name, ty.clone(), false, expression.span)?
+        } else {
+            b.bind(name, ty.clone(), false, expression.span)?
+        };
         b.parameters.push(local);
         b.parameter_types.push(ty.clone());
     }

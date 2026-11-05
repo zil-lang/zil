@@ -163,10 +163,52 @@ impl Compiler<'_> {
                 parameter = Some(*ordinal);
             }
         }
+        if parameter.is_none() {
+            let mut parent = scope.enclosing.or(self.active_host);
+            let mut depth = 0usize;
+            while let Some(id) = parent {
+                self.budget.depth(depth, span)?;
+                self.budget.work(32, span)?;
+                let host = self
+                    .ambient_life_scopes
+                    .get(id.0 as usize)
+                    .ok_or_else(|| error(span, "CT actual lexical host is outside inventory"))?;
+                let definition = host.declaration.clone();
+                parent = host.enclosing;
+                let (_, item) = self.metadata_declaration(&definition, span)?;
+                let parameters = match &item.kind {
+                    s::ItemKind::Aggregate(host) => &host.generics,
+                    _ => {
+                        return Err(error(
+                            span,
+                            "CT actual lexical host is not its original aggregate",
+                        ));
+                    }
+                };
+                for (ordinal, bound) in parameters.iter().enumerate() {
+                    self.budget
+                        .work(bound.name.len().min(name.len()) + 1, span)?;
+                    if bound.name == name {
+                        if !matches!(bound.kind, s::GenericParamKind::Lifetime) {
+                            return Err(error(
+                                span,
+                                "CT actual nearest host parameter is not a life",
+                            ));
+                        }
+                        return Ok(CtAmbientLifeReference {
+                            scope: id,
+                            parameter: u32::try_from(ordinal)
+                                .map_err(|_| error(span, "CT actual host ordinal overflow"))?,
+                        });
+                    }
+                }
+                depth += 1;
+            }
+        }
         let parameter = parameter.ok_or_else(|| {
             error(
                 span,
-                "CT life actual is not declared by the authentic caller",
+                "CT life actual is not declared by its authentic lexical owner",
             )
         })?;
         let definition = scope.definition.clone();
@@ -293,6 +335,7 @@ impl Compiler<'_> {
         let meta = std::mem::take(&mut self.metadata_bindings);
         let scalar = std::mem::take(&mut self.scalar_bindings);
         let scope = self.source_life_scope.take();
+        let source_function = self.current_source_function.take();
         let result = self
             .bind_mixed_instance(declaration, actuals)
             .and_then(|()| self.header(declaration));
@@ -300,6 +343,7 @@ impl Compiler<'_> {
         self.metadata_bindings = meta;
         self.scalar_bindings = scalar;
         self.source_life_scope = scope;
+        self.current_source_function = source_function;
         result
     }
 

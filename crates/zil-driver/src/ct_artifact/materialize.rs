@@ -643,11 +643,26 @@ impl Materializer<'_, '_> {
                                             span,
                                         )
                                     })?;
-                                let ordinal =
-                                    *scope.parameters.get(binder as usize).ok_or_else(|| {
-                                        runtime("fixed lifetime source ordinal is absent", span)
-                                    })?;
-                                let definition = scope.definition.clone();
+                                let (definition, ordinal) = if let Some(endpoints) =
+                                    &scope.endpoints
+                                {
+                                    let (definition, ordinal) =
+                                        endpoints.get(binder as usize).ok_or_else(|| {
+                                            runtime(
+                                                "fixed lifetime source endpoint is absent",
+                                                span,
+                                            )
+                                        })?;
+                                    (definition.clone(), *ordinal)
+                                } else {
+                                    let ordinal = *scope
+                                        .parameters
+                                        .get(binder as usize)
+                                        .ok_or_else(|| {
+                                            runtime("fixed lifetime source ordinal is absent", span)
+                                        })?;
+                                    (scope.definition.clone(), ordinal)
+                                };
                                 let name = self.source_lifetime_name(&definition, ordinal, span)?;
                                 args.push(s::GenericArg::Lifetime(name));
                                 continue;
