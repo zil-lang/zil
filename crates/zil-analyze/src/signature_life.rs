@@ -37,6 +37,58 @@ fn pure_array_value(ty: &Type) -> bool {
     true
 }
 
+fn array_classes(
+    ty: &Type,
+    path: &mut Vec<LifeTypeProjection>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+) {
+    match ty {
+        Type::BorrowedStorage { life, .. } => {
+            for class in 0..life.binder_count {
+                out.push((path.clone(), class));
+            }
+        }
+        Type::Array { element, .. } => {
+            path.push(LifeTypeProjection::Element);
+            array_classes(element, path, out);
+            path.pop();
+        }
+        Type::Tuple(fields) => {
+            for (index, field) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (index, (_, field)) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, field) in fields.iter().enumerate() {
+                    path.push(LifeTypeProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        },
+                    )));
+                    array_classes(field, path, out);
+                    path.pop();
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> CompileResult<()> {
     let rows = c.bindings.len().saturating_add(c.classes.len());
     b.spend(
@@ -216,6 +268,34 @@ fn relation_inner(
                     if capture && !matches!(row.binder, StorageBinder::Fixed(_)) {
                         return Err(bad("captured qualified class must be Fixed"));
                     }
+                    self.binder(
+                        row.binder,
+                        capture || !self.captured && self.inputs.is_none(),
+                    )?;
+                }
+            } else if pure_array_value(target) {
+                let mut path = if pointed {
+                    vec![LifeTypeProjection::Pointee]
+                } else {
+                    Vec::new()
+                };
+                let mut classes = Vec::new();
+                array_classes(target, &mut path, &mut classes);
+                for (path, local) in classes {
+                    let row = self
+                        .c
+                        .classes
+                        .get(self.class)
+                        .ok_or_else(|| bad("signature omits actual Array child class"))?;
+                    if row.position.base != base
+                        || row.position.path != path
+                        || row.position.class != local
+                    {
+                        return Err(bad(
+                            "signature Array child class differs from actual Element path",
+                        ));
+                    }
+                    self.class += 1;
                     self.binder(
                         row.binder,
                         capture || !self.captured && self.inputs.is_none(),

@@ -7,6 +7,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
         kind,
         InstructionKind::ExtractField { .. }
             | InstructionKind::ExtractIndex { .. }
+            | InstructionKind::UpdateField { .. }
+            | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
@@ -149,6 +151,47 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
                 return Err(err("ordinary index source is not a fixed array"));
             };
             element.as_ref()
+        }
+        InstructionKind::UpdateField {
+            aggregate,
+            index,
+            value,
+        } => {
+            let source = vt(f, *aggregate)?;
+            ordinary(source, b, 0)?;
+            let physical = super::qualified(source).map_or(source, |(storage, _)| storage);
+            let field = match physical {
+                Type::Tuple(fields) => fields.get(*index as usize),
+                Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
+                _ => None,
+            }
+            .ok_or_else(|| err("pure field update crosses actual inline layout"))?;
+            type_work(field, &b.limits.clone(), b)?;
+            type_work(vt(f, *value)?, &b.limits.clone(), b)?;
+            if vt(f, *value)? != field {
+                return Err(err("pure field update changes complete child type"));
+            }
+            source
+        }
+        InstructionKind::UpdateIndex {
+            aggregate,
+            index,
+            value,
+        } => {
+            let source = vt(f, *aggregate)?;
+            ordinary(source, b, 0)?;
+            if !vt(f, *index)?.is_integer() {
+                return Err(err("pure index update requires integer index"));
+            }
+            let Type::Array { element, .. } = source else {
+                return Err(err("pure index update requires actual fixed Array"));
+            };
+            type_work(element, &b.limits.clone(), b)?;
+            type_work(vt(f, *value)?, &b.limits.clone(), b)?;
+            if vt(f, *value)? != element.as_ref() {
+                return Err(err("pure index update changes complete element type"));
+            }
+            source
         }
         _ => {
             return Err(err(

@@ -2338,8 +2338,20 @@ impl<'a> Builder<'a, '_> {
                     "duplicate update field",
                 ));
             }
+            if let Type::Record { fields, .. } = &actual
+                && let Some((_, field)) = fields.iter().find(|(field, _)| field == name)
+                && !field.is_copy_value()
+                && stored::pure_inline(field, &mut self.match_work_left, self.limits, value.span)?
+            {
+                self.closures.snapshot_type(field, 1, 0, value.span)?;
+            }
             let (index, t) = field(&actual, name, value.span)?;
             let value = self.expr(value, Some(&t))?.0;
+            if !actual.is_copy_value()
+                && stored::pure_inline(&actual, &mut self.match_work_left, self.limits, e.span)?
+            {
+                self.closures.snapshot_type(&actual, 1, 0, e.span)?;
+            }
             current = self.value(
                 InstructionKind::UpdateField {
                     aggregate: current,
@@ -2389,6 +2401,7 @@ impl<'a> Builder<'a, '_> {
             }
             if !ty.is_copy_value()
                 && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, e.span)?
+                && !stored::pure_inline(&ty, &mut self.match_work_left, self.limits, e.span)?
             {
                 return Err(unsupported(
                     e.span,
@@ -2406,6 +2419,9 @@ impl<'a> Builder<'a, '_> {
                 },
                 e.span,
             )?;
+            if !ty.is_copy_value() {
+                self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+            }
             return Ok((
                 self.value(
                     InstructionKind::ReadAddress {
@@ -2475,6 +2491,13 @@ impl<'a> Builder<'a, '_> {
         }
         let (aggregate, ty) = self.expr(object, None)?;
         self.member_owner(&ty, owner.as_ref(), e.span)?;
+        if let Type::Record { fields, .. } = stored::physical(&ty)
+            && let Some((_, actual)) = fields.iter().find(|(name, _)| name == member)
+            && !actual.is_copy_value()
+            && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?
+        {
+            self.closures.snapshot_type(actual, 2, 0, e.span)?;
+        }
         let (index, field_ty) = field(&ty, member, e.span)?;
         Ok((
             self.value(

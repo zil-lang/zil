@@ -2837,7 +2837,11 @@ fn check_instruction(
                     "Copy field operations cannot access owning array elements",
                 ));
             }
-            let fields = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let fields = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,
