@@ -9,6 +9,7 @@ enum Head {
     // A reference to the actual aggregate declaration in this borrowed source
     // inventory. This is never a name-based semantic identity or cache key.
     Declaration(usize),
+    Enum(usize),
     Plain(Vec<String>),
 }
 #[derive(Clone)]
@@ -32,6 +33,7 @@ struct Scope<'a> {
 struct Check<'a, 'b, 'l> {
     functions: Vec<&'a Function>,
     records: Vec<&'a Aggregate>,
+    enums: Vec<&'a EnumDecl>,
     hosts: Vec<Option<usize>>,
     standalone: Vec<bool>,
     fact_depth: usize,
@@ -322,6 +324,13 @@ impl Check<'_, '_, '_> {
                 return Ok(Head::Declaration(index));
             }
         }
+        for (index, declaration) in self.enums.iter().enumerate() {
+            self.budget.text(&spelling, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name == spelling {
+                return Ok(Head::Enum(index));
+            }
+        }
         Ok(Head::Plain(path.to_vec()))
     }
     fn compatible(&mut self, expected: &Fact, actual: &Fact, span: Span) -> R<()> {
@@ -344,6 +353,16 @@ impl Check<'_, '_, '_> {
                         span,
                         "source class annotation has a different actual nominal declaration or argument arity",
                     ));
+                }
+                if a == b && xs.len() == ys.len() {
+                    for (x, y) in xs.iter().zip(ys) {
+                        this.compatible(x, y, span)?;
+                    }
+                }
+            }
+            (Fact::Named(Head::Enum(a), xs), Fact::Named(Head::Enum(b), ys)) => {
+                if expected.has_class() && (a != b || xs.len() != ys.len()) {
+                    return Err(error(span, "source enum class annotation differs from actual declaration"));
                 }
                 if a == b && xs.len() == ys.len() {
                     for (x, y) in xs.iter().zip(ys) {
@@ -1029,6 +1048,13 @@ impl Check<'_, '_, '_> {
                 };
                 let mut output = Fact::Unknown;
                 if root.is_none() {
+                    if let Some(variant) =
+                        self.variant_call_result(callee, &actuals, e.span, depth + 1)?
+                    {
+                        return Ok(variant);
+                    }
+                }
+                if root.is_none() {
                     if let Some(member) =
                         self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
                     {
@@ -1112,6 +1138,73 @@ impl Check<'_, '_, '_> {
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    fn variant_call_result(
+        &mut self,
+        callee: &Expr,
+        actuals: &[Fact],
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(variant_name),
+        } = &callee.kind
+        else {
+            return Ok(None);
+        };
+        let ExprKind::Name(enum_name) = &object.kind else {
+            return Ok(None);
+        };
+        for index in 0..self.enums.len() {
+            let declaration = self.enums[index];
+            self.budget.text(enum_name, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name != *enum_name {
+                continue;
+            }
+            for variant in &declaration.variants {
+                self.budget.text(variant_name, span)?;
+                self.budget.text(&variant.name, span)?;
+                if variant.name != *variant_name {
+                    continue;
+                }
+                let VariantFields::Tuple(fields) = &variant.fields else {
+                    return Ok(None);
+                };
+                if fields.len() != actuals.len() {
+                    return Err(unsupported(
+                        span,
+                        "source enum variant payload arity differs",
+                    ));
+                }
+                let owner = self.functions.len() + self.records.len() + index;
+                let scope = Scope {
+                    owner,
+                    parameters: &declaration.generics,
+                    host: None,
+                };
+                let mut map = Substitutions::new();
+                for (field, actual) in fields.iter().zip(actuals) {
+                    let formal = self.ty(field, &scope, depth + 1)?;
+                    self.infer(&formal, actual, &mut map, span, true)?;
+                }
+                let mut classes = Vec::new();
+                for ordinal in 0..declaration.generics.len() {
+                    self.lookup(map.len(), 2, span)?;
+                    let Some(fact) = map.get(&Binder(owner, ordinal)) else {
+                        return Err(unsupported(
+                            span,
+                            "source enum variant cannot infer its complete class actuals",
+                        ));
+                    };
+                    classes.push(self.copy(fact, span)?);
+                }
+                return Ok(Some(Fact::Named(Head::Enum(index), classes)));
+            }
+        }
+        Ok(None)
     }
 
     fn free_actual(
@@ -1526,6 +1619,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     struct Inventory<'a> {
         functions: Vec<&'a Function>,
         records: Vec<&'a Aggregate>,
+        enums: Vec<&'a EnumDecl>,
         hosts: Vec<Option<usize>>,
         standalone: Vec<bool>,
     }
@@ -1550,6 +1644,9 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     let index = found.records.len();
                     found.records.push(a);
                     inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
+                }
+                ItemKind::Enum(e) => {
+                    found.enums.push(e);
                 }
                 ItemKind::Impl(i) => {
                     budget.identity_work(i.generics.len(), item.span)?;
@@ -1585,6 +1682,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut found = Inventory {
         functions: Vec::new(),
         records: Vec::new(),
+        enums: Vec::new(),
         hosts: Vec::new(),
         standalone: Vec::new(),
     };
@@ -1592,6 +1690,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut check = Check {
         functions: found.functions,
         records: found.records,
+        enums: found.enums,
         hosts: found.hosts,
         standalone: found.standalone,
         fact_depth: 0,
