@@ -216,7 +216,9 @@ impl Program {
                             } else {
                                 package::borrowed(f, target, b)?;
                                 b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
-                                if f.blocks.len() == 1 {
+                                // Non-Unit/error results add no exit-sensitive
+                                // must fact: their provenance stays may-only.
+                                if f.return_type == Type::Unit && f.blocks.len() == 1 {
                                     whole_helpers.insert(f.id);
                                 }
                             }
