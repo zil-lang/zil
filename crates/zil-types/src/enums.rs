@@ -297,6 +297,7 @@ pub(super) fn project_definitions(
             *remaining = remaining
                 .checked_sub(e.name.len().saturating_add(e.variants.len()))
                 .ok_or_else(limit)?;
+            let mut qualified_payload = false;
             let mut pending = e
                 .variants
                 .iter()
@@ -309,6 +310,10 @@ pub(super) fn project_definitions(
                 }
                 *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
                 match ty {
+                    Type::BorrowedStorage { storage, .. } => {
+                        qualified_payload = true;
+                        pending.push((storage, depth + 1));
+                    }
                     Type::Record { name, fields } | Type::Package { name, fields } => {
                         *remaining = remaining
                             .checked_sub(name.len().saturating_add(fields.len()))
@@ -343,24 +348,6 @@ pub(super) fn project_definitions(
                     _ => {}
                 }
             }
-            let physical_name = nominal_name(module.core.module_id.0, &e.name, &e.variants);
-            let actual_candidate = module.core.life_instances.iter().any(|instance| {
-                matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-                    if matches!(storage.as_ref(), Type::Enum { name, .. } if name == &physical_name))
-            });
-            let mut qualified_payload = false;
-            if actual_candidate {
-                for (_, fields) in &e.variants {
-                    for field in fields {
-                        if !field.is_copy_value()
-                            && stored::pure_inline(field, remaining, limits, e.span)
-                                .map_err(|e| vec![e])?
-                        {
-                            qualified_payload = true;
-                        }
-                    }
-                }
-            }
             if qualified_payload {
                 // The project namespace copies this complete source variant
                 // vector before looking up any stored instance.
@@ -376,7 +363,7 @@ pub(super) fn project_definitions(
                 }
             }
             let physical = Type::Enum {
-                name: physical_name,
+                name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
                 variants: e.variants.clone(),
             };
             let mut qualified = None;

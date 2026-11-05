@@ -334,6 +334,7 @@ impl<'a> Engine<'a> {
         let mut ready = VecDeque::new();
         while let Some(mut pending) = original.pop_front() {
             if let ItemKind::Function(function) = &mut pending.item.kind {
+                self.source_enum_return = None;
                 self.life_scope.clear();
                 let mut callable_parameters = Vec::new();
                 let mut callable_profile = function.where_clause.is_empty();
@@ -367,6 +368,7 @@ impl<'a> Engine<'a> {
                     }
                     Ok(())
                 })?;
+                pending.source_enum_return = self.source_enum_return.take();
             }
             self.budget.node(pending.item.span, 0)?;
             ready.push_back(pending);
