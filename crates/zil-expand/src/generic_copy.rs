@@ -339,19 +339,21 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 // Copy qualification distinguishes Box<Box<i32>> from Box<i32>.
                 // The complete instance key pays its normal syntax work first.
                 // StoreElement retains its prior nominal activity rule and cost.
-                let scoped = if self.source.is_some() {
-                    self.budget.identity_work(args.len(), ty.span)?;
-                    args.iter()
-                        .any(|arg| matches!(arg, GenericArg::Lifetime(_)))
-                } else {
-                    false
-                };
                 let key = if self.symbolic.is_some() {
-                    Cow::Owned(if let Some(source) = self.source.filter(|_| scoped) {
-                        check::source_class_key(ty, source, self.budget)?
-                    } else {
-                        type_key(ty, self.budget)?
-                    })
+                    let key = match type_key(ty, self.budget) {
+                        Ok(key) => key,
+                        Err(diagnostic)
+                            if diagnostic.message
+                                == "lifetime instance identity requires scoped canonical storage relation" =>
+                        {
+                            let Some(source) = self.source else {
+                                return Err(diagnostic);
+                            };
+                            check::source_class_key(ty, source, self.budget)?
+                        }
+                        Err(diagnostic) => return Err(diagnostic),
+                    };
+                    Cow::Owned(key)
                 } else {
                     Cow::Borrowed(name.as_str())
                 };
