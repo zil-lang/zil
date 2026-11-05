@@ -14,7 +14,8 @@ fn result<life s>(p:&'s i32)->u64{
     if value.array[1]!=38{return 0u64}
     if value.record.left!=39{return 0u64}
     if value.record.right!=18446744073709551557u64{return 0u64}
-    match value.variant{
+    let choice:Choice=value.variant;
+    match choice{
         Choice.Pair(x,y)=>{if x!=40{return 0u64};return y},
         Choice.Empty()=>{return 0u64}
     }
