@@ -352,6 +352,7 @@ impl Origins {
                 };
                 budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), item.span)?;
                 DeclarationOrigin {
+                    generated: None,
                     closure_sites: crate::source_context::ClosureSiteLineage::Original,
                     retained_members: None,
                     declaration: NodeId(
