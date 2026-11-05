@@ -2559,3 +2559,7 @@ pub(super) struct EvaluatedData {
 #[cfg(test)]
 #[path = "mixed_instance_tests.rs"]
 mod mixed_instance_tests;
+
+#[cfg(test)]
+#[path = "record_relocation_tests.rs"]
+mod record_relocation_tests;
