@@ -312,7 +312,8 @@ pub(super) fn only_life(function: &s::Function) -> bool {
 
 /// The type namespace and the life namespace are independent. This finite
 /// profile introduces exactly one ordinary Copy binder, never a callable,
-/// StoreElement or unconstrained type parameter.
+/// StoreElement or unconstrained type parameter. Scalar const formals retain
+/// their separate definition-time checks and do not bind runtime lifetimes.
 pub(super) fn copy_life(function: &s::Function) -> bool {
     let mut types = 0;
     let mut lives = 0;
@@ -325,6 +326,7 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
             {
                 types += 1
             }
+            s::GenericParamKind::Const(_) => {}
             _ => return false,
         }
     }
