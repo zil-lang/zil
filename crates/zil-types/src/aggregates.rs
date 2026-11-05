@@ -729,6 +729,7 @@ fn resolve_indexed(
     core.functions = functions;
     core.enums = resolved_enums;
     core.life_instances = resolved_life_instances;
+    stored::resolved_inventory(&core, remaining, limits).map_err(|e| vec![e])?;
     Ok(core)
 }
 
