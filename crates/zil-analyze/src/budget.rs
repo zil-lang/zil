@@ -1014,17 +1014,17 @@ pub(super) fn preflight(
             budget.address_capture |= matches!(ty, Type::Address { .. });
             if ty.is_package_address() {
                 budget.shared_product_capture = true;
-                let Type::Address {
-                    mutable: false,
-                    inner,
-                } = ty
-                else {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "mutable Product capture is not implemented",
-                        None,
-                    )]);
+                let Type::Address { mutable, inner } = ty else {
+                    unreachable!()
                 };
+                if *mutable {
+                    if closure.kind == zil_ir::CallableKind::Fn {
+                        return Err(bad(
+                            "exclusive Product capture requires an exclusive environment entry",
+                        ));
+                    }
+                    budget.owning_address_captures = true;
+                }
                 super::resources::product::admit(inner, budget)?;
                 budget.type_work(&closure.result, true, "shared Product capture result")?;
                 if !closure.result.is_copy_value() {

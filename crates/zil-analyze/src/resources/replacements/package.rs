@@ -2,27 +2,24 @@
 //! original shell retains its cleanup obligation and initialization/order.
 use super::*;
 
-pub(super) fn field(ty: &Type, b: &mut Budget) -> CompileResult<Option<u32>> {
+pub(super) fn field(ty: &Type, b: &mut Budget) -> CompileResult<Option<Vec<u32>>> {
     let Type::Package { fields, .. } = ty else {
         return Ok(None);
     };
     b.type_work(ty, true, "complete Package replacement qualification")?;
     fee(b, fields.len())?;
-    let mut owner = None;
+    let mut owners = Vec::new();
     for (index, (_, child)) in fields.iter().enumerate() {
         if let Type::Managed(payload) = child {
-            if owner.is_some()
-                || !matches!(payload.as_ref(), Type::Record { .. })
-                || !payload.is_copy_value()
-            {
+            if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
                 return Ok(None);
             }
-            owner = Some(index as u32);
+            owners.push(index as u32);
         } else if !child.is_b0_scalar() {
             return Ok(None);
         }
     }
-    Ok(owner)
+    Ok((!owners.is_empty()).then_some(owners))
 }
 fn unsupported() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
@@ -90,10 +87,13 @@ fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
 
 // The borrowed shell stays the caller's responsibility. Admission binds the
 // actual mutable parameter and complete endpoint, independently of the ticket.
-pub(super) fn borrowed(f: &TypedFunction, target: &Target, b: &mut Budget) -> CompileResult<u32> {
+pub(super) fn borrowed(
+    module: &TypedModule,
+    f: &TypedFunction,
+    target: &Target,
+    b: &mut Budget,
+) -> CompileResult<Vec<u32>> {
     if f.foreign.is_some()
-        || f.environment.is_some()
-        || f.call_kind != CallKind::Direct
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
@@ -106,33 +106,82 @@ pub(super) fn borrowed(f: &TypedFunction, target: &Target, b: &mut Budget) -> Co
     if !copy_result(&f.return_type, b)? {
         return Err(unsupported());
     }
-    let origins::Root::Parameter(parameter) = target.root else {
-        return Err(unsupported());
-    };
-    let Some(local) = f.parameters.get(parameter as usize) else {
-        return Err(unsupported());
+    let (parameter, root) = match target.root {
+        origins::Root::Parameter(parameter) => {
+            let local = f
+                .parameters
+                .get(parameter as usize)
+                .ok_or_else(unsupported)?;
+            (Some(parameter), &f.locals[local.0 as usize].ty)
+        }
+        origins::Root::Capture(capture) => {
+            let environment = f.environment.ok_or_else(unsupported)?;
+            let closure = module
+                .closures
+                .get(environment.0 as usize)
+                .ok_or_else(unsupported)?;
+            let ty = closure
+                .captures
+                .get(capture as usize)
+                .ok_or_else(unsupported)?;
+            (None, ty)
+        }
+        origins::Root::StoreElement(value) => (None, &f.values[value.0 as usize]),
+        _ => return Err(unsupported()),
     };
     let Type::Address {
         mutable: true,
         inner,
-    } = &f.locals[local.0 as usize].ty
+    } = root
     else {
         return Err(unsupported());
     };
     let index = field(inner, b)?.ok_or_else(unsupported)?;
     fee(b, f.parameters.len())?;
     for (p, local) in f.parameters.iter().enumerate() {
-        if p == parameter as usize {
+        if parameter == Some(p as u32) {
             continue;
         }
         let ty = &f.locals[local.0 as usize].ty;
         b.type_work(ty, true, "borrowed whole Package companion qualification")?;
         let managed = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
-        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref()) {
+        let address =
+            matches!(ty, Type::Address { inner: other, .. } if other.as_ref() == inner.as_ref());
+        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address) {
             return Err(unsupported());
         }
     }
     Ok(index)
+}
+
+// Preserve the original must lane exactly. Other actual addresses/captures
+// can export may-retirement but cannot turn an Incoming caller leaf into Fresh.
+pub(super) fn must_input(
+    f: &TypedFunction,
+    target: &Target,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if f.environment.is_some() || f.call_kind != CallKind::Direct {
+        return Ok(false);
+    }
+    let origins::Root::Parameter(parameter) = target.root else {
+        return Ok(false);
+    };
+    let ty = &f.locals[f.parameters[parameter as usize].0 as usize].ty;
+    let Type::Address { inner, .. } = ty else {
+        return Ok(false);
+    };
+    if !field(inner, b)?.is_some_and(|owners| owners.len() == 1) {
+        return Ok(false);
+    }
+    fee(b, f.parameters.len())?;
+    for (p, local) in f.parameters.iter().enumerate() {
+        if p != parameter as usize && matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
+        {
+            return Ok(false);
+        }
+    }
+    Ok(true)
 }
 
 // Only the proved normal-return Commit replaces provenance. It leaves the
@@ -151,7 +200,9 @@ pub(super) fn postcondition(
     let [PlaceProjection::Field(index)] = target.path.as_slice() else {
         return Err(unsupported());
     };
-    if field(&flow.function.locals[local.0 as usize].ty, b)? != Some(*index) {
+    if !field(&flow.function.locals[local.0 as usize].ty, b)?
+        .is_some_and(|owners| owners.contains(index))
+    {
         return Err(unsupported());
     }
     if check {
@@ -176,20 +227,26 @@ pub(super) fn complete(
     state: &State,
     local: LocalId,
     b: &mut Budget,
-) -> CompileResult<u32> {
-    let index = field(&f.locals[local.0 as usize].ty, b)?.ok_or_else(unsupported)?;
-    if !exact(&copied(state, Place::Local(local), b)?, Life::Available)
-        || !exact(
-            &copied(state, Place::PackageField { local, index }, b)?,
-            Life::Available,
-        )
-    {
+) -> CompileResult<Vec<u32>> {
+    let owners = field(&f.locals[local.0 as usize].ty, b)?.ok_or_else(unsupported)?;
+    if !exact(&copied(state, Place::Local(local), b)?, Life::Available) {
         return Err(error(
-            "complete Package replacement cannot repair a partial or dead old owner",
+            "complete Package replacement needs its live old shell",
         ));
     }
+    fee(b, owners.len())?;
+    for &index in &owners {
+        if !exact(
+            &copied(state, Place::PackageField { local, index }, b)?,
+            Life::Available,
+        ) {
+            return Err(error(
+                "complete Package replacement cannot repair a partial or dead old owner",
+            ));
+        }
+    }
     state.sums.require_place(local, &[], b)?;
-    Ok(index)
+    Ok(owners)
 }
 pub(super) fn apply(
     flow: &Flow<'_>,
@@ -200,7 +257,7 @@ pub(super) fn apply(
     b: &mut Budget,
 ) -> CompileResult<()> {
     let local = local(flow.function, target, b)?;
-    let index = field(&flow.function.locals[local.0 as usize].ty, b)?.ok_or_else(unsupported)?;
+    let owners = field(&flow.function.locals[local.0 as usize].ty, b)?.ok_or_else(unsupported)?;
     if point.validate {
         complete(flow.function, state, local, b)?;
         let live = point
@@ -230,17 +287,20 @@ pub(super) fn apply(
     }
     // The generic Package Fact is Incoming. Recover the actual *owned field*
     // of this fully prepared RHS instead of inventing a fresh leaf from it.
-    let incoming = product::birth(state, product::Carrier::Value(rhs), &[index], b)?;
-    let place = Place::PackageField { local, index };
-    let mut old = copied(state, place, b)?;
-    fee(b, old.birth.len().saturating_add(incoming.len()))?;
-    // This is a definite write to one actual local, unlike a may-write
-    // summary. Retiring the old leaf does not retain its origin alternatives.
-    old.birth = incoming.clone();
-    replace(state, place, old, b)?;
-    state
-        .sums
-        .replace_package_birth(local, index, &incoming, point.validate, b)?;
+    fee(b, owners.len())?;
+    for index in owners {
+        let incoming = product::birth(state, product::Carrier::Value(rhs), &[index], b)?;
+        let place = Place::PackageField { local, index };
+        let mut old = copied(state, place, b)?;
+        fee(b, old.birth.len().saturating_add(incoming.len()))?;
+        // This is a definite write to one actual local, unlike a may-write
+        // summary. Retiring the old leaf does not retain its origin alternatives.
+        old.birth = incoming.clone();
+        replace(state, place, old, b)?;
+        state
+            .sums
+            .replace_package_birth(local, index, &incoming, point.validate, b)?;
+    }
     Ok(())
 }
 

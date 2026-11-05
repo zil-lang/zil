@@ -198,7 +198,7 @@ impl Builder<'_, '_> {
                         return Ok(false);
                     }
                 }
-                if owners != 1 {
+                if owners == 0 {
                     return Ok(false);
                 }
             }
