@@ -588,6 +588,21 @@ impl Program {
                     .sums
                     .replace_birth(local, &target.path, birth, check, b)?
                 {
+                    if product::nested(&flow.function.locals[local.0 as usize].ty) {
+                        let mut fields = Vec::new();
+                        fee(b, target.path.len())?;
+                        for step in &target.path {
+                            let PlaceProjection::Field(index) = step else {
+                                return Ok(());
+                            };
+                            fields.push(*index);
+                        }
+                        let mut old =
+                            product::birth(state, product::Carrier::Local(local), &fields, b)?;
+                        fee(b, old.len().saturating_add(birth.len()))?;
+                        old.extend(birth);
+                        product::set(state, product::Carrier::Local(local), &fields, old, b)?;
+                    }
                     return Ok(());
                 }
                 if target.path.is_empty() {
@@ -906,16 +921,23 @@ impl Program {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
                             let owners = package::borrowed(flow.module, f, &target, b)?.owners;
-                            fee(b, owners.len().saturating_sub(1))?;
-                            for index in owners {
+                            let nested = product::nested(&d.ty);
+                            let paths = if nested {
+                                package::leaves(&d.ty, b)?
+                            } else {
+                                owners.into_iter().map(|index| vec![index]).collect()
+                            };
+                            fee(b, paths.len().saturating_sub(1))?;
+                            for path in paths {
                                 let mut leaf = target.clone();
-                                fee(b, leaf.path.len().saturating_add(1))?;
-                                leaf.path.push(PlaceProjection::Field(index));
+                                fee(b, leaf.path.len().saturating_add(path.len()))?;
+                                leaf.path
+                                    .extend(path.iter().copied().map(PlaceProjection::Field));
                                 retirement::check(flow, state, &leaf, point, b)?;
                                 let incoming = product::birth(
                                     state,
                                     product::Carrier::Value(*value),
-                                    &[index],
+                                    &path,
                                     b,
                                 )?;
                                 self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;

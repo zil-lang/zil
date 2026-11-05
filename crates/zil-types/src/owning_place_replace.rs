@@ -69,6 +69,28 @@ fn selected_paid<'a>(ty: &'a Type, member: &str) -> Option<(u32, &'a Type)> {
         _ => None,
     }
 }
+fn nested_package_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<bool> {
+    state.snapshot_type(ty, 1, 0, span)?;
+    let mut pending = vec![ty];
+    let mut owns = false;
+    while let Some(ty) = pending.pop() {
+        state.snapshot(1, span)?;
+        match ty {
+            Type::Package { fields, .. } => {
+                state.snapshot(fields.len(), span)?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
+            {
+                owns = true
+            }
+            ty if ty.is_b0_scalar() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(owns)
+}
 impl Builder<'_, '_> {
     pub(super) fn abort_exiting_replacements(
         &mut self,
@@ -194,6 +216,11 @@ impl Builder<'_, '_> {
                             return Ok(false);
                         }
                         owners += 1;
+                    } else if matches!(field, Type::Package { .. }) {
+                        if !nested_package_endpoint(field, self.closures, target.span)? {
+                            return Ok(false);
+                        }
+                        owners += 1;
                     } else if !field.is_b0_scalar() {
                         return Ok(false);
                     }
@@ -221,10 +248,7 @@ impl Builder<'_, '_> {
                             return Ok(false);
                         }
                     }
-                    if owners > 1 {
-                        return Ok(false);
-                    }
-                    owning |= owners == 1;
+                    owning |= owners != 0;
                 }
                 if !owning {
                     return Ok(false);

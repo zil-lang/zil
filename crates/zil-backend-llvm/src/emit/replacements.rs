@@ -61,6 +61,22 @@ pub(super) fn reserve(
     meter.spend(budget.spent())
 }
 
+fn package_endpoint(ty: &Type) -> bool {
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    fields
+        .iter()
+        .any(|(_, child)| matches!(child, Type::Managed(_) | Type::Package { .. }))
+        && fields.iter().all(|(_, child)| match child {
+            Type::Managed(payload) => {
+                matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()
+            }
+            Type::Package { .. } => package_endpoint(child),
+            ty => ty.is_b0_scalar(),
+        })
+}
+
 impl FunctionEmitter<'_> {
     pub(super) fn commit_replacement(
         &mut self,
@@ -92,40 +108,23 @@ impl FunctionEmitter<'_> {
         let (ty, pointer) = self.actual_place(&root, &pointer, path)?;
         // This is the currently verified producer profile. Other owning trees
         // retain their explicit independent Hold/debt consumer boundary.
-        let complete_package = if let Type::Package { fields, .. } = &ty {
-            fields
-                .iter()
-                .filter(|(_, t)| matches!(t, Type::Managed(_)))
-                .count()
-                > 0
-                && fields.iter().all(|(_, t)| match t {
-                    Type::Managed(p) => {
-                        matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()
-                    }
-                    t => t.is_b0_scalar(),
-                })
-        } else {
-            false
-        };
+        let complete_package = package_endpoint(&ty);
         let complete_enum = if let Type::Enum { variants, .. } = &ty {
             let mut owning = false;
             let mut admitted = true;
             for (_, fields) in variants {
-                let mut owners = 0;
                 for field in fields {
                     match field {
                         Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::Record { .. })
                                 && payload.is_copy_value() =>
                         {
-                            owners += 1;
                             owning = true;
                         }
                         field if field.is_b0_scalar() => {}
                         _ => admitted = false,
                     }
                 }
-                admitted &= owners <= 1;
             }
             owning && admitted
         } else {

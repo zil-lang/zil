@@ -15,11 +15,43 @@ pub(super) fn field(ty: &Type, b: &mut Budget) -> CompileResult<Option<Vec<u32>>
                 return Ok(None);
             }
             owners.push(index as u32);
+        } else if matches!(child, Type::Package { .. }) {
+            if field(child, b)?.is_none() {
+                return Ok(None);
+            }
+            owners.push(index as u32);
         } else if !child.is_b0_scalar() {
             return Ok(None);
         }
     }
     Ok((!owners.is_empty()).then_some(owners))
+}
+pub(super) fn leaves(ty: &Type, b: &mut Budget) -> CompileResult<Vec<Vec<u32>>> {
+    let mut result = Vec::new();
+    let mut pending = vec![(ty, Vec::new())];
+    while let Some((ty, path)) = pending.pop() {
+        fee(b, path.len().saturating_add(1))?;
+        match ty {
+            Type::Managed(_) => result.push(path),
+            Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                for (index, (_, child)) in fields.iter().enumerate().rev() {
+                    if matches!(child, Type::Managed(_) | Type::Package { .. }) {
+                        fee(b, path.len().saturating_add(1))?;
+                        let mut next = path.clone();
+                        next.push(index as u32);
+                        pending.push((child, next));
+                    }
+                }
+            }
+            _ => {
+                return Err(error(
+                    "nested replacement leaf route crosses a nonowning tree",
+                ));
+            }
+        }
+    }
+    Ok(result)
 }
 fn unsupported() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
@@ -144,7 +176,8 @@ pub(super) fn borrowed(
     let mut legacy_must = f.environment.is_none()
         && f.call_kind == CallKind::Direct
         && parameter.is_some()
-        && owners.len() == 1;
+        && owners.len() == 1
+        && !product::nested(inner);
     fee(b, f.parameters.len())?;
     for (p, local) in f.parameters.iter().enumerate() {
         if parameter == Some(p as u32) {
@@ -155,8 +188,9 @@ pub(super) fn borrowed(
         let managed = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
         let address =
             matches!(ty, Type::Address { inner: other, .. } if other.as_ref() == inner.as_ref());
-        legacy_must &= !address;
-        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address) {
+        let store = matches!(ty, Type::Desc(payload) | Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == inner.as_ref()));
+        legacy_must &= !address && !store;
+        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref() || address || store) {
             return Err(unsupported());
         }
     }
@@ -266,6 +300,18 @@ pub(super) fn apply(
             }
         }
         no_later_use(state, &descriptions, Source::Head(local), b)?;
+    }
+    if product::nested(&flow.function.locals[local.0 as usize].ty) {
+        let ty = &flow.function.locals[local.0 as usize].ty;
+        product::transfer(
+            state,
+            (product::Carrier::Value(rhs), &[]),
+            (product::Carrier::Local(local), &[]),
+            ty,
+            b,
+        )?;
+        state.sums.replace_product(local, rhs, point.validate, b)?;
+        return Ok(());
     }
     // The generic Package Fact is Incoming. Recover the actual *owned field*
     // of this fully prepared RHS instead of inventing a fresh leaf from it.
