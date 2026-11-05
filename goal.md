@@ -16,7 +16,8 @@
 | G1.2 | 恢复Task集成误删的Option拥有载荷路径 | 已合入 | — | — | [本批验收][e41]；有限拥有 Option/Task 集成恢复已通过共同验收。 |
 | G1.3 | 拥有字段替换：Verify责任转交、真实loan/pin、机器old-drop/store及失败清理闭环 | 部分实现 | P0 | g1_3 / Verify | Store/helper [已合入][e42]，ErrorUnion 字段替换[已合入][e39]；完整 Done 仍需整体 Sum，以及非局部/helper/capture/Store 的真实来源、loan/pin 和失败责任组合；当前交付见 G1.3.4。 |
 | G1.3.4 | 局部完整 Package 替换：唯一根、单个直接 Managed 字段、来源转交与失败清理 | 已合入 | — | — | [PR41 验收][e-pr41]；真实来源、旧值/新临时值清理及多根反例已闭合。 |
-| G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 实现待验 | P0 | root | 源码已冻结、独审22项与36次原生通过；正在与 G3.3.5 组合验收，既有单已知变体精度边界保留。 |
+| G1.3.5 | 完整局部 Enum 替换：跨分支来源、实际票、失败清理与唯一根检查 | 实现待验 | P0 | root | 独审22项/36次原生及组合双配置全量已过；[PR42][p42] 等待 G1.3.6 修补后重新验收，既有单已知变体精度边界保留。 |
+| G1.3.6 | 跨 helper 资源退休使旧 Desc 失效；补齐本体与调用摘要的独立检查 | 进行中 | P0 | g1_3 / g4_verify / 独审 | 已用当前 main release 复现带用户 Drop 的旧 Desc 错误接受；先修安全缺口，整值 helper 的 must-Commit 能力另行推进。 |
 | G1.4 | 更一般的地址/Package/ErrorUnion解构、混合模式及部分补齐组合 | 部分实现 | P1 | 待派 | 已有 `.ok/.err` 路径；按具体模式接 G1.3、G3.4。 |
 
 ## G2 · 泛型与 trait
@@ -37,7 +38,8 @@
 | G3.3 | 捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系 | 部分实现 | P0 | root / g3_3 | 真实捕获已合入，见 G3.3.2；完整 Done 仍需 qualified FnMut/FnOnce helper 的真实环境、来源与调用模式贯通，当前共享桥见 G3.3.4。 |
 | G3.3.2 | 真实捕获共享 Fn、有状态 FnMut 与有限拥有 FnOnce | 已合入 | — | — | [PR40 验收][e40]；不含一般 helper/lending 与用户 Drop。 |
 | G3.3.4 | 共享 Fn free-helper：单 F、实际地址字段、标量结果与来源桥 | 已合入 | — | — | [PR41 验收][e-pr41]；phantom 错误来源已修复，源码、两核与机器消费者通过。 |
-| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 进行中 | P0 | g3_3 | 真实两次状态调用与12次原生通过；旧 None 路径计费修正已冻结，最终独审收尾，准备共同验收。 |
+| G3.3.5 | 真实有状态 FnMut free-helper 的捕获来源与可变调用模式 | 进行中 | P0 | g3_3 | 独审与组合双配置全量通过；旧 None 计费修正已闭合，随[PR42][p42] 等待资源退休修补验收。 |
+| G3.3.6 | 真实拥有 FnOnce 的按值 free-helper、捕获来源与一次消费 | 进行中 | P0 | g3_3 / 独审 | 已确认实际 owning 环境与 TakeLocal→CallClosureOnce 首拒；仅接单 F、有限 scalar resource 与共享 Tag，不扩 give 语法或用户 Drop。 |
 | G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
@@ -131,3 +133,5 @@
 [p41]: https://github.com/zil-lang/zil/pull/41
 
 [e-pr41]: https://github.com/zil-lang/zil/blob/88cb9277932e910b26b97084e9c42dd7a0d1e234/docs/validation/G4.4.2.1-common-acceptance.json
+
+[p42]: https://github.com/zil-lang/zil/pull/42
