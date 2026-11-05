@@ -111,6 +111,37 @@ impl<'c, 'a> Builder<'c, 'a> {
     pub(super) fn function_id(&self) -> CtFunctionId {
         self.id
     }
+    pub(super) fn result_type(&self) -> &CtTy {
+        &self.result
+    }
+    pub(super) fn reserve_record_relocation(&mut self, fields: usize, span: Span) -> R<CtBlockId> {
+        let added = fields.saturating_add(1);
+        let block = &mut self.blocks[self.current.0 as usize];
+        self.compiler.budget.work(
+            block.instructions.len().saturating_add(self.values.len()),
+            span,
+        )?;
+        Budget::take(
+            &mut self.compiler.budget.bytes,
+            block
+                .instructions
+                .len()
+                .saturating_add(added)
+                .saturating_mul(std::mem::size_of::<CtInstruction>())
+                .saturating_add(
+                    self.values
+                        .len()
+                        .saturating_add(added)
+                        .saturating_mul(std::mem::size_of::<CtTy>()),
+                )
+                .saturating_add(fields.saturating_mul(std::mem::size_of::<CtValueId>())),
+            span,
+            "CT record relocation backing arrays exhausted",
+        )?;
+        block.instructions.reserve_exact(added);
+        self.values.reserve_exact(added);
+        Ok(self.current)
+    }
     pub fn new_block(&mut self, span: Span) -> R<CtBlockId> {
         self.compiler.budget.node(span)?;
         Budget::take(
@@ -412,32 +443,6 @@ impl<'c, 'a> Builder<'c, 'a> {
             self.compiler.budget.ty(ty, 0, span)?;
         }
         if expected.is_some_and(|t| *t != value.ty) {
-            #[cfg(test)]
-            {
-                eprintln!(
-                    "G445 mismatch symbolic={} actual={:?} expected={expected:?}",
-                    self.compiler.checking_generics, value.ty
-                );
-                for ty in [Some(&value.ty), expected].into_iter().flatten() {
-                    if let CtTy::Record(id) = ty {
-                        eprintln!(
-                            "G445 schema {:?}: {:?}",
-                            id,
-                            self.compiler.records.get(id.0 as usize)
-                        );
-                    }
-                }
-                eprintln!(
-                    "G445 bindings={:?} scopes={:?}",
-                    self.compiler.source_life_bindings, self.compiler.ambient_life_scopes
-                );
-                if let Some(scope) = &self.compiler.source_life_scope {
-                    eprintln!(
-                        "G445 current definition={:?} binders={:?} instance={:?}",
-                        scope.definition, scope.binders, scope.instance
-                    );
-                }
-            }
             return Err(error(
                 span,
                 "CT expression type does not match its actual expected type",

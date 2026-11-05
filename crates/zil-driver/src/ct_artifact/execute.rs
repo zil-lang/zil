@@ -494,7 +494,7 @@ impl<'a> Environment<'a> {
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
         }
-        if !source_bindings.calls.is_empty() {
+        if !source_bindings.calls.is_empty() || !source_bindings.relocations.is_empty() {
             let context = invocation_context
                 .as_mut()
                 .and_then(std::sync::Arc::get_mut)
@@ -510,6 +510,12 @@ impl<'a> Environment<'a> {
                 &source_bindings.scopes,
                 &expected,
                 &self.index,
+                &mut self.budget,
+            )?;
+            context.validate_record_relocations(
+                &source_bindings.relocations,
+                &source_bindings.calls,
+                &expected,
                 &mut self.budget,
             )?;
         }
