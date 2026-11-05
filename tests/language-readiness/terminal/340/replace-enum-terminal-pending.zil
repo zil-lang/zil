@@ -13,10 +13,10 @@ fn main()->i32{
     let left=input==76;
     var value=initial(left);
     let target=&mut value;
-    *target=if left{E.Right(42,R{code:66})}else{E.Left(R{code:68},42)};
+    *target=if left{E.Right(2,R{code:66})}else{E.Left(R{code:68},1)};
     match value{
-        E.Left(r,n)=>{return n+r.code-68;},
-        E.Right(n,r)=>{return n+r.code-66;},
+        E.Left(r,n)=>{return n*100+r.code;},
+        E.Right(n,r)=>{return n*100+r.code;},
         E.Empty()=>{return 99;}
     }
 }

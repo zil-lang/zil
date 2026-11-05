@@ -107,8 +107,33 @@ impl FunctionEmitter<'_> {
         } else {
             false
         };
+        let complete_enum = if let Type::Enum { variants, .. } = &ty {
+            let mut owning = false;
+            let mut admitted = true;
+            for (_, fields) in variants {
+                let mut owners = 0;
+                for field in fields {
+                    match field {
+                        Type::Managed(payload)
+                            if matches!(payload.as_ref(), Type::Record { .. })
+                                && payload.is_copy_value() =>
+                        {
+                            owners += 1;
+                            owning = true;
+                        }
+                        field if field.is_b0_scalar() => {}
+                        _ => admitted = false,
+                    }
+                }
+                admitted &= owners <= 1;
+            }
+            owning && admitted
+        } else {
+            false
+        };
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
+            && !complete_enum
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",
