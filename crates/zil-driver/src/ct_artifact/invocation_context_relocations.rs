@@ -91,14 +91,14 @@ impl FrozenInvocationContext {
                     .fields
                     .iter()
                     .chain(&target.fields)
-                    .any(|ty| *ty != CtTy::Scalar(CtScalarTy::I32))
+                    .any(|ty| !matches!(ty, CtTy::Scalar(_)))
                 || source.origin != CtSchemaOrigin::UserPure
                 || target.origin != CtSchemaOrigin::UserPure
                 || source.name != target.name
                 || source.fields != target.fields
             {
                 return Err(unsupported(
-                    "CT record relocation is not the same pure i32-field nominal",
+                    "CT record relocation is not the same pure scalar-field nominal",
                 ));
             }
             let (Some(left), Some(right)) = (&source.life_context, &target.life_context) else {

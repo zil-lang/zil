@@ -68,7 +68,7 @@ impl Compiler<'_> {
                 .fields
                 .iter()
                 .chain(&right.fields)
-                .any(|ty| *ty != CtTy::Scalar(CtScalarTy::I32))
+                .any(|ty| !matches!(ty, CtTy::Scalar(_)))
             || left.arguments != right.arguments
             || left.fields != right.fields
         {
@@ -142,13 +142,17 @@ impl Builder<'_, '_> {
         let block = self.reserve_record_relocation(fields, span)?;
         let mut copied = Vec::with_capacity(fields);
         for index in 0..fields {
+            let scalar = match &self.compiler.records[source.0 as usize].fields[index] {
+                CtTy::Scalar(scalar) => *scalar,
+                _ => unreachable!("record relocation admitted only scalar fields"),
+            };
             copied.push(
                 self.emit(
                     CtInstructionKind::ExtractField {
                         aggregate: value.id,
                         index: index as u32,
                     },
-                    CtTy::Scalar(CtScalarTy::I32),
+                    CtTy::Scalar(scalar),
                     span,
                 )?
                 .id,

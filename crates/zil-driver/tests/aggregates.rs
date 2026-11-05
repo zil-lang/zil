@@ -9781,6 +9781,9 @@ fn g445_original_context_record_returns_reach_native_full_values() {
     let two_sources = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-two-source-lives.zil"
     );
+    let scalar_fields = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
+    );
     let fields = reordered
         .replace("{n:i32}", "{n:i32;m:i32}")
         .replace("{n:N}", "{n:N,m:N+1}")
@@ -9790,6 +9793,7 @@ fn g445_original_context_record_returns_reach_native_full_values() {
         (separated, b"42\n"),
         (two_sources, b"49\n"),
         (fields.as_str(), b"85\n"),
+        (scalar_fields, b"42\n"),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
