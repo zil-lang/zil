@@ -182,6 +182,18 @@ impl<'a> Budget<'a> {
             _ => Ok(false),
         }
     }
+    /// Local/SSA representation only. The verifier already proved this actual
+    /// root address and access mode; only the outer pointer is transparent.
+    /// pure_composite still rejects every embedded target-bearing leaf.
+    pub(super) fn pure_value_or_address(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
+        if let Type::Address { inner, .. } = ty {
+            self.pay(ty, depth)?;
+            self.pure_composite(inner, depth + 1)
+        } else {
+            self.pure_composite(ty, depth)
+        }
+    }
+
     /// Physical representation only, after all prior admission paths failed.
     /// Keep the full verified type: an empty stored slot inventory and ordinary
     /// inline leaves do not provide an address, loan or owning capability.
@@ -478,6 +490,96 @@ mod impl243_tests {
         assert_eq!(life.nominal_arguments[0].argument, 0);
         assert_eq!(life.nominal_arguments[0].binder, 0);
         eprintln!("g4463 Lower pure qualified Array workN={needed} nodesN={nodes}");
+    }
+
+    #[test]
+    fn g4463_lower_index_root_address_keeps_one_budget_and_rejects_embedded_targets() {
+        // Private physical admission probe; actual root/access permission must
+        // already have been proved by Verify for a real lowering request.
+        let defaults = zil_base::Limits::default();
+        let mut nested = Type::Array {
+            element: Box::new(pure_leaf()),
+            length: 1,
+        };
+        for _ in 0..13 {
+            nested = Type::Array {
+                element: Box::new(nested),
+                length: 2,
+            };
+        }
+        for mutable in [false, true] {
+            let root = Type::Address {
+                inner: Box::new(nested.clone()),
+                mutable,
+            };
+            let mut measured = Budget::new(&defaults);
+            assert!(measured.pure_value_or_address(&root, 0).unwrap());
+            assert!(
+                !Budget::new(&defaults).pure_composite(&root, 0).unwrap(),
+                "pure values and new signatures do not admit Address"
+            );
+            let needed = measured.work;
+            let limits = zil_base::Limits {
+                max_analysis_steps: needed,
+                ..defaults.clone()
+            };
+            assert!(
+                Budget::new(&limits)
+                    .pure_value_or_address(&root, 0)
+                    .unwrap()
+            );
+            let short = zil_base::Limits {
+                max_analysis_steps: needed - 1,
+                ..defaults.clone()
+            };
+            assert_eq!(
+                Budget::new(&short)
+                    .pure_value_or_address(&root, 0)
+                    .unwrap_err()[0]
+                    .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert!(
+                Budget::new(&limits)
+                    .pure_value_or_address(&root, 0)
+                    .unwrap()
+            );
+            let Type::Address {
+                mutable: actual, ..
+            } = &root
+            else {
+                unreachable!()
+            };
+            assert_eq!(*actual, mutable);
+            eprintln!("g4463 Lower index root mutable={mutable} workN={needed}");
+        }
+        let embedded = Type::Address {
+            inner: Box::new(Type::Array {
+                element: Box::new(Type::Address {
+                    inner: Box::new(pure_leaf()),
+                    mutable: false,
+                }),
+                length: 4096,
+            }),
+            mutable: false,
+        };
+        assert!(
+            !Budget::new(&defaults)
+                .pure_value_or_address(&embedded, 0)
+                .unwrap()
+        );
+        let owning = Type::Address {
+            inner: Box::new(Type::Array {
+                element: Box::new(Type::Managed(Box::new(Type::ByteBuffer))),
+                length: 4096,
+            }),
+            mutable: false,
+        };
+        assert!(
+            !Budget::new(&defaults)
+                .pure_value_or_address(&owning, 0)
+                .unwrap()
+        );
     }
 
     #[test]
