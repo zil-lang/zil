@@ -10136,3 +10136,21 @@ fn g4453_ordinary_static_member_keeps_effect_and_duplicate_checks() {
         assert_eq!(report.verification_runs, 0, "{}", report.to_json());
     }
 }
+
+#[test]
+fn g4453_ordinary_static_member_preserves_actual_module_privacy() {
+    let main = "import provider;fn main()->i32{return #(provider.Host.make())}";
+    let provider = "pub struct Host{fn make()->i32{return 42}}";
+    let report = zil_driver::compile_project(
+        &review329_project(&[("main", main), ("provider", provider)]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+}

@@ -206,6 +206,20 @@ impl Selection<'_, '_> {
         {
             return Ok(true);
         }
+        self.compiler
+            .budget
+            .work(self.compiler.member_hosts.len(), declaration.item.span)?;
+        if self
+            .compiler
+            .member_hosts
+            .iter()
+            .any(|member| member.declaration == index)
+        {
+            // An explicit CT static call uses the complete pure CT dependency
+            // checker, including ordinary scalar signatures. Routing is not
+            // CT-only classification and does not delete runtime declarations.
+            return Ok(true);
+        }
         let mut locals = Vec::new();
         for parameter in &declaration.function.params {
             self.bind(&mut locals, &parameter.name, false, parameter.span)?;
