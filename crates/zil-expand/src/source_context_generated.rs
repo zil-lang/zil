@@ -78,6 +78,12 @@ pub struct GeneratedSourceTree {
     pub declarations: Vec<NodeId>,
 }
 impl GeneratedSourceTree {
+    pub fn identity_path_len(&self) -> usize {
+        match &self.identity {
+            SourceTreeIdentity::Original(_) => 1,
+            SourceTreeIdentity::Generated { event_path, .. } => event_path.len().saturating_add(1),
+        }
+    }
     /// Canonical generated root binding, using only the actual event and root
     /// structure. The caller prepays the returned identity's owned strings.
     pub fn root_identity(
