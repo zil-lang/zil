@@ -31,6 +31,19 @@ pub fn capture_original(
     capture_original_impl(sources, modules, context, limits)
 }
 
+/// Capture the actual original declaration namespace when a later verified CT
+/// invocation needs identity even though discovery found no nominal life use.
+/// This preserves the ordinary capture fast path and uses the same bounded
+/// source traversal and canonical namespace, never reconstructed output rows.
+pub fn capture_original_required(
+    sources: &[SourceUnit],
+    modules: &[&zil_syntax::ast::Module],
+    context: SourceIdentityContext<'_>,
+    limits: &zil_base::Limits,
+) -> zil_base::CompileResult<(Vec<ModuleDeclarationOrigins>, zil_base::Limits)> {
+    lineage::capture_required_impl(sources, modules, context, limits)
+}
+
 /// One actual output item retains its original source declaration, or an
 /// explicitly allocated generated declaration. Vector position is current AST
 /// placement, not a source declaration identity. Spans are diagnostics only.

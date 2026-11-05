@@ -21,11 +21,7 @@ impl<'a> Compiler<'a> {
             let s::ItemKind::Function(function) = &item.kind else {
                 continue;
             };
-            self.budget
-                .work(function.generics.len().saturating_mul(3), item.span)?;
-            if !Self::mixed_parameters(&function.generics) {
-                continue;
-            }
+            self.budget.work(function.generics.len(), item.span)?;
             let mut receiver = false;
             for parameter in &function.params {
                 self.budget
