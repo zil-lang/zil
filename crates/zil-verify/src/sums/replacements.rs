@@ -187,7 +187,12 @@ fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bo
 /// exactly one real Commit and no call cannot skip, repeat, abort after, or
 /// overwrite that Commit through a nested helper. Wider CFGs retain may rows.
 fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bool> {
-    if !places.whole_package
+    // Only a Unit helper with an actual input can export this postcondition.
+    // Body-local Commits keep their independent Content/debt checks and never
+    // need this call-boundary proof, including a parameterless/non-Unit main.
+    if !matches!(f.return_type, Type::Unit)
+        || f.parameters.is_empty()
+        || !places.whole_package
         || f.blocks.len() != 1
         || f.entry.0 != 0
         || !matches!(f.blocks[0].terminator, Terminator::Return(_))
