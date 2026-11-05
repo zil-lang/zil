@@ -212,6 +212,9 @@ impl FrozenInvocationContext {
         {
             return Ok(None);
         }
+        if let Some(catalog) = catalog {
+            generated::validate_catalog(catalog, parsed, budget)?;
+        }
         let origins = origins
             .ok_or_else(|| unsupported("CT ambient scope requires original declaration lineage"))?;
         budget.reserve_analysis_work(origins.len() as u64)?;
