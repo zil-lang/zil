@@ -179,6 +179,24 @@ pub(super) fn check(
             "CT authentic scope lookup inventory exceeds quota",
         ));
     }
+    let root_bound = authority.runtime_scope_root_count();
+    if root_bound > limits.max_nodes {
+        return Err(limit(
+            None,
+            "CT runtime root authority inventory exceeds quota",
+        ));
+    }
+    let mut runtime_roots = if root_bound == 0 {
+        None
+    } else {
+        if count.saturating_mul(2 * std::mem::size_of::<usize>() + 2) as u64
+            > raw.budget.max_temporary_bytes
+        {
+            return Err(limit(None, "CT runtime root inventory scratch exhausted"));
+        }
+        meter.charge(count, None)?;
+        Some(vec![false; count])
+    };
     let mut weights: Option<Vec<usize>> = None;
     for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
         meter.charge(
@@ -219,6 +237,17 @@ pub(super) fn check(
         } else {
             0
         };
+        if let Some(roots) = &mut runtime_roots {
+            // Complete structural equality includes every nested actual graph.
+            meter.charge(
+                weight
+                    .saturating_add(scope.binder_site.len())
+                    .saturating_add(32)
+                    .saturating_mul(root_bound),
+                None,
+            )?;
+            roots[index] = authority.authorized_runtime_scope_root(scope);
+        }
         for (prior_index, prior) in raw.ambient_life_scopes[..index].iter().enumerate() {
             meter.charge(
                 prior
@@ -302,7 +331,7 @@ pub(super) fn check(
                 }
             }
         }
-        if !lifetime {
+        if !lifetime && !runtime_roots.as_ref().is_some_and(|roots| roots[index]) {
             meter.charge(count, None)?;
             if !raw
                 .ambient_life_scopes
@@ -369,6 +398,14 @@ pub(super) fn check(
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
                 visit.graph(ty, 0)?;
+            }
+        }
+    }
+    if let Some(roots) = runtime_roots {
+        visit.meter.charge(count, None)?;
+        for (index, authorized) in roots.into_iter().enumerate() {
+            if authorized && visit.state[index] != 2 {
+                visit.scope(index, 0)?;
             }
         }
     }

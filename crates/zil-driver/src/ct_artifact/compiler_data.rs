@@ -204,7 +204,7 @@ impl<'a> Compiler<'a> {
         owner: usize,
         item: &'a s::Item,
         arguments: Vec<CtSchemaArgument>,
-        context: Option<(CtTypeRef, Vec<u32>)>,
+        context: Option<(CtTypeRef, Vec<u32>, Option<Vec<CtAmbientLifeReference>>)>,
         depth: usize,
         span: Span,
     ) -> R<CtTy> {
@@ -302,16 +302,16 @@ impl<'a> Compiler<'a> {
                 if let Some(graph) = old_context {
                     self.budget.metadata(graph, span)?;
                 }
-                if let Some((graph, _)) = &context {
+                if let Some((graph, _, _)) = &context {
                     self.budget.metadata(graph, span)?;
                 }
                 if *old_args == arguments && old_context.as_ref() == context.as_ref().map(|c| &c.0)
                 {
-                    if let Some((_, parameters)) = &context {
+                    if let Some((_, parameters, sources)) = &context {
                         self.budget.work(self.source_life_bindings.len(), span)?;
                         let binding = self
                             .source_life_bindings
-                            .iter()
+                            .iter_mut()
                             .find(|b| b.enumeration != record && b.schema as usize == id)
                             .ok_or_else(|| error(span, "scoped schema lost its source binding"))?;
                         self.budget
@@ -322,12 +322,24 @@ impl<'a> Compiler<'a> {
                             .ok_or_else(|| error(span, "scoped schema reuse has no source owner"))?
                             .definition;
                         self.budget.work(32, span)?;
-                        if &binding.definition != definition || &binding.parameters != parameters {
+                        self.budget.work(
+                            sources.as_ref().map_or(0, Vec::len)
+                                + binding.sources.as_ref().map_or(0, Vec::len),
+                            span,
+                        )?;
+                        if &binding.definition != definition
+                            || &binding.parameters != parameters
+                            || &binding.sources != sources
+                        {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Ct,
                                 "different ambient lifetimes require distinct serialized source scope identity",
                                 Some(span),
                             )]);
+                        }
+                        if binding.caller.is_none() && self.current_source_function.is_some() {
+                            binding.caller = self.current_source_function;
+                            binding.site = self.current_nominal_site;
                         }
                     }
                     return Ok(if record {
@@ -368,7 +380,7 @@ impl<'a> Compiler<'a> {
             });
             CtTy::Enum(CtEnumSchemaId((self.enums.len() - 1) as u32))
         };
-        if let Some((_, parameters)) = context {
+        if let Some((_, parameters, sources)) = context {
             let definition = self
                 .source_life_scope
                 .as_ref()
@@ -383,8 +395,10 @@ impl<'a> Compiler<'a> {
                     CtTy::Enum(id) => id.0,
                     _ => unreachable!(),
                 },
+                caller: self.current_source_function,
                 definition,
                 parameters,
+                sources,
                 site: self.current_nominal_site,
             });
         }

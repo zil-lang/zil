@@ -82,9 +82,18 @@ impl Selection<'_, '_> {
             _ => Ok(None),
         }
     }
-    fn target(&mut self, module: usize, path: &[String], span: Span) -> R<Option<(usize, usize)>> {
+    fn target(
+        &mut self,
+        module: usize,
+        path: &[String],
+        span: Span,
+    ) -> R<Option<(usize, usize, bool)>> {
         if let Some(index) = self.compiler.member_function(module, path, span)? {
-            return Ok(Some((self.compiler.declarations[index].module, index)));
+            return Ok(Some((
+                self.compiler.declarations[index].module,
+                index,
+                true,
+            )));
         }
         self.compiler.budget.work(
             self.compiler
@@ -128,7 +137,7 @@ impl Selection<'_, '_> {
                     .any(|member| member.declaration == index)
             {
                 // This is only routing; compile/ordinary Expand enforce visibility.
-                return Ok(Some((owner, index)));
+                return Ok(Some((owner, index, false)));
             }
         }
         Ok(None)
@@ -189,7 +198,7 @@ impl Selection<'_, '_> {
         }
         Ok(false)
     }
-    fn function(&mut self, index: usize, depth: usize) -> R<bool> {
+    fn function(&mut self, index: usize, member: bool, depth: usize) -> R<bool> {
         let declaration = self.compiler.declarations[index];
         self.compiler.budget.depth(depth, declaration.item.span)?;
         self.compiler
@@ -204,6 +213,12 @@ impl Selection<'_, '_> {
             .compiler
             .ct_only_function(declaration.module, declaration.function)?
         {
+            return Ok(true);
+        }
+        if member {
+            // An explicit CT static call uses the complete pure CT dependency
+            // checker, including ordinary scalar signatures. Routing is not
+            // CT-only classification and does not delete runtime declarations.
             return Ok(true);
         }
         let mut locals = Vec::new();
@@ -450,9 +465,10 @@ impl Selection<'_, '_> {
                         } else {
                             found = self.standard(module, &path, callee.span)?;
                             if !found
-                                && let Some((_, index)) = self.target(module, &path, callee.span)?
+                                && let Some((_, index, member)) =
+                                    self.target(module, &path, callee.span)?
                             {
-                                found = self.function(index, depth + 1)?;
+                                found = self.function(index, member, depth + 1)?;
                             }
                         }
                     } else {

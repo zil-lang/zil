@@ -36,6 +36,32 @@ impl FrozenInvocationContext {
                     "CT call ledger declaration differs from actual placement",
                 ));
             }
+            if let Some((block_id, value)) = call.occurrence {
+                budget.reserve_analysis_work(caller.blocks.len() as u64 + position as u64)?;
+                let block = caller
+                    .blocks
+                    .iter()
+                    .find(|block| block.id == block_id)
+                    .ok_or_else(|| unsupported("CT source call occurrence block is absent"))?;
+                budget.reserve_analysis_work(block.instructions.len() as u64)?;
+                let mut actual = block
+                    .instructions
+                    .iter()
+                    .filter(|instruction| instruction.result == Some(value));
+                let instruction = actual.next().ok_or_else(|| {
+                    unsupported("CT source call occurrence output is absent from its actual block")
+                })?;
+                if actual.next().is_some()
+                    || !matches!(&instruction.kind, CtInstructionKind::Call {function,..} if *function == call.instance)
+                    || calls[..position].iter().any(|earlier| {
+                        earlier.caller == call.caller && earlier.occurrence == call.occurrence
+                    })
+                {
+                    return Err(unsupported(
+                        "CT source call occurrence is repeated or selects another actual call",
+                    ));
+                }
+            }
             if let Some(pool) = source_scopes.get(call.caller_scope_id.0 as usize)
                 && matches!(pool.instance, CtScopeInstance::Instantiated(_))
                 && matches!(call.caller_scope.instance, CtScopeInstance::Instantiated(_))
@@ -77,11 +103,9 @@ impl FrozenInvocationContext {
                 budget.reserve_analysis_work(1)?;
                 match value {
                     CtScopeActual::Lifetime(reference) => {
-                        if reference.scope != call.caller_scope_id {
-                            return Err(unsupported(
-                                "CT life actual is not from the authentic caller scope",
-                            ));
-                        }
+                        // The actual source Call below selects member or its
+                        // true lexical host. An authenticated reference alone
+                        // cannot choose either owner on the producer's behalf.
                         self.validate_reference(source_scopes, *reference, budget)?;
                     }
                     CtScopeActual::Type(graph) => {

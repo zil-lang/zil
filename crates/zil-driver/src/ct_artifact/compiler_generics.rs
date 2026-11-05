@@ -471,7 +471,9 @@ impl<'a> Compiler<'a> {
         let mut definitions = Vec::new();
         for index in 0..self.declarations.len() {
             let d = self.declarations[index];
-            if d.function.generics.is_empty() || !self.ct_only_function(d.module, d.function)? {
+            if (d.function.generics.is_empty() && !self.has_generic_host(index)?)
+                || !self.ct_only_function(d.module, d.function)?
+            {
                 continue;
             }
             self.ensure_generic_definition(index)?;
@@ -499,7 +501,7 @@ impl<'a> Compiler<'a> {
         self.active_abstract_nominals.clear();
         Ok(definitions)
     }
-    fn drain_symbolic(&mut self) -> R<()> {
+    pub(super) fn drain_symbolic(&mut self) -> R<()> {
         while let Some((declaration, arguments, id)) = self.pending.pop_front() {
             let PendingTypes::Data(arguments) = arguments else {
                 return Err(error(
@@ -508,8 +510,8 @@ impl<'a> Compiler<'a> {
                 ));
             };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
-            self.bind_abstract_host(declaration)?;
             self.prepare_abstract_scope(declaration)?;
+            self.bind_abstract_host(declaration)?;
             cfg::function(self, id, declaration)?;
             self.abstract_scalars.clear();
             self.abstract_lives.clear();
@@ -545,6 +547,7 @@ impl<'a> Compiler<'a> {
         // function. Check its bound independently before any monomorphized body
         // can accidentally grant scalar/field capabilities.
         let mut scratch = Self::unindexed(self.modules, self.budget.limits);
+        scratch.generated_catalog = self.generated_catalog;
         for d in &self.declarations {
             self.budget.node(d.item.span)?;
         }

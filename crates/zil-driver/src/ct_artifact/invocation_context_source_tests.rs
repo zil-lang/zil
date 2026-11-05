@@ -151,6 +151,29 @@ fn source_schema_rejects_coordinated_life_and_witness_mutation() {
     );
 }
 #[test]
+fn source_schema_rejects_missing_or_duplicate_source_ledger() {
+    let source = "struct Phantom<life a>{n:i32} fn query<T:Copy,life a>(p:&'a i32)->i32{let value:Phantom<'a>=#(Phantom::<'a>{n:42});return value.n}";
+    for duplicate in [false, true] {
+        let mut f = fixture(source, 1);
+        assert_eq!(f.facts.bindings.len(), 1);
+        if duplicate {
+            f.facts.bindings.push(f.facts.bindings[0].clone());
+        } else {
+            f.facts.bindings.clear();
+        }
+        let error = f
+            .context
+            .validate_type_contexts(&f.facts, &f.raw, &f.index, &mut f.budget)
+            .unwrap_err();
+        assert!(
+            error[0]
+                .message
+                .contains("requires one independently authenticated source event"),
+            "{error:?}"
+        );
+    }
+}
+#[test]
 fn source_calls_reject_coordinated_full_actual_mutations() {
     let source = "fn factory<T:Copy,#N:i32,life a>()->i32{return N} fn query<T:Copy,life a,life b>(p:&'a i32)->i32{let value=#(factory::<i32,42,'a>());return value}";
     for attack in 0..3 {
@@ -278,3 +301,6 @@ fn source_site_cannot_borrow_a_real_sibling_expression() {
         "{error:?}"
     );
 }
+
+#[path = "invocation_context_multiowner_tests.rs"]
+mod multiowner;

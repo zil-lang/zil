@@ -22,6 +22,8 @@ mod mixed_generics;
 mod quote;
 #[path = "compiler_record_relocation.rs"]
 mod record_relocation;
+#[path = "compiler_runtime_context.rs"]
+pub(super) mod runtime_context;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_source_scope.rs"]
@@ -296,6 +298,7 @@ enum PendingTypes {
 /// this request-local event ledger to invocation authority.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SourceCompilation {
+    pub runtime_frames: Vec<SourceRuntimeFrame>,
     pub bindings: Vec<SourceLifeBinding>,
     pub calls: Vec<SourceInstanceCall>,
     pub scopes: Vec<CtAmbientLifeScope>,
@@ -317,8 +320,15 @@ pub(crate) struct SourceTypeSite {
     pub value: CtValueId,
     pub site: source_sites::SourceSite,
 }
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SourceRuntimeFrame {
+    pub base: CtAmbientScopeId,
+    pub instance: CtAmbientScopeId,
+}
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
+    /// Exact fresh actual call definition, bound before any relocation emits.
+    pub occurrence: Option<(CtBlockId, CtValueId)>,
     pub caller: CtFunctionId,
     pub caller_definition: CtSymbolId,
     pub caller_scope: CtAmbientLifeScope,
@@ -333,9 +343,12 @@ pub(crate) struct SourceInstanceCall {
 pub(crate) struct SourceLifeBinding {
     pub enumeration: bool,
     pub schema: u32,
+    pub caller: Option<CtFunctionId>,
     pub definition: CtSymbolId,
     /// Class -> original generic parameter ordinal, including intervening kinds.
     pub parameters: Vec<u32>,
+    /// Complete root class references when the classes cross lexical owners.
+    pub sources: Option<Vec<CtAmbientLifeReference>>,
     pub site: Option<source_sites::SourceSite>,
 }
 struct SourceLifeScope {
@@ -365,6 +378,8 @@ struct Compiler<'a> {
     metadata_bindings: Vec<(String, CtTypeRef)>,
     scalar_bindings: Vec<(String, Constant)>,
     source_life_scope: Option<SourceLifeScope>,
+    current_source_function: Option<CtFunctionId>,
+    runtime_frames: Vec<SourceRuntimeFrame>,
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     source_instance_calls: Vec<SourceInstanceCall>,
@@ -432,6 +447,8 @@ impl<'a> Compiler<'a> {
             metadata_bindings: Vec::new(),
             scalar_bindings: Vec::new(),
             source_life_scope: None,
+            current_source_function: None,
+            runtime_frames: Vec::new(),
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             source_instance_calls: Vec::new(),
@@ -768,6 +785,21 @@ pub(crate) fn compile_scoped_at_source<'a>(
     catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
     source_site: Option<source_sites::SourceSite>,
 ) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, source_site, None)
+}
+pub(crate) fn compile_scoped_runtime_at_source<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source: &runtime_context::RuntimeEntrySource,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, Some(source.expression_site), Some(source))
+}
+fn compile_scoped_context<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source_site: Option<source_sites::SourceSite>,
+    runtime_source: Option<&runtime_context::RuntimeEntrySource>,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.generated_catalog = catalog;
     compiler.index_generated()?;
@@ -781,7 +813,10 @@ pub(crate) fn compile_scoped_at_source<'a>(
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
         let d = compiler.declarations[index];
-        if d.function.generics.is_empty() && compiler.ct_only_function(d.module, d.function)? {
+        if d.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
+            && compiler.ct_only_function(d.module, d.function)?
+        {
             compiler.enqueue(index)?;
         }
     }
@@ -815,6 +850,15 @@ pub(crate) fn compile_scoped_at_source<'a>(
                 Some(owner) => compiler.source_life_scope(module, &owner, expression.span)?,
                 None => None,
             };
+            if let Some(source) = runtime_source {
+                if source.definition != definition {
+                    return Err(error(
+                        expression.span,
+                        "runtime CT recipe owner differs from its original entry",
+                    ));
+                }
+                compiler.bind_runtime_entry(module, expression, source)?;
+            }
             compiler.budget.node(expression.span)?;
             Budget::take(
                 &mut compiler.budget.functions,
@@ -824,6 +868,7 @@ pub(crate) fn compile_scoped_at_source<'a>(
             )?;
             let id = CtFunctionId(compiler.functions.len() as u32);
             compiler.functions.push(None);
+            compiler.current_source_function = Some(id);
             let body = cfg::expression(
                 &mut compiler,
                 id,
@@ -837,6 +882,11 @@ pub(crate) fn compile_scoped_at_source<'a>(
             id
         }
     };
+    if runtime_source.is_some() {
+        compiler.bindings.clear();
+        compiler.metadata_bindings.clear();
+        compiler.scalar_bindings.clear();
+    }
     while let Some((declaration, arguments, id)) = compiler.pending.pop_front() {
         compiler.budget.work(
             compiler
@@ -903,8 +953,9 @@ pub(crate) fn compile_scoped_at_source<'a>(
         }
         compiler.ambient_life_scopes.clone()
     };
-    let retain_scopes = compiler.has_ambient_use()?;
+    let retain_scopes = runtime_source.is_some() || compiler.has_ambient_use()?;
     let source_compilation = SourceCompilation {
+        runtime_frames: std::mem::take(&mut compiler.runtime_frames),
         bindings: std::mem::take(&mut compiler.source_life_bindings),
         calls: std::mem::take(&mut compiler.source_instance_calls),
         scopes,
@@ -982,6 +1033,7 @@ pub(crate) fn definitions_entry_with_catalog<'a>(
     for index in 0..compiler.declarations.len() {
         let declaration = compiler.declarations[index];
         if declaration.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
             && compiler.ct_only_function(declaration.module, declaration.function)?
         {
             entry = Some(compiler.item_symbol(declaration.module, declaration.item)?);

@@ -1,6 +1,8 @@
 //! Independent stored-target reconstruction. Sorted vectors and batch CFG
 //! solving deliberately do not consume analyzer roots, summaries, or claims.
 use super::*;
+#[path = "stored_flow_pure_copy.rs"]
+mod pure_copy;
 
 type Path = Vec<PlaceProjection>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -453,6 +455,7 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
                     && !super::stored_owned::instruction(f, &i.kind)
+                    && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
                         InstructionKind::Constant(_)
@@ -498,24 +501,8 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
                 }
-                if let InstructionKind::ExtractField { aggregate, index } = &i.kind {
-                    let ty = vt(f, *aggregate)?;
-                    type_work(ty, limits, b)?;
-                    let field = match ty {
-                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
-                        Type::Tuple(fields) => fields.get(*index as usize),
-                        _ => None,
-                    }
-                    .ok_or_else(|| err("actual Copy extraction field is absent"))?;
-                    if !ty.is_copy_value() || !super::stored_callables::scalar(field) {
-                        return Err(unsupported(
-                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
-                            Some(i.span),
-                        ));
-                    }
-                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(field) {
-                        return Err(err("Copy extraction result differs from the actual field"));
-                    }
+                if pure_copy::operation(&i.kind) {
+                    pure_copy::types(f, i, b)?;
                 }
             }
         }
@@ -1328,6 +1315,20 @@ fn step(
                     out.address = p;
                 } else {
                     add_leaf(&mut out, path, &p, b)?;
+                }
+            }
+        }
+        _ if pure_copy::operation(&i.kind) => {
+            pure_copy::types(f, i, b)?;
+            for input in instruction_operands(&i.kind) {
+                let payload = val(input)?;
+                if !payload.address.sources.is_empty()
+                    || !payload.address.loans.is_empty()
+                    || !payload.leaves.is_empty()
+                {
+                    return Err(err(
+                        "ordinary pure Copy input retains actual stored source permissions",
+                    ));
                 }
             }
         }

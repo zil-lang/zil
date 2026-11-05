@@ -39,8 +39,21 @@ pub(super) fn stage_allows(stage: CtReadyStage, kind: CtQueryKind) -> bool {
 }
 
 impl CtArtifactAuthority for FrozenAuthority<'_> {
+    fn runtime_scope_root_count(&self) -> usize {
+        self.invocation_context.map_or(0, |context| {
+            context.authenticated_runtime_scope_root_count()
+        })
+    }
+    fn authorized_runtime_scope_root(
+        &self,
+        scope: &zil_ir::ct_artifact::CtAmbientLifeScope,
+    ) -> bool {
+        self.invocation_context
+            .is_some_and(|context| context.authorized_runtime_scope_root(scope))
+    }
     fn type_context_count(&self) -> Option<usize> {
-        self.invocation_context.map(|context| context.authenticated_type_site_count())
+        self.invocation_context
+            .map(|context| context.authenticated_type_site_count())
     }
     fn active_scope_count(&self) -> Option<usize> {
         self.invocation_context

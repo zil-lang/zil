@@ -620,7 +620,7 @@ impl Materializer<'_, '_> {
                 Vec::new(),
             ),
             CtTypeNode::Nominal { symbol, arguments } => {
-                self.prepay_source_lookup()?;
+                self.prepay_source_lookup(symbol)?;
                 let item = self.source_declaration(symbol, span)?;
                 let name = match &item.kind {
                     s::ItemKind::Aggregate(value) => value.name.clone(),
@@ -658,11 +658,26 @@ impl Materializer<'_, '_> {
                                             span,
                                         )
                                     })?;
-                                let ordinal =
-                                    *scope.parameters.get(binder as usize).ok_or_else(|| {
-                                        runtime("fixed lifetime source ordinal is absent", span)
-                                    })?;
-                                let definition = scope.definition.clone();
+                                let (definition, ordinal) = if let Some(endpoints) =
+                                    &scope.endpoints
+                                {
+                                    let (definition, ordinal) =
+                                        endpoints.get(binder as usize).ok_or_else(|| {
+                                            runtime(
+                                                "fixed lifetime source endpoint is absent",
+                                                span,
+                                            )
+                                        })?;
+                                    (definition.clone(), *ordinal)
+                                } else {
+                                    let ordinal = *scope
+                                        .parameters
+                                        .get(binder as usize)
+                                        .ok_or_else(|| {
+                                            runtime("fixed lifetime source ordinal is absent", span)
+                                        })?;
+                                    (scope.definition.clone(), ordinal)
+                                };
                                 let name = self.source_lifetime_name(&definition, ordinal, span)?;
                                 args.push(s::GenericArg::Lifetime(name));
                                 continue;
@@ -989,14 +1004,18 @@ impl Materializer<'_, '_> {
         let before = limits.clone();
         let catalog = (!self.environment.generated_catalog.trees.is_empty())
             .then_some(&self.environment.generated_catalog);
-        let result = compiler::uses_ct_domain_with_catalog(
-            &modules,
-            module,
-            expression,
-            &parameters,
-            &mut limits,
-            catalog,
-        );
+        let result = if catalog.is_some() {
+            compiler::uses_ct_domain_with_catalog(
+                &modules,
+                module,
+                expression,
+                &parameters,
+                &mut limits,
+                catalog,
+            )
+        } else {
+            compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits)
+        };
         self.environment.budget.reserve_analysis_work(
             before
                 .max_analysis_steps
@@ -1370,6 +1389,17 @@ impl Materializer<'_, '_> {
                 return Err(late_import(item.span));
             }
             let path_len = self.item_path.len();
+            self.environment.budget.reserve_analysis_work(1)?;
+            if path_len == self.item_path.capacity() {
+                let old = self.item_path.capacity();
+                self.environment
+                    .budget
+                    .reserve_temporary_bytes((path_len as u64 + 1) * 4)?;
+                self.item_path.reserve_exact(1);
+                self.environment
+                    .budget
+                    .release_temporary_bytes(old as u64 * 4);
+            }
             self.item_path.push(
                 u32::try_from(ordinal)
                     .map_err(|_| category("item structural ordinal overflow", item.span))?,
@@ -1504,9 +1534,11 @@ impl Materializer<'_, '_> {
                     self.current_generated_tree = previous_tree;
                     self.current_emitter = previous_emitter;
                     if let Some(retained) = &mut retained {
-                        retained.extend(generated_rows.ok_or_else(|| {
+                        let generated_rows = generated_rows.ok_or_else(|| {
                             category("generated ItemList origin rows absent", item.span)
-                        })?);
+                        })?;
+                        self.reserve_output_origins(retained, generated_rows.len())?;
+                        retained.extend(generated_rows);
                     }
                     output.extend(generated_items);
                 }
@@ -1534,17 +1566,14 @@ impl Materializer<'_, '_> {
                         self.record_changed_closure_sites(module, ordinal)?;
                     }
                     if let Some(retained) = &mut retained {
-                        self.environment.budget.reserve_analysis_work(1)?;
-                        self.environment
-                            .budget
-                            .reserve_temporary_bytes(std::mem::size_of::<usize>() as u64)?;
+                        self.reserve_output_origins(retained, 1)?;
                         if generated {
                             let tree = self.current_generated_tree.clone().ok_or_else(|| {
                                 category("generated output source tree absent", item.span)
                             })?;
-                            retained.push(generated_lineage::OutputOrigin::Generated(
+                            retained.push(generated_lineage::OutputOrigin::Generated(Box::new(
                                 self.generated_origin(&tree, ordinal)?,
-                            ));
+                            )));
                         } else {
                             retained.push(generated_lineage::OutputOrigin::Original(ordinal));
                         }
@@ -1944,14 +1973,8 @@ impl Materializer<'_, '_> {
                     for node in &value.nodes {
                         self.environment.budget.reserve_analysis_work(1)?;
                         if let CtTypeNode::Nominal { symbol, .. } = node {
-                            let (_, parsed) = self.parsed_source(symbol.module)?;
-                            let item = parsed
-                                .module
-                                .items
-                                .get(symbol.declaration.0 as usize)
-                                .ok_or_else(|| {
-                                    runtime("Type result nominal declaration is absent", ty.span)
-                                })?;
+                            self.prepay_source_lookup(symbol)?;
+                            let item = self.source_declaration(symbol, ty.span)?;
                             let name = match &item.kind {
                                 s::ItemKind::Aggregate(a) => &a.name,
                                 s::ItemKind::Enum(e) => &e.name,
@@ -2303,7 +2326,7 @@ pub(crate) fn materialize<'a>(
                     &mut environment.budget,
                 )?;
                 environment.budget.reserve_temporary_bytes(
-                    bytes + std::mem::size_of::<zil_ir::LifeDeclarationIdentity>() as u64,
+                    bytes + std::mem::size_of::<zil_ir::LifeDeclarationIdentity>() as u64 + 64,
                 )?;
                 source_namespaces.insert(module.module, row.identity.clone());
             }
@@ -2365,8 +2388,10 @@ pub(crate) fn materialize<'a>(
                 .budget
                 .reserve_analysis_work(original_count as u64)?;
             materializer.environment.budget.reserve_temporary_bytes(
-                original_count as u64
-                    * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64,
+                module.items.len() as u64
+                    * std::mem::size_of::<zil_expand::source_context::DeclarationOrigin>() as u64
+                    + original_count as u64
+                        * std::mem::size_of::<Option<zil_expand::source_context::DeclarationOrigin>>() as u64,
             )?;
             let retained = retained
                 .ok_or_else(|| category("retained declaration positions absent", module.span))?;
@@ -2376,8 +2401,8 @@ pub(crate) fn materialize<'a>(
                 .collect::<Vec<_>>();
             let mut moved = Vec::with_capacity(retained.len());
             for entry in retained {
-                let mut row = match entry {
-                    generated_lineage::OutputOrigin::Generated(row) => row,
+                let row = match entry {
+                    generated_lineage::OutputOrigin::Generated(row) => *row,
                     generated_lineage::OutputOrigin::Original(ordinal) => {
                         let mut row = original_rows
                             .get_mut(ordinal)
@@ -3087,7 +3112,7 @@ mod scoped_tests {
         .unwrap();
     }
     #[test]
-    fn ct5_generated_member_keeps_naming_owner_without_original_binder_authority() {
+    fn ct6_generated_member_binds_its_actual_frozen_lifetime_owner() {
         let text = include_str!(
             "../../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
         );
@@ -3099,19 +3124,218 @@ mod scoped_tests {
         ));
         assert!(probe.diagnostics.is_empty(), "{:?}", probe.diagnostics);
         let output = run(text).unwrap();
-        assert!(output.declaration_origins.is_none());
-        let generated = text
-            .replace("#(scalar(i32,42))", "#(Phantom::<'s>{n:scalar(i32,42)})")
-            .replace("return value\n", "return value.n\n");
-        let errors = run(&generated)
-            .err()
-            .expect("generated own binder needs authentic lineage");
-        assert!(
-            errors
-                .iter()
-                .any(|d| d.message.contains("actual lexical source owner")),
-            "{errors:?}"
+        let origins = output.declaration_origins.as_ref().unwrap();
+        let generated = origins[0]
+            .items
+            .iter()
+            .find(|row| row.generated.is_some())
+            .unwrap();
+        assert!(!generated.identity.generation_path.is_empty());
+        assert_ne!(
+            generated.declaration,
+            zil_base::NodeId(3),
+            "generated root must not share the emitter's identity"
         );
+        let strong = include_str!(
+            "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+        );
+        let output = run(strong).unwrap();
+        assert!(
+            output.declaration_origins.as_ref().unwrap()[0]
+                .items
+                .iter()
+                .any(|row| row.generated.is_some())
+        );
+    }
+    fn generated_source_fixtures() -> [(&'static str, &'static str); 3] {
+        [
+            (
+                "member",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+                ),
+            ),
+            (
+                "factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
+                ),
+            ),
+            (
+                "nominal-factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-nominal-factory.zil"
+                ),
+            ),
+        ]
+    }
+    #[test]
+    fn ct6_generated_source_consumers_reach_independent_runtime_verification() {
+        for (name, text) in generated_source_fixtures() {
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let report = crate::compile_source(
+                &source,
+                &crate::CompileOptions {
+                    stop_after: crate::Stage::Verify,
+                    ..crate::CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                zil_base::ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+        }
+    }
+    #[test]
+    fn ct6_generated_candidates_pass_raw_wire_and_clang_o0_o2() {
+        for (name, text) in generated_source_fixtures() {
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let limits = Limits::default();
+            let target = TargetProfile::host_llvm();
+            let mut output = run(text).unwrap();
+            // The fixture's only import is the sealed CT syntax provider. It
+            // has completed its Source jobs and has no runtime dependency.
+            output
+                .retain_items(0, |item| !matches!(item.kind, s::ItemKind::Import(_)))
+                .unwrap();
+            let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+            let expanded = zil_expand::expand_with_map_limits_target_context(
+                &source,
+                &output.modules[0],
+                &limits,
+                &target,
+                zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: ModuleId(0),
+                    aliases: &paths,
+                    declarations: zil_expand::source_context::DeclarationPlacement::Aligned(
+                        output.declaration_origins.as_ref().unwrap(),
+                    ),
+                },
+            )
+            .unwrap();
+            let typed = zil_types::check(&expanded.core, &target, &limits).unwrap();
+            let candidate = zil_analyze::analyze(&typed, &limits).unwrap();
+            let verified =
+                zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)
+                    .unwrap();
+            let wire = zil_ir::wire::encode_module_candidate(&typed, &candidate, &limits).unwrap();
+            assert_eq!(
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+                    .unwrap()
+                    .module(),
+                &typed
+            );
+            let lir = zil_lower::lower(&verified).unwrap();
+            for optimization in [
+                zil_backend_llvm::Optimization::O0,
+                zil_backend_llvm::Optimization::O2,
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "ct6-generated-{name}-{}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+                options.backend = zil_backend_llvm::NativeBackend::Clang;
+                options.optimization = optimization;
+                let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+                let result = std::process::Command::new(&artifact.executable)
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    result.status.code(),
+                    Some(42),
+                    "{name} {optimization:?}: {result:?}"
+                );
+                eprintln!("CT6 generated {name} Clang {optimization:?} exit=42");
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+    #[test]
+    fn ct6_generated_source_budget_is_exact_and_request_local() {
+        // A quota error is terminal even if the generated parser also retains
+        // subsequent syntax recovery diagnostics. The first diagnostic is the
+        // request's category, and an Err publishes no materialized module.
+        let resource_limit = |errors: &[Diagnostic]| {
+            errors
+                .first()
+                .is_some_and(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                && errors.iter().all(|d| {
+                    d.category == zil_base::ResultCategory::ResourceLimit
+                        || (d.phase == Phase::Parse
+                            && d.category == zil_base::ResultCategory::SafeReject)
+                })
+        };
+        for (name, text) in generated_source_fixtures() {
+            let defaults = Limits::default();
+            for dimension in 0..3 {
+                let maximum = match dimension {
+                    0 => defaults.max_analysis_steps,
+                    1 => defaults.max_source_bytes,
+                    _ => defaults.max_nodes,
+                };
+                let bounded = |n| {
+                    let mut limits = defaults.clone();
+                    match dimension {
+                        0 => limits.max_analysis_steps = n,
+                        1 => limits.max_source_bytes = n,
+                        _ => limits.max_nodes = n,
+                    }
+                    run_limited(text, &limits)
+                };
+                assert!(bounded(maximum).is_ok());
+                let (mut low, mut high) = (1, maximum);
+                while low < high {
+                    let middle = low + (high - low) / 2;
+                    match bounded(middle) {
+                        Ok(_) => high = middle,
+                        Err(errors) if resource_limit(&errors) => low = middle + 1,
+                        Err(errors) => panic!("{name} dimension {dimension}: {errors:?}"),
+                    }
+                }
+                for (n, good) in [(low, true), (low - 1, false), (low, true)] {
+                    let result = bounded(n);
+                    assert_eq!(result.is_ok(), good, "{name} dimension {dimension} N={low}");
+                    if let Err(errors) = result {
+                        assert!(resource_limit(&errors), "{errors:?}");
+                    }
+                }
+                eprintln!("CT6 generated {name} dimension={dimension} N={low}/N-1/fresh");
+            }
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let mut session = crate::CompilationSession::default();
+            for _ in 0..2 {
+                let report = session.compile_source(&source, &crate::CompileOptions::default());
+                assert_eq!(
+                    report.status,
+                    zil_base::ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(
+                    report.verification_runs, 1,
+                    "warm requests must independently verify"
+                );
+            }
+        }
     }
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {

@@ -114,33 +114,109 @@ impl<'c, 'a> Builder<'c, 'a> {
     pub(super) fn result_type(&self) -> &CtTy {
         &self.result
     }
+    fn relocation_grow<T>(
+        values: &mut Vec<T>,
+        additional: usize,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.work(1, span)?;
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| error(span, "CT relocation backing length overflow"))?;
+        if needed > values.capacity() {
+            let capacity = values.capacity().saturating_mul(2).max(needed).max(4);
+            Budget::take(
+                &mut budget.bytes,
+                capacity.saturating_mul(std::mem::size_of::<T>()),
+                span,
+                "CT relocation backing allocation exhausted",
+            )?;
+            budget.work(values.len(), span)?;
+            values.reserve_exact(capacity - values.len());
+        }
+        Ok(())
+    }
     pub(super) fn reserve_record_relocation(&mut self, fields: usize, span: Span) -> R<CtBlockId> {
         let added = fields.saturating_add(1);
-        let block = &mut self.blocks[self.current.0 as usize];
-        self.compiler.budget.work(
-            block.instructions.len().saturating_add(self.values.len()),
+        Self::relocation_grow(
+            &mut self.blocks[self.current.0 as usize].instructions,
+            added,
+            &mut self.compiler.budget,
             span,
         )?;
-        Budget::take(
-            &mut self.compiler.budget.bytes,
-            block
-                .instructions
-                .len()
-                .saturating_add(added)
-                .saturating_mul(std::mem::size_of::<CtInstruction>())
-                .saturating_add(
-                    self.values
-                        .len()
-                        .saturating_add(added)
-                        .saturating_mul(std::mem::size_of::<CtTy>()),
-                )
-                .saturating_add(fields.saturating_mul(std::mem::size_of::<CtValueId>())),
-            span,
-            "CT record relocation backing arrays exhausted",
-        )?;
-        block.instructions.reserve_exact(added);
-        self.values.reserve_exact(added);
+        Self::relocation_grow(&mut self.values, added, &mut self.compiler.budget, span)?;
         Ok(self.current)
+    }
+    pub(super) fn relocation_emit(
+        &mut self,
+        kind: CtInstructionKind,
+        ty: CtTy,
+        span: Span,
+    ) -> R<Value> {
+        self.reserve_record_relocation(0, span)?;
+        self.emit(kind, ty, span)
+    }
+    pub(super) fn relocation_op(&mut self, kind: CtInstructionKind, span: Span) -> R<()> {
+        Self::relocation_grow(
+            &mut self.blocks[self.current.0 as usize].instructions,
+            1,
+            &mut self.compiler.budget,
+            span,
+        )?;
+        self.op(kind, span)
+    }
+    pub(super) fn relocation_constant(
+        &mut self,
+        value: Constant,
+        ty: CtScalarTy,
+        span: Span,
+    ) -> R<Value> {
+        Self::relocation_grow(
+            &mut self.compiler.constants,
+            1,
+            &mut self.compiler.budget,
+            span,
+        )?;
+        self.reserve_record_relocation(0, span)?;
+        self.constant(CtConstant::Scalar(value), CtTy::Scalar(ty), span)
+    }
+    pub(super) fn relocation_local(&mut self, ty: CtTy, span: Span) -> R<CtLocalId> {
+        Self::relocation_grow(&mut self.locals, 1, &mut self.compiler.budget, span)?;
+        self.new_local(ty, span)
+    }
+    pub(super) fn relocation_block(&mut self, span: Span) -> R<CtBlockId> {
+        Self::relocation_grow(&mut self.blocks, 1, &mut self.compiler.budget, span)?;
+        self.new_block(span)
+    }
+    pub(super) fn relocation_select(&mut self, block: CtBlockId) {
+        self.current = block;
+    }
+    pub(super) fn relocation_call_instance(
+        &self,
+        block: CtBlockId,
+        input: CtValueId,
+        span: Span,
+    ) -> R<CtFunctionId> {
+        let instruction = self
+            .blocks
+            .get(block.0 as usize)
+            .and_then(|block| block.instructions.last())
+            .ok_or_else(|| error(span, "CT relocation has no actual latest call definition"))?;
+        let CtInstructionKind::Call { function, .. } = instruction.kind else {
+            return Err(error(
+                span,
+                "CT relocation input is not the actual latest call",
+            ));
+        };
+        if instruction.result != Some(input) {
+            return Err(error(
+                span,
+                "CT relocation input differs from actual latest call result",
+            ));
+        }
+        Ok(function)
     }
     pub fn new_block(&mut self, span: Span) -> R<CtBlockId> {
         self.compiler.budget.node(span)?;
@@ -798,21 +874,22 @@ pub(super) fn function(
     id: CtFunctionId,
     declaration: usize,
 ) -> R<CtFunction> {
+    c.current_source_function = Some(id);
     let d = c.declarations[declaration];
     let (parameters, result) = c.header(declaration)?;
     let definition = c.item_symbol(d.module, d.item)?;
     let mut b = Builder::new(c, id, d.module, definition, result, d.function.span)?;
-    if b.compiler.checking_generics && Compiler::mixed_parameters(&d.function.generics) {
-        // Symbolic scalar parameters are ordinary typed locals in the discarded
-        // declaration-check CFG. No numeric stand-in is executed or published.
-        for parameter in &d.function.generics {
-            if let s::GenericParamKind::Const(ty) = &parameter.kind {
-                let scalar = b.compiler.scalar_argument_type(ty, parameter.span)?;
-                let ty = CtTy::Scalar(scalar);
-                let local = b.bind_declared(&parameter.name, ty.clone(), false, parameter.span)?;
-                b.parameters.push(local);
-                b.parameter_types.push(ty);
-            }
+    if b.compiler.checking_generics && !b.compiler.abstract_scalars.is_empty() {
+        // Each actual declaration binder remains a typed symbolic parameter;
+        // host and member names have already followed lexical shadowing.
+        for index in 0..b.compiler.abstract_scalars.len() {
+            let (name, value) = &b.compiler.abstract_scalars[index];
+            let ty = value.domain();
+            b.compiler.budget.text(name, d.function.span)?;
+            let name = name.clone();
+            let local = b.bind_declared(&name, ty.clone(), false, d.function.span)?;
+            b.parameters.push(local);
+            b.parameter_types.push(ty);
         }
     }
     for (parameter, ty) in d.function.params.iter().zip(parameters) {
@@ -856,7 +933,19 @@ pub(super) fn expression(
     )?;
     for (name, ty) in parameters {
         b.compiler.budget.ty(ty, 0, expression.span)?;
-        let local = b.bind(name, ty.clone(), false, expression.span)?;
+        let local = if b.compiler.checking_generics
+            && b.compiler
+                .abstract_scalars
+                .iter()
+                .any(|(bound, _)| bound == name)
+        {
+            b.compiler
+                .budget
+                .work(b.compiler.abstract_scalars.len(), expression.span)?;
+            b.bind_declared(name, ty.clone(), false, expression.span)?
+        } else {
+            b.bind(name, ty.clone(), false, expression.span)?
+        };
         b.parameters.push(local);
         b.parameter_types.push(ty.clone());
     }
