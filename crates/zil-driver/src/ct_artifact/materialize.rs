@@ -552,9 +552,10 @@ impl Materializer<'_, '_> {
                 }
                 return self.owner_node(ty, *storage, caller, span, depth + 1);
             }
+            CtTypeNode::Primitive(CtScalarTy::Unit) => s::TypeKind::Tuple(Vec::new()),
             CtTypeNode::Primitive(primitive) => named(
                 match primitive {
-                    CtScalarTy::Unit => "Unit",
+                    CtScalarTy::Unit => unreachable!("Unit uses the ordinary empty-tuple type"),
                     CtScalarTy::Bool => "bool",
                     CtScalarTy::U8 => "u8",
                     CtScalarTy::U16 => "u16",
