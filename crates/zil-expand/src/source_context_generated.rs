@@ -7,7 +7,10 @@ use zil_syntax::ast::Module;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum SourceTreeIdentity {
     Original(ModuleId),
-    Generated { module: ModuleId, event_path: Vec<u32> },
+    Generated {
+        module: ModuleId,
+        event_path: Vec<u32>,
+    },
 }
 impl SourceTreeIdentity {
     pub fn module(&self) -> ModuleId {
@@ -38,19 +41,37 @@ pub struct GeneratedSourceTree {
 impl GeneratedSourceTree {
     /// Canonical generated root binding, using only the actual event and root
     /// structure. The caller prepays the returned identity's owned strings.
-    pub fn root_identity(&self, root: u32, namespace: &zil_ir::LifeDeclarationIdentity) -> Option<zil_ir::LifeDeclarationIdentity> {
-        use zil_syntax::ast::{ItemKind, AggregateKind};
+    pub fn root_identity(
+        &self,
+        root: u32,
+        namespace: &zil_ir::LifeDeclarationIdentity,
+    ) -> Option<zil_ir::LifeDeclarationIdentity> {
+        use zil_syntax::ast::{AggregateKind, ItemKind};
         let item = self.module.items.get(root as usize)?;
-        let SourceTreeIdentity::Generated { event_path, .. } = &self.identity else { return None; };
+        let SourceTreeIdentity::Generated { event_path, .. } = &self.identity else {
+            return None;
+        };
         let kind = match &item.kind {
-            ItemKind::Function(_) => "function", ItemKind::Extern { .. } => "extern",
-            ItemKind::Aggregate(a) => match a.kind { AggregateKind::Struct => "struct", AggregateKind::Package => "package", AggregateKind::Resource => "resource" },
-            ItemKind::Enum(_) => "enum", ItemKind::Trait(_) => "trait", ItemKind::Impl(_) => "impl",
-            ItemKind::TypeAlias(_) => "alias", ItemKind::Const(_) => "const", ItemKind::Import(_) => "import", ItemKind::Meta(_) => "meta",
+            ItemKind::Function(_) => "function",
+            ItemKind::Extern { .. } => "extern",
+            ItemKind::Aggregate(a) => match a.kind {
+                AggregateKind::Struct => "struct",
+                AggregateKind::Package => "package",
+                AggregateKind::Resource => "resource",
+            },
+            ItemKind::Enum(_) => "enum",
+            ItemKind::Trait(_) => "trait",
+            ItemKind::Impl(_) => "impl",
+            ItemKind::TypeAlias(_) => "alias",
+            ItemKind::Const(_) => "const",
+            ItemKind::Import(_) => "import",
+            ItemKind::Meta(_) => "meta",
         };
         Some(zil_ir::LifeDeclarationIdentity {
-            package: namespace.package.clone(), module_path: namespace.module_path.clone(),
-            declaration_path: vec![kind.to_owned(), root.to_string()], generation_path: event_path.clone(),
+            package: namespace.package.clone(),
+            module_path: namespace.module_path.clone(),
+            declaration_path: vec![kind.to_owned(), root.to_string()],
+            generation_path: event_path.clone(),
         })
     }
     /// Address encoding only. A matching digest never authenticates the tree,
@@ -61,8 +82,10 @@ impl GeneratedSourceTree {
         };
         let mut hash = zil_base::FingerprintBuilder::new();
         hash.update(b"ZIL_GENERATED_SOURCE_TREE_V1");
-        for part in event_path { hash.update(&part.to_le_bytes()); }
-        Some(hash.finish())
+        for part in event_path {
+            hash.update(&part.to_le_bytes());
+        }
+        Some(hash.digest())
     }
 }
 
