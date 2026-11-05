@@ -1096,7 +1096,9 @@ fn owning_store_replacement_has_exact_prepaid_fresh_and_warm_boundaries() {
         "store-replacement-budget.zil",
         &text,
     );
-    for (stage, expected_n) in [(Stage::Analyze, 19754), (Stage::Verify, 54842)] {
+    // G1.3.6: previous Analyze19754; paid retirement profile/empty-shape
+    // forwarding exclusions add71 without granting a new Store operation.
+    for (stage, expected_n) in [(Stage::Analyze, 19825), (Stage::Verify, 54842)] {
         let options = |work| CompileOptions {
             stop_after: stage,
             limits: Limits {
