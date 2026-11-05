@@ -1,0 +1,26 @@
+{
+  "task": "G3.3.7",
+  "reviewer": "/root/p0_cross_review",
+  "implementation_author": "/root/g337_probe",
+  "verdict": "Pass",
+  "implementation_commit": "4537731f081d3afbd5165963cebb6d92dc71c9ce",
+  "production_commit": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
+  "scope": "Exact entry-local owning FnOnce transfer and two terminal tail leaves; independent two-instance full198 O0/O2.",
+  "evidence": "docs/validation/G3.3.7.1-p0-review.json",
+  "tested_combination": {
+    "source_commit": "905866c20c37428b069cbb1a25d596b652b43bb5",
+    "sha256_before_and_after": "98c16e5f79fded0659b124a205c95120a7a9ac456fb8de090fdbb0f232f4cb88",
+    "path": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+    "G3.3.7_production_commit": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
+    "G4.4.4_production_commit": "a79c5fb193bbbd4d0b44a221ace025c09f655c44",
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib"
+  },
+  "limitations": [
+    "Exactly entry plus two distinct terminal leaves for owning helper; no branch-before-call, cross-block owner chain, loop, lending, user Drop or general CFG claim.",
+    "Scalar-result mixed CT forwarding with actual Type/Const/Life identities; Phantom results and ambient-life-containing Type actual probe still reject before runtime Verify.",
+    "Nongeneric original static member-to-free composition is a measured natural consumer (full85), while generic-host nearest source remains rejected.",
+    "No Rust time/RSS/compile/maintenance cost comparison or product-level breakthrough claim."
+  ],
+  "independent_raw_wire_execution": false,
+  "formal_acceptance": "Root-owned; not performed by this review"
+}

@@ -8056,3 +8056,6 @@ fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage
     );
     assert_eq!(report.verification_runs, 0);
 }
+
+#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-next/regressions.rs"]
+mod g337_tail;

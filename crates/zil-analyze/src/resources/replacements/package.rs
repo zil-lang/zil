@@ -42,6 +42,87 @@ pub(super) fn local(f: &TypedFunction, target: &Target, b: &mut Budget) -> Compi
         _ => Err(unsupported()),
     }
 }
+// The borrowed shell stays the caller's responsibility. Admission binds the
+// actual mutable parameter and complete endpoint, independently of the ticket.
+pub(super) fn borrowed(f: &TypedFunction, target: &Target, b: &mut Budget) -> CompileResult<u32> {
+    if f.foreign.is_some()
+        || f.environment.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.return_type != Type::Unit
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.storage_life.is_some()
+        || !target.path.is_empty()
+        || !target.mutable
+    {
+        return Err(unsupported());
+    }
+    let origins::Root::Parameter(parameter) = target.root else {
+        return Err(unsupported());
+    };
+    let Some(local) = f.parameters.get(parameter as usize) else {
+        return Err(unsupported());
+    };
+    let Type::Address {
+        mutable: true,
+        inner,
+    } = &f.locals[local.0 as usize].ty
+    else {
+        return Err(unsupported());
+    };
+    let index = field(inner, b)?.ok_or_else(unsupported)?;
+    fee(b, f.parameters.len())?;
+    for (p, local) in f.parameters.iter().enumerate() {
+        if p == parameter as usize {
+            continue;
+        }
+        let ty = &f.locals[local.0 as usize].ty;
+        b.type_work(ty, true, "borrowed whole Package companion qualification")?;
+        let managed = matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
+        if !(ty.is_b0_scalar() || managed || ty == inner.as_ref()) {
+            return Err(unsupported());
+        }
+    }
+    Ok(index)
+}
+
+// Only the proved normal-return Commit replaces provenance. It leaves the
+// caller's existing shell/leaf life, cleanup age and order untouched.
+pub(super) fn postcondition(
+    flow: &Flow<'_>,
+    state: &mut State,
+    target: &Target,
+    birth: &BTreeSet<Birth>,
+    check: bool,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let origins::Root::Local(local) = target.root else {
+        return Ok(());
+    };
+    let [PlaceProjection::Field(index)] = target.path.as_slice() else {
+        return Err(unsupported());
+    };
+    if field(&flow.function.locals[local.0 as usize].ty, b)? != Some(*index) {
+        return Err(unsupported());
+    }
+    if check {
+        complete(flow.function, state, local, b)?;
+    }
+    let place = Place::PackageField {
+        local,
+        index: *index,
+    };
+    let mut old = copied(state, place, b)?;
+    fee(b, old.birth.len().saturating_add(birth.len()))?;
+    old.birth = birth.clone();
+    replace(state, place, old, b)?;
+    state
+        .sums
+        .replace_package_birth(local, *index, birth, check, b)?;
+    Ok(())
+}
+
 pub(super) fn complete(
     f: &TypedFunction,
     state: &State,

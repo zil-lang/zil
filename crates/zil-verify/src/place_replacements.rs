@@ -21,6 +21,7 @@ pub(super) struct Place {
 }
 pub(super) struct Inventory {
     pub(super) places: BTreeMap<ReservationId, Place>,
+    pub(super) whole_package: bool,
 }
 fn bad(span: Option<Span>, text: &str) -> Diagnostic {
     reject("E-VERIFY-PLACE-REPLACE", span, text)
@@ -40,6 +41,7 @@ impl Inventory {
         b: &mut Budget,
     ) -> Check<Self> {
         let mut places = BTreeMap::new();
+        let mut whole_package = false;
         for block in &f.blocks {
             b.spend(1)?;
             for instruction in &block.instructions {
@@ -124,6 +126,7 @@ impl Inventory {
                     ));
                 }
                 sums::check_type_for(module, cursor, span, b)?;
+                whole_package |= matches!(cursor, Type::Package { .. });
                 resources::charge_payload(cursor, b)?;
                 b.spend(steps.len())?;
                 lookup(b, places.len())?;
@@ -145,7 +148,10 @@ impl Inventory {
                 }
             }
         }
-        Ok(Self { places })
+        Ok(Self {
+            places,
+            whole_package,
+        })
     }
     pub(super) fn get(&self, id: ReservationId, b: &mut Budget) -> Check<&Place> {
         lookup(b, self.places.len())?;

@@ -68,7 +68,7 @@ fn profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget) -> Check
 
 // No local address can be exposed in this first fallback. In particular a
 // WriteAddress cannot silently change the whole-local Store correspondence.
-fn finite_instruction(kind: &InstructionKind) -> bool {
+pub(super) fn finite_instruction(kind: &InstructionKind) -> bool {
     matches!(
         kind,
         InstructionKind::ScopeEnter { .. }
@@ -103,13 +103,18 @@ pub(super) fn parameter(
             "staged callback requires an actual ordinary free helper",
         ));
     }
-    let [block] = f.blocks.as_slice() else {
-        return Err(bad("staged callback requires one acyclic actual block"));
+    let fork = f.blocks.len() != 1;
+    let block = if fork {
+        super::staged_tail::entry(f, b)?
+    } else {
+        let block = &f.blocks[0];
+        if f.entry != block.id
+            || !matches!(block.terminator, Terminator::Return(_) | Terminator::Trap)
+        {
+            return Err(bad("staged callback requires an actual Return/Trap exit"));
+        }
+        block
     };
-    if f.entry != block.id || !matches!(block.terminator, Terminator::Return(_) | Terminator::Trap)
-    {
-        return Err(bad("staged callback requires an actual Return/Trap exit"));
-    }
     let InstructionKind::CallClosureOnce { callee, .. } = call else {
         return Err(bad("staged callback requires an actual consuming call"));
     };
@@ -134,6 +139,9 @@ pub(super) fn parameter(
         b.spend(1)?;
         if depth > b.limits.max_call_depth {
             return Err(limit("staged callback origin depth exhausted"));
+        }
+        if fork {
+            super::staged_tail::value(f, current, before, b)?;
         }
         if f.values.get(current.0 as usize) != Some(&Type::Closure(d.id)) {
             return Err(bad(
@@ -491,5 +499,63 @@ mod tests {
         eprintln!(
             "G3.3.6 Verify local staged origin work N={n}, N-1/depth reject; direct old role=10"
         );
+    }
+    #[allow(dead_code)]
+    mod tail_fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/342/fnonce-helper-next/tail_neighbors.rs"
+        ));
+    }
+    #[test]
+    fn g337_verify_tail_origin_checks_whole_graph_and_unique_consumption() {
+        let limits = Limits::default();
+        let mut m = model();
+        tail_fixture::fork(&mut m.functions[0]);
+        assert!(resolve(&m, &mut Budget::new(&limits)).unwrap());
+        let mut reordered = m.clone();
+        reordered.functions[0].blocks.swap(0, 2);
+        let f = &reordered.functions[0];
+        let call = f
+            .blocks
+            .iter()
+            .flat_map(|bb| &bb.instructions)
+            .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+            .unwrap();
+        assert!(
+            super::super::role(
+                &reordered,
+                f,
+                &call.kind,
+                &reordered.closures[0],
+                &mut Budget::new(&limits)
+            )
+            .unwrap()
+            .is_some()
+        );
+        for (name, changed) in tail_fixture::hostile(&m.functions[0]) {
+            let mut candidate = m.clone();
+            candidate.functions[0] = changed;
+            // A moved call is rejected by the actual staged resolver, rather
+            // than requiring this test harness to find it in the entry.
+            let f = &candidate.functions[0];
+            let call = f
+                .blocks
+                .iter()
+                .flat_map(|bb| &bb.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap();
+            assert!(
+                super::super::role(
+                    &candidate,
+                    f,
+                    &call.kind,
+                    &candidate.closures[0],
+                    &mut Budget::new(&limits)
+                )
+                .is_err(),
+                "{name}"
+            );
+        }
     }
 }

@@ -119,6 +119,8 @@ struct State {
     package_values: PackageValues,
     product_births: product::Origins,
     sums: sums::Facts,
+    // Enabled only for the bounded borrowed whole-Package helper proof.
+    whole_commits: Option<replacements::Effects>,
 }
 #[derive(Clone, Copy)]
 struct Shape {
@@ -130,6 +132,7 @@ struct Effect {
     arguments: BTreeSet<u32>,
     borrowed_fields: BTreeSet<u32>,
     replacements: replacements::Effects,
+    whole_commits: Option<replacements::Effects>,
     invalidated_stores: BTreeSet<replacements::StoreInvalidation>,
 }
 type Shapes = BTreeMap<Place, Shape>;
@@ -195,6 +198,7 @@ fn clone_state(state: &State, budget: &mut Budget) -> CompileResult<State> {
     }
     product::copy_cost(&state.product_births, budget)?;
     state.sums.cost(budget)?;
+    replacements::must_cost(state.whole_commits.as_ref(), budget)?;
     Ok(state.clone())
 }
 fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool> {
@@ -236,6 +240,7 @@ fn join(to: &mut State, from: &State, budget: &mut Budget) -> CompileResult<bool
     }
     changed |= product::join(&mut to.product_births, &from.product_births, budget)?;
     changed |= to.sums.join(&from.sums, budget)?;
+    changed |= replacements::must_join(&mut to.whole_commits, &from.whole_commits, budget)?;
     Ok(changed)
 }
 
@@ -3147,9 +3152,15 @@ fn analyze_function_program(
         Vec::new()
     };
     let (package_values, product_births) = package_value_shapes(f, budget)?;
+    let whole_helper = if let Some(program) = replacements {
+        program.whole_helper(f.id, budget)?
+    } else {
+        false
+    };
     let mut initial = State {
         package_values,
         product_births,
+        whole_commits: whole_helper.then(BTreeMap::new),
         sums: sums
             .as_ref()
             .map(|p| p.initial(f, budget))
@@ -3284,6 +3295,26 @@ fn analyze_function_program(
     // becomes empty. At fixed effects, rerunning the exact transfer on those
     // same final states can add no new summary fact. The validation pass is
     // still mandatory and unchanged when `check` is true.
+    if whole_helper {
+        // Collect only final fixed-point states at actual normal returns.
+        // Transient worklist visits and abort exits cannot establish a must fact.
+        let mut returns = None;
+        for (block, incoming) in input.iter().enumerate() {
+            if !matches!(f.blocks[block].terminator, Terminator::Return(_)) {
+                continue;
+            }
+            if let Some(incoming) = incoming {
+                let mut state = clone_state(incoming, budget)?;
+                flow.run(block, &mut state, &mut Effect::default(), false, budget)?;
+                if returns.is_none() {
+                    returns = state.whole_commits;
+                } else {
+                    replacements::must_join(&mut returns, &state.whole_commits, budget)?;
+                }
+            }
+        }
+        effect.whole_commits = returns;
+    }
     if !check {
         return Ok(effect);
     }

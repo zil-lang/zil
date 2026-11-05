@@ -596,3 +596,236 @@ fn g443_original_static_members_keep_host_identity_and_actual_values() {
         "same member spelling/vector merged original hosts"
     );
 }
+
+#[test]
+fn g444_nested_source_calls_keep_private_vectors_and_published_graph_dependencies() {
+    for (text, intermediate) in [
+        (
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+            ),
+            false,
+        ),
+        (
+            include_str!(
+                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+            ),
+            true,
+        ),
+    ] {
+        let sources = vec![SourceUnit::new(
+            zil_base::FileId(0),
+            ModuleId(0),
+            "nested.zil",
+            text,
+        )];
+        let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+        assert!(
+            parsed[0].diagnostics.is_empty(),
+            "{:?}",
+            parsed[0].diagnostics
+        );
+        let syntax = vec![&parsed[0].module];
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let target = TargetProfile::host_llvm();
+        let (origins, _) = zil_expand::source_context::capture_original(
+            &sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let origins = Arc::new(origins.unwrap());
+        let imports = vec![Vec::new()];
+        let mut environment = Environment::new(
+            &sources,
+            &parsed,
+            &paths,
+            &imports,
+            ModuleId(0),
+            sources[0].fingerprint(),
+            &target,
+            &limits,
+        )
+        .unwrap();
+        let definition = CtSymbolId {
+            module: ModuleId(0),
+            declaration: zil_base::NodeId(if intermediate { 4 } else { 3 }),
+            generation_path: None,
+        };
+        let original = compiler::source_scope::original_function(
+            &parsed[0].module,
+            definition.declaration,
+            limits.max_call_depth,
+            |_| Ok(()),
+        )
+        .unwrap()
+        .unwrap();
+        let zil_syntax::ast::FunctionBody::Block(block) = &original.function.body else {
+            unreachable!()
+        };
+        let zil_syntax::ast::StmtKind::Binding { value, .. } = &block.statements[0].kind else {
+            unreachable!()
+        };
+        let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
+            unreachable!()
+        };
+        let entry = || Entry::Expression {
+            module: ModuleId(0),
+            expression,
+            definition: definition.clone(),
+            lexical_owner: Some(definition.clone()),
+            expected: None,
+            parameters: &[],
+        };
+        let input = environment.empty_input(expression.span).unwrap();
+        let modules = environment.index.modules(&sources, &syntax);
+        let (expected, facts) = compiler::compile_scoped(CompileRequest {
+            target_pointer_width: 64,
+            modules: &modules,
+            source_fingerprint: sources[0].fingerprint(),
+            entry: entry(),
+            input_tokens: &input,
+            snapshot: &environment.snapshot,
+            limits: &limits,
+        })
+        .unwrap();
+        assert_eq!(facts.calls.len(), 3);
+        assert_eq!(facts.scopes.len(), 3);
+        assert_eq!(expected.ambient_life_scopes.is_empty(), !intermediate);
+        for (index, call) in facts.calls.iter().enumerate() {
+            assert_eq!(call.actuals.len(), 3);
+            assert!(matches!(
+                call.actuals[1],
+                CtScopeActual::Scalar(zil_ir::Constant::I32(42))
+            ));
+            let CtScopeActual::Lifetime(reference) = call.actuals[2] else {
+                unreachable!()
+            };
+            assert_eq!(reference.scope, call.caller_scope_id);
+            assert_eq!(reference.parameter, if index == 0 { 0 } else { 2 });
+            if index > 0 {
+                assert_eq!(call.caller, facts.calls[index - 1].instance);
+                assert!(matches!(
+                    call.caller_scope.instance,
+                    CtScopeInstance::Instantiated(_)
+                ));
+            }
+        }
+        let freeze = || {
+            let mut budget = CtExecutionBudget::new(expected.budget);
+            super::super::invocation_context::FrozenInvocationContext::freeze(
+                &entry(),
+                &parsed,
+                &environment.index,
+                Some(&origins),
+                &mut budget,
+            )
+            .unwrap()
+            .unwrap()
+        };
+        let mut invocation = freeze();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .extend_calls(
+                &facts.calls,
+                &facts.scopes,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
+        assert_eq!(invocation.active_scope_count(), 4);
+        let authority = FrozenAuthority {
+            source_fingerprint: sources[0].fingerprint(),
+            snapshot: &environment.snapshot,
+            input: &input,
+            index: &environment.index,
+            expected_functions: &expected.functions,
+            expected_artifact: &expected,
+            invocation_context: Some(&invocation),
+        };
+        let wire = |raw: &CtArtifactProgram| {
+            zil_ir::ct_wire::decode_program(
+                &zil_ir::ct_wire::encode_program(raw, &limits).unwrap(),
+                &limits,
+            )
+            .unwrap()
+        };
+        let mut meter = zil_verify::CtVerificationMeter::new(expected.budget.max_analysis_work);
+        zil_verify::verify_ct_artifact_metered(expected.clone(), &limits, &authority, &mut meter)
+            .unwrap();
+        let n = meter.spent();
+        for raw in [expected.clone(), wire(&expected)] {
+            for (budget, success) in [(n - 1, false), (n, true), (n, true)] {
+                let result = zil_verify::verify_ct_artifact_metered(
+                    raw.clone(),
+                    &limits,
+                    &authority,
+                    &mut zil_verify::CtVerificationMeter::new(budget),
+                );
+                assert_eq!(
+                    result.is_ok(),
+                    success,
+                    "intermediate={intermediate}: {result:?}"
+                );
+                if !success {
+                    assert_eq!(result.unwrap_err()[0].code, "E-RESOURCE-LIMIT");
+                }
+            }
+        }
+        for attack in 0..3 {
+            let mut calls = facts.calls.clone();
+            match attack {
+                0 => {
+                    calls[2].actuals[2] = CtScopeActual::Lifetime(CtAmbientLifeReference {
+                        scope: calls[0].caller_scope_id,
+                        parameter: 0,
+                    })
+                }
+                1 => {
+                    calls[2].actuals[2] = CtScopeActual::Lifetime(CtAmbientLifeReference {
+                        scope: calls[2].caller_scope_id,
+                        parameter: 1,
+                    })
+                }
+                _ => {
+                    calls.remove(1);
+                }
+            }
+            let mut context = freeze();
+            let result = Arc::get_mut(&mut context).unwrap().extend_calls(
+                &calls,
+                &facts.scopes,
+                &expected,
+                &environment.index,
+                &mut CtExecutionBudget::new(expected.budget),
+            );
+            assert!(result.is_err(), "nested private ledger attack {attack}");
+        }
+        if intermediate {
+            // This proxy bypasses whole-artifact equality only. Independent
+            // graph/scope admission must reject erased dependencies by itself.
+            let proxy = InventoryOnly { source: &authority };
+            let mut raw = expected.clone();
+            raw.ambient_life_scopes.clear();
+            for raw in [raw.clone(), wire(&raw)] {
+                let errors = zil_verify::verify_ct_artifact(raw, &limits, &proxy).unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .any(|d| d.message.contains("outside inventory")),
+                    "{errors:?}"
+                );
+            }
+        }
+        eprintln!(
+            "G4.4.4 actual 3-level source chain intermediate={intermediate}: private vectors retained; raw/Wire independent N={n}/N-1"
+        );
+    }
+}

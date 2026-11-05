@@ -180,6 +180,161 @@ fn whole_check(module: &TypedModule) -> Check<()> {
     budget.sum_functions = vec![true; module.functions.len()];
     check_module(module, &graphs, &mut budget)
 }
+
+// Independent resource/Content component witnesses. The separately preserved
+// .zil files and Driver review exercise real Source formation and public Wire.
+fn whole_helper(fresh: bool) -> TypedModule {
+    let mut module = fixture::module_with_relay_and_caller(fresh);
+    let mut caller = module.functions.pop().unwrap();
+    let mut helper = module.functions.remove(0);
+    let package = caller.locals[1].ty.clone();
+    helper.values.extend([Type::I32, package]);
+    helper.blocks[0].instructions = vec![
+        fixture::instruction(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
+        fixture::instruction(
+            None,
+            InstructionKind::ReservePlaceAddress {
+                reservation: ReservationId(71),
+                address: ValueId(0),
+                path: vec![],
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(66)),
+        ),
+        fixture::instruction(
+            Some(ValueId(1)),
+            if fresh {
+                InstructionKind::MakeManaged {
+                    fields: vec![ValueId(2)],
+                }
+            } else {
+                InstructionKind::TakeLocal { local: LocalId(1) }
+            },
+        ),
+        fixture::instruction(
+            Some(ValueId(3)),
+            InstructionKind::MakePackage {
+                fields: vec![ValueId(1), ValueId(2)],
+            },
+        ),
+        fixture::instruction(
+            None,
+            InstructionKind::CommitPlaceReplace {
+                reservation: ReservationId(71),
+                value: ValueId(3),
+            },
+        ),
+    ];
+    caller.id = FunctionId(1);
+    if fresh {
+        helper.parameters = vec![LocalId(0)];
+        // The destination leaf is incoming, so Fresh requires this helper's
+        // real Commit. An already-Fresh destination cannot mask a bad proof.
+        caller.parameters = vec![LocalId(0)];
+        caller.blocks[0].instructions[1].kind = InstructionKind::TakeLocal { local: LocalId(0) };
+        caller.blocks[0].instructions.remove(5);
+    }
+    let call = caller.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::Call { .. }))
+        .unwrap();
+    call.kind = InstructionKind::Call {
+        function: FunctionId(0),
+        arguments: if fresh {
+            vec![ValueId(3)]
+        } else {
+            vec![ValueId(3), ValueId(4)]
+        },
+    };
+    module.functions = vec![helper, caller];
+    module
+}
+
+#[test]
+fn whole_helper_requires_actual_must_commit_and_preserves_rhs_leaf_origin() {
+    whole_check(&whole_helper(true)).unwrap();
+    let error = whole_check(&whole_helper(false)).unwrap_err();
+    assert!(
+        error
+            .message
+            .contains("create result is not independently proven fresh"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn whole_helper_caller_shell_and_old_fields_must_still_be_live() {
+    let mut module = whole_helper(true);
+    let caller = &mut module.functions[1];
+    let at = caller.blocks[0]
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::Call { .. }))
+        .unwrap();
+    caller.blocks[0].instructions.insert(
+        at,
+        fixture::instruction(
+            None,
+            InstructionKind::DropPackageField {
+                local: LocalId(1),
+                index: 0,
+            },
+        ),
+    );
+    let error = whole_check(&module).unwrap_err();
+    assert!(
+        error.message.contains("every old field responsibility"),
+        "{error:?}"
+    );
+}
+
+#[test]
+fn whole_helper_broader_or_conditional_cfg_does_not_export_fresh() {
+    let mut module = whole_helper(true);
+    let helper = &mut module.functions[0];
+    let tail = helper.blocks[0].instructions.split_off(0);
+    helper.values.push(Type::Bool);
+    helper.blocks[0].instructions.push(fixture::instruction(
+        Some(ValueId(4)),
+        InstructionKind::Constant(Constant::Bool(false)),
+    ));
+    helper.blocks[0].terminator = Terminator::Branch {
+        condition: ValueId(4),
+        then_block: BlockId(1),
+        else_block: BlockId(2),
+    };
+    helper.blocks.push(BasicBlock {
+        id: BlockId(1),
+        instructions: tail,
+        terminator: Terminator::Return(None),
+    });
+    helper.blocks.push(BasicBlock {
+        id: BlockId(2),
+        instructions: vec![],
+        terminator: Terminator::Return(None),
+    });
+    let mut graphs = graphs(&module);
+    graphs[0].successors = vec![vec![1, 2], vec![], vec![]];
+    graphs[0].predecessors = vec![vec![], vec![0], vec![0]];
+    graphs[0].reachable = vec![true; 3];
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    budget.replacements = true;
+    budget.sums = true;
+    budget.head_descriptions = true;
+    budget.function_count = module.functions.len();
+    budget.sum_functions = vec![true; module.functions.len()];
+    let error = check_module(&module, &graphs, &mut budget).unwrap_err();
+    assert!(
+        error
+            .message
+            .contains("create result is not independently proven fresh"),
+        "{error:?}"
+    );
+}
 #[test]
 fn whole_package_transfers_actual_field_provenance_without_making_shell_fresh() {
     for fresh in [true, false] {

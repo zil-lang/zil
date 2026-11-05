@@ -251,18 +251,6 @@ fn no_commit_is_not_invalidation_but_possible_success_has_no_error_refinement() 
         "target.owner=R{code:66};",
         "*target=P{owner:R{code:66},n:42};",
     );
-    let report = compile_source(&source(&whole), &CompileOptions::default());
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("exact whole local owner"))
-    );
+    // G1.3.7 admits the endpoint; actual retirement still rejects this use.
+    check(&whole, true);
 }

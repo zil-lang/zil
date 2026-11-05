@@ -1,6 +1,7 @@
 //! Identity-only recovery for a finite owning receiver. This never establishes
 //! initialization, liveness, ownership, or permission to execute the call.
 use super::*;
+mod tail;
 
 fn closed() -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(
@@ -62,13 +63,18 @@ pub(super) fn parameter(
         return Err(closed());
     }
     b.spend(f.blocks.len(), "staged single-block control inventory")?;
-    let [block] = f.blocks.as_slice() else {
-        return Err(closed());
+    let fork = f.blocks.len() != 1;
+    let block = if fork {
+        tail::entry(f, b)?
+    } else {
+        let block = &f.blocks[0];
+        if block.id != f.entry
+            || !matches!(block.terminator, Terminator::Return(_) | Terminator::Trap)
+        {
+            return Err(closed());
+        }
+        block
     };
-    if block.id != f.entry || !matches!(block.terminator, Terminator::Return(_) | Terminator::Trap)
-    {
-        return Err(closed());
-    }
     b.spend(
         block.instructions.len(),
         "staged actual consuming call position",
@@ -101,6 +107,9 @@ pub(super) fn parameter(
         }
         depth += 1;
         b.spend(1, "staged receiver chain step")?;
+        if fork {
+            tail::unique_use(f, current, upper, b)?;
+        }
         let seen = values.get_mut(current.0 as usize).ok_or_else(closed)?;
         if *seen {
             return Err(closed());
@@ -383,5 +392,36 @@ mod tests {
         eprintln!(
             "Analyze staged role identity N={low}/N-1/fresh; direct owned role retains exact legacy N10"
         );
+    }
+    #[allow(dead_code)]
+    mod tail_fixture {
+        include!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../../tests/language-readiness/terminal/342/fnonce-helper-next/tail_neighbors.rs"
+        ));
+    }
+    #[test]
+    fn g337_analyze_tail_origin_checks_whole_graph_and_unique_consumption() {
+        let limits = Limits::default();
+        let (m, mut f, kind) = model(true);
+        tail_fixture::fork(&mut f);
+        assert!(
+            super::super::role(&m, &f, &kind, &mut Budget::new(&limits))
+                .unwrap()
+                .is_some()
+        );
+        let mut reordered = f.clone();
+        reordered.blocks.swap(0, 2);
+        assert!(
+            super::super::role(&m, &reordered, &kind, &mut Budget::new(&limits))
+                .unwrap()
+                .is_some()
+        );
+        for (name, changed) in tail_fixture::hostile(&f) {
+            assert!(
+                super::super::role(&m, &changed, &kind, &mut Budget::new(&limits)).is_err(),
+                "{name}"
+            );
+        }
     }
 }

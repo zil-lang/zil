@@ -1,0 +1,272 @@
+{
+  "status": "IndependentLimitedReviewPass",
+  "candidate_source": "905866c20c37428b069cbb1a25d596b652b43bb5",
+  "binary": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+  "binary_sha256": "98c16e5f79fded0659b124a205c95120a7a9ac456fb8de090fdbb0f232f4cb88",
+  "test_binary": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-69ffa20fbaa0b0e1",
+  "test_binary_sha256": "d6ee166335de7e23359859f049f520a3a7ea14eb50dd893dd6c64cf83d88feef",
+  "raw_wire_command": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-69ffa20fbaa0b0e1 g137_review_ --nocapture --test-threads=1",
+  "raw_wire_stdout": "\nrunning 6 tests\ntest whole_helper_review::g137_review_native_complete_result_and_failed_rhs_old_value ... ok\ntest whole_helper_review::g137_review_source_continuation_actual_origins_and_apart ... ok\ntest whole_helper_review::g137_review_types_has_actual_parameter_ticket_and_complete_rhs ... ok\ntest whole_helper_review::g137_review_verify_incoming_and_no_write_do_not_grant_create ... ok\ntest whole_helper_review::g137_review_verify_old_description_after_actual_helper_retirement ... ok\ntest whole_helper_review::g137_review_verify_ticket_settlement_and_old_owner_obligations ... ok\n\ntest result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 224 filtered out; finished in 0.64s\n\n",
+  "raw_wire_stderr": "",
+  "raw_wire_exit": 0,
+  "source_controls": [
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_apart_desc.zil",
+      "sha256": "bf83e64c3c52cf789b7c72387d4fe1bc88098bc80f7a70281495144037ecec36",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_argument_failure.zil",
+      "sha256": "01be0bd29588b076a4be66541ec41bf04dbafc93b9ab516ee35d2b4eeecae985",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_conditional_give.zil",
+      "sha256": "6d4e161387f6b16a233a3432d81ed1a73900eba23836f147dc7e0343ec370b8f",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_failure.zil",
+      "sha256": "36028415ef2eeabed19cee8df52ce143c2b17f69216b032c886915022e759650",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "complete Package replacement requires this body's exact whole local owner",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_fresh_create.zil",
+      "sha256": "c13244e0961432e131521e887ba6a26c20a46ed3cab142ad246808cf4247d34b",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_incoming_give.zil",
+      "sha256": "ef7d209006236dd0bf92ee036cc0db69879dd2e55ed972195acbd154be82335b",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_incoming_package_give.zil",
+      "sha256": "7d868b02f488a2a28e5758bfd4e41350bcd1f525f9b7278c4516f2a25e14df5c",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_incoming_reborrow.zil",
+      "sha256": "d8a5068a02386874bf65baefa846d8ec7ace50d86431117e677f329267edd7a0",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_old_desc.zil",
+      "sha256": "773cdfca7ee95cd89d3905069f9f8c15aaa7cd83a25b9bacb5e69e1e2b84b2b7",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "phase": "analyze",
+          "category": "SafeReject",
+          "code": "E-ANALYZE-IR",
+          "message": "resource closure: actual replacement may retire a resource instance whose description is required later",
+          "span": null,
+          "notes": []
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_reborrow.zil",
+      "sha256": "3951727c21f043d143c7ab38681958200288cd3fcebb380c6b0af27d4f20ecae",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_shell_age.zil",
+      "sha256": "f921b9310efc50d3926a09972c6b57b1404e460145d7b9ee3705198bd8bc5ad3",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_success.zil",
+      "sha256": "ff3be17f346360feda185e79131b25765187f096ab0a91092c2a5fad1a2543fd",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_wrong_actual_give.zil",
+      "sha256": "3cbe4a546831b3e01a617aee57778c5877388924eb7c96c568e52610ba6fc0d5",
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ],
+  "native_controls": [
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_success.zil",
+      "backend": "clang",
+      "opt": "O0",
+      "stdout": "AB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_success.zil",
+      "backend": "clang",
+      "opt": "O2",
+      "stdout": "AB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_success.zil",
+      "backend": "llvm-api",
+      "opt": "O0",
+      "stdout": "AB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_success.zil",
+      "backend": "llvm-api",
+      "opt": "O2",
+      "stdout": "AB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_argument_failure.zil",
+      "backend": "clang",
+      "opt": "O0",
+      "stdout": "BA42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_argument_failure.zil",
+      "backend": "clang",
+      "opt": "O2",
+      "stdout": "BA42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_argument_failure.zil",
+      "backend": "llvm-api",
+      "opt": "O0",
+      "stdout": "BA42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_argument_failure.zil",
+      "backend": "llvm-api",
+      "opt": "O2",
+      "stdout": "BA42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_shell_age.zil",
+      "backend": "clang",
+      "opt": "O0",
+      "stdout": "ACB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_shell_age.zil",
+      "backend": "clang",
+      "opt": "O2",
+      "stdout": "ACB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_shell_age.zil",
+      "backend": "llvm-api",
+      "opt": "O0",
+      "stdout": "ACB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    },
+    {
+      "source": "tests/language-readiness/terminal/340/whole-helper/g137_review_shell_age.zil",
+      "backend": "llvm-api",
+      "opt": "O2",
+      "stdout": "ACB42\n",
+      "exit": 0,
+      "stderr": "",
+      "verification_runs": 1,
+      "fallback": null
+    }
+  ],
+  "limits": [
+    "Exact-one Commit, single normal-return block and no call for must Fresh; ordinary access does not require Fresh.",
+    "Fallible non-Unit borrowed helper is Unsupported; argument failure and local Abort controls are distinct.",
+    "No full gate/Rust cost/complete language acceptance claim."
+  ],
+  "test_target_features": [
+    "default"
+  ],
+  "driver_default_features": [],
+  "test_suite_native_backends": [
+    "clang"
+  ],
+  "test_suite_native_run_count": 6,
+  "separate_cli_native_run_count": 12
+}

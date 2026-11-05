@@ -8530,19 +8530,11 @@ fn terminal340_package_terminal_source_types_and_analyze() {
     );
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Analyze);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("exact whole local owner")),
-        "{}",
-        report.to_json()
-    );
     let pin = format!(
         "{prefix}fn change(p:&mut P)->P{{p.n=9;return P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};let target=&mut packet;*target=change(target);return packet.n}}"
     );
@@ -8850,7 +8842,8 @@ fn terminal340_package_terminal_exact_request_budget() {
                 // G1.3.6 paid producer exclusion inventory: previous13945+9.
                 13_954
             } else {
-                28_743
+                // G1.3.7: old28743 + three actual complete-RHS nodes.
+                28_746
             },
             "{stage:?}: actual Package work changed"
         );
@@ -9648,6 +9641,152 @@ fn g443_member_requests_pay_all_current_ledgers() {
 }
 
 #[test]
+fn g444_nested_mixed_scalar_source_and_native_values() {
+    let scalar = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+    );
+    let intermediate = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+    );
+    let reordered = scalar
+        .replace(
+            "fn forward<T:Copy,#N:i32,life a>",
+            "fn forward<life a,#N:i32,T:Copy>",
+        )
+        .replace("forward::<A,M,'b>", "forward::<'b,M,A>");
+    let constants = scalar.replace("make::<T,N,'a>", "make::<T,42,'a>");
+    for text in [scalar, intermediate, reordered.as_str(), constants.as_str()] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}
+
+#[test]
+fn g444_symbolic_forwarding_checks_definitions_before_matching_instances() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-forwarding.zil"
+    );
+    let bad_type = text
+        .replace(
+            "fn forward<T:Copy,#N:i32,life a>",
+            "fn forward<T:Copy,U:Copy,#N:i32,life a>",
+        )
+        .replace("make::<T,N,'a>", "make::<U,N,'a>")
+        .replace("forward::<i32,42,'s>", "forward::<i32,i32,42,'s>");
+    let bad_const = text
+        .replace(
+            "fn forward<T:Copy,#N:i32,life a>",
+            "fn forward<T:Copy,#N:i32,#M:i32,life a>",
+        )
+        .replace("make::<T,N,'a>", "make::<T,M,'a>")
+        .replace("forward::<i32,42,'s>", "forward::<i32,42,42,'s>");
+    let bad_life = text
+        .replace(
+            "fn forward<T:Copy,#N:i32,life a>",
+            "fn forward<T:Copy,#N:i32,life a,life b>",
+        )
+        .replace("make::<T,N,'a>", "make::<T,N,'b>")
+        .replace("forward::<i32,42,'s>", "forward::<i32,42,'s,'s>");
+    for bad in [bad_type, bad_const, bad_life] {
+        for input in [
+            bad.clone(),
+            bad.replace(
+                "fn main()->i32{let n=0;return result(&n)}",
+                "fn main()->i32{return 42}",
+            ),
+        ] {
+            let report = compile_source(&source(&input), &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::SafeReject,
+                "{}",
+                report.to_json()
+            );
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("actual expected type")),
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 0);
+        }
+    }
+    let scalar = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+    );
+    for (bad, expected) in [
+        (
+            scalar.replace("fn forward<T:Copy,#N:i32", "fn forward<T:Copy,#N:usize"),
+            "scalar argument domain differs",
+        ),
+        (
+            scalar.replace("fn forward<T:Copy,#N:i32", "fn forward<T:Copy,#N:bool"),
+            "scalar argument domain differs",
+        ),
+        (
+            scalar.replace("make::<T,N,'a>", "make::<T,N,'missing>"),
+            "not this declaration's binder",
+        ),
+        (
+            scalar.replace("make::<T,N,'a>", "make::<T,N>"),
+            "actual arity differs",
+        ),
+    ] {
+        let report = compile_source(&source(&bad), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.message.contains(expected)),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+    // Valid universal forwarding is now checked, but scoped nominal results
+    // across factories still require a distinct context relocation operation.
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual expected type"))
+    );
+}
+
+#[test]
+fn g444_nested_requests_pay_each_current_ledger() {
+    let input = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+    );
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let n = g44_source_request_boundary(input, ledger);
+        eprintln!("G4.4.4 nested Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+    }
+}
+
+#[test]
 fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
     let text = include_str!(
@@ -9738,3 +9877,6 @@ fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
         "G4.4.3 actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
     );
 }
+
+#[path = "../../../tests/language-readiness/terminal/340/whole_helper_review.rs"]
+mod whole_helper_review;

@@ -1,5 +1,11 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-05：完整 Package helper、拥有尾分支与嵌套 CT
+
+可变 helper 整体替换、FnOnce 消费后动态分支，以及混合 Type/Const/Life 的嵌套标量工厂贯通真实源码、独立两核和机器消费者。实际来源、唯一消费、旧描述失效与清理年龄有非作者复核；默认4841/0、参考4729/0及严格/文本/release/工程检查通过。无占位结构体时的 CT 身份遗漏和不适用 must 扫描已修复；原失败与精确范围见[共同验收](validation/G1.3.7.3-common-acceptance.json)。
+
+没有引入隐式 Box/RC/锁或提高默认限额。可重放的表达能力与安全核组合增量已建立；Rust 同语义运行/内存、编译及维护成本仍未测，产品级净突破及四目标合取未建立。一般借用/异步、非 Unit helper、一般 CFG、跨工厂 Phantom 和完整语言/ZUI继续保留未完成边界。
+
 ## 2026-11-05：Enum、真实 helper、CT 成员与资源退休
 
 实际局部 Enum 替换、有状态 FnMut/拥有 FnOnce helper 和静态 CT 成员形成新的源码组合；两核独立修复跨 helper 后继续使用旧资源描述的漏洞，并保留合法分离对象调用。默认完整范围复验4821/0、参考全量4709/0、text70/0、双配置严格检查及 release145命令通过，原失败与补验范围见[共同验收](validation/G1.3.5.2-common-acceptance.json)。
