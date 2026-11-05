@@ -23,20 +23,37 @@ type ScopedEnumActuals = Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>;
 // This read is covered by the explicit Type actual traversal paid in
 // mixed_enum_actuals. It observes original source syntax before any nominal
 // type erasure; a generated name never supplies a caller class.
-fn scoped_nominal_actual(ty: &TypeRef) -> bool {
+pub(super) fn scoped_nominal_actual(ty: &TypeRef) -> bool {
     match &ty.kind {
-        TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
-            args.iter().any(|arg| match arg {
-                GenericArg::Lifetime(_) => true,
-                GenericArg::Type(inner) => scoped_nominal_actual(inner),
-                GenericArg::Const(_) => false,
-            })
+        TypeKind::Named { args, .. } => args.iter().any(|arg| match arg {
+            GenericArg::Lifetime(_) => true,
+            GenericArg::Type(inner) => scoped_nominal_actual(inner),
+            GenericArg::Const(_) => false,
+        }),
+        TypeKind::Dyn { args, bindings, .. } => {
+            !bindings.is_empty()
+                || args.iter().any(|arg| match arg {
+                    GenericArg::Lifetime(_) => true,
+                    GenericArg::Type(inner) => scoped_nominal_actual(inner),
+                    GenericArg::Const(_) => false,
+                })
         }
+        TypeKind::Reference {
+            lifetime, inner, ..
+        } => lifetime.is_some() || scoped_nominal_actual(inner),
         TypeKind::Group(inner) | TypeKind::Optional(inner) => scoped_nominal_actual(inner),
-        TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) | TypeKind::Impl(fields) => {
             fields.iter().any(scoped_nominal_actual)
         }
         TypeKind::Array { element, .. } => scoped_nominal_actual(element),
+        TypeKind::Error { error, result } => {
+            scoped_nominal_actual(error) || scoped_nominal_actual(result)
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            params.iter().any(scoped_nominal_actual) || scoped_nominal_actual(result)
+        }
+        TypeKind::ForLifetime { .. } => true,
         _ => false,
     }
 }
