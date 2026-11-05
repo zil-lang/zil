@@ -2148,7 +2148,7 @@ mod tests {
         let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
             unreachable!()
         };
-        let invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
+        let mut invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
             &Entry::Function(definition.clone()),
             &parsed,
             &environment.index,
@@ -2212,6 +2212,15 @@ mod tests {
             limits: &limits,
         })
         .unwrap();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .validate_type_contexts(
+                &source_bindings,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
         assert_eq!(expected.ambient_life_scopes.len(), 1);
         assert_eq!(
             expected.record_schemas[0]

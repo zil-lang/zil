@@ -77,11 +77,9 @@ impl FrozenInvocationContext {
                 budget.reserve_analysis_work(1)?;
                 match value {
                     CtScopeActual::Lifetime(reference) => {
-                        if reference.scope != call.caller_scope_id {
-                            return Err(unsupported(
-                                "CT life actual is not from the authentic caller scope",
-                            ));
-                        }
+                        // The actual source Call below selects member or its
+                        // true lexical host. An authenticated reference alone
+                        // cannot choose either owner on the producer's behalf.
                         self.validate_reference(source_scopes, *reference, budget)?;
                     }
                     CtScopeActual::Type(graph) => {

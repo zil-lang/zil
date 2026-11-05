@@ -333,9 +333,12 @@ pub(crate) struct SourceInstanceCall {
 pub(crate) struct SourceLifeBinding {
     pub enumeration: bool,
     pub schema: u32,
+    pub caller: Option<CtFunctionId>,
     pub definition: CtSymbolId,
     /// Class -> original generic parameter ordinal, including intervening kinds.
     pub parameters: Vec<u32>,
+    /// Complete root class references when the classes cross lexical owners.
+    pub sources: Option<Vec<CtAmbientLifeReference>>,
     pub site: Option<source_sites::SourceSite>,
 }
 struct SourceLifeScope {

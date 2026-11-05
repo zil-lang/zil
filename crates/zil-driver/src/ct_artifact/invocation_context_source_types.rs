@@ -13,6 +13,12 @@ pub(super) struct AuthenticatedTypeSite {
     value: CtValueId,
     graph: CtTypeRef,
 }
+#[derive(Clone)]
+pub(super) struct AuthenticatedSchemaSite {
+    enumeration: bool,
+    schema: u32,
+    graph: CtTypeRef,
+}
 pub(super) struct SourceEnvironment<'a> {
     function: &'a s::Function,
     scope: &'a CtAmbientLifeScope,
@@ -1694,42 +1700,31 @@ impl FrozenInvocationContext {
             })?;
             self.validate_entry_slice(site, &binding.definition, budget)?;
             let location = self.source_location(site, budget)?;
-            let mut scope_id = None;
-            for row in &graph.ambient_classes {
-                budget.reserve_analysis_work(1)?;
-                if row.owner == graph.root {
-                    if let Some(old) = scope_id {
-                        if old != row.source.scope {
-                            return Err(unsupported(
-                                "CT source nominal classes mix original scope instances",
-                            ));
-                        }
-                    }
-                    scope_id = Some(row.source.scope);
-                }
-            }
-            let scope_id = scope_id.ok_or_else(|| {
-                unsupported("CT source nominal binding has no actual ambient owner")
+            let caller = binding.caller.ok_or_else(|| {
+                unsupported("CT source nominal binding lacks its actual function instance event")
             })?;
-            let scope = raw
-                .ambient_life_scopes
-                .get(scope_id.0 as usize)
-                .ok_or_else(|| unsupported("CT source nominal binding scope absent"))?;
+            let function = raw
+                .functions
+                .get(caller.0 as usize)
+                .ok_or_else(|| unsupported("CT source nominal function placement is absent"))?;
             budget.reserve_analysis_work(32)?;
-            if scope.declaration != binding.definition {
+            if function.definition != binding.definition {
                 return Err(unsupported(
-                    "CT source nominal binding original owner differs",
+                    "CT source nominal function original owner differs",
                 ));
             }
-            self.validate_scope(scope, budget)?;
-            self.match_location(
-                location,
-                graph,
-                &self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)?,
-                raw,
-                index,
-                budget,
-            )?;
+            let environment = self.function_environment(function, facts, raw, budget)?;
+            self.match_location(location, graph, &environment, raw, index, budget)?;
+            let cost = super::super::execute::value_context::graph_cost(graph, budget)?
+                .saturating_add(std::mem::size_of::<AuthenticatedSchemaSite>() as u64);
+            budget.reserve_temporary_bytes(cost)?;
+            self.authenticated_schemas.reserve_exact(1);
+            self.authenticated_schemas.push(AuthenticatedSchemaSite {
+                enumeration: binding.enumeration,
+                schema: binding.schema,
+                graph: graph.clone(),
+            });
+            self.bytes = self.bytes.saturating_add(cost);
         }
         for (position, event) in facts.type_sites.iter().enumerate() {
             budget.reserve_analysis_work(position as u64 + 1)?;
@@ -1803,6 +1798,20 @@ impl FrozenInvocationContext {
             }
         }
         Ok(())
+    }
+    pub(in crate::ct_artifact) fn authenticated_schema_count(&self) -> usize {
+        self.authenticated_schemas.len()
+    }
+    pub(in crate::ct_artifact) fn authenticated_source_schema(
+        &self,
+        enumeration: bool,
+        schema: u32,
+        graph: &CtTypeRef,
+    ) -> bool {
+        self.authenticated_schemas
+            .iter()
+            .find(|row| row.enumeration == enumeration && row.schema == schema)
+            .is_some_and(|row| &row.graph == graph)
     }
     pub(in crate::ct_artifact) fn authenticated_type_context(
         &self,
