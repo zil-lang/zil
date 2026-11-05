@@ -203,10 +203,15 @@ impl Plan {
             let fields = transfer.slots.fields(local);
             b.spend(fields.len().saturating_add(1))?;
             if state.debt[shell] != LIVE
-                || fields.iter().flatten().any(|&field| state.debt[field] != LIVE)
+                || fields
+                    .iter()
+                    .flatten()
+                    .any(|&field| state.debt[field] != LIVE)
             {
-                return Err(bad(point.span,
-                    "whole helper replacement needs the live shell and every old field responsibility"));
+                return Err(bad(
+                    point.span,
+                    "whole helper replacement needs the live shell and every old field responsibility",
+                ));
             }
             // The helper replaces the instance inside these existing slots.
             // No debt is created and no lexical cleanup age is reset here.
