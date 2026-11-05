@@ -37,6 +37,15 @@ pub trait CtArtifactAuthority {
     fn type_context_count(&self) -> Option<usize> {
         None
     }
+    /// Comparison bound only; exact roots require independent original-call proof.
+    fn runtime_scope_root_count(&self) -> usize {
+        0
+    }
+    /// Permit only complete rows reconstructed from the frozen runtime call.
+    /// This does not waive kind, full-vector, dependency or first-use checks.
+    fn authorized_runtime_scope_root(&self, _index: usize, _scope: &CtAmbientLifeScope) -> bool {
+        false
+    }
     /// Request-local inventory bound for the source authority's scope lookup.
     /// This only prices comparisons; it cannot admit a scope or an actual.
     /// Authorities without a count use the verifier's conservative artifact
@@ -735,13 +744,22 @@ fn check_type_metadata(
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
             if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
                 let count = authority.type_context_count().unwrap_or_else(|| {
-                    raw.functions.iter().flat_map(|f| &f.blocks)
-                        .map(|b| b.instructions.len()).fold(0usize, usize::saturating_add)
+                    raw.functions
+                        .iter()
+                        .flat_map(|f| &f.blocks)
+                        .map(|b| b.instructions.len())
+                        .fold(0usize, usize::saturating_add)
                 });
                 if count > limits.max_nodes {
-                    return Err(limit(Some(instruction.span), "CT contextual Type receipt inventory exceeds quota"));
+                    return Err(limit(
+                        Some(instruction.span),
+                        "CT contextual Type receipt inventory exceeds quota",
+                    ));
                 }
-                meter.charge(count.saturating_mul(64).saturating_add(1), Some(instruction.span))?;
+                meter.charge(
+                    count.saturating_mul(64).saturating_add(1),
+                    Some(instruction.span),
+                )?;
                 verify_ct_type_graph_metered(ty, raw, limits, meter)?;
                 // The authority performs one full graph equality only after a
                 // unique shallow (function,result) lookup. Price that distinct

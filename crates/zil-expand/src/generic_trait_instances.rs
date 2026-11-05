@@ -991,6 +991,7 @@ mod trait_request_ledger {
             &mut engine_products,
             false, // This retained source fixture has no associated declarations.
             false, // No generic methods in this retained source fixture.
+            None, // This retained-source control has no runtime CT callback.
         )
         .unwrap();
         let engine_left = engine_products.allowance.unwrap();

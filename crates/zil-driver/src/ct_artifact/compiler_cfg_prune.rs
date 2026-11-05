@@ -92,12 +92,59 @@ impl Builder<'_, '_> {
                     .ok_or_else(|| error(span, "CT record relocation output is unreachable"))?;
             }
         }
+        if !self.compiler.source_instance_calls.is_empty() {
+            self.compiler.budget.work(
+                self.compiler.source_instance_calls.len().saturating_mul(2),
+                span,
+            )?;
+            for row in &self.compiler.source_instance_calls {
+                if row.caller != self.id {
+                    continue;
+                }
+                if let Some((block, value)) = row.occurrence {
+                    let block = blocks
+                        .get(block.0 as usize)
+                        .ok_or_else(|| error(span, "CT source call occurrence block is absent"))?;
+                    let value = values
+                        .get(value.0 as usize)
+                        .ok_or_else(|| error(span, "CT source call occurrence value is absent"))?;
+                    if block.is_some() != value.is_some() {
+                        return Err(error(
+                            span,
+                            "CT source call occurrence has inconsistent reachability",
+                        ));
+                    }
+                }
+            }
+            self.compiler.source_instance_calls.retain_mut(|row| {
+                if row.caller != self.id {
+                    return true;
+                }
+                let Some((block, value)) = row.occurrence else {
+                    return true;
+                };
+                match (blocks[block.0 as usize], values[value.0 as usize]) {
+                    (Some(block), Some(value)) => {
+                        row.occurrence = Some((block, value));
+                        true
+                    }
+                    _ => false,
+                }
+            });
+        }
         if !self.compiler.source_type_sites.is_empty() {
-            self.compiler.budget.work(self.compiler.source_type_sites.len(), span)?;
+            self.compiler
+                .budget
+                .work(self.compiler.source_type_sites.len(), span)?;
             self.compiler.source_type_sites.retain_mut(|row| {
-                if row.caller != self.id { return true; }
+                if row.caller != self.id {
+                    return true;
+                }
                 match values.get(row.value.0 as usize).copied().flatten() {
-                    Some(value) => { row.value = value; true }
+                    Some(value) => {
+                        row.value = value;
+                        true
+                    }
                     None => false,
                 }
             });

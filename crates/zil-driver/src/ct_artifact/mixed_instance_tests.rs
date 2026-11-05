@@ -138,6 +138,15 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                 &mut environment.budget,
             )
             .unwrap();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .validate_type_contexts(
+                &facts,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
         invocation
             .validate_record_relocations(
                 &facts.relocations,

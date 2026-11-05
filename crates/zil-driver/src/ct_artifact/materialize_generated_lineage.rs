@@ -7,7 +7,7 @@ use zil_expand::source_context::{
 
 pub(super) enum OutputOrigin {
     Original(usize),
-    Generated(DeclarationOrigin),
+    Generated(Box<DeclarationOrigin>),
 }
 
 fn children_count(
@@ -57,11 +57,62 @@ fn children_count(
 }
 
 impl Materializer<'_, '_> {
-    pub(super) fn prepay_source_lookup(&mut self) -> CompileResult<()> {
-        let work = self.environment.generated_catalog.trees.iter().fold(
-            self.parsed.len() as u64 + self.environment.index.symbol_lookup_work() + 1,
-            |n, tree| n.saturating_add(tree.declarations.len() as u64 + 1),
-        );
+    pub(super) fn reserve_output_origins(
+        &mut self,
+        rows: &mut Vec<OutputOrigin>,
+        additional: usize,
+    ) -> CompileResult<()> {
+        let required = rows
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| category("output origin count overflow", Span::default()))?;
+        self.environment
+            .budget
+            .reserve_analysis_work(additional as u64)?;
+        if required > rows.capacity() {
+            let old = rows.capacity();
+            let new_capacity = required.max(old.checked_mul(2).unwrap_or(required));
+            self.environment
+                .budget
+                .reserve_analysis_work(rows.len() as u64)?;
+            self.environment.budget.reserve_temporary_bytes(
+                new_capacity as u64 * std::mem::size_of::<OutputOrigin>() as u64,
+            )?;
+            rows.reserve_exact(new_capacity - rows.len());
+            self.environment
+                .budget
+                .release_temporary_bytes(old as u64 * std::mem::size_of::<OutputOrigin>() as u64);
+        }
+        Ok(())
+    }
+
+    pub(super) fn prepay_source_lookup(&mut self, symbol: &CtSymbolId) -> CompileResult<()> {
+        let work = if symbol.generation_path.is_some() {
+            self.environment
+                .generated_catalog
+                .trees
+                .iter()
+                .fold(1u64, |n, tree| {
+                    n.saturating_add(
+                        tree.declarations.len() as u64 * 4 + tree.identity_path_len() as u64 + 1,
+                    )
+                })
+        } else {
+            let top = self
+                .parsed
+                .iter()
+                .find(|parsed| parsed.module.id == symbol.module)
+                .is_some_and(|parsed| (symbol.declaration.0 as usize) < parsed.module.items.len());
+            self.parsed.len() as u64
+                + if top {
+                    1
+                } else {
+                    self.environment
+                        .index
+                        .symbol_lookup_work()
+                        .saturating_mul(2)
+                }
+        };
         self.environment.budget.reserve_analysis_work(work)
     }
 
@@ -113,7 +164,7 @@ impl Materializer<'_, '_> {
         ordinal: u32,
         span: Span,
     ) -> CompileResult<String> {
-        self.prepay_source_lookup()?;
+        self.prepay_source_lookup(symbol)?;
         let source = self.source_declaration(symbol, span)?;
         let parameters = match &source.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => &f.generics,
@@ -144,6 +195,7 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(bytes as u64)?;
+        self.prepay_source_lookup(symbol)?;
         let source = self.source_declaration(symbol, span)?;
         let parameters = match &source.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => &f.generics,
@@ -208,14 +260,16 @@ impl Materializer<'_, '_> {
         self.environment
             .budget
             .reserve_temporary_bytes(path_payload)?;
-        let mut event_path = match &emitter.tree {
-            SourceTreeIdentity::Original(_) => vec![0],
-            SourceTreeIdentity::Generated { event_path, .. } => {
-                let mut path = event_path.clone();
-                path.push(1);
-                path
+        let mut event_path = Vec::with_capacity(parent_len + emitter.event_path.len() + 1);
+        match &emitter.tree {
+            SourceTreeIdentity::Original(_) => event_path.push(0),
+            SourceTreeIdentity::Generated {
+                event_path: parent, ..
+            } => {
+                event_path.extend_from_slice(parent);
+                event_path.push(1);
             }
-        };
+        }
         event_path.extend_from_slice(&emitter.event_path);
         self.environment
             .budget
@@ -231,7 +285,17 @@ impl Materializer<'_, '_> {
                 )?)
                 .ok_or_else(|| category("generated declaration count overflow", span))?;
         }
+        self.environment.budget.reserve_analysis_work(
+            1 + self
+                .next_generated_declaration
+                .len()
+                .checked_ilog2()
+                .unwrap_or(0) as u64,
+        )?;
         if !self.next_generated_declaration.contains_key(&module) {
+            self.environment
+                .budget
+                .reserve_analysis_work(self.parsed.len() as u64)?;
             let source = self
                 .parsed
                 .iter()
@@ -248,6 +312,7 @@ impl Materializer<'_, '_> {
                     )?)
                     .ok_or_else(|| category("original declaration count overflow", span))?;
             }
+            self.environment.budget.reserve_temporary_bytes(64)?;
             self.next_generated_declaration.insert(
                 module,
                 u32::try_from(count)
@@ -307,9 +372,9 @@ impl Materializer<'_, '_> {
             declarations: (*next..end).map(zil_base::NodeId).collect(),
         });
         *next = end;
-        self.environment
-            .budget
-            .reserve_analysis_work(self.generated_trees.len() as u64 + 1)?;
+        self.environment.budget.reserve_analysis_work(
+            (self.generated_trees.len() as u64 + 1).saturating_mul(tree.identity_path_len() as u64),
+        )?;
         if self
             .generated_trees
             .iter()
@@ -317,9 +382,15 @@ impl Materializer<'_, '_> {
         {
             return Err(category("generated source event repeats", span));
         }
-        self.environment
-            .budget
-            .reserve_temporary_bytes(std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64)?;
+        if self.generated_trees.len() == self.generated_trees.capacity() {
+            let old_bytes = self.generated_trees.capacity() as u64
+                * std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64;
+            self.environment.budget.reserve_temporary_bytes(
+                old_bytes + std::mem::size_of::<Arc<GeneratedSourceTree>>() as u64,
+            )?;
+            self.generated_trees.reserve_exact(1);
+            self.environment.budget.release_temporary_bytes(old_bytes);
+        }
         self.environment.register_generated_tree(tree.clone())?;
         self.generated_trees.push(tree.clone());
         self.pending_generated_tree = Some(tree);

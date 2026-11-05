@@ -12,6 +12,7 @@ mod role_check;
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub ct_types: Option<&'a BTreeMap<usize, TypeRef>>,
     pub source_definition: Option<&'a Function>,
     pub expression_origins: Option<&'a BTreeMap<usize, usize>>,
     pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
@@ -42,6 +43,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        ct_types,
         source_definition,
         expression_origins,
         definition_equations,
@@ -60,7 +62,10 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let callable = callable::template(function, budget)?;
     let class_scope = role_check::Scope::new(
         source_definition.unwrap_or(function),
-        callable.is_some(),
+        // A computed CT nominal retains its original definition's full life
+        // ordinals. Compare those symbolic classes locally; they never become
+        // an ordinary monomorphization cache key or a runtime permission.
+        callable.is_some() || ct_types.is_some(),
         budget,
     )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
@@ -121,6 +126,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         .as_ref()
         .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        ct_types,
         class_scope,
         higher_rank,
         variables,
@@ -523,6 +529,60 @@ fn substituted_type(
     Substitution { substitutions }.ty(&mut result);
     Ok(result)
 }
+// Preserve the nominal's complete formal order while projecting a field.
+// Lifetime labels are rebound through the caller's genuine declaration before
+// substituting Type/Const arguments, so labels inside actual types keep their
+// own caller meaning.
+fn nominal_field_type(
+    parameters: &[GenericParam],
+    arguments: &[GenericArg],
+    field: &TypeRef,
+    source: &Function,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    let frame = role_check::Frame::nominal(parameters, arguments, source, budget, field.span)?;
+    let mut substitutions = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        budget.node(field.span, 0)?;
+        budget.text(&parameter.name, field.span)?;
+        let actual = match (&parameter.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_)) => continue,
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                ty.clone()
+            }
+            (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                let carrier = consts::carrier(value, budget)?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let (_, formal) =
+                        consts::symbolic_parameter(source, name).ok_or_else(|| {
+                            error(value.span, "generic field const has no source binder")
+                        })?;
+                    let GenericParamKind::Const(actual_domain) = &formal.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, value.span, budget)?;
+                    carrier
+                } else {
+                    consts::normalize(parameter, &carrier, budget)?
+                }
+            }
+            _ => {
+                return Err(error(
+                    field.span,
+                    "generic record actual kind differs from its declared binder",
+                ));
+            }
+        };
+        substitutions.insert(parameter.name.clone(), actual);
+    }
+    if rich_pointer::has_life(field, budget)? {
+        let field = frame.substitute(field, source, budget)?;
+        substituted_type(&field, &substitutions, budget)
+    } else {
+        substituted_type(field, &substitutions, budget)
+    }
+}
 /// Only floating literals can receive a floating format from the other operand.
 /// Group/unary inspection is metadata work, before either value is evaluated.
 pub(super) fn uncontextual_float(
@@ -797,6 +857,7 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    ct_types: Option<&'s BTreeMap<usize, TypeRef>>,
     class_scope: role_check::Scope<'s>,
     source_definition: &'s Function,
     definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
@@ -2227,16 +2288,14 @@ impl Check<'_, '_, '_> {
                         if aggregate.generics.len() != args.len() {
                             return Ok(None);
                         }
-                        let mut substitutions = BTreeMap::new();
-                        for (parameter, argument) in aggregate.generics.iter().zip(args) {
-                            let GenericArg::Type(ty) = argument else {
-                                return Ok(None);
-                            };
-                            self.budget.text(&parameter.name, span)?;
-                            self.budget.ty(ty)?;
-                            substitutions.insert(parameter.name.clone(), ty.clone());
-                        }
-                        return substituted_type(&field.ty, &substitutions, self.budget).map(Some);
+                        return nominal_field_type(
+                            &aggregate.generics,
+                            args,
+                            &field.ty,
+                            self.source_definition,
+                            self.budget,
+                        )
+                        .map(Some);
                     }
                     _ => None,
                 };
@@ -3242,6 +3301,25 @@ impl Check<'_, '_, '_> {
         borrowing: bool,
     ) -> R<TypeRef> {
         match &e.kind {
+            ExprKind::MetaEval(_) if self.ct_types.is_some() => {
+                let ordinal = self
+                    .expression_ids
+                    .get(&(e as *const Expr as usize))
+                    .ok_or_else(|| {
+                        error(
+                            e.span,
+                            "symbolic CT expression lost its actual source position",
+                        )
+                    })?;
+                let ty = self
+                    .ct_types
+                    .and_then(|types| types.get(ordinal))
+                    .ok_or_else(|| {
+                        error(e.span, "symbolic CT expression has no checked result type")
+                    })?;
+                self.budget.ty(ty)?;
+                Ok(ty.clone())
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }
@@ -4863,14 +4941,13 @@ impl Check<'_, '_, '_> {
                         "record field is private to its declaring module",
                     ));
                 }
-                let mut substitutions = BTreeMap::new();
-                for (p, arg) in aggregate.generics.iter().zip(args) {
-                    let GenericArg::Type(ty) = arg else {
-                        return Err(unsupported(e.span, "generic constant field shape"));
-                    };
-                    substitutions.insert(p.name.clone(), ty.clone());
-                }
-                let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                let ty = nominal_field_type(
+                    &aggregate.generics,
+                    args,
+                    &field.ty,
+                    self.source_definition,
+                    self.budget,
+                )?;
                 if through_address && (field.manages || !self.known_copy(&ty)?) {
                     return Err(unsupported(
                         e.span,

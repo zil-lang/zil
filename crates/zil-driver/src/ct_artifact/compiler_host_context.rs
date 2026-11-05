@@ -11,6 +11,12 @@ impl<'a> Compiler<'a> {
             .map(|row| row.host))
     }
 
+    pub(super) fn has_generic_host(&mut self, declaration: usize) -> R<bool> {
+        let span = self.declarations[declaration].item.span;
+        Ok(self.member_host(declaration, span)?.is_some_and(|host|
+            matches!(&host.kind, s::ItemKind::Aggregate(value) if !value.generics.is_empty())))
+    }
+
     pub(super) fn source_host_instance(
         &mut self,
         module: usize,
@@ -166,6 +172,54 @@ impl<'a> Compiler<'a> {
         };
         if aggregate.generics.is_empty() {
             return Ok(());
+        }
+        let definition = self.item_symbol(self.declarations[declaration].module, host)?;
+        let member_parameters = &self.declarations[declaration].function.generics;
+        for (ordinal, parameter) in aggregate.generics.iter().enumerate() {
+            self.budget.node(parameter.span)?;
+            let mut shadowed = false;
+            for member in member_parameters {
+                self.budget
+                    .work(member.name.len().min(parameter.name.len()) + 1, span)?;
+                shadowed |= member.name == parameter.name;
+            }
+            if shadowed {
+                continue;
+            }
+            let ordinal = u32::try_from(ordinal)
+                .map_err(|_| error(span, "CT host original binder ordinal overflow"))?;
+            self.budget.text(&parameter.name, span)?;
+            self.budget.work(32, span)?;
+            match &parameter.kind {
+                s::GenericParamKind::Const(domain) => {
+                    let domain = self.scalar_argument_type(domain, parameter.span)?;
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        std::mem::size_of::<(String, symbolic_nominal::ScalarArgument)>(),
+                        span,
+                        "CT host symbolic scalar bindings exhausted",
+                    )?;
+                    self.abstract_scalars.push((
+                        parameter.name.clone(),
+                        symbolic_nominal::ScalarArgument::Parameter {
+                            definition: definition.clone(),
+                            ordinal,
+                            domain,
+                        },
+                    ));
+                }
+                s::GenericParamKind::Lifetime => {
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        std::mem::size_of::<(String, CtSymbolId, u32)>(),
+                        span,
+                        "CT host symbolic life bindings exhausted",
+                    )?;
+                    self.abstract_lives
+                        .push((parameter.name.clone(), definition.clone(), ordinal));
+                }
+                s::GenericParamKind::Type(_) => {}
+            }
         }
         let names = self.generic_names(&aggregate.generics, &[], span)?;
         let mut bindings = Vec::new();

@@ -313,6 +313,9 @@ pub(super) fn reserve_binding(
                     InstructionKind::Call { arguments, .. }
                     | InstructionKind::ForeignCall { arguments, .. }
                     | InstructionKind::MakeAggregate { fields: arguments }
+                    | InstructionKind::MakeVariant {
+                        fields: arguments, ..
+                    }
                     | InstructionKind::MakeManaged { fields: arguments } => arguments.len(),
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
@@ -326,6 +329,8 @@ pub(super) fn reserve_binding(
                         captures.len().saturating_add(1)
                     }
                     InstructionKind::FunctionRef { .. } => 1,
+                    InstructionKind::ExtractIndex { .. } => 2,
+                    InstructionKind::VariantTag { .. } | InstructionKind::ReadVariant { .. } => 1,
                     InstructionKind::ExtractField { .. }
                     | InstructionKind::ReadCapture { .. }
                     | InstructionKind::BorrowCapture { .. }
@@ -382,6 +387,9 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::MakeAggregate { fields: arguments }
+        | InstructionKind::MakeVariant {
+            fields: arguments, ..
+        }
         | InstructionKind::MakeManaged { fields: arguments }
         | InstructionKind::MakeClosure {
             captures: arguments,
@@ -400,6 +408,8 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::ExtractField {
             aggregate: value, ..
         }
+        | InstructionKind::VariantTag { value }
+        | InstructionKind::ReadVariant { value, .. }
         | InstructionKind::ReadDesc { desc: value, .. }
         | InstructionKind::Store { value, .. }
         | InstructionKind::WriteCapture { value, .. }
@@ -407,6 +417,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         | InstructionKind::ConvertInteger { value, .. }
         | InstructionKind::ConvertNumber { value, .. } => vec![*value],
         InstructionKind::Binary { left, right, .. } => vec![*left, *right],
+        InstructionKind::ExtractIndex { aggregate, index } => vec![*aggregate, *index],
         InstructionKind::ReadAddress { address }
         | InstructionKind::ReborrowAddress { address, .. }
         | InstructionKind::AddressField { address, .. }
@@ -450,6 +461,9 @@ pub(super) fn reserve_emission(
                 InstructionKind::Call { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeAggregate { fields: arguments }
+                | InstructionKind::MakeVariant {
+                    fields: arguments, ..
+                }
                 | InstructionKind::MakeManaged { fields: arguments }
                 | InstructionKind::MakeClosure {
                     captures: arguments,

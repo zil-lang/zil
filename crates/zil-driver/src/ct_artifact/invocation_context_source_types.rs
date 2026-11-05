@@ -13,7 +13,13 @@ pub(super) struct AuthenticatedTypeSite {
     value: CtValueId,
     graph: CtTypeRef,
 }
-struct SourceEnvironment<'a> {
+#[derive(Clone)]
+pub(super) struct AuthenticatedSchemaSite {
+    enumeration: bool,
+    schema: u32,
+    graph: CtTypeRef,
+}
+pub(super) struct SourceEnvironment<'a> {
     function: &'a s::Function,
     scope: &'a CtAmbientLifeScope,
     scope_id: CtAmbientScopeId,
@@ -23,7 +29,7 @@ struct SourceEnvironment<'a> {
         CtAmbientScopeId,
     )>,
 }
-fn step(budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<()> {
+pub(super) fn step(budget: &mut CtExecutionBudget, depth: usize) -> CompileResult<()> {
     budget.reserve_analysis_work(1)?;
     if depth > budget.remaining().max_call_depth as usize {
         return Err(vec![Diagnostic::limit(
@@ -38,7 +44,10 @@ fn eq_text(left: &str, right: &str, budget: &mut CtExecutionBudget) -> CompileRe
     budget.reserve_analysis_work(left.len().min(right.len()) as u64 + 1)?;
     Ok(left == right)
 }
-fn scalar_domain(ty: &s::TypeRef, budget: &mut CtExecutionBudget) -> CompileResult<CtScalarTy> {
+pub(super) fn scalar_domain(
+    ty: &s::TypeRef,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<CtScalarTy> {
     let mut ty = ty;
     let mut depth = 0;
     while let s::TypeKind::Group(inner) = &ty.kind {
@@ -115,7 +124,7 @@ fn parameter<'a>(
     ))
 }
 impl FrozenInvocationContext {
-    fn source_location<'a>(
+    pub(super) fn source_location<'a>(
         &'a self,
         site: SourceSite,
         budget: &mut CtExecutionBudget,
@@ -198,7 +207,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_environment<'a>(
+    pub(super) fn source_environment<'a>(
         &'a self,
         scope: &'a CtAmbientLifeScope,
         scope_id: CtAmbientScopeId,
@@ -312,7 +321,7 @@ impl FrozenInvocationContext {
             Ok((&module.module, original, None))
         }
     }
-    fn source_symbol<'a>(
+    pub(super) fn source_symbol<'a>(
         &'a self,
         requester: &CtSymbolId,
         module_id: zil_base::ModuleId,
@@ -439,7 +448,7 @@ impl FrozenInvocationContext {
         }
         Ok((symbol, item))
     }
-    fn source_scalar(
+    pub(super) fn source_scalar(
         &self,
         arg: &s::GenericArg,
         domain: CtScalarTy,
@@ -567,7 +576,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_type(
+    pub(super) fn source_type(
         &self,
         source: &s::TypeRef,
         graph: &CtTypeRef,
@@ -1061,7 +1070,7 @@ impl FrozenInvocationContext {
         }
         Ok(())
     }
-    fn source_path(
+    pub(super) fn source_path(
         &self,
         e: &s::Expr,
         out: &mut Vec<String>,
@@ -1352,12 +1361,84 @@ impl FrozenInvocationContext {
                 .as_ref()
                 .ok_or_else(|| unsupported("CT host original lineage absent"))?;
             budget.reserve_analysis_work(origins.len() as u64)?;
-            let identity = &origins
-                .iter()
-                .find(|row| row.module == host_symbol.module)
-                .and_then(|row| row.items.get(host_symbol.declaration.0 as usize))
-                .ok_or_else(|| unsupported("CT host original declaration identity absent"))?
-                .identity;
+            let generated_identity;
+            let identity = if let Some(fingerprint) = host_symbol.generation_path {
+                let catalog = self.generated_catalog.as_ref().ok_or_else(|| {
+                    unsupported("CT generated host has no actual frozen source catalog")
+                })?;
+                budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+                let mut selected = None;
+                for (row, tree) in catalog.trees.iter().enumerate() {
+                    budget.reserve_analysis_work(
+                        (tree.identity_path_len() as u64)
+                            .saturating_mul(4)
+                            .saturating_add(tree.declarations.len() as u64)
+                            .saturating_add(32),
+                    )?;
+                    if tree.module.id != host_symbol.module
+                        || tree.generation_fingerprint() != Some(fingerprint)
+                    {
+                        continue;
+                    }
+                    let Some(local) = tree
+                        .declarations
+                        .iter()
+                        .position(|id| *id == host_symbol.declaration)
+                    else {
+                        continue;
+                    };
+                    let actual = super::super::compiler::source_scope::original_declaration(
+                        &tree.module,
+                        zil_base::NodeId(local as u32),
+                        budget.remaining().max_call_depth as usize,
+                        |work| budget.reserve_analysis_work(work as u64),
+                    )?
+                    .ok_or_else(|| {
+                        unsupported("CT generated host has no actual declaration item")
+                    })?;
+                    if !std::ptr::eq(actual.item, host_item) {
+                        return Err(unsupported(
+                            "CT generated host source item differs from its actual catalog placement",
+                        ));
+                    }
+                    if selected.replace((row, actual.top)).is_some() {
+                        return Err(unsupported(
+                            "CT generated host source placement is ambiguous",
+                        ));
+                    }
+                }
+                let (row, top) = selected.ok_or_else(|| {
+                    unsupported("CT generated host declaration inventory is absent")
+                })?;
+                generated_identity =
+                    super::generated::root_identity(catalog, row, top, origins, budget)?;
+                &generated_identity
+            } else {
+                budget.reserve_analysis_work(self.modules.len() as u64)?;
+                let module = self
+                    .modules
+                    .iter()
+                    .find(|module| module.module.id == host_symbol.module)
+                    .ok_or_else(|| unsupported("CT host actual original module is absent"))?;
+                let actual = super::super::compiler::source_scope::original_declaration(
+                    &module.module,
+                    host_symbol.declaration,
+                    budget.remaining().max_call_depth as usize,
+                    |work| budget.reserve_analysis_work(work as u64),
+                )?
+                .ok_or_else(|| unsupported("CT host actual original declaration is absent"))?;
+                if !std::ptr::eq(actual.item, host_item) {
+                    return Err(unsupported(
+                        "CT host source declaration differs from its actual original placement",
+                    ));
+                }
+                &origins
+                    .iter()
+                    .find(|row| row.module == host_symbol.module)
+                    .and_then(|row| row.items.get(actual.top))
+                    .ok_or_else(|| unsupported("CT host original declaration identity absent"))?
+                    .identity
+            };
             let mut cost = super::super::execute::value_context::ambient_cost(
                 std::slice::from_ref(host),
                 budget,
@@ -1541,6 +1622,19 @@ impl FrozenInvocationContext {
         raw: &'a CtArtifactProgram,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<SourceEnvironment<'a>> {
+        if function.id == raw.entry
+            && let Some(scope_id) = self.runtime_scope_id
+        {
+            let scope = raw
+                .ambient_life_scopes
+                .get(scope_id.0 as usize)
+                .ok_or_else(|| unsupported("CT runtime entry scope placement is absent"))?;
+            // The only setter independently checked this exact complete
+            // instance against the real original runtime call. Reconcile it
+            // again with the retained admission before using its environment.
+            self.validate_scope(scope, budget)?;
+            return self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget);
+        }
         let mut selected = None;
         budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
         for active in &self.active {
@@ -1678,42 +1772,31 @@ impl FrozenInvocationContext {
             })?;
             self.validate_entry_slice(site, &binding.definition, budget)?;
             let location = self.source_location(site, budget)?;
-            let mut scope_id = None;
-            for row in &graph.ambient_classes {
-                budget.reserve_analysis_work(1)?;
-                if row.owner == graph.root {
-                    if let Some(old) = scope_id {
-                        if old != row.source.scope {
-                            return Err(unsupported(
-                                "CT source nominal classes mix original scope instances",
-                            ));
-                        }
-                    }
-                    scope_id = Some(row.source.scope);
-                }
-            }
-            let scope_id = scope_id.ok_or_else(|| {
-                unsupported("CT source nominal binding has no actual ambient owner")
+            let caller = binding.caller.ok_or_else(|| {
+                unsupported("CT source nominal binding lacks its actual function instance event")
             })?;
-            let scope = raw
-                .ambient_life_scopes
-                .get(scope_id.0 as usize)
-                .ok_or_else(|| unsupported("CT source nominal binding scope absent"))?;
+            let function = raw
+                .functions
+                .get(caller.0 as usize)
+                .ok_or_else(|| unsupported("CT source nominal function placement is absent"))?;
             budget.reserve_analysis_work(32)?;
-            if scope.declaration != binding.definition {
+            if function.definition != binding.definition {
                 return Err(unsupported(
-                    "CT source nominal binding original owner differs",
+                    "CT source nominal function original owner differs",
                 ));
             }
-            self.validate_scope(scope, budget)?;
-            self.match_location(
-                location,
-                graph,
-                &self.source_environment(scope, scope_id, &raw.ambient_life_scopes, budget)?,
-                raw,
-                index,
-                budget,
-            )?;
+            let environment = self.function_environment(function, facts, raw, budget)?;
+            self.match_location(location, graph, &environment, raw, index, budget)?;
+            let cost = super::super::execute::value_context::graph_cost(graph, budget)?
+                .saturating_add(std::mem::size_of::<AuthenticatedSchemaSite>() as u64);
+            budget.reserve_temporary_bytes(cost)?;
+            self.authenticated_schemas.reserve_exact(1);
+            self.authenticated_schemas.push(AuthenticatedSchemaSite {
+                enumeration: binding.enumeration,
+                schema: binding.schema,
+                graph: graph.clone(),
+            });
+            self.bytes = self.bytes.saturating_add(cost);
         }
         for (position, event) in facts.type_sites.iter().enumerate() {
             budget.reserve_analysis_work(position as u64 + 1)?;
@@ -1787,6 +1870,20 @@ impl FrozenInvocationContext {
             }
         }
         Ok(())
+    }
+    pub(in crate::ct_artifact) fn authenticated_schema_count(&self) -> usize {
+        self.authenticated_schemas.len()
+    }
+    pub(in crate::ct_artifact) fn authenticated_source_schema(
+        &self,
+        enumeration: bool,
+        schema: u32,
+        graph: &CtTypeRef,
+    ) -> bool {
+        self.authenticated_schemas
+            .iter()
+            .find(|row| row.enumeration == enumeration && row.schema == schema)
+            .is_some_and(|row| &row.graph == graph)
     }
     pub(in crate::ct_artifact) fn authenticated_type_context(
         &self,

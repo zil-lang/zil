@@ -12,7 +12,7 @@ pub(super) enum ScalarArgument {
     Constant(Constant),
 }
 impl ScalarArgument {
-    fn domain(&self) -> CtTy {
+    pub(super) fn domain(&self) -> CtTy {
         match self {
             Self::Parameter { domain, .. } => CtTy::Scalar(*domain),
             Self::Constant(value) => expr::scalar_constant(value),
@@ -32,6 +32,143 @@ pub(super) struct Nominal {
 }
 
 impl<'a> Compiler<'a> {
+    pub(super) fn runtime_abstract_nominal_type(
+        &mut self,
+        schema: CtRecordSchemaId,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<s::TypeRef>> {
+        let mut selected = None;
+        for (index, row) in self.abstract_nominals.iter().enumerate() {
+            self.budget.work(1, span)?;
+            if row.schema == schema {
+                selected = Some(index);
+                break;
+            }
+        }
+        let Some(index) = selected else {
+            return Ok(None);
+        };
+        let row = &self.abstract_nominals[index];
+        Self::abstract_arguments_cost(&mut self.budget, &row.arguments, span)?;
+        self.budget.work(32, span)?;
+        let definition = row.definition.clone();
+        let arguments = row.arguments.clone();
+        let (_, item) = self.metadata_declaration(&definition, span)?;
+        let s::ItemKind::Aggregate(declaration) = &item.kind else {
+            return Err(error(
+                span,
+                "computed abstract nominal lost its actual declaration",
+            ));
+        };
+        self.budget.text(&declaration.name, span)?;
+        Budget::take(
+            &mut self.budget.bytes,
+            arguments
+                .len()
+                .saturating_mul(std::mem::size_of::<s::GenericArg>()),
+            span,
+            "runtime CT nominal argument AST exhausted",
+        )?;
+        let mut args = Vec::with_capacity(arguments.len());
+        for argument in arguments {
+            self.budget.node(span)?;
+            args.push(match argument {
+                Argument::Type(ty) => {
+                    s::GenericArg::Type(self.runtime_computed_type(&ty, span, depth + 1)?)
+                }
+                Argument::Lifetime(definition, ordinal) => s::GenericArg::Lifetime(
+                    self.runtime_original_binder(&definition, ordinal, true, span)?,
+                ),
+                Argument::Scalar(ScalarArgument::Parameter {
+                    definition,
+                    ordinal,
+                    ..
+                }) => {
+                    let name = self.runtime_original_binder(&definition, ordinal, false, span)?;
+                    s::GenericArg::Const(s::Expr {
+                        span,
+                        kind: s::ExprKind::Name(name),
+                    })
+                }
+                Argument::Scalar(ScalarArgument::Constant(value)) => {
+                    Budget::take(
+                        &mut self.budget.bytes,
+                        40,
+                        span,
+                        "runtime CT scalar argument text exhausted",
+                    )?;
+                    let kind = match value {
+                        Constant::Bool(value) => s::ExprKind::Literal(s::Literal::Bool(value)),
+                        Constant::U8(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}u8")))
+                        }
+                        Constant::U16(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}u16")))
+                        }
+                        Constant::I32(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}i32")))
+                        }
+                        Constant::I64(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}i64")))
+                        }
+                        Constant::U64(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}u64")))
+                        }
+                        Constant::Usize(value) => {
+                            s::ExprKind::Literal(s::Literal::Integer(format!("{value}usize")))
+                        }
+                        _ => {
+                            return Err(error(
+                                span,
+                                "computed CT nominal has an unsupported scalar source argument",
+                            ));
+                        }
+                    };
+                    s::GenericArg::Const(s::Expr { span, kind })
+                }
+            });
+        }
+        Ok(Some(s::TypeRef {
+            span,
+            kind: s::TypeKind::Named {
+                path: vec![declaration.name.clone()],
+                args,
+            },
+        }))
+    }
+    fn runtime_original_binder(
+        &mut self,
+        definition: &CtSymbolId,
+        ordinal: u32,
+        lifetime: bool,
+        span: Span,
+    ) -> R<String> {
+        let (_, item) = self.metadata_declaration(definition, span)?;
+        let parameters = match &item.kind {
+            s::ItemKind::Function(function) => &function.generics,
+            s::ItemKind::Aggregate(host) => &host.generics,
+            _ => {
+                return Err(error(
+                    span,
+                    "computed CT argument owner has no original binders",
+                ));
+            }
+        };
+        let parameter = parameters
+            .get(ordinal as usize)
+            .ok_or_else(|| error(span, "computed CT argument original ordinal absent"))?;
+        if lifetime != matches!(parameter.kind, s::GenericParamKind::Lifetime)
+            || (!lifetime && !matches!(parameter.kind, s::GenericParamKind::Const(_)))
+        {
+            return Err(error(
+                span,
+                "computed CT argument original binder kind differs",
+            ));
+        }
+        self.budget.text(&parameter.name, span)?;
+        Ok(parameter.name.clone())
+    }
     pub(super) fn prepare_abstract_scope(&mut self, declaration: usize) -> R<()> {
         self.abstract_scalars.clear();
         self.abstract_lives.clear();
@@ -167,9 +304,16 @@ impl<'a> Compiler<'a> {
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(a) => &a.generics,
             s::ItemKind::Enum(e) => &e.generics,
-            _ => return Err(error(span, "CT Type application requires a nominal declaration")),
+            _ => {
+                return Err(error(
+                    span,
+                    "CT Type application requires a nominal declaration",
+                ));
+            }
         };
-        if args.len() != parameters.len() { return Err(error(span, "CT abstract Type argument arity differs")); }
+        if args.len() != parameters.len() {
+            return Err(error(span, "CT abstract Type argument arity differs"));
+        }
         for (parameter, argument) in parameters.iter().zip(args) {
             self.budget.node(span)?;
             match (&parameter.kind, argument) {
@@ -178,14 +322,22 @@ impl<'a> Compiler<'a> {
                     let actual = self.ty(module, ty, depth + 1)?;
                     self.ordinary_copy(&actual, depth + 1, span)?;
                 }
-                (s::GenericParamKind::Const(_), argument) => { self.abstract_scalar(parameter, argument, span)?; }
+                (s::GenericParamKind::Const(_), argument) => {
+                    self.abstract_scalar(parameter, argument, span)?;
+                }
                 (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
                     let mut found = false;
                     for (bound, _, _) in &self.abstract_lives {
-                        self.budget.work(name.len().min(bound.len()).saturating_add(1), span)?;
+                        self.budget
+                            .work(name.len().min(bound.len()).saturating_add(1), span)?;
                         found |= bound == name;
                     }
-                    if !found { return Err(error(span, "CT abstract Type life actual is not an authentic binder")); }
+                    if !found {
+                        return Err(error(
+                            span,
+                            "CT abstract Type life actual is not an authentic binder",
+                        ));
+                    }
                 }
                 _ => return Err(error(span, "CT abstract Type actual kind differs")),
             }
@@ -204,7 +356,10 @@ impl<'a> Compiler<'a> {
     ) -> R<CtTy> {
         self.budget.depth(depth, span)?;
         let s::ItemKind::Aggregate(declaration) = &item.kind else {
-            return Err(forbidden(span, "CT abstract nominal requires a supported pure declaration"));
+            return Err(forbidden(
+                span,
+                "CT abstract nominal requires a supported pure declaration",
+            ));
         };
         if declaration.kind != s::AggregateKind::Struct {
             return Err(forbidden(

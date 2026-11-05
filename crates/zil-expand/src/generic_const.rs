@@ -14,7 +14,7 @@ pub(super) fn binding(function: &Function, name: &str, local: usize) -> bool {
         .is_some_and(|(ordinal, _)| local == function.params.len() + ordinal)
 }
 
-fn symbol(ordinal: usize) -> String {
+pub(super) fn symbol(ordinal: usize) -> String {
     format!("$const_{ordinal}")
 }
 

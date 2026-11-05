@@ -349,7 +349,11 @@ impl<'a> Environment<'a> {
         let mut limits = self.remaining_limits();
         let before = self.budget.remaining();
         let catalog = (!self.generated_catalog.trees.is_empty()).then_some(&self.generated_catalog);
-        let result = compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog);
+        let result = if catalog.is_some() {
+            compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog)
+        } else {
+            compiler::definitions_entry(&modules, &mut limits)
+        };
         self.budget.reserve_analysis_work(
             before
                 .max_analysis_work
@@ -384,9 +388,21 @@ impl<'a> Environment<'a> {
         })?;
         let input_tokens = self.empty_input(span)?;
         let selected_limits = self.remaining_limits();
-        let mut expected = compiler::compile_scoped_with_catalog(CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
-            source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
-            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }, catalog).map(|(program, _)| program).map_err(|mut errors| {
+        let request = CompileRequest {
+            target_pointer_width: self.target.pointer_width,
+            modules: &modules,
+            source_fingerprint: self.source_fingerprint,
+            entry: Entry::Function(entry),
+            input_tokens: &input_tokens,
+            snapshot: &self.snapshot,
+            limits: &selected_limits,
+        };
+        let compiled = if catalog.is_some() {
+            compiler::compile_scoped_with_catalog(request, catalog).map(|(program, _)| program)
+        } else {
+            compiler::compile(request)
+        };
+        let mut expected = compiled.map_err(|mut errors| {
                 for error in &mut errors {
                     if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
                         error.code = "E-CT-RUNTIME".into();
@@ -520,8 +536,17 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<CtValue> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false, None)
-            .map(|output| output.value)
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            false,
+            None,
+            None,
+        )
+        .map(|output| output.value)
     }
     pub(super) fn evaluate_data(
         &mut self,
@@ -531,7 +556,16 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<EvaluatedData> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true, None)
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            true,
+            None,
+            None,
+        )
     }
     pub(super) fn evaluate_data_at_source(
         &mut self,
@@ -550,8 +584,76 @@ impl<'a> Environment<'a> {
             span,
             true,
             Some(site),
+            None,
         )
     }
+    pub(super) fn evaluate_runtime_data_at_source(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        span: Span,
+        source: &compiler::runtime_context::RuntimeEntrySource,
+    ) -> CompileResult<EvaluatedData> {
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            None,
+            &[],
+            span,
+            true,
+            Some(source.expression_site),
+            Some(source),
+        )
+    }
+
+    pub(super) fn check_runtime_definition_expression(
+        &mut self,
+        definition: &CtSymbolId,
+        site: compiler::source_sites::SourceSite,
+    ) -> CompileResult<zil_syntax::ast::TypeRef> {
+        self.require_source_origins()?;
+        let module_bytes = (self.parsed.len() as u64)
+            .saturating_mul(std::mem::size_of::<&zil_syntax::ast::Module>() as u64)
+            .saturating_add(
+                (self.sources.len().min(self.parsed.len()) as u64)
+                    .saturating_mul(std::mem::size_of::<compiler::SourceModule<'_>>() as u64),
+            );
+        self.budget
+            .reserve_analysis_work((self.parsed.len() + self.sources.len()) as u64)?;
+        self.budget.reserve_temporary_bytes(module_bytes)?;
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let modules = self.index.modules(self.sources, &syntax);
+        let before = self.remaining_limits();
+        let mut remaining = before.clone();
+        let result = compiler::runtime_context::check_runtime_definition_expression(
+            &modules,
+            Some(&self.generated_catalog),
+            definition,
+            site,
+            &mut remaining,
+        );
+        self.budget.reserve_analysis_work(
+            before
+                .max_analysis_steps
+                .saturating_sub(remaining.max_analysis_steps) as u64,
+        )?;
+        self.budget
+            .reserve_generated_nodes(before.max_nodes.saturating_sub(remaining.max_nodes) as u64)?;
+        for _ in 0..before.max_functions.saturating_sub(remaining.max_functions) {
+            self.budget.reserve_instance()?;
+        }
+        let bytes = before
+            .max_source_bytes
+            .saturating_sub(remaining.max_source_bytes) as u64;
+        self.budget.reserve_temporary_bytes(bytes)?;
+        // Scratch is released; only the derived result AST survives in Expand.
+        let keep = result.as_ref().map_or(0, |(_, bytes)| *bytes);
+        self.budget
+            .release_temporary_bytes(bytes.saturating_sub(keep));
+        self.budget.release_temporary_bytes(module_bytes);
+        result.map(|(ty, _)| ty)
+    }
+
     fn evaluate_data_impl(
         &mut self,
         entry: Entry<'_>,
@@ -561,6 +663,7 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
         source_site: Option<compiler::source_sites::SourceSite>,
+        runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
@@ -572,6 +675,7 @@ impl<'a> Environment<'a> {
             span,
             retain_context,
             source_site,
+            runtime_source,
         );
         if result.is_err() {
             let keep = (self
@@ -596,6 +700,7 @@ impl<'a> Environment<'a> {
         span: Span,
         retain_context: bool,
         source_site: Option<compiler::source_sites::SourceSite>,
+        runtime_source: Option<&compiler::runtime_context::RuntimeEntrySource>,
     ) -> CompileResult<EvaluatedData> {
         // Fixed-size source seed only; type/category inputs are not proof and
         // are unnecessary when retrying complete lexical freezing after compile.
@@ -616,7 +721,18 @@ impl<'a> Environment<'a> {
             }),
             Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
         };
-        let mut invocation_context =
+        let mut invocation_context = if let Some(source) = runtime_source {
+            self.require_source_origins()?;
+            super::invocation_context::FrozenInvocationContext::freeze_runtime_at_source(
+                &entry,
+                self.parsed,
+                &self.index,
+                self.source_origins.as_ref(),
+                Some(&self.generated_catalog),
+                source,
+                &mut self.budget,
+            )?
+        } else {
             super::invocation_context::FrozenInvocationContext::freeze_at_source(
                 &entry,
                 self.parsed,
@@ -625,23 +741,43 @@ impl<'a> Environment<'a> {
                 Some(&self.generated_catalog),
                 source_site,
                 &mut self.budget,
-            )?;
+            )?
+        };
+        let runtime_module_bytes = if runtime_source.is_some() {
+            let bytes = (self.parsed.len() as u64)
+                .saturating_mul(std::mem::size_of::<&zil_syntax::ast::Module>() as u64)
+                .saturating_add(
+                    (self.sources.len().min(self.parsed.len()) as u64)
+                        .saturating_mul(std::mem::size_of::<compiler::SourceModule<'_>>() as u64),
+                );
+            self.budget
+                .reserve_analysis_work((self.parsed.len() + self.sources.len()) as u64)?;
+            self.budget.reserve_temporary_bytes(bytes)?;
+            bytes
+        } else {
+            0
+        };
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, source_bindings) = compiler::compile_scoped_at_source(
-            CompileRequest {
-                target_pointer_width: self.target.pointer_width,
-                modules: &modules,
-                source_fingerprint: self.source_fingerprint,
-                entry,
-                input_tokens,
-                snapshot: &self.snapshot,
-                limits: &selected_limits,
-            },
-            Some(&self.generated_catalog),
-            source_site,
-        )?;
+        let request = CompileRequest {
+            target_pointer_width: self.target.pointer_width,
+            modules: &modules,
+            source_fingerprint: self.source_fingerprint,
+            entry,
+            input_tokens,
+            snapshot: &self.snapshot,
+            limits: &selected_limits,
+        };
+        let (expected, source_bindings) = if let Some(source) = runtime_source {
+            compiler::compile_scoped_runtime_at_source(
+                request,
+                Some(&self.generated_catalog),
+                source,
+            )?
+        } else {
+            compiler::compile_scoped_at_source(request, Some(&self.generated_catalog), source_site)?
+        };
         let declared = expected.budget;
         let before = self.budget.remaining();
         self.budget.reserve_analysis_work(
@@ -670,6 +806,19 @@ impl<'a> Environment<'a> {
                     Some(&self.generated_catalog),
                     source_site,
                     true,
+                    &mut self.budget,
+                )?;
+        }
+        if let Some(source) = runtime_source {
+            invocation_context
+                .as_mut()
+                .and_then(Arc::get_mut)
+                .ok_or_else(|| error("runtime CT requires its frozen original invocation", span))?
+                .extend_runtime_entry(
+                    source,
+                    &source_bindings.runtime_frames,
+                    &expected,
+                    &self.index,
                     &mut self.budget,
                 )?;
         }
@@ -800,6 +949,7 @@ impl<'a> Environment<'a> {
             self.budget
                 .release_temporary_bytes(invocation_context.bytes);
         }
+        self.budget.release_temporary_bytes(runtime_module_bytes);
         Ok(EvaluatedData { value, context })
     }
 
@@ -893,10 +1043,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -938,10 +1089,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1040,10 +1192,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1115,10 +1268,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1225,10 +1379,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1348,10 +1503,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1433,10 +1589,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1548,10 +1705,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1626,10 +1784,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1845,10 +2004,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -1910,10 +2070,11 @@ mod tests {
         let parsed = vec![parsed];
         let target = TargetProfile::host_llvm();
         let limits = Limits::default();
+        let paths = BTreeMap::new();
         let environment = Environment::new(
             &sources,
             &parsed,
-            &BTreeMap::new(),
+            &paths,
             &[Vec::new()],
             ModuleId(0),
             sources[0].fingerprint(),
@@ -2007,6 +2168,7 @@ mod tests {
             &limits,
         )
         .unwrap();
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
@@ -2114,6 +2276,7 @@ mod tests {
         )
         .unwrap();
         let origins = Arc::new(origins.unwrap());
+        let paths = BTreeMap::new();
         let mut environment = Environment::new(
             &sources,
             &parsed,
@@ -2148,7 +2311,7 @@ mod tests {
         let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
             unreachable!()
         };
-        let invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
+        let mut invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
             &Entry::Function(definition.clone()),
             &parsed,
             &environment.index,
@@ -2212,6 +2375,15 @@ mod tests {
             limits: &limits,
         })
         .unwrap();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .validate_type_contexts(
+                &source_bindings,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
         assert_eq!(expected.ambient_life_scopes.len(), 1);
         assert_eq!(
             expected.record_schemas[0]
@@ -2418,3 +2590,7 @@ pub(super) struct EvaluatedData {
 #[cfg(test)]
 #[path = "mixed_instance_tests.rs"]
 mod mixed_instance_tests;
+
+#[cfg(test)]
+#[path = "record_relocation_tests.rs"]
+mod record_relocation_tests;

@@ -573,6 +573,7 @@
       "admission": "Transport-only publication is separate from source, independent Analyze/Verify, Task frame and native event-queue consumers. Unimplemented consumers explicitly return Unsupported, including unused new declarations and types."
     },
     "contextual_type_production_ct6": {
+      "runtime_scope_roots": "Default-deny independent original Call + callee Definition + full Type/Const/Life vector + CT expression-root authentication may authorize only exact positional Definition/Instantiated rows, including no-life instances; independently checked parent roots seed first use before entry type graphs. Count is a prepaid comparison bound only; all kind, vector, bounded acyclic dependency, first-use and unused-row checks remain mandatory. Producer recipes, same-shaped declarations and unrelated extra rows grant no authority; runtime Wire unchanged.",
       "authority": "_zil_design.md §18.1 CT6 successor to common40/CT5",
       "state": "ContractToImplement",
       "ct_schema_version": 6,
