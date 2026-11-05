@@ -388,9 +388,15 @@ impl<'a> Environment<'a> {
         })?;
         let input_tokens = self.empty_input(span)?;
         let selected_limits = self.remaining_limits();
-        let request = CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
-            source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
-            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits };
+        let request = CompileRequest {
+            target_pointer_width: self.target.pointer_width,
+            modules: &modules,
+            source_fingerprint: self.source_fingerprint,
+            entry: Entry::Function(entry),
+            input_tokens: &input_tokens,
+            snapshot: &self.snapshot,
+            limits: &selected_limits,
+        };
         let compiled = if catalog.is_some() {
             compiler::compile_scoped_with_catalog(request, catalog).map(|(program, _)| program)
         } else {

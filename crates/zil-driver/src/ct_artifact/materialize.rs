@@ -1005,7 +1005,14 @@ impl Materializer<'_, '_> {
         let catalog = (!self.environment.generated_catalog.trees.is_empty())
             .then_some(&self.environment.generated_catalog);
         let result = if catalog.is_some() {
-            compiler::uses_ct_domain_with_catalog(&modules, module, expression, &parameters, &mut limits, catalog)
+            compiler::uses_ct_domain_with_catalog(
+                &modules,
+                module,
+                expression,
+                &parameters,
+                &mut limits,
+                catalog,
+            )
         } else {
             compiler::uses_ct_domain(&modules, module, expression, &parameters, &mut limits)
         };
@@ -3181,6 +3188,173 @@ mod scoped_tests {
                 "{}",
                 report.to_json()
             );
+        }
+    }
+    #[test]
+    fn ct6_generated_candidates_pass_raw_wire_and_clang_o0_o2() {
+        for (name, text) in [
+            (
+                "member",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+                ),
+            ),
+            (
+                "factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
+                ),
+            ),
+        ] {
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let limits = Limits::default();
+            let target = TargetProfile::host_llvm();
+            let mut output = run(text).unwrap();
+            // The fixture's only import is the sealed CT syntax provider. It
+            // has completed its Source jobs and has no runtime dependency.
+            output
+                .retain_items(0, |item| !matches!(item.kind, s::ItemKind::Import(_)))
+                .unwrap();
+            let paths = BTreeMap::from([(vec!["main".into()], ModuleId(0))]);
+            let expanded = zil_expand::expand_with_map_limits_target_context(
+                &source,
+                &output.modules[0],
+                &limits,
+                &target,
+                zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                    root: ModuleId(0),
+                    aliases: &paths,
+                    declarations: zil_expand::source_context::DeclarationPlacement::Aligned(
+                        output.declaration_origins.as_ref().unwrap(),
+                    ),
+                },
+            )
+            .unwrap();
+            let typed = zil_types::check(&expanded.core, &target, &limits).unwrap();
+            let candidate = zil_analyze::analyze(&typed, &limits).unwrap();
+            let verified =
+                zil_verify::verify_module(typed.clone(), candidate.clone(), &target, &limits)
+                    .unwrap();
+            let wire = zil_ir::wire::encode_module_candidate(&typed, &candidate, &limits).unwrap();
+            assert_eq!(
+                zil_verify::verify_module_bytes(&wire, &target, &limits)
+                    .unwrap()
+                    .module(),
+                &typed
+            );
+            let lir = zil_lower::lower(&verified).unwrap();
+            for optimization in [
+                zil_backend_llvm::Optimization::O0,
+                zil_backend_llvm::Optimization::O2,
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "ct6-generated-{name}-{}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let mut options = zil_backend_llvm::BuildOptions::new(dir.join("program"));
+                options.backend = zil_backend_llvm::NativeBackend::Clang;
+                options.optimization = optimization;
+                let artifact = zil_backend_llvm::build(&verified, &lir, &options).unwrap();
+                let result = std::process::Command::new(&artifact.executable)
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    result.status.code(),
+                    Some(42),
+                    "{name} {optimization:?}: {result:?}"
+                );
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+    #[test]
+    fn ct6_generated_source_budget_is_exact_and_request_local() {
+        for (name, text) in [
+            (
+                "member",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+                ),
+            ),
+            (
+                "factory",
+                include_str!(
+                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
+                ),
+            ),
+        ] {
+            let defaults = Limits::default();
+            for dimension in 0..3 {
+                let maximum = match dimension {
+                    0 => defaults.max_analysis_steps,
+                    1 => defaults.max_source_bytes,
+                    _ => defaults.max_nodes,
+                };
+                let bounded = |n| {
+                    let mut limits = defaults.clone();
+                    match dimension {
+                        0 => limits.max_analysis_steps = n,
+                        1 => limits.max_source_bytes = n,
+                        _ => limits.max_nodes = n,
+                    }
+                    run_limited(text, &limits)
+                };
+                assert!(bounded(maximum).is_ok());
+                let (mut low, mut high) = (1, maximum);
+                while low < high {
+                    let middle = low + (high - low) / 2;
+                    match bounded(middle) {
+                        Ok(_) => high = middle,
+                        Err(errors)
+                            if errors
+                                .iter()
+                                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
+                        {
+                            low = middle + 1
+                        }
+                        Err(errors) => panic!("{name} dimension {dimension}: {errors:?}"),
+                    }
+                }
+                for (n, good) in [(low, true), (low - 1, false), (low, true)] {
+                    let result = bounded(n);
+                    assert_eq!(result.is_ok(), good, "{name} dimension {dimension} N={low}");
+                    if let Err(errors) = result {
+                        assert!(
+                            errors
+                                .iter()
+                                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
+                            "{errors:?}"
+                        );
+                    }
+                }
+                eprintln!("CT6 generated {name} dimension={dimension} N={low}/N-1/fresh");
+            }
+            let source = SourceUnit::new(
+                zil_base::FileId(0),
+                ModuleId(0),
+                format!("generated-{name}.zil"),
+                text,
+            );
+            let mut session = crate::CompilationSession::default();
+            for _ in 0..2 {
+                let report = session.compile_source(&source, &crate::CompileOptions::default());
+                assert_eq!(
+                    report.status,
+                    zil_base::ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(
+                    report.verification_runs, 1,
+                    "warm requests must independently verify"
+                );
+            }
         }
     }
     #[test]

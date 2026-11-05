@@ -1,0 +1,36 @@
+{
+  "status": "LimitedSourcePass",
+  "date": "2026-11-05 UTC",
+  "task": "G4.4.6",
+  "tested_source": "867b624e30e13b71cfd62b1496391bb542b78e74",
+  "design_sha256": "1773e418dc3f6b80c43251df0ce9f1b44917cb61c987a8c2da8d0ccb57ebd7b8",
+  "worktree": "/workspace/zil-G4.4.6",
+  "target_dir": "/workspace/target-G4.4.6",
+  "profile": {"debug": 0, "strip": "symbols", "jobs": 2, "incremental": false},
+  "checks": [
+    {
+      "command": "cargo test -p zil-expand --lib generated_raw_ledger -j2 -- --nocapture",
+      "result": "Pass",
+      "passed": 1,
+      "failed": 0,
+      "build_seconds": 13.67,
+      "scope": "Actual frozen root/member shape, complete Type/Const/Life order, emitter path, root ordinal, cross-tree globally unique declaration IDs; mutated ledger controls reject. This raw reader is structural evidence, not proof of generation history."
+    },
+    {
+      "command": "cargo test -p zil-driver --lib ct6_generated_ -j2 -- --nocapture",
+      "result": "Pass",
+      "passed": 2,
+      "failed": 0,
+      "build_seconds": 35.54,
+      "test_seconds": 0.02,
+      "scope": "Real generated member's own lifetime in CT-produced nominal value; real generated static factory's complete Type/Const/Life vector in both nominal value and Type returns; Source through independent runtime Verify."
+    }
+  ],
+  "warnings": ["Unused legacy FrozenInvocationContext::freeze_with_catalog wrapper"],
+  "limitations": [
+    "Native, Wire, budget boundaries, warm request repetition and independent non-author review remain pending at this exact source checkpoint.",
+    "Authentic MetaIf/MetaFor generation events and repeated runtime specialization event identities are not established by these tests.",
+    "Generated generic-host parent-scope source authentication is being completed separately with the shared frozen catalog.",
+    "No official full suite or performance comparison was run; this record does not claim G4.4 Done."
+  ]
+}
