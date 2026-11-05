@@ -517,28 +517,7 @@ pub(crate) fn at_type<'a>(
         .ok_or_else(|| invalid("replacement actual route crosses a view or different Type"))?;
     }
     resources::charge_payload(ty, b)?;
-    let whole_store =
-        matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }));
-    if whole_store {
-        resources::check_type_for(module, ty, None, b)?;
-        if !target.steps.is_empty()
-            || !matches!(target.base, actual::Base::Local(_) | actual::Base::Input(_))
-            || f.environment.is_some()
-            || f.foreign.is_some()
-            || f.callable_contract.is_some()
-            || f.callable_return_contract.is_some()
-            || f.reference_return_bound.is_some()
-            || f.storage_life.is_some()
-            || !helper_owned_result(module, &f.return_type, b)?
-        {
-            return Err(unsupported(
-                "whole Store replacement requires an ordinary local or mutable input",
-                None,
-            ));
-        }
-    }
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
-        && !whole_store
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
         let whole_input = target.steps.is_empty()

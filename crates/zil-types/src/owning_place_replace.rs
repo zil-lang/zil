@@ -244,12 +244,7 @@ impl Builder<'_, '_> {
         match at {
             Type::Managed(payload) => {
                 self.closures.snapshot_type(at, 2, 0, target.span)?;
-                let store = path.is_empty()
-                    && matches!(payload.as_ref(), Type::OwnedStore { element } if dynamic_store::supported_element(element));
-                if !store
-                    && (!matches!(payload.as_ref(), Type::Record { .. })
-                        || !payload.is_copy_value())
-                {
+                if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
                     return Ok(false);
                 }
             }

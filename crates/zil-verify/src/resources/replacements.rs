@@ -32,25 +32,6 @@ struct Invocation<'a> {
     carrier: Option<usize>,
     sources: Option<usize>,
 }
-fn whole_store_parent(f: &TypedFunction, target: &actual::Target) -> Option<Root> {
-    if !target.steps.is_empty() {
-        return None;
-    }
-    let (ty, parent) = match target.base {
-        actual::Base::Local(local) => (&f.locals[local.0 as usize].ty, Root::Local(local)),
-        actual::Base::Input(parameter) => {
-            let Type::Address { inner, .. } =
-                &f.locals[f.parameters[parameter as usize].0 as usize].ty
-            else {
-                return None;
-            };
-            (inner.as_ref(), Root::Parameter(parameter))
-        }
-        _ => return None,
-    };
-    matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-        .then_some(parent.store_parent())
-}
 fn nested_descriptor_boundary(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.closures.len())?;
     for environment in &module.closures {
@@ -207,20 +188,9 @@ impl Plan {
         transfer: &Transfer<'_>,
         state: &State,
         target: &actual::Target,
-        written: &mut BTreeSet<Root>,
         point: Point,
         b: &mut Budget,
     ) -> Check<()> {
-        if let Some(parent) = whole_store_parent(transfer.f, target) {
-            self.invalidate_store(
-                transfer,
-                state,
-                &BTreeSet::from([parent]),
-                written,
-                point,
-                b,
-            )?;
-        }
         if !point.validate || !self.active_pairs {
             return Ok(());
         }
@@ -482,7 +452,7 @@ impl Plan {
                     }
                     self.invalidate_store(transfer, state, &state.desc[parent], written, point, b)?;
                 } else {
-                    self.retire(transfer, state, &target, written, point, b)?;
+                    self.retire(transfer, state, &target, point, b)?;
                 }
             }
         }
@@ -502,7 +472,7 @@ impl Plan {
                         b,
                     )?;
                     for target in selected {
-                        self.retire(transfer, state, &target, written, point, b)?;
+                        self.retire(transfer, state, &target, point, b)?;
                     }
                 }
             }
@@ -708,11 +678,6 @@ impl Plan {
                 ));
             }
             sums::replacements::at_type(transfer.module, f, &target, b)?;
-            if matches!(target.base, actual::Base::Local(_))
-                && whole_store_parent(f, &target).is_some()
-            {
-                self.retire(transfer, state, &target, written, point, b)?;
-            }
             match target.base {
                 actual::Base::Local(local) => {
                     let shell =
@@ -814,12 +779,12 @@ impl Plan {
                     // and lexical cleanup age; the old value is replaced once.
                 }
                 actual::Base::Input(p) | actual::Base::InputCapture(p, _) => {
-                    self.retire(transfer, state, &target, written, point, b)?;
+                    self.retire(transfer, state, &target, point, b)?;
                     b.spend(written.len().saturating_add(1))?;
                     written.insert(Root::Parameter(p));
                 }
                 actual::Base::Environment(c) => {
-                    self.retire(transfer, state, &target, written, point, b)?;
+                    self.retire(transfer, state, &target, point, b)?;
                     if f.environment.is_some_and(|id| {
                         transfer.module.closures[id.0 as usize].kind == CallableKind::Fn
                     }) {

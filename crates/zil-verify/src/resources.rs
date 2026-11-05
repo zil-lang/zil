@@ -1137,6 +1137,19 @@ impl Transfer<'_> {
                             "Enum observation requires a live complete carrier",
                         ));
                     }
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowFieldLocal { .. }
+                            | InstructionKind::BorrowPlaceLocal { .. }
+                            | InstructionKind::BorrowVariantLocal { .. }
+                    ) && let Some(row) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        // This kernel's Sum flow checks the actual selected
+                        // subtree; descriptor lifetime remains on its shell.
+                        state.desc[row] = BTreeSet::from([Root::Local(*local)]);
+                    }
                 }
                 InstructionKind::TakeTupleField { local, .. }
                 | InstructionKind::TakeVariantField { local, .. } => {

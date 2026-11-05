@@ -232,11 +232,6 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                 ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
-                    "whole-store-helper",
-                    include_str!("whole-store-helper.zil"),
-                    b"AB42\n".as_slice(),
-                ),
-                (
                     "whole-store-local",
                     include_str!("whole-store-local.zil"),
                     b"AB42\n".as_slice(),
@@ -392,7 +387,7 @@ fn g139_public_role_capture_current_contract_probe() {
         }
     }
     let result = zil_analyze::analyze(&module, &Limits::default());
-    println!("G139 public-role actual Analyze result {result:?}");
+    println!("G139 public-role actual Analyze success={}", result.is_ok());
     if result.is_err() {
         for function in &module.functions {
             println!(
@@ -503,7 +498,6 @@ fn g139_whole_sum_responsibility_and_failure() {
 #[test]
 fn g139_whole_store_responsibility_and_failure() {
     for text in [
-        include_str!("whole-store-helper.zil"),
         include_str!("whole-store-local.zil"),
         include_str!("whole-store-apart.zil"),
         include_str!("whole-store-abort.zil"),
@@ -518,4 +512,18 @@ fn g139_whole_store_responsibility_and_failure() {
             .any(|d| d.category == ResultCategory::SafeReject),
         "{errors:?}"
     );
+    let report = compile_source(
+        &source(include_str!("whole-store-helper.zil")),
+        &CompileOptions {
+            stop_after: Stage::Types,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
 }

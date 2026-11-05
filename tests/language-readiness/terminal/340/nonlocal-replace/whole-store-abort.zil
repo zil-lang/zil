@@ -6,6 +6,6 @@ fn populated(code:i32)->Store<P> contract{result(create)}{let cells:Store<P>=sto
 enum Fault{Bad}
 fn fail()->Fault!i32{return Fault.Bad()}
 fn stage(give prepared:Store<P>,n:i32)->Store<P> contract{result(give)}{return give prepared}
-fn reset(target:&mut Store<P>)->Fault!i32{*target=stage(populated(66),fail()?);return 0}
-fn work()->i32{var cells=populated(65);match reset(&mut cells){.ok(n)=>{return n},.err(_)=>{let old=store_at(cells,0);return old.n}}}
+fn attempt()->Fault!i32{var cells=populated(65);cells=stage(populated(66),fail()?);let current=store_at(cells,0);return current.n}
+fn work()->i32{match attempt(){.ok(n)=>{return n},.err(_)=>{return 42}}}
 fn main()->i32{let seen=work();unsafe{putchar(48+seen/10);putchar(48+seen%10);putchar(10)}return 0}
