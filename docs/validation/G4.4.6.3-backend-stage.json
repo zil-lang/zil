@@ -2,7 +2,7 @@
   "task": "G4.4.6.3-backend",
   "date": "2026-11-05",
   "status": "ImplementationStageSourceNativePending",
-  "implementation_commit": "00e43253b993af13e330f907092c63847a07f9eb",
+  "implementation_commit": "cbcef62ae46c6532071c156f07200035a655d268",
   "base": "a207ce8ee5b837455ad5cd35898941d0a77ba276",
   "source_dirty": false,
   "branch": "task/G4.4.6.3-backend",
@@ -23,7 +23,8 @@
       "result": "Pass",
       "seconds": 0.02,
       "log": "/workspace/.zil-env/G4.4.6.3-backend-tmp/qualified-snapshot-frozen-backend-check.log",
-      "sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d"
+      "sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d",
+      "source_commit": "00e43253b993af13e330f907092c63847a07f9eb"
     },
     {
       "command": "cargo check -p zil-driver --test aggregates -j1",
@@ -31,11 +32,21 @@
       "result": "Pass",
       "seconds": 7.25,
       "log": "/workspace/.zil-env/G4.4.6.3-backend-tmp/qualified-snapshot-frozen-source-api-check.log",
-      "sha256": "b95d7478eec2fcab36d6982685fe0c5d81a641f624930f03a47c0c926c197d95"
+      "sha256": "b95d7478eec2fcab36d6982685fe0c5d81a641f624930f03a47c0c926c197d95",
+      "source_commit": "00e43253b993af13e330f907092c63847a07f9eb"
+    },
+    {
+      "command": "cargo check -p zil-backend-llvm --tests -j1",
+      "kind": "NoLinkCompileOnly",
+      "source_commit": "cbcef62ae46c6532071c156f07200035a655d268",
+      "source_dirty": false,
+      "result": "Pass",
+      "log": "/workspace/.zil-env/G4.4.6.3-backend-tmp/qualified-canonical-single-charge-frozen-check.log",
+      "sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d"
     }
   ],
   "compiled_not_executed_tests": [
-    "Three backend private synthetic layout/pure rejection/snapshot planner N/N-1 controls; no source authority is inferred from them.",
+    "Four backend private synthetic layout/pure rejection/snapshot planner N/N-1/single canonical store fee controls; no source authority is inferred from them.",
     "Existing aggregates module g4463_qualified_pure_backend: original a18 ordinary Array Source/native, qualified4096leaf snapshot, qualified large parameter and result. Both O0/O2 and full u64 18446744073709551557 are required; LLVM private snapshot/memcpy/versioned result ABI asserted."
   ],
   "source_native_results": "NotExecuted",
@@ -50,5 +61,11 @@
     "machine_control": "Existing aligned enum tag/payload representation and LargeCopy protocol retained.",
     "engineering_boundary": "LLVM-only production changes with explicit source producer/independent-kernel dependency.",
     "breakthrough_and_limit": "Qualified pure values now reach existing physical snapshot planning without global lifetime erasure; only no-link evidence is available at this stage."
+  },
+  "canonical_fee_audit": {
+    "found_by": "root independent static review of00e43253b",
+    "initial_issue": "Snapshot enum result with a small nonsnapshot payload field paid canonical expansion in both snapshot plan and reserve_emission. Actual store_payload executes once.",
+    "fix": "cbcef62ae: planned result only pays in copy_aggregates::plan; reserve_emission canonical branch only pays when the result has no snapshot.",
+    "control": "Synthetic physical LIR has Small(qualifiedLeaf) active and an inactive large Array arm. Actual planner snapshots the enum result but not Leaf input. reserve_emission with and without that actual plan differs exactly by the one canonical48work fee; planned N/N-1 included. Compiled, not executed."
   }
 }
