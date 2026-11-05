@@ -1,0 +1,369 @@
+{
+  "task": "G1.3.5",
+  "assessment": "Author finite delivery; independent review separate; parent G1.3/G1.4 incomplete",
+  "baseline": "7a1fbfd4ebbbe058955fb888c5eb7cec61984aa7",
+  "source_test_freeze": "d214fb5ff9e682ee5f81de988b711fbacf5c16f4",
+  "schema": 42,
+  "spec_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "norm_sha256": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+  "scope": "Complete singleton body-local whole Enum via real mutable alias, at most one direct Managed<CopyRecord> per arm plus scalar/unit, at least one owning arm; no direct formal local/nonlocal/helper/Store/capture/projected/nested terminal. Actual runtime tags and RHS origins; shell age retained. No schema/default budget change.",
+  "commits": {
+    "neutral": "bf10ce1e164a7921fcb36ae29ec52d0722bde72b",
+    "types_analyze": "e390bdce50568ffd83b69c18e91a0eee6e72793d",
+    "machine_admission_and_first_witnesses": "714d76433a38363f9ae6d94d12ea89c8db4e524f",
+    "independent_verify_production": "64a081b253553480eb0120a988de1efa16fef132",
+    "independent_verify_tests": "43368313273d89d21ee2914550740f05e1f3e86e",
+    "independent_verify_receipt": "4b18d31851dfc01fc5d8e534b5489297bed2aada"
+  },
+  "commands_environment": {
+    "prefix": "source /workspace/.zil-env/env.sh; export CARGO_TARGET_DIR=/workspace/.zil-env/target341-G1.3.5; export TMPDIR=/workspace/.zil-env/G1.3.5-tmp",
+    "jobs": 1,
+    "fresh_target": true,
+    "build_log": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/fresh-driver-build.log",
+      "sha256": "180cd5cf35f3e8655f28dda6836747a3585be462688972b64e24f3e24a59b310",
+      "bytes": 1352
+    },
+    "artifacts_log": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/fresh-driver-artifacts.jsonl",
+      "sha256": "14cfc5fe84efd88f0d92b5eeab85019ca70939b91ace5a3ebf9586245405ef2a",
+      "bytes": 20004
+    },
+    "note": "First build logs actual /workspace/zil-G1.3.5 crate paths; no cross-worktree reused proof cache. All Cargo processes stopped after these checks."
+  },
+  "baseline_observation": {
+    "tool": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/baseline-source-probe",
+      "sha256": "bbee3783f9b7c2b3a1895c13481572c1361486fb04e0ab8b59604323b7c12896",
+      "bytes": 75520328
+    },
+    "compiler_snapshot": "Historical frozen G1.3.4 d58403bd9/ec60 language libraries, not a new 7a build. Current baseline owning_place_replace.rs byte-equal to that frozen producer; no whole Enum endpoint. Whole current runtime source independently replayed on that historical compiler: Types Success/WriteAddress, Analyze unpaid responsibility; new fresh G1.3.5 build instead real tickets/Analyze Success. This is not a claim of whole-compiler 7a byte equality.",
+    "source_sha256": "a86e09bdc93b7622e69655593cceb41eec12813459344f3cf6025b826f3902f7",
+    "typed": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/baseline-runtime/typed.txt",
+      "sha256": "4961fcf75d0d96fe0d3b137d5955e062fab965c4c0aecf67e9aa668c7f82fbf7",
+      "bytes": 213474
+    },
+    "log": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/baseline-current-runtime.log",
+      "sha256": "dd9d37ddbd038413db743cdc093d0389b9566c31e12613b2844ad6fac3d802ac",
+      "bytes": 3195
+    }
+  },
+  "actual_stage_interface": {
+    "probe": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/final-source-probe",
+      "sha256": "6f82976bed2fbedf79c793c7ace68449850abe5558df4bca753f4e4c0b970b9f",
+      "bytes": 77453488
+    },
+    "log": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/final-runtime-stages.log",
+      "sha256": "ea355b52866468a4ed9df474d65bced2020db7ffba1215eea4a98d6359eda4dc",
+      "bytes": 3265
+    },
+    "types": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/final-runtime-Types/typed.txt",
+      "sha256": "c3beedcb732718f2b01b563fb9511d5edcbc82ec1792152be96faadd00a57ed9",
+      "bytes": 214262
+    },
+    "candidate": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/final-runtime-Analyze/candidate.txt",
+      "sha256": "b5659e76d0012dc06776db07be7439c70e4569d53f3a9c36e70d2907294d138f",
+      "bytes": 31545
+    },
+    "verified": {
+      "path": "/workspace/.zil-env/G1.3.5-tmp/final-runtime-Verify/verified.txt",
+      "sha256": "2d7599b900f2de1096816bad6c93a1d3364d9a8331009629150da941bba50d2f",
+      "bytes": 214339
+    },
+    "result": "Actual pending Source Types/Analyze/Verify Success, Verify runs1. ReservePlaceAddress path[] at Typed line3029, complete RHS if value, CommitPlaceReplace line3602. Failure fixture produces real Abort on error edge; no fabricated source plan."
+  },
+  "final_checks": [
+    {
+      "command": "cargo test --locked --offline -j1 -p zil-driver --features llvm-api --test aggregates terminal340_enum_terminal -- --nocapture --skip native_runtime_tags_full_values_origins_and_preparation_failure --skip native_original_shell_cleanup_age_survives_new_rhs_birth",
+      "pass": 6,
+      "fail": 0,
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-api-six-nonnative.log",
+        "sha256": "9cb19c8335543654cdb4fccbacfc0f011870a134587458b2e6579542ec3658eb",
+        "bytes": 941
+      }
+    },
+    {
+      "command": "cargo test --locked --offline -j1 -p zil-driver --features llvm-api --test aggregates enum_replacement_verify -- --nocapture",
+      "pass": 10,
+      "fail": 0,
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-api-ten-verify.log",
+        "sha256": "cb2823a99c64e7e4563365c323d3d8306ce316cee1cd5b376220c1c44f2260a7",
+        "bytes": 1695
+      }
+    },
+    {
+      "command": "cargo test --locked --offline -j1 -p zil-backend-llvm --lib whole_enum_replacement_machine_recipe_precharges_actual_tree -- --nocapture",
+      "pass": 1,
+      "fail": 0,
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-machine-recipe.log",
+        "sha256": "893ca66311b996263331b1ada6d939fab3d0317d9b029f70d005fafee9de8f24",
+        "bytes": 581
+      }
+    },
+    {
+      "command": "/workspace/.zil-env/target341-G1.3.5/debug/deps/aggregates-e68efd3bca6e242d terminal340_enum_terminal --nocapture",
+      "pass": 8,
+      "fail": 0,
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-frozen-api-eight.log",
+        "sha256": "2a821a5e8f7fce16986c7333bf30ba3ff2a76e60b04fd3d6d3b732533b292915",
+        "bytes": 3572
+      },
+      "note": "Final freeze direct executable replay includes the six nonnative checks again and both native tests. Do not add duplicate function counts."
+    },
+    {
+      "command": "cargo clippy --locked --offline -j1 -p zil-analyze -p zil-types -p zil-backend-llvm --lib -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-three-lib-clippy.log",
+        "sha256": "28f83efecf4f8ed40208eb97cfb8d1cb7186d0cbd4a52c2644f411df9953d0f3",
+        "bytes": 1005
+      }
+    },
+    {
+      "command": "cargo clippy --locked --offline -j1 -p zil-driver --features llvm-api --test aggregates -- -D warnings",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-driver-clippy.log",
+        "sha256": "c90b64ed0d26f6e2703dab3f80bf05d7f902c7868b5de48efc59a103e904f206",
+        "bytes": 570
+      }
+    },
+    {
+      "command": "cargo fmt --all -- --check",
+      "result": "Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-fmt.log",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "bytes": 0
+      }
+    },
+    {
+      "command": "cargo metadata --locked --offline --no-deps --format-version 1; node tools/check-architecture.mjs --metadata <saved metadata>",
+      "result": "15 crates/38 edges Pass",
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-architecture-pass.log",
+        "sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817",
+        "bytes": 78
+      }
+    }
+  ],
+  "bound_executables": [
+    {
+      "path": "/workspace/.zil-env/target341-G1.3.5/debug/deps/aggregates-e68efd3bca6e242d",
+      "sha256": "584ce352f051730d740c175ff812579c8df3837d92df0622b73af8a97fbe3a83",
+      "bytes": 77299912
+    },
+    {
+      "path": "/workspace/.zil-env/target341-G1.3.5/debug/deps/zil_backend_llvm-3fac71dfa082faed",
+      "sha256": "c66d3c81c60e6a3b94f91a5738fb499104771ba445354650255a507f5287d370",
+      "bytes": 22763280
+    }
+  ],
+  "native": {
+    "source_count": 7,
+    "compile_configurations": 28,
+    "runtime_scenarios": 9,
+    "executions": 36,
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "oracles": {
+      "pending/stdinL": "AB266\n",
+      "pending/stdinR": "CD168\n",
+      "fresh-runtime/stdinL": "AB662\n",
+      "fresh-runtime/stdinR": "AD682\n",
+      "given": "AB42\n",
+      "complete Enum RHS temporary error exit": "BA42\n",
+      "Managed to Empty": "A43\n",
+      "Empty to Managed": "B366\n",
+      "retained shell age with independent neighbor C": "ACB266\n"
+    },
+    "checks": "Every run stdout exact/exit0/stderr empty; every build Verify1, requested backend, fallback None; API object reports builder input. Same executable accepts both actual stdin alternatives. No handwritten host implementation or equivalent raw model. Final frozen executable rebinds all36 after initial successful matrix; no additive repeat count."
+  },
+  "budgets": {
+    "whole_source_analyze": 111234,
+    "whole_source_verify": 152448,
+    "verify_whole_nodes": 349,
+    "verify_whole_source_bytes": 669,
+    "verify_whole_depth": 11,
+    "checks": "Fixed N/N-1/fresh/warm/retry and active queries0 in independent companion existing-target tests. All stage limits and exact old values in G1.3.5.1 receipt; g8 independently reran three old controls.",
+    "machine_raw_recipe_narrow_full": [
+      1890,
+      2805
+    ],
+    "machine_note": "Actual static Enum recipe tree metering only; N-1 rejects/fresh retry, wider real shape costs more. Not permission/native evidence. Whole emit search was dominated by Verify at N-1, so no separate Codegen-tight minimum is claimed.",
+    "prior_boundaries": "Managed error-arm46908/97818; wholePackage13945/28743; Store19754/54842 retained in the companion and independently rerun review controls. Prior Store-helper23731/63080 expectation remains in source but was not separately replayed for this slice."
+  },
+  "semantic_cache": {
+    "api": "CompilationSession.compile_project with actual semantic_cache directory",
+    "sequence": [
+      "cold",
+      "warm same",
+      "scalar change",
+      "variant declaration reorder",
+      "revert"
+    ],
+    "actual_candidates": 3,
+    "validation": "Every result Success/Verify1, warm and revert disk Hit, active queries0; actual ZILSEM04 candidate bytes decoded and independently verified raw+Wire, no model cache."
+  },
+  "nearest_boundaries": [
+    "Shared alias Types E-ADDRESS-PERMISSION; helper/formal and actual multiple roots Analyze Unsupported; whole RHS takes old local Analyze live old shell reject.",
+    "Actual live payload address after Commit Source E-BORROW-CONFLICT. Prior old tag reused and wrong same-type arm, actual pin, missing Abort or staged temp cleanup independently rejected raw/Wire by companion tests.",
+    "Known single-arm fresh RHS→exhaustive consuming match→Create retains existing Verify conservative rejection, also ordinary no-replacement counterpart. Original known source preserved byte-for-byte. No global Sum CFG proof opened.",
+    "Known single-arm ref-pattern age attempt hit existing Verify place-path precision; real two-arm bool RHS witness achieves age observation without relaxing that rule.",
+    "Weak Desc source extraction remains Types fenced; actual payload-address raw DescribeAddress/ReadDesc before and after Commit reject in Analyze producer-kind. Verify before rejects ungrounded resource source; after rejects active address window. These are not new weak-Desc epoch proofs.",
+    "BA42 error-exit proves complete new Enum temporary B cleans before unchanged old A, each once. No same-body continuing read/Desc after Abort claimed.",
+    "Entire ErrorUnion and broader endpoints/roots, partial repair, nested owning shapes and general helper summaries unfinished; parent G1.3/G1.4 stay partial."
+  ],
+  "observed_failures_preserved": [
+    {
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/first-four-default.log",
+        "sha256": "cea46221790f76907ec3d552cf201e219a2d188628e44795e37282359bbb5c0c",
+        "bytes": 4066
+      },
+      "meaning": "Initial source knownRight Create boundary caused two expected-to-pass fixture failures; source preserved, ordinary counterpart established inherited limitation. Initial runtime numeric42 oracle later strengthened."
+    },
+    {
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/raw-old-desc-first.log",
+        "sha256": "d03314304e42b63624a3d52bd46630a5ee152f2f669f7a6a200e30be1531ba31",
+        "bytes": 981
+      },
+      "meaning": "Probe wrongly expected BorrowVariantLocal; actual source uses BorrowPlaceLocal, fixed mutation selector."
+    },
+    {
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/raw-old-desc-second.log",
+        "sha256": "f5f2ff52e8fbd2d81b4a8f0bd8caf409a9e1bfa82ca9cdd8546ddd2a63bab49a",
+        "bytes": 1118
+      },
+      "meaning": "Probe expected retirement rejection but actual producer-kind fence rejects earlier; final test binds before/after boundary honestly."
+    },
+    {
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/eight-api-first.log",
+        "sha256": "daedf9e229f7db6b49c74b6e204cd6ae78fc81d53088e0da735cbbe6366eaea6",
+        "bytes": 4583
+      },
+      "meaning": "Native32 and semantic cache passed; new whole-emit N-1 assertion mistakenly labeled Codegen but actual tight phase Verify, corrected without production/default change."
+    },
+    {
+      "log": {
+        "path": "/workspace/.zil-env/G1.3.5-tmp/final-api-own-and-age.log",
+        "sha256": "832bf57e5202aadf98bb38a5904c8f25d18e6ce633f07d1886ab9ed9895d2708",
+        "bytes": 2764
+      },
+      "meaning": "First known-single-arm ref-pattern shell-age source hit existing initialized-path fence; final bool two-arm source passes ACB266."
+    }
+  ],
+  "artifacts_policy": "Only concise JSON/task/changes and minimal source/tests tracked. All raw stage/IR/log/probe artifacts remain local and are identified by path/hash; no raw archive.",
+  "source_files": [
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-analyze/src/resources/replacements.rs",
+      "sha256": "4a7074f7e5c4e7379e709145ecac1ac7cba3c478212feef52e505d885c9eb4e1",
+      "bytes": 35338
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-analyze/src/resources/replacements/whole_enum.rs",
+      "sha256": "9448dbc4b726874d649c5445dcf8103a1e6c9c30e72fe7fe39025e5e5a190509",
+      "bytes": 3111
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-analyze/src/resources/sums.rs",
+      "sha256": "8eb5fe8ee436013dc28e0b55c86d6570669b4d0ea510f8332007192f9b77fe75",
+      "bytes": 68171
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-backend-llvm/src/emit/replacements.rs",
+      "sha256": "7f29f8b666045fb015fac47aad99c0785c3407d911e1a4e5cb880a8fd5816c1e",
+      "bytes": 11304
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-driver/tests/aggregates.rs",
+      "sha256": "3a5131ddb19a5bd6811f8d2a6ab81418bebc17baf5e9c24991f9a0ceec139e27",
+      "bytes": 387298
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-types/src/owning_place_replace.rs",
+      "sha256": "4c780c91adb93196c6f8f3936d5b30ee880eea6dab4f7e4fe767c012c525c5a3",
+      "bytes": 14345
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-verify/src/place_replacements/actual.rs",
+      "sha256": "4cfb7811c72e724295da3253c6b063859bb89ab2bade9112e8dace7f3d198267",
+      "bytes": 27372
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/crates/zil-verify/src/sums/replacements.rs",
+      "sha256": "df9817f6a7d2afc7cc7fe904d17e50b8a943bb63c57a336e118b3ed7a8ba962a",
+      "bytes": 31578
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-failure.zil",
+      "sha256": "b915ffc6c87f7dd1ef199bee069a5a090603f00152389336f463131ac862d62d",
+      "bytes": 615
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-fresh-rhs.zil",
+      "sha256": "4f18d0347e009b4966a8f61c0edc39b426c806fa076acd539bf527c91f7b3f82",
+      "bytes": 526
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-fresh-runtime.zil",
+      "sha256": "aebc452ca521cab0d0d704c61ba36d43c7f56837ea24effaf9f264af285995f7",
+      "bytes": 657
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-from-empty.zil",
+      "sha256": "0843300591b7b95a0ab245423917404c91726b5a50689067d7606a8152f041e9",
+      "bytes": 359
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-incoming-rhs.zil",
+      "sha256": "88e33f2b91790a95073d4beeb6024a11e30c9b8fe0f729cbc7a6d5c3a6d89d05",
+      "bytes": 542
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-into-empty.zil",
+      "sha256": "d5dcf034c6e8365c2f0c0c7f6cbf958184d134f2c08da3291a909f96c493395d",
+      "bytes": 348
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-pending.zil",
+      "sha256": "a86e09bdc93b7622e69655593cceb41eec12813459344f3cf6025b826f3902f7",
+      "bytes": 669
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/replace-enum-terminal-shell-age.zil",
+      "sha256": "fe40c3334dfe1aa548a04119b05105f10d64cb4ce353e4bf3b20ce63848fa17c",
+      "bytes": 553
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/enum_terminal.rs",
+      "sha256": "7529c527de22593c6d4b96e47ef267ac268f35c84d99a95709f2a6eb92c2ac8b",
+      "bytes": 18508
+    },
+    {
+      "path": "/workspace/zil-G1.3.5/tests/language-readiness/terminal/340/enum_replacement_verify.rs",
+      "sha256": "82f4a48f96b2aee854938f69b87a06e7c2dfe3fcc035777b9de80a2f2d2cf92b",
+      "bytes": 23673
+    }
+  ],
+  "independent_review": "g8 separate /tmp/zil-G1.3.5-review.json initially sealed code d214, SHA5f515c2083b21e1609df14c57eb3386245f057cb7b7bf8f22b1c2b7cd47d5e25: LimitedPass fresh22/0 including36native, all source/old/new budget/machine controls and strict/fmt. Final docs-only head is byte-equal in source/tests and will be bound separately. This author receipt does not self-sign independent acceptance."
+}
