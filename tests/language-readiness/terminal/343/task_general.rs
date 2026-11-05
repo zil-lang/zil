@@ -1,6 +1,8 @@
 //! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
+#[path = "../../task-composition/G8.6.1/source_consumers.rs"]
+mod g861;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,

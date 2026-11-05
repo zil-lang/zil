@@ -98,6 +98,118 @@ fn tuple(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     }
     Ok(true)
 }
+// Whole Enum roots retain one canonical obligation. Their alternatives are
+// not simultaneous owners; ordinary Sum transfer checks the active tag.
+// Keep the existing Copy classification first so old frame costs stay exact.
+fn complete_enum(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    budget.type_work(t, false, "complete Enum task storage")?;
+    let mut pending = vec![t];
+    while let Some(t) = pending.pop() {
+        budget.spend(1, "complete Enum task storage")?;
+        match t {
+            Type::Enum { variants, .. } => {
+                budget.spend(variants.len(), "complete Enum task variants")?;
+                for (_, fields) in variants {
+                    budget.spend(fields.len(), "complete Enum task fields")?;
+                    pending.extend(fields);
+                }
+            }
+            Type::Managed(payload) => {
+                if !record(payload, budget)? {
+                    return Ok(false);
+                }
+            }
+            t if record(t, budget)? => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn enum_resource<'a>(
+    module: &'a TypedModule,
+    payload: &Type,
+    budget: &mut Budget,
+    span: Option<zil_base::Span>,
+) -> CompileResult<&'a zil_ir::ResourceDefinition> {
+    let Type::Record { name, .. } = payload else {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            span,
+            "complete Enum leaf requires an actual inline resource Record",
+        ));
+    };
+    budget.spend(
+        module.resources.len().saturating_add(1),
+        "Enum resource inventory",
+    )?;
+    let mut selected = None;
+    for resource in &module.resources {
+        budget.type_work(payload, false, "Enum resource query identity")?;
+        budget.type_work(&resource.payload, false, "Enum resource candidate identity")?;
+        budget.spend(
+            name.len().min(resource.name.len()).saturating_add(1),
+            "Enum resource name identity",
+        )?;
+        let same_payload = resource.payload == *payload;
+        let same_name = resource.name == *name;
+        if same_name || same_payload {
+            if name.is_empty() || !same_name || !same_payload || selected.is_some() {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    span,
+                    "complete Enum leaf resource identity is not unique and canonical",
+                ));
+            }
+            selected = Some(resource);
+        }
+    }
+    let resource = selected.ok_or_else(|| {
+        reject(
+            "E-VERIFY-TASK",
+            span,
+            "complete Enum leaf has no actual resource",
+        )
+    })?;
+    if let Some(id) = resource.teardown {
+        budget.spend(8, "Enum resource teardown entry")?;
+        let f = module.functions.get(id.0 as usize).ok_or_else(|| {
+            reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum teardown entry is absent",
+            )
+        })?;
+        if f.id != id
+            || f.foreign.is_some()
+            || f.environment.is_some()
+            || f.call_kind != CallKind::Direct
+            || f.callable_contract.is_some()
+            || f.callable_return_contract.is_some()
+            || f.reference_return_bound.is_some()
+            || f.storage_life.is_some()
+            || f.return_type != Type::Unit
+            || f.result_mode != PassingMode::Infer
+            || f.parameters.len() != 1
+        {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum resource teardown has an invalid actual entry",
+            ));
+        }
+        let receiver = local_type(f, f.parameters[0], span)?;
+        budget.type_work(receiver, false, "Enum teardown actual receiver")?;
+        budget.type_work(payload, false, "Enum teardown expected receiver")?;
+        if !matches!(receiver, Type::Desc(actual) if actual.as_ref()==payload) {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum teardown receiver differs from its actual resource",
+            ));
+        }
+    }
+    Ok(resource)
+}
 fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.spend(1, "actual frame storage constructor")?;
     match t {
@@ -337,34 +449,68 @@ pub(super) fn profile(
     }
     let mut checked = BTreeSet::new();
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-        if !pollable_storage(module, t, budget)? {
+        let old_storage = pollable_storage(module, t, budget)?;
+        let enum_storage =
+            !old_storage && matches!(t, Type::Enum { .. }) && complete_enum(t, budget)?;
+        if !old_storage && !enum_storage {
             return Err(reject(
                 "E-VERIFY-TASK",
                 span,
                 "task owner needs a complete canonical inline resource frame slot",
             ));
         }
-        let leaves = match t {
+        if enum_storage && f.return_type != Type::I32 {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                span,
+                "complete Enum frame storage currently requires the existing i32 task result",
+            ));
+        }
+        let mut leaves = match t {
             Type::Package { fields, .. } => fields.iter().map(|(_, t)| t).collect::<Vec<_>>(),
             Type::Tuple(fields) => fields.iter().collect(),
             _ => vec![t],
         };
+        if enum_storage {
+            // Only newly admitted Enum storage needs transitive leaf discovery.
+            // Keep old Copy/Managed/tuple/package classification and fees intact.
+            let mut pending = leaves;
+            leaves = Vec::new();
+            while let Some(leaf) = pending.pop() {
+                budget.spend(1, "complete Enum task cleanup leaf")?;
+                match leaf {
+                    Type::Enum { variants, .. } => {
+                        budget.spend(variants.len(), "complete Enum task cleanup variants")?;
+                        for (_, fields) in variants {
+                            budget.spend(fields.len(), "complete Enum task cleanup fields")?;
+                            pending.extend(fields);
+                        }
+                    }
+                    Type::Managed(_) => leaves.push(leaf),
+                    _ => {}
+                }
+            }
+        }
         for leaf in leaves {
             if let Type::Managed(payload) = leaf {
-                for _ in &module.resources {
-                    budget.type_work(payload, false, "actual task resource equality")?;
-                }
-                let resource = module
-                    .resources
-                    .iter()
-                    .find(|r| r.payload == **payload)
-                    .ok_or_else(|| {
-                        reject(
-                            "E-VERIFY-TASK",
-                            span,
-                            "owned task slot has no actual resource",
-                        )
-                    })?;
+                let resource = if enum_storage {
+                    enum_resource(module, payload, budget, span)?
+                } else {
+                    for _ in &module.resources {
+                        budget.type_work(payload, false, "actual task resource equality")?;
+                    }
+                    module
+                        .resources
+                        .iter()
+                        .find(|r| r.payload == **payload)
+                        .ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK",
+                                span,
+                                "owned task slot has no actual resource",
+                            )
+                        })?
+                };
                 if let Some(drop) = resource.teardown
                     && checked.insert(drop)
                 {
@@ -378,6 +524,20 @@ pub(super) fn profile(
         for i in &b.instructions {
             budget.spend(1, "actual owning task profile")?;
             match &i.kind {
+                InstructionKind::PlaceTagLocal { local, path } => {
+                    budget.spend(1, "complete Enum frame tag root")?;
+                    let root = local_type(f, *local, Some(i.span))?;
+                    if !path.is_empty()
+                        || !matches!(root, Type::Enum { .. })
+                        || record(root, budget)?
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "task PlaceTagLocal requires a complete owning Enum local root and empty path",
+                            Some(i.span),
+                        )]);
+                    }
+                }
                 InstructionKind::Call { function, .. } => {
                     cleanup(module, *function, budget, Some(i.span))?
                 }
@@ -449,6 +609,10 @@ pub(super) fn profile(
                 | InstructionKind::MakeVariant { .. }
                 | InstructionKind::VariantTag { .. }
                 | InstructionKind::ReadVariant { .. }
+                | InstructionKind::VariantTagLocal { .. }
+                | InstructionKind::ReadVariantLocal { .. }
+                | InstructionKind::UnpackVariant { .. }
+                | InstructionKind::DropEnum { .. }
                 | InstructionKind::MakeErrorUnion { .. }
                 | InstructionKind::ErrorTag { .. }
                 | InstructionKind::ReadErrorUnion { .. } => {}
