@@ -1936,14 +1936,8 @@ impl Materializer<'_, '_> {
                     for node in &value.nodes {
                         self.environment.budget.reserve_analysis_work(1)?;
                         if let CtTypeNode::Nominal { symbol, .. } = node {
-                            let (_, parsed) = self.parsed_source(symbol.module)?;
-                            let item = parsed
-                                .module
-                                .items
-                                .get(symbol.declaration.0 as usize)
-                                .ok_or_else(|| {
-                                    runtime("Type result nominal declaration is absent", ty.span)
-                                })?;
+                            self.prepay_source_lookup(symbol)?;
+                            let item = self.source_declaration(symbol, ty.span)?;
                             let name = match &item.kind {
                                 s::ItemKind::Aggregate(a) => &a.name,
                                 s::ItemKind::Enum(e) => &e.name,
@@ -2500,6 +2494,7 @@ mod float_tests {
                     .module(),
                 &typed
             );
+            eprintln!("CT6 generated {name} raw/Wire Pass");
         }
         for dimension in 0..3 {
             let mut limits = allowance();
@@ -3215,12 +3210,26 @@ mod scoped_tests {
                     Some(42),
                     "{name} {optimization:?}: {result:?}"
                 );
+                eprintln!("CT6 generated {name} Clang {optimization:?} exit=42");
                 std::fs::remove_dir_all(dir).unwrap();
             }
         }
     }
     #[test]
     fn ct6_generated_source_budget_is_exact_and_request_local() {
+        // A quota error is terminal even if the generated parser also retains
+        // subsequent syntax recovery diagnostics. The first diagnostic is the
+        // request's category, and an Err publishes no materialized module.
+        let resource_limit = |errors: &[Diagnostic]| {
+            errors
+                .first()
+                .is_some_and(|d| d.category == zil_base::ResultCategory::ResourceLimit)
+                && errors.iter().all(|d| {
+                    d.category == zil_base::ResultCategory::ResourceLimit
+                        || (d.phase == Phase::Parse
+                            && d.category == zil_base::ResultCategory::SafeReject)
+                })
+        };
         for (name, text) in generated_source_fixtures() {
             let defaults = Limits::default();
             for dimension in 0..3 {
@@ -3244,13 +3253,7 @@ mod scoped_tests {
                     let middle = low + (high - low) / 2;
                     match bounded(middle) {
                         Ok(_) => high = middle,
-                        Err(errors)
-                            if errors
-                                .iter()
-                                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit) =>
-                        {
-                            low = middle + 1
-                        }
+                        Err(errors) if resource_limit(&errors) => low = middle + 1,
                         Err(errors) => panic!("{name} dimension {dimension}: {errors:?}"),
                     }
                 }
@@ -3258,12 +3261,7 @@ mod scoped_tests {
                     let result = bounded(n);
                     assert_eq!(result.is_ok(), good, "{name} dimension {dimension} N={low}");
                     if let Err(errors) = result {
-                        assert!(
-                            errors
-                                .iter()
-                                .all(|d| d.category == zil_base::ResultCategory::ResourceLimit),
-                            "{errors:?}"
-                        );
+                        assert!(resource_limit(&errors), "{errors:?}");
                     }
                 }
                 eprintln!("CT6 generated {name} dimension={dimension} N={low}/N-1/fresh");
