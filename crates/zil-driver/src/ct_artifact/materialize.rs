@@ -253,8 +253,6 @@ struct Materializer<'a, 'b> {
     item_path: Vec<u32>,
     next_generated_declaration: BTreeMap<ModuleId, u32>,
     source_namespaces: BTreeMap<ModuleId, zil_ir::LifeDeclarationIdentity>,
-    canonical_source_sites: BTreeMap<(bool, usize), compiler::source_sites::SourceSite>,
-    indexed_source_trees: BTreeSet<(ModuleId, Option<u32>)>,
     bound_source_sites: source_sites::BoundSites,
     generated_context: bool,
     // The revision is sampled at the actual original top-level item visit.
@@ -1387,7 +1385,19 @@ impl Materializer<'_, '_> {
                 .any(|(owner, _, _)| *owner == module)
         };
         let original_coordinates = self.track_declarations || constant_coordinates;
-        for (ordinal, mut item) in std::mem::take(items).into_iter().enumerate() {
+        let input = std::mem::take(items);
+        self.environment.budget.reserve_temporary_bytes(
+            input.len() as u64
+                * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>() as u64,
+        )?;
+        let mut source_rows = Vec::with_capacity(input.len());
+        for item in &input {
+            source_rows.push(self.take_item_sites(item)?);
+        }
+        let row_bytes = source_rows.capacity() as u64
+            * std::mem::size_of::<Vec<Option<compiler::source_sites::SourceSite>>>() as u64;
+        for (ordinal, (mut item, sites)) in input.into_iter().zip(source_rows).enumerate() {
+            self.restore_item_sites(&item, sites)?;
             let closure_site_revision = self.closure_site_revision;
             if generated && matches!(item.kind, s::ItemKind::Import(_)) {
                 return Err(late_import(item.span));
@@ -1494,11 +1504,10 @@ impl Materializer<'_, '_> {
                     s::ItemKind::Function(_) | s::ItemKind::Extern { .. }
                 )
             {
+                self.discard_item_sites(&item)?;
                 self.item_path.truncate(path_len);
                 continue;
             }
-            let previous_bound_sites = std::mem::take(&mut self.bound_source_sites);
-            self.bind_item_source_sites(&owner, &item)?;
             let previous_generated = self.generated_context;
             self.generated_context |= generated;
             match &mut item.kind {
@@ -1530,6 +1539,27 @@ impl Materializer<'_, '_> {
                     let tree = self.pending_generated_tree.take().ok_or_else(|| {
                         category("generated ItemList frozen tree absent", item.span)
                     })?;
+                    self.environment.budget.reserve_analysis_work(
+                        self.environment.generated_catalog.trees.len() as u64,
+                    )?;
+                    let row = self
+                        .environment
+                        .generated_catalog
+                        .trees
+                        .iter()
+                        .position(|candidate| Arc::ptr_eq(candidate, &tree))
+                        .ok_or_else(|| {
+                            category("generated source catalog row absent", item.span)
+                        })?;
+                    let row = u32::try_from(row).map_err(|_| {
+                        category("generated source catalog row overflow", item.span)
+                    })?;
+                    self.bind_source_items(
+                        &tree.module,
+                        &generated_items,
+                        compiler::source_sites::SourceTreeId::Generated(row),
+                    )?;
+                    self.discard_item_sites(&item)?;
                     let previous_tree = self.current_generated_tree.replace(tree);
                     let previous_path = std::mem::take(&mut self.item_path);
                     let generated_rows =
@@ -1554,11 +1584,13 @@ impl Materializer<'_, '_> {
                     self.declaration_lineage_preserved = false;
                     self.nested_items(module, then_items, Some(&owner), depth + 1, generated)?;
                     self.nested_items(module, else_items, Some(&owner), depth + 1, generated)?;
+                    self.discard_item_sites(&item)?;
                     output.push(item);
                 }
                 s::ItemKind::Meta(s::MetaItem::For { items, .. }) => {
                     self.declaration_lineage_preserved = false;
                     self.nested_items(module, items, Some(&owner), depth + 1, generated)?;
+                    self.discard_item_sites(&item)?;
                     output.push(item);
                 }
                 _ => {
@@ -1598,14 +1630,14 @@ impl Materializer<'_, '_> {
                             self.self_constant_impl_outputs.push((module, output.len()));
                         }
                     }
+                    self.discard_item_sites(&item)?;
                     output.push(item);
                 }
             }
-            self.release_bound_source_sites();
-            self.bound_source_sites = previous_bound_sites;
             self.generated_context = previous_generated;
             self.item_path.truncate(path_len);
         }
+        self.environment.budget.release_temporary_bytes(row_bytes);
         *items = output;
         Ok(retained)
     }
@@ -2359,8 +2391,6 @@ pub(crate) fn materialize<'a>(
         item_path: Vec::new(),
         next_generated_declaration: BTreeMap::new(),
         source_namespaces,
-        canonical_source_sites: BTreeMap::new(),
-        indexed_source_trees: BTreeSet::new(),
         bound_source_sites: Default::default(),
         generated_context: false,
         closure_site_revision: 0,
@@ -2370,8 +2400,20 @@ pub(crate) fn materialize<'a>(
         self_constant_impl_outputs: Vec::new(),
     };
     for (index, module) in output.iter_mut().enumerate() {
+        let original = materializer
+            .parsed
+            .iter()
+            .find(|p| p.module.id == module.id)
+            .ok_or_else(|| category("original clone module absent", module.span))?
+            .clone();
+        materializer.bind_source_items(
+            &original.module,
+            &module.items,
+            compiler::source_sites::SourceTreeId::Original,
+        )?;
         materializer.self_constants(module)?;
         let retained = materializer.items(module.id, &mut module.items, None, 0, false)?;
+        materializer.release_bound_source_sites();
         if !materializer.declaration_lineage_preserved {
             declaration_origins = None;
         }
@@ -2841,8 +2883,6 @@ mod scoped_tests {
                 item_path: Vec::new(),
                 next_generated_declaration: BTreeMap::new(),
                 source_namespaces: BTreeMap::new(),
-                canonical_source_sites: BTreeMap::new(),
-                indexed_source_trees: BTreeSet::new(),
                 bound_source_sites: Default::default(),
                 generated_context: false,
                 closure_site_revision: 0,

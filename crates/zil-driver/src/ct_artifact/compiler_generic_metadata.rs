@@ -303,12 +303,6 @@ impl Builder<'_, '_> {
             .iter()
             .any(|graph| !graph.ambient_classes.is_empty())
         {
-            if explicit.is_none() {
-                return Err(error(
-                    span,
-                    "ambient Type inference needs an independently authenticated explicit source vector",
-                ));
-            }
             return self.contextual_metadata_call(
                 declaration,
                 concrete,

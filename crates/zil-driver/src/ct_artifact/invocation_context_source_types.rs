@@ -1625,7 +1625,11 @@ impl FrozenInvocationContext {
                 "CT source call event does not select an expression",
             ));
         };
-        let s::ExprKind::Call { callee, .. } = &e.kind else {
+        let s::ExprKind::Call {
+            callee,
+            arguments: values,
+        } = &e.kind
+        else {
             return Err(unsupported(
                 "CT source call event does not select an original call",
             ));
@@ -1668,9 +1672,24 @@ impl FrozenInvocationContext {
                 (declaration.generics.len() + arguments.len() + call.actuals.len()) as u64,
             )?;
             if explicit.is_none() && !declaration.generics.is_empty() {
-                return Err(unsupported(
-                    "CT source call omits its original complete explicit actuals",
-                ));
+                if source_scopes.get(call.caller_scope_id.0 as usize) != Some(&call.caller_scope) {
+                    return Err(unsupported("CT inferred source call caller scope differs"));
+                }
+                let env = self.source_environment(
+                    &call.caller_scope,
+                    call.caller_scope_id,
+                    source_scopes,
+                    budget,
+                )?;
+                return self.validate_inferred_source_call(
+                    declaration,
+                    values,
+                    &call.actuals,
+                    &env,
+                    raw,
+                    index,
+                    budget,
+                );
             }
             if declaration.generics.len() != arguments.len()
                 || arguments.len() != call.actuals.len()
@@ -1736,6 +1755,66 @@ impl FrozenInvocationContext {
         })();
         budget.release_temporary_bytes(budget.live_temporary_bytes().saturating_sub(before));
         result
+    }
+    // The producer's inferred vector is a candidate. Recover every Type
+    // binder from independently typed value expressions at this exact Call.
+    #[allow(clippy::too_many_arguments)]
+    fn validate_inferred_source_call(
+        &self,
+        declaration: &s::Function,
+        values: &[s::Argument],
+        actuals: &[CtScopeActual],
+        env: &SourceEnvironment<'_>,
+        raw: &CtArtifactProgram,
+        index: &SourceIndex,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        budget.reserve_analysis_work(
+            (declaration.generics.len() + values.len() + actuals.len()) as u64,
+        )?;
+        if values.len() != declaration.params.len()
+            || actuals.len() != declaration.generics.len()
+            || values.iter().any(|v| v.spread)
+        {
+            return Err(unsupported(
+                "CT inferred source call complete value/type arity differs",
+            ));
+        }
+        for (parameter, actual) in declaration.generics.iter().zip(actuals) {
+            let (s::GenericParamKind::Type(_), CtScopeActual::Type(graph)) =
+                (&parameter.kind, actual)
+            else {
+                return Err(unsupported(
+                    "CT inferred source call requires independently supplied Const/Life actuals",
+                ));
+            };
+            let mut constrained = false;
+            for (formal, value) in declaration.params.iter().zip(values) {
+                step(budget, 0)?;
+                let mut ty = &formal.ty;
+                while let s::TypeKind::Group(inner) = &ty.kind {
+                    step(budget, 0)?;
+                    ty = inner;
+                }
+                let s::TypeKind::Named { path, args } = &ty.kind else {
+                    continue;
+                };
+                budget.reserve_analysis_work(
+                    parameter.name.len() as u64 + path.iter().map(|s| s.len() as u64).sum::<u64>(),
+                )?;
+                if path.len() != 1 || path[0] != parameter.name || !args.is_empty() {
+                    continue;
+                }
+                self.source_expression_type(&value.value, graph, env, raw, index, budget, 0)?;
+                constrained = true;
+            }
+            if !constrained {
+                return Err(unsupported(
+                    "CT inferred Type binder has no independent original value constraint",
+                ));
+            }
+        }
+        Ok(())
     }
     fn function_environment<'a>(
         &'a self,
