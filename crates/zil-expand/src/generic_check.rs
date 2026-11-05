@@ -8,6 +8,21 @@ mod deferred;
 mod factory;
 #[path = "generic_role_check.rs"]
 mod role_check;
+
+pub(super) fn source_class_key(
+    ty: &TypeRef,
+    source: &Function,
+    budget: &mut Budget<'_>,
+) -> R<String> {
+    role_check::key(
+        ty,
+        role_check::Scope {
+            source,
+            active: true,
+        },
+        budget,
+    )
+}
 #[path = "generic_scoped.rs"]
 mod scoped;
 
@@ -4714,7 +4729,7 @@ impl Check<'_, '_, '_> {
         }
         let origin = self.traits.function_origin(function, self.budget)?;
         self.budget.with_origin(origin, |budget| {
-            self.traits.check_arguments(
+            self.traits.check_arguments_scoped(
                 &function.generics,
                 found,
                 (
@@ -4728,6 +4743,7 @@ impl Check<'_, '_, '_> {
                 budget,
                 e.span,
                 callable.as_ref(),
+                Some(self.source_definition),
             )?;
             self.traits.check_where(
                 &function.where_clause,
