@@ -140,7 +140,9 @@ fn charge_lookup(
     bound: usize,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    let work = if scope.enclosing.is_some() || matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+    let work = if scope.enclosing.is_some()
+        || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+    {
         weight.saturating_mul(bound)
     } else {
         32usize.saturating_mul(bound.saturating_sub(1))
@@ -190,7 +192,9 @@ pub(super) fn check(
         if scope.binder_site.len() > limits.max_call_depth {
             return Err(limit(None, "CT binder-site depth exceeds quota"));
         }
-        let weight = if scope.enclosing.is_some() || matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+        let weight = if scope.enclosing.is_some()
+            || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+        {
             if weights.is_none() {
                 // State, comparison weights and dependency heights coexist.
                 let bytes = count.saturating_mul(2 * std::mem::size_of::<usize>() + 1);
@@ -300,8 +304,15 @@ pub(super) fn check(
         }
         if !lifetime {
             meter.charge(count, None)?;
-            if !raw.ambient_life_scopes.iter().any(|child| child.enclosing == Some(CtAmbientScopeId(index as u32))) {
-                return Err(reject(None, "CT ambient scope without life binders is not a lexical host"));
+            if !raw
+                .ambient_life_scopes
+                .iter()
+                .any(|child| child.enclosing == Some(CtAmbientScopeId(index as u32)))
+            {
+                return Err(reject(
+                    None,
+                    "CT ambient scope without life binders is not a lexical host",
+                ));
             }
         }
     }

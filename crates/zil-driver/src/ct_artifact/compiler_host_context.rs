@@ -4,7 +4,11 @@ use super::*;
 impl<'a> Compiler<'a> {
     fn member_host(&mut self, declaration: usize, span: Span) -> R<Option<&'a s::Item>> {
         self.budget.work(self.member_hosts.len(), span)?;
-        Ok(self.member_hosts.iter().find(|row| row.declaration == declaration).map(|row| row.host))
+        Ok(self
+            .member_hosts
+            .iter()
+            .find(|row| row.declaration == declaration)
+            .map(|row| row.host))
     }
 
     pub(super) fn source_host_instance(
@@ -17,16 +21,32 @@ impl<'a> Compiler<'a> {
     ) -> R<Option<CtAmbientScopeId>> {
         self.budget.depth(depth, span)?;
         let Some(host) = self.member_host(declaration, span)? else {
-            if arguments.is_some() { return Err(error(span, "CT host actuals require an actual member declaration")); }
+            if arguments.is_some() {
+                return Err(error(
+                    span,
+                    "CT host actuals require an actual member declaration",
+                ));
+            }
             return Ok(None);
         };
-        let s::ItemKind::Aggregate(aggregate) = &host.kind else { unreachable!() };
+        let s::ItemKind::Aggregate(aggregate) = &host.kind else {
+            unreachable!()
+        };
         if aggregate.generics.is_empty() {
-            if arguments.is_some_and(|args| !args.is_empty()) { return Err(error(span, "nongeneric CT host takes no actuals")); }
+            if arguments.is_some_and(|args| !args.is_empty()) {
+                return Err(error(span, "nongeneric CT host takes no actuals"));
+            }
             return Ok(None);
         }
-        let arguments = arguments.ok_or_else(|| error(span, "generic CT member requires complete explicit host actuals"))?;
-        if arguments.len() != aggregate.generics.len() { return Err(error(span, "CT host full actual vector arity differs")); }
+        let arguments = arguments.ok_or_else(|| {
+            error(
+                span,
+                "generic CT member requires complete explicit host actuals",
+            )
+        })?;
+        if arguments.len() != aggregate.generics.len() {
+            return Err(error(span, "CT host full actual vector arity differs"));
+        }
         let mut actuals = Vec::new();
         for (parameter, argument) in aggregate.generics.iter().zip(arguments) {
             self.budget.node(span)?;
@@ -37,9 +57,18 @@ impl<'a> Compiler<'a> {
                     self.metadata_copy(&graph, depth + 1, span)?;
                     CtScopeActual::Type(graph)
                 }
-                (s::GenericParamKind::Const(_), argument) => CtScopeActual::Scalar(self.source_scalar_argument(parameter, argument, span)?),
-                (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => CtScopeActual::Lifetime(self.ambient_actual(name, span)?),
-                _ => return Err(error(span, "CT host actual kind differs from original binder")),
+                (s::GenericParamKind::Const(_), argument) => {
+                    CtScopeActual::Scalar(self.source_scalar_argument(parameter, argument, span)?)
+                }
+                (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
+                    CtScopeActual::Lifetime(self.ambient_actual(name, span)?)
+                }
+                _ => {
+                    return Err(error(
+                        span,
+                        "CT host actual kind differs from original binder",
+                    ));
+                }
             });
         }
         let owner = self.declarations[declaration].module;
@@ -50,38 +79,77 @@ impl<'a> Compiler<'a> {
             instance: CtScopeInstance::Instantiated(actuals),
         };
         self.budget.work(self.ambient_life_scopes.len(), span)?;
-        for old in &self.ambient_life_scopes { self.budget.scope_comparison(old, span)?; }
+        for old in &self.ambient_life_scopes {
+            self.budget.scope_comparison(old, span)?;
+        }
         self.budget.scope_comparison(&raw, span)?;
-        let index = if let Some(index) = self.ambient_life_scopes.iter().position(|old| old == &raw) { index } else {
+        let index = if let Some(index) = self.ambient_life_scopes.iter().position(|old| old == &raw)
+        {
+            index
+        } else {
             self.budget.node(span)?;
-            Budget::take(&mut self.budget.bytes, std::mem::size_of::<CtAmbientLifeScope>(), span, "CT host scope inventory bytes exhausted")?;
+            Budget::take(
+                &mut self.budget.bytes,
+                std::mem::size_of::<CtAmbientLifeScope>(),
+                span,
+                "CT host scope inventory bytes exhausted",
+            )?;
             self.ambient_life_scopes.push(raw);
             self.ambient_life_scopes.len() - 1
         };
-        Ok(Some(CtAmbientScopeId(u32::try_from(index).map_err(|_| error(span, "CT host scope ID overflow"))?)))
+        Ok(Some(CtAmbientScopeId(
+            u32::try_from(index).map_err(|_| error(span, "CT host scope ID overflow"))?,
+        )))
     }
 
     pub(super) fn bind_host_instance(&mut self, declaration: usize) -> R<()> {
         let span = self.declarations[declaration].item.span;
-        let Some(host) = self.member_host(declaration, span)? else { return Ok(()) };
-        let s::ItemKind::Aggregate(aggregate) = &host.kind else { unreachable!() };
-        if aggregate.generics.is_empty() { return Ok(()) }
-        let id = self.active_host.ok_or_else(|| error(span, "CT member instance lost its authentic host context"))?;
-        let scope = self.ambient_life_scopes.get(id.0 as usize).ok_or_else(|| error(span, "CT host scope is outside inventory"))?;
+        let Some(host) = self.member_host(declaration, span)? else {
+            return Ok(());
+        };
+        let s::ItemKind::Aggregate(aggregate) = &host.kind else {
+            unreachable!()
+        };
+        if aggregate.generics.is_empty() {
+            return Ok(());
+        }
+        let id = self
+            .active_host
+            .ok_or_else(|| error(span, "CT member instance lost its authentic host context"))?;
+        let scope = self
+            .ambient_life_scopes
+            .get(id.0 as usize)
+            .ok_or_else(|| error(span, "CT host scope is outside inventory"))?;
         self.budget.scope_comparison(scope, span)?;
         let expected = self.item_symbol(self.declarations[declaration].module, host)?;
         let scope = &self.ambient_life_scopes[id.0 as usize];
-        if scope.declaration != expected { return Err(error(span, "CT instance host differs from actual lexical parent")); }
-        let CtScopeInstance::Instantiated(actuals) = &scope.instance else { return Err(error(span, "CT concrete member requires an instantiated host")) };
+        if scope.declaration != expected {
+            return Err(error(
+                span,
+                "CT instance host differs from actual lexical parent",
+            ));
+        }
+        let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
+            return Err(error(
+                span,
+                "CT concrete member requires an instantiated host",
+            ));
+        };
         Self::actual_cost(&mut self.budget, actuals, span)?;
         let actuals = actuals.clone();
-        if actuals.len() != aggregate.generics.len() { return Err(error(span, "CT instance host arity differs")); }
+        if actuals.len() != aggregate.generics.len() {
+            return Err(error(span, "CT instance host arity differs"));
+        }
         for (parameter, actual) in aggregate.generics.iter().zip(actuals) {
             self.budget.text(&parameter.name, parameter.span)?;
             match (&parameter.kind, actual) {
-                (s::GenericParamKind::Type(_), CtScopeActual::Type(graph)) => self.metadata_bindings.push((parameter.name.clone(), graph)),
-                (s::GenericParamKind::Const(_), CtScopeActual::Scalar(value)) => self.scalar_bindings.push((parameter.name.clone(), value)),
-                (s::GenericParamKind::Lifetime, CtScopeActual::Lifetime(_)) => {},
+                (s::GenericParamKind::Type(_), CtScopeActual::Type(graph)) => {
+                    self.metadata_bindings.push((parameter.name.clone(), graph))
+                }
+                (s::GenericParamKind::Const(_), CtScopeActual::Scalar(value)) => {
+                    self.scalar_bindings.push((parameter.name.clone(), value))
+                }
+                (s::GenericParamKind::Lifetime, CtScopeActual::Lifetime(_)) => {}
                 _ => return Err(error(span, "CT instance host kind differs")),
             }
         }
@@ -90,9 +158,15 @@ impl<'a> Compiler<'a> {
 
     pub(super) fn bind_abstract_host(&mut self, declaration: usize) -> R<()> {
         let span = self.declarations[declaration].item.span;
-        let Some(host) = self.member_host(declaration, span)? else { return Ok(()) };
-        let s::ItemKind::Aggregate(aggregate) = &host.kind else { unreachable!() };
-        if aggregate.generics.is_empty() { return Ok(()) }
+        let Some(host) = self.member_host(declaration, span)? else {
+            return Ok(());
+        };
+        let s::ItemKind::Aggregate(aggregate) = &host.kind else {
+            unreachable!()
+        };
+        if aggregate.generics.is_empty() {
+            return Ok(());
+        }
         let names = self.generic_names(&aggregate.generics, &[], span)?;
         let mut bindings = Vec::new();
         for name in names {

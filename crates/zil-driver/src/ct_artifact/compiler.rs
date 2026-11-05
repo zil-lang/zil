@@ -34,6 +34,8 @@ mod types;
 pub(super) mod source_sites;
 #[path = "compiler_source_sites.rs"]
 mod source_site_events;
+#[path = "compiler_generated.rs"]
+mod generated;
 use std::collections::{BTreeMap, VecDeque};
 use zil_base::{CompileResult, Diagnostic, Fingerprint, Limits, ModuleId, Phase, SourceUnit, Span};
 use zil_ir::ct_artifact::*;
@@ -762,6 +764,7 @@ pub(crate) fn compile_scoped_at_source<'a>(
 ) -> R<(CtArtifactProgram, SourceCompilation)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
     compiler.generated_catalog = catalog;
+    compiler.index_generated()?;
     compiler.entry_source_site = source_site;
     compiler.entry_source_expression = match &request.entry { Entry::Expression {expression,..} => Some(*expression), _ => None };
     compiler.check_generic_definitions()?;

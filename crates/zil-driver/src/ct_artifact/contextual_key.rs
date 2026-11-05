@@ -89,7 +89,12 @@ impl Key<'_, '_> {
             self.scopes.get(id as usize).map(|s| &s.instance),
             Some(CtScopeInstance::Instantiated(_))
         );
-        if !instantiated && self.scopes.get(id as usize).is_some_and(|scope| scope.enclosing.is_none()) {
+        if !instantiated
+            && self
+                .scopes
+                .get(id as usize)
+                .is_some_and(|scope| scope.enclosing.is_none())
+        {
             return self.scope_key_inner(id);
         }
         self.budget

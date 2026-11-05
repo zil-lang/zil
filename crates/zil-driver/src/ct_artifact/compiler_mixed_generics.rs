@@ -272,8 +272,11 @@ impl Compiler<'_> {
         self.functions.push(None);
         self.mixed_selected
             .push((declaration, actuals.to_vec(), self.active_host, id));
-        self.pending
-            .push_back((declaration, PendingTypes::Mixed(actuals.to_vec(), self.active_host), id));
+        self.pending.push_back((
+            declaration,
+            PendingTypes::Mixed(actuals.to_vec(), self.active_host),
+            id,
+        ));
         Ok(id)
     }
 }

@@ -96,13 +96,18 @@ impl Builder<'_, '_> {
                 path.push(name.clone());
                 Ok(Some(path))
             }
-            s::ExprKind::Group(inner) | s::ExprKind::TypeApply { callee: inner, .. } => self.source_path(inner, depth + 1),
+            s::ExprKind::Group(inner) | s::ExprKind::TypeApply { callee: inner, .. } => {
+                self.source_path(inner, depth + 1)
+            }
             _ => Ok(None),
         }
     }
 
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
-        let old = self.compiler.current_source_expr.replace((self.module, e as *const s::Expr as usize));
+        let old = self
+            .compiler
+            .current_source_expr
+            .replace((self.module, e as *const s::Expr as usize));
         let result = self.expr_at_source(e, expected, depth);
         self.compiler.current_source_expr = old;
         result
@@ -584,13 +589,32 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
-                if arguments.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_))) {
+                if arguments
+                    .iter()
+                    .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
                     if self.compiler.checking_generics {
-                        self.compiler.abstract_nominal(self.module, owner, item, arguments, depth + 1, span)?;
-                        return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, span);
+                        self.compiler.abstract_nominal(
+                            self.module,
+                            owner,
+                            item,
+                            arguments,
+                            depth + 1,
+                            span,
+                        )?;
+                        return self.emit(
+                            CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
+                            CtTy::Type,
+                            span,
+                        );
                     }
                     let data = self.compiler.source_scoped_nominal(
-                        self.module, owner, item, arguments, depth + 1, span,
+                        self.module,
+                        owner,
+                        item,
+                        arguments,
+                        depth + 1,
+                        span,
                     )?;
                     let graph = self.compiler.metadata_data(&data, span, depth + 1)?;
                     return self.metadata_type_value(&graph, graph.root, depth + 1, span);
@@ -600,8 +624,16 @@ impl Builder<'_, '_> {
                         if let s::GenericArg::Type(ty) = argument
                             && self.compiler.metadata_source_has_ambient(ty, depth + 1)?
                         {
-                            let syntax = s::TypeRef { kind: s::TypeKind::Named { path: names.clone(), args: arguments.clone() }, span };
-                            let graph = self.compiler.metadata_type(self.module, &syntax, depth + 1)?;
+                            let syntax = s::TypeRef {
+                                kind: s::TypeKind::Named {
+                                    path: names.clone(),
+                                    args: arguments.clone(),
+                                },
+                                span,
+                            };
+                            let graph =
+                                self.compiler
+                                    .metadata_type(self.module, &syntax, depth + 1)?;
                             return self.metadata_type_value(&graph, graph.root, depth + 1, span);
                         }
                     }
@@ -753,7 +785,10 @@ impl Builder<'_, '_> {
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
     }
     pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
-        let old = self.compiler.current_source_type.replace((module, ty as *const s::TypeRef as usize));
+        let old = self
+            .compiler
+            .current_source_type
+            .replace((module, ty as *const s::TypeRef as usize));
         let result = self.type_ref_inner(module, ty, depth);
         self.compiler.current_source_type = old;
         result
@@ -762,7 +797,8 @@ impl Builder<'_, '_> {
         self.compiler.budget.depth(depth, ty.span)?;
         if !self.compiler.checking_generics
             && !matches!(&ty.kind, s::TypeKind::Named { args, .. } if args.is_empty())
-            && self.compiler.metadata_source_has_ambient(ty, depth + 1)? {
+            && self.compiler.metadata_source_has_ambient(ty, depth + 1)?
+        {
             let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
             return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
         }
@@ -795,7 +831,9 @@ impl Builder<'_, '_> {
             }
             s::TypeKind::Named { path, args } => {
                 if !self.compiler.checking_generics
-                    && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                    && args
+                        .iter()
+                        .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
                 {
                     let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
                     return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
@@ -1164,7 +1202,13 @@ impl Builder<'_, '_> {
                 },
                 _ => None,
             };
-            let host = self.compiler.source_host_instance(self.module, declaration, host_arguments, depth + 1, span)?;
+            let host = self.compiler.source_host_instance(
+                self.module,
+                declaration,
+                host_arguments,
+                depth + 1,
+                span,
+            )?;
             let previous_host = std::mem::replace(&mut self.compiler.active_host, host);
             let result = self.generic_call(
                 declaration,

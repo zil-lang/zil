@@ -1090,6 +1090,233 @@ impl FrozenInvocationContext {
             }
         }
     }
+    pub(super) fn extend_call_host(
+        &mut self,
+        call: &SourceInstanceCall,
+        source_scopes: &[CtAmbientLifeScope],
+        raw: &CtArtifactProgram,
+        index: &SourceIndex,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        let Some(host_id) = call.enclosing else {
+            return Ok(());
+        };
+        self.validate_entry_slice(call.site, &call.caller_scope.declaration, budget)?;
+        let location = self.source_location(call.site, budget)?;
+        let caller_env = self.source_environment(
+            &call.caller_scope,
+            call.caller_scope_id,
+            source_scopes,
+            budget,
+        )?;
+        if !location
+            .function
+            .is_some_and(|f| std::ptr::eq(f, caller_env.function))
+        {
+            return Err(unsupported(
+                "CT host call source site is outside its original caller",
+            ));
+        }
+        let SourceNode::Expr(s::Expr {
+            kind: s::ExprKind::Call { callee, .. },
+            ..
+        }) = location.node
+        else {
+            return Err(unsupported(
+                "CT host instance event does not select an original call",
+            ));
+        };
+        let mut member = callee.as_ref();
+        while let s::ExprKind::Group(inner) = &member.kind {
+            step(budget, 0)?;
+            member = inner;
+        }
+        if let s::ExprKind::TypeApply { callee, .. } = &member.kind {
+            member = callee;
+        }
+        let s::ExprKind::Member { object, .. } = &member.kind else {
+            return Err(unsupported(
+                "CT host call has no actual lexical member expression",
+            ));
+        };
+        let s::ExprKind::TypeApply {
+            callee: host_path,
+            arguments,
+        } = &object.kind
+        else {
+            return Err(unsupported(
+                "CT host call omits its original complete enclosing actuals",
+            ));
+        };
+        let before = budget.live_temporary_bytes();
+        let mut path = Vec::new();
+        let result = (|| {
+            self.source_path(host_path, &mut path, budget, 0)?;
+            let (host_symbol, host_item) = self.source_symbol(
+                &call.caller_scope.declaration,
+                call.site.module,
+                &path,
+                index,
+                budget,
+            )?;
+            let s::ItemKind::Aggregate(aggregate) = &host_item.kind else {
+                return Err(unsupported(
+                    "CT enclosing source is not an original aggregate",
+                ));
+            };
+            if aggregate.kind != s::AggregateKind::Struct {
+                return Err(unsupported("CT enclosing source is not a pure struct host"));
+            }
+            let host = source_scopes
+                .get(host_id.0 as usize)
+                .ok_or_else(|| unsupported("CT call enclosing instance row absent"))?;
+            budget.reserve_analysis_work(64)?;
+            if host.declaration != host_symbol
+                || host.enclosing.is_some()
+                || !host.binder_site.is_empty()
+            {
+                return Err(unsupported(
+                    "CT enclosing instance does not name the actual original lexical host",
+                ));
+            }
+            let CtScopeInstance::Instantiated(actuals) = &host.instance else {
+                return Err(unsupported(
+                    "CT generic host has no complete actual instance",
+                ));
+            };
+            budget.reserve_analysis_work(
+                (aggregate.generics.len() + arguments.len() + actuals.len()) as u64,
+            )?;
+            if aggregate.generics.len() != arguments.len() || arguments.len() != actuals.len() {
+                return Err(unsupported(
+                    "CT host original complete actual arity differs",
+                ));
+            }
+            for ((parameter, source), actual) in
+                aggregate.generics.iter().zip(arguments).zip(actuals)
+            {
+                step(budget, 0)?;
+                match (&parameter.kind, source, actual) {
+                    (
+                        s::GenericParamKind::Lifetime,
+                        s::GenericArg::Lifetime(name),
+                        CtScopeActual::Lifetime(actual),
+                    ) => {
+                        if *actual != self.source_lifetime(name, &caller_env, budget)? {
+                            return Err(unsupported(
+                                "CT host lifetime actual differs from its original full ordinal",
+                            ));
+                        }
+                    }
+                    (
+                        s::GenericParamKind::Type(_),
+                        s::GenericArg::Type(ty),
+                        CtScopeActual::Type(graph),
+                    ) => {
+                        self.source_type(ty, graph, graph.root, &caller_env, raw, index, budget, 0)?
+                    }
+                    (s::GenericParamKind::Const(domain), _, CtScopeActual::Scalar(value)) => {
+                        let expected = self.source_scalar(
+                            source,
+                            scalar_domain(domain, budget)?,
+                            &caller_env,
+                            budget,
+                            0,
+                        )?;
+                        budget.reserve_analysis_work(32)?;
+                        if &expected != value {
+                            return Err(unsupported(
+                                "CT host scalar actual differs from original source",
+                            ));
+                        }
+                    }
+                    _ => {
+                        return Err(unsupported(
+                            "CT host actual kind differs from original complete ordinal",
+                        ));
+                    }
+                }
+            }
+            budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
+            for active in &self.active {
+                if active.raw.declaration == host.declaration {
+                    let cost = super::super::execute::value_context::ambient_cost(
+                        std::slice::from_ref(&active.raw),
+                        budget,
+                    )?
+                    .saturating_add(
+                        super::super::execute::value_context::ambient_cost(
+                            std::slice::from_ref(host),
+                            budget,
+                        )?,
+                    );
+                    budget.reserve_analysis_work(cost)?;
+                    if active.raw == *host {
+                        return Ok(None);
+                    }
+                }
+            }
+            let origins = self
+                .origins
+                .as_ref()
+                .ok_or_else(|| unsupported("CT host original lineage absent"))?;
+            budget.reserve_analysis_work(origins.len() as u64)?;
+            let identity = &origins
+                .iter()
+                .find(|row| row.module == host_symbol.module)
+                .and_then(|row| row.items.get(host_symbol.declaration.0 as usize))
+                .ok_or_else(|| unsupported("CT host original declaration identity absent"))?
+                .identity;
+            let mut cost = super::super::execute::value_context::ambient_cost(
+                std::slice::from_ref(host),
+                budget,
+            )?;
+            cost = cost
+                .saturating_add(identity_cost(identity, budget)?)
+                .saturating_add(std::mem::size_of::<ActiveScope>() as u64)
+                .saturating_add(
+                    aggregate.generics.len() as u64
+                        * std::mem::size_of::<CtScopeParameterKind>() as u64,
+                );
+            budget.reserve_temporary_bytes(cost)?;
+            let mut parameters = Vec::with_capacity(aggregate.generics.len());
+            for p in &aggregate.generics {
+                step(budget, 0)?;
+                parameters.push(match &p.kind {
+                    s::GenericParamKind::Type(_) => CtScopeParameterKind::Type,
+                    s::GenericParamKind::Lifetime => CtScopeParameterKind::Lifetime,
+                    s::GenericParamKind::Const(ty) => {
+                        CtScopeParameterKind::Scalar(scalar_domain(ty, budget)?)
+                    }
+                });
+            }
+            Ok(Some((
+                ActiveScope {
+                    raw: host.clone(),
+                    identity: identity.clone(),
+                    parameters,
+                },
+                cost,
+            )))
+        })();
+        let keep = result
+            .as_ref()
+            .ok()
+            .and_then(|row| row.as_ref())
+            .map_or(0, |(_, cost)| *cost);
+        budget.release_temporary_bytes(
+            budget
+                .live_temporary_bytes()
+                .saturating_sub(before)
+                .saturating_sub(keep),
+        );
+        if let Some((active, cost)) = result? {
+            self.active.reserve_exact(1);
+            self.active.push(active);
+            self.bytes = self.bytes.saturating_add(cost);
+        }
+        Ok(())
+    }
     pub(super) fn validate_source_call_actuals(
         &self,
         call: &SourceInstanceCall,
@@ -1271,7 +1498,6 @@ impl FrozenInvocationContext {
                 ));
             }
             self.validate_scope(scope, budget)?;
-            let function = self.original_scope_function(scope, budget)?;
             self.match_location(
                 location,
                 graph,
@@ -1360,7 +1586,6 @@ impl FrozenInvocationContext {
             })?;
             let scope = &raw.ambient_life_scopes[scope_id.0 as usize];
             self.validate_scope(scope, budget)?;
-            let source_function = self.original_scope_function(scope, budget)?;
             self.match_location(
                 location,
                 graph,

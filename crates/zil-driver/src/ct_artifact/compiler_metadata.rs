@@ -375,20 +375,26 @@ impl Compiler<'_> {
         // Ambient owners are graph-local node references too. Moving only the
         // physical nodes would silently erase the actual external life source.
         if !graph.ambient_classes.is_empty() {
-        self.budget.work(graph.ambient_classes.len(), span)?;
-        Budget::take(
-            &mut self.budget.bytes,
-            self.metadata_ambient.len().saturating_add(graph.ambient_classes.len())
-                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
-            span,
-            "CT metadata ambient relocation backing exhausted",
-        )?;
-        self.metadata_ambient.reserve_exact(graph.ambient_classes.len());
-        for mut row in graph.ambient_classes {
-            row.owner.0 = row.owner.0.checked_add(offset)
-                .ok_or_else(|| error(span, "CT metadata ambient owner overflow"))?;
-            self.metadata_ambient.push(row);
-        }
+            self.budget.work(graph.ambient_classes.len(), span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                self.metadata_ambient
+                    .len()
+                    .saturating_add(graph.ambient_classes.len())
+                    .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                span,
+                "CT metadata ambient relocation backing exhausted",
+            )?;
+            self.metadata_ambient
+                .reserve_exact(graph.ambient_classes.len());
+            for mut row in graph.ambient_classes {
+                row.owner.0 = row
+                    .owner
+                    .0
+                    .checked_add(offset)
+                    .ok_or_else(|| error(span, "CT metadata ambient owner overflow"))?;
+                self.metadata_ambient.push(row);
+            }
         }
         for mut node in graph.nodes {
             let mut failed = false;
@@ -436,16 +442,24 @@ impl Compiler<'_> {
         self.budget.work(1, ty.span)?;
         match &ty.kind {
             s::TypeKind::Named { path, args } => {
-                if path.len() == 1 && args.is_empty()
+                if path.len() == 1
+                    && args.is_empty()
                     && let Some(graph) = self.metadata_binding(&path[0], ty.span)?
                 {
                     return Ok(!graph.ambient_classes.is_empty()
-                        || matches!(graph.nodes.get(graph.root.0 as usize), Some(CtTypeNode::BorrowedStorage { .. })));
+                        || matches!(
+                            graph.nodes.get(graph.root.0 as usize),
+                            Some(CtTypeNode::BorrowedStorage { .. })
+                        ));
                 }
                 for arg in args {
                     match arg {
                         s::GenericArg::Lifetime(_) => return Ok(true),
-                        s::GenericArg::Type(inner) if self.metadata_source_has_ambient(inner, depth + 1)? => return Ok(true),
+                        s::GenericArg::Type(inner)
+                            if self.metadata_source_has_ambient(inner, depth + 1)? =>
+                        {
+                            return Ok(true);
+                        }
                         _ => {}
                     }
                 }
@@ -453,11 +467,15 @@ impl Compiler<'_> {
             }
             s::TypeKind::Tuple(parts) | s::TypeKind::Union(parts) => {
                 for part in parts {
-                    if self.metadata_source_has_ambient(part, depth + 1)? { return Ok(true); }
+                    if self.metadata_source_has_ambient(part, depth + 1)? {
+                        return Ok(true);
+                    }
                 }
                 Ok(false)
             }
-            s::TypeKind::Group(inner) | s::TypeKind::Array { element: inner, .. } => self.metadata_source_has_ambient(inner, depth + 1),
+            s::TypeKind::Group(inner) | s::TypeKind::Array { element: inner, .. } => {
+                self.metadata_source_has_ambient(inner, depth + 1)
+            }
             _ => Ok(false),
         }
     }
@@ -469,7 +487,9 @@ impl Compiler<'_> {
         depth: usize,
     ) -> R<CtTypeRef> {
         if let s::TypeKind::Named { path, args } = &ty.kind
-            && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+            && args
+                .iter()
+                .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
             && !self.checking_generics
         {
             let (owner, item) = self.named_item(module, path, ty.span)?;
@@ -512,7 +532,9 @@ impl Compiler<'_> {
         if lifetimes.is_empty()
             && !self.checking_generics
             && let s::TypeKind::Named { args, .. } = &ty.kind
-            && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+            && args
+                .iter()
+                .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
         {
             let graph = self.metadata_type(module, ty, depth + 1)?;
             return self.meta_append(nodes, graph, span);
