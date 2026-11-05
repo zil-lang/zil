@@ -1,40 +1,8 @@
 //! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
-const OWNED_ENUM861: &str = include_str!("../../task-composition/G8.6.1/owned-enum-saved.zil");
-
-#[test]
-fn g861_complete_enum_real_source_reaches_analyze() {
-    let cancelled = OWNED_ENUM861.replace(
-        "    drive(&mut task);\n    drive(&mut task);",
-        "    drive(&mut task);",
-    );
-    let pc0 = OWNED_ENUM861.replace("    drive(&mut task);\n    drive(&mut task);\n", "");
-    let empty = OWNED_ENUM861.replace("Packet.Item(give token)", "Packet.Empty");
-    for input in [
-        OWNED_ENUM861,
-        &cancelled,
-        &pc0,
-        &empty,
-        include_str!("../../task-composition/G8.6.1/owned-enum-failed-prepare.zil"),
-        include_str!("../../task-composition/G8.6.1/owned-enum-prepared.zil"),
-    ] {
-        let report = compile_source(
-            &source(input),
-            &CompileOptions {
-                stop_after: zil_driver::Stage::Analyze,
-                ..CompileOptions::default()
-            },
-        );
-        assert_eq!(
-            report.status,
-            ResultCategory::Success,
-            "{}",
-            report.to_json()
-        );
-        assert_eq!(report.verification_runs, 0);
-    }
-}
+#[path = "../../task-composition/G8.6.1/source_consumers.rs"]
+mod g861;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,

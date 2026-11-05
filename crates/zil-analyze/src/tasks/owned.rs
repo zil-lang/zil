@@ -138,12 +138,7 @@ fn storage(t: &Type, budget: &mut Budget) -> CompileResult<bool> {
 }
 // A private continuation profile, independently reconstructed from actual
 // concrete captures. It grants no Closed/no-future state and admits no borrow.
-fn pollable_storage(
-    module: &TypedModule,
-    t: &Type,
-    budget: &mut Budget,
-    enum_storage: &mut bool,
-) -> CompileResult<bool> {
+fn pollable_storage(module: &TypedModule, t: &Type, budget: &mut Budget) -> CompileResult<bool> {
     budget.type_work(t, false, "pollable frame actual type")?;
     budget.spend(1, "pollable frame actual storage")?;
     match t {
@@ -153,19 +148,9 @@ fn pollable_storage(
             let Type::AsyncRegistration { environment } = p.as_ref() else {
                 unreachable!()
             };
-            pollable_storage(module, environment, budget, enum_storage)
+            pollable_storage(module, environment, budget)
         }
-        Type::Address { inner, .. } => pollable_storage(module, inner, budget, enum_storage),
-        Type::Enum { .. } => {
-            if storage(t, budget)? {
-                Ok(true)
-            } else if complete_enum(t, budget)? {
-                *enum_storage = true;
-                Ok(true)
-            } else {
-                Ok(false)
-            }
-        }
+        Type::Address { inner, .. } => pollable_storage(module, inner, budget),
         Type::Closure(id) => {
             let Some(c) = module.closures.get(id.0 as usize) else {
                 return Ok(false);
@@ -379,8 +364,10 @@ pub(super) fn profile(
     }
     let mut checked = BTreeSet::new();
     for t in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
-        let mut enum_storage = false;
-        if !pollable_storage(module, t, budget, &mut enum_storage)? {
+        let old_storage = pollable_storage(module, t, budget)?;
+        let enum_storage =
+            !old_storage && matches!(t, Type::Enum { .. }) && complete_enum(t, budget)?;
+        if !old_storage && !enum_storage {
             return Err(reject(
                 "E-VERIFY-TASK",
                 span,
@@ -414,7 +401,6 @@ pub(super) fn profile(
                             pending.extend(fields);
                         }
                     }
-                    Type::Address { inner, .. } => pending.push(inner),
                     Type::Managed(_) => leaves.push(leaf),
                     _ => {}
                 }

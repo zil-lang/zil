@@ -1,0 +1,29 @@
+extern "C" fn putchar(code:i32)->i32;
+resource Token { code:i32 }
+impl Drop for Token { fn drop(self:Self) { unsafe { putchar(.code); } } }
+enum Packet { Empty, Pair(manages Token,manages Token) }
+fn worker(give a:Token,give b:Token)->i32 {
+    let packet=Packet.Pair(give a,give b);
+    task_yield();
+    match packet {
+        Packet.Empty()=>{return 0;},
+        Packet.Pair(left,right)=>{return left.code+right.code;}
+    }
+}
+fn drive(task:&mut Task<i32>)->TaskPollState!i32 {
+    match task_poll(task)? {
+        std.task.Poll.Pending()=>{unsafe{putchar(80);}return 0;},
+        std.task.Poll.Ready(value)=>{unsafe{putchar(82);}return value;}
+    }
+}
+fn main()->TaskCreateError!i32 {
+    let a=Token{code:65};
+    let b=Token{code:66};
+    var task=task_create(worker,give a,give b)?;
+    drive(&mut task);
+    drive(&mut task);
+    task_request_cancel(&mut task);
+    task_poll_close(&mut task);
+    task_finish_destroy(give task);
+    return 0;
+}
