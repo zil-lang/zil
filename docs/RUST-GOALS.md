@@ -566,3 +566,20 @@ and correctness gain; runtime/RSS and compile speed against same-semantics Rust,
 framework maintenance costs and a product-level net breakthrough remain unmeasured.
 Current-request work and prior Unit/tail budget controls are preserved; broader
 lending, loops, multiple callable roles and user teardown are still outstanding.
+
+
+G4.4.5.1 lets original mixed Type/Const/Life CT factories return UserPure
+records with existing scalar fields across explicitly forwarded lifetime
+contexts. Both original schemas and source bindings remain, while independent
+source-call checks prove equal Definition/ordinal endpoints and the actual
+single-evaluation Extract/Make chain. Ordinary type equality and symbolic
+bad-definition rejection remain strict. Real consumers preserve full u64 values,
+negative i64, fractions, distinct source lifetimes and Unit; they exposed and
+fixed the existing Unit reification into an incorrect named type. This advances
+usable compile-time composition without a new runtime ownership mechanism or
+public IR opcode. New compile-time work and backing capacities are charged to
+the current request; existing scalar-result CT controls remain explicit. These
+are correctness and expressibility results. Same-semantics Rust runtime/RSS,
+compile speed and framework-maintenance comparisons and a product-level net
+breakthrough remain unmeasured. Nested or owning fields, generic/generated host
+contexts and life-bearing Type construction are still separate requirements.
