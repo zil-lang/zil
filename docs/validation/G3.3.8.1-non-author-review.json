@@ -201,5 +201,17 @@
     "No cyclic, multiple-F, lending, give-F, user Drop or broader owned-capture admission.",
     "G4.4.5 is deferred by root to a successor batch; only its early source/architectural contract review is recorded here, no implementation Pass.",
     "No Rust runtime/RSS/compile/maintenance comparison or product-level net breakthrough established."
-  ]
+  ],
+  "post_replay_lint_static_review": {
+    "production_commit": "0bd633b007efc3494672a1343b72fe02416b8e4e",
+    "fixture_commit": "0b527b58934b9f5679a7cb7647b83c4f76b35fc1",
+    "verdict": "Pass",
+    "method": "Read-only hunk comparison; no rebuild or re-execution by this reviewer. Functional/native execution remains bound to 217804e9002081d652619f6f4a248e33cad31ad9.",
+    "observations": [
+      "Production ptr/equality condition still short-circuits answer.replace exactly as the prior nested if; no budget call changed.",
+      "Take discovery still checks result identity before the TakeLocal pattern.",
+      "Crossing-owner discovery still matches Store before reading its local type; both let-chain guards preserve lookup order and return value."
+    ],
+    "root_failures": "Root retained two original strict-Clippy failures separately; these were lint failures, not language/runtime rejections."
+  }
 }
