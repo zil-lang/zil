@@ -119,20 +119,7 @@ fn g137_review_source_continuation_actual_origins_and_apart() {
     ] {
         candidate(text);
     }
-    let report = compile_source(
-        &source(FAILURE),
-        &CompileOptions {
-            stop_after: Stage::Analyze,
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Analyze);
+    candidate(FAILURE);
     for text in [
         OLD.to_owned(),
         INCOMING.replace("result(give)", "result(create)"),
