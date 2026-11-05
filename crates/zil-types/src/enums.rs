@@ -147,7 +147,7 @@ pub(super) fn pattern_variant<'a>(
             )),
         };
     }
-    let Type::Enum { variants, .. } = expected else {
+    let Type::Enum { variants, .. } = stored::physical(expected) else {
         return Err(error(
             "E-MATCH-TYPE",
             span,
@@ -190,7 +190,7 @@ pub(super) fn constructor_type<'a>(
         let ty = name
             .split_once(':')
             .and_then(|(_, declaration)| types.get(declaration))
-            .filter(|ty| matches!(ty, Type::Enum { name: actual, .. } if actual == name))
+            .filter(|ty| matches!(stored::physical(ty), Type::Enum { name: actual, .. } if actual == name))
             .ok_or_else(|| {
                 error(
                     "E-UNKNOWN-NAME",
@@ -204,19 +204,68 @@ pub(super) fn constructor_type<'a>(
     }
 }
 
-pub(super) fn definitions(core: &CoreModule) -> BTreeMap<String, Type> {
-    core.enums
-        .iter()
-        .map(|e| {
-            (
-                e.name.clone(),
-                Type::Enum {
-                    name: nominal_name(core.module_id.0, &e.name, &e.variants),
-                    variants: e.variants.clone(),
-                },
+pub(super) fn definitions(
+    core: &CoreModule,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<BTreeMap<String, Type>> {
+    if !core.life_instances.iter().any(|instance| {
+        matches!(&instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Enum { .. }))
+    }) {
+        // Preserve the established all-ordinary Enum namespace and its budget.
+        return Ok(core.enums.iter().map(|e| (e.name.clone(), Type::Enum {
+            name: nominal_name(core.module_id.0, &e.name, &e.variants),
+            variants: e.variants.clone(),
+        })).collect());
+    }
+    let mut result = BTreeMap::new();
+    for e in &core.enums {
+        let physical_name = nominal_name(core.module_id.0, &e.name, &e.variants);
+        let limit = || {
+            Diagnostic::limit(
+                Phase::Types,
+                "qualified Enum constructor inventory budget exceeded",
+                Some(e.span),
             )
-        })
-        .collect()
+        };
+        *left = left
+            .checked_sub(physical_name.len().saturating_add(e.name.len()))
+            .ok_or_else(limit)?;
+        let mut actual = None;
+        for instance in &core.life_instances {
+            let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                continue;
+            };
+            let Type::Enum { name, variants } = storage.as_ref() else {
+                continue;
+            };
+            let cost = inference::type_snapshot_work(&instance.ty, e.span, limits)?;
+            *left = left.checked_sub(cost.saturating_add(1)).ok_or_else(limit)?;
+            if name == &physical_name
+                && variants == &e.variants
+                && actual.replace(&instance.ty).is_some()
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    e.span,
+                    "enum constructor has multiple complete stored identities",
+                ));
+            }
+        }
+        let ty = if let Some(actual) = actual {
+            let cost = inference::type_snapshot_work(actual, e.span, limits)?;
+            *left = left.checked_sub(cost).ok_or_else(limit)?;
+            actual.clone()
+        } else {
+            // Ordinary declarations in mixed modules still use their old shape.
+            Type::Enum {
+                name: physical_name,
+                variants: e.variants.clone(),
+            }
+        };
+        result.insert(e.name.clone(), ty);
+    }
+    Ok(result)
 }
 
 pub(super) fn project_definitions(
@@ -227,6 +276,13 @@ pub(super) fn project_definitions(
 ) -> CompileResult<BTreeMap<String, Type>> {
     let mut result = BTreeMap::new();
     for module in &program.modules {
+        if module.core.life_instances.iter().any(|instance| {
+            matches!(&instance.ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Enum { .. }))
+        }) {
+            // This project namespace can only expose a qualified constructor
+            // after the source/Core declaration and full actual graph agree.
+            stored::inventory(&module.core, remaining, limits).map_err(|e| vec![e])?;
+        }
         for e in &module.core.enums {
             if module.core.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
                 continue;
@@ -241,6 +297,7 @@ pub(super) fn project_definitions(
             *remaining = remaining
                 .checked_sub(e.name.len().saturating_add(e.variants.len()))
                 .ok_or_else(limit)?;
+            let mut qualified_payload = false;
             let mut pending = e
                 .variants
                 .iter()
@@ -253,6 +310,10 @@ pub(super) fn project_definitions(
                 }
                 *remaining = remaining.checked_sub(1).ok_or_else(limit)?;
                 match ty {
+                    Type::BorrowedStorage { storage, .. } => {
+                        qualified_payload = true;
+                        pending.push((storage, depth + 1));
+                    }
                     Type::Record { name, fields } | Type::Package { name, fields } => {
                         *remaining = remaining
                             .checked_sub(name.len().saturating_add(fields.len()))
@@ -287,14 +348,45 @@ pub(super) fn project_definitions(
                     _ => {}
                 }
             }
+            if qualified_payload {
+                // The project namespace copies this complete source variant
+                // vector before looking up any stored instance.
+                for (name, fields) in &e.variants {
+                    *remaining = remaining
+                        .checked_sub(name.len().saturating_add(fields.len()).saturating_add(1))
+                        .ok_or_else(limit)?;
+                    for field in fields {
+                        let work = inference::type_snapshot_work(field, e.span, limits)
+                            .map_err(|e| vec![e])?;
+                        *remaining = remaining.checked_sub(work).ok_or_else(limit)?;
+                    }
+                }
+            }
+            let physical = Type::Enum {
+                name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
+                variants: e.variants.clone(),
+            };
+            let mut qualified = None;
+            for instance in &module.core.life_instances {
+                let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+                    continue;
+                };
+                let work = inference::type_snapshot_work(&instance.ty, e.span, limits)
+                    .map_err(|e| vec![e])?;
+                *remaining = remaining
+                    .checked_sub(work.saturating_add(1))
+                    .ok_or_else(limit)?;
+                if storage.as_ref() == &physical && qualified.replace(instance.ty.clone()).is_some()
+                {
+                    return Err(vec![error(
+                        "E-STORED-IDENTITY",
+                        e.span,
+                        "project Enum has multiple complete stored instances",
+                    )]);
+                }
+            }
             if result
-                .insert(
-                    e.name.clone(),
-                    Type::Enum {
-                        name: nominal_name(module.core.module_id.0, &e.name, &e.variants),
-                        variants: e.variants.clone(),
-                    },
-                )
+                .insert(e.name.clone(), qualified.unwrap_or(physical))
                 .is_some()
             {
                 return Err(vec![error(
@@ -535,7 +627,7 @@ impl Coverage<'_> {
             return self.useful(&rows, &next, &types, depth + 1);
         }
         self.reserve_copies(&[], &[], types, depth)?;
-        let constructors = match &types[0] {
+        let constructors = match stored::physical(&types[0]) {
             Type::Unit => vec![Constructor::Unit],
             Type::Bool => vec![Constructor::Bool(false), Constructor::Bool(true)],
             Type::Tuple(_) => vec![Constructor::Tuple],
@@ -572,7 +664,7 @@ impl Coverage<'_> {
     }
 }
 fn constructor_fields(constructor: &Constructor, ty: &Type) -> Vec<Type> {
-    match (constructor, ty) {
+    match (constructor, stored::physical(ty)) {
         (Constructor::Tuple, Type::Tuple(fields)) => fields.clone(),
         (Constructor::Variant(index), Type::ErrorUnion { error, result }) => {
             vec![if *index == 1 { error } else { result }.as_ref().clone()]
@@ -596,11 +688,13 @@ fn specialize(rows: &[Vec<Pattern>], constructor: &Constructor, arity: usize) ->
         .collect()
 }
 
-impl Builder<'_, '_> {
+impl<'a, 'c> Builder<'a, 'c> {
     /// Check one conditional pattern without requiring coverage of the input.
     /// The returned flag means no valid input can take its failure edge.
     pub(super) fn conditional_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
-        if !ty.is_copy_value() {
+        if !ty.is_copy_value()
+            && !stored::pure_value(ty, &mut self.match_work_left, self.limits, pattern.span)?
+        {
             return Err(unsupported(
                 pattern.span,
                 "pattern condition requires a finite Copy value",
@@ -623,7 +717,7 @@ impl Builder<'_, '_> {
             0,
         )?)
     }
-    pub(super) fn enum_constructor(&self, expression: &CoreExpr) -> R<Option<(Type, u32)>> {
+    pub(super) fn enum_constructor(&self, expression: &CoreExpr) -> R<Option<(&'a Type, u32)>> {
         let CoreExprKind::Member {
             object,
             member,
@@ -641,9 +735,10 @@ impl Builder<'_, '_> {
         let Some(types) = self.enums else {
             return Ok(None);
         };
-        let Some(ty @ Type::Enum { variants, .. }) =
-            constructor_type(types, name, expression.span)?
-        else {
+        let Some(ty) = constructor_type(types, name, expression.span)? else {
+            return Ok(None);
+        };
+        let Type::Enum { variants, .. } = stored::physical(ty) else {
             return Ok(None);
         };
         if owner.is_some() {
@@ -657,7 +752,7 @@ impl Builder<'_, '_> {
             .iter()
             .position(|(name, _)| name == member)
             .ok_or_else(|| error("E-ENUM-VARIANT", expression.span, "unknown enum variant"))?;
-        Ok(Some((ty.clone(), index as u32)))
+        Ok(Some((ty, index as u32)))
     }
     pub(super) fn make_variant(
         &mut self,
@@ -667,7 +762,7 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        let Type::Enum { variants, .. } = ty else {
+        let Type::Enum { variants, .. } = stored::physical(ty) else {
             unreachable!()
         };
         let fields = &variants[variant as usize].1;
@@ -698,6 +793,11 @@ impl Builder<'_, '_> {
                 span,
             )?;
             return Ok((value, ty.clone()));
+        }
+        if matches!(ty, Type::BorrowedStorage { .. }) {
+            // The qualified result is copied into both the returned semantic
+            // type and the actual SSA MakeVariant result.
+            self.closures.snapshot_type(ty, 2, 0, span)?;
         }
         let mut values = Vec::new();
         for (expression, expected) in expressions.iter().zip(fields) {
@@ -756,7 +856,9 @@ impl Builder<'_, '_> {
         if owned_shapes::enumeration(&ty) {
             return self.owned_enum_match_value(value, ty, arms, span);
         }
-        if !ty.is_copy_value() {
+        if !ty.is_copy_value()
+            && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, span)?
+        {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }
         self.finish_resource_temps(expression.span)?;

@@ -20,7 +20,7 @@ fn independent_replacement_protocol_holds_base_until_commit_and_checks_tickets()
     let schedule = inventory.schedule(f, &graph, &mut b).unwrap();
     assert_eq!(schedule.retained[0][2], vec![ValueId(0)]);
     assert_eq!(schedule.retained[0][3], vec![ValueId(0)]);
-    for case in 0..5 {
+    for case in 0..7 {
         let mut module = fixture::module();
         let f = &mut module.functions[0];
         match case {
@@ -37,7 +37,7 @@ fn independent_replacement_protocol_holds_base_until_commit_and_checks_tickets()
             3 => {
                 f.blocks[0].instructions[1].result = Some(ValueId(1));
             }
-            _ => {
+            4 => {
                 let InstructionKind::ReservePlaceAddress { path, .. } =
                     &mut f.blocks[0].instructions[1].kind
                 else {
@@ -45,11 +45,37 @@ fn independent_replacement_protocol_holds_base_until_commit_and_checks_tickets()
                 };
                 path[0] = PlaceProjection::Field(9);
             }
+            _ => f.blocks[0].instructions.insert(
+                2,
+                Instruction {
+                    result: None,
+                    kind: if case == 5 {
+                        InstructionKind::TaskYield
+                    } else {
+                        InstructionKind::SuspendCall {
+                            function: f.id,
+                            arguments: vec![],
+                        }
+                    },
+                    span: zil_base::Span::default(),
+                },
+            ),
         }
         let mut b = Budget::new(&limits);
         let result = Inventory::reconstruct(&module, &module.functions[0], &mut b)
             .and_then(|i| i.schedule(&module.functions[0], &graph, &mut b));
-        assert!(result.is_err(), "case{case}");
+        if case >= 5 {
+            assert!(
+                result
+                    .err()
+                    .expect("invalid suspension must be rejected")
+                    .message
+                    .contains("prepared replacement cannot suspend"),
+                "case{case}"
+            );
+        } else {
+            assert!(result.is_err(), "case{case}");
+        }
     }
 }
 #[test]

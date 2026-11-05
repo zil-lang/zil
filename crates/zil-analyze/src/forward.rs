@@ -1,6 +1,7 @@
 //! Analyze's private, position-sensitive proof of callable parameter returns.
 //! Public source/kind tags are claims. Only checked body/call substitutions
 //! establish a relation, and no fact from Types or Verify is consumed here.
+use super::helpers::Origin;
 use super::*;
 #[cfg(test)]
 #[path = "forward_tests.rs"]
@@ -197,12 +198,12 @@ const LIVE: u8 = 1;
 const VACANT: u8 = 2;
 const MOVED: u8 = 4;
 const CLEANED: u8 = 8;
-const FRESH: u8 = 4;
-const UNKNOWN: u8 = 8;
+const FRESH: Origin = Origin::FACTORY;
+const UNKNOWN: Origin = Origin::UNKNOWN;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Slot {
-    origin: u8,
+    origin: Origin,
     life: u8,
     // A Load used to invoke an actual Copy environment is an observation of
     // the symbolic F, not permission to transfer/copy that formal value.
@@ -210,7 +211,7 @@ struct Slot {
 }
 impl Slot {
     const EMPTY: Self = Self {
-        origin: 0,
+        origin: Origin::EMPTY,
         life: VACANT,
         alias: false,
     };
@@ -230,7 +231,10 @@ struct State {
 impl State {
     fn copied(&self, budget: &mut Budget) -> CompileResult<Self> {
         budget.spend(
-            self.locals.len().saturating_add(self.values.len()),
+            self.locals
+                .len()
+                .saturating_add(self.values.len())
+                .saturating_mul(std::mem::size_of::<Slot>()),
             "forward CFG state copy",
         )?;
         Ok(self.clone())
@@ -260,8 +264,8 @@ impl State {
 }
 
 pub(super) struct Snapshot {
-    pub(super) locals: Vec<u8>,
-    pub(super) values: Vec<u8>,
+    pub(super) locals: Vec<Origin>,
+    pub(super) values: Vec<Origin>,
 }
 pub(super) type Snapshots = Vec<Vec<Option<Snapshot>>>;
 
@@ -289,16 +293,18 @@ pub(super) fn internal_slot(ty: &Type) -> Option<ClosureId> {
 fn carrier(ty: &Type) -> bool {
     closure(ty).is_some() || internal_slot(ty).is_some()
 }
-fn role(origin: u8) -> CompileResult<Option<usize>> {
-    match origin {
-        1 => Ok(Some(0)),
-        2 => Ok(Some(1)),
-        FRESH => Ok(None),
-        _ => Err(bad(
-            "callable instance source is missing or mixed at this CFG position",
-        )),
+fn role(origin: Origin) -> CompileResult<Option<usize>> {
+    if let Some(index) = origin.index() {
+        return Ok(Some(index));
     }
+    if origin == FRESH {
+        return Ok(None);
+    }
+    Err(bad(
+        "callable instance source is missing or mixed at this CFG position",
+    ))
 }
+
 fn live(slot: Slot, check: bool) -> CompileResult<()> {
     if check && slot.life != LIVE {
         Err(bad(
@@ -393,7 +399,7 @@ fn consume(
             "a symbolic F observation cannot be copied into a transferred value",
         ));
     }
-    let symbolic = slot.origin & 3 != 0;
+    let symbolic = slot.origin.has_role();
     if !slot.alias && (symbolic || !concrete_copy(module, ty, budget)?) {
         state.values[value.0 as usize].life = MOVED;
     }
@@ -425,7 +431,8 @@ fn call_arguments(
     }
     for (value, expected) in arguments.iter().zip(&definition.parameters) {
         budget.type_work(expected, false, "forward actual callback argument type")?;
-        if carrier(&f.values[value.0 as usize]) && state.values[value.0 as usize].origin & 3 != 0 {
+        if carrier(&f.values[value.0 as usize]) && state.values[value.0 as usize].origin.has_role()
+        {
             return Err(bad(
                 "symbolic F cannot enter an ordinary callback data argument",
             ));
@@ -477,7 +484,7 @@ fn transfer(
         );
         if call && let Some(rows) = snapshots.as_deref_mut() {
             budget.spend(
-                state.locals.len().saturating_add(state.values.len()),
+                Origin::table_work(state.locals.len().saturating_add(state.values.len())),
                 "forward call provenance snapshot",
             )?;
             rows[position] = Some(Snapshot {
@@ -523,7 +530,7 @@ fn transfer(
                 } else if matches!(
                     i.kind,
                     InstructionKind::BorrowLocal { .. } | InstructionKind::BorrowLocalMut { .. }
-                ) || (slot.origin & 3 != 0 && !slot.alias)
+                ) || (slot.origin.has_role() && !slot.alias)
                 {
                     taken.alias = true;
                 } else if check && !concrete_copy(module, &f.locals[local.0 as usize].ty, budget)? {
@@ -633,7 +640,7 @@ fn transfer(
                 for value in captures {
                     if carrier(&f.values[value.0 as usize]) {
                         let slot = consume(module, f, state, *value, check, budget)?;
-                        if check && slot.origin & 3 != 0 {
+                        if check && slot.origin.has_role() {
                             return Err(bad(
                                 "forwarded symbolic F cannot be hidden in a new local environment",
                             ));
@@ -791,7 +798,7 @@ fn transfer(
                         budget,
                     )?;
                     if matches!(i.kind, InstructionKind::CallClosure { .. })
-                        && slot.origin & 3 != 0
+                        && slot.origin.has_role()
                         && !copy_observation(
                             module,
                             f,
@@ -854,7 +861,7 @@ fn transfer(
                 for value in super::resources::uses(&i.kind) {
                     budget.spend(1, "forward unhandled callable operand audit")?;
                     if carrier(&f.values[value.0 as usize])
-                        && state.values[value.0 as usize].origin & 3 != 0
+                        && state.values[value.0 as usize].origin.has_role()
                     {
                         return Err(bad("symbolic F enters an unsupported value operation"));
                     }
@@ -887,7 +894,7 @@ fn transfer(
             .iter()
             .position(|r| r.parameter == k)
             .ok_or_else(|| bad("returned parameter has no actual role"))?;
-        if slot.origin != 1 << index || slot.alias {
+        if slot.origin.index() != Some(index) || slot.alias {
             return Err(bad(
                 "normal return is not the same live prepared callable parameter instance",
             ));
@@ -905,7 +912,10 @@ pub(super) fn prove(
     budget: &mut Budget,
 ) -> CompileResult<Snapshots> {
     let cells = f.locals.len().saturating_add(f.values.len());
-    budget.spend(cells, "forward initial CFG state")?;
+    budget.spend(
+        cells.saturating_mul(std::mem::size_of::<Slot>()),
+        "forward initial CFG state",
+    )?;
     let mut entry = State {
         locals: vec![Slot::EMPTY; f.locals.len()],
         values: vec![Slot::EMPTY; f.values.len()],
@@ -913,7 +923,10 @@ pub(super) fn prove(
     budget.spend(parameters.len(), "forward incoming role instances")?;
     for (index, (_, local)) in parameters.iter().enumerate() {
         entry.locals[local.0 as usize] = Slot {
-            origin: 1 << index,
+            origin: Origin::supplied(
+                index,
+                matches!(f.locals[local.0 as usize].ty, Type::Address { .. }),
+            ),
             life: LIVE,
             alias: matches!(f.locals[local.0 as usize].ty, Type::Address { .. }),
         };

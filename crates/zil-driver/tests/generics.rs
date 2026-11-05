@@ -2185,26 +2185,22 @@ fn g3_3_1_source_annotations_preserve_actual_ambient_classes() {
 #[test]
 fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
     let prefix = "struct Phantom<life s>{n:i32}type Id<T>=T;struct Reader{}";
-    for (good, bad, executable) in [
+    for (good, bad) in [
         (
             "let x:Id<Phantom<'a>>=Phantom::<'a>{n:42};return x.n",
             "let x:Id<Phantom<'a>>=Phantom::<'b>{n:42};return x.n",
-            true,
         ),
         (
             "let values=[Phantom::<'a>{n:42}];let x:Phantom<'a>=values[0];return x.n",
             "let values=[Phantom::<'b>{n:42}];let x:Phantom<'a>=values[0];return x.n",
-            false,
         ),
         (
             "var x=Phantom::<'a>{n:0};x=Phantom::<'a>{n:42};return x.n",
             "var x=Phantom::<'a>{n:0};x=Phantom::<'b>{n:42};return x.n",
-            true,
         ),
         (
             "let pair=(0,Phantom::<'a>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
             "let pair=(0,Phantom::<'b>{n:42});let (_,saved)=pair;let x:Phantom<'a>=saved;return x.n",
-            false,
         ),
     ] {
         for (body, expected) in [
@@ -2217,27 +2213,14 @@ fn g3_3_1_aliases_nested_fields_assignments_and_unused_methods_keep_classes() {
             let report = compile_source(
                 &source(&text),
                 &CompileOptions {
-                    stop_after: if executable {
-                        Stage::Verify
-                    } else {
-                        Stage::Core
-                    },
+                    stop_after: Stage::Verify,
                     ..Default::default()
                 },
             );
             assert_eq!(report.status, expected, "{}", report.to_json());
-            if expected == ResultCategory::Success && executable {
+            if expected == ResultCategory::Success {
+                assert_eq!(report.verification_runs, 1);
                 terminal_native_profiles(&text, "main", 42);
-            }
-            if expected == ResultCategory::Success && !executable {
-                let full = compile_source(&source(&text), &CompileOptions::default());
-                assert_eq!(
-                    full.status,
-                    ResultCategory::Unsupported,
-                    "{}",
-                    full.to_json()
-                );
-                assert_eq!(full.phase, Phase::Types, "{}", full.to_json());
             }
             if expected == ResultCategory::SafeReject {
                 assert!(

@@ -271,7 +271,21 @@ pub(super) fn specialize_with_context(
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
 ) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
-    normalize(sources, modules, imports, limits, products, context).map_err(|e| vec![e])
+    specialize_with_runtime(sources, modules, imports, limits, products, context, None)
+}
+pub(super) fn specialize_with_runtime(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    imports: &[Vec<CoreImport>],
+    limits: &Limits,
+    products: &mut generics::products::Products,
+    context: Option<super::source_context::SourceIdentityContext<'_>>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
+) -> CompileResult<Vec<(Module, Vec<CoreImport>)>> {
+    normalize(
+        sources, modules, imports, limits, products, context, runtime_ct,
+    )
+    .map_err(|e| vec![e])
 }
 fn normalize(
     sources: &[SourceUnit],
@@ -280,8 +294,12 @@ fn normalize(
     limits: &Limits,
     products: &mut generics::products::Products,
     context: Option<super::source_context::SourceIdentityContext<'_>>,
+    runtime_ct: Option<&dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Vec<(Module, Vec<CoreImport>)>> {
     let mut budget = Budget::new(limits);
+    if runtime_ct.is_some() {
+        budget.note_source_identity();
+    }
     if sources.len() != modules.len() || modules.len() != imports.len() || modules.is_empty() {
         return Err(error(
             "E-MODULE-ID",
@@ -409,6 +427,7 @@ fn normalize(
         index.symbols.insert(module.id, symbols);
         index.imports.insert(module.id, aliases);
     }
+    let mut static_hosts = Vec::new();
     let mut combined = Module {
         id: modules[0].id,
         span: modules[0].span,
@@ -425,6 +444,37 @@ fn normalize(
         for (ordinal, source_item) in module.items.iter().enumerate() {
             if matches!(source_item.kind, ItemKind::Import(_)) {
                 continue;
+            }
+            if runtime_ct.is_some()
+                && matches!(&source_item.kind, ItemKind::Aggregate(a) if !a.generics.is_empty() && !a.methods.is_empty())
+            {
+                let source_origin =
+                    generics::origins::Origin::source(module.id, ordinal, source_item.span)?;
+                let row = origins
+                    .as_ref()
+                    .and_then(|origins| origins.identities.get(&source_origin.declaration))
+                    .ok_or_else(|| {
+                        error(
+                            "E-SOURCE-IDENTITY",
+                            source_item.span,
+                            "CT namespace original input identity absent",
+                        )
+                    })?;
+                generics::origins::pay_identity(&row.identity, visitor.budget, source_item.span)?;
+                generics::origins::pay_declaration_copy(row, visitor.budget, source_item.span)?;
+                visitor.budget.lineage_bytes(
+                    (static_hosts.len() + 1) * std::mem::size_of::<StaticHostInput<'_>>(),
+                    source_item.span,
+                )?;
+                static_hosts.reserve_exact(1);
+                static_hosts.push(StaticHostInput {
+                    item: source_item,
+                    definition: crate::runtime_ct::RuntimeDefinition {
+                        module: module.id,
+                        origin: row.clone(),
+                        member: None,
+                    },
+                });
             }
             let mut item = source_item.clone();
             visitor.item(&mut item, &Names::new(), true, 0)?;
@@ -458,8 +508,21 @@ fn normalize(
         limits.clone()
     };
     products.origins = origins;
-    let specialized = match generics::specialize_products(&combined, &instance_limits, products)
-        .map_err(|mut e| e.remove(0))?
+    let runtime_bridge = runtime_ct.map(|callback| NormalizedRuntimeCt {
+        callback,
+        index: &index,
+        static_hosts: &static_hosts,
+    });
+    let specialized = match generics::specialize_products_with_runtime(
+        &combined,
+        &instance_limits,
+        products,
+        None,
+        runtime_bridge
+            .as_ref()
+            .map(|bridge| bridge as &dyn crate::runtime_ct::RuntimeCt),
+    )
+    .map_err(|mut e| e.remove(0))?
     {
         // A borrowed result is the unchanged combined input. Keep that owned
         // syntax rather than cloning it again while redistributing modules.
@@ -608,6 +671,159 @@ fn normalize(
     }
     products.restore_owners(&functions)?;
     Ok(output)
+}
+
+/// Re-enter the actual module normalizer for syntax produced by the CT
+/// consumer. Its original source names cannot be interpreted as already
+/// normalized template names by the generic engine.
+struct NormalizedRuntimeCt<'a> {
+    callback: &'a dyn crate::runtime_ct::RuntimeCt,
+    index: &'a Index,
+    static_hosts: &'a [StaticHostInput<'a>],
+}
+struct StaticHostInput<'a> {
+    item: &'a Item,
+    definition: crate::runtime_ct::RuntimeDefinition,
+}
+impl crate::runtime_ct::RuntimeCt for NormalizedRuntimeCt<'_> {
+    fn check_static_host(
+        &self,
+        definition: &crate::runtime_ct::RuntimeDefinition,
+        actual: &Item,
+        remaining: &mut Limits,
+    ) -> CompileResult<()> {
+        let mut budget = Budget::new(remaining);
+        budget.limit_temporary_bytes(remaining.max_source_bytes);
+        let result = (|| -> R<&Item> {
+            let mut selected = None;
+            for input in self.static_hosts {
+                generics::origins::pay_identity(
+                    &input.definition.origin.identity,
+                    &mut budget,
+                    actual.span,
+                )?;
+                generics::origins::pay_identity(
+                    &definition.origin.identity,
+                    &mut budget,
+                    actual.span,
+                )?;
+                generics::origins::pay_declaration_copy(
+                    &input.definition.origin,
+                    &mut budget,
+                    actual.span,
+                )?;
+                let left = &input.definition.origin;
+                let right = &definition.origin;
+                let generated = match (&left.generated, &right.generated) {
+                    (None, None) => true,
+                    (Some(l), Some(r)) => {
+                        l.root == r.root && std::sync::Arc::ptr_eq(&l.tree, &r.tree)
+                    }
+                    _ => false,
+                };
+                if input.definition.module == definition.module
+                    && definition.member.is_none()
+                    && left.declaration == right.declaration
+                    && left.identity == right.identity
+                    && left.closure_sites == right.closure_sites
+                    && left.retained_members == right.retained_members
+                    && generated
+                    && selected.replace(input.item).is_some()
+                {
+                    return Err(error(
+                        "E-SOURCE-IDENTITY",
+                        actual.span,
+                        "CT namespace input placement is ambiguous",
+                    ));
+                }
+            }
+            let input = selected.ok_or_else(|| {
+                error(
+                    "E-SOURCE-IDENTITY",
+                    actual.span,
+                    "CT namespace input has no actual source correspondence",
+                )
+            })?;
+            struct CopyMeter<'a, 'b>(&'a mut Budget<'b>);
+            impl crate::ct_selection::Visitor for CopyMeter<'_, '_> {
+                fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                    self.0.node(span, depth).map_err(|e| vec![e])?;
+                    self.0
+                        .lineage_bytes(
+                            std::mem::size_of::<Item>()
+                                + std::mem::size_of::<Stmt>()
+                                + std::mem::size_of::<Expr>()
+                                + std::mem::size_of::<TypeRef>()
+                                + std::mem::size_of::<Pattern>(),
+                            span,
+                        )
+                        .map_err(|e| vec![e])
+                }
+                fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+                    self.0.text(text, span).map_err(|e| vec![e])?;
+                    self.0.lineage_bytes(text.len(), span).map_err(|e| vec![e])
+                }
+            }
+            crate::ct_selection::Visitor::item(&mut CopyMeter(&mut budget), input, 0)
+                .map_err(|mut errors| errors.remove(0))?;
+            let mut expected = input.clone();
+            let mut visitor = Visitor {
+                default_nominal: None,
+                const_scope: Names::new(),
+                mode: Mode::Normalize(self.index),
+                module: definition.module,
+                budget: &mut budget,
+            };
+            visitor.item(&mut expected, &Names::new(), true, 0)?;
+            budget.item(&expected)?;
+            budget.item(actual)?;
+            if expected != *actual {
+                return Err(Diagnostic::unsupported(
+                    Phase::Expand,
+                    "CT namespace whole input cannot be reproduced by its actual normalizer",
+                    Some(actual.span),
+                ));
+            }
+            Ok(input)
+        })();
+        *remaining = budget.remaining_limits();
+        let input = result.map_err(|error| vec![error])?;
+        self.callback
+            .check_static_host(definition, input, remaining)
+    }
+    fn definition_expression(
+        &self,
+        definition: &crate::runtime_ct::RuntimeDefinition,
+        ordinal: u32,
+        remaining: &mut Limits,
+    ) -> CompileResult<TypeRef> {
+        self.callback
+            .definition_expression(definition, ordinal, remaining)
+    }
+    fn instantiated(
+        &self,
+        instance: &crate::runtime_ct::RuntimeInstance,
+        ledger: &[crate::runtime_ct::RuntimeInstance],
+        template: &Item,
+        output: &mut Item,
+        remaining: &mut Limits,
+    ) -> CompileResult<()> {
+        self.callback
+            .instantiated(instance, ledger, template, output, remaining)?;
+        let mut budget = Budget::new(remaining);
+        let mut visitor = Visitor {
+            default_nominal: None,
+            const_scope: Names::new(),
+            mode: Mode::Normalize(self.index),
+            module: instance.definition.module,
+            budget: &mut budget,
+        };
+        visitor
+            .item(output, &Names::new(), true, 0)
+            .map_err(|e| vec![e])?;
+        *remaining = budget.remaining_limits();
+        Ok(())
+    }
 }
 
 enum Mode<'a> {

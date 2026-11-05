@@ -68,9 +68,9 @@ fn capture<'a>(
         .environment
         .and_then(|id| module.closures.get(id.0 as usize))
         .ok_or_else(|| bad(span, "owner operation has no actual environment"))?;
-    if d.kind != CallableKind::FnOnce || d.storage_life.is_none() {
+    if d.storage_life.is_none() {
         return Err(unsupported(
-            "owning Fixed capture operation requires a genuine FnOnce definition",
+            "owning Fixed capture operation requires its actual qualified environment",
             Some(span),
         ));
     }
@@ -133,6 +133,16 @@ pub(super) fn types(
             same_result(f, i, ty, b)?;
         }
         InstructionKind::TakeCapture { index } => {
+            if !f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .is_some_and(|d| d.kind == CallableKind::FnOnce)
+            {
+                return Err(bad(
+                    i.span,
+                    "moving a captured owner requires the actual consuming FnOnce entry",
+                ));
+            }
             let ty = capture(module, f, *index, i.span)?;
             shape(ty, i.span, b)?;
             if !owner(ty) {
@@ -195,7 +205,8 @@ pub(super) fn types(
 }
 /// A module cannot carry arbitrary resource profiles just because one closure
 /// has an allowed owner. Each declaration must be the exact scalar payload of
-/// an actual owning capture in a qualified genuine FnOnce definition.
+/// an actual owning capture in a qualified concrete environment. Its mode
+/// separately controls whether the body may merely describe or consume it.
 pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
     if module.resources.is_empty() {
         return Ok(());
@@ -203,7 +214,7 @@ pub(super) fn module(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.closures.len())?;
     let mut payloads = Vec::new();
     for d in &module.closures {
-        if d.kind == CallableKind::FnOnce && d.storage_life.is_some() {
+        if d.storage_life.is_some() {
             b.spend(d.captures.len())?;
             for ty in &d.captures {
                 stored_flow::type_work(ty, &b.limits.clone(), b)?;

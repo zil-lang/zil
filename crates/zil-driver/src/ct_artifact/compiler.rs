@@ -8,8 +8,12 @@ mod cfg;
 mod domain;
 #[path = "compiler_expr.rs"]
 mod expr;
+#[path = "compiler_generated.rs"]
+mod generated;
 #[path = "compiler_generics.rs"]
 mod generics;
+#[path = "compiler_host_context.rs"]
+mod host_context;
 #[path = "compiler_members.rs"]
 mod members;
 #[path = "compiler_mixed_generics.rs"]
@@ -18,10 +22,18 @@ mod mixed_generics;
 mod quote;
 #[path = "compiler_record_relocation.rs"]
 mod record_relocation;
+#[path = "compiler_runtime_context.rs"]
+pub(super) mod runtime_context;
 #[path = "compiler_selection.rs"]
 mod selection;
 #[path = "compiler_source_scope.rs"]
 pub(super) mod source_scope;
+#[path = "compiler_source_sites.rs"]
+mod source_site_events;
+#[path = "source_sites.rs"]
+pub(super) mod source_sites;
+#[path = "compiler_static_namespace.rs"]
+pub(super) mod static_namespace;
 #[path = "compiler_symbolic_calls.rs"]
 mod symbolic_calls;
 #[path = "compiler_symbolic_nominal.rs"]
@@ -282,16 +294,18 @@ struct Declaration<'a> {
 enum PendingTypes {
     Data(Vec<CtTy>),
     Metadata(Vec<CtTypeRef>),
-    Mixed(Vec<CtScopeActual>),
+    Mixed(Vec<CtScopeActual>, Option<CtAmbientScopeId>),
 }
 /// Private fresh-compiler facts. Neither raw artifacts nor caches can supply
 /// this request-local event ledger to invocation authority.
 #[derive(Clone, Debug, Default)]
 pub(crate) struct SourceCompilation {
+    pub runtime_frames: Vec<SourceRuntimeFrame>,
     pub bindings: Vec<SourceLifeBinding>,
     pub calls: Vec<SourceInstanceCall>,
     pub scopes: Vec<CtAmbientLifeScope>,
     pub relocations: Vec<SourceRecordRelocation>,
+    pub type_sites: Vec<SourceTypeSite>,
 }
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct SourceRecordRelocation {
@@ -302,8 +316,23 @@ pub(crate) struct SourceRecordRelocation {
     pub target: CtRecordSchemaId,
     pub output: CtValueId,
 }
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SourceTypeSite {
+    pub caller: CtFunctionId,
+    pub value: CtValueId,
+    pub site: source_sites::SourceSite,
+}
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct SourceRuntimeFrame {
+    pub base: CtAmbientScopeId,
+    pub instance: CtAmbientScopeId,
+}
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
+    /// Exact instruction position, including Unit calls without an SSA result.
+    pub execution: Option<(CtBlockId, u32)>,
+    /// Exact fresh actual call definition, bound before any relocation emits.
+    pub occurrence: Option<(CtBlockId, CtValueId)>,
     pub caller: CtFunctionId,
     pub caller_definition: CtSymbolId,
     pub caller_scope: CtAmbientLifeScope,
@@ -311,44 +340,78 @@ pub(crate) struct SourceInstanceCall {
     pub callee: CtSymbolId,
     pub instance: CtFunctionId,
     pub actuals: Vec<CtScopeActual>,
+    pub enclosing: Option<CtAmbientScopeId>,
+    pub site: source_sites::SourceSite,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SourceSchemaId {
+    Record(CtRecordSchemaId),
+    Enum(CtEnumSchemaId),
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct SourceLifeBinding {
+    /// Locator only: consumer replays this actual parent's original field Type.
+    pub parent: Option<SourceSchemaId>,
     pub enumeration: bool,
     pub schema: u32,
+    pub caller: Option<CtFunctionId>,
     pub definition: CtSymbolId,
     /// Class -> original generic parameter ordinal, including intervening kinds.
     pub parameters: Vec<u32>,
+    /// Complete root class references when the classes cross lexical owners.
+    pub sources: Option<Vec<CtAmbientLifeReference>>,
+    pub site: Option<source_sites::SourceSite>,
 }
 struct SourceLifeScope {
+    tree: source_sites::SourceTreeId,
+    enclosing: Option<CtAmbientScopeId>,
     definition: CtSymbolId,
     span: Span,
     binders: Vec<(String, u32)>,
     instance: CtScopeInstance,
 }
 struct Compiler<'a> {
+    active_host: Option<CtAmbientScopeId>,
     modules: &'a [SourceModule<'a>],
     declarations: Vec<Declaration<'a>>,
     member_hosts: Vec<members::MemberLocation<'a>>,
     selected: BTreeMap<usize, CtFunctionId>,
     generic_selected: Vec<(usize, Vec<CtTy>, CtFunctionId)>,
     generic_metadata_selected: Vec<(usize, Vec<CtTypeRef>, CtFunctionId)>,
-    mixed_selected: Vec<(usize, Vec<CtScopeActual>, CtFunctionId)>,
+    mixed_selected: Vec<(
+        usize,
+        Vec<CtScopeActual>,
+        Option<CtAmbientScopeId>,
+        CtFunctionId,
+    )>,
     pending: VecDeque<(usize, PendingTypes, CtFunctionId)>,
     bindings: Vec<(String, CtTy)>,
     metadata_bindings: Vec<(String, CtTypeRef)>,
     scalar_bindings: Vec<(String, Constant)>,
     source_life_scope: Option<SourceLifeScope>,
+    current_source_function: Option<CtFunctionId>,
+    runtime_frames: Vec<SourceRuntimeFrame>,
     ambient_life_scopes: Vec<CtAmbientLifeScope>,
     source_life_bindings: Vec<SourceLifeBinding>,
     source_instance_calls: Vec<SourceInstanceCall>,
+    source_type_sites: Vec<SourceTypeSite>,
+    current_source_expr: Option<(usize, usize)>,
+    current_source_type: Option<(usize, usize)>,
+    current_nominal_site: Option<source_sites::SourceSite>,
+    source_nominal_parent: Option<SourceSchemaId>,
+    metadata_ambient: Vec<CtAmbientClassBinding>,
+    metadata_graph_only: bool,
+    metadata_life_bindings: Option<Vec<(String, CtAmbientLifeReference)>>,
+    generated_catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    entry_source_site: Option<source_sites::SourceSite>,
+    entry_source_expression: Option<&'a s::Expr>,
     record_relocations: Vec<SourceRecordRelocation>,
     active_copy_metadata: Vec<CtTypeRef>,
     symbolic: Vec<CtTy>,
     abstract_scalars: Vec<(String, symbolic_nominal::ScalarArgument)>,
     abstract_lives: Vec<(String, CtSymbolId, u32)>,
     abstract_nominals: Vec<symbolic_nominal::Nominal>,
-    active_abstract_nominals: Vec<CtRecordSchemaId>,
+    active_abstract_nominals: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
     classification_binders: Vec<String>,
@@ -388,6 +451,7 @@ impl<'a> Compiler<'a> {
             modules,
             declarations: Vec::new(),
             member_hosts: Vec::new(),
+            active_host: None,
             selected: BTreeMap::new(),
             generic_selected: Vec::new(),
             generic_metadata_selected: Vec::new(),
@@ -397,9 +461,22 @@ impl<'a> Compiler<'a> {
             metadata_bindings: Vec::new(),
             scalar_bindings: Vec::new(),
             source_life_scope: None,
+            current_source_function: None,
+            runtime_frames: Vec::new(),
             ambient_life_scopes: Vec::new(),
             source_life_bindings: Vec::new(),
             source_instance_calls: Vec::new(),
+            source_type_sites: Vec::new(),
+            current_source_expr: None,
+            current_source_type: None,
+            current_nominal_site: None,
+            source_nominal_parent: None,
+            metadata_ambient: Vec::new(),
+            metadata_graph_only: false,
+            metadata_life_bindings: None,
+            generated_catalog: None,
+            entry_source_site: None,
+            entry_source_expression: None,
             record_relocations: Vec::new(),
             active_copy_metadata: Vec::new(),
             symbolic: Vec::new(),
@@ -517,6 +594,9 @@ impl<'a> Compiler<'a> {
     }
 
     fn item_symbol(&mut self, module: usize, item: &s::Item) -> R<CtSymbolId> {
+        if let Some(symbol) = self.generated_item_symbol(module, item)? {
+            return Ok(symbol);
+        }
         self.budget.work(
             self.modules[module]
                 .syntax
@@ -709,13 +789,51 @@ pub(crate) fn compile(request: CompileRequest<'_>) -> R<CtArtifactProgram> {
 pub(crate) fn compile_scoped(
     request: CompileRequest<'_>,
 ) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_at_source(request, None, None)
+}
+pub(crate) fn compile_scoped_with_catalog<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_at_source(request, catalog, None)
+}
+pub(crate) fn compile_scoped_at_source<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source_site: Option<source_sites::SourceSite>,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, source_site, None)
+}
+pub(crate) fn compile_scoped_runtime_at_source<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source: &runtime_context::RuntimeEntrySource,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
+    compile_scoped_context(request, catalog, Some(source.expression_site), Some(source))
+}
+fn compile_scoped_context<'a>(
+    request: CompileRequest<'a>,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+    source_site: Option<source_sites::SourceSite>,
+    runtime_source: Option<&runtime_context::RuntimeEntrySource>,
+) -> R<(CtArtifactProgram, SourceCompilation)> {
     let mut compiler = Compiler::indexed(request.modules, request.limits)?;
+    compiler.generated_catalog = catalog;
+    compiler.index_generated()?;
+    compiler.entry_source_site = source_site;
+    compiler.entry_source_expression = match &request.entry {
+        Entry::Expression { expression, .. } => Some(*expression),
+        _ => None,
+    };
     compiler.check_generic_definitions()?;
     // An uncalled CT-only definition is still checked; runtime-only functions
     // are compiled only when actually referenced by the pure CT call graph.
     for index in 0..compiler.declarations.len() {
         let d = compiler.declarations[index];
-        if d.function.generics.is_empty() && compiler.ct_only_function(d.module, d.function)? {
+        if d.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
+            && compiler.ct_only_function(d.module, d.function)?
+        {
             compiler.enqueue(index)?;
         }
     }
@@ -749,6 +867,15 @@ pub(crate) fn compile_scoped(
                 Some(owner) => compiler.source_life_scope(module, &owner, expression.span)?,
                 None => None,
             };
+            if let Some(source) = runtime_source {
+                if source.definition != definition {
+                    return Err(error(
+                        expression.span,
+                        "runtime CT recipe owner differs from its original entry",
+                    ));
+                }
+                compiler.bind_runtime_entry(module, expression, source)?;
+            }
             compiler.budget.node(expression.span)?;
             Budget::take(
                 &mut compiler.budget.functions,
@@ -758,6 +885,7 @@ pub(crate) fn compile_scoped(
             )?;
             let id = CtFunctionId(compiler.functions.len() as u32);
             compiler.functions.push(None);
+            compiler.current_source_function = Some(id);
             let body = cfg::expression(
                 &mut compiler,
                 id,
@@ -771,6 +899,11 @@ pub(crate) fn compile_scoped(
             id
         }
     };
+    if runtime_source.is_some() {
+        compiler.bindings.clear();
+        compiler.metadata_bindings.clear();
+        compiler.scalar_bindings.clear();
+    }
     while let Some((declaration, arguments, id)) = compiler.pending.pop_front() {
         compiler.budget.work(
             compiler
@@ -783,6 +916,7 @@ pub(crate) fn compile_scoped(
         // A pending body owns its own lexical scope. It cannot inherit the
         // expression caller's life binders, even when diagnostic spans coincide.
         compiler.source_life_scope = None;
+        compiler.active_host = None;
         match arguments {
             PendingTypes::Data(arguments) => {
                 compiler.bindings = compiler.instance_bindings(declaration, &arguments)?
@@ -791,7 +925,8 @@ pub(crate) fn compile_scoped(
                 compiler.metadata_bindings =
                     compiler.metadata_instance_bindings(declaration, &arguments)?
             }
-            PendingTypes::Mixed(arguments) => {
+            PendingTypes::Mixed(arguments, enclosing) => {
+                compiler.active_host = enclosing;
                 compiler.bind_mixed_instance(declaration, &arguments)?;
             }
         }
@@ -835,12 +970,14 @@ pub(crate) fn compile_scoped(
         }
         compiler.ambient_life_scopes.clone()
     };
-    let retain_scopes = compiler.has_ambient_use()?;
+    let retain_scopes = runtime_source.is_some() || compiler.has_ambient_use()?;
     let source_compilation = SourceCompilation {
+        runtime_frames: std::mem::take(&mut compiler.runtime_frames),
         bindings: std::mem::take(&mut compiler.source_life_bindings),
         calls: std::mem::take(&mut compiler.source_instance_calls),
         scopes,
         relocations: std::mem::take(&mut compiler.record_relocations),
+        type_sites: std::mem::take(&mut compiler.source_type_sites),
     };
     Ok((
         CtArtifactProgram {
@@ -882,9 +1019,18 @@ pub(crate) fn definitions_entry(
     modules: &[SourceModule<'_>],
     limits: &mut Limits,
 ) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
+    definitions_entry_with_catalog(modules, limits, None)
+}
+pub(crate) fn definitions_entry_with_catalog<'a>(
+    modules: &'a [SourceModule<'a>],
+    limits: &mut Limits,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<(Option<CtSymbolId>, Vec<CtSymbolId>)> {
     let initial_nodes = limits.max_nodes;
     let initial_bytes = limits.max_source_bytes;
     let mut compiler = Compiler::indexed(modules, limits)?;
+    compiler.generated_catalog = catalog;
+    compiler.index_generated()?;
     let indexed_nodes = compiler.budget.nodes;
     let indexed_bytes = compiler.budget.bytes;
     let definitions = compiler.check_generic_definitions();
@@ -904,6 +1050,7 @@ pub(crate) fn definitions_entry(
     for index in 0..compiler.declarations.len() {
         let declaration = compiler.declarations[index];
         if declaration.function.generics.is_empty()
+            && !compiler.has_generic_host(index)?
             && compiler.ct_only_function(declaration.module, declaration.function)?
         {
             entry = Some(compiler.item_symbol(declaration.module, declaration.item)?);
@@ -930,6 +1077,16 @@ pub(crate) fn uses_ct_domain(
     limits: &mut Limits,
 ) -> R<bool> {
     selection::uses(modules, module, expression, parameters, limits)
+}
+pub(crate) fn uses_ct_domain_with_catalog<'a>(
+    modules: &'a [SourceModule<'a>],
+    module: ModuleId,
+    expression: &s::Expr,
+    parameters: &[(String, CtTy)],
+    limits: &mut Limits,
+    catalog: Option<&'a zil_expand::source_context::GeneratedSourceCatalog>,
+) -> R<bool> {
+    selection::uses_with_catalog(modules, module, expression, parameters, limits, catalog)
 }
 
 #[path = "compiler_metadata.rs"]

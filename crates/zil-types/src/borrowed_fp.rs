@@ -357,8 +357,10 @@ pub(super) fn invocation_call<'a>(
         };
         let Type::Closure(id) = ty else { return None };
         let d = module.closures.get(id.0 as usize)?;
-        (d.lending_captures.is_empty() && matches!(d.result, Type::Address { .. }))
-            .then_some((d, args.as_slice()))
+        (d.lending_captures.is_empty()
+            && !lending::qualified_result(d)
+            && matches!(d.result, Type::Address { .. }))
+        .then_some((d, args.as_slice()))
     })();
     let Some((d, args)) = selected else {
         return Ok(None);

@@ -8,10 +8,26 @@ mod deferred;
 mod factory;
 #[path = "generic_role_check.rs"]
 mod role_check;
+
+pub(super) fn source_class_key(
+    ty: &TypeRef,
+    source: &Function,
+    budget: &mut Budget<'_>,
+) -> R<String> {
+    role_check::key(
+        ty,
+        role_check::Scope {
+            source,
+            active: true,
+        },
+        budget,
+    )
+}
 #[path = "generic_scoped.rs"]
 mod scoped;
 
 pub(super) struct ParametricTables<'a, 'l> {
+    pub ct_types: Option<&'a BTreeMap<usize, TypeRef>>,
     pub source_definition: Option<&'a Function>,
     pub expression_origins: Option<&'a BTreeMap<usize, usize>>,
     pub definition_equations: Option<&'a BTreeMap<String, TypeRef>>,
@@ -42,6 +58,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     supplied_bounds: Option<trait_bounds::Bounds>,
 ) -> R<()> {
     let ParametricTables {
+        ct_types,
         source_definition,
         expression_origins,
         definition_equations,
@@ -60,7 +77,10 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let callable = callable::template(function, budget)?;
     let class_scope = role_check::Scope::new(
         source_definition.unwrap_or(function),
-        callable.is_some(),
+        // A computed CT nominal retains its original definition's full life
+        // ordinals. Compare those symbolic classes locally; they never become
+        // an ordinary monomorphization cache key or a runtime permission.
+        callable.is_some() || ct_types.is_some(),
         budget,
     )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
@@ -121,6 +141,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         .as_ref()
         .is_some_and(|scope| scope.bindings().any(|bound| bound.life.is_some()));
     let mut check = Check {
+        ct_types,
         class_scope,
         higher_rank,
         variables,
@@ -523,6 +544,104 @@ fn substituted_type(
     Substitution { substitutions }.ty(&mut result);
     Ok(result)
 }
+// Preserve the nominal's complete formal order while projecting a field.
+// Lifetime labels are rebound through the caller's genuine declaration before
+// substituting Type/Const arguments, so labels inside actual types keep their
+// own caller meaning.
+fn nominal_field_type(
+    parameters: &[GenericParam],
+    arguments: &[GenericArg],
+    field: &TypeRef,
+    source: &Function,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    let frame = role_check::Frame::nominal(parameters, arguments, source, budget, field.span)?;
+    let mut substitutions = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        budget.node(field.span, 0)?;
+        budget.text(&parameter.name, field.span)?;
+        let actual = match (&parameter.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_)) => continue,
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                ty.clone()
+            }
+            (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                let carrier = consts::carrier(value, budget)?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let (_, formal) =
+                        consts::symbolic_parameter(source, name).ok_or_else(|| {
+                            error(value.span, "generic field const has no source binder")
+                        })?;
+                    let GenericParamKind::Const(actual_domain) = &formal.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, value.span, budget)?;
+                    carrier
+                } else {
+                    consts::normalize(parameter, &carrier, budget)?
+                }
+            }
+            _ => {
+                return Err(error(
+                    field.span,
+                    "generic record actual kind differs from its declared binder",
+                ));
+            }
+        };
+        substitutions.insert(parameter.name.clone(), actual);
+    }
+    if rich_pointer::has_life(field, budget)? {
+        let field = frame.substitute(field, source, budget)?;
+        substituted_type(&field, &substitutions, budget)
+    } else {
+        substituted_type(field, &substitutions, budget)
+    }
+}
+
+/// Definition-time full ordinal check; the map contains only Type actuals.
+/// Life and Const actuals retain their own source binders and domains.
+fn nominal_type_actuals(
+    parameters: &[GenericParam],
+    arguments: &[GenericArg],
+    source: &Function,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<BTreeMap<String, TypeRef>> {
+    role_check::Frame::nominal(parameters, arguments, source, budget, span)?;
+    let mut found = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        budget.node(span, 0)?;
+        budget.text(&parameter.name, span)?;
+        match (&parameter.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_)) => {}
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                found.insert(parameter.name.clone(), ty.clone());
+            }
+            (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                let carrier = consts::carrier(value, budget)?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let (_, formal) = consts::symbolic_parameter(source, name)
+                        .ok_or_else(|| error(value.span, "nominal const has no source binder"))?;
+                    let GenericParamKind::Const(actual_domain) = &formal.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, value.span, budget)?;
+                } else {
+                    consts::normalize(parameter, &carrier, budget)?;
+                }
+            }
+            _ => {
+                return Err(error(
+                    span,
+                    "nominal actual kind differs from its declared binder",
+                ));
+            }
+        }
+    }
+    Ok(found)
+}
 /// Only floating literals can receive a floating format from the other operand.
 /// Group/unary inspection is metadata work, before either value is evaluated.
 pub(super) fn uncontextual_float(
@@ -797,6 +916,7 @@ struct State {
     life_origins: BTreeMap<usize, BTreeSet<usize>>,
 }
 struct Check<'s, 'b, 'l> {
+    ct_types: Option<&'s BTreeMap<usize, TypeRef>>,
     class_scope: role_check::Scope<'s>,
     source_definition: &'s Function,
     definition_equations: Option<&'s BTreeMap<String, TypeRef>>,
@@ -896,6 +1016,43 @@ impl Check<'_, '_, '_> {
                     },
                     _ => None,
                 };
+                // The bound's elided shared result borrows this invocation's
+                // actual receiver. Definition-time roots must still satisfy
+                // the helper's explicit receiver/result lifetime relation.
+                if let Some(local) = target.and_then(|name| state.locals.get(name))
+                    && self.callable.as_ref().is_some_and(|scope| {
+                        scope.bindings().any(|bound| {
+                            bound.kind != zil_ir::CallableKind::FnOnce
+                                && matches!(
+                                    &group(&bound.result).kind,
+                                    TypeKind::Reference {
+                                        mutable: false,
+                                        lifetime: None,
+                                        ..
+                                    }
+                                )
+                                && matches!(
+                                    callable::parameter_mode(&local.ty, &bound.generic_name),
+                                    Some(Some(_))
+                                )
+                        })
+                    })
+                {
+                    self.budget.ty(&local.ty)?;
+                    if !matches!(
+                        &group(&local.ty).kind,
+                        TypeKind::Reference {
+                            lifetime: Some(_),
+                            ..
+                        }
+                    ) {
+                        return Err(unsupported(
+                            expression.span,
+                            "generic environment lending requires an explicit receiver life",
+                        ));
+                    }
+                    return self.life_expression(callee, state);
+                }
                 if self.higher_rank
                     && let Some(local) = target.and_then(|name| state.locals.get(name))
                     && let Some(scope) = &self.callable
@@ -2190,16 +2347,14 @@ impl Check<'_, '_, '_> {
                         if aggregate.generics.len() != args.len() {
                             return Ok(None);
                         }
-                        let mut substitutions = BTreeMap::new();
-                        for (parameter, argument) in aggregate.generics.iter().zip(args) {
-                            let GenericArg::Type(ty) = argument else {
-                                return Ok(None);
-                            };
-                            self.budget.text(&parameter.name, span)?;
-                            self.budget.ty(ty)?;
-                            substitutions.insert(parameter.name.clone(), ty.clone());
-                        }
-                        return substituted_type(&field.ty, &substitutions, self.budget).map(Some);
+                        return nominal_field_type(
+                            &aggregate.generics,
+                            args,
+                            &field.ty,
+                            self.source_definition,
+                            self.budget,
+                        )
+                        .map(Some);
                     }
                     _ => None,
                 };
@@ -3204,7 +3359,36 @@ impl Check<'_, '_, '_> {
         expected: Option<&TypeRef>,
         borrowing: bool,
     ) -> R<TypeRef> {
+        if let ExprKind::MetaEval(inner) = &e.kind {
+            let max_depth = self.budget.remaining_limits().max_call_depth;
+            if crate::runtime_ct::native_scalar_root(inner, max_depth, |work| {
+                self.budget.identity_work(work, e.span).map_err(|e| vec![e])
+            })
+            .map_err(|mut errors| errors.remove(0))?
+            {
+                return self.expr(inner, state, expected, borrowing);
+            }
+        }
         match &e.kind {
+            ExprKind::MetaEval(_) if self.ct_types.is_some() => {
+                let ordinal = self
+                    .expression_ids
+                    .get(&(e as *const Expr as usize))
+                    .ok_or_else(|| {
+                        error(
+                            e.span,
+                            "symbolic CT expression lost its actual source position",
+                        )
+                    })?;
+                let ty = self
+                    .ct_types
+                    .and_then(|types| types.get(ordinal))
+                    .ok_or_else(|| {
+                        error(e.span, "symbolic CT expression has no checked result type")
+                    })?;
+                self.budget.ty(ty)?;
+                Ok(ty.clone())
+            }
             ExprKind::Group(inner) | ExprKind::MetaEval(inner) => {
                 self.expr(inner, state, expected, borrowing)
             }
@@ -3287,13 +3471,45 @@ impl Check<'_, '_, '_> {
                 if declaration.generics.len() != args.len() {
                     return Err(error(e.span, "generic record constructor arity mismatch"));
                 }
+                let all_type = declaration
+                    .generics
+                    .iter()
+                    .all(|p| matches!(p.kind, GenericParamKind::Type(_)));
+                let mut ordinary = all_type;
                 let mut substitutions = BTreeMap::new();
-                for (parameter, argument) in declaration.generics.iter().zip(&args) {
-                    let GenericArg::Type(ty) = argument else {
-                        return Err(unsupported(e.span, "constant generic record constructor"));
-                    };
-                    self.budget.ty(ty)?;
-                    substitutions.insert(parameter.name.clone(), ty.clone());
+                if all_type {
+                    for (parameter, argument) in declaration.generics.iter().zip(&args) {
+                        let GenericArg::Type(ty) = argument else {
+                            return Err(unsupported(e.span, "constant generic record constructor"));
+                        };
+                        // The original all-Type traversal pays for observing
+                        // scoped syntax, and its closed branch keeps that fee.
+                        self.budget.ty(ty)?;
+                        ordinary &= !enums::scoped_nominal_actual(ty);
+                        substitutions.insert(parameter.name.clone(), ty.clone());
+                    }
+                }
+                if !ordinary {
+                    substitutions = nominal_type_actuals(
+                        &declaration.generics,
+                        &args,
+                        self.source_definition,
+                        self.budget,
+                        e.span,
+                    )?;
+                    self.traits.check_arguments_scoped(
+                        &declaration.generics,
+                        &substitutions,
+                        (
+                            &self.bounds,
+                            &self.variables,
+                            callable::StoreCallbacks::None,
+                        ),
+                        self.budget,
+                        e.span,
+                        None,
+                        Some(self.source_definition),
+                    )?;
                 }
                 let mut seen = BTreeSet::new();
                 for field in fields {
@@ -3313,7 +3529,17 @@ impl Check<'_, '_, '_> {
                             "record field is private to its declaring module",
                         ));
                     }
-                    let want = substituted_type(&declared.ty, &substitutions, self.budget)?;
+                    let want = if ordinary {
+                        substituted_type(&declared.ty, &substitutions, self.budget)?
+                    } else {
+                        nominal_field_type(
+                            &declaration.generics,
+                            &args,
+                            &declared.ty,
+                            self.source_definition,
+                            self.budget,
+                        )?
+                    };
                     let actual = if let Some(value) = &field.value {
                         if declared.manages
                             && stores::element(&want).is_some()
@@ -4599,7 +4825,7 @@ impl Check<'_, '_, '_> {
         }
         let origin = self.traits.function_origin(function, self.budget)?;
         self.budget.with_origin(origin, |budget| {
-            self.traits.check_arguments(
+            self.traits.check_arguments_scoped(
                 &function.generics,
                 found,
                 (
@@ -4613,6 +4839,7 @@ impl Check<'_, '_, '_> {
                 budget,
                 e.span,
                 callable.as_ref(),
+                Some(self.source_definition),
             )?;
             self.traits.check_where(
                 &function.where_clause,
@@ -4826,14 +5053,13 @@ impl Check<'_, '_, '_> {
                         "record field is private to its declaring module",
                     ));
                 }
-                let mut substitutions = BTreeMap::new();
-                for (p, arg) in aggregate.generics.iter().zip(args) {
-                    let GenericArg::Type(ty) = arg else {
-                        return Err(unsupported(e.span, "generic constant field shape"));
-                    };
-                    substitutions.insert(p.name.clone(), ty.clone());
-                }
-                let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                let ty = nominal_field_type(
+                    &aggregate.generics,
+                    args,
+                    &field.ty,
+                    self.source_definition,
+                    self.budget,
+                )?;
                 if through_address && (field.manages || !self.known_copy(&ty)?) {
                     return Err(unsupported(
                         e.span,

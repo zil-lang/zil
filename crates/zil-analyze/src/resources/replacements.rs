@@ -6,6 +6,7 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
+mod public_roles;
 mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
@@ -26,8 +27,10 @@ struct Invocation<'a> {
     captures: Option<&'a origins::Slots>,
     carrier: Option<Place>,
     sealed: bool,
+    may_only: bool,
 }
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
+pub(super) type TaggedEffects = BTreeMap<Target, sums::Replacement>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
     definitions: Vec<Definitions>,
@@ -94,6 +97,18 @@ pub(super) fn grow(to: &mut Effects, from: &Effects, b: &mut Budget) -> CompileR
     }
     Ok(changed)
 }
+pub(super) fn grow_tagged(
+    to: &mut TaggedEffects,
+    from: &TaggedEffects,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(b, from.len())?;
+    let mut changed = false;
+    for (target, incoming) in from {
+        changed |= whole_enum::add(to, target, incoming, b)?;
+    }
+    Ok(changed)
+}
 fn endpoint<'a>(
     mut ty: &'a Type,
     path: &[PlaceProjection],
@@ -119,12 +134,12 @@ fn endpoint<'a>(
     }
     Ok(ty)
 }
-fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
             || package::field(ty, b)?.is_some()
-            || whole_enum::admitted(ty, b)?,
+            || whole_enum::admitted(module, ty, b)?,
     )
 }
 impl Program {
@@ -184,7 +199,14 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
-                if matches!(definition.ty, Type::Package { .. } | Type::Enum { .. }) {
+                b.replacement_error_sums |= matches!(definition.ty, Type::ErrorUnion { .. });
+                if matches!(
+                    definition.ty,
+                    Type::Package { .. }
+                        | Type::Enum { .. }
+                        | Type::Tuple(_)
+                        | Type::ErrorUnion { .. }
+                ) {
                     packages = true;
                     fee(b, definition.path.len().saturating_add(1))?;
                     let targets = match &definition.base {
@@ -208,24 +230,34 @@ impl Program {
                         )]);
                     }
                     for target in &targets {
-                        if matches!(definition.ty, Type::Enum { .. }) {
-                            whole_enum::local(f, target, b)?;
+                        if matches!(
+                            definition.ty,
+                            Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                        ) {
+                            if matches!(target.root, origins::Root::Local(_)) {
+                                whole_enum::local(f, target, b)?;
+                            } else {
+                                whole_enum::borrowed(module, f, target, b)?;
+                            }
                         } else {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 package::local(f, target, b)?;
                             } else {
-                                package::borrowed(f, target, b)?;
+                                let admission = package::borrowed(module, f, target, b)?;
                                 b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
                                 // Non-Unit/error results add no exit-sensitive
                                 // must fact: their provenance stays may-only.
-                                if f.return_type == Type::Unit && f.blocks.len() == 1 {
+                                if f.return_type == Type::Unit
+                                    && f.blocks.len() == 1
+                                    && admission.legacy_must
+                                {
                                     whole_helpers.insert(f.id);
                                 }
                             }
                         }
                     }
                 }
-                if !closed(&definition.ty, b)? {
+                if !closed(module, &definition.ty, b)? {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
                         "replacement endpoint cleanup/hold bridge is under construction",
@@ -553,7 +585,7 @@ impl Program {
             rows.clear();
         }
         let ty = self.actual_type(flow.module, flow.function, target, b)?;
-        if !closed(ty, b)? {
+        if !closed(flow.module, ty, b)? {
             return Err(error(
                 "actual replacement endpoint differs from closed owning leaf",
             ));
@@ -568,6 +600,21 @@ impl Program {
                     .sums
                     .replace_birth(local, &target.path, birth, check, b)?
                 {
+                    if product::nested(&flow.function.locals[local.0 as usize].ty) {
+                        let mut fields = Vec::new();
+                        fee(b, target.path.len())?;
+                        for step in &target.path {
+                            let PlaceProjection::Field(index) = step else {
+                                return Ok(());
+                            };
+                            fields.push(*index);
+                        }
+                        let mut old =
+                            product::birth(state, product::Carrier::Local(local), &fields, b)?;
+                        fee(b, old.len().saturating_add(birth.len()))?;
+                        old.extend(birth);
+                        product::set(state, product::Carrier::Local(local), &fields, old, b)?;
+                    }
                     return Ok(());
                 }
                 if target.path.is_empty() {
@@ -703,6 +750,7 @@ impl Program {
             captures,
             carrier,
             sealed,
+            may_only,
         } = invocation;
         let CheckPoint {
             validate: check,
@@ -742,7 +790,46 @@ impl Program {
                 self.update(flow, state, effect, &at, &incoming, check, live, b)?;
             }
         }
-        if let Some(rows) = &flow.effects[callee].whole_commits {
+        let tagged = &flow.effects[callee].tagged_replacements;
+        fee(b, tagged.len())?;
+        for (target, content) in tagged {
+            let selected = origins::substitute(
+                &BTreeSet::from([target.clone()]),
+                arguments,
+                captures,
+                &self.routes[flow.function.id.0 as usize].values,
+                &self.routes[flow.function.id.0 as usize].slots,
+                b,
+            )?;
+            if selected.len() != 1 {
+                return Err(error("whole Enum helper needs one actual destination"));
+            }
+            let incoming = content.instantiate(
+                &mut |birth, budget| self.substitute_birth(state, arguments, birth, budget),
+                b,
+            )?;
+            for at in selected {
+                retirement::check(flow, state, &at, point, b)?;
+                if let origins::Root::Local(local) = at.root {
+                    whole_enum::local(flow.function, &at, b)?;
+                    if check {
+                        self.initialized(flow, state, local, &[], b)?;
+                    }
+                    state.sums.merge_replacement(
+                        local,
+                        &incoming,
+                        flow.sums
+                            .ok_or_else(|| error("whole Enum caller has no actual Sum plan"))?,
+                        check,
+                        b,
+                    )?;
+                } else {
+                    whole_enum::borrowed(flow.module, flow.function, &at, b)?;
+                    whole_enum::record(effect, &at, &incoming, b)?;
+                }
+            }
+        }
+        if !may_only && let Some(rows) = &flow.effects[callee].whole_commits {
             fee(b, rows.len())?;
             for (target, birth) in rows {
                 let selected = origins::substitute(
@@ -837,6 +924,15 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
+                    if f.callable_contract.is_some()
+                        && !matches!(target.root, origins::Root::Local(_))
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "public callable helper cannot publish its own nonlocal Commit",
+                            Some(i.span),
+                        )]);
+                    }
                     // The old local path had the same missing consumer as a
                     // call. Check actual leaf retirement independently here.
                     if matches!(d.ty, Type::Managed(_)) {
@@ -846,24 +942,53 @@ impl Program {
                         if matches!(target.root, origins::Root::Local(_)) {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
-                            let index = package::borrowed(f, &target, b)?;
-                            let mut leaf = target.clone();
-                            fee(b, leaf.path.len().saturating_add(1))?;
-                            leaf.path.push(PlaceProjection::Field(index));
-                            retirement::check(flow, state, &leaf, point, b)?;
-                            let incoming = product::birth(
-                                state,
-                                product::Carrier::Value(*value),
-                                &[index],
-                                b,
-                            )?;
-                            self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
-                            if let Some(rows) = &mut state.whole_commits {
-                                add(rows, &leaf, &incoming, b)?;
+                            let owners = package::borrowed(flow.module, f, &target, b)?.owners;
+                            let mut commit_leaf =
+                                |path: &[u32], b: &mut Budget| -> CompileResult<()> {
+                                    let mut leaf = target.clone();
+                                    fee(b, leaf.path.len().saturating_add(path.len()))?;
+                                    leaf.path
+                                        .extend(path.iter().copied().map(PlaceProjection::Field));
+                                    retirement::check(flow, state, &leaf, point, b)?;
+                                    let incoming = product::birth(
+                                        state,
+                                        product::Carrier::Value(*value),
+                                        path,
+                                        b,
+                                    )?;
+                                    self.update(
+                                        flow, state, effect, &leaf, &incoming, check, live, b,
+                                    )?;
+                                    if let Some(rows) = &mut state.whole_commits {
+                                        add(rows, &leaf, &incoming, b)?;
+                                    }
+                                    Ok(())
+                                };
+                            if product::nested(&d.ty) {
+                                let paths = package::leaves(&d.ty, b)?;
+                                fee(b, paths.len().saturating_sub(1))?;
+                                for path in paths {
+                                    commit_leaf(&path, b)?;
+                                }
+                            } else {
+                                fee(b, owners.len().saturating_sub(1))?;
+                                for index in owners {
+                                    commit_leaf(&[index], b)?;
+                                }
                             }
                         }
-                    } else if matches!(d.ty, Type::Enum { .. }) {
-                        whole_enum::apply(flow, state, &target, *value, point, b)?;
+                    } else if matches!(
+                        d.ty,
+                        Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                    ) {
+                        if matches!(target.root, origins::Root::Local(_)) {
+                            whole_enum::apply(flow, state, &target, *value, point, b)?;
+                        } else {
+                            whole_enum::borrowed(flow.module, f, &target, b)?;
+                            let incoming = state.sums.replacement_value(*value, check, b)?;
+                            retirement::check(flow, state, &target, point, b)?;
+                            whole_enum::record(effect, &target, &incoming, b)?;
+                        }
                     } else {
                         self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
                     }
@@ -875,7 +1000,54 @@ impl Program {
                 arguments,
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
+                if let Some(contract) = &callee.callable_contract {
+                    public_roles::helper_effects(&flow.effects[function.0 as usize], b)?;
+                    for (entry, value) in
+                        public_roles::invoked(flow.module, f, contract, arguments, b)?
+                    {
+                        public_roles::capture_effects(&flow.effects[entry], b)?;
+                        self.call(
+                            flow,
+                            state,
+                            effect,
+                            Invocation {
+                                callee: entry,
+                                arguments: &[],
+                                captures: Some(
+                                    &self.routes[f.id.0 as usize].slots[value.0 as usize],
+                                ),
+                                carrier: Some(Place::Value(value)),
+                                sealed: false,
+                                may_only: true,
+                            },
+                            point,
+                            b,
+                        )?;
+                    }
+                    return Ok(());
+                }
                 let summary = &flow.effects[function.0 as usize].replacements;
+                if f.callable_contract.is_some() {
+                    let called = &flow.effects[function.0 as usize];
+                    fee(
+                        b,
+                        called
+                            .replacements
+                            .len()
+                            .saturating_add(called.tagged_replacements.len())
+                            .saturating_add(called.invalidated_stores.len()),
+                    )?;
+                    if !called.replacements.is_empty()
+                        || !called.tagged_replacements.is_empty()
+                        || !called.invalidated_stores.is_empty()
+                    {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "public callable helper cannot publish an ordinary callee's private replacement effects",
+                            Some(i.span),
+                        )]);
+                    }
+                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !summary.is_empty()
                 {
@@ -895,6 +1067,7 @@ impl Program {
                         captures: None,
                         carrier: None,
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -913,6 +1086,7 @@ impl Program {
                             captures: Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]),
                             carrier: Some(Place::Value(value)),
                             sealed: true,
+                            may_only: false,
                         },
                         point,
                         b,
@@ -932,6 +1106,7 @@ impl Program {
                         captures: Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]),
                         carrier: Some(Place::Value(*body)),
                         sealed: true,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -955,6 +1130,7 @@ impl Program {
                         captures: facts.local_slots.get(callee),
                         carrier: Some(Place::Local(*callee)),
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -976,6 +1152,7 @@ impl Program {
                         captures: Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
                         carrier: Some(Place::Value(*callee)),
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,

@@ -1,8 +1,13 @@
 //! Actual stored targets are distinct from the bytes containing their pointers.
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
+
+mod nominal;
+mod retained;
 use std::collections::BTreeMap;
-mod owned;
+pub(super) mod owned;
+#[path = "stored_flow_pure_copy.rs"]
+mod pure_copy;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -398,7 +403,7 @@ pub(super) fn qualification(
     shape_work(ty, limits, b)?;
     physical(ty, b)?;
     let (storage, _) = carrier(ty).ok_or_else(|| failure("expected a qualified carrier"))?;
-    if matches!(storage, Type::Record { .. }) {
+    if matches!(storage, Type::Record { .. } | Type::Enum { .. }) {
         fee(b, module.life_instances.len())?;
         let mut present = false;
         for instance in &module.life_instances {
@@ -415,6 +420,98 @@ pub(super) fn qualification(
         }
     }
     Ok(())
+}
+
+/// Copy only a fully qualified physical value without runtime borrowing or
+/// ownership leaves. The address is still checked by the CFG access proof.
+pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !b.pure_nominal
+        || !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
+    {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "pure stored ReadAddress complete payload")?;
+    if !retained::pure(ty, b)? {
+        return Ok(false);
+    }
+    physical(ty, b)?;
+    let mut count = 0usize;
+    for instance in &module.life_instances {
+        b.type_work(
+            &instance.ty,
+            false,
+            "pure stored ReadAddress instance identity",
+        )?;
+        b.type_work(ty, false, "pure stored ReadAddress actual identity")?;
+        if instance.ty == *ty {
+            count += 1;
+        }
+    }
+    if count != 1 {
+        return Err(failure(
+            "pure stored read lacks one complete nominal instance",
+        ));
+    }
+    Ok(true)
+}
+
+/// Pure inline products have no runtime targets. Every qualified descendant
+/// still needs one complete, independently checked nominal instance.
+pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if !b.pure_nominal
+        || ty.is_copy_value()
+        || !matches!(
+            ty,
+            Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+        )
+        || !retained::pure(ty, b)?
+    {
+        return Ok(false);
+    }
+    b.type_work(ty, true, "pure inline complete payload")?;
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        fee(b, 1)?;
+        match current {
+            Type::BorrowedStorage { storage, .. } => {
+                physical(current, b)?;
+                let mut count = 0usize;
+                for instance in &module.life_instances {
+                    b.type_work(&instance.ty, false, "pure inline nominal identity")?;
+                    b.type_work(current, false, "pure inline actual identity")?;
+                    if instance.ty == *current {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "pure inline child has no unique complete nominal instance",
+                    ));
+                }
+                pending.push(storage);
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
 
 fn identity_work(id: &LifeDeclarationIdentity, b: &mut Budget) -> CompileResult<()> {
@@ -492,7 +589,10 @@ pub(super) fn inventory(
     }
     for (index, instance) in module.life_instances.iter().enumerate() {
         shape_work(&instance.ty, limits, b)?;
-        let Some((storage, life)) = carrier(&instance.ty) else {
+        if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
+            b.pure_nominal = true;
+        }
+        let Some((storage, _)) = carrier(&instance.ty) else {
             return Err(failure(
                 "nominal stored instance has no complete qualified type",
             ));
@@ -507,6 +607,7 @@ pub(super) fn inventory(
         if !matches!(
             (decl.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -526,67 +627,14 @@ pub(super) fn inventory(
                 "nominal instance omits full generic actual ordinals",
             ));
         }
-        let mut lives = Vec::new();
-        for (ordinal, (formal, actual)) in
-            decl.parameters.iter().zip(&instance.arguments).enumerate()
-        {
-            match (formal, actual) {
-                (LifeParameterKind::Lifetime, LifeNominalActual::Lifetime(class))
-                    if *class < life.binder_count =>
-                {
-                    fee(b, 1)?;
-                    lives.push((ordinal as u32, *class));
-                }
-                (LifeParameterKind::Type, LifeNominalActual::Type(ty)) => {
-                    shape_work(ty, limits, b)?;
-                    b.type_work(ty, true, "nominal full type actual")?;
-                    if !ty.is_copy_value() {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "borrowed metadata-only Type actual requires the qualified context consumer",
-                            None,
-                        )]);
-                    }
-                }
-                (LifeParameterKind::Const(ty), LifeNominalActual::Const(value))
-                    if value.ty() == *ty =>
-                {
-                    fee(
-                        b,
-                        match value {
-                            Constant::WideString(data) => data.len().saturating_add(1),
-                            _ => 1,
-                        },
-                    )?;
-                }
-                _ => {
-                    return Err(failure(
-                        "nominal actual kind, ordinal or local fixed class is invalid",
-                    ));
-                }
-            }
-        }
-        if lives.len() != life.nominal_arguments.len() {
-            return Err(failure(
-                "nominal lifetime metadata coverage differs from full actuals",
-            ));
-        }
-        for ((ordinal, class), row) in lives.iter().zip(&life.nominal_arguments) {
-            fee(b, row.path.len().saturating_add(1))?;
-            if !row.path.is_empty()
-                || row.declaration != decl.id
-                || row.argument != *ordinal
-                || row.binder != *class
-            {
-                return Err(failure(
-                    "nominal lifetime row differs from actual declaration/ordinal/class",
-                ));
-            }
-        }
+        nominal::rows(module, instance, limits, b)?;
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;
-            if earlier.ty == instance.ty {
+            if earlier.ty == instance.ty
+                || (earlier.declaration == instance.declaration
+                    && nominal::same_key(earlier, instance, limits, b)?)
+            {
                 return Err(failure("duplicate complete nominal instance"));
             }
         }
@@ -658,6 +706,53 @@ fn binding(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
+    fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> CompileResult<bool> {
+        if depth > b.partial_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "stored signature class depth exceeds limit",
+                None,
+            )]);
+        }
+        b.spend(1, "stored signature actual nested class inventory")?;
+        match ty {
+            Type::BorrowedStorage { .. } => Ok(true),
+            Type::Address { inner, .. } | Type::Array { element: inner, .. } => {
+                nested_class(inner, depth + 1, b)
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len(), "stored signature tuple class inventory")?;
+                for field in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len(), "stored signature record class inventory")?;
+                for (_, field) in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len(), "stored signature variant class inventory")?;
+                for (_, fields) in variants {
+                    b.spend(fields.len(), "stored signature payload class inventory")?;
+                    for field in fields {
+                        if nested_class(field, depth + 1, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -686,6 +781,20 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             {
                 return Err(failure("stored signature requires complete class relation"));
             }
+            let composite = |ty: &Type| {
+                matches!(
+                    ty,
+                    Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
+                )
+            };
+            if !module.life_instances.is_empty()
+                && (composite(ty) || matches!(ty, Type::Address { inner, .. } if composite(inner)))
+                && nested_class(ty, 0, b)?
+            {
+                return Err(failure(
+                    "nested stored qualified signature requires complete class relation",
+                ));
+            }
         }
         return Ok(());
     };
@@ -700,9 +809,43 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     for p in &f.parameters {
         let ty = &f.locals[p.0 as usize].ty;
         b.type_work(ty, true, "stored signature type clone and relation")?;
+        let new_nominal = |ty: &Type| {
+            matches!(ty, Type::BorrowedStorage { storage, life }
+            if life.slots.is_empty()
+                && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty()))
+        };
+        if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || new_nominal(ty)
+            || matches!(ty, Type::Address { inner, .. }
+                if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                    || new_nominal(inner))
+        {
+            b.type_work(ty, false, "pure Array signature relation walk")?;
+        }
+        if f.callable_contract.is_some()
+            && let Type::Managed(payload) = ty
+            && let Type::Record { fields, .. } = payload.as_ref()
+        {
+            fee(b, fields.len().saturating_mul(2))?;
+        }
         parameters.push(ty.clone());
     }
     b.type_work(&f.return_type, true, "stored signature result relation")?;
+    let new_nominal = |ty: &Type| {
+        matches!(ty, Type::BorrowedStorage { storage, life }
+        if life.slots.is_empty()
+            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                || !life.retained.is_empty()))
+    };
+    if (matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value())
+        || new_nominal(&f.return_type)
+        || matches!(&f.return_type, Type::Address { inner, .. }
+            if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                || new_nominal(inner))
+    {
+        b.type_work(&f.return_type, false, "pure Array result relation walk")?;
+    }
     if let Some(id) = f.environment {
         let d = module
             .closures
@@ -714,10 +857,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                 "captured entry relation differs from actual definition",
             ));
         }
+        super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         return super::signature_life::capture_relation(
             &parameters,
             &d.captures,
-            &f.return_type,
+            super::stored_callables::life_result(d),
             c,
         );
     }
@@ -731,7 +875,66 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     Ok(())
 }
 
-fn returns(f: &TypedFunction, facts: &Facts, b: &mut Budget) -> CompileResult<()> {
+fn returns(
+    module: &TypedModule,
+    f: &TypedFunction,
+    facts: &Facts,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        && super::stored_callables::lending(d)
+    {
+        fee(b, d.lending_captures.len().saturating_add(1))?;
+        let mut actual = BTreeSet::new();
+        for (path, sources) in &facts.returned {
+            if !path.is_empty() || sources.is_empty() {
+                return Err(failure(
+                    "lending result lacks actual inline capture sources",
+                ));
+            }
+            for source in sources {
+                fee(
+                    b,
+                    source
+                        .place
+                        .len()
+                        .saturating_add(source.stored.len())
+                        .saturating_add(1),
+                )?;
+                let HoldRoot::Capture(index) = source.base else {
+                    return Err(failure(
+                        "environment result escapes local or explicit input storage",
+                    ));
+                };
+                if !source.place.is_empty()
+                    || !source.stored.is_empty()
+                    || !d
+                        .captures
+                        .get(index as usize)
+                        .is_some_and(super::stored_callables::scalar)
+                {
+                    return Err(failure(
+                        "lending source is not an actual inline scalar capture",
+                    ));
+                }
+                ordered(b, actual.len(), 0)?;
+                actual.insert(index);
+            }
+        }
+        if actual.len() != d.lending_captures.len()
+            || actual
+                .into_iter()
+                .zip(&d.lending_captures)
+                .any(|(actual, proposed)| actual != *proposed)
+        {
+            return Err(failure(
+                "lending capture proposal differs from actual returned environment fields",
+            ));
+        }
+        return Ok(());
+    }
     for (path, sources) in &facts.returned {
         if sources.is_empty() {
             return Err(failure(
@@ -777,7 +980,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
-    if !matches!(storage, Type::Record { .. } | Type::Tuple(_)) || !life.retained.is_empty() {
+    if !matches!(
+        storage,
+        Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
+    ) || (!life.retained.is_empty() && !life.slots.is_empty())
+        || (matches!(storage, Type::Enum { .. })
+            && (!life.slots.is_empty() || !retained::pure(storage, b)?))
+    {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
             "nested retained/nominal stored carriers require their independent consumer",
@@ -828,6 +1037,49 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     path.pop();
                 }
             }
+            Type::Enum { name, variants } => {
+                if !retained::pure(ty, b)? {
+                    return Err(failure(
+                        "stored Enum has a real address or ownership payload",
+                    ));
+                }
+                fee(b, name.len())?;
+                if name.is_empty() {
+                    return Err(failure("stored Enum has empty nominal identity"));
+                }
+                let mut names = BTreeSet::new();
+                for (variant, (variant_name, fields)) in variants.iter().enumerate() {
+                    ordered(b, names.len(), variant_name.len())?;
+                    if variant_name.is_empty() || !names.insert(variant_name) {
+                        return Err(failure(
+                            "stored Enum variants require unique nonempty names",
+                        ));
+                    }
+                    for (index, field) in fields.iter().enumerate() {
+                        path.push(PlaceProjection::Variant(zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        }));
+                        walk(field, path, out, b)?;
+                        path.pop();
+                    }
+                }
+            }
+            Type::Array { element, .. } => {
+                if !retained::pure(ty, b)? {
+                    return Err(failure(
+                        "stored Array contains an address or ownership leaf",
+                    ));
+                }
+                walk(element, path, out, b)?;
+            }
+            Type::BorrowedStorage { .. } => {
+                if !retained::pure(ty, b)? {
+                    return Err(failure(
+                        "retained physical leaf needs a real borrowing consumer",
+                    ));
+                }
+            }
             t => {
                 b.type_work(t, true, "stored ordinary physical field")?;
                 if !t.is_copy_value() {
@@ -842,7 +1094,8 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Ok(())
     }
     walk(storage, &mut Vec::new(), &mut actual, b)?;
-    if actual.len() != life.slots.len() || (actual.is_empty() && life.nominal_arguments.is_empty())
+    if actual.len() != life.slots.len()
+        || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
     {
         return Err(failure("physical stored slot coverage is incomplete"));
     }
@@ -850,7 +1103,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let mut next = 0u32;
     for row in &life.nominal_arguments {
         fee(b, row.path.len().saturating_add(1))?;
-        if !row.path.is_empty() || row.binder >= life.binder_count {
+        if row.binder >= life.binder_count {
             return Err(failure(
                 "nested nominal stored relation is not supported by the physical slice",
             ));
@@ -885,6 +1138,33 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             next = next
                 .checked_add(1)
                 .ok_or_else(|| failure("binder overflow"))?;
+        }
+    }
+    let actual_retained = retained::expected(storage, b)?;
+    fee(b, life.retained.len())?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(failure("physical retained class coverage differs"));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            b,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(seen.len())
+                .saturating_add(1),
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(failure(
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if seen.insert(row.binder) {
+            if row.binder != next {
+                return Err(failure("retained classes are not canonical"));
+            }
+            next = next
+                .checked_add(1)
+                .ok_or_else(|| failure("retained class overflow"))?;
         }
     }
     if next != life.binder_count {
@@ -1351,6 +1631,18 @@ fn transfer(
                 Some(i.span),
             )]);
         }
+        InstructionKind::ForeignCall { function, .. } => {
+            let declaration = module
+                .functions
+                .get(function.0 as usize)
+                .ok_or_else(|| failure("scalar foreign target is absent"))?;
+            if !super::stored_callables::scalar_foreign(declaration, b)? {
+                return Err(failure(
+                    "foreign call has pointer or owning payload permissions",
+                ));
+            }
+        }
+        InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {}
         InstructionKind::Call {
             function,
             arguments,
@@ -1410,6 +1702,91 @@ fn transfer(
             }
             out.creation_complete = Some(complete);
         }
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let d = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| super::stored_callables::lending(d))
+                .ok_or_else(|| failure("inline capture loan has no lending environment"))?;
+            if !d
+                .captures
+                .get(*index as usize)
+                .is_some_and(super::stored_callables::scalar)
+            {
+                return Err(failure("inline capture loan requires a real scalar field"));
+            }
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                base: HoldRoot::Capture(*index),
+                stored: vec![],
+                place: vec![],
+            });
+        }
+        kind if super::stored_callables::called(module, f, kind)
+            .is_some_and(|(d, _)| super::stored_callables::lending(d)) =>
+        {
+            let (d, _) = super::stored_callables::called(module, f, kind)
+                .ok_or_else(|| failure("lending callee missing"))?;
+            let mut receiver = Permission::default();
+            match kind {
+                InstructionKind::CallClosureBorrowed { callee, .. } => {
+                    union(&mut receiver, &get(*callee)?.pointer, b)?;
+                }
+                InstructionKind::CallClosureShared { callee, .. }
+                | InstructionKind::CallClosureMut { callee, .. } => {
+                    fee(b, 1)?;
+                    receiver.targets.insert(Target {
+                        base: HoldRoot::Local(*callee),
+                        stored: vec![],
+                        place: vec![],
+                    });
+                }
+                _ => {
+                    return Err(failure(
+                        "lending invocation must borrow its actual runtime environment",
+                    ));
+                }
+            }
+            if let Some(sources) = summaries[d.function.0 as usize].returned.get(&Vec::new()) {
+                for source in sources {
+                    let HoldRoot::Capture(index) = source.base else {
+                        return Err(failure(
+                            "callee lending result lacks an actual capture source",
+                        ));
+                    };
+                    if !source.stored.is_empty() {
+                        return Err(failure("lender cannot return an external capture target"));
+                    }
+                    for target in &receiver.targets {
+                        fee(
+                            b,
+                            target
+                                .place
+                                .len()
+                                .saturating_add(target.stored.len())
+                                .saturating_add(source.place.len())
+                                .saturating_add(3),
+                        )?;
+                        let mut target = target.clone();
+                        target.place.push(PlaceProjection::Field(index));
+                        target.place.extend_from_slice(&source.place);
+                        ordered(
+                            b,
+                            out.pointer.targets.len(),
+                            target.place.len().saturating_add(target.stored.len()),
+                        )?;
+                        out.pointer.targets.insert(target);
+                    }
+                    for loan in &receiver.loans {
+                        ordered(b, out.pointer.loans.len(), 0)?;
+                        out.pointer.loans.insert(*loan);
+                    }
+                }
+            }
+        }
         InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
             ordered(b, state.captures.len(), 0)?;
             out = snapshot(
@@ -1430,9 +1807,40 @@ fn transfer(
             state.locals.remove(local);
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
+        _ if pure_copy::operation(&i.kind) => {
+            pure_copy::types(f, i, b)?;
+            for input in resources::uses(&i.kind) {
+                let payload = get(input)?;
+                if !payload.pointer.targets.is_empty()
+                    || !payload.pointer.loans.is_empty()
+                    || !payload.slots.is_empty()
+                    || !payload.held.targets.is_empty()
+                    || !payload.held.loans.is_empty()
+                    || !payload.environment.is_empty()
+                {
+                    return Err(failure(
+                        "ordinary pure Copy input carries actual stored target permissions",
+                    ));
+                }
+            }
+        }
         _ if super::stored_callables::instruction(module, f, i) => {}
         InstructionKind::FunctionRef { .. } | InstructionKind::CallIndirect { .. }
             if super::class_flow::pointer_instruction(f, i) => {}
+        InstructionKind::ReadAddress { address } => {
+            let Type::Address { inner, .. } = value_type(f, *address)? else {
+                return Err(failure("read transfer lacks an actual Address"));
+            };
+            if carrier(inner).is_some() && !pure_read(module, inner, b)? {
+                return Err(failure(
+                    "read transfer cannot erase actual borrowed/owned leaves",
+                ));
+            }
+            // Only the source Address permission is used by access checking.
+            // A pure value has no borrowed targets to copy: the full result
+            // type carries its nominal/retained classes, without rooting them
+            // in the storage bytes or inventing a loan from a phantom class.
+        }
         InstructionKind::WriteAddress { address, .. } => {
             let Type::Address { inner, .. } = value_type(f, *address)? else {
                 return Err(failure("write base is not an actual Address"));
@@ -1450,7 +1858,6 @@ fn transfer(
         | InstructionKind::ConvertNumber { .. }
         | InstructionKind::Unary { .. }
         | InstructionKind::Binary { .. }
-        | InstructionKind::ReadAddress { .. }
         | InstructionKind::SliceLength { .. }
         | InstructionKind::ScopeEnter { .. }
         | InstructionKind::ScopeExit { .. } => {}
@@ -1472,6 +1879,10 @@ fn transfer(
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
                 | InstructionKind::Call { .. }
+                | InstructionKind::BorrowCapture { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
         )
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -1865,6 +2276,18 @@ fn windows(
                     let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
                     use_permission(&actual, write, &current, loans, apart, b)?;
                 }
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            base: HoldRoot::Capture(*index),
+                            stored: vec![],
+                            place: vec![],
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    fee(b, 1)?;
+                    use_permission(&actual, *mutable, &current, loans, apart, b)?;
+                }
                 InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::ReborrowAddress {
@@ -2186,7 +2609,12 @@ pub(super) fn derive(
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
-                            if !matches!(target.base, HoldRoot::Parameter(_)) {
+                            if !matches!(target.base, HoldRoot::Parameter(_))
+                                && !(matches!(target.base, HoldRoot::Capture(_))
+                                    && f.environment
+                                        .and_then(|id| module.closures.get(id.0 as usize))
+                                        .is_some_and(super::stored_callables::lending))
+                            {
                                 return Err(failure(
                                     "stored return would retain an activation-local target",
                                 ));
@@ -2270,7 +2698,7 @@ pub(super) fn derive(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
-        returns(f, facts, b)?;
+        returns(module, f, facts, b)?;
         for (ty, roots) in f.values.iter().zip(&facts.values) {
             fee(b, 1)?;
             let needs_target = matches!(ty, Type::Address { .. })
@@ -2292,8 +2720,9 @@ pub(super) fn infer(
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     b.stored_owned_fixed = owned::profile(module, b)?;
     super::stored_callables::definitions(module, b)?;
+    let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
-        if f.foreign.is_some()
+        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -2302,6 +2731,20 @@ pub(super) fn infer(
                 "stored profile requires ordinary direct function bodies",
                 Some(f.span),
             )]);
+        }
+        if let Some(declaration) = &f.foreign {
+            b.spend(
+                foreign_symbols
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(declaration.symbol.len().saturating_add(1)),
+                "stored scalar foreign symbol uniqueness",
+            )?;
+            if !foreign_symbols.insert(declaration.symbol.as_str()) {
+                return Err(failure(
+                    "scalar foreign symbol has more than one actual declaration",
+                ));
+            }
         }
         if let Some(id) = f.environment {
             let d = module
@@ -2325,7 +2768,9 @@ pub(super) fn infer(
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
-                || b.stored_owned_fixed && owned::data(ty, b)?)
+                || b.stored_owned_fixed && owned::data(ty, b)?
+                || pure_inline(module, ty, b)?
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -2341,7 +2786,9 @@ pub(super) fn infer(
                 Some(f.span),
             )]);
         }
-        actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        if f.foreign.is_none() {
+            actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        }
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
     super::stored_callables::roles(module, graphs, b)?;
@@ -2405,6 +2852,7 @@ fn actual_instructions(
     graph: &(Vec<Vec<usize>>, Vec<bool>),
     b: &mut Budget,
 ) -> CompileResult<()> {
+    let mut scalar_ffi = false;
     let (preds, reachable) = graph;
     fee(b, f.values.len())?;
     let mut definitions = vec![false; f.values.len()];
@@ -2415,6 +2863,7 @@ fn actual_instructions(
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
                     InstructionKind::Constant(_)
@@ -2434,6 +2883,9 @@ fn actual_instructions(
                         | InstructionKind::MakeAggregate { .. }
                         | InstructionKind::ExtractField { .. }
                         | InstructionKind::Call { .. }
+                        | InstructionKind::ForeignCall { .. }
+                        | InstructionKind::UnsafeEnter { .. }
+                        | InstructionKind::UnsafeExit { .. }
                         | InstructionKind::Unary { .. }
                         | InstructionKind::Binary { .. }
                         | InstructionKind::ConvertInteger { .. }
@@ -2482,25 +2934,76 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
+            if pure_copy::operation(&i.kind) {
+                pure_copy::types(f, i, b)?;
+            }
             match &i.kind {
-                InstructionKind::ExtractField { aggregate, index } => {
-                    let ty = value_type(f, *aggregate)?;
-                    b.type_work(ty, false, "stored profile ordinary Copy field extraction")?;
-                    let child = match ty {
-                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
-                        Type::Tuple(fields) => fields.get(*index as usize),
-                        _ => None,
+                InstructionKind::UnsafeEnter { .. } | InstructionKind::UnsafeExit { .. } => {
+                    scalar_ffi = true;
+                    if i.result.is_some() {
+                        return Err(failure("unsafe region marker cannot produce an SSA result"));
                     }
-                    .ok_or_else(|| failure("Copy extraction has no actual inline field"))?;
-                    if !ty.is_copy_value() || !super::stored_callables::scalar(child) {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "stored profile extraction requires an ordinary Copy aggregate and scalar field",
-                            Some(i.span),
-                        )]);
-                    }
-                    result(child, b)?;
                 }
+                InstructionKind::ForeignCall {
+                    function,
+                    arguments,
+                    ..
+                } => {
+                    scalar_ffi = true;
+                    let callee = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| failure("scalar foreign target absent"))?;
+                    if !super::stored_callables::scalar_foreign(callee, b)?
+                        || arguments.len() != callee.parameters.len()
+                    {
+                        return Err(failure("foreign call is outside actual scalar ABI"));
+                    }
+                    fee(b, arguments.len())?;
+                    for (argument, parameter) in arguments.iter().zip(&callee.parameters) {
+                        let expected = &callee
+                            .locals
+                            .get(parameter.0 as usize)
+                            .ok_or_else(|| failure("foreign actual parameter absent"))?
+                            .ty;
+                        b.type_work(
+                            expected,
+                            false,
+                            "foreign scalar actual parameter comparison",
+                        )?;
+                        if value_type(f, *argument)? != expected {
+                            return Err(failure(
+                                "foreign scalar argument differs from its declaration",
+                            ));
+                        }
+                    }
+                    if callee.return_type == Type::Unit {
+                        if i.result.is_some() {
+                            return Err(failure("Unit foreign call fabricates a value"));
+                        }
+                    } else {
+                        result(&callee.return_type, b)?;
+                    }
+                }
+                InstructionKind::BorrowCapture {
+                    index,
+                    mutable: false,
+                } => {
+                    let d = f
+                        .environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .filter(|d| super::stored_callables::lending(d))
+                        .ok_or_else(|| failure("capture borrow outside real lending entry"))?;
+                    let ty = d
+                        .captures
+                        .get(*index as usize)
+                        .filter(|ty| super::stored_callables::scalar(ty))
+                        .ok_or_else(|| {
+                            failure("capture borrow lacks actual inline scalar field")
+                        })?;
+                    address_result(f, i, false, ty, b)?;
+                }
+                InstructionKind::ExtractField { .. } => {}
                 InstructionKind::ConvertInteger { value, target }
                 | InstructionKind::ConvertNumber { value, target } => {
                     if !value_type(f, *value)?.is_numeric() || !target.is_numeric() {
@@ -2559,7 +3062,10 @@ fn actual_instructions(
                         failure("actual field is absent or crosses non-inline storage")
                     })?;
                     b.type_work(child, true, "stored actual ordinary inline projection")?;
-                    if !child.is_copy_value() {
+                    if !child.is_copy_value()
+                        && !pure_read(module, child, b)?
+                        && !pure_inline(module, child, b)?
+                    {
                         return Err(failure(
                             "stored borrowed leaf must use actual slot-load protocol",
                         ));
@@ -2615,7 +3121,10 @@ fn actual_instructions(
                         return Err(failure("read base is not an Address"));
                     };
                     b.type_work(inner, true, "stored actual ordinary read payload")?;
-                    if !inner.is_copy_value() {
+                    if !inner.is_copy_value()
+                        && !pure_read(module, inner, b)?
+                        && !pure_inline(module, inner, b)?
+                    {
                         return Err(failure(
                             "ordinary read cannot copy stored carrier/borrow leaf",
                         ));
@@ -2738,6 +3247,9 @@ fn actual_instructions(
         2,
         "stored actual SSA availability",
     )?;
+    if scalar_ffi {
+        super::stored_callables::foreign_regions(f, preds, reachable, b)?;
+    }
     let mut inputs = vec![vec![true; f.values.len()]; f.blocks.len()];
     let mut outputs = inputs.clone();
     fee(b, f.values.len())?;
@@ -2903,8 +3415,17 @@ mod tests {
             }
         }
         assert_eq!(
-            low, 14_077,
+            // Two complete nominal rows add 74; fifteen actual retained
+            // boundary scans add 45. The prior N remains a limit control.
+            low,
+            14_077 + 74 + 15 * 3,
             "bounded actual identity/ownership work changed"
+        );
+        assert!(
+            super::super::analyze(&m, &limits(14_077))
+                .unwrap_err()
+                .iter()
+                .any(|d| d.code == "E-RESOURCE-LIMIT")
         );
         let mut session = super::super::AnalysisSession::default();
         for warm in [false, true] {
@@ -3388,19 +3909,17 @@ mod tests {
                 }
                 _ => m.functions[1].values.push(Type::I64),
             }
+            if mutation == 5 {
+                // Finite nonlending FnMut-to-Once adaptation consumes this
+                // actual environment under the independent owner ledger.
+                super::super::analyze(&m, &Limits::default()).unwrap();
+                continue;
+            }
             let error = super::super::analyze(&m, &Limits::default()).unwrap_err();
             assert!(
                 error.iter().all(|d| d.code != "E-RESOURCE-LIMIT"),
                 "mutation {mutation}: {error:?}"
             );
-            if mutation == 5 {
-                assert!(
-                    error
-                        .iter()
-                        .any(|d| d.message.contains("consumption ledger")),
-                    "{error:?}"
-                );
-            }
             if mutation == 6 {
                 assert!(
                     error

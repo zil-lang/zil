@@ -1277,6 +1277,7 @@ pub(super) fn match_type(
     actual: &Type,
     bounds: &[CoreCallableParameter],
     span: Span,
+    state: &mut closures::State,
 ) -> R<helpers::Bindings> {
     let reject = || {
         error(
@@ -1314,7 +1315,7 @@ pub(super) fn match_type(
             let Type::Closure(id) = got else {
                 return Err(reject());
             };
-            bindings.bind(bound.generic_index, *id, span)?;
+            bindings.bind(bound.generic_index, *id, span, state)?;
         } else if wanted != got {
             return Err(reject());
         }
@@ -1398,7 +1399,7 @@ impl Uses {
             .declarations
             .iter()
             .find(|bound| bound.generic_index == slot)?;
-        Some((self.bindings.0[slot as usize]?, bound.kind))
+        Some((self.bindings.optional(slot)?, bound.kind))
     }
 }
 

@@ -5,6 +5,7 @@ use zil_expand::source_context::{DeclarationOrigin, RetainedMemberOrigins};
 pub(super) struct MemberRetention {
     host: CtSymbolId,
     map: RetainedMemberOrigins,
+    generated_source: Option<Arc<zil_expand::source_context::GeneratedSourceTree>>,
 }
 
 fn original_host<'a>(
@@ -33,10 +34,7 @@ fn original_host<'a>(
     let s::ItemKind::Aggregate(aggregate) = &original.item.kind else {
         return Ok(None);
     };
-    Ok(
-        (aggregate.kind == s::AggregateKind::Struct && aggregate.generics.is_empty())
-            .then_some(aggregate),
-    )
+    Ok((aggregate.kind == s::AggregateKind::Struct).then_some(aggregate))
 }
 
 // The candidate cannot authenticate itself by being in range. Reconstruct the
@@ -121,6 +119,9 @@ impl Materializer<'_, '_> {
         input_count: usize,
         kept: &[usize],
     ) -> CompileResult<bool> {
+        if host.generation_path.is_some() {
+            return self.record_generated_member_retention(module, host, input_count, kept);
+        }
         if module != host.module {
             return Err(category(
                 "retained member host module differs",
@@ -173,8 +174,146 @@ impl Materializer<'_, '_> {
         self.member_retentions.push(MemberRetention {
             host: host.clone(),
             map,
+            generated_source: None,
         });
         Ok(true)
+    }
+
+    fn record_generated_member_retention(
+        &mut self,
+        module: ModuleId,
+        host: &CtSymbolId,
+        input_count: usize,
+        kept: &[usize],
+    ) -> CompileResult<bool> {
+        let Some(tree) = self.current_generated_tree.clone() else {
+            return Ok(false);
+        };
+        if tree.module.id != module
+            || host.module != module
+            || tree.generation_fingerprint() != host.generation_path
+        {
+            return Err(category(
+                "generated retained member source tree differs",
+                Span::default(),
+            ));
+        }
+        self.environment.budget.reserve_analysis_work(
+            tree.declarations.len() as u64 + input_count as u64 + kept.len() as u64 + 1,
+        )?;
+        let local = tree
+            .declarations
+            .iter()
+            .position(|id| *id == host.declaration)
+            .ok_or_else(|| {
+                category(
+                    "generated retained member source host absent",
+                    Span::default(),
+                )
+            })?;
+        // The current sidecar belongs to a real output root. Nested hosts need
+        // their own row rather than silently attaching a table to its ancestor.
+        let Some(item) = tree.module.items.get(local) else {
+            return Ok(false);
+        };
+        let s::ItemKind::Aggregate(original) = &item.kind else {
+            return Ok(false);
+        };
+        if original.kind != s::AggregateKind::Struct {
+            return Ok(false);
+        }
+        if original.methods.len() != input_count {
+            return Err(category(
+                "generated retained member original count differs",
+                item.span,
+            ));
+        }
+        let mut output = 0;
+        for (ordinal, member) in original.methods.iter().enumerate() {
+            let local = compiler::source_scope::original_member(
+                &tree.module,
+                zil_base::NodeId(local as u32),
+                ordinal,
+                self.max_depth,
+                |work| self.environment.budget.reserve_analysis_work(work as u64),
+            )?
+            .ok_or_else(|| {
+                category(
+                    "generated retained member original ordinal absent",
+                    member.span,
+                )
+            })?;
+            let symbol = self.generated_symbol(&tree, local, member.span)?;
+            self.environment
+                .budget
+                .reserve_analysis_work(self.environment.ct_only.len() as u64 + 1)?;
+            let removed = matches!(
+                member.kind,
+                s::ItemKind::Function(_) | s::ItemKind::Extern { .. }
+            ) && self.environment.ct_only.contains(&symbol);
+            if !removed {
+                if kept.get(output) != Some(&ordinal) {
+                    return Err(category(
+                        "generated retained members differ from actual frozen skip events",
+                        member.span,
+                    ));
+                }
+                output += 1;
+            }
+        }
+        if output != kept.len() || output == input_count {
+            return Err(category(
+                "generated retained member deletion event is incomplete",
+                item.span,
+            ));
+        }
+        self.environment
+            .budget
+            .reserve_generated_nodes(kept.len() as u64 + 1)?;
+        self.environment.budget.reserve_temporary_bytes(
+            kept.len() as u64 * 4
+                + (self.member_retentions.len() as u64 + 1)
+                    * std::mem::size_of::<MemberRetention>() as u64,
+        )?;
+        let positions = kept
+            .iter()
+            .map(|n| {
+                u32::try_from(*n)
+                    .map_err(|_| category("generated retained member ordinal overflow", item.span))
+            })
+            .collect::<CompileResult<Vec<_>>>()?;
+        self.member_retentions.reserve_exact(1);
+        self.member_retentions.push(MemberRetention {
+            host: host.clone(),
+            map: RetainedMemberOrigins {
+                original_count: u32::try_from(input_count)
+                    .map_err(|_| category("generated retained member count overflow", item.span))?,
+                positions,
+            },
+            generated_source: Some(tree),
+        });
+        Ok(true)
+    }
+
+    pub(super) fn take_generated_member_retention(
+        &mut self,
+        tree: &Arc<zil_expand::source_context::GeneratedSourceTree>,
+        declaration: zil_base::NodeId,
+    ) -> CompileResult<Option<RetainedMemberOrigins>> {
+        self.environment
+            .budget
+            .reserve_analysis_work(self.member_retentions.len() as u64 + 1)?;
+        let Some(position) = self.member_retentions.iter().position(|event| {
+            event.host.module == tree.module.id
+                && event.host.declaration == declaration
+                && event
+                    .generated_source
+                    .as_ref()
+                    .is_some_and(|source| Arc::ptr_eq(source, tree))
+        }) else {
+            return Ok(None);
+        };
+        Ok(Some(self.member_retentions.remove(position).map))
     }
 
     pub(super) fn attach_member_retentions(
@@ -186,6 +325,12 @@ impl Materializer<'_, '_> {
         let capacity = events.capacity();
         for event in events {
             self.environment.budget.reserve_analysis_work(1)?;
+            if event.generated_source.is_some() {
+                return Err(category(
+                    "generated retained member event has no corresponding output root",
+                    Span::default(),
+                ));
+            }
             if event.host.module != module {
                 return Err(category(
                     "retained member output module differs",

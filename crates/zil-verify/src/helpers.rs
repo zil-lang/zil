@@ -2,6 +2,9 @@
 //! candidate is compared with a CFG-derived finite language of calls. No
 //! producer solver or callee body inlining supplies authority to a caller.
 use super::*;
+#[path = "helper_origin.rs"]
+mod origin;
+use origin::Origin;
 use std::collections::VecDeque;
 #[path = "helper_flow.rs"]
 mod flow;
@@ -68,8 +71,18 @@ pub(super) fn role_data_operand(
 
 struct EnvironmentOrigins {
     values_at: usize,
-    marks: Vec<u8>,
+    marks: Vec<Origin>,
     parameters: Vec<u32>,
+}
+
+impl EnvironmentOrigins {
+    fn parameter(&self, mark: Origin) -> Option<u32> {
+        mark.index()
+            .and_then(|index| self.parameters.get(index).copied())
+    }
+}
+fn local_invocation(mark: Origin, borrowed: bool) -> bool {
+    (mark == Origin::FACTORY && !borrowed) || mark == Origin::BODY || mark == Origin::CONCRETE
 }
 
 // This is a use restriction, not a closure safety certificate. Only concrete
@@ -146,8 +159,8 @@ fn environment_origins(
     let local_bodies = scoped_local_bodies(f, budget)?;
     let values_at = f.locals.len();
     let count = values_at.saturating_add(f.values.len());
-    budget.spend(count.saturating_mul(2))?;
-    let mut marks = vec![0u8; count];
+    budget.spend(Origin::table_work(count).saturating_add(count))?;
+    let mut marks = vec![Origin::EMPTY; count];
     let mut edges = vec![Vec::<usize>::new(); count];
     let mut pending = VecDeque::new();
     budget.spend(roles.len().saturating_mul(2))?;
@@ -155,7 +168,7 @@ fn environment_origins(
     let mut concrete_captures = Vec::new();
     for (position, role) in roles.iter().enumerate() {
         let parameter = f.parameters[role.parameter as usize];
-        marks[parameter.0 as usize] = 1 << position;
+        marks[parameter.0 as usize] = Origin::supplied(position, false);
         pending.push_back(parameter.0 as usize);
         parameters.push(role.parameter);
     }
@@ -245,7 +258,7 @@ fn environment_origins(
                 _ => false,
             };
             marks[destination] = if factory {
-                4
+                Origin::FACTORY
             } else if let InstructionKind::MakeClosure { ref captures, .. } = instruction.kind {
                 budget.spend(1)?;
                 concrete_captures.push(captures);
@@ -253,12 +266,12 @@ fn environment_origins(
                     .as_ref()
                     .is_some_and(|bodies| bodies[destination])
                 {
-                    16
+                    Origin::BODY
                 } else {
-                    32
+                    Origin::CONCRETE
                 }
             } else {
-                8
+                Origin::UNKNOWN
             };
             budget.spend(1)?;
             pending.push_back(destination);
@@ -283,7 +296,7 @@ fn environment_origins(
                 continue;
             }
             let origin = marks[values_at + value.0 as usize];
-            if !matches!(origin, 4 | 16 | 32) {
+            if !origin.concrete() {
                 return Err(bad(
                     f,
                     "local concrete callable captures a supplied, unknown or mixed callable origin",
@@ -293,7 +306,7 @@ fn environment_origins(
     }
     budget.spend(graph.role_data_uses.len())?;
     for value in &graph.role_data_uses {
-        if !matches!(marks[values_at + value.0 as usize], 4 | 16 | 32) {
+        if !marks[values_at + value.0 as usize].concrete() {
             return Err(bad(
                 f,
                 "supplied, unknown or mixed callable origin cannot enter aggregate data",
@@ -335,14 +348,10 @@ fn invocation(
         _ => return Ok(None),
     };
     let mark = origins.marks[origin];
-    if mark == 4 && !borrowed || matches!(mark, 16 | 32) {
+    if local_invocation(mark, borrowed) {
         return Ok(None);
     }
-    let parameter = match mark {
-        1 => origins.parameters.first().copied(),
-        2 => origins.parameters.get(1).copied(),
-        _ => None,
-    };
+    let parameter = origins.parameter(mark);
     parameter
         .map(|parameter| Some(CallEvent { parameter, kind }))
         .ok_or_else(|| {
@@ -507,7 +516,7 @@ fn forwarded<'a>(
             .get(child.parameter as usize)
             .ok_or_else(|| bad(f, "nested helper role parameter is absent"))?;
         let mark = origins.marks[origins.values_at + value.0 as usize];
-        if matches!(mark, 4 | 16 | 32) {
+        if mark.concrete() {
             let Some((id, _)) = parameter_type(&f.values[value.0 as usize]) else {
                 return Err(bad(
                     f,
@@ -528,16 +537,12 @@ fn forwarded<'a>(
             mapping.push((child.parameter, None));
             continue;
         }
-        let position = match mark {
-            1 => 0,
-            2 => 1,
-            _ => {
-                return Err(bad(
-                    f,
-                    "nested helper must forward an actual unmixed parameter role",
-                ));
-            }
-        };
+        let position = mark.index().ok_or_else(|| {
+            bad(
+                f,
+                "nested helper must forward an actual unmixed parameter role",
+            )
+        })?;
         let caller = roles
             .get(position)
             .ok_or_else(|| bad(f, "nested helper refers to an absent caller role"))?;
@@ -790,12 +795,6 @@ pub(super) fn check_module(
                     return Err(bad(
                         f,
                         "actual callback parameters cannot share one local slot",
-                    ));
-                }
-                if parameters.len() >= 2 {
-                    return Err(unsupported(
-                        "a concrete helper supports at most two callback environment parameters",
-                        Some(f.span),
                     ));
                 }
                 budget.spend(1)?;
@@ -1057,7 +1056,7 @@ pub(super) fn check_module(
                     crate::signature_life::closure_relation(
                         &definition.parameters,
                         &definition.captures,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
                     )?;
@@ -1070,7 +1069,7 @@ pub(super) fn check_module(
                 } else {
                     borrowed_fp::relation(
                         &definition.parameters,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                         Some(f.span),
                     )?;
@@ -1115,4 +1114,63 @@ pub(super) fn check_module(
         checked[index] = true;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod origin_classification_tests {
+    use super::*;
+    #[test]
+    fn legacy_masks_match_independent_event_substitution_classifiers() {
+        let origins = EnvironmentOrigins {
+            values_at: 0,
+            marks: vec![],
+            parameters: vec![10, 20],
+        };
+        for mask in 0..64 {
+            let mut mark = Origin::EMPTY;
+            for (bit, origin) in [
+                (1, Origin::supplied(0, false)),
+                (2, Origin::supplied(1, false)),
+                (4, Origin::FACTORY),
+                (8, Origin::UNKNOWN),
+                (16, Origin::BODY),
+                (32, Origin::CONCRETE),
+            ] {
+                if mask & bit != 0 {
+                    mark |= origin;
+                }
+            }
+            let expected = match mask {
+                1 => Some(10),
+                2 => Some(20),
+                _ => None,
+            };
+            assert_eq!(origins.parameter(mark), expected, "mask={mask}");
+            assert_eq!(mark.concrete(), matches!(mask, 4 | 16 | 32));
+            for borrowed in [false, true] {
+                assert_eq!(
+                    local_invocation(mark, borrowed),
+                    (mask == 4 && !borrowed) || matches!(mask, 16 | 32)
+                );
+            }
+        }
+    }
+    #[test]
+    fn later_actual_parameter_ordinals_remain_separate_from_local_producers() {
+        let origins = EnvironmentOrigins {
+            values_at: 0,
+            marks: vec![],
+            parameters: (10..106).collect(),
+        };
+        for role in 0..origins.parameters.len() {
+            let mark = Origin::supplied(role, false);
+            assert_eq!(origins.parameter(mark), Some(role as u32 + 10));
+            assert!(!local_invocation(mark, false));
+            assert_eq!(origins.parameter(mark | Origin::FACTORY), None);
+            assert_eq!(
+                origins.parameter(mark | Origin::supplied(role + 1, false)),
+                None
+            );
+        }
+    }
 }

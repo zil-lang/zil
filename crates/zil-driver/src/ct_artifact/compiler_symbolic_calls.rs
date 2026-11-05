@@ -92,8 +92,12 @@ impl Builder<'_, '_> {
         span: Span,
     ) -> R<Value> {
         let d = self.compiler.declarations[declaration];
-        let explicit = explicit
-            .ok_or_else(|| error(span, "CT symbolic full call requires explicit actuals"))?;
+        let explicit = if d.function.generics.is_empty() && self.compiler.active_host.is_some() {
+            explicit.unwrap_or(&[])
+        } else {
+            explicit
+                .ok_or_else(|| error(span, "CT symbolic full call requires explicit actuals"))?
+        };
         if explicit.len() != d.function.generics.len() || arguments.len() != d.function.params.len()
         {
             return Err(error(span, "CT symbolic full call actual arity differs"));

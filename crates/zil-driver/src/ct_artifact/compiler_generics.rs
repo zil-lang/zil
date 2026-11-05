@@ -471,7 +471,9 @@ impl<'a> Compiler<'a> {
         let mut definitions = Vec::new();
         for index in 0..self.declarations.len() {
             let d = self.declarations[index];
-            if d.function.generics.is_empty() || !self.ct_only_function(d.module, d.function)? {
+            if (d.function.generics.is_empty() && !self.has_generic_host(index)?)
+                || !self.ct_only_function(d.module, d.function)?
+            {
                 continue;
             }
             self.ensure_generic_definition(index)?;
@@ -480,6 +482,76 @@ impl<'a> Compiler<'a> {
         }
         self.drain_symbolic()?;
         self.checking_generics = false;
+        let scratch_span = self
+            .modules
+            .first()
+            .map_or(Span::default(), |m| m.syntax.span);
+        // CT6 scope/source ledgers belong to the same discarded symbolic
+        // compilation as its functions and schemas. Retaining them would make
+        // later actual calls inherit unrelated definition/instance roots.
+        // Prepay the extra table walk and nested actual payloads before drop;
+        // no symbolic work or temporary-byte expenditure is refunded.
+        for scope in &self.ambient_life_scopes {
+            self.budget.scope_comparison(scope, scratch_span)?;
+        }
+        for call in &self.source_instance_calls {
+            self.budget
+                .scope_comparison(&call.caller_scope, scratch_span)?;
+            self.budget
+                .scope_actuals_comparison(&call.actuals, scratch_span)?;
+        }
+        for binding in &self.source_life_bindings {
+            self.budget.work(
+                std::mem::size_of::<SourceLifeBinding>()
+                    .saturating_add(binding.parameters.len().saturating_mul(4))
+                    .saturating_add(binding.sources.as_ref().map_or(0, |sources| {
+                        sources
+                            .len()
+                            .saturating_mul(std::mem::size_of::<CtAmbientLifeReference>())
+                    })),
+                scratch_span,
+            )?;
+        }
+        self.budget.work(
+            self.runtime_frames
+                .len()
+                .saturating_mul(std::mem::size_of::<SourceRuntimeFrame>())
+                .saturating_add(
+                    self.source_type_sites
+                        .len()
+                        .saturating_mul(std::mem::size_of::<SourceTypeSite>()),
+                )
+                .saturating_add(
+                    self.record_relocations
+                        .len()
+                        .saturating_mul(std::mem::size_of::<SourceRecordRelocation>()),
+                ),
+            scratch_span,
+        )?;
+        self.active_host = None;
+        self.source_life_scope = None;
+        self.current_source_function = None;
+        self.runtime_frames.clear();
+        self.ambient_life_scopes.clear();
+        self.source_life_bindings.clear();
+        self.source_instance_calls.clear();
+        self.source_type_sites.clear();
+        self.current_source_expr = None;
+        self.current_source_type = None;
+        self.current_nominal_site = None;
+        self.source_nominal_parent = None;
+        self.metadata_ambient.clear();
+        self.metadata_graph_only = false;
+        self.metadata_life_bindings = None;
+        self.record_relocations.clear();
+        self.active_copy_metadata.clear();
+        self.bindings.clear();
+        self.metadata_bindings.clear();
+        self.scalar_bindings.clear();
+        self.abstract_scalars.clear();
+        self.abstract_lives.clear();
+        // Preserve checked_generics, declaration/catalog identity, and the
+        // actual entry's source-site mapping; those are not symbolic results.
         // No symbolic type, body, quote or schema is published. All actual work
         // remains spent, including instance slots and discarded temporary data.
         self.selected.clear();
@@ -499,7 +571,7 @@ impl<'a> Compiler<'a> {
         self.active_abstract_nominals.clear();
         Ok(definitions)
     }
-    fn drain_symbolic(&mut self) -> R<()> {
+    pub(super) fn drain_symbolic(&mut self) -> R<()> {
         while let Some((declaration, arguments, id)) = self.pending.pop_front() {
             let PendingTypes::Data(arguments) = arguments else {
                 return Err(error(
@@ -509,6 +581,7 @@ impl<'a> Compiler<'a> {
             };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
             self.prepare_abstract_scope(declaration)?;
+            self.bind_abstract_host(declaration)?;
             cfg::function(self, id, declaration)?;
             self.abstract_scalars.clear();
             self.abstract_lives.clear();
@@ -544,6 +617,7 @@ impl<'a> Compiler<'a> {
         // function. Check its bound independently before any monomorphized body
         // can accidentally grant scalar/field capabilities.
         let mut scratch = Self::unindexed(self.modules, self.budget.limits);
+        scratch.generated_catalog = self.generated_catalog;
         for d in &self.declarations {
             self.budget.node(d.item.span)?;
         }

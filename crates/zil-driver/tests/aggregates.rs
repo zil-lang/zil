@@ -1,4 +1,8 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
+#[path = "../../../.task/G4.4.6.1-inputs/nominal_controls.rs"]
+mod g4461_nominal_controls;
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_enum_controls.rs"]
+mod g4463_enum_controls;
 use std::{
     fs,
     path::PathBuf,
@@ -7608,14 +7612,12 @@ fn ct5_member_own_life_context_reaches_native() {
     let report = compile_source(&source(generated), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert!(report.diagnostics.iter().any(|d| {
-        d.message
-            .contains("transformed declarations require explicit source lineage")
-    }));
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", generated)], "main", b"42\n");
     let scalar_generated = generated
         .replace("struct Phantom<life s>{n:i32}\n", "")
         .replace("<life s>", "")
@@ -9583,11 +9585,43 @@ fn g443_member_factories_keep_source_boundaries_and_definition_checks() {
         valid.replace("make::<i32,42,'s>", "make::<i32,true,'s>"),
         valid.replace("make::<i32,42,'s>", "make::<i32,42,'other>"),
         valid.replace("(marker:Type)", "(self:Self,marker:Type)"),
-        valid
-            .replace("struct Maker{", "struct Maker<X:Copy>{")
-            .replace("Maker.make::<", "Maker::<bool>.make::<"),
     ] {
         let report = compile_source(&source(&text), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+    let host = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-complete-member.zil"
+    );
+    assert_eq!(
+        host,
+        valid
+            .replace("struct Maker{", "struct Maker<X:Copy>{")
+            .replace("Maker.make::<", "Maker::<bool>.make::<")
+    );
+    let report = compile_source(&source(host), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", host)], "main", b"42\n");
+    for wrong in [
+        host.replace("Maker::<bool>", "Maker"),
+        host.replace("Maker::<bool>", "Maker::<bool,bool>"),
+        host.replace("Maker::<bool>", "Maker::<42>"),
+        host.replace("make::<i32,42,'s>", "make::<i32,42>"),
+    ] {
+        let report = compile_source(&source(&wrong), &CompileOptions::default());
         assert!(
             matches!(
                 report.status,
@@ -10008,3 +10042,183 @@ mod whole_helper_error_review;
 
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
 mod p0_g445_review;
+
+#[path = "../../../tests/language-readiness/terminal/340/nonlocal-replace/controls.rs"]
+mod terminal340_nonlocal_replace;
+
+// Independent complete-parent consumers; staged failures remain visible during integration.
+#[path = "../../../.task/G10.1.10-inputs/consumers.rs"]
+mod g10110_independent_parent_consumers;
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
+mod runtime_ct_phase_tests;
+
+#[test]
+fn g4453_contextual_type_result_preserves_life_across_factories() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-type-result.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_pure_composite_fields_keep_every_returned_bit() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"18446744073709551557\n");
+}
+
+#[test]
+fn g4453_ambient_type_actual_retains_nested_life_graph() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_generic_host_keeps_its_actual_type_binding() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-context.zil"
+    );
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct6-const-only-factory.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-parameter-subsets.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}
+
+fn g4453_host_source_native(text: &str) {
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_host_complete_context_and_ordinary_static_member() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_member_distinct_life_owners_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_member_nearest_life_shadow_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_generated_member_life_owners_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
+    ));
+}
+
+#[test]
+fn g4453_generated_factory_forwards_its_real_life_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory-forward-life.zil"
+    ));
+}
+
+#[test]
+fn g4453_ordinary_static_member_keeps_effect_and_duplicate_checks() {
+    for text in [
+        "struct Host{fn make()->i32{let n=42;let address=&n;return n}}fn main()->i32{return #(Host.make())}",
+        "struct Host{fn make()->i32{return 42}fn make()->i32{return 7}}fn main()->i32{return #(Host.make())}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0, "{}", report.to_json());
+    }
+}
+
+#[test]
+fn g4453_ordinary_static_member_preserves_actual_module_privacy() {
+    let main = "import provider;fn main()->i32{return #(provider.Host.make())}";
+    let provider = "pub struct Host{fn make()->i32{return 42}}";
+    let report = zil_driver::compile_project(
+        &review329_project(&[("main", main), ("provider", provider)]),
+        &CompileOptions::default(),
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Ct, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 0);
+}
+
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_pure_backend.rs"]
+mod g4463_qualified_pure_backend;

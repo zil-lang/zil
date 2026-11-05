@@ -613,6 +613,22 @@ fn check_function(
                         InstructionKind::ReborrowAddress { address, .. } => {
                             fresh = true;
                             parents = direct(&values[address.0 as usize], b)?;
+                            if matches!(&f.values[address.0 as usize], Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_)))
+                            {
+                                // A closure receiver addresses the environment shell.
+                                // Its captured addresses remain separate leaf loans;
+                                // coarse Hold roots also include those pointees and
+                                // cannot name this receiver's actual storage.
+                                let mut roots = Vec::new();
+                                for parent in &parents {
+                                    fee(b, nodes[*parent].roots.len())?;
+                                    for root in &nodes[*parent].roots {
+                                        fee(b, root.path().len().saturating_add(1))?;
+                                        roots.push(root.clone());
+                                    }
+                                }
+                                nodes[id].roots = roots;
+                            }
                             for (p, row) in &values[address.0 as usize] {
                                 if !p.is_empty() {
                                     path_lookup(carrier.len(), p.len(), b)?;

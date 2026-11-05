@@ -9,6 +9,7 @@ enum Head {
     // A reference to the actual aggregate declaration in this borrowed source
     // inventory. This is never a name-based semantic identity or cache key.
     Declaration(usize),
+    Enum(usize),
     Plain(Vec<String>),
 }
 #[derive(Clone)]
@@ -32,6 +33,7 @@ struct Scope<'a> {
 struct Check<'a, 'b, 'l> {
     functions: Vec<&'a Function>,
     records: Vec<&'a Aggregate>,
+    enums: Vec<&'a EnumDecl>,
     hosts: Vec<Option<usize>>,
     standalone: Vec<bool>,
     fact_depth: usize,
@@ -275,7 +277,8 @@ impl Check<'_, '_, '_> {
                         _ => Fact::Unknown,
                     });
                 }
-                Fact::Named(self.head(path, ty.span)?, actuals)
+                let qualified = actuals.iter().any(Fact::has_class);
+                Fact::Named(self.head(path, ty.span, qualified)?, actuals)
             }
             TypeKind::Reference {
                 lifetime, inner, ..
@@ -309,7 +312,7 @@ impl Check<'_, '_, '_> {
             _ => self.unknown_type(ty, scope, depth + 1)?,
         })
     }
-    fn head(&mut self, path: &[String], span: Span) -> R<Head> {
+    fn head(&mut self, path: &[String], span: Span, qualified: bool) -> R<Head> {
         self.pay(span, path.len().saturating_add(1))?;
         for part in path {
             self.budget.text(part, span)?;
@@ -320,6 +323,15 @@ impl Check<'_, '_, '_> {
             self.budget.text(&declaration.name, span)?;
             if declaration.name == spelling {
                 return Ok(Head::Declaration(index));
+            }
+        }
+        if qualified {
+            for (index, declaration) in self.enums.iter().enumerate() {
+                self.budget.text(&spelling, span)?;
+                self.budget.text(&declaration.name, span)?;
+                if declaration.name == spelling {
+                    return Ok(Head::Enum(index));
+                }
             }
         }
         Ok(Head::Plain(path.to_vec()))
@@ -349,6 +361,14 @@ impl Check<'_, '_, '_> {
                     for (x, y) in xs.iter().zip(ys) {
                         this.compatible(x, y, span)?;
                     }
+                }
+            }
+            (Fact::Named(Head::Enum(a), xs), Fact::Named(Head::Enum(b), ys)) => {
+                if expected.has_class() && (a != b || xs.len() != ys.len()) {
+                    return Err(error(span, "source enum class annotation differs from actual declaration"));
+                }
+                if a == b && xs.len() == ys.len() {
+                    for (x, y) in xs.iter().zip(ys) { this.compatible(x, y, span)?; }
                 }
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
@@ -557,6 +577,59 @@ impl Check<'_, '_, '_> {
                     env,
                 )?;
             }
+            PatternKind::Constructor { path, arguments }
+                if let Fact::Named(Head::Enum(index), actuals) = fact =>
+            {
+                let declaration = self.enums.get(*index).copied().ok_or_else(|| {
+                    unsupported(p.span, "source enum pattern declaration is absent")
+                })?;
+                if path.len() != 2
+                    || path[0] != declaration.name
+                    || actuals.len() != declaration.generics.len()
+                {
+                    return Err(unsupported(
+                        p.span,
+                        "source enum pattern differs from actual declaration",
+                    ));
+                }
+                let variant = declaration
+                    .variants
+                    .iter()
+                    .find(|v| v.name == path[1])
+                    .ok_or_else(|| unsupported(p.span, "source enum pattern variant is absent"))?;
+                let fields: &[VariantTupleField] = match &variant.fields {
+                    VariantFields::Unit => &[],
+                    VariantFields::Tuple(fields) => fields,
+                    VariantFields::Record(_) => {
+                        return Err(unsupported(
+                            p.span,
+                            "source enum record pattern needs named payload proof",
+                        ));
+                    }
+                };
+                if fields.len() != arguments.len() {
+                    return Err(unsupported(
+                        p.span,
+                        "source enum pattern payload arity differs",
+                    ));
+                }
+                let owner = self.functions.len() + self.records.len() + index;
+                let scope = Scope {
+                    owner,
+                    parameters: &declaration.generics,
+                    host: None,
+                };
+                let mut map = Substitutions::new();
+                for (ordinal, actual) in actuals.iter().enumerate() {
+                    self.lookup(map.len(), 2, p.span)?;
+                    map.insert(Binder(owner, ordinal), self.copy(actual, p.span)?);
+                }
+                for (child, field) in arguments.iter().zip(fields) {
+                    let formal = self.ty(&field.ty, &scope, 0)?;
+                    let actual = self.substitute(&formal, &map, p.span)?;
+                    self.bind(child, &actual, env)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -729,7 +802,11 @@ impl Check<'_, '_, '_> {
                                     _ => Fact::Unknown,
                                 });
                             }
-                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, args)
+                            let qualified = args.iter().any(Fact::has_class);
+                            Fact::Named(
+                                self.head(std::slice::from_ref(name), e.span, qualified)?,
+                                args,
+                            )
                         }
                         _ => Fact::Unknown,
                     },
@@ -738,7 +815,10 @@ impl Check<'_, '_, '_> {
                         if name == "Self" {
                             self.self_type(scope, e.span)?.unwrap_or(Fact::Unknown)
                         } else {
-                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, vec![])
+                            Fact::Named(
+                                self.head(std::slice::from_ref(name), e.span, false)?,
+                                vec![],
+                            )
                         }
                     }
                     _ => Fact::Unknown,
@@ -1005,7 +1085,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         scope: &Scope<'_>,
         env: &mut Facts,
-        _wanted: Option<&Fact>,
+        wanted: Option<&Fact>,
         depth: usize,
     ) -> R<Fact> {
         let actual = match &e.kind {
@@ -1028,6 +1108,24 @@ impl Check<'_, '_, '_> {
                     _ => (None, None),
                 };
                 let mut output = Fact::Unknown;
+                if root.is_none()
+                    && let Some(variant) = self.variant_call_result(
+                        callee,
+                        &actuals,
+                        wanted,
+                        scope,
+                        e.span,
+                        depth + 1,
+                    )?
+                {
+                    return Ok(variant);
+                }
+                if root.is_none()
+                    && let Some(member) =
+                        self.member_call_result(callee, arguments.len(), scope, e.span, depth + 1)?
+                {
+                    return Ok(member);
+                }
                 if let Some(name) = root {
                     self.lookup(env.len(), name.len(), e.span)?;
                 }
@@ -1050,17 +1148,39 @@ impl Check<'_, '_, '_> {
                         };
                         let mut map = Substitutions::new();
                         if let Some(args) = explicit {
-                            for ((ordinal, _), arg) in f
-                                .generics
+                            if f.generics
                                 .iter()
-                                .enumerate()
-                                .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
-                                .zip(args)
+                                .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
+                                && args.len() == f.generics.len()
                             {
-                                if let GenericArg::Type(t) = arg {
-                                    let fact = self.ty(t, scope, depth + 1)?;
+                                for (ordinal, (formal, arg)) in
+                                    f.generics.iter().zip(args).enumerate()
+                                {
+                                    let fact = self.full_free_actual(
+                                        formal,
+                                        arg,
+                                        scope,
+                                        e.span,
+                                        depth + 1,
+                                    )?;
                                     self.lookup(map.len(), 2, e.span)?;
                                     map.insert(Binder(owner, ordinal), fact);
+                                }
+                            } else {
+                                // Keep the old short and all-Type path's work
+                                // and ordinal behavior unchanged.
+                                for ((ordinal, _), arg) in f
+                                    .generics
+                                    .iter()
+                                    .enumerate()
+                                    .filter(|(_, p)| !matches!(p.kind, GenericParamKind::Lifetime))
+                                    .zip(args)
+                                {
+                                    if let GenericArg::Type(t) = arg {
+                                        let fact = self.ty(t, scope, depth + 1)?;
+                                        self.lookup(map.len(), 2, e.span)?;
+                                        map.insert(Binder(owner, ordinal), fact);
+                                    }
                                 }
                             }
                         }
@@ -1091,6 +1211,353 @@ impl Check<'_, '_, '_> {
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    fn variant_call_result(
+        &mut self,
+        callee: &Expr,
+        actuals: &[Fact],
+        wanted: Option<&Fact>,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(variant_name),
+        } = &callee.kind
+        else {
+            return Ok(None);
+        };
+        let (object, explicit) = match &object.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (object.as_ref(), None),
+        };
+        let ExprKind::Name(enum_name) = &object.kind else {
+            return Ok(None);
+        };
+        for index in 0..self.enums.len() {
+            let declaration = self.enums[index];
+            self.budget.text(enum_name, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name != *enum_name {
+                continue;
+            }
+            for variant in &declaration.variants {
+                self.budget.text(variant_name, span)?;
+                self.budget.text(&variant.name, span)?;
+                if variant.name != *variant_name {
+                    continue;
+                }
+                let fields: &[VariantTupleField] = match &variant.fields {
+                    VariantFields::Unit => &[],
+                    VariantFields::Tuple(fields) => fields,
+                    VariantFields::Record(_) => {
+                        return Err(unsupported(
+                            span,
+                            "scoped source enum record constructor needs named payload evidence",
+                        ));
+                    }
+                };
+                if fields.len() != actuals.len() {
+                    return Err(unsupported(
+                        span,
+                        "source enum variant payload arity differs",
+                    ));
+                }
+                let owner = self.functions.len() + self.records.len() + index;
+                let definition = Scope {
+                    owner,
+                    parameters: &declaration.generics,
+                    host: None,
+                };
+                let mut map = Substitutions::new();
+                if let Some(explicit) = explicit {
+                    if explicit.len() != declaration.generics.len() {
+                        return Err(unsupported(
+                            span,
+                            "source enum constructor needs full ordered actuals",
+                        ));
+                    }
+                    for (ordinal, (formal, actual)) in
+                        declaration.generics.iter().zip(explicit).enumerate()
+                    {
+                        let fact =
+                            self.full_free_actual(formal, actual, caller, span, depth + 1)?;
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), fact);
+                    }
+                } else if let Some(Fact::Named(Head::Enum(expected), classes)) = wanted
+                    && *expected == index
+                    && classes.len() == declaration.generics.len()
+                {
+                    for (ordinal, class) in classes.iter().enumerate() {
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), self.copy(class, span)?);
+                    }
+                }
+                for (field, actual) in fields.iter().zip(actuals) {
+                    let formal = self.ty(&field.ty, &definition, depth + 1)?;
+                    if !map.is_empty() {
+                        let expected = self.substitute(&formal, &map, span)?;
+                        self.compatible(&expected, actual, span)?;
+                    } else {
+                        self.infer(&formal, actual, &mut map, span, true)?;
+                    }
+                }
+                let mut classes = Vec::new();
+                for ordinal in 0..declaration.generics.len() {
+                    self.lookup(map.len(), 2, span)?;
+                    let Some(fact) = map.get(&Binder(owner, ordinal)) else {
+                        return Err(unsupported(
+                            span,
+                            "source enum variant cannot infer its complete actuals",
+                        ));
+                    };
+                    classes.push(self.copy(fact, span)?);
+                }
+                return Ok(Some(Fact::Named(Head::Enum(index), classes)));
+            }
+        }
+        Ok(None)
+    }
+
+    fn full_free_actual(
+        &mut self,
+        formal: &GenericParam,
+        actual: &GenericArg,
+        scope: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        self.budget.node(span, depth)?;
+        match (&formal.kind, actual) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                match self.binder(scope, name, span)? {
+                    Some((binder, true)) => Ok(Fact::Class(binder)),
+                    _ => Err(unsupported(
+                        span,
+                        "free CT life actual has no original source binder",
+                    )),
+                }
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, scope, depth + 1),
+            (GenericParamKind::Const(domain), arg) => {
+                let carrier = consts::argument(arg, Some(formal), self.budget)?;
+                let value = consts::expression(&carrier).ok_or_else(|| {
+                    unsupported(span, "free CT const actual has no source expression")
+                })?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let binder = scope
+                        .parameters
+                        .iter()
+                        .find(|p| p.name == *name && matches!(p.kind, GenericParamKind::Const(_)));
+                    let binder = binder.or_else(|| {
+                        consts::symbolic_parameter(self.functions[scope.owner], name)
+                            .map(|(_, p)| p)
+                    });
+                    let Some(GenericParam {
+                        kind: GenericParamKind::Const(actual_domain),
+                        ..
+                    }) = binder
+                    else {
+                        return Err(unsupported(
+                            span,
+                            "free CT symbolic const has no original source binder",
+                        ));
+                    };
+                    if type_key(domain, self.budget)? != type_key(actual_domain, self.budget)? {
+                        return Err(unsupported(span, "free CT symbolic const domain differs"));
+                    }
+                } else {
+                    consts::normalize(formal, &carrier, self.budget)?;
+                }
+                Ok(Fact::Unknown)
+            }
+            _ => Err(unsupported(
+                span,
+                "free CT actual kind differs from full ordinal",
+            )),
+        }
+    }
+
+    // Resolve a CT host/member call from the actual source AST and inventory.
+    // The host and member own separate full ordinal domains, including when
+    // their lifetime parameters have the same spelling.
+    fn member_call_result(
+        &mut self,
+        callee: &Expr,
+        value_arity: usize,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        let (member, member_args) = match &callee.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee, None),
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(method),
+        } = &member.kind
+        else {
+            return Ok(None);
+        };
+        let (host, host_args) = match &object.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (object.as_ref(), None),
+        };
+        let ExprKind::Name(host_name) = &host.kind else {
+            return Ok(None);
+        };
+        for host_index in 0..self.records.len() {
+            let declaration = self.records[host_index];
+            self.budget.text(host_name, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name != *host_name {
+                continue;
+            }
+            for owner in 0..self.functions.len() {
+                self.pay(span, 1)?;
+                if self.hosts[owner] != Some(host_index) {
+                    continue;
+                }
+                let function = self.functions[owner];
+                self.budget.text(method, span)?;
+                self.budget.text(&function.name, span)?;
+                if function.name != *method {
+                    continue;
+                }
+                if function.params.len() != value_arity {
+                    return Err(unsupported(
+                        span,
+                        "source member value argument arity differs",
+                    ));
+                }
+                let Some(host_args) = host_args else {
+                    return Ok(None);
+                };
+                let Some(member_args) = member_args else {
+                    return Ok(None);
+                };
+                if host_args.len() != declaration.generics.len()
+                    || member_args.len() != function.generics.len()
+                {
+                    return Err(unsupported(
+                        span,
+                        "source host/member needs its full ordered actuals",
+                    ));
+                }
+                let mut map = Substitutions::new();
+                for (ordinal, (formal, actual)) in
+                    declaration.generics.iter().zip(host_args).enumerate()
+                {
+                    let fact = self.member_actual(formal, actual, caller, span, depth + 1)?;
+                    self.lookup(map.len(), 2, span)?;
+                    map.insert(Binder(self.functions.len() + host_index, ordinal), fact);
+                }
+                for (ordinal, (formal, actual)) in
+                    function.generics.iter().zip(member_args).enumerate()
+                {
+                    let fact = self.member_actual(formal, actual, caller, span, depth + 1)?;
+                    self.lookup(map.len(), 2, span)?;
+                    map.insert(Binder(owner, ordinal), fact);
+                }
+                let definition = Scope {
+                    owner,
+                    parameters: &function.generics,
+                    host: Some(host_index),
+                };
+                let Some(result) = &function.return_type else {
+                    return Ok(Some(Fact::Unknown));
+                };
+                let formal = self.ty(result, &definition, depth + 1)?;
+                return self.substitute(&formal, &map, span).map(Some);
+            }
+        }
+        Ok(None)
+    }
+
+    fn member_actual(
+        &mut self,
+        formal: &GenericParam,
+        actual: &GenericArg,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        self.budget.node(span, depth)?;
+        match (&formal.kind, actual) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                match self.binder(caller, name, span)? {
+                    Some((binder, true)) => Ok(Fact::Class(binder)),
+                    _ => Err(unsupported(
+                        span,
+                        "source member life actual has no caller binder",
+                    )),
+                }
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, caller, depth + 1),
+            (GenericParamKind::Const(domain), actual) => {
+                let wanted = consts::domain(domain)?;
+                // A written identifier is resolved in the actual caller's
+                // member-first, host-second lexical binder scope. A Type
+                // binder or same-spelled global is never a scalar actual.
+                let name = match actual {
+                    GenericArg::Const(Expr {
+                        kind: ExprKind::Name(name),
+                        ..
+                    }) => Some(name.as_str()),
+                    GenericArg::Type(ty) => trait_bounds::plain(ty),
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    let Some((binder, false)) = self.binder(caller, name, span)? else {
+                        return Err(unsupported(
+                            span,
+                            "source member Const actual has no actual caller binder",
+                        ));
+                    };
+                    let parameter = if binder.0 == caller.owner {
+                        caller.parameters.get(binder.1)
+                    } else {
+                        caller
+                            .host
+                            .and_then(|host| self.records[host].generics.get(binder.1))
+                    }
+                    .ok_or_else(|| error(span, "source member Const binder ordinal absent"))?;
+                    let GenericParamKind::Const(source_domain) = &parameter.kind else {
+                        return Err(unsupported(
+                            span,
+                            "source member Const actual names another binder kind",
+                        ));
+                    };
+                    if consts::domain(source_domain)? != wanted {
+                        return Err(error(
+                            span,
+                            "source member Const actual domain differs from original formal",
+                        ));
+                    }
+                    return Ok(Fact::Parameter(binder));
+                }
+                let carrier = consts::argument(actual, Some(formal), self.budget)?;
+                consts::normalize(formal, &carrier, self.budget)?;
+                // This pass tracks life/class relations only. No Const value
+                // identity or namespace permission follows from Unknown; CT's
+                // source actual checker still compares the complete value.
+                Ok(Fact::Unknown)
+            }
+            _ => Err(unsupported(
+                span,
+                "source member actual kind differs from full ordinal",
+            )),
+        }
     }
 
     #[inline(never)]
@@ -1314,6 +1781,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     struct Inventory<'a> {
         functions: Vec<&'a Function>,
         records: Vec<&'a Aggregate>,
+        enums: Vec<&'a EnumDecl>,
         hosts: Vec<Option<usize>>,
         standalone: Vec<bool>,
     }
@@ -1338,6 +1806,10 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     let index = found.records.len();
                     found.records.push(a);
                     inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
+                }
+                ItemKind::Enum(e) => {
+                    budget.lineage_bytes(std::mem::size_of::<&EnumDecl>(), item.span)?;
+                    found.enums.push(e);
                 }
                 ItemKind::Impl(i) => {
                     budget.identity_work(i.generics.len(), item.span)?;
@@ -1373,6 +1845,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut found = Inventory {
         functions: Vec::new(),
         records: Vec::new(),
+        enums: Vec::new(),
         hosts: Vec::new(),
         standalone: Vec::new(),
     };
@@ -1380,6 +1853,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
     let mut check = Check {
         functions: found.functions,
         records: found.records,
+        enums: found.enums,
         hosts: found.hosts,
         standalone: found.standalone,
         fact_depth: 0,

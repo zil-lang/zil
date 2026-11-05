@@ -239,6 +239,9 @@ fn signatures(
         ) {
             errors.push(diagnostic);
         }
+        if f.type_parameters.is_empty() {
+            signature_errors(f, &mut errors, limits, &mut foreign_work).map_err(|e| vec![e])?;
+        }
         if signatures
             .insert(
                 f.name.clone(),
@@ -282,10 +285,6 @@ fn signatures(
                 format!("function {} is declared twice", f.name),
             ))
         }
-        if !f.type_parameters.is_empty() {
-            continue;
-        }
-        signature_errors(f, &mut errors);
     }
     if !errors.is_empty() {
         return Err(errors);
@@ -293,7 +292,21 @@ fn signatures(
     Ok(signatures)
 }
 
-fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
+fn signature_errors(
+    f: &CoreFunction,
+    errors: &mut Vec<Diagnostic>,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    fn pure_array(ty: &Type, span: Span, limits: &Limits, left: &mut usize) -> R<bool> {
+        if !matches!(ty, Type::Array { .. }) || ty.is_copy_value() {
+            return Ok(false);
+        }
+        // Signature and typed header each copy the complete qualified type.
+        inference::charge_type_snapshot(ty, span, limits, left, 2)?;
+        stored::pure_inline(ty, left, limits, span)
+    }
+    let pure_result = pure_array(&f.return_type, f.span, limits, left)?;
     if f.return_type.is_package_address() {
         errors.push(unsupported(f.span, "Store element windows are synchronous inputs; address results derived from element windows are not implemented"));
     }
@@ -316,6 +329,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         || forwarding::bound(f).is_some()
         || callable_fields::template(f)
         || f.return_type.is_copy_value()
+        || pure_result
         || f.return_type.is_scalar_or_address()
         || stored::shared_value(&f.return_type)
         || stored::shared_address(&f.return_type)
@@ -360,7 +374,9 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
         {
             continue;
         }
+        let pure_parameter = pure_array(&p.ty, p.span, limits, left)?;
         if !(p.ty.is_copy_value()
+            || pure_parameter
             || p.ty.is_scalar_or_address()
             || stored::shared_value(&p.ty)
             || stored::shared_address(&p.ty)
@@ -399,6 +415,7 @@ fn signature_errors(f: &CoreFunction, errors: &mut Vec<Diagnostic>) {
             errors.push(unsupported(p.span, "resource/address parameter mode"))
         }
     }
+    Ok(())
 }
 
 pub fn check(
@@ -413,7 +430,8 @@ pub fn check(
     let mut signatures = signatures(core, limits, 0, None)?;
     let mut resource_definitions =
         resources::definitions(core, &signatures).map_err(|e| vec![e])?;
-    let enum_types = enums::definitions(core);
+    let mut enum_work = limits.max_analysis_steps;
+    let enum_types = enums::definitions(core, limits, &mut enum_work).map_err(|e| vec![e])?;
     let mut errors = Vec::new();
     let mut functions = Vec::new();
     let concrete_count = core
@@ -1815,7 +1833,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         };
         if self.enum_constructor(e)?.is_some() {
             let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
-            return self.make_variant(&ty, variant, &[], expected, e.span);
+            return self.make_variant(ty, variant, &[], expected, e.span);
         }
         let result = if matches!(&object.kind, CoreExprKind::Name(name) if self.lookup(name).is_none())
         {
@@ -1958,7 +1976,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 return self.foreign_callback(arguments, e.span);
             }
             if let Some((ty, variant)) = self.enum_constructor(callee)? {
-                return self.make_variant(&ty, variant, arguments, expected, e.span);
+                return self.make_variant(ty, variant, arguments, expected, e.span);
             }
             if let CoreExprKind::Member {
                 object,
@@ -2236,6 +2254,63 @@ impl<'a, 'c> Builder<'a, 'c> {
     }
     /// A known operand constrains an unsuffixed integer literal; this does not
     /// insert numeric conversions or change the type of a bound runtime value.
+    fn known_type_ref<'e>(&'e self, e: &'e CoreExpr) -> Option<&'e Type> {
+        match &e.kind {
+            CoreExprKind::Name(name) => {
+                let id = self.lookup(name)?;
+                if self.closure_slots.contains_key(&id) {
+                    return None;
+                }
+                self.borrowed_captures
+                    .get(&id)
+                    .or_else(|| self.sum_slots.get(&id))
+                    .or_else(|| self.function.locals.get(id.0 as usize).map(|l| &l.ty))
+            }
+            CoreExprKind::Ascribed { ty, .. } => Some(ty),
+            CoreExprKind::Index { object, .. } => match self.known_type_ref(object)? {
+                Type::Array { element, .. } => Some(element),
+                Type::Address { inner, .. } => match inner.as_ref() {
+                    Type::Array { element, .. } | Type::Slice { element } => Some(element),
+                    _ => None,
+                },
+                _ => None,
+            },
+            CoreExprKind::Member { object, member, .. } => {
+                let base = self.known_type_ref(object)?;
+                let base = match base {
+                    Type::Address { inner, .. } | Type::Managed(inner) | Type::Desc(inner) => {
+                        inner.as_ref()
+                    }
+                    other => other,
+                };
+                if matches!(base, Type::Package { .. }) {
+                    return None;
+                }
+                match stored::physical(base) {
+                    Type::Record { fields, .. } => fields
+                        .iter()
+                        .find(|(name, _)| name == member)
+                        .map(|(_, ty)| ty),
+                    Type::Tuple(fields) => member.parse::<usize>().ok().and_then(|i| fields.get(i)),
+                    _ => None,
+                }
+            }
+            _ => None,
+        }
+    }
+
+    fn known_address(&self, e: &CoreExpr) -> bool {
+        self.known_type_is(e, |ty| matches!(ty, Type::Address { .. }))
+    }
+
+    fn known_type_is(&self, e: &CoreExpr, predicate: impl Fn(&Type) -> bool) -> bool {
+        if let Some(ty) = self.known_type_ref(e) {
+            predicate(ty)
+        } else {
+            self.known_type(e).as_ref().is_some_and(predicate)
+        }
+    }
+
     fn known_type(&self, e: &CoreExpr) -> Option<Type> {
         if let CoreExprKind::Call { callee, arguments } = &e.kind
             && let Some(name) = dynamic_store::primitive(callee)
@@ -2250,13 +2325,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         {
             return byte_buffer::result_type(name);
         }
-        if let Ok(Some((ty, _))) = self.enum_constructor(e) {
-            return Some(ty);
+        if let Ok(Some((ty, _))) = self.enum_constructor(e)
+            && !matches!(ty, Type::BorrowedStorage { .. })
+        {
+            return Some(ty.clone());
         }
         if let CoreExprKind::Call { callee, .. } = &e.kind
             && let Ok(Some((ty, _))) = self.enum_constructor(callee)
+            && !matches!(ty, Type::BorrowedStorage { .. })
         {
-            return Some(ty);
+            return Some(ty.clone());
         }
         match &e.kind {
             CoreExprKind::Try(operand) => match self.known_type(operand)? {

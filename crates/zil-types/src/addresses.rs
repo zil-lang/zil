@@ -223,6 +223,14 @@ impl Builder<'_, '_> {
                 let local = self.lookup(name).ok_or_else(|| {
                     error("E-UNKNOWN-NAME", e.span, format!("unknown value {name}"))
                 })?;
+                let actual = &self.function.locals[local.0 as usize].ty;
+                let pure_array = !mutable
+                    && matches!(actual, Type::Array { .. })
+                    && !actual.is_copy_value()
+                    && stored::pure_inline(actual, &mut self.match_work_left, self.limits, e.span)?;
+                if pure_array {
+                    self.closures.snapshot_type(actual, 1, 0, e.span)?;
+                }
                 let decl = self.function.locals[local.0 as usize].clone();
                 if self.closure_slots.contains_key(&local) {
                     return self.borrow_closure_slot(local, mutable, e.span);
@@ -311,6 +319,7 @@ impl Builder<'_, '_> {
                 }
                 if !decl.ty.is_copy_value()
                     && !stored::shared_value(&decl.ty)
+                    && !pure_array
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
                     && !(mutable
@@ -340,6 +349,11 @@ impl Builder<'_, '_> {
                 } else {
                     InstructionKind::BorrowLocal { local }
                 };
+                if pure_array {
+                    // The earlier snapshot pays for decl.clone(); this one
+                    // pays the separate full Address result clone below.
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((self.value(kind, ty.clone(), e.span)?, ty))
             }
             CoreExprKind::Unary {
@@ -393,6 +407,13 @@ impl Builder<'_, '_> {
                         self.closures.snapshot(work.saturating_mul(2), e.span)?;
                     }
                 }
+                if let Type::Record { fields, .. } = stored::physical(&inner)
+                    && let Some((_, field)) = fields.iter().find(|(name, _)| name == member)
+                    && !field.is_copy_value()
+                    && stored::pure_inline(field, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(field, 1, 0, e.span)?;
+                }
                 let (index, field) = aggregates::field(&inner, member, e.span)?;
                 let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
@@ -417,6 +438,12 @@ impl Builder<'_, '_> {
                     mutable,
                     inner: Box::new(field),
                 };
+                if let Type::Address { inner, .. } = &ty
+                    && !inner.is_copy_value()
+                    && stored::pure_inline(inner, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((
                     self.value(
                         InstructionKind::AddressField { address, index },
@@ -477,6 +504,12 @@ impl Builder<'_, '_> {
                     mutable,
                     inner: element,
                 };
+                if let Type::Address { inner, .. } = &ty
+                    && !inner.is_copy_value()
+                    && stored::pure_inline(inner, &mut self.match_work_left, self.limits, e.span)?
+                {
+                    self.closures.snapshot_type(&ty, 1, 0, e.span)?;
+                }
                 Ok((
                     self.value(
                         InstructionKind::AddressIndex { address, index },
@@ -564,9 +597,7 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         mutable: bool,
     ) -> R<(ValueId, Type)> {
-        if matches!(self.known_type(object), Some(Type::Address { .. }))
-            || dynamic_store::borrow_expression(object)
-        {
+        if self.known_address(object) || dynamic_store::borrow_expression(object) {
             self.expr(object, None)
         } else {
             self.address_place(object, mutable)
@@ -582,7 +613,7 @@ impl Builder<'_, '_> {
                 ..
             } => true,
             CoreExprKind::Member { object, .. } | CoreExprKind::Index { object, .. } => {
-                matches!(self.known_type(object), Some(Type::Address { .. }))
+                self.known_address(object)
                     || dynamic_store::borrow_expression(object)
                     || self.indirect_place(object)
             }

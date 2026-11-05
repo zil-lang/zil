@@ -254,6 +254,8 @@ impl Origins {
         }
         let mut seen_ids = BTreeSet::new();
         let mut seen_identities = BTreeSet::new();
+        let mut seen_generated_trees = BTreeMap::new();
+        let mut seen_generated_ids = BTreeSet::new();
         for (index, (item, origin)) in module.items.iter().zip(&self.entries).enumerate() {
             budget.node(item.span, 0)?;
             if origin.declaration.module != module.id {
@@ -286,12 +288,6 @@ impl Origins {
                         "aligned declaration canonical module differs",
                     ));
                 }
-                if !captured.identity.generation_path.is_empty() {
-                    return Err(unsupported(
-                        item.span,
-                        "generated declaration lineage requires the actual materialization ledger",
-                    ));
-                }
                 let (kind, name) = declaration_shape(item);
                 budget.text(kind, item.span)?;
                 let path = &captured.identity.declaration_path;
@@ -301,7 +297,57 @@ impl Origins {
                         "aligned original declaration kind differs",
                     ));
                 }
-                if let Some(name) = name {
+                if let Some(generated) = &captured.generated {
+                    validate_generated(item, captured, module.id, budget)?;
+                    let tree = &generated.tree;
+                    let identity_work = tree.identity_path_len();
+                    budget.identity_work(
+                        identity_work.saturating_mul(
+                            seen_generated_trees.len().checked_ilog2().unwrap_or(0) as usize + 1,
+                        ),
+                        item.span,
+                    )?;
+                    if let Some(previous) = seen_generated_trees.get(&tree.identity) {
+                        if !std::sync::Arc::ptr_eq(previous, tree) {
+                            return Err(error(
+                                item.span,
+                                "one generated event refers to different frozen trees",
+                            ));
+                        }
+                    } else {
+                        budget.identity_work(
+                            tree.declarations.len().saturating_mul(
+                                supplied
+                                    .items
+                                    .len()
+                                    .saturating_add(seen_generated_ids.len())
+                                    .saturating_add(1),
+                            ),
+                            item.span,
+                        )?;
+                        budget.lineage_bytes(
+                            96usize.saturating_add(tree.declarations.len().saturating_mul(64)),
+                            item.span,
+                        )?;
+                        for declaration in &tree.declarations {
+                            if supplied.items.iter().any(|row| {
+                                row.generated.is_none() && row.declaration == *declaration
+                            }) || !seen_generated_ids.insert(*declaration)
+                            {
+                                return Err(error(
+                                    item.span,
+                                    "generated declaration inventory collides across source trees",
+                                ));
+                            }
+                        }
+                        seen_generated_trees.insert(&tree.identity, tree.clone());
+                    }
+                } else if !captured.identity.generation_path.is_empty() {
+                    return Err(error(
+                        item.span,
+                        "generated identity has no actual source ledger",
+                    ));
+                } else if let Some(name) = name {
                     budget.text(name, item.span)?;
                     if path[1] != name {
                         return Err(error(
@@ -352,6 +398,7 @@ impl Origins {
                 };
                 budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), item.span)?;
                 DeclarationOrigin {
+                    generated: None,
                     closure_sites: crate::source_context::ClosureSiteLineage::Original,
                     retained_members: None,
                     declaration: NodeId(
@@ -394,6 +441,283 @@ impl Origins {
     }
 }
 
+fn validate_generated(
+    item: &Item,
+    row: &DeclarationOrigin,
+    module: ModuleId,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    use crate::source_context::SourceTreeIdentity;
+    let generated = row
+        .generated
+        .as_ref()
+        .ok_or_else(|| error(item.span, "generated source ledger absent"))?;
+    let tree = &generated.tree;
+    let SourceTreeIdentity::Generated {
+        module: owner,
+        event_path,
+    } = &tree.identity
+    else {
+        return Err(error(
+            item.span,
+            "generated ledger has original tree identity",
+        ));
+    };
+    budget.identity_work(
+        event_path
+            .len()
+            .saturating_add(tree.declarations.len())
+            .saturating_add(1),
+        item.span,
+    )?;
+    if *owner != module
+        || tree.module.id != module
+        || tree.emitter.tree.module() != module
+        || event_path.is_empty()
+        || tree.emitter.event_path.is_empty()
+        || row.identity.generation_path != *event_path
+        || tree.declarations.get(generated.root as usize) != Some(&row.declaration)
+        || tree
+            .declarations
+            .windows(2)
+            .any(|pair| pair[0].0.checked_add(1) != Some(pair[1].0))
+    {
+        return Err(error(
+            item.span,
+            "generated tree, event or unique declaration inventory differs",
+        ));
+    }
+    let event_matches = match &tree.emitter.tree {
+        SourceTreeIdentity::Original(_) => {
+            event_path.first() == Some(&0)
+                && event_path.get(1..) == Some(tree.emitter.event_path.as_slice())
+        }
+        SourceTreeIdentity::Generated {
+            event_path: parent, ..
+        } => {
+            budget.identity_work(parent.len(), item.span)?;
+            event_path.starts_with(parent)
+                && event_path.get(parent.len()) == Some(&1)
+                && event_path.get(parent.len() + 1..) == Some(tree.emitter.event_path.as_slice())
+        }
+    };
+    if !event_matches {
+        return Err(error(
+            item.span,
+            "generated emitter structural path differs",
+        ));
+    }
+    let mut inventory_count = tree.module.items.len();
+    for source in &tree.module.items {
+        inventory_count = inventory_count
+            .checked_add(generated_children_count(source, budget, 0)?)
+            .ok_or_else(|| error(item.span, "generated source inventory count overflow"))?;
+    }
+    if tree.declarations.len() != inventory_count {
+        return Err(error(
+            item.span,
+            "generated source inventory does not cover actual declarations",
+        ));
+    }
+    let original = tree
+        .module
+        .items
+        .get(generated.root as usize)
+        .ok_or_else(|| error(item.span, "generated ledger root absent"))?;
+    let (kind, _) = declaration_shape(original);
+    budget.text(kind, item.span)?;
+    budget.lineage_bytes(10, item.span)?;
+    let root_name = generated.root.to_string();
+    budget.text(&root_name, item.span)?;
+    if row.identity.declaration_path.len() != 2
+        || row.identity.declaration_path[0] != kind
+        || row.identity.declaration_path[1] != root_name
+    {
+        return Err(error(
+            item.span,
+            "generated declaration structural root differs",
+        ));
+    }
+    // Reproduce diagnostic remapping only, then compare the actual declaration
+    // header and complete generic binder sequence. CT body rewrites are not
+    // declaration identity and may legitimately differ after materialization.
+    let limits = budget.remaining_limits();
+    let cost =
+        crate::ct_selection::item_cost(original, &limits).map_err(|mut errors| errors.remove(0))?;
+    budget.identity_work(cost.work, item.span)?;
+    budget.lineage_bytes(
+        cost.nodes
+            .saturating_mul(
+                std::mem::size_of::<Item>()
+                    + std::mem::size_of::<Stmt>()
+                    + std::mem::size_of::<Expr>()
+                    + std::mem::size_of::<TypeRef>()
+                    + std::mem::size_of::<Pattern>(),
+            )
+            .saturating_add(cost.work),
+        item.span,
+    )?;
+    let mut syntax = zil_syntax::GeneratedSyntax::ItemList(vec![original.clone()]);
+    let work = crate::remap_generated_spans(&mut syntax, item.span, &budget.remaining_limits())
+        .map_err(|mut errors| errors.remove(0))?;
+    budget.identity_work(work, item.span)?;
+    let zil_syntax::GeneratedSyntax::ItemList(original) = syntax else {
+        unreachable!()
+    };
+    let original = &original[0];
+    // Deferred runtime CT retains the entire generated function, unlike other
+    // materialized declarations whose bodies may legitimately change. Compare
+    // every semantic AST node before module normalization or specialization.
+    // ClosureSiteLineage remains Unavailable: this is a separate obligation.
+    if let ItemKind::Function(function) = &original.kind
+        && function
+            .generics
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, GenericParamKind::Lifetime))
+    {
+        struct Deferred<'a, 'b> {
+            budget: &'a mut Budget<'b>,
+            found: bool,
+        }
+        impl crate::ct_selection::Visitor for Deferred<'_, '_> {
+            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                self.budget.node(span, depth).map_err(|error| vec![error])
+            }
+            fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+                self.budget.text(text, span).map_err(|error| vec![error])
+            }
+            fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+                self.found |= matches!(expression.kind, ExprKind::MetaEval(_));
+                crate::ct_selection::walk_expression(self, expression, depth)
+            }
+        }
+        let mut scan = Deferred {
+            budget,
+            found: false,
+        };
+        match &function.body {
+            FunctionBody::Block(block) => crate::ct_selection::Visitor::block(&mut scan, block, 0),
+            FunctionBody::Expression(expression) => {
+                crate::ct_selection::Visitor::expression(&mut scan, expression, 0)
+            }
+            FunctionBody::Declaration => Ok(()),
+        }
+        .map_err(|mut errors| errors.remove(0))?;
+        if scan.found {
+            let cost = crate::ct_selection::item_cost(item, &budget.remaining_limits())
+                .map_err(|mut errors| errors.remove(0))?;
+            budget.identity_work(cost.work, item.span)?;
+            if original != item {
+                return Err(error(
+                    item.span,
+                    "generated deferred runtime function differs from its complete frozen source body",
+                ));
+            }
+        }
+    }
+    fn binders(item: &Item) -> &[GenericParam] {
+        match &item.kind {
+            ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
+            ItemKind::Aggregate(a) => a.generics.as_slice(),
+            ItemKind::Enum(e) => e.generics.as_slice(),
+            ItemKind::Trait(t) => t.generics.as_slice(),
+            ItemKind::Impl(i) => i.generics.as_slice(),
+            ItemKind::TypeAlias(a) => a.generics.as_slice(),
+            _ => &[],
+        }
+    }
+    fn headers(
+        original: &Item,
+        item: &Item,
+        retained: Option<&crate::source_context::RetainedMemberOrigins>,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<()> {
+        budget.node(item.span, depth)?;
+        budget.identity_work(
+            binders(original).len().saturating_add(binders(item).len()),
+            item.span,
+        )?;
+        if declaration_shape(original) != declaration_shape(item)
+            || original.public != item.public
+            || original.attributes != item.attributes
+            || binders(original) != binders(item)
+        {
+            return Err(error(
+                item.span,
+                "generated output declaration header or full binder order differs",
+            ));
+        }
+        let (source, output) = match (&original.kind, &item.kind) {
+            (ItemKind::Aggregate(a), ItemKind::Aggregate(b)) => {
+                (a.methods.as_slice(), b.methods.as_slice())
+            }
+            (ItemKind::Trait(a), ItemKind::Trait(b)) => {
+                (a.members.as_slice(), b.members.as_slice())
+            }
+            (ItemKind::Impl(a), ItemKind::Impl(b)) => (a.members.as_slice(), b.members.as_slice()),
+            _ => return Ok(()),
+        };
+        if retained.is_none() && source.len() != output.len() {
+            return Err(error(
+                item.span,
+                "generated members changed without retained source events",
+            ));
+        }
+        if let Some(retained) = retained
+            && (retained.original_count as usize != source.len()
+                || retained.positions.len() != output.len())
+        {
+            return Err(error(
+                item.span,
+                "generated retained member source count differs",
+            ));
+        }
+        for (ordinal, member) in output.iter().enumerate() {
+            let source_ordinal = retained.map_or(ordinal, |map| map.positions[ordinal] as usize);
+            let original = source.get(source_ordinal).ok_or_else(|| {
+                error(item.span, "generated retained member source ordinal absent")
+            })?;
+            headers(original, member, None, budget, depth + 1)?;
+        }
+        Ok(())
+    }
+    headers(original, item, row.retained_members.as_ref(), budget, 0)
+}
+
+fn generated_children_count(item: &Item, budget: &mut Budget<'_>, depth: usize) -> R<usize> {
+    budget.node(item.span, depth)?;
+    let (mut count, members) = match &item.kind {
+        ItemKind::Aggregate(host) => (host.fields.len(), host.methods.as_slice()),
+        ItemKind::Trait(host) => (0, host.members.as_slice()),
+        ItemKind::Impl(host) => (0, host.members.as_slice()),
+        ItemKind::Enum(host) => {
+            let mut count = host.variants.len();
+            for variant in &host.variants {
+                budget.node(variant.span, depth + 1)?;
+                count += match &variant.fields {
+                    VariantFields::Unit => 0,
+                    VariantFields::Tuple(fields) => fields.len(),
+                    VariantFields::Record(fields) => fields.len(),
+                };
+            }
+            (count, &[][..])
+        }
+        _ => (0, &[][..]),
+    };
+    budget.identity_work(count.saturating_add(members.len()), item.span)?;
+    for member in members {
+        count = count
+            .checked_add(1)
+            .and_then(|n| n.checked_add(0))
+            .ok_or_else(|| error(item.span, "generated source inventory overflow"))?;
+        count = count
+            .checked_add(generated_children_count(member, budget, depth + 1)?)
+            .ok_or_else(|| error(item.span, "generated source inventory overflow"))?;
+    }
+    Ok(count)
+}
+
 pub(crate) fn pay_declaration_copy(
     row: &DeclarationOrigin,
     budget: &mut Budget<'_>,
@@ -429,8 +753,7 @@ fn validate_retained_members(
     };
     budget.identity_work(members.positions.len().saturating_add(1), item.span)?;
     if host.kind != AggregateKind::Struct
-        || !host.generics.is_empty()
-        || !row.identity.generation_path.is_empty()
+        || (!row.identity.generation_path.is_empty() && row.generated.is_none())
         || members.positions.len() != host.methods.len()
         || members.original_count as usize <= members.positions.len()
         || members
@@ -447,7 +770,7 @@ fn validate_retained_members(
     Ok(())
 }
 
-pub(super) fn pay_identity(
+pub(crate) fn pay_identity(
     identity: &LifeDeclarationIdentity,
     budget: &mut Budget<'_>,
     span: Span,
@@ -469,7 +792,9 @@ pub(super) fn pay_identity(
 pub(crate) struct Pending {
     pub(crate) item: Item,
     pub(crate) origin: Option<Origin>,
+    pub(crate) source_enum_return: Option<TypeRef>,
     pub(crate) member_calls: BTreeMap<usize, trait_instances::CallTargets>,
+    pub(crate) runtime_calls: Option<BTreeMap<usize, u32>>,
 }
 impl Engine<'_> {
     pub(crate) fn enqueue(&mut self, item: Item, origin: Option<Origin>) -> R<()> {
@@ -482,7 +807,9 @@ impl Engine<'_> {
         self.pending.push_back(Pending {
             item,
             origin,
+            source_enum_return: None,
             member_calls: BTreeMap::new(),
+            runtime_calls: None,
         });
         Ok(())
     }
@@ -653,7 +980,9 @@ mod retained_member_tests {
             unreachable!()
         };
         host.generics = template.generics.clone();
-        assert!(load(&generic, &rows).is_err());
+        // Generic hosts retain the same actual member ordinals; the table
+        // alone grants no enclosing-instance or lifetime authority.
+        assert!(load(&generic, &rows).is_ok());
         let mut resource = actual.clone();
         let ItemKind::Aggregate(host) = &mut resource.items[1].kind else {
             unreachable!()
@@ -677,5 +1006,234 @@ mod retained_member_tests {
         }
         // In-range false history is tested against immutable AST events in
         // Driver. This bare public Aligned reader proves structural validity.
+    }
+}
+
+#[cfg(test)]
+mod generated_lineage_tests {
+    use super::*;
+    use crate::source_context::{
+        GeneratedDeclarationOrigin, GeneratedSourceTree, SourceDeclarationSite,
+        SourceIdentityContext, SourceTreeIdentity, capture_original,
+    };
+    use std::sync::Arc;
+    use zil_base::{FileId, Limits, SourceUnit};
+
+    #[test]
+    fn generated_raw_ledger_binds_actual_root_members_and_complete_binder_order() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "source.zil",
+            "struct Anchor<life a>{n:i32}#emit quote<ItemList>{};fn main()->i32{return 0}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let (rows, _) = capture_original(
+            std::slice::from_ref(&source),
+            &[&parsed.module],
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut rows = rows.unwrap();
+        let emitted = zil_syntax::parse(&SourceUnit::new(
+            FileId(9),
+            ModuleId(0),
+            "generated.zil",
+            "struct Reader<life s>{fn result<T:Copy,#N:i32,life a>(self:Self,p:&'a T)->i32{return N}}",
+        ));
+        assert!(emitted.diagnostics.is_empty(), "{:?}", emitted.diagnostics);
+        let tree = Arc::new(GeneratedSourceTree {
+            identity: SourceTreeIdentity::Generated {
+                module: ModuleId(0),
+                event_path: vec![0, 1],
+            },
+            emitter: SourceDeclarationSite {
+                tree: SourceTreeIdentity::Original(ModuleId(0)),
+                declaration: NodeId(1),
+                event_path: vec![1],
+            },
+            module: Arc::new(emitted.module),
+            declarations: vec![NodeId(4), NodeId(5)],
+        });
+        let mut generated = zil_syntax::GeneratedSyntax::ItemList(tree.module.items.clone());
+        crate::remap_generated_spans(&mut generated, parsed.module.items[1].span, &limits).unwrap();
+        let zil_syntax::GeneratedSyntax::ItemList(mut generated) = generated else {
+            unreachable!()
+        };
+        let mut output = parsed.module.clone();
+        output.items[1] = generated.remove(0);
+        rows[0].items[1] = DeclarationOrigin {
+            closure_sites: crate::source_context::ClosureSiteLineage::Unavailable,
+            declaration: NodeId(4),
+            identity: tree.root_identity(0, &rows[0].items[0].identity).unwrap(),
+            retained_members: None,
+            generated: Some(GeneratedDeclarationOrigin {
+                tree: tree.clone(),
+                root: 0,
+            }),
+        };
+        let load = |module: &Module, rows: &[crate::source_context::ModuleDeclarationOrigins]| {
+            let mut budget = Budget::new(&limits);
+            let context = SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Aligned(rows),
+            }
+            .resolve(std::slice::from_ref(&source), &mut budget)?;
+            let mut origins = Origins::single(module, false, &mut budget)?;
+            origins.capture_identities(module, false, &context, &mut budget)
+        };
+        load(&output, &rows).unwrap();
+        let mut swapped = output.clone();
+        let ItemKind::Aggregate(host) = &mut swapped.items[1].kind else {
+            unreachable!()
+        };
+        let ItemKind::Function(member) = &mut host.methods[0].kind else {
+            unreachable!()
+        };
+        member.generics.swap(0, 2);
+        assert!(
+            load(&swapped, &rows).is_err(),
+            "member binder order must remain authentic"
+        );
+        for mutation in 0..4 {
+            let mut forged = rows.clone();
+            let row = &mut forged[0].items[1];
+            match mutation {
+                0 => row.declaration = NodeId(1),
+                1 => row.generated.as_mut().unwrap().root = 1,
+                2 => {
+                    Arc::make_mut(&mut row.generated.as_mut().unwrap().tree)
+                        .emitter
+                        .event_path = vec![2]
+                }
+                _ => {
+                    Arc::make_mut(&mut row.generated.as_mut().unwrap().tree).declarations[1] =
+                        NodeId(4)
+                }
+            }
+            assert!(
+                load(&output, &forged).is_err(),
+                "forged ledger mutation {mutation}"
+            );
+        }
+        // This raw public reader proves structure only. Actual emission truth
+        // and source scope authority are tested at Driver's immutable boundary.
+    }
+    #[test]
+    fn generated_runtime_ct_requires_the_complete_frozen_deferred_body() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "source.zil",
+            "struct Anchor<life a>{n:i32}#emit quote<ItemList>{};fn main()->i32{return 0}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let (rows, _) = capture_original(
+            std::slice::from_ref(&source),
+            &[&parsed.module],
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut rows = rows.unwrap();
+        let emitted = zil_syntax::parse(&SourceUnit::new(
+            FileId(9),
+            ModuleId(0),
+            "generated.zil",
+            "fn result<T:Copy,#N:i32>(marker:T)->i32{return #(N+1)}",
+        ));
+        assert!(emitted.diagnostics.is_empty(), "{:?}", emitted.diagnostics);
+        let tree = Arc::new(GeneratedSourceTree {
+            identity: SourceTreeIdentity::Generated {
+                module: ModuleId(0),
+                event_path: vec![0, 1],
+            },
+            emitter: SourceDeclarationSite {
+                tree: SourceTreeIdentity::Original(ModuleId(0)),
+                declaration: NodeId(1),
+                event_path: vec![1],
+            },
+            module: Arc::new(emitted.module),
+            declarations: vec![NodeId(4)],
+        });
+        let mut generated = zil_syntax::GeneratedSyntax::ItemList(tree.module.items.clone());
+        crate::remap_generated_spans(&mut generated, parsed.module.items[1].span, &limits).unwrap();
+        let zil_syntax::GeneratedSyntax::ItemList(mut generated) = generated else {
+            unreachable!()
+        };
+        let mut output = parsed.module.clone();
+        output.items[1] = generated.remove(0);
+        rows[0].items[1] = DeclarationOrigin {
+            closure_sites: crate::source_context::ClosureSiteLineage::Unavailable,
+            declaration: NodeId(4),
+            identity: tree.root_identity(0, &rows[0].items[0].identity).unwrap(),
+            retained_members: None,
+            generated: Some(GeneratedDeclarationOrigin {
+                tree: tree.clone(),
+                root: 0,
+            }),
+        };
+        let load = |module: &Module, rows: &[crate::source_context::ModuleDeclarationOrigins]| {
+            let mut budget = Budget::new(&limits);
+            let context = SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Aligned(rows),
+            }
+            .resolve(std::slice::from_ref(&source), &mut budget)?;
+            let mut origins = Origins::single(module, false, &mut budget)?;
+            origins.capture_identities(module, false, &context, &mut budget)
+        };
+        load(&output, &rows).unwrap();
+        let mut changed = output.clone();
+        let ItemKind::Function(function) = &mut changed.items[1].kind else {
+            unreachable!()
+        };
+        function.body = FunctionBody::Expression(Expr {
+            span: function.span,
+            kind: ExprKind::Literal(Literal::Integer("9".into())),
+        });
+        let error = load(&changed, &rows).unwrap_err();
+        assert!(
+            error.message.contains("complete frozen source body"),
+            "{error:?}"
+        );
+        for mutation in 0..5 {
+            let mut forged = rows.clone();
+            let row = &mut forged[0].items[1];
+            match mutation {
+                0 => row.declaration = NodeId(1),
+                1 => row.generated.as_mut().unwrap().root = 1,
+                2 => {
+                    Arc::make_mut(&mut row.generated.as_mut().unwrap().tree)
+                        .emitter
+                        .event_path = vec![2]
+                }
+                3 => Arc::make_mut(&mut row.generated.as_mut().unwrap().tree)
+                    .declarations
+                    .push(NodeId(4)),
+                _ => row.generated = None,
+            }
+            assert!(
+                load(&output, &forged).is_err(),
+                "forged deferred runtime ledger {mutation}"
+            );
+        }
     }
 }

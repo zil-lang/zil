@@ -737,7 +737,11 @@ impl Formation {
         left: &mut usize,
         span: Span,
     ) -> R<StorageLifeContract> {
-        if captures.len() != self.captures.len() || !stored_call_value(result) {
+        let environment_result =
+            matches!(result, Type::Address { mutable:false, inner } if inner.is_b0_scalar());
+        if captures.len() != self.captures.len()
+            || !(stored_call_value(result) || environment_result)
+        {
             return Err(unsupported(
                 span,
                 "source context formation requires its actual captures and scalar result",
@@ -787,7 +791,17 @@ impl Formation {
                 writer.push(position, Key::Fixed(key), true, left, span)?;
             }
         }
-        for position in positions(result, StorageBase::Result, false, left, span)? {
+        for position in positions(
+            if environment_result {
+                &Type::Unit
+            } else {
+                result
+            },
+            StorageBase::Result,
+            false,
+            left,
+            span,
+        )? {
             let key = proposal.key(&position, left, span)?;
             writer.push(position, key, false, left, span)?;
         }

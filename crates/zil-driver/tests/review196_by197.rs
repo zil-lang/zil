@@ -606,9 +606,9 @@ fn flow_keeps_prefix_loop_order_and_return_suffix_by_actual_role_position() {
 }
 
 #[test]
-fn an_unused_owned_once_role_is_closed_on_a_zero_runtime_loop_in_raw_and_wire() {
+fn an_unused_owned_once_role_keeps_a_zero_event_loop_legal_in_raw_and_wire() {
     let source = "fn make(n:i32)->impl Fn()->i32{return move()=>n}fn repeat<F:Fn()->i32,G:Fn()->i32>(idle:F,active:&G,n:i32)->i32{var i=0;var sum=0;while i<n{sum+=active();i+=1};return sum}fn main()->i32{let a=make(1);let b=make(2);return repeat(a,&b,0)}";
-    let (mut module, candidate) = baseline("unused-owned-loop-control", source);
+    let (mut module, _) = baseline("unused-owned-loop-control", source);
     let contract = module
         .functions
         .iter_mut()
@@ -625,14 +625,11 @@ fn an_unused_owned_once_role_is_closed_on_a_zero_runtime_loop_in_raw_and_wire() 
             .all(|e| e.parameter != 0)
     );
     contract.roles[0].kind = CallableKind::FnOnce;
-    reject(
-        "zero-runtime-loop-unused-once",
-        module,
-        candidate,
-        ResultCategory::Unsupported,
-        "cyclic FnOnce",
-        true,
-    );
+    let limits = Limits::default();
+    let candidate = zil_analyze::analyze(&module, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &candidate, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), candidate, &module.target, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
 }
 
 fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize {

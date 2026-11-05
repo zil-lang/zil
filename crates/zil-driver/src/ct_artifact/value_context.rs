@@ -114,7 +114,7 @@ pub(in crate::ct_artifact) fn graph_cost(
     }
     Ok(bytes)
 }
-pub(super) fn schema_copy_cost(
+pub(in crate::ct_artifact) fn schema_copy_cost(
     records: &[CtRecordSchema],
     enums: &[CtEnumSchema],
     budget: &mut CtExecutionBudget,
@@ -132,8 +132,15 @@ pub(super) fn schema_copy_cost(
         for arg in &record.arguments {
             budget.reserve_analysis_work(1)?;
             bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
-            if let CtSchemaArgument::Type(graph) = arg {
-                bytes = bytes.saturating_add(graph_cost(graph, budget)?);
+            match arg {
+                CtSchemaArgument::Type(graph) => {
+                    bytes = bytes.saturating_add(graph_cost(graph, budget)?)
+                }
+                CtSchemaArgument::Scalar(zil_ir::Constant::WideString(text)) => {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    bytes = bytes.saturating_add(text.len() as u64 * 2);
+                }
+                _ => {}
             }
         }
     }
@@ -152,8 +159,15 @@ pub(super) fn schema_copy_cost(
         for arg in &en.arguments {
             budget.reserve_analysis_work(1)?;
             bytes = bytes.saturating_add(std::mem::size_of::<CtSchemaArgument>() as u64);
-            if let CtSchemaArgument::Type(graph) = arg {
-                bytes = bytes.saturating_add(graph_cost(graph, budget)?);
+            match arg {
+                CtSchemaArgument::Type(graph) => {
+                    bytes = bytes.saturating_add(graph_cost(graph, budget)?)
+                }
+                CtSchemaArgument::Scalar(zil_ir::Constant::WideString(text)) => {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    bytes = bytes.saturating_add(text.len() as u64 * 2);
+                }
+                _ => {}
             }
         }
     }
@@ -230,6 +244,10 @@ pub(super) fn program_copy_cost(
                 budget.reserve_analysis_work(1)?;
                 bytes = bytes.saturating_add(std::mem::size_of::<CtInstruction>() as u64);
                 let operands = match &instruction.kind {
+                    CtInstructionKind::TypeInContext { ty } => {
+                        bytes = bytes.saturating_add(graph_cost(ty, budget)?);
+                        0
+                    }
                     CtInstructionKind::MakeTuple(v)
                     | CtInstructionKind::MakeArray(v)
                     | CtInstructionKind::MakeList(v)
@@ -333,6 +351,9 @@ pub(in crate::ct_artifact) struct ValueSourceScope {
     pub owner: CtTypeNodeId,
     pub definition: CtSymbolId,
     pub parameters: Vec<u32>,
+    /// A complete class-to-original-definition endpoint vector, only needed
+    /// when one fixed owner receives lives from several lexical declarations.
+    pub endpoints: Option<Vec<(CtSymbolId, u32)>>,
 }
 impl ValueContext {
     pub fn capture(
@@ -376,6 +397,33 @@ impl ValueContext {
         invocation: Option<&crate::ct_artifact::invocation_context::FrozenInvocationContext>,
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
+        budget.reserve_analysis_work(
+            (program.record_schemas.len() + program.enum_schemas.len()) as u64,
+        )?;
+        for (enumeration, schema, graph) in program
+            .record_schemas
+            .iter()
+            .enumerate()
+            .filter_map(|(id, schema)| schema.life_context.as_ref().map(|g| (false, id, g)))
+            .chain(
+                program
+                    .enum_schemas
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(id, schema)| schema.life_context.as_ref().map(|g| (true, id, g))),
+            )
+        {
+            let context = invocation.ok_or_else(bad)?;
+            let graph_bytes = graph_cost(graph, budget)?;
+            budget.reserve_analysis_work(
+                graph_bytes
+                    .saturating_mul(2)
+                    .saturating_add(context.authenticated_schema_count() as u64),
+            )?;
+            if !context.authenticated_source_schema(enumeration, schema as u32, graph) {
+                return Err(bad());
+            }
+        }
         budget.reserve_analysis_work(bindings.len() as u64)?;
         for binding in bindings {
             budget.reserve_analysis_work(1)?;
@@ -410,9 +458,17 @@ impl ValueContext {
                 let scope = &program.ambient_life_scopes[row.source.scope.0 as usize];
                 budget.reserve_analysis_work(32)?;
                 if row.class as usize != class
-                    || scope.declaration != binding.definition
                     || binding.parameters.get(class) != Some(&row.source.parameter)
                 {
+                    return Err(bad());
+                }
+                if let Some(sources) = &binding.sources {
+                    if sources.len() != binding.parameters.len()
+                        || sources.get(class) != Some(&row.source)
+                    {
+                        return Err(bad());
+                    }
+                } else if scope.declaration != binding.definition {
                     return Err(bad());
                 }
                 class += 1;
@@ -429,6 +485,14 @@ impl ValueContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<(CtTypeRef, Vec<ValueSourceScope>)> {
         let graph = self.type_ref(ty, budget)?;
+        let scopes = self.source_scopes_for_graph(&graph, budget)?;
+        Ok((graph, scopes))
+    }
+    pub(in crate::ct_artifact) fn source_scopes_for_graph(
+        &self,
+        graph: &CtTypeRef,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<Vec<ValueSourceScope>> {
         budget.reserve_analysis_work(graph.ambient_classes.len() as u64)?;
         let mut scopes: Vec<ValueSourceScope> = Vec::new();
         for row in &graph.ambient_classes {
@@ -444,10 +508,31 @@ impl ValueContext {
                 context.resolve_reference(&self.ambient_life_scopes, row.source, budget)?;
             budget.reserve_analysis_work(scopes.len() as u64 * 32)?;
             if let Some(scope) = scopes.iter_mut().find(|scope| scope.owner == row.owner) {
-                if scope.definition != *definition || scope.parameters.len() != row.class as usize {
+                if scope.parameters.len() != row.class as usize {
                     return Err(bad());
                 }
+                let endpoint_bytes = std::mem::size_of::<(CtSymbolId, u32)>() as u64;
+                if let Some(endpoints) = scope.endpoints.as_mut() {
+                    budget.reserve_temporary_bytes(endpoint_bytes)?;
+                    endpoints.reserve_exact(1);
+                    endpoints.push((definition.clone(), ordinal));
+                } else if scope.definition != *definition {
+                    budget.reserve_analysis_work(scope.parameters.len() as u64)?;
+                    budget.reserve_temporary_bytes(
+                        endpoint_bytes.saturating_mul(scope.parameters.len() as u64 + 1),
+                    )?;
+                    let mut endpoints = Vec::with_capacity(scope.parameters.len() + 1);
+                    endpoints.extend(
+                        scope
+                            .parameters
+                            .iter()
+                            .map(|ordinal| (scope.definition.clone(), *ordinal)),
+                    );
+                    endpoints.push((definition.clone(), ordinal));
+                    scope.endpoints = Some(endpoints);
+                }
                 budget.reserve_temporary_bytes(4)?;
+                scope.parameters.reserve_exact(1);
                 scope.parameters.push(ordinal);
             } else {
                 if row.class != 0 {
@@ -455,14 +540,16 @@ impl ValueContext {
                 }
                 budget
                     .reserve_temporary_bytes(std::mem::size_of::<ValueSourceScope>() as u64 + 4)?;
+                scopes.reserve_exact(1);
                 scopes.push(ValueSourceScope {
                     owner: row.owner,
                     definition: definition.clone(),
                     parameters: vec![ordinal],
+                    endpoints: None,
                 });
             }
         }
-        Ok((graph, scopes))
+        Ok(scopes)
     }
     pub fn type_ref(&self, ty: &CtTy, budget: &mut CtExecutionBudget) -> CompileResult<CtTypeRef> {
         fn append(

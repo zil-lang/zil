@@ -1,0 +1,146 @@
+{
+  "source": "cd0223df6bfada6c0711044db387455745abd447",
+  "rows": [
+    {
+      "label": "enum-source",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g4463_qualified_enum_array_source_raw_wire_and_nearest_forgery",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 64.19,
+      "log_sha256": "49f60f56a9bb65f21c2993372f8f511ca59a172477525d58755def3b8a60ee31",
+      "passed": 1,
+      "failed": 0
+    },
+    {
+      "label": "enum-backend",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g4463_qualified_pure_backend",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "seconds": 0.95,
+      "log_sha256": "2e10357d2002be1735c330b3c5f6fdf549548597c0c12445de36dcc145e96e1a",
+      "passed": 1,
+      "failed": 2
+    },
+    {
+      "label": "ct-recursive",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g4454_actual_recursive_values_",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "seconds": 11.59,
+      "log_sha256": "45f591c92fd63dce4162aecb775cdddb096940b2729a0fd69e8eccdab89c458f",
+      "passed": 0,
+      "failed": 2
+    },
+    {
+      "label": "ct-scoped",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--lib",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "ct_artifact::materialize::scoped_tests",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 1.24,
+      "log_sha256": "fec172365508e26c0198991a38d7949cd9c62c5d19cfac6e8adbfb16c313822b",
+      "passed": 16,
+      "failed": 0
+    },
+    {
+      "label": "enum-unit",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "-j2",
+        "scoped_unit_enum_and_type_only_enum_keep_source_actuals_for_patterns",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "seconds": 12.4,
+      "log_sha256": "77cfdaf200b7b8aa857b999522f87718e286b9238aa2ca671024164fdf40ec90",
+      "passed": 0,
+      "failed": 1
+    },
+    {
+      "label": "lower-private",
+      "source": "cd0223df6bfada6c0711044db387455745abd447",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-lower",
+        "--lib",
+        "-j2",
+        "g4463_lower_",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "seconds": 0.5,
+      "log_sha256": "bf4ee0c7319cfd6b6d6f84b744e6a1a9a18591b8580f9b9694029f44936da4a7",
+      "passed": 2,
+      "failed": 0
+    }
+  ],
+  "head_after": "cd0223df6bfada6c0711044db387455745abd447",
+  "dirty_after": "",
+  "scope": "Exact targeted execution, retains all failures; not formal acceptance",
+  "passed": 20,
+  "failed": 5
+}

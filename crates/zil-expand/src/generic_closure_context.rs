@@ -475,24 +475,29 @@ impl Engine<'_> {
                 0,
             )?;
         }
-        let result = result
-            .as_mut()
-            .ok_or_else(|| unavailable("contextual closure needs its scalar result annotation"))?;
-        if !scalar_result(result) {
-            return Err(unavailable(
-                "contextual closure scalar result profile is not complete",
-            ));
+        // Environment results carry no signature-life row: their actual
+        // BorrowCapture source and receiver loan are proved after typing.
+        if let Some(result) = result.as_mut() {
+            if scalar_result(result) {
+                self.storage_header(
+                    result,
+                    zil_ir::StorageBase::Result,
+                    &mut Vec::new(),
+                    &mut Vec::new(),
+                    &mut occurrences,
+                    &mut stored,
+                    &mut next,
+                    0,
+                )?;
+            } else if !matches!(&result.kind,
+                TypeKind::Reference { mutable:false, lifetime:None, inner }
+                    if scalar_result(inner))
+            {
+                return Err(unavailable(
+                    "contextual closure result needs the complete scalar or environment lending profile",
+                ));
+            }
         }
-        self.storage_header(
-            result,
-            zil_ir::StorageBase::Result,
-            &mut Vec::new(),
-            &mut Vec::new(),
-            &mut occurrences,
-            &mut stored,
-            &mut next,
-            0,
-        )?;
         Ok(Recording {
             owner,
             occurrences,

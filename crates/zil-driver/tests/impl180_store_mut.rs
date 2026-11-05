@@ -414,13 +414,11 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
             "{}",
             report.to_json()
         );
-        assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+        assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
         assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.message.contains("Copy or concrete callback fields")
-                    || d.message.contains("capture")),
+            report.diagnostics.iter().any(|d| d
+                .message
+                .contains("shared Product capture requires proven ordinary local Product origins")),
             "{}",
             report.to_json()
         );

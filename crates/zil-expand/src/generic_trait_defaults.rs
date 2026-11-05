@@ -264,6 +264,7 @@ impl Engine<'_> {
         check::validate_parametric_with_bounds(
             &checked,
             check::ParametricTables {
+                ct_types: None,
                 source_definition: Some(&function),
                 expression_origins: checked.source_ids.as_ref(),
                 definition_equations: None,
@@ -604,8 +605,8 @@ mod tests {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine,
-            false, // This retained source fixture has no associated declarations.
-            false, // No generic methods in this retained source fixture.
+            (false, false), // No associated declarations or generic methods in this fixture.
+            None,           // This retained-source control has no runtime CT callback.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

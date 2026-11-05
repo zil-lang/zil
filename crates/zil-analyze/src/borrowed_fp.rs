@@ -181,6 +181,32 @@ pub(super) fn signature_work(
     for ty in parameters.iter().chain(std::iter::once(result)) {
         budget.type_work(ty, true, "callback relation and exact actual signature")?;
     }
+    qualified_array_relation_work(parameters, result, budget)?;
+    Ok(())
+}
+
+pub(super) fn qualified_array_relation_work(
+    parameters: &[Type],
+    result: &Type,
+    budget: &mut Budget,
+) -> CompileResult<()> {
+    for ty in parameters.iter().chain(std::iter::once(result)) {
+        let new_nominal = |ty: &Type| {
+            matches!(ty, Type::BorrowedStorage { storage, life }
+            if life.slots.is_empty()
+                && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty()))
+        };
+        if (matches!(ty, Type::Array { .. }) && !ty.is_copy_value())
+            || new_nominal(ty)
+            || matches!(ty, Type::Address { inner, .. }
+                if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                    || new_nominal(inner))
+        {
+            budget.type_work(ty, false, "qualified Array relation physical/class walk")?;
+            budget.type_work(ty, false, "qualified Array relation class path work")?;
+        }
+    }
     Ok(())
 }
 

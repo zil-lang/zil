@@ -1,6 +1,9 @@
 //! Producer-side finite helper envelopes. A topological path propagation checks
 //! claims; independent Verify uses its own provenance and trace reconstruction.
 use super::*;
+#[path = "helper_origin.rs"]
+mod origin;
+pub(super) use origin::Origin;
 #[path = "helper_flow.rs"]
 mod flow;
 
@@ -15,12 +18,8 @@ fn env(ty: &Type) -> Option<(ClosureId, Option<bool>)> {
     }
 }
 
-// Actual role provenance is reconstructed here, independently of published
-// events. Bits 0/1 identify the first/second actual environment parameter;
-// factory and unknown producers have separate bits. A union never chooses one
-// role, even when the concrete ClosureId happens to be equal.
-const FACTORY: u8 = 4;
-const UNKNOWN: u8 = 8;
+const FACTORY: Origin = Origin::FACTORY;
+const UNKNOWN: Origin = Origin::UNKNOWN;
 
 // retained::check_function has independently checked every public factory
 // before helpers run. Match this Call's actual result, not just its type ID or
@@ -54,16 +53,19 @@ fn origins(
     function: &TypedFunction,
     parameters: &[(u32, LocalId)],
     budget: &mut Budget,
-) -> CompileResult<(Vec<u8>, Vec<u8>)> {
+) -> CompileResult<(Vec<Origin>, Vec<Origin>)> {
     budget.spend(
-        function.locals.len().saturating_add(function.values.len()),
+        Origin::table_work(function.locals.len().saturating_add(function.values.len())),
         "helper environment origin tables",
     )?;
-    let mut positions = vec![0u8; function.locals.len()];
-    let mut results = vec![0u8; function.values.len()];
+    let mut positions = vec![Origin::EMPTY; function.locals.len()];
+    let mut results = vec![Origin::EMPTY; function.values.len()];
     budget.spend(parameters.len(), "helper role origin seeds")?;
     for (role, (_, local)) in parameters.iter().enumerate() {
-        positions[local.0 as usize] = 1 << role;
+        positions[local.0 as usize] = Origin::supplied(
+            role,
+            env(&function.locals[local.0 as usize].ty).is_some_and(|(_, mode)| mode.is_some()),
+        );
     }
     for block in &function.blocks {
         budget.spend(1, "helper environment producer block")?;
@@ -81,7 +83,7 @@ fn origins(
                 | InstructionKind::TakeLocal { .. }
                 | InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
-                | InstructionKind::ReborrowAddress { .. } => 0,
+                | InstructionKind::ReborrowAddress { .. } => Origin::EMPTY,
                 InstructionKind::Call {
                     function: callee, ..
                 } => {
@@ -117,9 +119,9 @@ fn origins(
                         let old = positions[local.0 as usize];
                         positions[local.0 as usize] |= results[value.0 as usize];
                         changed |= old != positions[local.0 as usize];
-                        0
+                        Origin::EMPTY
                     }
-                    _ => 0,
+                    _ => Origin::EMPTY,
                 };
                 if let Some(value) = instruction.result {
                     let old = results[value.0 as usize];
@@ -135,17 +137,18 @@ fn origins(
     Ok((positions, results))
 }
 
-fn parameter_invocation(origin: u8, borrowed: bool) -> CompileResult<Option<usize>> {
-    match (origin, borrowed) {
-        (1, _) => Ok(Some(0)),
-        (2, _) => Ok(Some(1)),
-        (FACTORY, false) => Ok(None),
-        _ => Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "helper callable origin is unknown, mixed, or a borrowed local factory result",
-            None,
-        )]),
+fn parameter_invocation(origin: Origin, borrowed: bool) -> CompileResult<Option<usize>> {
+    if let Some(index) = origin.index() {
+        return Ok(Some(index));
     }
+    if origin == FACTORY && !borrowed {
+        return Ok(None);
+    }
+    Err(vec![Diagnostic::unsupported(
+        Phase::Analyze,
+        "helper callable origin is unknown, mixed, or a borrowed local factory result",
+        None,
+    )])
 }
 
 // This dependency order belongs to Analyze. Edges come from reachable direct
@@ -359,7 +362,7 @@ fn forwarded<'a>(
     module: &'a TypedModule,
     function: &TypedFunction,
     instruction: &Instruction,
-    origins: &[u8],
+    origins: &[Origin],
     roles: &[CallableRole],
     checked: &[bool],
     budget: &mut Budget,
@@ -675,15 +678,23 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .callable_contract
             .as_ref()
             .ok_or_else(|| bad("callable parameter has no public helper contract"))?;
+        if candidates.len() > 2 {
+            budget.product(
+                candidates.len(),
+                candidates.len(),
+                1,
+                "helper actual role alias comparisons",
+            )?;
+        }
         if candidates.is_empty()
-            || candidates.len() > 2
-            || (candidates.len() == 2 && candidates[0].1 == candidates[1].1)
+            || candidates
+                .iter()
+                .enumerate()
+                .any(|(i, (_, local))| candidates[..i].iter().any(|(_, prior)| prior == local))
             || function.environment.is_some()
             || function.foreign.is_some()
         {
-            return Err(bad(
-                "helper requires one or two concrete environment parameters",
-            ));
+            return Err(bad("helper requires concrete environment parameters"));
         }
         budget.spend(claim.roles.len(), "helper exact role table")?;
         if claim.roles.len() != candidates.len()
@@ -726,8 +737,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 None,
             )]);
         }
-        let mut borrowed_roles = 0u8;
-        for (index, (role, (_, local))) in claim.roles.iter().zip(&candidates).enumerate() {
+        for (role, (_, local)) in claim.roles.iter().zip(&candidates) {
             budget.spend(1, "helper actual role envelope")?;
             let (closure, borrowed) =
                 env(&function.locals[local.0 as usize].ty).expect("classified parameter");
@@ -791,22 +801,32 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             None,
                         )]);
                     }
+                    super::borrowed_fp::qualified_array_relation_work(
+                        &definition.captures,
+                        &Type::Unit,
+                        budget,
+                    )?;
                     super::signature_life::capture_relation(
                         &definition.parameters,
                         &definition.captures,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                     )?;
                     budget.spend(
                         function.parameters.len(),
                         "captured Fixed helper shared arguments",
                     )?;
-                    if function.parameters.iter().any(|p| {
+                    if claim.roles.len() > 1 {
+                        budget.spend(
+                            function.parameters.len().saturating_mul(claim.roles.len()),
+                            "actual exclusive callable role exclusion",
+                        )?;
+                    }
+                    if function.parameters.iter().enumerate().any(|(position,p)| {
                         p != local
-                            && matches!(
-                                function.locals[p.0 as usize].ty,
-                                Type::Address { mutable: true, .. }
-                            )
+                            && matches!(function.locals[p.0 as usize].ty,Type::Address { mutable:true,.. })
+                            && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
+                                && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
                     }) {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
@@ -831,9 +851,6 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 return Err(bad(
                     "helper result requires finite Copy or a single shared result from its borrowed environment",
                 ));
-            }
-            if borrowed.is_some() {
-                borrowed_roles |= 1 << index;
             }
             if closure != role.closure
                 || role.cleanup
@@ -892,16 +909,60 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 ));
             }
         }
-        flow::check(
-            module,
-            function,
-            claim,
-            &candidates,
-            borrowed_roles,
-            &checked,
-            budget,
-        )?;
+        flow::check(module, function, claim, &candidates, &checked, budget)?;
         checked[index] = true;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod origin_classification_tests {
+    use super::*;
+    #[test]
+    fn legacy_masks_match_actual_invocation_and_borrowed_drop_classifiers() {
+        for borrowed_roles in 0..4 {
+            for mask in 0..16 {
+                let mut origin = Origin::EMPTY;
+                for (bit, mark) in [
+                    (1, Origin::supplied(0, borrowed_roles & 1 != 0)),
+                    (2, Origin::supplied(1, borrowed_roles & 2 != 0)),
+                    (4, FACTORY),
+                    (8, UNKNOWN),
+                ] {
+                    if mask & bit != 0 {
+                        origin |= mark;
+                    }
+                }
+                assert_eq!(origin.has_role(), mask & 3 != 0);
+                assert_eq!(origin.has_borrowed(), mask & borrowed_roles != 0);
+                for borrowed in [false, true] {
+                    let expected = match mask {
+                        1 => Some(Some(0)),
+                        2 => Some(Some(1)),
+                        4 if !borrowed => Some(None),
+                        _ => None,
+                    };
+                    assert_eq!(
+                        parameter_invocation(origin, borrowed).ok(),
+                        expected,
+                        "mask={mask} borrowed={borrowed} modes={borrowed_roles}"
+                    );
+                }
+            }
+        }
+    }
+    #[test]
+    fn later_roles_use_exact_ordinals_and_keep_borrowed_participation() {
+        for role in 0..96 {
+            for borrowed in [false, true] {
+                let origin = Origin::supplied(role, borrowed);
+                assert_eq!(parameter_invocation(origin, false).unwrap(), Some(role));
+                assert_eq!(origin.has_borrowed(), borrowed);
+                assert!(parameter_invocation(origin | FACTORY, false).is_err());
+                let mixed = origin | Origin::supplied(role + 1, false);
+                assert!(parameter_invocation(mixed, false).is_err());
+                assert_eq!(mixed.has_borrowed(), borrowed);
+            }
+        }
+    }
 }

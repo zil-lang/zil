@@ -10,6 +10,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
+pub(super) mod public_roles;
 mod replacements;
 pub(crate) mod task_frames;
 
@@ -1135,6 +1136,19 @@ impl Transfer<'_> {
                             span,
                             "Enum observation requires a live complete carrier",
                         ));
+                    }
+                    if matches!(
+                        instruction.kind,
+                        InstructionKind::BorrowFieldLocal { .. }
+                            | InstructionKind::BorrowPlaceLocal { .. }
+                            | InstructionKind::BorrowVariantLocal { .. }
+                    ) && let Some(row) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        // This kernel's Sum flow checks the actual selected
+                        // subtree; descriptor lifetime remains on its shell.
+                        state.desc[row] = BTreeSet::from([Root::Local(*local)]);
                     }
                 }
                 InstructionKind::TakeTupleField { local, .. }

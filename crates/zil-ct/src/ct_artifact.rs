@@ -56,11 +56,13 @@ impl CtExecutionBudget {
     pub fn release_type(&mut self, ty: &CtTypeRef) {
         self.release_temporary_bytes(crate::anonymous_type::retained_bytes(ty));
     }
-    /// Release the separately owned receipt returned by an invocation after use.
-    pub fn release_usage_receipt(&mut self, receipt: &CtUsageReceipt) {
-        self.release_temporary_bytes(
-            receipt.queries.capacity() as u64 * std::mem::size_of::<CtQueryDependency>() as u64,
-        );
+    /// Consume the separately owned receipt before making its allocation's
+    /// allowance available to a later consumer.
+    pub fn release_usage_receipt(&mut self, receipt: CtUsageReceipt) {
+        let bytes =
+            receipt.queries.capacity() as u64 * std::mem::size_of::<CtQueryDependency>() as u64;
+        drop(receipt);
+        self.release_temporary_bytes(bytes);
     }
     fn constrain_to_program(&mut self, declared: CtDeclaredBudget) -> CompileResult<()> {
         self.remaining.max_steps = self.remaining.max_steps.min(declared.max_steps);
@@ -380,15 +382,57 @@ fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
         .ok_or_else(|| error("CT index is outside its bounds"))
 }
 
+/// An actual Call which returned normally in this VM invocation. Instruction
+/// position also distinguishes Unit calls and repeated calls to one instance.
+/// This is an execution observation, never source or artifact authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CtCompletedCall {
+    pub caller: CtFunctionId,
+    pub block: CtBlockId,
+    pub instruction: u32,
+    pub callee: CtFunctionId,
+    pub result: Option<CtValueId>,
+}
+
 pub fn evaluate_ct_artifact(
     program: &VerifiedCTArtifactProgram,
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
+    evaluate_ct_artifact_retaining_calls(program, arguments, reader, budget, None)
+}
+
+/// Retain bounded, actual normal-return events. A trap or failed whole request
+/// returns no events. The old evaluator has no collection or collection fees.
+pub fn evaluate_ct_artifact_with_completed_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtValue, CtUsageReceipt, Vec<CtCompletedCall>)> {
+    let mut calls = Vec::new();
+    let (value, usage) =
+        evaluate_ct_artifact_retaining_calls(program, arguments, reader, budget, Some(&mut calls))?;
+    Ok((value, usage, calls))
+}
+
+fn evaluate_ct_artifact_retaining_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
+) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let before = budget.live_temporary_bytes;
     let query_capacity = budget.usage.queries.capacity();
-    let result = evaluate_ct_artifact_inner(program, arguments, reader, budget);
+    let result = evaluate_ct_artifact_inner(
+        program,
+        arguments,
+        reader,
+        budget,
+        completed_calls.as_deref_mut(),
+    );
     let query_bytes = (budget
         .usage
         .queries
@@ -404,11 +448,35 @@ pub fn evaluate_ct_artifact(
                     receipt.queries.capacity() as u64
                         * std::mem::size_of::<CtQueryDependency>() as u64,
                 )
+                .saturating_add(completed_calls.as_ref().map_or(0, |calls| {
+                    calls.capacity() as u64 * std::mem::size_of::<CtCompletedCall>() as u64
+                }))
         })
         .saturating_add(query_bytes);
     let added = budget.live_temporary_bytes.saturating_sub(before);
     budget.release_temporary_bytes(added.saturating_sub(keep));
     result
+}
+fn push_call_event(
+    calls: &mut Vec<CtCompletedCall>,
+    event: CtCompletedCall,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<()> {
+    if calls.len() == calls.capacity() {
+        let old = calls.capacity();
+        let new = calls
+            .len()
+            .checked_add(1)
+            .ok_or_else(|| limit("CT completed-call inventory overflow"))?;
+        budget.reserve_analysis_work(old as u64 + 1)?;
+        budget
+            .reserve_temporary_bytes(new as u64 * std::mem::size_of::<CtCompletedCall>() as u64)?;
+        calls.reserve_exact(new - calls.len());
+        budget.release_temporary_bytes(old as u64 * std::mem::size_of::<CtCompletedCall>() as u64);
+    }
+    budget.reserve_analysis_work(1)?;
+    calls.push(event);
+    Ok(())
 }
 fn reserve_frame<'a>(
     frames: &mut Vec<Frame<'a>>,
@@ -431,6 +499,7 @@ fn evaluate_ct_artifact_inner(
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
     budget.constrain_to_program(raw.budget)?;
@@ -459,6 +528,7 @@ fn evaluate_ct_artifact_inner(
     let mut live_cells = (entry.locals.len() + entry.values.len()) as u64;
     budget.observe_live_cells(live_cells)?;
     let mut frames = Vec::new();
+    let mut pending_calls = Vec::new();
     let mut frame_vector_bytes = 0u64;
     reserve_frame(&mut frames, &mut frame_vector_bytes, budget)?;
     frames.push(Frame::new(
@@ -482,6 +552,19 @@ fn evaluate_ct_artifact_inner(
             } = &inst.kind
             {
                 let target = &raw.functions[function.0 as usize];
+                if completed_calls.is_some() {
+                    // Save the actual caller location BEFORE entering the
+                    // callee. Never infer it from a later mutable PC.
+                    let event = CtCompletedCall {
+                        caller: frame.function.id,
+                        block: block.id,
+                        instruction: u32::try_from(frame.instruction - 1)
+                            .map_err(|_| limit("CT call instruction ordinal overflow"))?,
+                        callee: *function,
+                        result: inst.result,
+                    };
+                    push_call_event(&mut pending_calls, event, budget)?;
+                }
                 budget.observe_depth(current_depth + 1)?;
                 let incoming_cells = (target.locals.len() + target.values.len()) as u64;
                 budget.observe_live_cells(live_cells.saturating_add(incoming_cells))?;
@@ -559,6 +642,7 @@ fn evaluate_ct_artifact_inner(
                     live_cells -=
                         (completed.function.locals.len() + completed.function.values.len()) as u64;
                     let destination = completed.destination;
+                    let callee = completed.function.id;
                     completed.release(budget);
                     if let Some(parent) = frames.last_mut() {
                         if let Some(id) = destination {
@@ -567,7 +651,29 @@ fn evaluate_ct_artifact_inner(
                             parent.value_bytes[id.0 as usize] = bytes;
                             parent.values[id.0 as usize] = Some(output);
                         }
+                        if let Some(calls) = completed_calls.as_deref_mut() {
+                            let event = pending_calls.pop().ok_or_else(|| {
+                                error("CT completed call lost its actual caller frame")
+                            })?;
+                            if event.caller != parent.function.id
+                                || event.callee != callee
+                                || event.result != destination
+                            {
+                                return Err(error(
+                                    "CT completed call differs from its saved actual caller",
+                                ));
+                            }
+                            push_call_event(calls, event, budget)?;
+                        }
                     } else {
+                        if !pending_calls.is_empty() {
+                            return Err(error("CT completed-call frame stack is not empty"));
+                        }
+                        let pending_bytes = pending_calls.capacity() as u64
+                            * std::mem::size_of::<CtCompletedCall>() as u64;
+                        drop(pending_calls);
+                        budget.release_temporary_bytes(pending_bytes);
+                        drop(frames);
                         budget.release_temporary_bytes(frame_vector_bytes);
                         budget.reserve_temporary_bytes(
                             budget.usage.queries.len() as u64
@@ -755,6 +861,46 @@ fn type_ref_matches(
     raw: &CtArtifactProgram,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<bool> {
+    if !reference.ambient_classes.is_empty()
+        || matches!(
+            reference.nodes.get(reference.root.0 as usize),
+            Some(CtTypeNode::BorrowedStorage { .. })
+        )
+    {
+        // New contextual values can only reuse complete graphs independently
+        // admitted at actual source Type sites in this verified program.
+        for instruction in raw
+            .functions
+            .iter()
+            .flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+        {
+            budget.reserve_analysis_work(1)?;
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                let cost = storage::graph(reference, Some(budget))?
+                    .saturating_add(storage::graph(ty, Some(budget))?);
+                budget.reserve_analysis_work(cost)?;
+                if ty == reference {
+                    let limits = zil_base::Limits {
+                        max_nodes: raw.budget.max_generated_nodes as usize,
+                        max_source_bytes: raw.budget.max_temporary_bytes as usize,
+                        max_call_depth: raw.budget.max_call_depth as usize,
+                        max_analysis_steps: budget.remaining().max_analysis_work as usize,
+                        ..zil_base::Limits::default()
+                    };
+                    let mut meter =
+                        zil_verify::CtVerificationMeter::new(budget.remaining().max_analysis_work);
+                    let checked = zil_verify::verify_ct_type_graph_metered(
+                        reference, raw, &limits, &mut meter,
+                    );
+                    budget.reserve_analysis_work(meter.spent())?;
+                    checked?;
+                    return Ok(true);
+                }
+            }
+        }
+        return Ok(false);
+    }
     let mut anonymous = false;
     if !type_ref_valid(reference, raw, &mut anonymous) {
         return Ok(false);
@@ -1195,6 +1341,10 @@ fn execute_instruction(
             copy_bytes(frame, fields, budget)?
         }
         K::TypePrimitive(_) | K::TypeBuiltin(_) => std::mem::size_of::<CtTypeNode>() as u64,
+        K::TypeInContext { ty } => {
+            budget.reserve_generated_nodes(ty.nodes.len() as u64)?;
+            storage::graph(ty, Some(budget))?
+        }
         K::MakeAnonymousSum {
             members, payload, ..
         } => {
@@ -1456,6 +1606,7 @@ fn execute_instruction(
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         })),
+        K::TypeInContext { ty } => Some(CtValue::Type(ty.clone())),
         K::TypeName(symbol) => Some(CtValue::Type(reader.type_name(
             &frame.function.definition,
             symbol,
@@ -1625,6 +1776,9 @@ mod tests {
     use super::*;
     use zil_base::{Fingerprint, Limits, ModuleId, NodeId, Span};
     use zil_verify::{CtArtifactAuthority, CtSymbolUsage, verify_ct_artifact};
+    mod completed_trace {
+        include!("ct_artifact_trace_tests.rs");
+    }
 
     fn symbol() -> CtSymbolId {
         CtSymbolId {
@@ -2177,7 +2331,7 @@ mod tests {
             "complete descriptors need actual inline cells and all three graphs"
         );
         probe.release_value(&output);
-        probe.release_usage_receipt(&usage);
+        probe.release_usage_receipt(usage);
         assert_eq!(probe.live_temporary_bytes(), 0);
         for (bytes, good) in [(peak, true), (peak - 1, false), (peak, true)] {
             let mut budget = CtExecutionBudget::new(CtDeclaredBudget {
@@ -2194,7 +2348,7 @@ mod tests {
                 let (output, usage) = result.unwrap();
                 assert_eq!(output, value);
                 budget.release_value(&output);
-                budget.release_usage_receipt(&usage);
+                budget.release_usage_receipt(usage);
             } else {
                 assert_eq!(result.unwrap_err()[0].code, "E-RESOURCE-LIMIT");
             }
@@ -2861,6 +3015,7 @@ mod tests {
             ambient_classes: Vec::new(),
         };
         p.ambient_life_scopes.push(CtAmbientLifeScope {
+            enclosing: None,
             declaration: symbol(),
             binder_site: Vec::new(),
             instance: CtScopeInstance::Definition,
@@ -2966,6 +3121,16 @@ mod tests {
                 verify_ct_artifact(bad, &limits, &authority).is_err(),
                 "joint scope attack {attack}"
             );
+        }
+        // A caller-supplied lexical host edge remains an untrusted graph edge.
+        // Even a broad test authority cannot turn a cycle or missing row into
+        // an admissible complete scope inventory.
+        for parent in [CtAmbientScopeId(0), CtAmbientScopeId(u32::MAX)] {
+            let mut bad = p.clone();
+            bad.ambient_life_scopes[0].enclosing = Some(parent);
+            let bytes = zil_ir::ct_wire::encode_program(&bad, &limits).unwrap();
+            let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+            assert!(verify_ct_artifact(decoded, &limits, &authority).is_err());
         }
         let mut different = p.clone();
         let schema = &mut different.record_schemas[0];

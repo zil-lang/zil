@@ -6,7 +6,7 @@ use crate::generics::origins::Origins;
 use zil_base::{CompileResult, Limits};
 use zil_syntax::ast::{self as s, Module};
 
-struct Discovery<'a, 'l>(&'a mut Budget<'l>);
+struct Discovery<'a, 'l>(&'a mut Budget<'l>, bool);
 impl Visitor for Discovery<'_, '_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
         self.0.node(span, depth).map_err(|error| vec![error])
@@ -15,6 +15,20 @@ impl Visitor for Discovery<'_, '_> {
         self.0.text(text, span).map_err(|error| vec![error])
     }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        if matches!(item.kind, s::ItemKind::Meta(s::MetaItem::Emit(_))) {
+            // A future ItemList can introduce nominal/life declarations. Its
+            // source namespace must be frozen before the first event runs.
+            self.0.note_source_identity();
+        }
+        if matches!(&item.kind,s::ItemKind::Aggregate(host)
+            if host.kind==s::AggregateKind::Struct && !host.generics.is_empty() && !host.methods.is_empty())
+        {
+            // A retained ordinary CT namespace needs its original output
+            // correspondence before any body is materialized, including when
+            // the host has only Type/Const binders. This inventory choice does
+            // not authorize a member, an execution event, or a runtime instance.
+            self.0.note_source_identity();
+        }
         if let s::ItemKind::Function(function) = &item.kind
             && function.generics.len() >= 3
         {
@@ -45,7 +59,22 @@ impl Visitor for Discovery<'_, '_> {
                 self.0.note_source_identity();
             }
         }
-        crate::ct_selection::walk_item(self, item, depth)
+        let generic = matches!(&item.kind, s::ItemKind::Function(f) if f.generics.iter().any(|p| !matches!(p.kind, s::GenericParamKind::Lifetime)));
+        let previous = std::mem::replace(&mut self.1, generic);
+        let result = crate::ct_selection::walk_item(self, item, depth);
+        self.1 = previous;
+        result
+    }
+    fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+        if self.1
+            && matches!(
+                expression.kind,
+                s::ExprKind::MetaEval(_) | s::ExprKind::MetaBlock(_)
+            )
+        {
+            self.0.note_source_identity();
+        }
+        crate::ct_selection::walk_expression(self, expression, depth)
     }
     fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
         if matches!(ty.kind, s::TypeKind::Dyn { .. }) {
@@ -61,7 +90,34 @@ pub(crate) fn capture_original_impl(
     context: SourceIdentityContext<'_>,
     limits: &Limits,
 ) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
+    capture_impl(sources, modules, context, limits, false)
+}
+
+pub(crate) fn capture_required_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+) -> CompileResult<(Vec<ModuleDeclarationOrigins>, Limits)> {
+    capture_impl(sources, modules, context, limits, true).map(|(rows, remaining)| {
+        (
+            rows.expect("forced original capture always constructs a namespace"),
+            remaining,
+        )
+    })
+}
+
+fn capture_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+    required: bool,
+) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
     let mut budget = Budget::new(limits);
+    if required {
+        budget.note_source_identity();
+    }
     let result =
         (|| {
             if !matches!(
@@ -90,7 +146,7 @@ pub(crate) fn capture_original_impl(
                     return Err(bad(module.span, "original source/module owner differs"));
                 }
                 for item in &module.items {
-                    Discovery(&mut budget)
+                    Discovery(&mut budget, false)
                         .item(item, 0)
                         .map_err(|mut errors| errors.remove(0))?;
                 }

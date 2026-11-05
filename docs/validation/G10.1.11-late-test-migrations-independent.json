@@ -1,0 +1,52 @@
+{
+  "task": "G10.1.11 / late legacy expectation migrations",
+  "reviewer": "legacy_acceptance_review (independent delegated reviewer)",
+  "verdict": "StaticMigrationReviewAcceptedWithoutNewExecutionClaim",
+  "scope": "Full test diffs, original fixture contracts, affected production consumers and existing root-owned first-failure evidence. No build, test or native program was executed by this reviewer; this is not formal acceptance.",
+  "reviewed_commits": {
+    "recursive_typed_observation": "78c2ac740424532e371a284f1bddcf4cbc365ff3",
+    "g331_array_tuple_promotion": "344150965e49f7b3b3263983c61b39e4f9600d0a",
+    "g445_exact_attack_diagnostics": "20b87edab32f7b6c0850ecc7199b7265272354f4",
+    "optional_const_carrier_production": "fac10b690503024a0f4717c18b44f2b7d8ee07af"
+  },
+  "findings": [
+    {
+      "commit": "78c2ac740424532e371a284f1bddcf4cbc365ff3",
+      "finding": "The original and recursive Source fixtures are unchanged. The recursive fixture indexes arrays of qualified Leaf values and retains tuple/record/variant field checks and the full 18446744073709551557u64 result. Only its index observation changes to require both AddressIndex and ReadAddress; the ordinary original fixture still requires ExtractIndex. All five other common opcode checks, Types success, subsequent complete compilation with verification_runs == 1, and separate Clang O0/O2 native success/full-u64 stdout requirements remain. The retained fifth Typed shows the actual array projection AddressIndex -> AddressField -> ReadAddress at lines 7564/7585/7606 and 7880/7901/7922, rather than ExtractIndex. Production addresses.rs constructs the indexed address with its element type, and aggregates.rs reads the addressed value through the existing qualified-place branch. The assertion change matches the actual consumer and does not waive its later Analyze/Verify/native obligations."
+    },
+    {
+      "commit": "344150965e49f7b3b3263983c61b39e4f9600d0a",
+      "finding": "All four alias/array/assignment/tuple good/bad source pairs are byte-for-byte retained. Equal-life array and tuple cases lose the obsolete Core-only success plus later Types Unsupported expectation and now require Verify success, exactly one verifier execution and terminal_native_profiles(...,42), alongside the existing alias/assignment cases. That helper builds/runs Clang O0/O2 and, with llvm-api enabled, LlvmApi O0/O2, checking the actual backend and exact result. Every distinct-life SafeReject plus distinct declared lifetime classes diagnostic stays. Unused-method negatives, the existing generic-host capability Unsupported fence, ordinary-host positive and reborrow native42 remain unchanged. This raises executable obligations; no negative source was promoted or erased."
+    },
+    {
+      "commit": "20b87edab32f7b6c0850ecc7199b7265272354f4",
+      "finding": "Both schema attack payloads and both raw/Wire input paths are unchanged: attack 0 changes arguments[2] to I32(43), attack 1 changes life_context.nodes[0] to Bool. validate_record_relocations must still return an error. The broad obsolete message fragment becomes exact Phase::Ct, E-UNSUPPORTED and respectively complete ordered nominal actual vector / complete nominal context graph messages. The production relocation_arguments compares the complete ordered argument vector after charging traversal; relocation_context_pair compares nodes/root/context shape after graph-cost reservation. Neighboring private-proof, raw instruction, life-ordinal and source-call attacks remain. This commit changes no producer, consumer or raw-input acceptance code."
+    },
+    {
+      "commit": "fac10b690503024a0f4717c18b44f2b7d8ee07af",
+      "finding": "The seven-line production change handles only GenericArg::Type containing existing TypeKind::MetaEval when the actual declaration parameter is Const. It preserves the existing expression via carrier, which charges const_expression before cloning. instantiate_inner first reconstructs original observed arguments, enforces formal arity and normalizes every Const or expression actual; its instance_types representation deliberately stores normalized arguments as GenericArg::Type. All eight consts::argument call sites were traced: ordinary calls/record/type reconstruction feed instantiate normalization, aliases/enums/stored nominal actuals normalize the declared domain, and static method/function checks either normalize closed literals or authenticate symbolic consts against the original source declaration, domain and exact local ordinal. Type-formal normalization still rejects expression carriers; scalar domain/suffix/range and closed-value checks are unchanged. This repairs a representation round trip without trusting MetaEval itself as authority. The original CT3 scalar nominal fixture and its wrong-domain/wrong-scalar rejection assertions are unchanged. No default quota or public Wire/source permission is changed."
+    }
+  ],
+  "root_owned_evidence": [
+    {
+      "source": "6276269a146473cf6ac2319d4443ecc61259ede3",
+      "path": "/workspace/.zil-env/G10.1.11-third-full/default.log",
+      "sha256": "1eadac6e43f86ea41409c9d1e37b6c59d503a13dc132251636125cee881a2aa5",
+      "observed": "Existing default full sweep: 4991 passed / 15 failed, exit 101. Its actual first failures show the schema vector rejection message, recursive omitted ExtractIndex, G331 equal-life full compilation succeeding where Unsupported was expected, and CT3 rejected at Expand with const argument must be a compile-time value. The recursive native path additionally failed Analyze resource closure: ordinary Sum contains an unsupported borrowed or owning shape. These historical failures are retained, not converted into passing execution of the reviewed commits."
+    },
+    {
+      "source": "5f16b9deb1fcd101f329ba1bb7b783b43ba4c09c",
+      "path": "/workspace/.zil-env/G10.1.11-fifth-targeted/ct-recursive.log",
+      "sha256": "493123ee4e3b57d55402c785d345cc4eb37e5c7a56987909259125f2a0a79ce1",
+      "observed": "Root-owned -j2 llvm-api filtered recursive run: 0 passed / 2 failed, exit 101. It repeats the old ExtractIndex assertion and separate recursive Analyze Sum-closure failure. Original fixture native output remains full-u64 correct. This is pre-migration evidence, not proof that the stronger migrated tests now pass."
+    },
+    {
+      "source": "5f16b9deb1fcd101f329ba1bb7b783b43ba4c09c",
+      "path": "/workspace/.zil-env/G10.1.11-fifth-targeted/tmp/g4454-types-recursive-3803057/typed.txt",
+      "sha256": "affe1b03e2ab12488b284771afbc00aac2194abcc28841ef730bca8c428df6ba",
+      "observed": "Independently read retained actual Typed output and verified both indexed-place/read chains. This establishes the opcode observation only; it does not establish subsequent Analyze, Verify or native success."
+    }
+  ],
+  "verification": "Independent exact git-show/full-diff and source/call-site inspection; existing root log and Typed file SHA-256 validation; JSON parse and git diff --check. No new target, raw archive or runtime measurement.",
+  "limits_and_rust_goals": "No material acceptance weakening found within these exact changes. Actual complete lifetime/scalar identity and executable-result obligations are preserved or strengthened. This static review supports explicit representations and independently checked boundaries; it supplies no new performance, usability, Rust comparison, default-budget, reference-budget or formal product-gate result. The historical recursive Analyze failure remains an execution obligation for integration."
+}

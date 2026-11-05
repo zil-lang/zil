@@ -20,3 +20,7 @@ mod type_ref;
 pub use lock::SyntaxLock;
 pub(crate) use materialize::Preview;
 pub(super) use materialize::materialize;
+
+#[cfg(test)]
+#[path = "compiler_runtime_type_actual_tests.rs"]
+mod runtime_type_actual_tests;

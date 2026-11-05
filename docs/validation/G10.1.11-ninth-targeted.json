@@ -1,0 +1,32 @@
+{
+  "source": "43fdb23c39dae8c56ba0450f3cd4dba660904be1",
+  "rows": [
+    {
+      "label": "contract-raw",
+      "source": "43fdb23c39dae8c56ba0450f3cd4dba660904be1",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "-j2",
+        "--features",
+        "llvm-api",
+        "g4463_array_signature_cannot_drop_its_complete_class_contract",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 101,
+      "seconds": 4.64,
+      "log_sha256": "3e49f39a133a5c6a48ba14b92babf4de83bc840bec206dd28e6c34fc85cb64d5",
+      "passed": 0,
+      "failed": 1
+    }
+  ],
+  "head_after": "43fdb23c39dae8c56ba0450f3cd4dba660904be1",
+  "dirty_after": "",
+  "scope": "Actual array value signature, raw/Wire deleted complete relation; addressed Source signature remains explicit Types Unsupported. Not formal full acceptance."
+}

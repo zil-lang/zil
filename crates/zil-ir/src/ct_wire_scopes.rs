@@ -102,7 +102,7 @@ impl Wire for StorageLifeContract {
 }
 fields!(CtAmbientLifeReference, scope: CtAmbientScopeId, parameter: u32);
 fields!(CtAmbientClassBinding, owner: CtTypeNodeId, class: u32, source: CtAmbientLifeReference);
-fields!(CtAmbientLifeScope, declaration: CtSymbolId, binder_site: Vec<u32>, instance: CtScopeInstance);
+fields!(CtAmbientLifeScope, enclosing: Option<CtAmbientScopeId>, declaration: CtSymbolId, binder_site: Vec<u32>, instance: CtScopeInstance);
 impl Wire for CtScopeActual {
     fn encode(&self, e: &mut Encoder) -> Result<()> {
         e.descend(|e| match self {

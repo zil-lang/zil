@@ -1,0 +1,28 @@
+{
+  "task": "G4.4.6.2",
+  "external_execution_owner": "root",
+  "external_freeze": "16dec86f70cafbcca3cece8c8f535d17d868aebf",
+  "external_command": "cargo test -p zil-driver --test ct_static_namespaces -j2 -- --nocapture",
+  "external_result": {
+    "passed": 9,
+    "failed": 2,
+    "compile_seconds": 18.69,
+    "test_seconds": 0.03
+  },
+  "log": "/workspace/tmp-G4.4.6/g4462-second-source.log",
+  "log_sha256": "b67a1f7270be703f6ce896bdd80bf24204de7056823850388f97ed9964b94b2b",
+  "review": "G4.4.6.2-16dec-independent-review.json",
+  "fixes": [
+    "Only fully checked actual Unit callee Call permits result=None",
+    "Missing-original-lineage freeze deferred once until fresh calls trigger required capture; no errors caught",
+    "Pending/frame allocations dropped before releasing charges and cloning query receipt"
+  ],
+  "author_validation": {
+    "command": "cargo check -p zil-driver --all-targets -j1",
+    "result": "Pass",
+    "seconds": 66,
+    "log": "/workspace/tmp-G4.4.6/g4462-review-fixes-check.log",
+    "log_sha256": "e987c45834e5d0d844d85bd2868649842bf73a7346b47e68821102d4e62f00d5"
+  },
+  "limits": "Narrow fixes not linked or natively tested yet; root result remains 9/2 and is not author execution."
+}

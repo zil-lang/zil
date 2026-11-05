@@ -1198,16 +1198,26 @@ pub(super) fn check_module(
                                 Root::Local(local) => &function.locals[local.0 as usize].ty,
                                 Root::Parameter(index) => {
                                     let local = function.parameters[*index as usize];
-                                    let Type::Address {
-                                        mutable: false,
-                                        inner,
-                                    } = &function.locals[local.0 as usize].ty
+                                    let Type::Address { mutable, inner } =
+                                        &function.locals[local.0 as usize].ty
                                     else {
                                         return Err(unsupported(
                                             "shared Product capture requires a checked shared Product parameter",
                                             Some(instruction.span),
                                         ));
                                     };
+                                    if !*mutable
+                                        && matches!(
+                                            function.values[capture.0 as usize],
+                                            Type::Address { mutable: true, .. }
+                                        )
+                                    {
+                                        return Err(reject(
+                                            "E-BORROW-PERMISSION",
+                                            Some(instruction.span),
+                                            "exclusive Product capture cannot promote shared parameter authority",
+                                        ));
+                                    }
                                     budget.spend(captured_parameters.len().saturating_add(1))?;
                                     captured_parameters.insert(*index);
                                     inner.as_ref()

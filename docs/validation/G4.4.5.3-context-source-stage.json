@@ -1,0 +1,61 @@
+{
+  "source_commit": "2c9440cc594bd9f1894c1382af6dda45c5e812be",
+  "source_dirty": false,
+  "date": "2026-11-05",
+  "target": "/workspace/.zil-env/target344",
+  "tmpdir": "/workspace/.zil-env/G4.4.5.3-tmp",
+  "commands": [
+    {
+      "command": "cargo test -p zil-driver --lib invocation_context:: -- --nocapture",
+      "result": "Pass",
+      "tests": 10,
+      "log": "runtime-multiowner-auth-second-tests.log",
+      "observations": [
+        "Original AST Type and full Call actual mutations rejected",
+        "Missing/duplicate source schema events rejected",
+        "Actual host/member life endpoints with identical local ordinal remain distinct",
+        "Coordinated graph/source endpoint substitution rejected",
+        "Original runtime full vector admitted; Type/Const/life ordinal mutations rejected",
+        "Independent runtime scope authority rejects unrelated/duplicated/reordered rows after CT Wire even with whole-producer equality agreeing"
+      ]
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates g447_runtime_ct -- --nocapture",
+      "result": "2 Pass / 2 Fail",
+      "log": "runtime-third-source-tests.log",
+      "passed": [
+        "const_without_life: Source cold/warm, project, Clang O0/O2 complete result 8",
+        "unused definitions: illegal CT runtime capture and ordinary Copy operation remain rejected"
+      ],
+      "failed": [
+        "mixed life",
+        "multiple instances"
+      ],
+      "failure": {
+        "phase": "Expand",
+        "category": "SafeReject",
+        "code": "E-GENERIC-ARGUMENT",
+        "message": "generic body types and declared qualified classes must agree before instantiation"
+      },
+      "limitation": "Mixed-life runtime callback and its native results have not passed."
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates g4453_pure_composite_fields_keep_every_returned_bit -- --nocapture",
+      "result": "Pass",
+      "tests": 1,
+      "log": "pure-composite-third-source-tests.log",
+      "observations": [
+        "Original retained end-to-end source; tuple, fixed array, nested pure record and enum fields consumed",
+        "Source + independent Verify + Clang O0/O2 full return 18446744073709551557",
+        "No conversion to CT-only scalar observation"
+      ]
+    }
+  ],
+  "not_complete": [
+    "Recursive differing nested-life schemas newest fixture and independent trace mutation controls",
+    "Ambient Type runtime semantic metadata consumer root integration",
+    "Full host/member/generated source ownership matrix including shadowing",
+    "Mixed-life runtime first source; infer/nested/member actual ledger",
+    "New-path exact request N/N-1/fresh boundaries and parent formal gates"
+  ]
+}

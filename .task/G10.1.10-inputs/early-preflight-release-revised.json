@@ -1,0 +1,73 @@
+{
+  "scope": "Revised explicit receiver-result lifetime and unchanged ordinary lending control. Existing accepted release binary only; no compiler build or native build/run.",
+  "utc": "2026-11-05T09:43:21.017785+00:00",
+  "binary": "/workspace/.zil-env/target-release-G4.4.5.1/release/zil",
+  "binary_sha256": "91ba589a33517724e20f4ab9645389850effb9dfef86cf641b08ad4b7e4bbccf",
+  "binary_source": "0fee93aa7eb7fa0fe2f1fe9e86fb3f63f019566b",
+  "source_correction": "Original headers used elided borrowed receiver/result. Explicit f:&env F -> &env i32 now states the actual environment-result relation; no expected result or safety condition was weakened. Original source bytes remain in afaa8b44dd13611ee9cf7401c71c2d162d5678c5.",
+  "command_template": [
+    "/workspace/.zil-env/target-release-G4.4.5.1/release/zil",
+    "check",
+    "SOURCE",
+    "--stop-after",
+    "verify",
+    "--json"
+  ],
+  "TMPDIR": "/workspace/.zil-env/G10.1.10-tmp",
+  "results": [
+    {
+      "source": "qualified-lending.zil",
+      "source_sha256": "7dc0c45a71ba16b3638bdab7dcb7866d07dc81b9c3e8fc0bd48c20a138aef0f1",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must be F, &F, &mut F or a single owning State",
+          "span": {
+            "file": 0,
+            "start": 76,
+            "end": 85
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "qualified-lending-mut.zil",
+      "source_sha256": "9942aa84c791b77530b91770303b53090fa7fbff7d67e22f1420af69c7306cfe",
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "callable parameter must be F, &F, &mut F or a single owning State",
+          "span": {
+            "file": 0,
+            "start": 79,
+            "end": 92
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "source": "old-lending-control.zil",
+      "source_sha256": "ecfc8ac00474fa2e5463538d9755ec21c3712e21cd974fb1bc3647448e95cdf4",
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "source_text": "fn peek<F:Fn()->&i32>(f:&F)->&i32{return f()}fn main()->i32{let value=42;let f=move()=>&value;let a=peek(&f);return *a-42}"
+    }
+  ]
+}

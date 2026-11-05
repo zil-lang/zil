@@ -51,8 +51,13 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
-            if let s::ItemKind::Aggregate(aggregate) = &item.kind {
-                for parameter in &aggregate.generics {
+            let nominal_generics = match &item.kind {
+                s::ItemKind::Aggregate(aggregate) => Some(aggregate.generics.as_slice()),
+                s::ItemKind::Enum(declaration) => Some(declaration.generics.as_slice()),
+                _ => None,
+            };
+            if let Some(nominal_generics) = nominal_generics {
+                for parameter in nominal_generics {
                     if matches!(parameter.kind, s::GenericParamKind::Lifetime) {
                         self.budget
                             .node(parameter.span, depth)
@@ -312,7 +317,8 @@ pub(super) fn only_life(function: &s::Function) -> bool {
 
 /// The type namespace and the life namespace are independent. This finite
 /// profile introduces exactly one ordinary Copy binder, never a callable,
-/// StoreElement or unconstrained type parameter.
+/// StoreElement or unconstrained type parameter. Scalar const formals retain
+/// their separate definition-time checks and do not bind runtime lifetimes.
 pub(super) fn copy_life(function: &s::Function) -> bool {
     let mut types = 0;
     let mut lives = 0;
@@ -325,6 +331,7 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
             {
                 types += 1
             }
+            s::GenericParamKind::Const(_) => {}
             _ => return false,
         }
     }
@@ -343,7 +350,7 @@ pub(super) fn callable_life(function: &s::Function) -> bool {
             _=>return false,
         }
     }
-    lives > 0 && (1..=2).contains(&callables)
+    lives > 0 && callables > 0
 }
 
 fn failure(span: Span, text: &str) -> Diagnostic {

@@ -938,7 +938,7 @@ pub(super) fn metadata_snapshot(core: &CoreModule, limits: &Limits, left: &mut u
 pub(super) fn rebind_callable_type(
     ty: &mut Type,
     bounds: &[CoreCallableParameter],
-    bindings: helpers::Bindings,
+    bindings: &helpers::Bindings,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,
@@ -965,7 +965,7 @@ pub(super) fn rebind_callable_type(
 pub(super) fn rebind_callable_function(
     f: &mut CoreFunction,
     bounds: &[CoreCallableParameter],
-    bindings: helpers::Bindings,
+    bindings: &helpers::Bindings,
     state: &mut closures::State,
     limits: &Limits,
     span: Span,

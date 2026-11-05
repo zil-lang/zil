@@ -152,6 +152,12 @@ impl Builder<'_, '_> {
         let CoreExprKind::Index { object, index } = &target.kind else {
             return Ok(None);
         };
+        if self
+            .known_type_ref(object)
+            .is_some_and(|ty| !owned_array_supported(ty))
+        {
+            return Ok(None);
+        }
         let Some(ty) = self.known_type(object) else {
             return Ok(None);
         };
@@ -443,7 +449,7 @@ impl Builder<'_, '_> {
         else {
             return Ok(None);
         };
-        if !matches!(self.known_type(object), Some(Type::Package { .. })) {
+        if !self.known_type_is(object, |ty| matches!(ty, Type::Package { .. })) {
             return Ok(None);
         }
         let CoreExprKind::Name(name) = &object.kind else {
@@ -473,7 +479,7 @@ impl Builder<'_, '_> {
         let CoreExprKind::Member { object, member, .. } = &target.kind else {
             return Ok(None);
         };
-        if !matches!(self.known_type(object), Some(Type::Package { .. })) {
+        if !self.known_type_is(object, |ty| matches!(ty, Type::Package { .. })) {
             return Ok(None);
         }
         let CoreExprKind::Name(name) = &object.kind else {

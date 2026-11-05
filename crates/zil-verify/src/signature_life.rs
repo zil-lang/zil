@@ -1,6 +1,102 @@
 //! Independent canonical semantic-class checking. Rows do not supply roots.
 use super::*;
 
+// Only the actual type graph can establish a value-only Array. Its nested
+// qualified instances are checked independently in module preflight.
+fn pure_array_value(ty: &Type) -> bool {
+    if !matches!(ty, Type::Array { .. }) {
+        return false;
+    }
+    pure_value_tree(ty)
+}
+
+fn pure_nominal_value(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) && pure_value_tree(ty)
+}
+
+fn pure_value_tree(ty: &Type) -> bool {
+    let mut pending = vec![ty];
+    while let Some(current) = pending.pop() {
+        match current {
+            Type::BorrowedStorage { storage, life } if life.slots.is_empty() => {
+                pending.push(storage)
+            }
+            Type::Array { element, .. } => pending.push(element),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } => pending.extend(fields.iter().map(|(_, t)| t)),
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            _ => return false,
+        }
+    }
+    true
+}
+
+fn array_classes(
+    ty: &Type,
+    path: &mut Vec<LifeTypeProjection>,
+    out: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+) {
+    match ty {
+        Type::BorrowedStorage { life, .. } => {
+            for class in 0..life.binder_count {
+                out.push((path.clone(), class));
+            }
+        }
+        Type::Array { element, .. } => {
+            path.push(LifeTypeProjection::Element);
+            array_classes(element, path, out);
+            path.pop();
+        }
+        Type::Tuple(fields) => {
+            for (index, field) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Record { fields, .. } => {
+            for (index, (_, field)) in fields.iter().enumerate() {
+                path.push(LifeTypeProjection::Place(PlaceProjection::Field(
+                    index as u32,
+                )));
+                array_classes(field, path, out);
+                path.pop();
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (variant, (_, fields)) in variants.iter().enumerate() {
+                for (index, field) in fields.iter().enumerate() {
+                    path.push(LifeTypeProjection::Place(PlaceProjection::Variant(
+                        zil_ir::VariantProjection {
+                            variant: variant as u32,
+                            index: index as u32,
+                        },
+                    )));
+                    array_classes(field, path, out);
+                    path.pop();
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
 pub(super) fn charge(c: &StorageLifeContract, b: &mut Budget) -> Check<()> {
     let n = c.bindings.len().saturating_add(c.classes.len());
     b.spend(
@@ -156,8 +252,9 @@ fn relation_inner(
         };
         match actual {
             Type::BorrowedStorage { storage, life } => {
-                if !matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
-                    || !life.retained.is_empty()
+                if (!matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
+                    || !life.retained.is_empty())
+                    && !pure_nominal_value(actual)
                 {
                     return Err(unsupported(
                         "signature owning/nested carrier consumer is not implemented",
@@ -177,6 +274,29 @@ fn relation_inner(
                         row.position.path.is_empty()
                     };
                     if row.position.base != base || row.position.class != local || !path {
+                        return Err(invalid());
+                    }
+                    class += 1;
+                    visit(
+                        row.binder,
+                        if captures.is_some() { capture } else { !output },
+                    )?;
+                }
+            }
+            Type::Array { .. } if pure_array_value(actual) => {
+                let mut path = if pointee {
+                    vec![LifeTypeProjection::Pointee]
+                } else {
+                    Vec::new()
+                };
+                let mut classes = Vec::new();
+                array_classes(actual, &mut path, &mut classes);
+                for (path, local) in classes {
+                    let row = c.classes.get(class).ok_or_else(invalid)?;
+                    if row.position.base != base
+                        || row.position.path != path
+                        || row.position.class != local
+                    {
                         return Err(invalid());
                     }
                     class += 1;
@@ -212,9 +332,10 @@ fn relation_inner(
                     return Err(invalid());
                 }
             }
-            t if capture && super::stored_owned::owner(t) => {}
+            t if (capture || allow_callback && !output) && super::stored_owned::owner(t) => {}
             t => {
                 if !(t.is_copy_value()
+                    || pure_array_value(t)
                     || allow_callback && !output && matches!(t, Type::Closure(_)))
                 {
                     return Err(invalid());

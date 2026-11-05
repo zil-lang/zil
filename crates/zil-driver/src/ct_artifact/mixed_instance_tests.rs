@@ -138,6 +138,15 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                 &mut environment.budget,
             )
             .unwrap();
+        Arc::get_mut(&mut invocation)
+            .unwrap()
+            .validate_type_contexts(
+                &facts,
+                &expected,
+                &environment.index,
+                &mut environment.budget,
+            )
+            .unwrap();
         invocation
             .validate_record_relocations(
                 &facts.relocations,
@@ -310,10 +319,10 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                         )
                         .unwrap_err();
                     assert!(
-                        errors
-                            .iter()
-                            .any(|d| d.message.contains("original life source or full ordinal")),
-                        "{errors:?}"
+                        errors.iter().any(|d| d.phase == Phase::Ct
+                            && d.code == "E-UNSUPPORTED"
+                            && d.message == "CT relocation changes the original source lifetime endpoint/full ordinal"),
+                        "changed target={target} lifetime endpoint: {errors:?}"
                     );
                 }
             }
@@ -366,11 +375,16 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                         &mut CtExecutionBudget::new(expected.budget),
                     )
                     .unwrap_err();
+                let expected_message = if attack == 0 {
+                    "CT relocation changes the complete ordered nominal actual vector"
+                } else {
+                    "CT relocation changes the complete nominal context graph"
+                };
                 assert!(
-                    errors.iter().any(|d| d
-                        .message
-                        .contains("complete nominal arguments or context shape")),
-                    "{errors:?}"
+                    errors.iter().any(|d| d.phase == Phase::Ct
+                        && d.code == "E-UNSUPPORTED"
+                        && d.message == expected_message),
+                    "attack {attack}: {errors:?}"
                 );
             }
         }

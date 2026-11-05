@@ -1,0 +1,68 @@
+{
+  "task": "G3.3.10 independent production review",
+  "reviewer": "/root/g33_joint_regressions",
+  "verdict": "NotReady",
+  "formal_acceptance": false,
+  "implementation": "365235ae94785e63daedbdd48cbcbc0fbd5c436c",
+  "implementation_base": "8bf8f95a5",
+  "implementation_series": ["0a744ca1b", "3620fd66a", "365235ae94785e63daedbdd48cbcbc0fbd5c436c"],
+  "integrated_consumer_source": "54b1b8f56422b65273f577585819934fec48f85f",
+  "goal": "6519d44f56682b41682683a67035b67dc82c1cc3",
+  "independence": {
+    "production_coauthor": false,
+    "boundary": "Reviewer authored G3.3.9.1 legacy expectation/budget migrations and their receipts, not the G3.3.10 production implementation. Those own-authored test migrations and their asserted outcomes are excluded from this independent production verdict. The reviewed production files include private cfg(test) blocks; reading them is not independent execution or approval of the reviewer's own migrated tests.",
+    "method": "Read AGENTS, task, prior changes proposal, cumulative production delta from 8bf8f95a5 through 365235ae, and current integrated role/key/origin/flow consumers at 54b1b8f. No production edit, cargo invocation, linked/native test or formal full run."
+  },
+  "blocking_findings": [
+    {
+      "id": "G3310-R1",
+      "priority": "P1",
+      "title": "Types still prepays linear work for newly unbounded repeated role searches",
+      "locations_at_integrated_source": [
+        "crates/zil-types/src/helper_flow.rs:328-366",
+        "crates/zil-types/src/helpers.rs:1789-1807",
+        "crates/zil-types/src/helpers.rs:594-598,671-674"
+      ],
+      "root_cause": "The former two-role bound made these linear searches constant-size. Removing that bound exposes variable nested scans without an accompanying debit or indexed traversal. helper_flow substitute calls forwarded.roles.iter().find_map for every child event. child_work and Size::reserve prepay event/node/edge counts, not event_count times role_count. helpers::forwarded_contract scans contract.roles for each actual environment argument but prepays role_count*3+arguments.len(). call_helper similarly scans signature.callable for each argument after a linear argument/role reservation.",
+      "concrete_static_work": "For R ordered shared positions of one generic F, child events visiting all R positions require R*(R+1)/2 mapping comparisons per substitution, while this consumer's local debit is O(R). A parent with M static calls repeats that work M times. All positions may share one ClosureId, so Bindings stays Inline and its Extended-vector/COW payment cannot account for the scans. The once-per-template quadratic declaration validation does not prepay arbitrarily many later call-site/event substitutions. This is a source-reachable construction permitted by the new three_same_generic_shared_roles control; no measured timing or executed hostile budget result is claimed here.",
+      "independent_cross_check": "Analyze helper_flow::remap already prepays events.len()*(roles.len()+2); Verify helpers::Forwarded::remap prepays calls.len()*(mapping.len()+1), and its forwarded mapping pays a role product. Types closures::State::snapshot only subtracts its explicit entries argument; there is no implicit role multiplier in the quoted linear reservations. The same missing scans are present at author freeze 365235ae and integrated 54b1b8f.",
+      "impact": "The request's work allowance does not bound the newly enlarged Types role substitution/classification work according to the accepted changes contract. This is a compiler resource-accounting blocker, not a demonstrated origin/loan safety bypass or ABI corruption.",
+      "required_fix": "Use bounded positional/indexed traversal for these ordered role tables, or prepay the actual additional comparison product from the same live allowance before the searches. Preserve the old one/two-role fee contract unless an actual necessary fee migration is separately proposed and evidenced; do not raise default limits. Add a same-F many-position nested-call/event control using an existing target, verify exact N/N-1/fresh at Types, and recheck the independent consumer results on the final fix freeze."
+    }
+  ],
+  "checked_nonblocking_boundaries": [
+    {
+      "area": "Complete callable instance key",
+      "files": ["crates/zil-expand/src/generic_callable.rs", "crates/zil-types/src/helpers.rs", "crates/zil-types/src/helper_plan.rs", "crates/zil-types/src/aggregate_templates.rs", "crates/zil-types/src/store_templates.rs", "crates/zil-types/src/state_origins.rs"],
+      "result": "Callable generic indices are dense in declaration order and separate from runtime parameter positions and original source generic ordinals. Bindings compares the full Inline/Extended Option<ClosureId> inventory, not a two-slot prefix. bind rejects inconsistent actual ClosureIds for one generic; later slots participate in plan keys, helper_instances and generated labels. Valid populated extended keys have deterministic width. Third/fourth swaps therefore select distinct concrete helpers. Reference transport/COW shares compiler metadata only. No new runtime Rc or environment carrier is introduced."
+    },
+    {
+      "area": "Distinct actual runtime origins and independent proofs",
+      "files": ["crates/zil-types/src/helper_origin.rs", "crates/zil-analyze/src/helper_origin.rs", "crates/zil-verify/src/helper_origin.rs", "crates/zil-analyze/src/forward.rs", "crates/zil-types/src/helper_flow.rs", "crates/zil-analyze/src/helper_flow.rs", "crates/zil-verify/src/helper_flow.rs"],
+      "result": "Each layer owns its own origin state and propagation. Actual role ordinals are stored separately from producer flags; distinct roles join to an unselectable mixed sentinel, and producer/unknown flags prevent recovering a singleton. Analyze retains borrowed participation through mixed joins. All actual parameters are seeded by their actual ordered position, including same-F/same-ClosureId positions; concrete type identity supplies neither a selected instance nor apartness. Child events are replaced at each actual static call site. The precise Analyze CFG path preserves live/moved/alias distinctions with widened origins. No producer solver is imported into Verify."
+    },
+    {
+      "area": "Complete role/effect table and source life modes",
+      "files": ["crates/zil-types/src/helpers.rs", "crates/zil-types/src/helpers/source_life.rs", "crates/zil-analyze/src/helpers.rs", "crates/zil-verify/src/helpers.rs"],
+      "result": "Analyze and Verify require exact coverage/order of actual environment parameters and reject reused actual local slots. Verify reconstructs closure identity, supported kind, Address mutable/shared mode, Hold/Call/write capture indices, cleanup and event traces and compares the complete contract. Same-F generic compatibility does not merge actual call-role rows. Integrated source_life formation keeps each bound.index mapping and its actual original source relation, then joins the header; absent role contexts reject. By-value FnMut, borrowed Once, give/escape, owned-data and owning-State restrictions are still separately checked rather than opened by a larger role count. The integrated life_result change uses the existing checked stored-callable result consumer. This review does not replace the separate broad G3.3.9 source/lending/Drop review."
+    },
+    {
+      "area": "Physical origin storage, keys and ABI",
+      "files": ["crates/zil-types/src/helpers.rs", "crates/zil-types/src/helper_plan.rs", "crates/zil-analyze/src/helpers.rs", "crates/zil-analyze/src/forward.rs", "crates/zil-verify/src/helpers.rs"],
+      "result": "Origin table allocations pay actual count*size_of<Origin>; Analyze precise CFG initial/copy state pays size_of<Slot>, and provenance snapshots pay the full Origin tables. Bindings growth/COW pays Option<ClosureId> elements and Vec/Rc metadata before allocation, retained enum copies pay storage_delta_work and key comparisons include extra width. R1 is the remaining repeated linear-search work gap, not a reason to undo these real physical charges. This series does not change public Type/Wire/schema, limits or backend calling convention. Ordinary concrete function/closure arguments retain their actual types; callback Copy/effects and source qualifications remain independently enforced."
+    }
+  ],
+  "evidence_limits": {
+    "author_results": "Task reports Source target20/0, independent three-layer classification6/0 and author N/N-1/fresh controls. Those were read but not reexecuted and are not substituted for this production review.",
+    "repository_check": "node tools/handoff.mjs --check returned CurrentPass with errors=[],warnings=[]; engineering metadata integrity only. git diff --check passed before receipt creation.",
+    "runtime_tests_by_reviewer": "NotRun; root owns the formal default/reference window.",
+    "manifest": "legacy_acceptance_review was notified of R1 and this pending production verdict; its prior legacy-test review must not be used as G3.3.10 production approval."
+  },
+  "rust_goals": {
+    "safety": "No new origin/type-identity permission bypass found statically; independent actual-role proofs remain separate.",
+    "runtime_memory": "No new ZIL runtime allocation, Rc, Box or lock in this production series; same-semantic runtime/RSS comparison unmeasured.",
+    "expression_maintenance": "Complete multi-callable keys and separate same-F positions provide a concrete scoped expression increment; full parent completion is not inferred.",
+    "compile_cost": "R1 blocks the complete work-accounting contract; author budget pass counts do not cover the missing role-search factor. Comparative Rust compile/maintenance costs unmeasured.",
+    "breakthrough": "No four-goal conjunction or product net breakthrough claimed. Existing product gates remain unchanged."
+  }
+}

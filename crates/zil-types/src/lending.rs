@@ -9,6 +9,21 @@ pub(super) fn supported_result(ty: &Type) -> bool {
             || matches!(inner.as_ref(), Type::Slice { element } if element.is_copy_value()))
 }
 
+pub(super) fn qualified_result(closure: &ClosureDefinition) -> bool {
+    closure.kind != CallableKind::FnOnce
+        && matches!(&closure.result, Type::Address { mutable:false, inner } if inner.is_b0_scalar())
+        && closure.storage_life.as_ref().is_some_and(|life| {
+            !life
+                .bindings
+                .iter()
+                .any(|row| row.position.base == StorageBase::Result)
+                && !life
+                    .classes
+                    .iter()
+                    .any(|row| row.position.base == StorageBase::Result)
+        })
+}
+
 fn owning_capture_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. }
         if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }))
@@ -63,6 +78,9 @@ impl Builder<'_, '_> {
             .is_some_and(supported_result)
         {
             return Ok(false);
+        }
+        if self.closures.has_source_context(id) {
+            return Ok(true);
         }
         let arity = self.closures.pending[id.0 as usize].parameters.len();
         for index in 0..arity {
@@ -314,7 +332,9 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
             continue;
         }
         work.spend(closure.parameters.len(), f.span)?;
-        if borrowed_fp::invocation(&closure.parameters, &closure.result) {
+        if borrowed_fp::invocation(&closure.parameters, &closure.result)
+            && !qualified_result(closure)
+        {
             let mutable = matches!(closure.result, Type::Address { mutable: true, .. });
             let roots = &summaries[closure.function.0 as usize];
             work.spend(roots.len(), f.span)?;
@@ -345,7 +365,9 @@ fn populate_inner(module: &mut TypedModule, work: &mut Work) -> R<()> {
         }
         if closure.captures.iter().any(|ty| {
             matches!(ty, Type::Desc(_))
-                || matches!(ty, Type::Address { .. }) && !owning_capture_address(ty)
+                || matches!(ty, Type::Address { .. })
+                    && !owning_capture_address(ty)
+                    && !qualified_result(closure)
         }) {
             return Err(unsupported(
                 f.span,
