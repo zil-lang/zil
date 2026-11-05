@@ -3500,7 +3500,9 @@ pub(super) fn check_module(
 ) -> CompileResult<()> {
     budget.spend(module.closures.len(), "resource closure presence")?;
     if module.resources.is_empty() {
-        let mut owning_entry = false;
+        // An absent raw table cannot bypass actual replacement obligations.
+        // The paid preflight already inventoried these owning ticket sites.
+        let mut owning_entry = !budget.replacement_functions.is_empty();
         for closure in &module.closures {
             budget.spend(closure.captures.len(), "resource capture presence")?;
             owning_entry |= closure.kind == CallableKind::FnOnce

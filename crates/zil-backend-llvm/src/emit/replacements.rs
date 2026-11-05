@@ -92,7 +92,23 @@ impl FunctionEmitter<'_> {
         let (ty, pointer) = self.actual_place(&root, &pointer, path)?;
         // This is the currently verified producer profile. Other owning trees
         // retain their explicit independent Hold/debt consumer boundary.
+        let complete_package = if let Type::Package { fields, .. } = &ty {
+            fields
+                .iter()
+                .filter(|(_, t)| matches!(t, Type::Managed(_)))
+                .count()
+                == 1
+                && fields.iter().all(|(_, t)| match t {
+                    Type::Managed(p) => {
+                        matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value()
+                    }
+                    t => t.is_b0_scalar(),
+                })
+        } else {
+            false
+        };
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+            && !complete_package
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",
@@ -100,14 +116,19 @@ impl FunctionEmitter<'_> {
             );
         }
         for (path, teardown) in packages::teardown_paths(&ty, self.resources)? {
-            debug_assert!(path.is_empty());
+            let physical = path
+                .iter()
+                .copied()
+                .map(zil_ir::PlaceProjection::Field)
+                .collect::<Vec<_>>();
+            let (_, old_pointer) = self.actual_place(&ty, &pointer, &physical)?;
             self.event(m::Event::Instruction(m::Inst::new(
                 None,
                 m::Op::Call {
                     result: m::Ty::Void,
                     result_attrs: vec![],
                     callee: m::global(teardown),
-                    args: vec![m::Arg::new(m::Ty::Ptr, m::val(&pointer))],
+                    args: vec![m::Arg::new(m::Ty::Ptr, m::val(&old_pointer))],
                     vararg: None,
                 },
             )));

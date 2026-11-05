@@ -5,6 +5,7 @@ use super::*;
 use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
+mod package;
 #[derive(Clone, Copy)]
 pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
@@ -113,7 +114,10 @@ fn endpoint<'a>(
 }
 fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
-    Ok(matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value()))
+    Ok(
+        matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
+            || package::field(ty, b)?.is_some(),
+    )
 }
 impl Program {
     pub(super) fn new(
@@ -163,12 +167,40 @@ impl Program {
         let routes = origins::module(module, graphs, b)?;
         fee(b, module.functions.len())?;
         let mut definitions = Vec::with_capacity(module.functions.len());
+        let mut packages = false;
         for (f, (_, reachable)) in module.functions.iter().zip(graphs) {
             let d = Definitions::new(module, f, b)?;
             if f.foreign.is_none() {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
+                if matches!(definition.ty, Type::Package { .. }) {
+                    packages = true;
+                    fee(b, definition.path.len().saturating_add(1))?;
+                    let targets = match &definition.base {
+                        Base::Local(local) => BTreeSet::from([Target {
+                            root: origins::Root::Local(*local),
+                            path: definition.path.clone(),
+                            mutable: f.locals[local.0 as usize].mutable,
+                        }]),
+                        Base::Address(v) => origins::project(
+                            &routes[f.id.0 as usize].values[v.0 as usize],
+                            &definition.path,
+                            b,
+                        )?,
+                    };
+                    fee(b, targets.len())?;
+                    if targets.len() != 1 {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "Package replacement requires one actual local root",
+                            None,
+                        )]);
+                    }
+                    for target in &targets {
+                        package::local(f, target, b)?;
+                    }
+                }
                 if !closed(&definition.ty, b)? {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
@@ -178,6 +210,9 @@ impl Program {
                 }
             }
             definitions.push(d);
+        }
+        if packages {
+            package::definitions(module, b)?;
         }
         Ok(Self {
             routes,
@@ -329,6 +364,14 @@ impl Program {
             return Err(error("replacement needs a live actual owner shell"));
         }
         state.sums.require_place(local, path, b)?;
+        if path.is_empty()
+            && matches!(
+                flow.function.locals[local.0 as usize].ty,
+                Type::Package { .. }
+            )
+        {
+            package::complete(flow.function, state, local, b)?;
+        }
         if let Type::Package { fields, .. } = &flow.function.locals[local.0 as usize].ty
             && let Some(PlaceProjection::Field(index)) = path.first()
             && matches!(
@@ -716,7 +759,11 @@ impl Program {
                     ));
                 }
                 for target in self.targets(f, &d.base, &d.path, b)? {
-                    self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
+                    if matches!(d.ty, Type::Package { .. }) {
+                        package::apply(flow, state, &target, *value, point, b)?;
+                    } else {
+                        self.update(flow, state, effect, &target, &rhs.birth, check, live, b)?;
+                    }
                 }
                 flow.consume(state, *value, check, b)?;
             }

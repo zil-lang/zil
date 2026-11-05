@@ -173,15 +173,36 @@ impl Builder<'_, '_> {
             path.push(PlaceProjection::Field(index));
             at = next;
         }
-        // The first concrete lane is a closed user-resource leaf. Other
-        // owning endpoints retain their existing diagnostic until their tag,
-        // partial flags and retained lifetime bridge is implemented.
-        let Type::Managed(payload) = at else {
-            return Ok(false);
-        };
-        self.closures.snapshot_type(at, 2, 0, target.span)?;
-        if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
-            return Ok(false);
+        // Ticket data describes the actual endpoint, not a declaration-based
+        // permission. Each kernel separately recovers its root and completeness.
+        match at {
+            Type::Managed(payload) => {
+                self.closures.snapshot_type(at, 2, 0, target.span)?;
+                if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
+                    return Ok(false);
+                }
+            }
+            Type::Package { fields, .. } => {
+                self.closures.snapshot_type(at, 2, 0, target.span)?;
+                self.closures.snapshot(fields.len(), target.span)?;
+                let mut owners = 0;
+                for (_, field) in fields {
+                    if let Type::Managed(payload) = field {
+                        if !matches!(payload.as_ref(), Type::Record { .. })
+                            || !payload.is_copy_value()
+                        {
+                            return Ok(false);
+                        }
+                        owners += 1;
+                    } else if !field.is_b0_scalar() {
+                        return Ok(false);
+                    }
+                }
+                if owners != 1 {
+                    return Ok(false);
+                }
+            }
+            _ => return Ok(false),
         }
         if !*mutable {
             return Err(error(
