@@ -289,8 +289,16 @@
   ],
   "handoff_scope": "Engineering handoff reads actual main worktree records, not candidate development states. Post-merge actual-main result is recorded separately; historical unavailable objects are not revalidated.",
   "github_ci": {
-    "status": "NotObservedForThisPR",
-    "previous": "PR39 Actions had no started steps because payment/spending limit; not counted Pass",
+    "status": "NotStartedBilling",
+    "observed_pr": 40,
+    "observed_head": "9b5e917e6bff69f01e638c784d07907df639d207",
+    "jobs": [
+      126952555071,
+      126952555572
+    ],
+    "steps": [],
+    "annotation": "The job was not started because recent account payments have failed or your spending limit needs to be increased.",
+    "counted_as_pass": false,
     "bypass": false
   },
   "not_completed": [
