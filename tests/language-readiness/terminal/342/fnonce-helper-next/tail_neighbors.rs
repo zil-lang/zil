@@ -1,5 +1,6 @@
 // Shared untrusted function mutations, not a proof or Source acceptance oracle.
 use zil_ir::*;
+use zil_base::Span;
 fn op(result: Option<ValueId>, kind: InstructionKind) -> Instruction {
     Instruction { result, kind, span: Span::default() }
 }
