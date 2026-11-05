@@ -35,6 +35,19 @@ pub struct GeneratedSourceTree {
     pub module: Arc<Module>,
     pub declarations: Vec<NodeId>,
 }
+impl GeneratedSourceTree {
+    /// Address encoding only. A matching digest never authenticates the tree,
+    /// emitter, declaration inventory, or any permission.
+    pub fn generation_fingerprint(&self) -> Option<zil_base::Fingerprint> {
+        let SourceTreeIdentity::Generated { event_path, .. } = &self.identity else {
+            return None;
+        };
+        let mut hash = zil_base::FingerprintBuilder::new();
+        hash.update(b"ZIL_GENERATED_SOURCE_TREE_V1");
+        for part in event_path { hash.update(&part.to_le_bytes()); }
+        Some(hash.finish())
+    }
+}
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct GeneratedDeclarationOrigin {
