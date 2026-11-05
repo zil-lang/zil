@@ -72,6 +72,13 @@ pub(super) fn argument(
         GenericArg::Type(ty)
             if parameter.is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_))) =>
         {
+            // Instance reconstruction stores every checked slot as a TypeRef;
+            // a scalar slot already has this private carrier. Preserve it
+            // without wrapping it again or treating it as a type/name. The
+            // caller still checks its declared domain and binder provenance.
+            if let Some(value) = expression(ty) {
+                return carrier(value, budget);
+            }
             let name = trait_bounds::plain(ty)
                 .ok_or_else(|| error(ty.span, "const argument must be a compile-time value"))?;
             budget.ty(ty)?;
