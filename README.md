@@ -45,3 +45,7 @@
 [e37]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-root37-integration-20261104.json
 [remote37]: https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/docs/validation/terminal-root37-remote.json
 [e40]: https://github.com/zil-lang/zil/blob/c15b77847502d02acc83474bf7f9a8789186a3ac/docs/validation/terminal-progress-20261104.json
+
+## 2026-11-06 分支整理
+
+旧 backup、已结束的 task/review 分支已集中到 [source-history 归档](https://github.com/zil-lang/zil/tree/archive/source-history)。归档的 `manifest.json` 保存原分支名、实际提交和未提交源码快照；源码通过 Git 父提交保全，不能据此视为已验收。按清单中的 SHA 执行 `git branch 恢复名称 SHA` 可恢复；旧清单可沿归档第一父提交查看。历史工作区保留文件，已解除过期分支绑定。后续只维护活跃任务分支与这个固定归档入口，不再批量创建 backup 分支。
