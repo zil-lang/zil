@@ -401,16 +401,18 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
     };
     let mut observed = Vec::new();
     let mut recorded = Vec::new();
-    for (source, recorded_expand, recorded_types) in [
+    for (source, recorded_expand, prior_types, recorded_table) in [
         (
             "fn apply<T:Copy,F:Fn(i32)->i32>(f:&F,value:T)->T{f(1);return value}fn main()->i32{let f=(n:i32)=>n+1;return apply(&f,2)-2}",
             813,
             506,
+            (2, 4),
         ),
         (
             include_str!("impl246_fixtures/copy_enum_helper.zil"),
             1092,
             782,
+            (2, 5),
         ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget246.zil", source);
@@ -418,6 +420,24 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
         let core = zil_expand::expand(&unit, &ast).unwrap();
         let expected =
             zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
+        // The actual single instantiated helper gets one local/SSA Origin
+        // table pair. Two different runtime calls do not duplicate this table.
+        let tables: Vec<_> = expected
+            .functions
+            .iter()
+            .filter(|function| function.callable_contract.is_some())
+            .map(|function| (function.locals.len(), function.values.len()))
+            .collect();
+        assert_eq!(
+            tables,
+            [recorded_table],
+            "actual helper origin table dimensions"
+        );
+        let cells: usize = tables.iter().map(|(locals, values)| locals + values).sum();
+        let recorded_types = prior_types + cells * (std::mem::size_of::<(usize, u8)>() - 1);
+        println!(
+            "actual Origin tables={tables:?}, cells={cells}, prior Types N={prior_types}, migrated N={recorded_types}"
+        );
         let expand = |n| {
             zil_expand::expand_with_map_limits(
                 &unit,
@@ -440,6 +460,13 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
         };
         let expand_n = minimum(&|n| expand(n).is_ok());
         let types_n = minimum(&|n| types(n).is_ok());
+        assert!(
+            types(prior_types)
+                .unwrap_err()
+                .iter()
+                .all(|d| d.phase == zil_base::Phase::Types
+                    && d.category == zil_base::ResultCategory::ResourceLimit)
+        );
         observed.push((expand_n, types_n));
         recorded.push((recorded_expand, recorded_types));
         assert!(

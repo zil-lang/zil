@@ -157,5 +157,82 @@
     "CT source authentication completion",
     "Rust comparative runtime/RSS/compile/maintenance advantage",
     "product-level net breakthrough"
-  ]
+  ],
+  "types_and_raw_followup": {
+    "parent_delivery": "39eaf284819450540bf1818b414cd3a9983a60c1",
+    "source_freeze": "a83955cc947db69d98fdaad29776441083f2aa39",
+    "source_tree": "be74d120c64fbce83d20cb7baba65b4554b1673e",
+    "scope": "Three existing driver tests only; actual helper-table accounting and raw/Wire idle-versus-consuming Once-cycle alignment; no production changes or new target.",
+    "physical_fee_basis": {
+      "type": "private Types Origin { role: usize, flags: u8 }",
+      "bytes_on_session_host": 16,
+      "previous_bytes_per_cell": 1,
+      "construction": "One flow::contract call per formed helper contract, one environment_origins table pair per call; helpers.rs and helper_flow.rs static call sites audited.",
+      "actual_inventory_assertions": [
+        {
+          "input": "impl202 original",
+          "tables": [],
+          "prior_n": 6729,
+          "proposed_n": 6729
+        },
+        {
+          "input": "impl202 pair",
+          "tables": [],
+          "prior_n": 30319,
+          "proposed_n": 30319
+        },
+        {
+          "input": "impl202 nested invoke",
+          "tables": [
+            [
+              1,
+              2
+            ]
+          ],
+          "prior_n": 30931,
+          "proposed_n": 30976
+        },
+        {
+          "input": "impl246 scalar apply",
+          "tables": [
+            [
+              2,
+              4
+            ]
+          ],
+          "prior_n": 506,
+          "proposed_n": 596
+        },
+        {
+          "input": "impl246 enum apply",
+          "tables": [
+            [
+              2,
+              5
+            ]
+          ],
+          "prior_n": 782,
+          "proposed_n": 887
+        }
+      ],
+      "checks": "Runtime test assertions must confirm actual locals/SSA dimensions and sole helper instantiation; migrated N derives from actual cells, old Types N rejects, existing exact N/N-1/fresh result equality retained. Source text, Expand and locals/functions controls unchanged."
+    },
+    "raw_cycle_checks": "Existing idle Source and independent candidate become positive after actual role FnOnce and identity rebinding. Separate real by-value Fn repeated loop mutates exactly one CallClosure to CallClosureOnce and matching Flow role/event kinds, preserving SSA slots and independently derived plan; Analyze/raw/Wire must reject actual consuming backedge as SafeReject, Verify E-VERIFY-CALLABLE-CONTRACT.",
+    "no_link": {
+      "command": "cargo check --offline --locked -j1 -p zil-driver --test impl190_flow_raw --test impl202_budget --test impl246_front",
+      "result": "Pass",
+      "seconds": 9.88,
+      "log": "/workspace/.zil-env/G3.3.9.1/types-and-raw-no-link.log",
+      "sha256": "a06e8772bbb1b9d18093846912076dfe136d4fa6172f068cc356be58bd873f11"
+    },
+    "linked_validation": {
+      "status": "NotRun by this author; root batches these existing targets in the shared build window.",
+      "selectors": [
+        "impl202_budget::pre202_callback_store_paths_keep_their_recorded_types_boundaries",
+        "impl246_front::registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries",
+        "impl190_flow_raw::zero_event_fn_once_cycle_is_legal_but_actual_once_consumption_cannot_repeat"
+      ]
+    },
+    "limitations": "Actual linked table-shape/fee/backedge assertions await root replay; no green claim from static inspection or no-link. Earlier 69/2 is a separate prior source freeze and is not added to this followup. No new runtime/Rust cost comparison or product completion."
+  }
 }

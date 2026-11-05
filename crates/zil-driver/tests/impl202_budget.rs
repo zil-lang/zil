@@ -41,12 +41,62 @@ fn boundary<T: PartialEq + std::fmt::Debug>(
     (high, format!("{below:#?}"))
 }
 
-fn measure(label: &str, source: &str, old: Option<(usize, usize)>) -> (usize, usize) {
+fn measure(
+    label: &str,
+    source: &str,
+    old: Option<(usize, usize)>,
+    origin_tables: Option<&[(usize, usize)]>,
+) -> (usize, usize) {
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget202.zil", source);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let defaults = Limits::default();
     let check = |limits: &Limits| zil_types::check(&core, &TargetProfile::host_llvm(), limits);
+    if let Some(recorded_tables) = origin_tables {
+        let actual = check(&defaults).unwrap();
+        // Each completed helper contract calls flow::contract once, allocating
+        // exactly these actual local/SSA provenance cells before reconstruction.
+        let tables: Vec<_> = actual
+            .functions
+            .iter()
+            .filter(|function| function.callable_contract.is_some())
+            .map(|function| (function.locals.len(), function.values.len()))
+            .collect();
+        assert_eq!(
+            tables, recorded_tables,
+            "{label} actual helper origin tables"
+        );
+        let cells: usize = tables.iter().map(|(locals, values)| locals + values).sum();
+        let prior = match label {
+            "old-original02" => 6729,
+            "old-two-elements" => 30319,
+            "old-nested-helper" => 30931,
+            _ => unreachable!(),
+        };
+        if cells != 0 {
+            let error = check(&Limits {
+                max_analysis_steps: prior,
+                ..defaults.clone()
+            })
+            .unwrap_err();
+            assert!(error.iter().all(|d| d.phase == Phase::Types
+                && d.category == ResultCategory::ResourceLimit), "{error:?}");
+        }
+        // Origin's private role usize plus flags replaces each old u8. The
+        // unchanged actual table dimensions, not an arbitrary floor, set N.
+        let migrated = prior + cells * (std::mem::size_of::<(usize, u8)>() - 1);
+        eprintln!(
+            "{label}: actual Origin tables={tables:?}, cells={cells}, prior N={prior}, migrated N={migrated}"
+        );
+        assert_eq!(
+            check(&Limits {
+                max_analysis_steps: migrated,
+                ..defaults.clone()
+            })
+            .unwrap(),
+            actual
+        );
+    }
     let (work, work_below) = boundary(
         |n| {
             check(&Limits {
@@ -91,10 +141,12 @@ fn complete_type_instances_have_exact_work_local_and_function_boundaries() {
         "original-push",
         include_str!("impl202_fixtures/01_original_push.zil"),
         None,
+        None,
     );
     measure(
         "original-factory",
         include_str!("impl202_fixtures/02_original_factory.zil"),
+        None,
         None,
     );
 }
@@ -106,14 +158,20 @@ fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
         "old-original02",
         include_str!("impl200_fixtures/02_store_of_callback_state.zil"),
         Some((4241, 16)),
+        Some(&[]),
     );
-    let pair = measure("old-two-elements", PAIR, Some((11851, 39)));
+    let pair = measure("old-two-elements", PAIR, Some((11851, 39)), Some(&[]));
     let nested = format!(
         "fn invoke<F:FnMut()->i32>(callback:&mut F)->i32{{return callback()}}\n{}",
         PAIR.replace("first.callback()", "invoke(&mut first.callback)")
             .replace("second.callback()", "invoke(&mut second.callback)")
     );
-    let nested = measure("old-nested-helper", &nested, Some((11792, 40)));
+    let nested = measure(
+        "old-nested-helper",
+        &nested,
+        Some((11792, 40)),
+        Some(&[(1, 2)]),
+    );
     // 205 checks the old State definitions as well as their concrete instances.
     // Keep the original 201 values in each boundary record above; only the work
     // limits change after measuring these exact sources, including N-1/fresh.
@@ -124,7 +182,12 @@ fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
         // Prior 205 values: 6667/30137/30706. G10.1.5 preserves the new
         // callable inventory and bounded rich-life/signature snapshot work;
         // see changes/G10.1.5-budget-regressions.md. N-1/fresh remain above.
-        [(6729, 16), (30319, 39), (30931, 40)],
+        // G3.3.10's one actual 1-local/2-SSA Origin table adds 3*(16-1).
+        [
+            (6729, 16),
+            (30319, 39),
+            (30931 + 3 * (std::mem::size_of::<(usize, u8)>() - 1), 40)
+        ],
         "205 measured State definition checks; original 201 input bytes unchanged"
     );
 }
