@@ -451,6 +451,8 @@ fn route<F:Fn(i32)->i32,G:Fn(i32)->i32,H:Fn(i32)->i32,I:Fn(i32)->i32>(f:&F,g:&G,
 fn main()->i32{let f=move(x:i32)=>x+1;let g=move(x:i32)=>x*2;let h=move(x:i32)=>x-3;let i=move(x:i32)=>x*5;let first=leaf(&f,&g,&h,&i,4);let second=leaf(&f,&g,&i,&h,4);return route(&f,&g,&h,&i,4)+first+second-81}
 "#;
 
+const SAME_F_NESTED_SOURCE: &str = "fn leaf<F:Fn()->i32>(a:&F,b:&F,c:&F,d:&F)->i32{return a()+b()+c()+d()}fn outer<F:Fn()->i32>(a:&F,b:&F,c:&F,d:&F)->i32{return leaf(d,c,b,a)+leaf(b,d,a,c)}fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main()->i32{let a=make(1);let b=make(2);let c=make(3);let d=make(4);return outer(&a,&b,&c,&d)-20}";
+
 #[test]
 fn four_callable_binders_preserve_actual_child_permutation() {
     let module = typed(FOUR_ROLE_SOURCE);
@@ -637,6 +639,7 @@ fn one_two_and_four_role_physical_tables_have_paid_fresh_boundaries() {
         ("one", ORIGINALS[0].1),
         ("two", ORIGINALS[6].1),
         ("four", FOUR_ROLE_SOURCE),
+        ("same-f-nested", SAME_F_NESTED_SOURCE),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "role-budget.zil", source);
         let syntax = zil_syntax::parse(&unit).into_result().unwrap();
