@@ -10106,32 +10106,44 @@ fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
     }
 }
 
+fn g4453_host_source_native(text: &str) {
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
 #[test]
 fn g4453_host_complete_context_and_ordinary_static_member() {
-    for text in [
-        include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
-        ),
-        include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
-        ),
-        include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
-        ),
-        include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
-        ),
-    ] {
-        let report = compile_source(&source(text), &CompileOptions::default());
-        assert_eq!(
-            report.status,
-            ResultCategory::Success,
-            "{}",
-            report.to_json()
-        );
-        assert_eq!(report.verification_runs, 1);
-        review329_native_entry_output(&[("main", text)], "main", b"42\n");
-    }
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_member_distinct_life_owners_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_member_nearest_life_shadow_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
+    ));
+}
+
+#[test]
+fn g4453_host_generated_member_life_owners_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
+    ));
 }
 
 #[test]
