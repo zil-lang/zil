@@ -91,6 +91,50 @@ fn nested_package_endpoint(ty: &Type, state: &mut closures::State, span: Span) -
     }
     Ok(owns)
 }
+fn whole_sum_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<bool> {
+    state.snapshot_type(ty, 1, 0, span)?;
+    let mut pending = vec![ty];
+    let mut owns = false;
+    while let Some(ty) = pending.pop() {
+        state.snapshot(1, span)?;
+        match ty {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
+            {
+                owns = true
+            }
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { element } if dynamic_store::supported_element(element)) => {
+                owns = true
+            }
+            Type::Tuple(fields) => {
+                state.snapshot(fields.len(), span)?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                state.snapshot(fields.len(), span)?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Enum { variants, .. } => {
+                state.snapshot(variants.len(), span)?;
+                for (_, fields) in variants {
+                    state.snapshot(fields.len(), span)?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                state.snapshot(2, span)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } if element.is_copy_value() => {
+                state.snapshot(1, span)?;
+                pending.push(element);
+            }
+            ty if ty.is_b0_scalar() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(owns)
+}
 impl Builder<'_, '_> {
     pub(super) fn abort_exiting_replacements(
         &mut self,
@@ -200,7 +244,12 @@ impl Builder<'_, '_> {
         match at {
             Type::Managed(payload) => {
                 self.closures.snapshot_type(at, 2, 0, target.span)?;
-                if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
+                let store = path.is_empty()
+                    && matches!(payload.as_ref(), Type::OwnedStore { element } if dynamic_store::supported_element(element));
+                if !store
+                    && (!matches!(payload.as_ref(), Type::Record { .. })
+                        || !payload.is_copy_value())
+                {
                     return Ok(false);
                 }
             }
@@ -251,6 +300,11 @@ impl Builder<'_, '_> {
                     owning |= owners != 0;
                 }
                 if !owning {
+                    return Ok(false);
+                }
+            }
+            Type::Tuple(_) | Type::ErrorUnion { .. } if path.is_empty() => {
+                if !whole_sum_endpoint(at, self.closures, target.span)? {
                     return Ok(false);
                 }
             }

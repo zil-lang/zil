@@ -76,6 +76,26 @@ fn package_endpoint(ty: &Type) -> bool {
             ty => ty.is_b0_scalar(),
         })
 }
+fn ordinary_sum_endpoint(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(payload) => matches!(
+            payload.as_ref(),
+            Type::Record { .. } | Type::OwnedStore { .. }
+        ),
+        Type::Tuple(fields) => fields.iter().all(ordinary_sum_endpoint),
+        Type::Package { fields, .. } | Type::Record { fields, .. } => {
+            fields.iter().all(|(_, child)| ordinary_sum_endpoint(child))
+        }
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .all(|(_, fields)| fields.iter().all(ordinary_sum_endpoint)),
+        Type::ErrorUnion { error, result } => {
+            ordinary_sum_endpoint(error) && ordinary_sum_endpoint(result)
+        }
+        Type::Array { element, .. } => element.is_copy_value() && ordinary_sum_endpoint(element),
+        ty => ty.is_b0_scalar(),
+    }
+}
 
 impl FunctionEmitter<'_> {
     pub(super) fn commit_replacement(
@@ -109,6 +129,9 @@ impl FunctionEmitter<'_> {
         // This is the currently verified producer profile. Other owning trees
         // retain their explicit independent Hold/debt consumer boundary.
         let complete_package = package_endpoint(&ty);
+        let complete_store = matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+        let complete_sum =
+            matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) && ordinary_sum_endpoint(&ty);
         let complete_enum = if let Type::Enum { variants, .. } = &ty {
             let mut owning = false;
             let mut admitted = true;
@@ -133,6 +156,8 @@ impl FunctionEmitter<'_> {
         if !matches!(&ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
             && !complete_package
             && !complete_enum
+            && !complete_sum
+            && !complete_store
         {
             return unsupported(
                 "replacement machine cleanup requires an admitted complete managed leaf",

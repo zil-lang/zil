@@ -649,7 +649,10 @@ impl Facts {
     ) -> CompileResult<()> {
         let incoming = self.value(rhs, budget)?;
         let old = self.local(local, budget)?;
-        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.node, Node::Sum(_)) {
+        if !matches!(
+            (&old.node, &incoming.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
             return Err(error(
                 "whole Enum replacement requires actual tagged contents",
             ));
@@ -766,7 +769,10 @@ impl Facts {
         budget: &mut Budget,
     ) -> CompileResult<()> {
         let old = self.local(local, budget)?;
-        if !matches!(old.node, Node::Sum(_)) || !matches!(incoming.0.node, Node::Sum(_)) {
+        if !matches!(
+            (&old.node, &incoming.0.node),
+            (Node::Sum(_), Node::Sum(_)) | (Node::Product(_), Node::Product(_))
+        ) {
             return Err(error(
                 "tagged replacement may effect requires actual Sum contents",
             ));

@@ -2,7 +2,15 @@
 //! The local shell's debt and cleanup age stay in the ordinary resource state.
 use super::*;
 
-pub(super) fn admitted(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(super) fn admitted(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        b.type_work(ty, true, "whole ordinary Sum endpoint")?;
+        if !sums::owned(ty) || !package::ordinary_result(module, ty, b)? {
+            return Ok(false);
+        }
+        sums::admit(module, ty, b)?;
+        return Ok(true);
+    }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
     };
@@ -142,7 +150,7 @@ pub(super) fn borrowed(
     else {
         return Err(unsupported());
     };
-    if !admitted(inner, b)? {
+    if !admitted(module, inner, b)? {
         return Err(unsupported());
     }
     fee(b, f.parameters.len())?;

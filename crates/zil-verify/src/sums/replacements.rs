@@ -98,6 +98,10 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
                     owned += 1;
                     changed |= merge_endpoint(old, incoming, b)?;
                 }
+                (Content::Sum(_, _), Content::Sum(_, _)) => {
+                    owned += 1;
+                    changed |= merge_endpoint(old, incoming, b)?;
+                }
                 _ => return Err(invalid("replacement needs a complete ordinary Product")),
             }
         }
@@ -263,7 +267,7 @@ fn package_helper(
         helper_copy_result(&f.return_type, b)?
     } else {
         helper_owned_result(module, &f.return_type, b)?
-    }) || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(endpoint, b)?)
+    }) || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(module, endpoint, b)?)
     {
         return Ok(false);
     }
@@ -286,7 +290,8 @@ fn package_helper(
             | Type::U16 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Package { .. } | Type::Enum { .. } if ty == endpoint => {}
+            Type::Package { .. } | Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                if ty == endpoint => {}
             Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
             Type::Desc(payload) | Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::OwnedStore { element } if element.as_ref() == endpoint)
@@ -361,7 +366,15 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
 }
 /// Finite whole-Enum endpoint, not ordinary Sum qualification. Each owning
 /// arm has one direct canonical Copy-record leaf and scalar/Unit companions.
-fn enum_endpoint(ty: &Type, b: &mut Budget) -> Check<bool> {
+fn enum_endpoint(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        resources::charge_payload(ty, b)?;
+        if !owned(ty) || !helper_owned_result(module, ty, b)? {
+            return Ok(false);
+        }
+        check_type_for(module, ty, None, b)?;
+        return Ok(true);
+    }
     let Type::Enum { variants, .. } = ty else {
         return Ok(false);
     };
@@ -504,7 +517,28 @@ pub(crate) fn at_type<'a>(
         .ok_or_else(|| invalid("replacement actual route crosses a view or different Type"))?;
     }
     resources::charge_payload(ty, b)?;
+    let whole_store =
+        matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }));
+    if whole_store {
+        resources::check_type_for(module, ty, None, b)?;
+        if !target.steps.is_empty()
+            || !matches!(target.base, actual::Base::Local(_) | actual::Base::Input(_))
+            || f.environment.is_some()
+            || f.foreign.is_some()
+            || f.callable_contract.is_some()
+            || f.callable_return_contract.is_some()
+            || f.reference_return_bound.is_some()
+            || f.storage_life.is_some()
+            || !helper_owned_result(module, &f.return_type, b)?
+        {
+            return Err(unsupported(
+                "whole Store replacement requires an ordinary local or mutable input",
+                None,
+            ));
+        }
+    }
     if !matches!(ty,Type::Managed(payload) if matches!(payload.as_ref(),Type::Record{..})&&payload.is_copy_value())
+        && !whole_store
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
         let whole_input = target.steps.is_empty()
@@ -525,7 +559,7 @@ pub(crate) fn at_type<'a>(
                 _ => false,
             };
         if (!whole_local && !whole_input)
-            || (package_owners(ty, b)?.is_none() && !enum_endpoint(ty, b)?)
+            || (package_owners(ty, b)?.is_none() && !enum_endpoint(module, ty, b)?)
         {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",
@@ -691,7 +725,10 @@ impl Context<'_> {
                     )?;
                 }
                 if target.steps.is_empty()
-                    && matches!(flow.f.locals[local.0 as usize].ty, Type::Enum { .. })
+                    && matches!(
+                        flow.f.locals[local.0 as usize].ty,
+                        Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                    )
                 {
                     // The old observation belongs to the retired instance.
                     // The incoming Content alone carries the new tag set.
@@ -806,7 +843,13 @@ impl Context<'_> {
                 let place = self.places[f.id.0 as usize].get(*reservation, b)?;
                 let incoming = state.values[value.0 as usize].duplicate(b)?;
                 if validate
-                    && matches!(place.ty, Type::Package { .. } | Type::Enum { .. })
+                    && matches!(
+                        place.ty,
+                        Type::Package { .. }
+                            | Type::Enum { .. }
+                            | Type::Tuple(_)
+                            | Type::ErrorUnion { .. }
+                    )
                     && !incoming.complete(b)?
                 {
                     return Err(invalid("whole replacement RHS is not complete"));

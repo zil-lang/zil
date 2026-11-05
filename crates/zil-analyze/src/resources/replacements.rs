@@ -134,12 +134,16 @@ fn endpoint<'a>(
     }
     Ok(ty)
 }
-fn closed(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+fn closed(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     b.type_work(ty, true, "closed replacement endpoint qualification")?;
+    if dynamic_store::is_owned_carrier(ty) {
+        dynamic_store::ordinary_owned(module, ty, b)?;
+        return Ok(true);
+    }
     Ok(
         matches!(ty,Type::Managed(p) if matches!(p.as_ref(),Type::Record{..}) && p.is_copy_value())
             || package::field(ty, b)?.is_some()
-            || whole_enum::admitted(ty, b)?,
+            || whole_enum::admitted(module, ty, b)?,
     )
 }
 impl Program {
@@ -199,7 +203,49 @@ impl Program {
                 d.activations(f, reachable, b)?;
             }
             for definition in d.entries.values() {
-                if matches!(definition.ty, Type::Package { .. } | Type::Enum { .. }) {
+                if dynamic_store::is_owned_carrier(&definition.ty) {
+                    fee(b, definition.path.len().saturating_add(2))?;
+                    let targets = match &definition.base {
+                        Base::Local(local) => BTreeSet::from([Target {
+                            root: origins::Root::Local(*local),
+                            path: definition.path.clone(),
+                            mutable: f.locals[local.0 as usize].mutable,
+                        }]),
+                        Base::Address(value) => origins::project(
+                            &routes[f.id.0 as usize].values[value.0 as usize],
+                            &definition.path,
+                            b,
+                        )?,
+                    };
+                    fee(b, targets.len())?;
+                    for target in targets {
+                        if !target.path.is_empty()
+                            || !matches!(
+                                target.root,
+                                origins::Root::Local(_) | origins::Root::Parameter(_)
+                            )
+                            || f.callable_contract.is_some()
+                            || f.callable_return_contract.is_some()
+                            || f.environment.is_some()
+                            || f.reference_return_bound.is_some()
+                            || f.storage_life.is_some()
+                            || !package::ordinary_result(module, &f.return_type, b)?
+                        {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "whole Store replacement requires a whole ordinary local or mutable input",
+                                None,
+                            )]);
+                        }
+                    }
+                }
+                if matches!(
+                    definition.ty,
+                    Type::Package { .. }
+                        | Type::Enum { .. }
+                        | Type::Tuple(_)
+                        | Type::ErrorUnion { .. }
+                ) {
                     packages = true;
                     fee(b, definition.path.len().saturating_add(1))?;
                     let targets = match &definition.base {
@@ -223,7 +269,10 @@ impl Program {
                         )]);
                     }
                     for target in &targets {
-                        if matches!(definition.ty, Type::Enum { .. }) {
+                        if matches!(
+                            definition.ty,
+                            Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                        ) {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 whole_enum::local(f, target, b)?;
                             } else {
@@ -247,7 +296,7 @@ impl Program {
                         }
                     }
                 }
-                if !closed(&definition.ty, b)? {
+                if !closed(module, &definition.ty, b)? {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,
                         "replacement endpoint cleanup/hold bridge is under construction",
@@ -575,10 +624,36 @@ impl Program {
             rows.clear();
         }
         let ty = self.actual_type(flow.module, flow.function, target, b)?;
-        if !closed(ty, b)? {
+        if !closed(flow.module, ty, b)? {
             return Err(error(
                 "actual replacement endpoint differs from closed owning leaf",
             ));
+        }
+        if dynamic_store::is_owned_carrier(ty) {
+            let parent = match target.root {
+                origins::Root::Local(local) if target.path.is_empty() => Source::Head(local),
+                origins::Root::Parameter(parameter) if target.path.is_empty() => {
+                    Source::Argument(parameter)
+                }
+                _ => {
+                    return Err(error(
+                        "whole Store replacement lost its actual parent family",
+                    ));
+                }
+            };
+            self.invalidate_store(
+                flow,
+                state,
+                effect,
+                &BTreeSet::from([parent.store_parent()]),
+                CheckPoint {
+                    validate: check,
+                    live,
+                    output: None,
+                    position: None,
+                },
+                b,
+            )?;
         }
         match target.root {
             origins::Root::Local(local) => {
@@ -967,7 +1042,10 @@ impl Program {
                                 }
                             }
                         }
-                    } else if matches!(d.ty, Type::Enum { .. }) {
+                    } else if matches!(
+                        d.ty,
+                        Type::Enum { .. } | Type::Tuple(_) | Type::ErrorUnion { .. }
+                    ) {
                         if matches!(target.root, origins::Root::Local(_)) {
                             whole_enum::apply(flow, state, &target, *value, point, b)?;
                         } else {

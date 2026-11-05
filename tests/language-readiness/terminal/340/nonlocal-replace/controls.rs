@@ -232,6 +232,51 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                 ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
+                    "whole-store-helper",
+                    include_str!("whole-store-helper.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "whole-store-local",
+                    include_str!("whole-store-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "whole-store-apart",
+                    include_str!("whole-store-apart.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "whole-store-abort",
+                    include_str!("whole-store-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "tuple-helper",
+                    include_str!("tuple-whole-helper.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "tuple-local",
+                    include_str!("tuple-whole-local.zil"),
+                    b"AB42\n".as_slice(),
+                ),
+                (
+                    "tuple-abort",
+                    include_str!("tuple-whole-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "error-helper",
+                    include_str!("error-whole-helper.zil"),
+                    b"ABA42,42\n".as_slice(),
+                ),
+                (
+                    "error-abort",
+                    include_str!("error-whole-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
                     "owning-result",
                     include_str!("owning-result-helper.zil"),
                     b"ACB42\n".as_slice(),
@@ -427,4 +472,50 @@ fn g139_owned_result_helper_responsibility_and_failure() {
             "{errors:?}"
         );
     }
+}
+
+#[test]
+fn g139_whole_sum_responsibility_and_failure() {
+    for text in [
+        include_str!("tuple-whole-helper.zil"),
+        include_str!("tuple-whole-local.zil"),
+        include_str!("tuple-whole-abort.zil"),
+        include_str!("error-whole-helper.zil"),
+        include_str!("error-whole-abort.zil"),
+    ] {
+        check(text);
+    }
+    for text in [
+        include_str!("tuple-whole-old-desc.zil"),
+        include_str!("tuple-whole-partial.zil"),
+    ] {
+        let module = typed(text);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn g139_whole_store_responsibility_and_failure() {
+    for text in [
+        include_str!("whole-store-helper.zil"),
+        include_str!("whole-store-local.zil"),
+        include_str!("whole-store-apart.zil"),
+        include_str!("whole-store-abort.zil"),
+    ] {
+        check(text);
+    }
+    let module = typed(include_str!("whole-store-old-desc.zil"));
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
 }
