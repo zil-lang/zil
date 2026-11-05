@@ -310,6 +310,25 @@ pub(super) fn validate_declaration(
             return Err(unsupported(variant.span, "record enum variants"));
         }
     }
+    if decl
+        .generics
+        .iter()
+        .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
+    {
+        for variant in &decl.variants {
+            for field in fields(decl, &variant.name, variant.span)? {
+                if field.manages {
+                    return Err(unsupported(field.span, "owned generic enum payload"));
+                }
+                scoped_shape(&field.ty, &decl.generics, nominals, budget, 0)?;
+            }
+        }
+        // Every physical specialization is subsequently checked by the
+        // stored nominal producer, Copy registration and three consumers.
+        // The legacy layout walker represents formals as Type-only and
+        // cannot faithfully encode this declaration's Life ordinals.
+        return Ok(());
+    }
     let variables = decl
         .generics
         .iter()
@@ -335,6 +354,116 @@ pub(super) fn validate_declaration(
         }
     }
     layout(&ty, &variables, nominals, &mut BTreeSet::new(), budget, 0)
+}
+
+fn scoped_shape(
+    ty: &TypeRef,
+    formals: &[GenericParam],
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
+    match &ty.kind {
+        TypeKind::Named { path, args } if path.len() == 1 => {
+            let name = &path[0];
+            if let Some(formal) = formals.iter().find(|p| p.name == *name) {
+                if !matches!(formal.kind, GenericParamKind::Type(_)) || !args.is_empty() {
+                    return Err(error(
+                        ty.span,
+                        "scoped enum payload formal needs a bare Type parameter",
+                    ));
+                }
+                return Ok(());
+            }
+            if matches!(
+                name.as_str(),
+                "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64" | "bool" | "void"
+            ) {
+                if !args.is_empty() {
+                    return Err(error(ty.span, "scalar enum payload has type actuals"));
+                }
+                return Ok(());
+            }
+            let item = nominals
+                .get(name)
+                .ok_or_else(|| error(ty.span, "unknown scoped enum payload nominal"))?;
+            let parameters = params(item);
+            if parameters.len() != args.len() {
+                return Err(error(
+                    ty.span,
+                    "scoped enum payload needs full actual arity",
+                ));
+            }
+            for (parameter, actual) in parameters.iter().zip(args) {
+                budget.node(parameter.span, depth + 1)?;
+                match (&parameter.kind, actual) {
+                    (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                        budget.text(name, ty.span)?;
+                        if !formals.iter().any(|p| {
+                            p.name == *name && matches!(p.kind, GenericParamKind::Lifetime)
+                        }) {
+                            return Err(error(
+                                ty.span,
+                                "scoped enum payload lifetime is not a declaration binder",
+                            ));
+                        }
+                    }
+                    (GenericParamKind::Type(_), GenericArg::Type(inner)) => {
+                        scoped_shape(inner, formals, nominals, budget, depth + 1)?
+                    }
+                    (GenericParamKind::Const(domain), arg) => {
+                        let carrier = consts::argument(arg, Some(parameter), budget)?;
+                        let value = consts::expression(&carrier).ok_or_else(|| {
+                            unsupported(ty.span, "scoped enum payload const has no expression")
+                        })?;
+                        if let ExprKind::Name(name) = &value.kind {
+                            let Some(source) = formals.iter().find(|p| p.name == *name) else {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const lacks a source binder",
+                                ));
+                            };
+                            let GenericParamKind::Const(source_domain) = &source.kind else {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const binder kind differs",
+                                ));
+                            };
+                            if type_key(domain, budget)? != type_key(source_domain, budget)? {
+                                return Err(error(
+                                    ty.span,
+                                    "scoped enum payload const domain differs",
+                                ));
+                            }
+                        } else {
+                            consts::normalize(parameter, &carrier, budget)?;
+                        }
+                    }
+                    _ => return Err(error(ty.span, "scoped enum payload actual kind differs")),
+                }
+            }
+            Ok(())
+        }
+        TypeKind::Tuple(fields) | TypeKind::Union(fields) => {
+            for field in fields {
+                scoped_shape(field, formals, nominals, budget, depth + 1)?;
+            }
+            Ok(())
+        }
+        TypeKind::Array {
+            element,
+            length: Some(length),
+        } => {
+            array_length(length)?;
+            scoped_shape(element, formals, nominals, budget, depth + 1)
+        }
+        TypeKind::Group(inner) => scoped_shape(inner, formals, nominals, budget, depth + 1),
+        _ => Err(unsupported(
+            ty.span,
+            "scoped enum payload requires finite Copy type syntax",
+        )),
+    }
 }
 // Validate every written type argument, including phantom arguments which do
 // not contribute fields to the layout walk.
@@ -563,12 +692,26 @@ impl Engine<'_> {
         };
         let variant = variant.to_owned();
         let raw_fields = fields(decl, &variant, span)?;
-        if self.stored_nominals
-            && decl
-                .generics
-                .iter()
-                .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
-        {
+        let source_application = explicit.or_else(|| {
+            expected.and_then(|ty| match &grouped(ty).kind {
+                TypeKind::Named { path, args } if path.as_slice() == [decl.name.as_str()] => {
+                    Some(args.as_slice())
+                }
+                _ => None,
+            })
+        });
+        let scoped_enum = decl
+            .generics
+            .iter()
+            .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+        let stored_enum = self.stored_nominals
+            && (scoped_enum
+                || if let Some(args) = source_application {
+                    self.stored_application(&decl.name, args, span, depth + 1)?
+                } else {
+                    false
+                });
+        if stored_enum {
             let source_arguments = if let Some(explicit) = explicit {
                 if explicit.len() != decl.generics.len() {
                     return Err(error(
@@ -904,12 +1047,14 @@ impl Engine<'_> {
                 if raw.len() != arguments.len() {
                     return Err(error(pattern.span, "enum pattern payload arity mismatch"));
                 }
-                if self.stored_nominals
-                    && decl
-                        .generics
-                        .iter()
-                        .any(|p| matches!(p.kind, GenericParamKind::Lifetime))
-                {
+                let scoped_enum = decl
+                    .generics
+                    .iter()
+                    .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+                let stored_enum = self.stored_nominals
+                    && (scoped_enum
+                        || self.stored_application(&decl.name, args, pattern.span, depth + 1)?);
+                if stored_enum {
                     if args.len() != decl.generics.len() {
                         return Err(error(
                             pattern.span,
