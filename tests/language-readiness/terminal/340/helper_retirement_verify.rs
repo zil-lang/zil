@@ -144,6 +144,15 @@ fn g1361_verify_nonlocal_desc_alias_and_read_before_retirement() {
     // retirement obligations are instantiated against both actual caller roots.
     let apart = include_str!("helper-retirement-nonlocal-apart.zil");
     stale_source_expected(apart, "reset", "relay", false, None);
+    positive(apart);
+    let report = compile_source(&source(apart), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
@@ -284,6 +293,7 @@ fn g1361_verify_current_raw_wire_and_source_limits() {
             }
         }
 
+        assert_eq!(low, 21_060, "current Verify work changed");
         let fp = run(low).unwrap();
         for _ in 0..2 {
             assert!(run(low - 1).is_none());
@@ -321,6 +331,16 @@ fn g1361_verify_current_raw_wire_and_source_limits() {
                 status => panic!("{kind} {status:?}"),
             }
         }
+        assert_eq!(
+            low,
+            match kind {
+                "work" => 21_060,
+                "nodes" => 173,
+                "bytes" => 348,
+                _ => 10,
+            },
+            "current Source {kind} changed"
+        );
         let mut warm = zil_driver::CompilationSession::default();
         for (n, status) in [
             (low, ResultCategory::Success),
