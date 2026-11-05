@@ -560,24 +560,43 @@ fn g135_enum_verify_current_raw_wire_and_source_request_boundaries() {
         eprintln!("G1.3.5.1 whole Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
     }
 
-    for (work, status) in [
-        (111_234, ResultCategory::Success),
-        (111_233, ResultCategory::ResourceLimit),
-    ] {
-        let report = compile_source(
-            &input,
-            &CompileOptions {
-                stop_after: Stage::Analyze,
-                limits: Limits {
-                    max_analysis_steps: work,
-                    ..defaults.clone()
-                },
-                ..CompileOptions::default()
-            },
-        );
-        assert_eq!(report.status, status, "{}", report.to_json());
-        if status == ResultCategory::ResourceLimit {
-            assert_eq!(report.phase, Phase::Analyze);
+    let analyze_options = |work| CompileOptions {
+        stop_after: Stage::Analyze,
+        limits: Limits {
+            max_analysis_steps: work,
+            ..defaults.clone()
+        },
+        ..CompileOptions::default()
+    };
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let report = compile_source(&input, &analyze_options(mid));
+        match report.status {
+            ResultCategory::Success => high = mid,
+            ResultCategory::ResourceLimit => low = mid + 1,
+            _ => panic!("{}", report.to_json()),
         }
     }
+    // G1.3.6: unchanged Source/IR, previous111234 plus the15-step paid
+    // producer exclusion inventory; no detailed nonlocal graph is built here.
+    assert_eq!(low, 111_249, "current whole Enum Analyze work changed");
+    let mut warm = zil_driver::CompilationSession::default();
+    for (work, status) in [
+        (111_249, ResultCategory::Success),
+        (111_248, ResultCategory::ResourceLimit),
+        (111_249, ResultCategory::Success),
+    ] {
+        for report in [
+            compile_source(&input, &analyze_options(work)),
+            warm.compile_source(&input, &analyze_options(work)),
+        ] {
+            assert_eq!(report.status, status, "{}", report.to_json());
+            if status == ResultCategory::ResourceLimit {
+                assert_eq!(report.phase, Phase::Analyze);
+            }
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    eprintln!("G1.3.6 current whole Enum Analyze N={low} N-1/fresh/warm/retry Pass");
 }
