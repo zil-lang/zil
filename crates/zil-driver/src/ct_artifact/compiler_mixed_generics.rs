@@ -8,14 +8,16 @@ impl Compiler<'_> {
         if self.source_instance_calls.is_empty() {
             return Ok(true);
         }
-        // This finite projection only removes the unused Definition row of a
-        // scalar/closed-Type call. No Instance row or live reference is relabeled.
+        // Scalar/closed-Type calls can retain a full nested scope chain in the
+        // private source ledger without publishing any ambient graph reference.
+        // Remove the whole unused inventory together, never relabel a live row.
         self.budget
             .work(self.ambient_life_scopes.len(), Span::default())?;
-        if self
-            .ambient_life_scopes
-            .iter()
-            .any(|scope| matches!(scope.instance, CtScopeInstance::Instantiated(_)))
+        if !self.source_life_bindings.is_empty()
+            && self
+                .ambient_life_scopes
+                .iter()
+                .any(|scope| matches!(scope.instance, CtScopeInstance::Instantiated(_)))
         {
             return Ok(true);
         }
