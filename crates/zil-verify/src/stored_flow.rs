@@ -2391,7 +2391,9 @@ pub(super) fn check(
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || super::stored_owned::owner(ty)
-                || super::stored_owned::description(ty))
+                || super::stored_owned::description(ty)
+                || pure_inline(module, ty, b)?
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
                 return Err(unsupported(
                     "owned or opaque executable value lacks actual stored permission integration",

@@ -2673,7 +2673,9 @@ pub(super) fn infer(
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
-                || b.stored_owned_fixed && owned::data(ty, b)?)
+                || b.stored_owned_fixed && owned::data(ty, b)?
+                || pure_inline(module, ty, b)?
+                || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,

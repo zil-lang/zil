@@ -2714,7 +2714,11 @@ fn check_instruction(
                 reject("E-VERIFY-ENUM", span, "enum construction requires a result")
             })?;
             let ty = value_type(function, result, span)?;
-            let Type::Enum { variants, .. } = ty else {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let Type::Enum { variants, .. } = physical else {
                 return Err(reject(
                     "E-VERIFY-ENUM",
                     span,
@@ -2744,7 +2748,11 @@ fn check_instruction(
         }
         InstructionKind::VariantTag { value } => {
             let ty = value_type(function, *value, span)?;
-            if !matches!(ty, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            if !matches!(physical, Type::Enum { .. }) || (budget.sums && sums::owned(ty)) {
                 return Err(reject("E-VERIFY-ENUM", span, "tag requires an enum value"));
             }
             Some(Type::I32)
@@ -2755,7 +2763,11 @@ fn check_instruction(
             index,
         } => {
             let source = value_type(function, *value, span)?;
-            let Type::Enum { variants, .. } = source else {
+            let physical = match source {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let Type::Enum { variants, .. } = physical else {
                 return Err(reject(
                     "E-VERIFY-ENUM",
                     span,
@@ -2790,7 +2802,11 @@ fn check_instruction(
                     "Copy field operations cannot access owning array elements",
                 ));
             }
-            let fields = ty.aggregate_fields().ok_or_else(|| {
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                other => other,
+            };
+            let fields = physical.aggregate_fields().ok_or_else(|| {
                 reject(
                     "E-VERIFY-AGGREGATE",
                     span,
