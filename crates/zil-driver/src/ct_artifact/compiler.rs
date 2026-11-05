@@ -321,6 +321,8 @@ pub(crate) struct SourceTypeSite {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
+    /// Exact fresh actual call definition, bound before any relocation emits.
+    pub occurrence: Option<(CtBlockId, CtValueId)>,
     pub caller: CtFunctionId,
     pub caller_definition: CtSymbolId,
     pub caller_scope: CtAmbientLifeScope,

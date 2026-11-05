@@ -114,33 +114,109 @@ impl<'c, 'a> Builder<'c, 'a> {
     pub(super) fn result_type(&self) -> &CtTy {
         &self.result
     }
+    fn relocation_grow<T>(
+        values: &mut Vec<T>,
+        additional: usize,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<()> {
+        budget.work(1, span)?;
+        let needed = values
+            .len()
+            .checked_add(additional)
+            .ok_or_else(|| error(span, "CT relocation backing length overflow"))?;
+        if needed > values.capacity() {
+            let capacity = values.capacity().saturating_mul(2).max(needed).max(4);
+            Budget::take(
+                &mut budget.bytes,
+                capacity.saturating_mul(std::mem::size_of::<T>()),
+                span,
+                "CT relocation backing allocation exhausted",
+            )?;
+            budget.work(values.len(), span)?;
+            values.reserve_exact(capacity - values.len());
+        }
+        Ok(())
+    }
     pub(super) fn reserve_record_relocation(&mut self, fields: usize, span: Span) -> R<CtBlockId> {
         let added = fields.saturating_add(1);
-        let block = &mut self.blocks[self.current.0 as usize];
-        self.compiler.budget.work(
-            block.instructions.len().saturating_add(self.values.len()),
+        Self::relocation_grow(
+            &mut self.blocks[self.current.0 as usize].instructions,
+            added,
+            &mut self.compiler.budget,
             span,
         )?;
-        Budget::take(
-            &mut self.compiler.budget.bytes,
-            block
-                .instructions
-                .len()
-                .saturating_add(added)
-                .saturating_mul(std::mem::size_of::<CtInstruction>())
-                .saturating_add(
-                    self.values
-                        .len()
-                        .saturating_add(added)
-                        .saturating_mul(std::mem::size_of::<CtTy>()),
-                )
-                .saturating_add(fields.saturating_mul(std::mem::size_of::<CtValueId>())),
-            span,
-            "CT record relocation backing arrays exhausted",
-        )?;
-        block.instructions.reserve_exact(added);
-        self.values.reserve_exact(added);
+        Self::relocation_grow(&mut self.values, added, &mut self.compiler.budget, span)?;
         Ok(self.current)
+    }
+    pub(super) fn relocation_emit(
+        &mut self,
+        kind: CtInstructionKind,
+        ty: CtTy,
+        span: Span,
+    ) -> R<Value> {
+        self.reserve_record_relocation(0, span)?;
+        self.emit(kind, ty, span)
+    }
+    pub(super) fn relocation_op(&mut self, kind: CtInstructionKind, span: Span) -> R<()> {
+        Self::relocation_grow(
+            &mut self.blocks[self.current.0 as usize].instructions,
+            1,
+            &mut self.compiler.budget,
+            span,
+        )?;
+        self.op(kind, span)
+    }
+    pub(super) fn relocation_constant(
+        &mut self,
+        value: Constant,
+        ty: CtScalarTy,
+        span: Span,
+    ) -> R<Value> {
+        Self::relocation_grow(
+            &mut self.compiler.constants,
+            1,
+            &mut self.compiler.budget,
+            span,
+        )?;
+        self.reserve_record_relocation(0, span)?;
+        self.constant(CtConstant::Scalar(value), CtTy::Scalar(ty), span)
+    }
+    pub(super) fn relocation_local(&mut self, ty: CtTy, span: Span) -> R<CtLocalId> {
+        Self::relocation_grow(&mut self.locals, 1, &mut self.compiler.budget, span)?;
+        self.new_local(ty, span)
+    }
+    pub(super) fn relocation_block(&mut self, span: Span) -> R<CtBlockId> {
+        Self::relocation_grow(&mut self.blocks, 1, &mut self.compiler.budget, span)?;
+        self.new_block(span)
+    }
+    pub(super) fn relocation_select(&mut self, block: CtBlockId) {
+        self.current = block;
+    }
+    pub(super) fn relocation_call_instance(
+        &self,
+        block: CtBlockId,
+        input: CtValueId,
+        span: Span,
+    ) -> R<CtFunctionId> {
+        let instruction = self
+            .blocks
+            .get(block.0 as usize)
+            .and_then(|block| block.instructions.last())
+            .ok_or_else(|| error(span, "CT relocation has no actual latest call definition"))?;
+        let CtInstructionKind::Call { function, .. } = instruction.kind else {
+            return Err(error(
+                span,
+                "CT relocation input is not the actual latest call",
+            ));
+        };
+        if instruction.result != Some(input) {
+            return Err(error(
+                span,
+                "CT relocation input differs from actual latest call result",
+            ));
+        }
+        Ok(function)
     }
     pub fn new_block(&mut self, span: Span) -> R<CtBlockId> {
         self.compiler.budget.node(span)?;

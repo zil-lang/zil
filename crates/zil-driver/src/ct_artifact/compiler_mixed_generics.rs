@@ -434,6 +434,7 @@ impl Builder<'_, '_> {
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
+                occurrence: None,
                 caller: self.function_id(),
                 caller_definition: self.definition.clone(),
                 caller_scope,
@@ -540,6 +541,7 @@ impl Builder<'_, '_> {
         self.compiler
             .source_instance_calls
             .push(SourceInstanceCall {
+                occurrence: None,
                 caller: self.function_id(),
                 caller_definition: self.definition.clone(),
                 caller_scope,
