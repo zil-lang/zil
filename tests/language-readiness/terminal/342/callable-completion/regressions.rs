@@ -330,6 +330,7 @@ fn g339_completion_exact_two_kernel_budgets() {
         ("drop", include_str!("two-role-user-drop.zil")),
         ("lending", include_str!("qualified-lending-mut.zil")),
         ("same-generic", include_str!("same-generic-qualified.zil")),
+        ("once-adapt-managed", include_str!("once-adapt-managed.zil")),
     ] {
         let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
