@@ -397,7 +397,7 @@ struct Compiler<'a> {
     abstract_scalars: Vec<(String, symbolic_nominal::ScalarArgument)>,
     abstract_lives: Vec<(String, CtSymbolId, u32)>,
     abstract_nominals: Vec<symbolic_nominal::Nominal>,
-    active_abstract_nominals: Vec<CtRecordSchemaId>,
+    active_abstract_nominals: Vec<CtTy>,
     checking_generics: bool,
     checked_generics: Vec<usize>,
     classification_binders: Vec<String>,

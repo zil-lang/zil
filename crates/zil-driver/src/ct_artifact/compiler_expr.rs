@@ -728,6 +728,12 @@ impl Builder<'_, '_> {
                 .budget
                 .work(enumeration.generics.len().saturating_add(64), span)?;
             let symbol = self.compiler.item_symbol(owner, item)?;
+            let abstract_header = self.compiler.abstract_enum_header(
+                *schema,
+                &symbol,
+                enumeration.generics.len(),
+                span,
+            )?;
             let actual = self
                 .compiler
                 .enums
@@ -735,7 +741,7 @@ impl Builder<'_, '_> {
                 .ok_or_else(|| error(span, "CT enum constructor expected schema is absent"))?;
             if actual.name != symbol
                 || actual.origin != CtSchemaOrigin::UserPure
-                || actual.arguments.len() != enumeration.generics.len()
+                || (actual.arguments.len() != enumeration.generics.len() && !abstract_header)
             {
                 return Err(error(
                     span,

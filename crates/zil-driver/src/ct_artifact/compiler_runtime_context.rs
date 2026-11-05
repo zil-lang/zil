@@ -689,6 +689,15 @@ impl Compiler<'_> {
                     "computed runtime CT record has no independently derived abstract nominal identity",
                 ));
             }
+            CtTy::Enum(schema) => {
+                if let Some(ty) = self.runtime_abstract_enum_type(*schema, span, depth + 1)? {
+                    return Ok(ty);
+                }
+                return Err(error(
+                    span,
+                    "computed runtime CT enum has no independently derived abstract nominal identity",
+                ));
+            }
             _ => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,
