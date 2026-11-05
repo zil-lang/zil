@@ -66,7 +66,34 @@ pub(crate) fn capture_original_impl(
     context: SourceIdentityContext<'_>,
     limits: &Limits,
 ) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
+    capture_impl(sources, modules, context, limits, false)
+}
+
+pub(crate) fn capture_required_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+) -> CompileResult<(Vec<ModuleDeclarationOrigins>, Limits)> {
+    capture_impl(sources, modules, context, limits, true).map(|(rows, remaining)| {
+        (
+            rows.expect("forced original capture always constructs a namespace"),
+            remaining,
+        )
+    })
+}
+
+fn capture_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+    required: bool,
+) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
     let mut budget = Budget::new(limits);
+    if required {
+        budget.note_source_identity();
+    }
     let result =
         (|| {
             if !matches!(
