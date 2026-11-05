@@ -25,7 +25,7 @@ impl Engine<'_> {
         Ok(false)
     }
 
-    fn qualified_actual_syntax(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
+    pub(super) fn qualified_actual_syntax(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
         self.budget.node(ty.span, depth)?;
         match &ty.kind {
             TypeKind::Named { path, args } => {
