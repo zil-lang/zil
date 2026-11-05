@@ -55,6 +55,7 @@ fn walk(
             .len()
             .saturating_add(life.nominal_arguments.len()),
     )?;
+    physical_instances(module, storage, limits, b)?;
     let mut expected = Vec::new();
     // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.
     for (ordinal, (formal, actual)) in decl.parameters.iter().zip(&instance.arguments).enumerate() {
@@ -203,6 +204,7 @@ fn walk(
 }
 
 fn context_free_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    fee(b, 1)?;
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         fee(b, 1)?;
@@ -243,4 +245,92 @@ fn context_free_copy(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         }
     }
     Ok(true)
+}
+
+fn physical_instances(
+    module: &TypedModule,
+    storage: &Type,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, 1)?;
+    let mut todo = vec![storage];
+    while let Some(ty) = todo.pop() {
+        fee(b, 1)?;
+        match ty {
+            Type::BorrowedStorage { .. } => {
+                let mut count = 0usize;
+                for child in &module.life_instances {
+                    shape_work(ty, limits, b)?;
+                    b.type_work(ty, true, "nominal metadata identity")?;
+                    shape_work(&child.ty, limits, b)?;
+                    b.type_work(&child.ty, true, "nominal metadata identity")?;
+                    if child.ty == *ty {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(failure(
+                        "physical retained nominal child lacks a unique complete instance",
+                    ));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(b, fields.len())?;
+                todo.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                todo.extend(fields);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
+}
+
+pub(super) fn same_key(
+    a: &LifeNominalInstance,
+    c: &LifeNominalInstance,
+    limits: &Limits,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    fee(
+        b,
+        a.arguments
+            .len()
+            .saturating_add(c.arguments.len())
+            .saturating_add(1),
+    )?;
+    for actual in a.arguments.iter().chain(&c.arguments) {
+        match actual {
+            LifeNominalActual::Type(ty) => {
+                shape_work(ty, limits, b)?;
+                b.type_work(ty, true, "nominal actual vector identity")?;
+            }
+            LifeNominalActual::Const(Constant::WideString(data)) => {
+                fee(b, data.len())?;
+            }
+            _ => {}
+        }
+    }
+    let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
+        (&a.ty, &c.ty)
+    else {
+        return Ok(false);
+    };
+    fee(
+        b,
+        al.nominal_arguments
+            .len()
+            .saturating_add(cl.nominal_arguments.len()),
+    )?;
+    for row in al.nominal_arguments.iter().chain(&cl.nominal_arguments) {
+        fee(b, row.path.len().saturating_add(1))?;
+    }
+    // The Type actual's local scope alone omits the enclosing occurrence's
+    // class relation. Include the independently checked nominal relation.
+    Ok(a.declaration == c.declaration
+        && a.arguments == c.arguments
+        && al.nominal_arguments == cl.nominal_arguments)
 }

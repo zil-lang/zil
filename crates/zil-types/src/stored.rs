@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod retained;
 
 fn fee(left: &mut usize, amount: usize, span: Span) -> R<()> {
     *left = left.checked_sub(amount).ok_or_else(|| {
@@ -124,7 +125,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         }
     }
     let mut names = std::collections::BTreeSet::new();
-    for instance in &core.life_instances {
+    for (index, instance) in core.life_instances.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
         let declaration = declarations.get(&instance.declaration).ok_or_else(|| {
             error(
@@ -203,6 +204,17 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
             }
         }
         nominal::rows(core, instance, limits, left)?;
+        for prior in &core.life_instances[..index] {
+            if prior.declaration == instance.declaration
+                && nominal::same_key(prior, instance, limits, left)?
+            {
+                return Err(error(
+                    "E-STORED-IDENTITY",
+                    span,
+                    "one complete nominal actual vector has multiple semantic types",
+                ));
+            }
+        }
     }
     Ok(())
 }
@@ -302,10 +314,12 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if !matches!(storage.as_ref(), Type::Record { .. }) || !life.retained.is_empty() {
+    if !matches!(storage.as_ref(), Type::Record { .. })
+        || (!life.retained.is_empty() && !life.slots.is_empty())
+    {
         return Err(unsupported(
             span,
-            "stored nested/opaque carrier qualification requires its consumer",
+            "stored kind or mixed address/retained qualification requires its consumer",
         ));
     }
     struct Walk<'a> {
@@ -362,6 +376,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         path.push(PlaceProjection::Field(index));
                         self.ty(field, path, depth + 1)?;
                         path.pop();
+                    }
+                }
+                Type::BorrowedStorage { .. } => {
+                    if !retained::pure(ty, self.span, self.left)? {
+                        return Err(unsupported(
+                            self.span,
+                            "retained physical leaf needs a real borrowing consumer",
+                        ));
                     }
                 }
                 other => {
@@ -440,6 +462,40 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             ));
         }
         classes.insert(slot.binder);
+    }
+    let actual_retained = retained::expected(storage, depth_limit, span, walk.left)?;
+    fee(walk.left, life.retained.len(), span)?;
+    if actual_retained.len() != life.retained.len() {
+        return Err(error(
+            "E-STORED-TYPE",
+            span,
+            "physical retained class coverage differs",
+        ));
+    }
+    for ((path, class), row) in actual_retained.iter().zip(&life.retained) {
+        fee(
+            walk.left,
+            path.len()
+                .saturating_add(row.path.len())
+                .saturating_add(classes.len())
+                .saturating_add(1),
+            span,
+        )?;
+        if path != &row.path || *class != row.class || row.binder >= life.binder_count {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained row differs from actual physical boundary/class",
+            ));
+        }
+        if !classes.contains(&row.binder) && row.binder as usize != classes.len() {
+            return Err(error(
+                "E-STORED-TYPE",
+                span,
+                "retained classes are not canonical",
+            ));
+        }
+        classes.insert(row.binder);
     }
     if classes.is_empty() || classes.len() != life.binder_count as usize {
         return Err(error(

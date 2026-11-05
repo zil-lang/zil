@@ -77,6 +77,7 @@ fn walk(
             .saturating_add(life.nominal_arguments.len()),
         span,
     )?;
+    physical_instances(module, storage, limits, left)?;
     let mut expected = Vec::new();
     // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.
     for (ordinal, (formal, actual)) in decl.parameters.iter().zip(&instance.arguments).enumerate() {
@@ -275,6 +276,7 @@ fn walk(
 
 fn context_free_copy(ty: &Type, left: &mut usize) -> R<bool> {
     let span = Span::default();
+    fee(left, 1, span)?;
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         fee(left, 1, span)?;
@@ -315,4 +317,120 @@ fn context_free_copy(ty: &Type, left: &mut usize) -> R<bool> {
         }
     }
     Ok(true)
+}
+
+pub(super) fn same_key(
+    a: &LifeNominalInstance,
+    c: &LifeNominalInstance,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<bool> {
+    let span = Span::default();
+    fee(
+        left,
+        a.arguments
+            .len()
+            .saturating_add(c.arguments.len())
+            .saturating_add(1),
+        span,
+    )?;
+    for actual in a.arguments.iter().chain(&c.arguments) {
+        match actual {
+            LifeNominalActual::Type(ty) => {
+                let cost = inference::type_snapshot_work(
+                    ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: *left,
+                        ..limits.clone()
+                    },
+                )?;
+                fee(left, cost, span)?;
+            }
+            LifeNominalActual::Const(Constant::WideString(data)) => {
+                fee(left, data.len(), span)?;
+            }
+            _ => {}
+        }
+    }
+    let (Type::BorrowedStorage { life: al, .. }, Type::BorrowedStorage { life: cl, .. }) =
+        (&a.ty, &c.ty)
+    else {
+        return Ok(false);
+    };
+    fee(
+        left,
+        al.nominal_arguments
+            .len()
+            .saturating_add(cl.nominal_arguments.len()),
+        span,
+    )?;
+    for row in al.nominal_arguments.iter().chain(&cl.nominal_arguments) {
+        fee(left, row.path.len().saturating_add(1), span)?;
+    }
+    // The Type actual's local scope alone omits the enclosing occurrence's
+    // class relation. Include the independently checked nominal relation.
+    Ok(a.declaration == c.declaration
+        && a.arguments == c.arguments
+        && al.nominal_arguments == cl.nominal_arguments)
+}
+
+fn physical_instances(
+    module: &CoreModule,
+    storage: &Type,
+    limits: &Limits,
+    left: &mut usize,
+) -> R<()> {
+    let span = Span::default();
+    fee(left, 1, span)?;
+    let mut todo = vec![storage];
+
+    while let Some(ty) = todo.pop() {
+        fee(left, 1, span)?;
+        match ty {
+            Type::BorrowedStorage { .. } => {
+                let mut count = 0usize;
+                for child in &module.life_instances {
+                    let work = inference::type_snapshot_work(
+                        ty,
+                        span,
+                        &Limits {
+                            max_analysis_steps: *left,
+                            ..limits.clone()
+                        },
+                    )?;
+                    fee(left, work, span)?;
+                    let work = inference::type_snapshot_work(
+                        &child.ty,
+                        span,
+                        &Limits {
+                            max_analysis_steps: *left,
+                            ..limits.clone()
+                        },
+                    )?;
+                    fee(left, work, span)?;
+                    if child.ty == *ty {
+                        count += 1;
+                    }
+                }
+                if count != 1 {
+                    return Err(error(
+                        "E-STORED-IDENTITY",
+                        span,
+                        "physical retained nominal child lacks a unique complete instance",
+                    ));
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                fee(left, fields.len(), span)?;
+                todo.extend(fields.iter().map(|(_, t)| t));
+            }
+            Type::Tuple(fields) => {
+                fee(left, fields.len(), span)?;
+                todo.extend(fields);
+            }
+            _ => {}
+        }
+    }
+    Ok(())
 }
