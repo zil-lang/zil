@@ -41,6 +41,7 @@ pub(super) struct Environment<'a> {
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
     source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
+    pub(super) generated_catalog: zil_expand::source_context::GeneratedSourceCatalog,
 }
 
 impl<'a> Environment<'a> {
@@ -158,7 +159,58 @@ impl<'a> Environment<'a> {
             source_fingerprint: fingerprint,
             target,
             source_origins: None,
+            generated_catalog: Default::default(),
         })
+    }
+
+    /// Retain the exact parse+hygiene tree before output remapping. The row is
+    /// only an address; frozen source admission independently authenticates it.
+    pub(super) fn register_generated_tree(
+        &mut self,
+        tree: Arc<zil_expand::source_context::GeneratedSourceTree>,
+    ) -> CompileResult<u32> {
+        use zil_expand::source_context::SourceTreeIdentity;
+        let span = Span::default();
+        let SourceTreeIdentity::Generated { module, event_path } = &tree.identity else {
+            return Err(error("generated catalog requires a generated tree identity", span));
+        };
+        if event_path.is_empty()
+            || *module != tree.emitter.tree.module()
+            || module.0 as usize >= self.parsed.len()
+            || tree.declarations.len() > self.limits.max_nodes
+            || self.generated_catalog.trees.len() >= self.limits.max_nodes
+        {
+            return Err(error("generated source inventory exceeds its source domain", span));
+        }
+        let work = self.generated_catalog.trees.iter().fold(
+            tree.declarations.len() as u64 + event_path.len() as u64 + 1,
+            |cost, row| cost.saturating_add((row.declarations.len() as u64 + 1).saturating_mul(tree.declarations.len() as u64 + 1)),
+        );
+        self.budget.reserve_analysis_work(work)?;
+        if self.generated_catalog.find(&tree.identity).is_some() {
+            return Err(error("duplicate generated source tree identity", span));
+        }
+        let mut seen = std::collections::BTreeSet::new();
+        for declaration in &tree.declarations {
+            if !seen.insert(*declaration)
+                || self.generated_catalog.trees.iter().any(|row| {
+                    row.identity.module() == *module && row.declarations.contains(declaration)
+                })
+            {
+                return Err(error("generated declarations must have distinct output identities", span));
+            }
+        }
+        let row = u32::try_from(self.generated_catalog.trees.len())
+            .map_err(|_| error("generated catalog row exceeds its index domain", span))?;
+        self.budget.reserve_temporary_bytes(
+            (self.generated_catalog.trees.len() as u64 + 1).saturating_mul(16)
+                .saturating_add(tree.declarations.len() as u64 * 48)
+                .saturating_add(event_path.len() as u64 * 4)
+                .saturating_add(128),
+        )?;
+        self.generated_catalog.trees.reserve_exact(1);
+        self.generated_catalog.trees.push(tree);
+        Ok(row)
     }
 
     pub(super) fn bind_source_origins(

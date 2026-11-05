@@ -374,6 +374,7 @@ impl Compiler<'_> {
             u32::try_from(nodes.len()).map_err(|_| error(span, "CT metadata ID overflow"))?;
         // Ambient owners are graph-local node references too. Moving only the
         // physical nodes would silently erase the actual external life source.
+        if !graph.ambient_classes.is_empty() {
         self.budget.work(graph.ambient_classes.len(), span)?;
         Budget::take(
             &mut self.budget.bytes,
@@ -387,6 +388,7 @@ impl Compiler<'_> {
             row.owner.0 = row.owner.0.checked_add(offset)
                 .ok_or_else(|| error(span, "CT metadata ambient owner overflow"))?;
             self.metadata_ambient.push(row);
+        }
         }
         for mut node in graph.nodes {
             let mut failed = false;
@@ -751,6 +753,12 @@ impl Compiler<'_> {
         self.meta_push(nodes, node, span)
     }
     pub(super) fn metadata_data(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<CtTypeRef> {
+        let prior_ambient = std::mem::take(&mut self.metadata_ambient);
+        let result = self.metadata_data_inner(ty, span, depth);
+        self.metadata_ambient = prior_ambient;
+        result
+    }
+    fn metadata_data_inner(&mut self, ty: &CtTy, span: Span, depth: usize) -> R<CtTypeRef> {
         self.budget.depth(depth, span)?;
         let mut nodes = Vec::new();
         let node = match ty {
@@ -822,7 +830,7 @@ impl Compiler<'_> {
             CtTypeRef {
                 nodes,
                 root,
-                ambient_classes: Vec::new(),
+                ambient_classes: std::mem::take(&mut self.metadata_ambient),
             },
             span,
         )
