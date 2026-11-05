@@ -10,10 +10,10 @@ use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-#[path = "../../../tests/language-readiness/terminal/340/enum_terminal.rs"]
-mod terminal340_enum_terminal;
 #[path = "../../../tests/language-readiness/terminal/340/enum_replacement_verify.rs"]
 mod enum_replacement_verify;
+#[path = "../../../tests/language-readiness/terminal/340/enum_terminal.rs"]
+mod terminal340_enum_terminal;
 
 #[test]
 fn terminal340_owner_replacement_types_uses_real_tickets() {

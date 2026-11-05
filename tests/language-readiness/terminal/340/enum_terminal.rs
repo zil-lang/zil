@@ -123,10 +123,44 @@ fn shared_formal_and_multiple_roots_stay_closed() {
             .iter()
             .any(|d| d.message.contains("one actual local root"))
     );
+    let moved = format!(
+        "{prefix}fn identity(input:E)->E{{return input;}}fn main()->i32{{var value=E.Left(R{{code:65}},1);let target=&mut value;*target=identity(value);return 42;}}"
+    );
+    let report = compile_source(&source(&moved), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("live old shell"))
+    );
+    let old_view = format!(
+        "{prefix}fn main()->i32{{var value=E.Left(R{{code:65}},1);match value{{E.Left(ref r,_)=>{{let old=r;let target=&mut value;*target=E.Right(2,R{{code:66}});return old.code;}},E.Right(_,_)=>{{return 0;}},E.Empty()=>{{return 0;}}}}}}"
+    );
+    let report = compile_source(&source(&old_view), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-BORROW-CONFLICT")
+    );
 }
 
 #[test]
-fn raw_actual_payload_description_cannot_survive_whole_commit() {
+fn raw_payload_description_transport_stays_explicitly_closed() {
     // Legal source uses the payload before replacement. The raw neighbor then
     // retains an actual weak description, not its address loan, across Commit.
     let text = "resource R{code:i32}enum E{Left(manages R,i32),Right(i32,manages R),Empty}fn main()->i32{var value=E.Left(R{code:65},1);match value{E.Left(ref r,_)=>{let n=r.code;let target=&mut value;*target=E.Right(2,R{code:66});return n;},E.Right(_,_)=>{return 0;},E.Empty()=>{return 0;}}}";
@@ -199,14 +233,39 @@ fn raw_actual_payload_description_cannot_survive_whole_commit() {
         },
     );
     block.terminator = zil_ir::Terminator::Return(Some(read));
-    let error = zil_analyze::analyze(&typed, &limits)
-        .expect_err("actual retired payload Desc must be rejected");
-    assert!(
-        error
-            .iter()
-            .any(|d| d.message.contains("description required later")),
-        "{error:?}"
-    );
+    let mut before = typed.clone();
+    let f = before
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| b.instructions.iter().any(|i| i.result == Some(read)))
+        .unwrap();
+    let pos = block
+        .instructions
+        .iter()
+        .position(|i| i.result == Some(read))
+        .unwrap();
+    let operation = block.instructions.remove(pos);
+    let reserve = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, InstructionKind::ReservePlaceAddress { .. }))
+        .unwrap();
+    block.instructions.insert(reserve, operation);
+    for (name, neighbor) in [("before Commit", before), ("after Commit", typed)] {
+        let error = zil_analyze::analyze(&neighbor, &limits)
+            .expect_err("payload weak-Desc transport remains closed");
+        assert!(
+            error.iter().any(|d| d
+                .message
+                .contains("instruction cannot produce the claimed resource kind")),
+            "{name}: {error:?}"
+        );
+    }
 }
 
 #[test]
