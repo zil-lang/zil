@@ -5,8 +5,8 @@ use super::*;
 
 fn nested_fixture() -> Fixture {
     fixture(
-        "struct Leaf<T:Copy,#N:i32,life a>{n:T} struct Parent<T:Copy,#N:i32,life a,life b>{left:Leaf<T,N,'a>,right:Leaf<T,N,'b>} fn make<life a,life b>()->Parent<i32,37,'a,'b>{return Parent::<i32,37,'a,'b>{left:Leaf::<i32,37,'a>{n:41},right:Leaf::<i32,37,'b>{n:42}}} fn query<T:Copy,#N:i32,life x,life y>(p:&'x i32)->i32{let value=#(make::<'x,'y>());return value.left.n}",
-        3,
+        "struct Leaf<T:Copy,#N:i32,life a>{n:T} struct Parent<T:Copy,#N:i32,life a,life b>{left:Leaf<T,N,'a>,right:Leaf<T,N,'b>} fn make<life a,life b>()->Parent<i32,37,'a,'b>{return Parent::<i32,37,'a,'b>{left:Leaf::<i32,37,'a>{n:41},right:Leaf::<i32,37,'b>{n:42}}} fn forward<life a,life b>()->Parent<i32,37,'a,'b>{return make::<'a,'b>()} fn query<T:Copy,#N:i32,life x,life y>(p:&'x i32)->i32{let value=#(forward::<'x,'y>());return value.left.n}",
+        4,
     )
 }
 fn admit_nested(f: &mut Fixture) {
@@ -53,7 +53,7 @@ fn original_nominal_fields_preserve_complete_type_const_and_life_actuals_after_w
 }
 #[test]
 fn original_nominal_field_rejects_parent_site_and_complete_alias_substitutions() {
-    for attack in 0..9 {
+    for attack in 0..11 {
         let mut f = nested_fixture();
         admit_nested(&mut f);
         let child = f
@@ -120,6 +120,11 @@ fn original_nominal_field_rejects_parent_site_and_complete_alias_substitutions()
                 .site;
                 f.facts.bindings[child].site = Some(site);
             }
+            9 => f.facts.bindings[child].caller = Some(f.raw.entry),
+            10 => {
+                f.facts.bindings[child].definition =
+                    f.raw.functions[f.raw.entry.0 as usize].definition.clone()
+            }
             _ => {
                 // The sibling field is a real source Type. The entire parent
                 // raw field layout must defeat coordinated graph+site+alias
@@ -146,4 +151,33 @@ fn original_nominal_field_rejects_parent_site_and_complete_alias_substitutions()
             "nominal field substitution {attack}"
         );
     }
+}
+
+#[test]
+fn actual_generic_host_preserves_context_when_member_has_no_own_parameters() {
+    let mut f = fixture(
+        "struct Phantom<life a,T:Copy,#N:i32>{n:i32} struct Maker<life h,X:Copy,#M:i32>{fn make()->Type{return Phantom::<'h,X,M>}} fn choose<life s>()->Type{return Maker::<'s,bool,42>.make()} fn query<life s>(p:&'s i32)->i32{let value:Type=#(choose::<'s>());return 0}",
+        3,
+    );
+    if let Err(error) = f.context.extend_calls(
+        &f.facts.calls,
+        &f.facts.scopes,
+        &f.raw,
+        &f.index,
+        &mut f.budget,
+    ) {
+        let admitted = f
+            .context
+            .active
+            .iter()
+            .map(|active| &active.raw)
+            .collect::<Vec<_>>();
+        panic!(
+            "host source admission: {error:?}; raw={:?}; admitted={admitted:?}; calls={:?}",
+            f.raw.ambient_life_scopes, f.facts.calls
+        );
+    }
+    f.context
+        .validate_type_contexts(&f.facts, &f.raw, &f.index, &mut f.budget)
+        .unwrap();
 }
