@@ -1,0 +1,204 @@
+{
+  "task": "G3.3.4",
+  "kind": "author limited actual Source shared Fn helper slice",
+  "source_commit": "8485125df87b6ff0429dc2839c3098a053c72e48",
+  "tests_commit": "db3407d8b3f45562a0bf078869c2fe62e946cc4a",
+  "source_parent": "db3407d8b3f45562a0bf078869c2fe62e946cc4a",
+  "source_delta_from_parent": "Equivalent nested-if collapse required by strict Clippy; tests and all other production bytes unchanged.",
+  "accepted_main_parent": "e7247e781d49ab569de263d142f72546f53470d3",
+  "public_core_api_commit": "0b581b0b732d1f16f8253ebf73a6578809d9cd4b",
+  "precondition_commit": "a757202e725e94ce98604849669e795c917b2c5a",
+  "first_actual_Source_checkpoint": "cfc541b5b0beefd34493e689990d67b7f5db0045",
+  "seal": "Containing Git commit is docs-only. No Typed/Wire change, Analyze/Verify production edit, global Fixed gate relaxation or formal gate is asserted by this receipt.",
+  "design_sha256": "4e43cca328de65ce3c8a3b60e61e95c8b0675e34ba2d8f99bc667d0c5e658b24",
+  "normative_sha256": "ff4a4276a73e7f2852e980194e71edb0709dafb9ce1ec15dd28424306bfe60d8",
+  "production_sha256": {
+    "crates/zil-ct/src/source.rs": "9ff806032f12cca15a6e1ba053605e94f844fffa2f18afd27829d03232aec273",
+    "crates/zil-driver/src/ct_program.rs": "3e9ad4ae0a94fbe0cca8c57f9bb31805fc7c5b2ef83b8941a2bd7517964de277",
+    "crates/zil-expand/src/callable_context_lower.rs": "fb0c1e4a1d1b47ccd95390590c154df0647fb2689a9f3905cc856a5d37fab831",
+    "crates/zil-expand/src/generic_callable.rs": "908f7fd3a5fe43015edcb75efc94c701f56f3f29ff5b6be40d599c496b41e56a",
+    "crates/zil-expand/src/generic_callable_context.rs": "9d8c0a73531d530e8467269e32654569a81529b40cfa89e674fb1f3471b6deb2",
+    "crates/zil-expand/src/generic_products.rs": "7600007881e773bc08e026632c7a001b1dfabad0e0439a8029cd131a68d74c90",
+    "crates/zil-expand/src/generic_stored_nominal.rs": "95909b3da28d4640ad32e41af143b73c2c5d98d6802e93326de405968f8aa74a",
+    "crates/zil-expand/src/generics.rs": "c08ee174ae902641a99ef1e994b184f018fb5d0f9c485c47526e15a548bf2bfa",
+    "crates/zil-expand/src/lib.rs": "c9b49937f9dfa2dfb67be5bd44fcbf597d00e2e4e96d181cc8ba6a4e0da8d557",
+    "crates/zil-expand/src/receivers.rs": "5a1c3b662318661f88129b32fae47c0a0ed13a499eaec869bf831b1c2b49a74e",
+    "crates/zil-expand/src/stored_types.rs": "86adcf45f8a8a447eafe4cea0e07a2d453670cdadad42c1dc43bcd6db754a180",
+    "crates/zil-ir/src/closure_context.rs": "807f81230707279bbb974a42ef702bc0310f02c1c6dc4262706473229287a557",
+    "crates/zil-ir/src/lib.rs": "e4ba5ec70b5c8c5c434aff94b35c9c640cbf2967965b791d40eea54d830b0db3",
+    "crates/zil-types/src/aggregates.rs": "01853d9fe67f60912a2b55424dff6202eaecce1e0bddf867989dac5e6f5e2ef4",
+    "crates/zil-types/src/closures.rs": "8639b0f38e57102b17ee3e371675d5173c9251ea20f8848a5ef3749ba33c12ba",
+    "crates/zil-types/src/helper_capture_tests.rs": "84c8a828d38ae9e3a5c2051035f170aa1ce46eb7682830f99c7bfda8dca89a66",
+    "crates/zil-types/src/helpers.rs": "a8143ed787d709b88c1ae61c3fca076f05001b93a94430ffcc0cdd1c38866f20",
+    "crates/zil-types/src/helpers/source_life.rs": "eea31c236831d45c22489af8f5ccfb88f3f2fc7a4942bb529b61fbacd330f719",
+    "crates/zil-types/src/inference.rs": "df4a1db3c8ff030434861bf98a1957d0776dc9d9aceee0b719b5c9d546f91128",
+    "crates/zil-types/src/lib.rs": "6089b4640e030c1d256fcff5b2ebeec281a0298e0e8f2570c5ebd7a8d70d9236",
+    "crates/zil-types/src/state_origins.rs": "157e6575b0c44c165a66b211b87437860d79860e069762ee8faa19ec45727c5b"
+  },
+  "tests_and_Source_sha256": {
+    "crates/zil-driver/tests/generic_regressions.rs": "cb09ddb779e0a1e45489b7d11fd30699ec79b010504bf58c708db81ff6bdb610",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-good.zil": "9864c0238ff74220b1c3f0e705327c9150670b47d7127611dd8ddeedf98fbf37",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil": "f534ef47d1dec3ffb939c8f9535d15a01079d07cc91ce0b9171b6d8d30a2744b",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-call.zil": "4e90af4168bacc19309cbf7a1555905c6f41e5a12c2941ccdd7147dda31524e4",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-unused.zil": "b76b16a4b8324551b5e3a93732ea02bbfa56e4f08f0c087c3b1e5f667093b09f",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/direct-no-helper.zil": "e06e8797a8cbebf77f9b306d2033e9031eaf8dbe7d0c057e0c37b7f87d8acbb6",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil": "28df7d7736899c6bdc352c9a9a1ae66e647d76c6f2fcbdb0a3ce9531570977d9",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-after-data.zil": "d3ead8ce5bdb70d0dc97b762933d303d0ce5db1de32935ebe6d74fe1dd2ae882",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-before-data.zil": "383f371678ca161a26829116c2a659bf61ec13782c70fd6e8e280b07f0c406e1",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/reverse-generics-good.zil": "c5935ee529960ad9a0e0e39d49626108917eed641fd9dbe709242cbc8f2a4676",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/reverse-generics-wrong-class.zil": "1277e8863683f9de56354fb8c90574ab669daa2651793f532091684361d86654",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-bound-good.zil": "91eab09ac6db3012f1c6ccdfd82637bbe1f2fc3215a92a28042246988342dd97",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-bound-wrong-class.zil": "429c1eda9e272f6d6d87f713ae9a7917df2f3941736c2ea471e2799c0a595f7c",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-a.zil": "2513143ead01f82fb4ef2d318dd1e940c2172c4c6be9ab257f90e3eae9c5d047",
+    "tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil": "125fc5e896bcf8f259a453cd3ba23d0afe342e00500c8a871b18e1b91d4ecd76"
+  },
+  "implemented": {
+    "Source_producer": "Actual original selected Fn bound and first actual helper header are retained before nominal specialization/life erasure. Original life index is explicitly mapped to full generic ordinal. Actual lowered function+runtime role+filtered F+selected bound event consumes the private origin ledger once; repeated or orphan emission rejects. Body CT may preserve an Original header; generated/changed headers have no new permission.",
+    "Core": "Root attached optional source_life to actual CoreCallableParameter. Existing life stores only original bound P/R. Context stores full original kinds, full F/bound coordinates, bound Fixed-to-source-life and actual header input selectors. No separate public table, duplicated owner/header or trusted flag.",
+    "Types": "Bounds are independently canonical P/R proposals. Infer actual concrete environment first, align every bound P/R to its actual persistent Fixed, map bound full-source life through actual helper data header, and jointly canonicalize complete receiver-free-Fixed selectors plus original data positions. Full role retains every actual Capture row; equality to definition is a checked finite result, not overwriting the source obligation.",
+    "actual_proof": "Unchanged independent Analyze/Verify prove each actual caller receiver/data equation, payload target/loan summary and mode. Source body f(x) is not required to enforce the declared relation: constant42/CT42 helpers still reject wrong actual class.",
+    "evaluation": "Existing argument evaluation/staging remains left-to-right once. Scalar mark arguments interleaved around receiver/data produce trace123 in both runtime role positions1/3; complete native outputs checked.",
+    "budgets": "Attached context vector/text/path/domain and comparisons are bounded/prepaid before inference/helper/signature copies. Aggregate module/function/role/header copies, normalizer and Builder bounds charge current live ledgers, not fresh quotas. Actual complete role copying is separately charged. CT/Driver bound transport is prepaid; pure CT selected helper is explicitly Unsupported. None paths add no metadata debit or discovery scan.",
+    "identity_boundary": "declaration/identity is authenticated producer provenance data, not runtime authority. Types has no original AST and does not re-prove text identity or reject consistent raw spelling changes. Actual placement is containing function/role plus actual header/capture facts; no name/Span/pointee-type guess grants permission."
+  },
+  "author_execution": {
+    "cache": "fresh /workspace/.zil-env/target342-G3.3.4; never reused342-40 across tree",
+    "environment": "source env.sh; jobs2; dev/test debug0; incremental0; workspace TMPDIR; RUST_MIN_STACK unset",
+    "commands": [
+      "cargo test -p zil-driver --test generic_regressions --features llvm-api g334_ -- --nocapture",
+      "cargo test -p zil-driver --test generics --features llvm-api -- --nocapture",
+      "cargo test -p zil-driver --lib --features llvm-api g334_ -- --nocapture",
+      "cargo test -p zil-types --lib -- --nocapture",
+      "cargo test -p zil-expand --lib closure_context -- --nocapture",
+      "cargo clippy -p zil-types -p zil-expand -p zil-ct --lib -- -D warnings",
+      "cargo clippy -p zil-driver --lib --test generic_regressions --test generics --features llvm-api -- -D warnings",
+      "cargo fmt --all --check",
+      "git diff --check"
+    ],
+    "counts": {
+      "new_generic_regressions": {
+        "pass": 6,
+        "fail": 0
+      },
+      "complete_generics": {
+        "pass": 48,
+        "fail": 0
+      },
+      "pure_CT_Source_derived_query_selection": {
+        "pass": 1,
+        "fail": 0
+      },
+      "Types_library": {
+        "pass": 47,
+        "fail": 0
+      },
+      "old_Expand_closure_context": {
+        "pass": 12,
+        "fail": 0
+      }
+    },
+    "strict_clippy": "Pass on final equivalent source848; original nested-if strict failure preserved",
+    "fmt_diff": "Pass",
+    "actual_Source": "Original simple and reverse helper now reach actual Verify1; wrong declared class/unused body still Expand SafeReject. Full kinds [life b,F,life a], full F1/filtered0/runtime0 and bound Fixed0->life full2->old data header Fixed1 are asserted. Same-shaped unused bound a/b transport differs in named_fixed original fullordinal0/1 with actual corresponding data class anchors, not only source fingerprint.",
+    "actual_wrong_input": "good/wrong caller pair only swaps same-shaped Tag actual input; bad reaches Analyze retained-class rejection. Helpers returning constant42 and CT42 also reject wrong actual input despite no callback invocation.",
+    "raw_Wire": "Good actual Source Typed + honest Analyze plan passes Verify raw/Wire. Two mutations swap helper data SSA or actual MakeClosure capture operand to distinct existing class. Analyze independently rejects class; Verify raw/Wire reject actual class after rebinding only current module fingerprint in adversarial candidate plan, not stale-plan/schema rejection.",
+    "native": {
+      "unique_cases": 4,
+      "backends": [
+        "Clang",
+        "LLVM API"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "executions": 16,
+      "expected": "exit0, full stdout42 newline, empty stderr; backend identity and no fallback asserted",
+      "cases": [
+        "simple",
+        "reverse",
+        "ordered F before data with scalar marks",
+        "ordered F after data with scalar marks"
+      ]
+    },
+    "whole_Types_request_N": 8344,
+    "Nminus1": "ResourceLimit",
+    "fresh_retry": "exact Typed equality",
+    "FunctionSession": "Two actual qualified-profile requests recheck stable output; no scalar reuse claim for this profile.",
+    "old_None_boundaries": {
+      "ordinary_stored_Types": 668,
+      "direct_captured_Source_Types": 1611,
+      "old_quantified_F_helper_Source_to_Lower": 21782,
+      "old_Expand_actual_Source_to_Core": 6155,
+      "check": "N/N-1/fresh, quantified helper also warm; complete generics regression passes"
+    },
+    "malformed_Core": "9 Source-derived variants: missing context, wrong full F kind/ordinal, filtered role, runtime parameter, named source life ordinal, header binder, selected bound coordinate, duplicate selector and absent actual input. Direct context/shape error, not ResourceLimit/schema mismatch. Raw identity rename preserves identical Typed output and grants no authority.",
+    "before_clone": "Baseline infer fits16384; context package32768 bytes and path(maxDepth+1) ResourceLimit before snapshots. Fields/domains bounded before their allocation.",
+    "project_cache": "Actual private helper and capture creator in dependency library, scalar pub answer wrapper. ColdMissing -> warmHit/memory_hit -> fresh-session diskHit, every success currentVerify1. Change only wrong actual Tag operand rejects at current Analyze; revert returns exact original fingerprint and Verify1 in both existing/fresh session. No new cache protocol or bypass."
+  },
+  "frontier": {
+    "allowed": "Original header/bound, one shared Fn runtime role, one shared qualified callback input, scalar callback/owner result; direct shared qualified data plus scalar arguments. Body-only CT preserves context on actual template transport.",
+    "old_lane_preserved": "ClosedEnvironment before/after Fn and dualF unused correct declarations remain Verify success with no Some. Extra ordinary Type/Const, by-value/mutable callback input and non-scalar/lending result do not get this new bridge. Existing wrong declared-body obligations remain checked.",
+    "not_done": [
+      "Source helper FnMut/FnOnce bridge",
+      "General lending, escaping/forwarded or retained callback",
+      "Mixed ordinary Type/Const instances and complete actual vectors",
+      "Member/generated/rewritten-header contexts",
+      "General alias/local qualification reconstruction",
+      "Whole parent G3.3/G4.4 or product gates"
+    ]
+  },
+  "preserved_failures": [
+    "be066 legal positive failed Analyze missing closure free Fixed selector; inverse source bounds a/b collided into identical CoreCallableParameter, exact precondition receipt retained.",
+    "First Source producer checkpoint rejected unconsumed bound because late generic order had deleted Life entries; actual original selected-bound ledger and stable filtered/runtime lowering link repaired it.",
+    "Old generics assertion only recognized obsolete Unsupported strings; production source unchanged; accepted main6f375 matcher fix normally merged viae724. Final generics48 passes.",
+    "Original mark assignment *trace=*trace*10+digit hit stored-target overlapping-loan rejection. Exact be066 no-F direct closure control reproduces same rejection. No kernel fix claimed; final order proof uses two compound operations with same trace semantics. g334-second Fail remains history.",
+    "Strict Clippy nested-if failure fixed equivalently at848; not a language acceptance change.",
+    "First pure CT probe used bare function name and reached unknown-function fallback; corrected probe uses the actual Source-derived helper Call, and verifies the explicit contextual-template selection gate."
+  ],
+  "independent_review": {
+    "reviewer": "helper_review_high non-author, following earlier ct_review_resume static feedback",
+    "status": "Final receipt pending at docs write; reviewer independently bound848 and reported no findings on db plus equivalent style hunk; not substituted by author execution",
+    "expected_receipt": "/tmp/zil-G3.3.4-review.json",
+    "scope": "Independent actual Source/raw/Wire/native and bounded regressions; no formal full gate claim."
+  },
+  "Rust_goals": {
+    "safety": "Real original bound/header/environment obligations survive erasure and are checked by independent runtime kernels; complete-language safety not established.",
+    "runtime_memory": "Existing inline closure and pointer ABI; no implicit Box/RC/lock or runtime identity table. Same-semantics Rust runtime/RSS/latency not measured.",
+    "expression_maintenance": "A real qualified-input captured Fn now passes through an ordinary generic helper, including ordered scalar work and a private library. General modes/scopes and framework maintenance comparison remain incomplete.",
+    "compile_cost": "Current-ledger metadata copies and exact bounded retries/default quotas preserved. No Rust compilation-cost advantage or global old-source zero-CPU claim.",
+    "breakthrough": "Reproducible finite library-expression increment, not a product-level four-goal conjunction; original product-gates unchanged."
+  },
+  "logs": {
+    "directory": "/workspace/.zil-env/G3.3.4-tmp",
+    "sha256": {
+      "source-matrix.json": "ede568303ef5720e8a29417271e2f02fe65b04cd69f73c1c5fc0acbda935435a",
+      "erased-bound-comparison.json": "16b237b668097c827973eac309d945e5191ad6434a0f86abdf8e7b0cceccec66",
+      "first-consumer-matrix.json": "e87a166a4b79f6c8c0936264a9b66f8e1143808e56c0d01a2c81bcbc1cb7d271",
+      "second-consumer-matrix.json": "020c2b65421f38685e39434898fd9925a71e520f1facf29b3d28e95c86ad13a8",
+      "g334-first.log": "f73f8b80991f7aa99c882d1549ca89b61b46b471d915fc55aaab7e2aae252022",
+      "g334-second.log": "4b92f5df003e41d51db39546209108594767347bc02a979ea27343043511a1b9",
+      "g334-third.log": "82fc4420999c3279918f49e515fe9377a65bdab27833a84753ef990dc2a585cb",
+      "g334-fourth.log": "c3c535132a878b532c954b38b66de32c9cbc550a75dcaed5ca95c5bf61fe8bf5",
+      "g334-final.log": "84fa5f28900931bc287e1ee144c0ebf6c9df685f24b97f3e8184c3b71a5dab7f",
+      "g334-sealed-source.log": "9ac1286bbebf422e14033a885d98b22d0a6a0e19d64caf609598fb703dfb3176",
+      "generics-regression.log": "fd59c6f10466afaf1e9d115bd4a87f4f3482104875fab2c5514d94b68f53cf7e",
+      "generics-final.log": "f30cf80b8e9d3567755c7a84ec3c611454c00dee38cf74599147cc1f791c9f6a",
+      "ct-selection.log": "6b72d5bd3b526140c9f34a2cb53fc7e646e894567a476b9c354cbff34d758b82",
+      "ct-selection-retry.log": "cadfac3d22d72d4a22f0ff3007432f882d4b63b0492a7419c3361e80d9bbed33",
+      "ct-selection-final.log": "d712f5484579be7a1d3f87d9ed8443661aac3f9c1238c43f1684a7edbb518cfa",
+      "types-final.log": "bfda5cf60b2801778b0fa0a8b83156f106b93d55f1f0ef06e4c1dd5b4893aed5",
+      "expand-final.log": "8abe29281bc39a03cbf903f2359e1b656c326eb4b8c2fe9680d71f62e33d2869",
+      "clippy-libs.log": "a6b8b62516af26fcaf8d75edb5e2b5e9d0e29645d7b8c4d7e5f4285a5c0511aa",
+      "clippy-driver.log": "d639a3972ac78734d61c816c4cf65e5e4713a3e95a76301b6dd1f6260a0313e3",
+      "clippy-libs-retry.log": "1fbd062fd4279c6a98df42c382bb5ceca35ab201604eec742136e984e635f966",
+      "clippy-driver-retry.log": "cc3575e3baf9b33754abade02094f913dfb2e82f3b4b795616b9dc6d52acc994",
+      "fmt-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "diff-sealed.log": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "frontier-baseline-be066.json": "e8f40553ac0bb7623188d8dc9569172d5af92be7724719d008d9d516d5f60ecd",
+      "old-direct-mark-assignment.zil": "5b03321a4151df2791aded6f7aa73d20c39adb1f56eadcbbed79a810c347ae78",
+      "old-direct-mark-assignment.json": "797b9fc5e4be4332829a796bcfa59ad8aeb47977181e8b2ff1f25c15978e603b"
+    }
+  },
+  "features": "Author native target explicitly built with llvm-api; no fallback. No full workspace/all-target or formal performance gate run by this task."
+}
