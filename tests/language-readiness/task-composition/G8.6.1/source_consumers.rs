@@ -295,7 +295,7 @@ fn g861_complete_enum_internal_view_real_source_native() {
                     assert_eq!(report.verification_runs, 1);
                     assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
                     // A real unknown input chooses either same-typed payload/tag.
-                    for flag in [b'L', b'R'] {
+                    for flag in *b"LR" {
                         let mut child = Command::new(&report.artifacts["executable"])
                             .stdin(Stdio::piped())
                             .stdout(Stdio::piped())
@@ -336,7 +336,7 @@ fn g861_complete_enum_internal_view_real_source_native() {
 #[test]
 fn g861_complete_enum_request_budgets_and_semantic_cache() {
     use zil_driver::{CompilationSession, Stage};
-    let bounds = |ledger: &str| {
+    let bounds = |case: &str, text: &str, ledger: &str| {
         let options = |n| {
             let mut options = CompileOptions::default();
             match ledger {
@@ -359,7 +359,7 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
                 _ => unreachable!(),
             },
         );
-        let input = source(OWNED_ENUM861);
+        let input = source(text);
         assert_eq!(
             compile_source(&input, &options(high)).status,
             ResultCategory::Success
@@ -390,10 +390,18 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        eprintln!("G8.6.1 whole Source {ledger} N={low}/N-1/cold/warm/fresh");
+        eprintln!("G8.6.1 {case} Source {ledger} N={low}/N-1/cold/warm/fresh");
     };
-    for ledger in ["work", "nodes", "bytes", "depth"] {
-        bounds(ledger);
+    for (case, text) in [
+        ("whole", OWNED_ENUM861),
+        (
+            "internal-view",
+            include_str!("owned-enum-view-across-yield.zil"),
+        ),
+    ] {
+        for ledger in ["work", "nodes", "bytes", "depth"] {
+            bounds(case, text, ledger);
+        }
     }
     let dir = std::env::temp_dir().join(format!("zil861-cache-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -408,6 +416,9 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
         (OWNED_ENUM861, "PAR"),
         (pair, "PABR"),
         (cancelled.as_str(), "PAB"),
+        (include_str!("owned-enum-view-same-poll.zil"), "PAR"),
+        (include_str!("owned-enum-view-across-yield.zil"), "PQAR"),
+        (include_str!("owned-enum-view-same-poll.zil"), "PAR"),
         (OWNED_ENUM861, "PAR"),
     ]
     .into_iter()
@@ -434,7 +445,7 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        if matches!(ordinal, 1 | 4) {
+        if matches!(ordinal, 1 | 6 | 7) {
             assert_eq!(
                 report.disk_cache,
                 zil_driver::DiskCacheStatus::Hit,
@@ -474,7 +485,7 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
         zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
         candidates += 1;
     }
-    assert!(candidates > 0);
+    assert_eq!(candidates, 5);
     eprintln!(
         "G8.6.1 warm/change/cancel/revert native and {candidates} actual cache raw/Wire controls"
     );
@@ -485,49 +496,57 @@ fn g861_complete_enum_request_budgets_and_semantic_cache() {
 fn g861_complete_enum_kernel_current_request_boundaries() {
     let defaults = Limits::default();
     let target = zil_base::TargetProfile::default();
-    let core = expand(OWNED_ENUM861, &defaults).unwrap().core;
-    let typed = zil_types::check(&core, &target, &defaults).unwrap();
-    let plan = zil_analyze::analyze(&typed, &defaults).unwrap();
-    for phase in [
-        zil_base::Phase::Types,
-        zil_base::Phase::Analyze,
-        zil_base::Phase::Verify,
+    for (case, text) in [
+        ("whole", OWNED_ENUM861),
+        (
+            "internal-view",
+            include_str!("owned-enum-view-across-yield.zil"),
+        ),
     ] {
-        let run = |n| {
-            let limits = Limits {
-                max_analysis_steps: n,
-                ..defaults.clone()
-            };
-            match phase {
-                zil_base::Phase::Types => zil_types::check(&core, &target, &limits).map(|_| ()),
-                zil_base::Phase::Analyze => zil_analyze::analyze(&typed, &limits).map(|_| ()),
-                zil_base::Phase::Verify => {
-                    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
-                        .map(|_| ())
+        let core = expand(text, &defaults).unwrap().core;
+        let typed = zil_types::check(&core, &target, &defaults).unwrap();
+        let plan = zil_analyze::analyze(&typed, &defaults).unwrap();
+        for phase in [
+            zil_base::Phase::Types,
+            zil_base::Phase::Analyze,
+            zil_base::Phase::Verify,
+        ] {
+            let run = |n| {
+                let limits = Limits {
+                    max_analysis_steps: n,
+                    ..defaults.clone()
+                };
+                match phase {
+                    zil_base::Phase::Types => zil_types::check(&core, &target, &limits).map(|_| ()),
+                    zil_base::Phase::Analyze => zil_analyze::analyze(&typed, &limits).map(|_| ()),
+                    zil_base::Phase::Verify => {
+                        zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                            .map(|_| ())
+                    }
+                    _ => unreachable!(),
                 }
-                _ => unreachable!(),
+            };
+            let (mut low, mut high) = (1, defaults.max_analysis_steps);
+            run(high).unwrap();
+            while low < high {
+                let n = low + (high - low) / 2;
+                if run(n).is_ok() {
+                    high = n;
+                } else {
+                    low = n + 1;
+                }
             }
-        };
-        let (mut low, mut high) = (1, defaults.max_analysis_steps);
-        run(high).unwrap();
-        while low < high {
-            let n = low + (high - low) / 2;
-            if run(n).is_ok() {
-                high = n;
-            } else {
-                low = n + 1;
-            }
+            run(low).unwrap();
+            let errors = run(low - 1).unwrap_err();
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::ResourceLimit,
+                "{phase:?}: {errors:?}"
+            );
+            assert_eq!(errors[0].phase, phase, "{errors:?}");
+            run(low).unwrap();
+            eprintln!("G8.6.1 {case} actual Source kernel {phase:?} N={low}/N-1/fresh");
         }
-        run(low).unwrap();
-        let errors = run(low - 1).unwrap_err();
-        assert_eq!(
-            errors[0].category,
-            ResultCategory::ResourceLimit,
-            "{phase:?}: {errors:?}"
-        );
-        assert_eq!(errors[0].phase, phase, "{errors:?}");
-        run(low).unwrap();
-        eprintln!("G8.6.1 actual Source kernel {phase:?} N={low}/N-1/fresh");
     }
 }
 
