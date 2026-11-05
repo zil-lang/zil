@@ -1,7 +1,7 @@
 {
   "task": "G4.4.7.2",
   "base": "9281069d8",
-  "implementation": "87b258848995232df0c336be7635dada78917233",
+  "implementation": "9d9e4ffef5de15b819c537b0b31fe8cf1ba47471",
   "scope": "Restore original CT source clone lifecycle, independent constructor-based ambient Type inference, and native scalar receiving context; preserve source authorization and deferred specialization",
   "checks": [
     {
@@ -27,16 +27,35 @@
       "result": "PASS",
       "seconds": 58.48,
       "revision": "87b258848995232df0c336be7635dada78917233"
+    },
+    {
+      "command": "cargo check -p zil-driver --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 56.15,
+      "revision": "07a3db277ec4d3255c07f1b6b6e6f799a7b0df66"
+    },
+    {
+      "command": "cargo check -p zil-driver --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 51.53,
+      "revision": "9d9e4ffef5de15b819c537b0b31fe8cf1ba47471"
+    },
+    {
+      "command": "cargo check -p zil-ct --all-targets -j1 --offline",
+      "result": "PASS",
+      "seconds": 1.5,
+      "revision": "9d9e4ffef5de15b819c537b0b31fe8cf1ba47471"
     }
   ],
   "tests_added": [
     "closed_generic_scalar_is_materialized_even_with_an_unrelated_deferred_root",
     "inferred_ambient_copy_actual_is_recovered_from_the_original_value_constructor",
     "closed_generic_float_preserves_its_actual_receiving_spelling_and_context",
-    "mixed_native_and_deferred_roots_keep_every_original_meta_ordinal"
+    "mixed_native_and_deferred_roots_keep_every_original_meta_ordinal",
+    "closed_generic_integer_keeps_its_actual_unsigned_receiving_domain"
   ],
-  "execution": "87b preserves original native MetaEval and receiving context, does not change helper/closure gates; coordinated execution pending root",
-  "independent_static_review": "/root/static_host_design reviewed inferred-value category and unrelated-deferred-root composition; both findings narrowed before b456",
+  "execution": "Root f47 confirms source-auth/scoped/Fn/FnMut and clone regressions restored; latest owned usage/program-buffer lifetime correction 9d9 and additional unsigned-literal control await coordinated replay",
+  "independent_static_review": "/root/static_host_design independently read exact 87b258848: no scheduling/ordinal/native-root/parent-ledger blocker; did not cover later byte-budget or receiver delta",
   "limits": [
     "Ambient inferred generic vectors currently require Type-only direct formal constraints from original record constructor values; no local-name provenance or arbitrary call-result inference is invented",
     "Literal/Group roots retain original MetaEval and use native expected-type checking. Deferred roots retain all original ordinals and are classified from frozen source even when substitution makes output literal.",
@@ -57,5 +76,29 @@
     "passes": "Original CT4 and scalar record Source/native restored; auth13 PASS. Existing scoped clone/Self/rawWire/native/budget controls in ct-scoped.log pass.",
     "failures": "Fn/FnMut and new unrelated-deferred literal case lost helper Unreplaced capability after eager rewrite; Type-then-Life old pre-specialization assertion pending c51 migration.",
     "logs": "/workspace/.zil-env/G10.1.11-followup/{ct-scoped,ct-closed-fn,ct-closed-fnmut}.log"
+  },
+  "joint_confirmed": {
+    "revision": "f47e1bb5b977952eef5071281cbce83a5ae8133a",
+    "receipt": "root 3d3528c73:docs/validation/G10.1.11-third-targeted.json",
+    "root_batch": "60 PASS / 4 FAIL; remaining failures outside source-auth in Type/Analyze/Lower",
+    "source_auth": {
+      "passed": 14,
+      "failed": 0,
+      "log_sha256": "539e317d2bc37bf5f477469185c6299e89c591abce8a02c9b8988a8e1e778717"
+    },
+    "scoped": {
+      "passed": 15,
+      "failed": 0,
+      "log_sha256": "6fac7067ca56c6a6e8fb7c0c6181943779b42e615e471efda035fefb0a09901e"
+    },
+    "fn_fnmut": "G334 and G335 each 1 PASS / 0 FAIL",
+    "clone": "impl219 6/0, impl239 6/0, project_frontend_reuse 6/0, review238 targeted 1/0",
+    "note": "Does not establish new recursive B Source/native success; its two failures remain separately assigned"
+  },
+  "byte_lifetime_fix": {
+    "receipt": "owned release_usage_receipt drops returned queries before releasing its allocation charge",
+    "verified_program": "keep copy charge through ValueContext capture Result, drop verified before release, then propagate capture errors",
+    "changes": "changes/G4.4.7.2-execution-lifetimes.md",
+    "wire_or_authority_change": false
   }
 }
