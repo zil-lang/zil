@@ -1,0 +1,36 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/p0_cross_review",
+  "verdict": "Pending",
+  "scope": "Early non-author static review; not acceptance",
+  "baseline": "fcdea036500945b51991b044a00bbbcc8578ade7",
+  "goal_reference": "f14fdb1f18c0519de249992f138f9c899d60205c",
+  "implementation_checkpoints": {
+    "G3.3.7": null,
+    "G4.4.4": "a5304e7d89e901eb821639aa2627e7e83cb88241"
+  },
+  "static_observations": [
+    "G4.4.4 queues the callee universal declaration check before call-site symbolic header substitution.",
+    "Type, const declaration/ordinal/domain and life declaration/ordinal remain distinct in the private symbolic header path.",
+    "The declaration-check CFG is discarded; this is not independent raw artifact admission evidence.",
+    "G3.3.7 WIP inventories exact entry/two-leaf topology and whole-function SSA uses independently in Analyze and Verify; no stable-source verdict yet."
+  ],
+  "requested_negative_controls": [
+    "Same ClosureId is insufficient: duplicate SSA definitions, extra uses and terminator escape in another block must reject.",
+    "Other-block owner Load/Store/Take/activation/exposure and any backedge must reject; terminal Drop/Dead still rely on independent ownership checks.",
+    "Equal concrete Type/Const/Life actuals must not validate a bad universal declaration.",
+    "Const domain mismatch, original ordinal mismatch and sibling life scope forgery must reject independently."
+  ],
+  "execution": {
+    "source_checks": 0,
+    "raw_or_wire_checks": 0,
+    "native_executions": 0,
+    "builds": 0,
+    "status": "NotRun; awaiting author production checkpoint and root-coordinated window"
+  },
+  "limitations": [
+    "No general acyclic owning helper CFG claim.",
+    "No generic host, generated context or runtime generic CT phase claim.",
+    "No Rust cost comparison or product-level breakthrough claim."
+  ]
+}
