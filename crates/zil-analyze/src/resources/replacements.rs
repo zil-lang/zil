@@ -6,6 +6,7 @@ use crate::place_replacements::{Base, Definitions, origins};
 use zil_ir::PlaceProjection;
 type Target = origins::Place;
 mod package;
+mod public_roles;
 mod retirement;
 mod whole_enum;
 #[derive(Clone, Copy)]
@@ -26,6 +27,7 @@ struct Invocation<'a> {
     captures: Option<&'a origins::Slots>,
     carrier: Option<Place>,
     sealed: bool,
+    may_only: bool,
 }
 pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) type TaggedEffects = BTreeMap<Target, sums::Replacement>;
@@ -738,6 +740,7 @@ impl Program {
             captures,
             carrier,
             sealed,
+            may_only,
         } = invocation;
         let CheckPoint {
             validate: check,
@@ -816,7 +819,7 @@ impl Program {
                 }
             }
         }
-        if let Some(rows) = &flow.effects[callee].whole_commits {
+        if !may_only && let Some(rows) = &flow.effects[callee].whole_commits {
             fee(b, rows.len())?;
             for (target, birth) in rows {
                 let selected = origins::substitute(
@@ -975,6 +978,31 @@ impl Program {
                 arguments,
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
+                if let Some(contract) = &callee.callable_contract {
+                    for (entry, value) in
+                        public_roles::invoked(flow.module, f, contract, arguments, b)?
+                    {
+                        public_roles::capture_effects(&flow.effects[entry], b)?;
+                        self.call(
+                            flow,
+                            state,
+                            effect,
+                            Invocation {
+                                callee: entry,
+                                arguments: &[],
+                                captures: Some(
+                                    &self.routes[f.id.0 as usize].slots[value.0 as usize],
+                                ),
+                                carrier: Some(Place::Value(value)),
+                                sealed: false,
+                                may_only: true,
+                            },
+                            point,
+                            b,
+                        )?;
+                    }
+                    return Ok(());
+                }
                 let summary = &flow.effects[function.0 as usize].replacements;
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !summary.is_empty()
@@ -995,6 +1023,7 @@ impl Program {
                         captures: None,
                         carrier: None,
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -1013,6 +1042,7 @@ impl Program {
                             captures: Some(&self.routes[f.id.0 as usize].slots[value.0 as usize]),
                             carrier: Some(Place::Value(value)),
                             sealed: true,
+                            may_only: false,
                         },
                         point,
                         b,
@@ -1032,6 +1062,7 @@ impl Program {
                         captures: Some(&self.routes[f.id.0 as usize].slots[body.0 as usize]),
                         carrier: Some(Place::Value(*body)),
                         sealed: true,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -1055,6 +1086,7 @@ impl Program {
                         captures: facts.local_slots.get(callee),
                         carrier: Some(Place::Local(*callee)),
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,
@@ -1076,6 +1108,7 @@ impl Program {
                         captures: Some(&self.routes[f.id.0 as usize].slots[callee.0 as usize]),
                         carrier: Some(Place::Value(*callee)),
                         sealed: false,
+                        may_only: false,
                     },
                     point,
                     b,

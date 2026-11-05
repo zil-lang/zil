@@ -10,6 +10,7 @@ struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
+    may_only: bool,
 }
 pub(super) struct Context<'a> {
     actual: &'a actual::Program,
@@ -665,6 +666,7 @@ impl Context<'_> {
             entry,
             arguments,
             captures,
+            may_only,
         } = invocation;
         let rows = &self.summaries[entry];
         b.spend(rows.len())?;
@@ -691,7 +693,9 @@ impl Context<'_> {
             }
             let strong = if whole {
                 lookup(b, self.whole_must.len())?;
-                matches!(payload, Content::Product(_)) && self.whole_must.contains(&entry)
+                !may_only
+                    && matches!(payload, Content::Product(_))
+                    && self.whole_must.contains(&entry)
             } else {
                 true
             };
@@ -753,6 +757,34 @@ impl Context<'_> {
                 arguments,
             } => {
                 let callee = &flow.module.functions[function.0 as usize];
+                if let Some(contract) = &callee.callable_contract {
+                    for (entry, value) in
+                        resources::public_roles::invoked(flow.module, f, contract, arguments, b)?
+                    {
+                        b.spend(self.summaries[entry].len())?;
+                        for target in self.summaries[entry].keys() {
+                            if !matches!(target.base, actual::Base::Environment(_)) {
+                                return Err(unsupported(
+                                    "callback replacement needs an actual captured destination; callback argument mapping is absent",
+                                    Some(i.span),
+                                ));
+                            }
+                        }
+                        self.call(
+                            flow,
+                            state,
+                            Invocation {
+                                entry,
+                                arguments: &[],
+                                captures: Some(&facts.captures[value.0 as usize]),
+                                may_only: true,
+                            },
+                            validate,
+                            b,
+                        )?;
+                    }
+                    return Ok(None);
+                }
                 if (callee.callable_contract.is_some() || callee.callable_return_contract.is_some())
                     && !self.summaries[function.0 as usize].is_empty()
                 {
@@ -768,6 +800,7 @@ impl Context<'_> {
                         entry: function.0 as usize,
                         arguments,
                         captures: None,
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -788,6 +821,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: facts.local_captures.get(callee),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -810,6 +844,7 @@ impl Context<'_> {
                         entry,
                         arguments,
                         captures: Some(&facts.captures[callee.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,
@@ -829,6 +864,7 @@ impl Context<'_> {
                             entry,
                             arguments: &[],
                             captures: Some(&facts.captures[value.0 as usize]),
+                            may_only: false,
                         },
                         validate,
                         b,
@@ -849,6 +885,7 @@ impl Context<'_> {
                         entry,
                         arguments: &[],
                         captures: Some(&facts.captures[body.0 as usize]),
+                        may_only: false,
                     },
                     validate,
                     b,

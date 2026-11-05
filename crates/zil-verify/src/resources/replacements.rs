@@ -341,6 +341,41 @@ impl Plan {
     ) -> Check<()> {
         let f = transfer.f;
         let callee = &transfer.module.functions[invocation.entry];
+        if let Some(contract) = &callee.callable_contract {
+            let facts = &self.actual.functions[f.id.0 as usize];
+            for (entry, value) in
+                super::public_roles::invoked(transfer.module, f, contract, invocation.arguments, b)?
+            {
+                b.spend(self.targets.len())?;
+                if let Some(rows) = self.targets.get(&entry) {
+                    b.spend(rows.len())?;
+                    if rows
+                        .iter()
+                        .any(|target| !matches!(target.base, actual::Base::Environment(_)))
+                    {
+                        return Err(unsupported(
+                            "public callback replacement requires an actual capture mapping",
+                            Some(point.span),
+                        ));
+                    }
+                }
+                self.invoke(
+                    transfer,
+                    state,
+                    written,
+                    point,
+                    Invocation {
+                        entry,
+                        arguments: &[],
+                        captures: Some(&facts.captures[value.0 as usize]),
+                        carrier: transfer.slots.desc_value[value.0 as usize],
+                        sources: transfer.slots.desc_value[value.0 as usize],
+                    },
+                    b,
+                )?;
+            }
+            return Ok(());
+        }
         if point.validate && self.active_pairs {
             retirement::call(self, transfer, state, &invocation, point, b)?;
         }

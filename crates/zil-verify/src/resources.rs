@@ -10,6 +10,7 @@ pub(super) fn head_address(ty: &Type) -> bool {
 use std::collections::VecDeque;
 pub(crate) mod arrays;
 mod product;
+pub(super) mod public_roles;
 mod replacements;
 pub(crate) mod task_frames;
 
