@@ -207,6 +207,27 @@ fn g4463_array_signature_cannot_drop_its_complete_class_contract() {
             "struct Leaf<life a>{{n:i32}}fn keep<life a>(token:&'a i32,value:{parameter})->{result}{{{body}}}fn read<life s>(token:&'s i32)->i32{{let values=[Leaf::<'s>{{n:42}}];let returned=keep(token,{argument});return returned{observe}}}fn main()->i32{{let token=0;return read(&token)}}"
         );
         let source = SourceUnit::new(FileId(0), ModuleId(0), "g4463-contract.zil", text);
+        if addressed {
+            // Root addresses used by array indexing are implemented; admitting
+            // new addressed-array function parameters is a separate boundary.
+            let report = zil_driver::compile_source(&source, &CompileOptions::default());
+            assert_eq!(
+                report.status,
+                ResultCategory::Unsupported,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message == "resource/address parameter mode"),
+                "{}",
+                report.to_json()
+            );
+            continue;
+        }
         let limits = Limits::default();
         let target = TargetProfile::host_llvm();
         let syntax = zil_syntax::parse(&source).into_result().unwrap();
@@ -254,8 +275,8 @@ fn g4463_array_signature_cannot_drop_its_complete_class_contract() {
         // rather than being rejected only for the old module fingerprint.
         let mut claim = plan.clone();
         claim.module_fingerprint = missing.fingerprint();
-        let verified =
-            zil_verify::verify_module(missing.clone(), claim.clone(), &target, &limits).unwrap_err();
+        let verified = zil_verify::verify_module(missing.clone(), claim.clone(), &target, &limits)
+            .unwrap_err();
         let bytes = zil_ir::wire::encode_module_candidate(&missing, &claim, &limits).unwrap();
         let decoded = zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err();
         for errors in [analyzed, verified, decoded] {
