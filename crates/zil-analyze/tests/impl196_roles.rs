@@ -389,7 +389,7 @@ fn mixed_same_type_origins_do_not_guess_one_role() {
 }
 
 #[test]
-fn an_unused_once_role_still_keeps_a_cyclic_helper_closed() {
+fn an_unused_once_role_keeps_a_cycle_legal_but_actual_consumption_cannot_repeat() {
     let mut module = fixture(&[]);
     let f = &mut module.functions[1];
     f.locals[0].ty = Type::Closure(ClosureId(0));
@@ -429,11 +429,33 @@ fn an_unused_once_role_still_keeps_a_cyclic_helper_closed() {
             },
         ],
     });
+    analyze(&module, &Limits::default()).unwrap();
+
+    // The same actual backedge with an exact public event claim must fail
+    // once it really invokes the owning role on every iteration.
+    let f = &mut module.functions[1];
+    let callee = load(f, 1, 0);
+    let result = ValueId(f.values.len() as u32);
+    f.values.push(Type::Unit);
+    f.blocks[1].instructions.push(instruction(
+        Some(result),
+        InstructionKind::CallClosureOnce {
+            callee,
+            arguments: vec![],
+        },
+    ));
+    let CallableTraces::Flow(flow) = &mut f.callable_contract.as_mut().unwrap().traces else {
+        unreachable!()
+    };
+    flow.nodes[1].calls.push(CallEvent {
+        parameter: 0,
+        kind: CallableKind::FnOnce,
+    });
     let errors = analyze(&module, &Limits::default()).unwrap_err();
     assert!(
         errors.iter().any(|d| d.phase == Phase::Analyze
-            && d.category == ResultCategory::Unsupported
-            && d.message.contains("cyclic FnOnce")),
+            && d.category == ResultCategory::SafeReject
+            && d.message.contains("consumed body role again")),
         "{errors:?}"
     );
 }

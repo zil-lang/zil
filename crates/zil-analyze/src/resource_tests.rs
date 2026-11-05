@@ -2604,23 +2604,56 @@ fn concrete_local_282_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
     result_wire_282(&mixed, false);
 }
 
+// Actual initial/copied forward Slot cells and Origin snapshot/helper-table
+// cells, measured independently for the unchanged fixtures. See the scoped
+// accounting in changes/G3.3.9.1-joint-regressions.md. Prior reservations were
+// one unit per cell; the dynamic actual-role representation pays its bytes.
+fn callable_storage_delta_3391(state_cells: usize, origin_cells: usize) -> usize {
+    type Origin = crate::helpers::Origin;
+    state_cells * (std::mem::size_of::<(Origin, u8, bool)>() - 1)
+        + origin_cells * (std::mem::size_of::<Origin>() - 1)
+}
+
 #[test]
 fn concrete_local_282_legacy_cost_controls() {
-    for (name, module, expected_cost) in [
-        ("ordinary", fixture(CallableKind::Fn, false, 1), 1548),
-        ("helper-no-local", scoped_helper(CallableKind::Fn), 1219),
+    for (name, module, old_cost, state_cells, origin_cells) in [
+        ("ordinary", fixture(CallableKind::Fn, false, 1), 1548, 0, 0),
+        (
+            "helper-no-local",
+            scoped_helper(CallableKind::Fn),
+            1219,
+            12,
+            6,
+        ),
         (
             "scoped-local-borrow",
             scoped_helper_with_local_body(CallableKind::FnOnce, true),
             // Includes 279's additional actual captured-address window checks.
             2798,
+            20,
+            20,
         ),
     ] {
         let limits = Limits::default();
         let mut budget = Budget::new(&limits);
         analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
         let exact = limits.max_analysis_steps - budget.remaining();
-        assert_eq!(exact, expected_cost, "{name}");
+        let delta = callable_storage_delta_3391(state_cells, origin_cells);
+        assert_eq!(exact, old_cost + delta, "{name}");
+        if delta != 0 {
+            assert_eq!(
+                analyze(
+                    &module,
+                    &Limits {
+                        max_analysis_steps: old_cost,
+                        ..limits.clone()
+                    }
+                )
+                .unwrap_err()[0]
+                    .category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+        }
         for steps in [exact, exact - 1, exact] {
             let actual = analyze(
                 &module,
@@ -2917,7 +2950,19 @@ fn concrete_factory_only_282_shared_allowance_n_minus_one_fresh_raw_wire() {
     let mut budget = Budget::new(&defaults);
     let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
     let exact = defaults.max_analysis_steps - budget.remaining();
-    assert_eq!(exact, 2073);
+    assert_eq!(exact, 2073 + callable_storage_delta_3391(18, 30));
+    assert_eq!(
+        analyze(
+            &module,
+            &Limits {
+                max_analysis_steps: 2073,
+                ..defaults.clone()
+            }
+        )
+        .unwrap_err()[0]
+            .category,
+        zil_base::ResultCategory::ResourceLimit
+    );
     let bytes = zil_ir::wire::encode_module_candidate(
         &module,
         &CandidatePlan::empty_for(&module),
@@ -3421,7 +3466,24 @@ fn concrete_local_282_copy_fn_observation_budget_raw_wire() {
         let mut budget = Budget::new(&defaults);
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
         let exact = defaults.max_analysis_steps - budget.remaining();
-        assert_eq!(exact, if alias { 855 } else { 726 });
+        let (old_cost, state_cells, origin_cells) =
+            if alias { (855, 14, 21) } else { (726, 10, 15) };
+        assert_eq!(
+            exact,
+            old_cost + callable_storage_delta_3391(state_cells, origin_cells)
+        );
+        assert_eq!(
+            analyze(
+                &module,
+                &Limits {
+                    max_analysis_steps: old_cost,
+                    ..defaults.clone()
+                }
+            )
+            .unwrap_err()[0]
+                .category,
+            zil_base::ResultCategory::ResourceLimit
+        );
         let bytes = zil_ir::wire::encode_module_candidate(&module, &expected, &defaults).unwrap();
         let decoded = zil_ir::wire::decode_module_candidate(&bytes, &defaults)
             .unwrap()
