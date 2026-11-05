@@ -342,6 +342,31 @@ impl Plan {
         let f = transfer.f;
         let callee = &transfer.module.functions[invocation.entry];
         if let Some(contract) = &callee.callable_contract {
+            for ledger in [&self.targets, &self.retirements] {
+                b.spend(ledger.len())?;
+                if let Some(rows) = ledger.get(&invocation.entry) {
+                    b.spend(rows.len())?;
+                    if rows
+                        .iter()
+                        .any(|target| !matches!(target.base, actual::Base::InputCapture(..)))
+                    {
+                        return Err(unsupported(
+                            "public callable helper has an unpublished replacement effect",
+                            Some(point.span),
+                        ));
+                    }
+                }
+            }
+            b.spend(transfer.effects[invocation.entry].len())?;
+            if transfer.effects[invocation.entry]
+                .iter()
+                .any(|effect| matches!(effect, Root::InvalidatedStore(_)))
+            {
+                return Err(unsupported(
+                    "public callable helper has an unpublished Store invalidation",
+                    Some(point.span),
+                ));
+            }
             let facts = &self.actual.functions[f.id.0 as usize];
             for (entry, value) in
                 super::public_roles::invoked(transfer.module, f, contract, invocation.arguments, b)?
@@ -554,13 +579,43 @@ impl Plan {
             InstructionKind::Call {
                 function,
                 arguments,
-            } => Some(Invocation {
-                entry: function.0 as usize,
-                arguments,
-                captures: None,
-                carrier: None,
-                sources: None,
-            }),
+            } => {
+                if f.callable_contract.is_some()
+                    && transfer.module.functions[function.0 as usize]
+                        .callable_contract
+                        .is_none()
+                {
+                    for ledger in [&self.targets, &self.retirements] {
+                        b.spend(ledger.len())?;
+                        if ledger
+                            .get(&(function.0 as usize))
+                            .is_some_and(|rows| !rows.is_empty())
+                        {
+                            return Err(unsupported(
+                                "public callable helper cannot publish an ordinary callee's private replacement effects",
+                                Some(point.span),
+                            ));
+                        }
+                    }
+                    b.spend(transfer.effects[function.0 as usize].len())?;
+                    if transfer.effects[function.0 as usize]
+                        .iter()
+                        .any(|effect| matches!(effect, Root::InvalidatedStore(_)))
+                    {
+                        return Err(unsupported(
+                            "public callable helper cannot publish a private Store invalidation",
+                            Some(point.span),
+                        ));
+                    }
+                }
+                Some(Invocation {
+                    entry: function.0 as usize,
+                    arguments,
+                    captures: None,
+                    carrier: None,
+                    sources: None,
+                })
+            }
             InstructionKind::CallClosureShared { callee, arguments }
             | InstructionKind::CallClosureMut { callee, arguments } => {
                 b.spend(facts.local_captures.len())?;
@@ -616,6 +671,12 @@ impl Plan {
         }
         let fresh = state.fresh[source];
         for target in self.actual.selected(f, place, b)? {
+            if f.callable_contract.is_some() && !matches!(target.base, actual::Base::Local(_)) {
+                return Err(unsupported(
+                    "public callable helper cannot publish its own nonlocal Commit",
+                    Some(span),
+                ));
+            }
             sums::replacements::at_type(transfer.module, f, &target, b)?;
             match target.base {
                 actual::Base::Local(local) => {
