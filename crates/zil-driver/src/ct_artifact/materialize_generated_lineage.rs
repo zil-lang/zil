@@ -2,7 +2,7 @@
 use super::*;
 use zil_expand::source_context::{
     ClosureSiteLineage, DeclarationOrigin, GeneratedDeclarationOrigin, GeneratedSourceTree,
-    SourceDeclarationSite, SourceTreeIdentity,
+    SourceTreeIdentity,
 };
 
 pub(super) enum OutputOrigin {
