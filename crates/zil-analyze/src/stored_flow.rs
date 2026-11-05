@@ -702,6 +702,53 @@ fn binding(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> CompileResult<()> {
+    fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> CompileResult<bool> {
+        if depth > b.partial_depth {
+            return Err(vec![Diagnostic::limit(
+                Phase::Analyze,
+                "stored signature class depth exceeds limit",
+                None,
+            )]);
+        }
+        b.spend(1, "stored signature actual nested class inventory")?;
+        match ty {
+            Type::BorrowedStorage { .. } => Ok(true),
+            Type::Address { inner, .. } | Type::Array { element: inner, .. } => {
+                nested_class(inner, depth + 1, b)
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len(), "stored signature tuple class inventory")?;
+                for field in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len(), "stored signature record class inventory")?;
+                for (_, field) in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len(), "stored signature variant class inventory")?;
+                for (_, fields) in variants {
+                    b.spend(fields.len(), "stored signature payload class inventory")?;
+                    for field in fields {
+                        if nested_class(field, depth + 1, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
     for p in &f.parameters {
         fee(b, 1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -729,6 +776,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
                     || super::stored_callables::fixed_value(module, ty))
             {
                 return Err(failure("stored signature requires complete class relation"));
+            }
+            if !module.life_instances.is_empty() && nested_class(ty, 0, b)? {
+                return Err(failure(
+                    "nested qualified signature requires complete class relation",
+                ));
             }
         }
         return Ok(());

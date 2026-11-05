@@ -844,6 +844,49 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
+        if depth > b.limits.max_call_depth {
+            return Err(limit("stored signature class depth exceeds limit"));
+        }
+        b.spend(1)?;
+        match ty {
+            Type::BorrowedStorage { .. } => Ok(true),
+            Type::Address { inner, .. } | Type::Array { element: inner, .. } => {
+                nested_class(inner, depth + 1, b)
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                for field in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                for (_, field) in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    for field in fields {
+                        if nested_class(field, depth + 1, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
     for p in &f.parameters {
         b.spend(1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -860,6 +903,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             b.spend(1)?;
             if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
                 return Err(err("stored signature requires complete class relation"));
+            }
+            if !module.life_instances.is_empty() && nested_class(ty, 0, b)? {
+                return Err(err(
+                    "nested qualified signature requires complete class relation",
+                ));
             }
         }
         return Ok(());
