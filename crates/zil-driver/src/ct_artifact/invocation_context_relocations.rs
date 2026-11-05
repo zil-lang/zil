@@ -552,6 +552,7 @@ impl FrozenInvocationContext {
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<()> {
         budget.reserve_analysis_work(raw.ambient_life_scopes.len() as u64)?;
+        let mut complete_instance = false;
         for (index, scope) in raw.ambient_life_scopes.iter().enumerate() {
             if scope.declaration != call.callee
                 || !scope.binder_site.is_empty()
@@ -578,20 +579,24 @@ impl FrozenInvocationContext {
                     budget.reserve_analysis_work(cost)?;
                 }
             }
-            if actuals == call.actuals.as_slice()
-                && self.relocation_scope_admits(
-                    reference,
-                    CtAmbientScopeId(index as u32),
-                    raw,
-                    budget,
-                )?
-            {
+            if actuals != call.actuals.as_slice() {
+                continue;
+            }
+            complete_instance = true;
+            if self.relocation_scope_admits(
+                reference,
+                CtAmbientScopeId(index as u32),
+                raw,
+                budget,
+            )? {
                 return Ok(());
             }
         }
-        Err(unsupported(
-            "CT relocation source reference is outside the actual callee complete instance/host actuals",
-        ))
+        Err(unsupported(if complete_instance {
+            "CT relocation source reference is outside the actual callee complete instance/host actuals"
+        } else {
+            "CT relocation source full instance differs from actual call"
+        }))
     }
 
     fn relocation_pair(

@@ -307,3 +307,37 @@ mod multiowner;
 
 #[path = "invocation_context_nominal_field_tests.rs"]
 mod nominal_fields;
+
+#[test]
+fn inferred_ambient_copy_actual_is_recovered_from_the_original_value_constructor() {
+    let source = "struct Phantom<life a>{n:i32}fn copy<T:Copy>(value:T)->T{return value}fn query<life a,life b>(p:&'a i32)->i32{let value=#(copy(Phantom::<'a>{n:42}));return value.n}";
+    let mut f = fixture(source, 2);
+    f.context
+        .extend_calls(
+            &f.facts.calls,
+            &f.facts.scopes,
+            &f.raw,
+            &f.index,
+            &mut f.budget,
+        )
+        .unwrap();
+    assert_eq!(f.facts.calls.len(), 1);
+    let mut call = f.facts.calls[0].clone();
+    let CtScopeActual::Type(graph) = &mut call.actuals[0] else {
+        unreachable!()
+    };
+    assert_eq!(graph.ambient_classes.len(), 1);
+    graph.ambient_classes[0].source.parameter = 1;
+    // Reconcile the complete candidate's expected scopes too. The immutable
+    // source value still spells 'a; a different genuine 'b is insufficient.
+    for scope in &mut f.raw.ambient_life_scopes {
+        if scope.declaration == call.callee {
+            scope.instance = CtScopeInstance::Instantiated(call.actuals.clone());
+        }
+    }
+    assert!(
+        f.context
+            .validate_source_call_actuals(&call, &f.facts.scopes, &f.raw, &f.index, &mut f.budget)
+            .is_err()
+    );
+}
