@@ -36,8 +36,10 @@ impl crate::ct_selection::Visitor for Expressions<'_, '_> {
             self.budget
                 .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)
                 .map_err(|e| vec![e])?;
+            let meta_ordinal = u32::try_from(self.meta.len())
+                .map_err(|_| vec![error(expression.span, "runtime CT meta ordinal overflow")])?;
             self.meta
-                .insert(expression as *const Expr as usize, ordinal);
+                .insert(expression as *const Expr as usize, meta_ordinal);
         }
         self.budget
             .identity_work(
@@ -166,16 +168,27 @@ impl Engine<'_> {
         if self.runtime_ct.is_none() {
             return Ok(());
         }
-        let mut visitor = Expressions {
-            budget: &mut self.budget,
-            nodes: BTreeMap::new(),
-            next: 0,
-            has_ct: false,
-            meta: BTreeMap::new(),
-        };
-        crate::ct_selection::Visitor::item(&mut visitor, item, 0).map_err(|mut e| e.remove(0))?;
-        self.runtime_calls = visitor.nodes;
-        Ok(())
+        self.runtime_calls.clear();
+        crate::runtime_ct::observe_explicit_calls(item, self.limits.max_call_depth, |event| {
+            match event {
+                crate::runtime_ct::RuntimeCallEvent::Work(work) => {
+                    self.budget.identity_work(work, item.span)
+                }
+                crate::runtime_ct::RuntimeCallEvent::Call {
+                    expression,
+                    ordinal,
+                } => {
+                    self.budget
+                        .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)
+                        .map_err(|e| vec![e])?;
+                    self.runtime_calls
+                        .insert(expression as *const Expr as usize, ordinal);
+                    Ok(())
+                }
+            }
+            .map_err(|e| vec![e])
+        })
+        .map_err(|mut e| e.remove(0))
     }
 
     fn runtime_definition(
@@ -232,7 +245,7 @@ impl Engine<'_> {
         let origin = self.template_origin(template)?;
         let definition = self.runtime_definition(origin, template.span)?;
         let caller = self.runtime_definition(self.current_origin, template.span)?;
-        let expression_ordinal = self
+        let explicit_call_ordinal = self
             .runtime_call
             .ok_or_else(|| error(template.span, "runtime CT actual call site is absent"))?;
         let mut arguments = Vec::new();
@@ -282,7 +295,7 @@ impl Engine<'_> {
             call: RuntimeCallSite {
                 caller,
                 parent_instance: self.runtime_instance,
-                expression_ordinal,
+                explicit_call_ordinal,
             },
         };
         let mut remaining = self.budget.remaining_limits();

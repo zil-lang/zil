@@ -10009,6 +10009,9 @@ mod whole_helper_error_review;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
 mod p0_g445_review;
 
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
+mod runtime_ct_phase_tests;
+
 #[test]
 fn g4453_contextual_type_and_pure_composite_results_keep_full_values() {
     for (text, expected) in [
