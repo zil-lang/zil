@@ -989,10 +989,14 @@ impl<'a> Engine<'a> {
         while let Some(origins::Pending {
             mut item,
             origin,
+            source_enum_return,
             member_calls,
             runtime_calls,
         }) = self.pending.pop_front()
         {
+            // The source result belongs to this exact pending item, even if
+            // header preparation enqueued other specializations first.
+            self.source_enum_return = source_enum_return;
             self.runtime_instance = name(&item)
                 .and_then(|name| self.runtime_instances.get(name))
                 .copied();
@@ -1523,9 +1527,6 @@ impl<'a> Engine<'a> {
     fn item_inner(&mut self, item: &mut Item) -> R<()> {
         match &mut item.kind {
             ItemKind::Function(f) => {
-                // A prior signature preparation may have visited another
-                // function. This body accepts only its own captured result.
-                self.source_enum_return = None;
                 if self.stored_signature(f)? {
                     self.budget.function_snapshot(f)?;
                     self.budget.text(&f.name, f.span)?;
