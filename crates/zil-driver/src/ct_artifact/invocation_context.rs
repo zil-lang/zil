@@ -14,7 +14,7 @@ use zil_verify::CtScopeParameterKind;
 fn unsupported(message: &str) -> Vec<Diagnostic> {
     vec![Diagnostic::unsupported(Phase::Ct, message, None)]
 }
-fn identity_cost(
+pub(super) fn identity_cost(
     identity: &LifeDeclarationIdentity,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<u64> {
@@ -56,6 +56,12 @@ pub(super) fn origins_cost(
         );
         for item in &module.items {
             bytes = bytes.saturating_add(identity_cost(&item.identity, budget)?);
+            if let Some(members) = &item.retained_members {
+                budget.reserve_analysis_work(members.positions.len() as u64 + 1)?;
+                bytes = bytes.saturating_add(
+                    members.positions.len() as u64 * std::mem::size_of::<u32>() as u64,
+                );
+            }
         }
     }
     Ok(bytes)

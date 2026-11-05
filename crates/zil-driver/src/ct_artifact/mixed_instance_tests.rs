@@ -472,3 +472,127 @@ fn g442_actual_source_instances_raw_wire_ledger_and_independent_checks() {
         }
     }
 }
+
+#[test]
+fn g443_original_static_members_keep_host_identity_and_actual_values() {
+    let text = include_str!(
+        "../../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
+    );
+    let sources = vec![SourceUnit::new(
+        zil_base::FileId(0),
+        ModuleId(0),
+        "static-members.zil",
+        text,
+    )];
+    let parsed = vec![Arc::new(zil_syntax::parse(&sources[0]))];
+    assert!(parsed[0].diagnostics.is_empty());
+    let syntax = vec![&parsed[0].module];
+    let paths = BTreeMap::new();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let (origins, _) = zil_expand::source_context::capture_original(
+        &sources,
+        &syntax,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(0),
+            aliases: &paths,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+        &limits,
+    )
+    .unwrap();
+    let imports = vec![Vec::new()];
+    let mut environment = Environment::new(
+        &sources,
+        &parsed,
+        &paths,
+        &imports,
+        ModuleId(0),
+        sources[0].fingerprint(),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    environment.bind_source_origins(origins.as_deref()).unwrap();
+    environment.classify_definitions().unwrap();
+    let definition = CtSymbolId {
+        module: ModuleId(0),
+        declaration: zil_base::NodeId(3),
+        generation_path: None,
+    };
+    let original = compiler::source_scope::original_function(
+        &parsed[0].module,
+        definition.declaration,
+        limits.max_call_depth,
+        |_| Ok(()),
+    )
+    .unwrap()
+    .unwrap();
+    let zil_syntax::ast::FunctionBody::Block(block) = &original.function.body else {
+        unreachable!()
+    };
+    let mut identities = Vec::new();
+    let mut actuals = Vec::new();
+    for (position, number) in [(0, 7), (1, 35)] {
+        let zil_syntax::ast::StmtKind::Binding { value, .. } = &block.statements[position].kind
+        else {
+            unreachable!()
+        };
+        let zil_syntax::ast::ExprKind::MetaEval(expression) = &value.kind else {
+            unreachable!()
+        };
+        let input = environment.empty_input(expression.span).unwrap();
+        // This executes actual Source attribution, independent CT Verify and
+        // the VM before the separately blocked ordinary materialization path.
+        let result = environment
+            .evaluate_data(
+                Entry::Expression {
+                    module: ModuleId(0),
+                    expression,
+                    definition: definition.clone(),
+                    lexical_owner: Some(definition.clone()),
+                    expected: None,
+                    parameters: &[],
+                },
+                &input,
+                None,
+                &[],
+                expression.span,
+            )
+            .unwrap();
+        assert!(matches!(&result.value, CtValue::Record { fields, .. }
+            if matches!(fields.as_slice(), [CtValue::Scalar(zil_ir::Constant::I32(n))] if *n == number)));
+        let context = result.context.unwrap();
+        let instances: Vec<_> = context
+            .ambient_life_scopes
+            .iter()
+            .filter(|scope| matches!(scope.instance, CtScopeInstance::Instantiated(_)))
+            .collect();
+        assert_eq!(instances.len(), 1);
+        let CtScopeInstance::Instantiated(vector) = &instances[0].instance else {
+            unreachable!()
+        };
+        assert!(matches!(
+            vector.as_slice(),
+            [
+                CtScopeActual::Type(_),
+                CtScopeActual::Scalar(zil_ir::Constant::I32(7)),
+                CtScopeActual::Lifetime(_)
+            ]
+        ));
+        actuals.push(vector.clone());
+        identities.push(
+            context
+                .invocation_context
+                .as_ref()
+                .unwrap()
+                .symbol_key(&instances[0].declaration, &mut environment.budget)
+                .unwrap(),
+        );
+    }
+    assert_eq!(actuals[0], actuals[1]);
+    assert_ne!(
+        identities[0], identities[1],
+        "same member spelling/vector merged original hosts"
+    );
+}

@@ -7875,73 +7875,75 @@ fn g442_mixed_ct_phantom_call_actuals() {
     }
 }
 
+fn g44_source_request_boundary(input: &str, ledger: &str) -> usize {
+    use zil_driver::CompilationSession;
+    let options = |n: usize| {
+        let mut options = CompileOptions::default();
+        match ledger {
+            "work" => options.limits.max_analysis_steps = n,
+            "nodes" => options.limits.max_nodes = n,
+            "steps" => options.limits.max_ct_steps = n as u64,
+            "bytes" => options.limits.max_source_bytes = n,
+            _ => unreachable!(),
+        }
+        options
+    };
+    let limits = Limits::default();
+    let mut low = 1;
+    let mut high = match ledger {
+        "work" => limits.max_analysis_steps,
+        "nodes" => limits.max_nodes,
+        "steps" => limits.max_ct_steps as usize,
+        "bytes" => limits.max_source_bytes,
+        _ => unreachable!(),
+    };
+    let input = source(input);
+    assert_eq!(
+        compile_source(&input, &options(high)).status,
+        ResultCategory::Success
+    );
+    while low < high {
+        let n = low + (high - low) / 2;
+        let report = compile_source(&input, &options(n));
+        match report.status {
+            ResultCategory::Success => high = n,
+            ResultCategory::ResourceLimit => low = n + 1,
+            _ => panic!("{ledger}/{n}: {}", report.to_json()),
+        }
+    }
+    let mut warm = CompilationSession::default();
+    for (n, expected) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+        (low, ResultCategory::Success),
+    ] {
+        for report in [
+            warm.compile_source(&input, &options(n)),
+            CompilationSession::default().compile_source(&input, &options(n)),
+        ] {
+            assert_eq!(
+                report.status,
+                expected,
+                "{ledger}/N={low}: {}",
+                report.to_json()
+            );
+            if expected == ResultCategory::Success {
+                assert_eq!(report.verification_runs, 1);
+            }
+        }
+        assert_eq!(warm.active_query_count(), 0);
+    }
+    low
+}
+
 #[test]
 fn g442_source_budgets_cache_and_comparison_growth() {
     use zil_driver::CompilationSession;
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
     );
-    let boundary = |input: &str, ledger: &str| {
-        let options = |n: usize| {
-            let mut options = CompileOptions::default();
-            match ledger {
-                "work" => options.limits.max_analysis_steps = n,
-                "nodes" => options.limits.max_nodes = n,
-                "steps" => options.limits.max_ct_steps = n as u64,
-                "bytes" => options.limits.max_source_bytes = n,
-                _ => unreachable!(),
-            }
-            options
-        };
-        let limits = Limits::default();
-        let mut low = 1;
-        let mut high = match ledger {
-            "work" => limits.max_analysis_steps,
-            "nodes" => limits.max_nodes,
-            "steps" => limits.max_ct_steps as usize,
-            "bytes" => limits.max_source_bytes,
-            _ => unreachable!(),
-        };
-        let input = source(input);
-        assert_eq!(
-            compile_source(&input, &options(high)).status,
-            ResultCategory::Success
-        );
-        while low < high {
-            let n = low + (high - low) / 2;
-            let report = compile_source(&input, &options(n));
-            match report.status {
-                ResultCategory::Success => high = n,
-                ResultCategory::ResourceLimit => low = n + 1,
-                _ => panic!("{ledger}/{n}: {}", report.to_json()),
-            }
-        }
-        let mut warm = CompilationSession::default();
-        for (n, expected) in [
-            (low, ResultCategory::Success),
-            (low - 1, ResultCategory::ResourceLimit),
-            (low, ResultCategory::Success),
-        ] {
-            for report in [
-                warm.compile_source(&input, &options(n)),
-                CompilationSession::default().compile_source(&input, &options(n)),
-            ] {
-                assert_eq!(
-                    report.status,
-                    expected,
-                    "{ledger}/N={low}: {}",
-                    report.to_json()
-                );
-                if expected == ResultCategory::Success {
-                    assert_eq!(report.verification_runs, 1);
-                }
-            }
-            assert_eq!(warm.active_query_count(), 0);
-        }
-        low
-    };
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let n = boundary(text, ledger);
+        let n = g44_source_request_boundary(text, ledger);
         eprintln!("G4.4.2 whole Source {ledger} N={n}; N-1/cold/warm/fresh agree");
     }
     let deep = |calls: usize, width: usize| {
@@ -7966,9 +7968,9 @@ fn g442_source_budgets_cache_and_comparison_growth() {
             "struct Phantom<life a,T:Copy,#N:i32>{{n:i32}}fn make<T:Copy,#N:i32,life a>(marker:Type)->Phantom<'a,T,N>{{return Phantom::<'a,T,N>{{n:N}}}}fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{{let value:Phantom<'s,{ty},7>=#(({invocations}).0);return value.n}}fn main()->i32{{let n=0;let m=0;return result(&n,&m)}}"
         )
     };
-    let small = boundary(&deep(2, 2), "work");
-    let wide = boundary(&deep(2, 8), "work");
-    let many = boundary(&deep(3, 8), "work");
+    let small = g44_source_request_boundary(&deep(2, 2), "work");
+    let wide = g44_source_request_boundary(&deep(2, 8), "work");
+    let many = g44_source_request_boundary(&deep(3, 8), "work");
     assert!(
         small < wide && wide < many,
         "comparison growth {small}/{wide}/{many}"
@@ -9514,4 +9516,217 @@ fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
             );
         }
     }
+}
+
+#[test]
+fn g443_original_static_member_factories_reach_native_full_values() {
+    for text in [
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}
+
+#[test]
+fn g443_member_factories_keep_source_boundaries_and_definition_checks() {
+    for text in [
+        "struct Maker{fn make()->i32{return 42}}fn main()->i32{return Maker.make()}",
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil"
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+    }
+    let valid = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
+    );
+    let bad = valid.replace(
+        "return Phantom::<'a,T,N>{n:N}",
+        "return Phantom::<'a,i32,42>{n:42}",
+    );
+    let unused_bad = bad.replace(
+        "let value:Phantom<'s,i32,42>=#(Maker.make::<i32,42,'s>(i32));return value.n",
+        "return 42",
+    );
+    assert_ne!(unused_bad, bad);
+    for text in [
+        bad,
+        unused_bad,
+        valid.replace("make::<i32,42,'s>", "make::<i32,42>"),
+        valid.replace("make::<i32,42,'s>", "make::<i32,true,'s>"),
+        valid.replace("make::<i32,42,'s>", "make::<i32,42,'other>"),
+        valid.replace("(marker:Type)", "(self:Self,marker:Type)"),
+        valid
+            .replace("struct Maker{", "struct Maker<X:Copy>{")
+            .replace("Maker.make::<", "Maker::<bool>.make::<"),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn g443_same_named_hosts_in_distinct_modules_use_actual_imports() {
+    let root = "import left;import right;struct Pair<life a>{left:i32;right:i32}fn result<life s>(p:&'s i32)->i32{let pair:Pair<'s>=#(Pair::<'s>{left:left.Maker.make::<i32,7,'s>(i32),right:right.Maker.make::<i32,7,'s>(i32)});if pair.left!=7{return 1}if pair.right!=35{return 2}return pair.left+pair.right}fn main()->i32{let n=0;return result(&n)}";
+    let left = "pub struct Maker{pub fn make<T:Copy,#N:i32,life a>(marker:Type)->i32{return N}}";
+    let right = "pub struct Maker{pub fn make<T:Copy,#N:i32,life a>(marker:Type)->i32{return N*5}}";
+    review329_native_entry_output(
+        &[("main", root), ("left", left), ("right", right)],
+        "main",
+        b"42\n",
+    );
+    for hidden in [
+        left.replacen("pub struct", "struct", 1),
+        left.replacen("pub fn", "fn", 1),
+    ] {
+        let report = zil_driver::compile_project(
+            &review329_project(&[("main", root), ("left", &hidden), ("right", right)]),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, zil_base::Phase::Ct);
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
+fn g443_member_requests_pay_all_current_ledgers() {
+    let input = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+    );
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let n = g44_source_request_boundary(input, ledger);
+        eprintln!("G4.4.3 real retained-member Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+    }
+}
+
+#[test]
+fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
+    use zil_driver::{CompilationSession, DiskCacheStatus};
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+    );
+    let changed = text
+        .replace("Phantom<'s,i32,35>", "Phantom<'s,i32,36>")
+        .replace("make::<i32,35,'s>", "make::<i32,36,'s>");
+    let make_start = text.find("    fn make<").unwrap();
+    let read_start = text.find("    fn read<").unwrap();
+    let read_end = read_start + text[read_start..].find("\n    }").unwrap() + "\n    }".len();
+    let reordered = format!(
+        "{}{}\n{}{}",
+        &text[..make_start],
+        &text[read_start..read_end],
+        text[make_start..read_start].trim_end(),
+        &text[read_end..]
+    );
+    assert_ne!(changed, text);
+    assert_ne!(reordered, text);
+    let dir = Temp::new();
+    let mut session = CompilationSession::default();
+    for (ordinal, (input, output)) in [
+        (text, b"42\n".as_slice()),
+        (text, b"42\n".as_slice()),
+        (changed.as_str(), b"43\n".as_slice()),
+        (reordered.as_str(), b"42\n".as_slice()),
+        (text, b"42\n".as_slice()),
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = session.compile_project(
+            &review329_project(&[("main", input)]),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                backend: zil_driver::NativeBackend::Clang,
+                output: Some(dir.0.join(format!("program-{ordinal}"))),
+                semantic_cache: Some(dir.0.join("cache")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        if matches!(ordinal, 1 | 4) {
+            assert_eq!(report.disk_cache, DiskCacheStatus::Hit);
+        }
+        assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+        let observed = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert!(observed.status.success());
+        assert_eq!(observed.stdout, output);
+    }
+    let store = dir.0.join("cache/semantic-v4");
+    let mut candidates = 0;
+    for entry in fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|ext| ext != "candidate") {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("actual cache candidate absent")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        candidates += 1;
+    }
+    assert_eq!(candidates, 3);
+    eprintln!(
+        "G4.4.3 actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
+    );
 }

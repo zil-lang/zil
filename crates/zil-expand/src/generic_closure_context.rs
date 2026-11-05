@@ -317,6 +317,7 @@ impl Engine<'_> {
             ));
         }
         origins::pay_identity(&source.identity, &mut self.budget, span)?;
+        origins::pay_declaration_copy(source, &mut self.budget, span)?;
         if !source.identity.generation_path.is_empty() {
             return Err(unavailable(
                 "generated closure creators need complete materialization lineage",
