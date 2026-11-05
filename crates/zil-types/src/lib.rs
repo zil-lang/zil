@@ -413,7 +413,8 @@ pub fn check(
     let mut signatures = signatures(core, limits, 0, None)?;
     let mut resource_definitions =
         resources::definitions(core, &signatures).map_err(|e| vec![e])?;
-    let enum_types = enums::definitions(core);
+    let mut enum_work = limits.max_analysis_steps;
+    let enum_types = enums::definitions(core, limits, &mut enum_work).map_err(|e| vec![e])?;
     let mut errors = Vec::new();
     let mut functions = Vec::new();
     let concrete_count = core

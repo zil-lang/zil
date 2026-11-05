@@ -598,6 +598,50 @@ fn nominal_field_type(
         substituted_type(field, &substitutions, budget)
     }
 }
+
+/// Definition-time full ordinal check; the map contains only Type actuals.
+/// Life and Const actuals retain their own source binders and domains.
+fn nominal_type_actuals(
+    parameters: &[GenericParam],
+    arguments: &[GenericArg],
+    source: &Function,
+    budget: &mut Budget<'_>,
+    span: Span,
+) -> R<BTreeMap<String, TypeRef>> {
+    role_check::Frame::nominal(parameters, arguments, source, budget, span)?;
+    let mut found = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        budget.node(span, 0)?;
+        budget.text(&parameter.name, span)?;
+        match (&parameter.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_)) => {}
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                found.insert(parameter.name.clone(), ty.clone());
+            }
+            (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                let carrier = consts::carrier(value, budget)?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let (_, formal) = consts::symbolic_parameter(source, name)
+                        .ok_or_else(|| error(value.span, "nominal const has no source binder"))?;
+                    let GenericParamKind::Const(actual_domain) = &formal.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, value.span, budget)?;
+                } else {
+                    consts::normalize(parameter, &carrier, budget)?;
+                }
+            }
+            _ => {
+                return Err(error(
+                    span,
+                    "nominal actual kind differs from its declared binder",
+                ));
+            }
+        }
+    }
+    Ok(found)
+}
 /// Only floating literals can receive a floating format from the other operand.
 /// Group/unary inspection is metadata work, before either value is evaluated.
 pub(super) fn uncontextual_float(
@@ -3417,14 +3461,26 @@ impl Check<'_, '_, '_> {
                 if declaration.generics.len() != args.len() {
                     return Err(error(e.span, "generic record constructor arity mismatch"));
                 }
-                let mut substitutions = BTreeMap::new();
-                for (parameter, argument) in declaration.generics.iter().zip(&args) {
-                    let GenericArg::Type(ty) = argument else {
-                        return Err(unsupported(e.span, "constant generic record constructor"));
-                    };
-                    self.budget.ty(ty)?;
-                    substitutions.insert(parameter.name.clone(), ty.clone());
-                }
+                let substitutions = nominal_type_actuals(
+                    &declaration.generics,
+                    &args,
+                    self.source_definition,
+                    self.budget,
+                    e.span,
+                )?;
+                self.traits.check_arguments_scoped(
+                    &declaration.generics,
+                    &substitutions,
+                    (
+                        &self.bounds,
+                        &self.variables,
+                        callable::StoreCallbacks::None,
+                    ),
+                    self.budget,
+                    e.span,
+                    None,
+                    Some(self.source_definition),
+                )?;
                 let mut seen = BTreeSet::new();
                 for field in fields {
                     if !seen.insert(&field.name) {
@@ -3443,7 +3499,13 @@ impl Check<'_, '_, '_> {
                             "record field is private to its declaring module",
                         ));
                     }
-                    let want = substituted_type(&declared.ty, &substitutions, self.budget)?;
+                    let want = nominal_field_type(
+                        &declaration.generics,
+                        &args,
+                        &declared.ty,
+                        self.source_definition,
+                        self.budget,
+                    )?;
                     let actual = if let Some(value) = &field.value {
                         if declared.manages
                             && stores::element(&want).is_some()

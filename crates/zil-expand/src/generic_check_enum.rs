@@ -19,6 +19,73 @@ enum Pat {
 }
 
 impl Check<'_, '_, '_> {
+    /// Mixed nominal ordinals come from the actual constructor or its full
+    /// source context. Only Type actuals enter the substitution/bound map.
+    fn mixed_enum_actuals(
+        &mut self,
+        decl: &EnumDecl,
+        explicit: Option<&[GenericArg]>,
+        expected: Option<&TypeRef>,
+        span: Span,
+    ) -> R<Option<(Vec<GenericArg>, BTreeMap<String, TypeRef>)>> {
+        if decl
+            .generics
+            .iter()
+            .all(|p| matches!(p.kind, GenericParamKind::Type(_)))
+        {
+            return Ok(None);
+        }
+        let context = expected.and_then(|expected| match &group(expected).kind {
+            TypeKind::Named { path, args } if path.as_slice() == [decl.name.as_str()] => {
+                Some(args.as_slice())
+            }
+            _ => None,
+        });
+        let args = explicit.or(context).ok_or_else(|| {
+            error(
+                span,
+                "qualified enum needs its complete source actual vector",
+            )
+        })?;
+        if args.len() != decl.generics.len() {
+            return Err(error(
+                span,
+                "qualified enum actual arity differs from declaration",
+            ));
+        }
+        let args = args.to_vec();
+        let found = nominal_type_actuals(
+            &decl.generics,
+            &args,
+            self.source_definition,
+            self.budget,
+            span,
+        )?;
+        if let Some(context) = context {
+            let actual = TypeRef {
+                span,
+                kind: TypeKind::Named {
+                    path: vec![decl.name.clone()],
+                    args: args.clone(),
+                },
+            };
+            let expected = TypeRef {
+                span,
+                kind: TypeKind::Named {
+                    path: vec![decl.name.clone()],
+                    args: context.to_vec(),
+                },
+            };
+            role_check::same(&actual, &expected, span, self.class_scope, self.budget)?;
+        } else if expected.is_some() {
+            return Err(error(
+                span,
+                "qualified enum constructor has a different complete context",
+            ));
+        }
+        Ok(Some((args, found)))
+    }
+
     pub(super) fn enum_expression(
         &mut self,
         e: &Expr,
@@ -47,6 +114,44 @@ impl Check<'_, '_, '_> {
                 e.span,
                 "parametric enum constructor payload arity mismatch",
             ));
+        }
+        if let Some((full, found)) = self.mixed_enum_actuals(decl, explicit, expected, e.span)? {
+            self.traits.check_arguments_scoped(
+                &decl.generics,
+                &found,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+                self.budget,
+                e.span,
+                None,
+                Some(self.source_definition),
+            )?;
+            for (arg, field) in args.iter().zip(fields) {
+                if arg.spread {
+                    return Err(unsupported(arg.span, "enum payload tuple spread"));
+                }
+                let want = nominal_field_type(
+                    &decl.generics,
+                    &full,
+                    field,
+                    self.source_definition,
+                    self.budget,
+                )?;
+                let actual = self.expr(&arg.value, state, Some(&want), false)?;
+                role_check::same(&actual, &want, arg.span, self.class_scope, self.budget)?;
+            }
+            let actual = TypeRef {
+                span: e.span,
+                kind: TypeKind::Named {
+                    path: vec![decl.name.clone()],
+                    args: full,
+                },
+            };
+            syntax_enum::check_injection(&actual, expected, self.budget)?;
+            return Ok(Some(actual));
         }
         let vars = decl
             .generics
@@ -136,6 +241,55 @@ impl Check<'_, '_, '_> {
             e.span,
             self.budget,
         )?;
+        if let Some((full, found)) =
+            self.mixed_enum_actuals(declaration, explicit, expected, e.span)?
+        {
+            self.traits.check_arguments_scoped(
+                &declaration.generics,
+                &found,
+                (
+                    &self.bounds,
+                    &self.variables,
+                    callable::StoreCallbacks::None,
+                ),
+                self.budget,
+                e.span,
+                None,
+                Some(self.source_definition),
+            )?;
+            for (supplied, index) in supplied.iter().zip(&order) {
+                let shorthand;
+                let value = if let Some(value) = &supplied.value {
+                    value
+                } else {
+                    self.budget.node(supplied.span, 0)?;
+                    self.budget.text(&supplied.name, supplied.span)?;
+                    shorthand = Expr {
+                        kind: ExprKind::Name(supplied.name.clone()),
+                        span: supplied.span,
+                    };
+                    &shorthand
+                };
+                let want = nominal_field_type(
+                    &declaration.generics,
+                    &full,
+                    &declared[*index].ty,
+                    self.source_definition,
+                    self.budget,
+                )?;
+                let actual = self.expr(value, state, Some(&want), false)?;
+                role_check::same(&actual, &want, supplied.span, self.class_scope, self.budget)?;
+            }
+            let actual = TypeRef {
+                span: e.span,
+                kind: TypeKind::Named {
+                    path: vec![declaration.name.clone()],
+                    args: full,
+                },
+            };
+            syntax_enum::check_injection(&actual, expected, self.budget)?;
+            return Ok(Some(actual));
+        }
         let variables = record_enums::variables(declaration, self.budget)?;
         let mut found = BTreeMap::new();
         if let Some(explicit) = explicit {
@@ -213,6 +367,51 @@ impl Check<'_, '_, '_> {
             .ok_or_else(|| error(ty.span, "unknown enum in generic pattern"))?;
         if decl.generics.len() != args.len() {
             return Err(error(ty.span, "generic enum pattern type arity mismatch"));
+        }
+        if decl
+            .generics
+            .iter()
+            .any(|p| !matches!(p.kind, GenericParamKind::Type(_)))
+        {
+            nominal_type_actuals(
+                &decl.generics,
+                args,
+                self.source_definition,
+                self.budget,
+                ty.span,
+            )?;
+            if self.budget.has_enum_profiles()
+                && let VariantFields::Record(fields) =
+                    &record_enums::variant(decl, variant, ty.span, self.budget)?.fields
+            {
+                return fields
+                    .iter()
+                    .map(|field| {
+                        nominal_field_type(
+                            &decl.generics,
+                            args,
+                            &field.ty,
+                            self.source_definition,
+                            self.budget,
+                        )
+                    })
+                    .collect();
+            }
+            return syntax_enum::fields(decl, variant, ty.span)?
+                .iter()
+                .map(|field| {
+                    if field.manages {
+                        return Err(unsupported(field.span, "owned generic enum payload"));
+                    }
+                    nominal_field_type(
+                        &decl.generics,
+                        args,
+                        &field.ty,
+                        self.source_definition,
+                        self.budget,
+                    )
+                })
+                .collect();
         }
         let mut found = BTreeMap::new();
         for (p, arg) in decl.generics.iter().zip(args) {
@@ -487,15 +686,17 @@ impl Check<'_, '_, '_> {
                 if declaration.generics.len() != args.len() {
                     return Err(error(p.span, "record enum pattern type arity mismatch"));
                 }
-                let mut found = BTreeMap::new();
-                for (parameter, argument) in declaration.generics.iter().zip(args) {
-                    let GenericArg::Type(ty) = argument else {
-                        return Err(unsupported(p.span, "const enum argument"));
-                    };
-                    self.budget.text(&parameter.name, parameter.span)?;
-                    self.budget.ty(ty)?;
-                    found.insert(parameter.name.clone(), ty.clone());
-                }
+                let mixed = declaration
+                    .generics
+                    .iter()
+                    .any(|p| !matches!(p.kind, GenericParamKind::Type(_)));
+                let found = nominal_type_actuals(
+                    &declaration.generics,
+                    args,
+                    self.source_definition,
+                    self.budget,
+                    p.span,
+                )?;
                 self.budget.text(variant, p.span)?;
                 for _ in declared {
                     self.budget.node(p.span, 0)?;
@@ -507,8 +708,17 @@ impl Check<'_, '_, '_> {
                 };
                 let mut patterns = vec![Pat::Any; declared.len()];
                 for (supplied, index) in supplied.iter().zip(order) {
-                    let field_type =
-                        syntax_enum::substituted(&declared[index].ty, &found, self.budget)?;
+                    let field_type = if mixed {
+                        nominal_field_type(
+                            &declaration.generics,
+                            args,
+                            &declared[index].ty,
+                            self.source_definition,
+                            self.budget,
+                        )?
+                    } else {
+                        syntax_enum::substituted(&declared[index].ty, &found, self.budget)?
+                    };
                     patterns[index] = self.pattern_child(
                         &supplied.pattern,
                         &field_type,

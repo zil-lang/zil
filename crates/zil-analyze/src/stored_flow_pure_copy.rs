@@ -61,6 +61,10 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
             }
             Ok(true)
         }
+        Type::BorrowedStorage { .. } => {
+            physical(ty, b)?;
+            retained::pure(ty, b)
+        }
         _ => Ok(false),
     }
 }
@@ -106,7 +110,9 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             element.as_ref()
         }
         InstructionKind::MakeVariant { variant, fields } => {
-            let Type::Enum { variants, .. } = result else {
+            let Type::Enum { variants, .. } =
+                super::carrier(result).map_or(result, |(storage, _)| storage)
+            else {
                 return Err(failure("pure Copy variant result is not an enum"));
             };
             let (_, payload) = variants
@@ -131,7 +137,11 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         }
         InstructionKind::VariantTag { value } => {
             let source = value_type(f, *value)?;
-            if !matches!(source, Type::Enum { .. }) || !pure(source, b, 0)? {
+            if !matches!(
+                super::carrier(source).map_or(source, |(storage, _)| storage),
+                Type::Enum { .. }
+            ) || !pure(source, b, 0)?
+            {
                 return Err(failure(
                     "pure Copy tag source is not a complete ordinary enum",
                 ));
@@ -147,7 +157,9 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
             if !pure(source, b, 0)? {
                 return Err(failure("pure Copy variant source contains stored targets"));
             }
-            let Type::Enum { variants, .. } = source else {
+            let Type::Enum { variants, .. } =
+                super::carrier(source).map_or(source, |(storage, _)| storage)
+            else {
                 return Err(failure("pure Copy projection source is not an enum"));
             };
             variants
