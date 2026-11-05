@@ -1,0 +1,210 @@
+{
+  "task_id": "G4.4.5",
+  "result": "Bounded implementation checkpoint; formal full gates and parent-task acceptance are owned by root",
+  "base_sha": "917971a13a1590ee912db73be7474d0cceef2b2c",
+  "goal_read_sha": "24576143daa7a692ba1fd6fff73160f270cb95a8",
+  "proposal_sha": "f3131f740242982199e499a859aa909496367e67",
+  "relocation_contract_sha": "335be0b58d0f75aedf17cd6f22bf0473bb9f773e",
+  "frozen_production_sha": "39d7db283e2cde7a043ddf9b37948f2110fc6f36",
+  "author_necessary_tests_sha": "39d7db283e2cde7a043ddf9b37948f2110fc6f36",
+  "scope": [
+    "Original mixed CT factories directly returning nonempty ordinary UserPure records with identical ordered pure-scalar fields",
+    "Separate genuine caller/callee schemas and SourceLifeBinding rows remain; only original authenticated actual Life chains may establish equal endpoints",
+    "Full nominal identity, Type/Const argument vectors, field domains, context nodes/root and ambient owner/class positions remain exact",
+    "One actual Call result is extracted once in declaration field order and rebuilt using existing MakeRecord in the caller return schema",
+    "Fresh private relocation witnesses are independently reconciled before artifact clone, CT Verify and VM; ordinary CtTy equality remains strict",
+    "Unit metadata reifies to canonical empty-tuple source type, including a direct factory that performs no relocation"
+  ],
+  "interfaces_unchanged": [
+    "public CT schema and envelope",
+    "Wire/ABI",
+    "SourceInstanceCall physical header",
+    "default limits",
+    "product gates",
+    "Analyze/Verify production source"
+  ],
+  "private_boundary": {
+    "ledger": "SourceCompilation.relocations with function/block/input Call SSA/source schema/target schema/output MakeRecord SSA",
+    "authority": "Fresh Source compiler only; raw programs and cache candidates cannot supply these private rows",
+    "independent_check": "FrozenInvocationContext restores actual Call/callee result/caller result and continuous ExtractField->MakeRecord, authentic full callee actuals and separate resolved Life endpoints",
+    "not_claimed": "General Source-to-CT translation validation or detection of an internally omitted entire private witness vector; no raw opcode distinguishes legitimate explicit record construction from implicit adaptation",
+    "prune": "Reachable rows use actual block/value remapping; an unreachable relocation row is conservatively rejected, not silently trimmed"
+  },
+  "validation_by_exact_source": [
+    {
+      "source_sha": "c8dc115cb50f3e14567eed62461759677c653bc2",
+      "configuration": "Author isolated driver lib, default features, jobs2, workspace TMPDIR, dev/test STRIP=symbols",
+      "command": "cargo test -p zil-driver --lib g445_ --offline -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "executable_sha256": "4460eecf88271bac5b0fb21004f575b6f463a8f11293683cbdd0464beeeb18e6",
+      "log": "/workspace/.zil-env/G4.4.5-tmp/first-relocation-probe.log",
+      "note": "Initial i32-only production before pure-scalar generalization; not final scalar-native evidence"
+    },
+    {
+      "source_sha": "bf0ff937a0faca5d0c68af67e3ebb5c7af47fcef",
+      "configuration": "Root coordinated driver lib with llvm-api; production includes pure-scalar generalization before Unit materialization fix",
+      "passed": 1,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G4.4.5.1-preflight/g445-lib.log",
+      "checks": [
+        "Actual reordered Source and genuine two-Life-ordinal source",
+        "3 original schemas and 3 source bindings, 2 actual relocations",
+        "Independent source-call authority plus raw/Wire CT Verify and VM full42",
+        "Returned source resolves to original result.s0",
+        "Same authenticated scope but another valid Life ordinal independently rejects endpoint substitution",
+        "Same-domain changed Const42->43 and Type i32->bool actual vectors reject",
+        "Forged Call/output SSA, caller/target/schema and repeated rows reject",
+        "Raw/Wire wrong field index, omitted field and wrong extraction SSA reject before whole-artifact equality"
+      ]
+    },
+    {
+      "source_sha": "7a7b582600be8fecf17b4e45c724d8a52ecea1fb",
+      "production_equivalence": "All ct_artifact production files exactly match frozen39d; integration only appends independent aggregate review modules",
+      "configuration": "Root coordinated existing aggregates, --features llvm-api",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "aggregates",
+        "g445_",
+        "--",
+        "--nocapture"
+      ],
+      "passed": 5,
+      "failed": 0,
+      "author_tests": 3,
+      "independent_consumer_tests": 2,
+      "author_native": {
+        "executions": 20,
+        "matrix": "5 Sources x Clang/LLVM API x O0/O2",
+        "complete_outputs": [
+          "42",
+          "42",
+          "49",
+          "85",
+          "42"
+        ],
+        "additional_check": "Direct make of ten-scalar record including Unit verifies without relocation"
+      },
+      "independent_native": {
+        "executions": 4,
+        "matrix": "2 independently authored Sources x LLVM API x O0/O2",
+        "complete_outputs": [
+          "18446744073709551589",
+          "49"
+        ],
+        "note": "Listed separately; not accumulated into author matrix coverage"
+      },
+      "logs": [
+        "/workspace/.zil-env/G4.4.5.1-preflight/attempt3/g445-consumers.log",
+        "/workspace/.zil-env/G4.4.5.1-preflight/attempt3/limited.json"
+      ],
+      "cli": {
+        "path": "/workspace/.zil-env/G4.4.5.1-preflight/attempt3/zil-7a7b58260",
+        "sha256": "941578577d5499106cbb79a217da40053658a689c00a75b59ee359857c1a9ec3"
+      }
+    },
+    {
+      "source_sha": "0fee93aa7eb7fa0fe2f1fe9e86fb3f63f019566b",
+      "production_equivalence": "Production unchanged from frozen39d; root only extends the same existing budget test to include the ten-field Source",
+      "target": "Existing aggregates g445_real_record_relocations_pay_all_request_ledgers",
+      "passed": 1,
+      "failed": 0,
+      "boundaries": {
+        "single_i32_with_two_original_life_ordinals": {
+          "work": 175452,
+          "nodes": 3140,
+          "steps": 19,
+          "bytes": 142641
+        },
+        "ten_scalar_fields": {
+          "work": 292941,
+          "nodes": 4857,
+          "steps": 32,
+          "bytes": 105185
+        }
+      },
+      "modes": [
+        "N success",
+        "N-1 ResourceLimit",
+        "cold",
+        "warm",
+        "fresh"
+      ],
+      "log": "/workspace/.zil-env/G4.4.5.1-preflight/attempt3/scalar-vector-budget.log",
+      "note": "Different input shapes/depths; these values are not a relative performance claim"
+    }
+  ],
+  "old_path_control": {
+    "source_sha": "7a7b582600be8fecf17b4e45c724d8a52ecea1fb",
+    "target": "Existing aggregates g444_",
+    "passed": 3,
+    "failed": 0,
+    "boundaries": {
+      "work": 60900,
+      "nodes": 1943,
+      "steps": 24,
+      "bytes": 61580
+    },
+    "note": "Unchanged G4.4.4 scalar path costs; old known unimplemented Phantom assertion now expects the new supported success",
+    "log": "/workspace/.zil-env/G4.4.5.1-preflight/attempt3/g444-regression.log"
+  },
+  "retained_failures": [
+    {
+      "source": "Original p0-review444/good-three-layer-reordered.zil",
+      "phase": "ct",
+      "diagnostic": "actual expected type mismatch in forward->middle",
+      "detail": "Distinct genuine schema1/middle.p0 and schema0/forward.p1; full chain reaches result.s0. Initial actual trace is in G4.4.5-initial-context-gap.json"
+    },
+    {
+      "source_sha": "bf0ff937a0faca5d0c68af67e3ebb5c7af47fcef",
+      "result": "aggregates2/1",
+      "phase": "lex",
+      "diagnostic": "E-LEX-NUMBER for unsupported42i64 fixture spelling",
+      "correction_sha": "89f4a2a93b610fff76d79cc2942fb7043a52789e",
+      "correction": "Use existing i64(42); 4 actual Sources then parse successfully using accepted release CLI",
+      "log": "/workspace/.zil-env/G4.4.5.1-preflight/g445-consumers.log"
+    },
+    {
+      "source_sha": "a0f47ba504e80b106bf81f9df528eacc9b4baeb1",
+      "result": "aggregates2/1",
+      "phase": "types",
+      "diagnostic": "expected Named(\"Unit\"), found ()",
+      "classification": "Preexisting CT metadata materialization defect, also reproduced by accepted release direct factory without relocation",
+      "actual_core": "Declaration field Unit; generated value Ascribed Named(\"Unit\") around Unit",
+      "correction_sha": "39d7db283e2cde7a043ddf9b37948f2110fc6f36",
+      "correction": "Primitive(Unit) -> TypeKind::Tuple(empty), leaving read_view names unchanged",
+      "logs": [
+        "/workspace/.zil-env/G4.4.5.1-preflight/attempt2/g445-consumers.log",
+        "/workspace/.zil-env/G4.4.5-tmp/unit-ct/ct-core.txt"
+      ]
+    }
+  ],
+  "source_files": [
+    "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+    "tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil",
+    "tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-two-source-lives.zil",
+    "tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
+  ],
+  "remaining_scope": [
+    "Adapter is restricted to an actual non-symbolic mixed call result and the current caller return schema",
+    "Nested record/array/enum or non-scalar fields are not relocated by this slice",
+    "Scoped life-bearing Type value construction remains independently unsupported; already-supported closed T->Type forwarding is only a regression control",
+    "Generic hosts, receiver/generated ownership, runtime generic-body CT phase and general relocation remain separate work",
+    "No native Windows run or same-semantics Rust runtime/RSS/compile/maintenance benchmark"
+  ],
+  "rust_goals": {
+    "safety": "Real Source-derived original identities/full ordinals, separate authenticated bindings and independent scope/call reconstruction; bounded raw/Wire/negative cases only, not full language safety",
+    "runtime_memory": "Existing pure scalar operations materialize ordinary records; complete machine values including wide/sign/fraction/Unit verified, no added implicit Box/RC/lock; Rust comparison unmeasured",
+    "expression_maintenance": "Previously rejected three-factory Phantom values now return normally, preserving Type/Const/Life; Unit reifier bug closed; general framework maintenance gain unmeasured",
+    "compile_cost": "New capacities/metadata/independent chain visits paid in current request; exact one-field and ten-field boundaries; defaults unchanged, no Rust compile advantage claimed",
+    "breakthrough": "Reproducible finite expression increment from actual rejected Source to complete machine values; product-level Rust net advantage and all four goals together not established"
+  },
+  "formal_full_suite": "Not run by author; coordinator is preparing separate formal gates, so this receipt claims limited checkpoint validation only"
+}
