@@ -1372,6 +1372,13 @@ CT5的源上下文与图内owner分域：CtTypeRef.ambient_classes把本图实�
 共同40接续改变类行及可调用关系字节后，公共schema/Wire统一为40，TypedModule/TypeIdentity及LifeInventory域V40、StorageLifeContract域2、CallableParameterContract域6；CT schema及相关artifact/program/provider/dependency/function/value域为5。未改变布局的CallableReturnContract域3保留。历史Wire39/CT4不复用新版布局；表示发布与各消费者实际准入分别记录，未迁移消费者不能接收新形状。所有新表、路径、端口叶、上下文键、映射和clone在扫描/增长前从同一请求剩余额度预费；数字owner不能触发无界递归。codec只证明有限运输，独立实际根、权限、清理及源码/机器消费者仍必须分别落地。未接通的旧消费者显式拒绝新形状，不能默默忽略非空元数据。
 
 
+CT6 接续 CT4/CT5 的完整 Type 图与实际上下文契约，新增 `CtInstructionKind::TypeInContext { ty: CtTypeRef } -> CtTy::Type`。指令携带完整根图，不新增可独立制造的 Lifetime 值，不把 Type 加入普通常量表；数值节点、schema、生产者 witness 和 span 均不授予来源或访问资格。独立消费者核验物理 DAG、词法 owner、完整实参类别、名义声明/可见性和每个 ambient 端点；真实 Type 表达式及调用实参须从不可变源码结构位置和实际实例替换恢复，不能只比较同一生产者生成的两份字段。调用实参种类正确不等于所选 life 正确。
+
+带上下文 Type 的执行、调用返回、缓存运输和重实体化必须保留共同 ValueContext，沿已核真实来源保持关系，不将抽出的节点重新命名为自由 life。VM 对入口、构造及结果继续调用独立受计费图核验；不能仅删除 ambient 拒绝条件。完整图扫描、源码定位、比较、克隆、参数替换、失败和容量增长在执行前使用同一请求剩余额度计费；旧无上下文路径不因新指令额外构造账本。
+
+CT6 的 artifact/program/provider/dependency/function/value 版本域和专用封包同步迁移，拒绝旧 CT5 字节作为新版输入；运行时 schema/Wire 不因这条 CT 专用指令变更。上述为后继实施合同，公共表示可运输不代表泛型宿主、生成声明、运行时泛型体 CT 相位或完整语言已经验收；各项仍须真实源码、独立反例、预算边界及机器消费者证据。
+
+
 有限普通 Copy 泛型 profile（194）：直接 `T: Copy` 是编译器按实际结构检查的保留能力约束，当前入口限已支持有限普通 Copy Value：标量、元组、固定数组、名义记录/枚举、Copy错误联合及受支持无环境函数指针。Desc、Managed、Package、Closure、Address、裸Slice及递归/未支持形状不由此获得普通Copy类型实参资格；显式`&T`/`&mut T`沿既有地址规则，T自身仍须合格。定义期只可使用Copy所授予的复制与普通传递，不授予数值运算、公开字段、任意trait方法或callable能力；未使用的模板同样检查，用户同名空trait或impl不能制造该结构事实。实例化再次按实际形状、名义身份及原工作/深度额度核验。
 
 普通 Struct 的直接 Copy 参数约束（320）：在已有普通泛型 Struct 范围，类型参数可声明直接保留 `Copy` bound；每个 bound 只约束其具名参数，其余无 bound 参数保持原规则，不据此推断整个 Struct 为 Copy。字段声明及嵌套泛型应用在定义期核验，未使用的声明同样检查；内层 Copy obligation 须由当前真实 binder 的已声明约束证明，不能等实际 i32 特化后补证。实际实例逐一验证受约束参数的完整普通 Copy 资格，包含未出现在字段中的 phantom 参数；透明别名正规化、名义身份与完整实例键沿现有规则。此片不开放 aggregate where、任意 trait bound、Package/Resource 的新约束、方法或默认字段；既有字段资格保持。新增遍历/类型比较在增长前累计收费，默认额度不变，源正反例、实例身份和预算以及原生结果须实际核回。
