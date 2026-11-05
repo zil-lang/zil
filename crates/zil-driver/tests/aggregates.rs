@@ -9977,3 +9977,6 @@ mod whole_helper_review;
 
 #[path = "../../../tests/language-readiness/terminal/340/whole_helper_error_review.rs"]
 mod whole_helper_error_review;
+
+#[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
+mod p0_g445_review;
