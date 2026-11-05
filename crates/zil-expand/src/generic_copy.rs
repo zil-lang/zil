@@ -328,7 +328,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                     }
                     _ => Err(error(
                         ty.span,
-                        "StoreElement fields require finite Copy or explicit direct manages resources",
+                        format!("StoreElement fields require finite Copy or explicit direct manages resources: unresolved nominal {name}"),
                     )),
                 };
                 self.active.remove(key.as_ref());
