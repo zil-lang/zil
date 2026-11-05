@@ -433,6 +433,7 @@ mod record_enum329_ledger {
             &mut engine,
             false, // This retained source fixture has no associated declarations.
             false, // No generic methods in this retained source fixture.
+            None, // This retained-source control has no runtime CT callback.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

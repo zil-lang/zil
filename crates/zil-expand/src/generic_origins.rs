@@ -566,6 +566,56 @@ fn validate_generated(
         unreachable!()
     };
     let original = &original[0];
+    // Deferred runtime CT retains the entire generated function, unlike other
+    // materialized declarations whose bodies may legitimately change. Compare
+    // every semantic AST node before module normalization or specialization.
+    // ClosureSiteLineage remains Unavailable: this is a separate obligation.
+    if let ItemKind::Function(function) = &original.kind
+        && function
+            .generics
+            .iter()
+            .any(|parameter| !matches!(parameter.kind, GenericParamKind::Lifetime))
+    {
+        struct Deferred<'a, 'b> {
+            budget: &'a mut Budget<'b>,
+            found: bool,
+        }
+        impl crate::ct_selection::Visitor for Deferred<'_, '_> {
+            fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+                self.budget.node(span, depth).map_err(|error| vec![error])
+            }
+            fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+                self.budget.text(text, span).map_err(|error| vec![error])
+            }
+            fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+                self.found |= matches!(expression.kind, ExprKind::MetaEval(_));
+                crate::ct_selection::walk_expression(self, expression, depth)
+            }
+        }
+        let mut scan = Deferred {
+            budget,
+            found: false,
+        };
+        match &function.body {
+            FunctionBody::Block(block) => crate::ct_selection::Visitor::block(&mut scan, block, 0),
+            FunctionBody::Expression(expression) => {
+                crate::ct_selection::Visitor::expression(&mut scan, expression, 0)
+            }
+            FunctionBody::Declaration => Ok(()),
+        }
+        .map_err(|mut errors| errors.remove(0))?;
+        if scan.found {
+            let cost = crate::ct_selection::item_cost(item, &budget.remaining_limits())
+                .map_err(|mut errors| errors.remove(0))?;
+            budget.identity_work(cost.work, item.span)?;
+            if original != item {
+                return Err(error(
+                    item.span,
+                    "generated deferred runtime function differs from its complete frozen source body",
+                ));
+            }
+        }
+    }
     fn binders(item: &Item) -> &[GenericParam] {
         match &item.kind {
             ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
@@ -1077,5 +1127,113 @@ mod generated_lineage_tests {
         }
         // This raw public reader proves structure only. Actual emission truth
         // and source scope authority are tested at Driver's immutable boundary.
+    }
+    #[test]
+    fn generated_runtime_ct_requires_the_complete_frozen_deferred_body() {
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "source.zil",
+            "struct Anchor<life a>{n:i32}#emit quote<ItemList>{};fn main()->i32{return 0}",
+        );
+        let parsed = zil_syntax::parse(&source);
+        assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+        let paths = BTreeMap::new();
+        let limits = Limits::default();
+        let (rows, _) = capture_original(
+            std::slice::from_ref(&source),
+            &[&parsed.module],
+            SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Original,
+            },
+            &limits,
+        )
+        .unwrap();
+        let mut rows = rows.unwrap();
+        let emitted = zil_syntax::parse(&SourceUnit::new(
+            FileId(9),
+            ModuleId(0),
+            "generated.zil",
+            "fn result<T:Copy,#N:i32>(marker:T)->i32{return #(N+1)}",
+        ));
+        assert!(emitted.diagnostics.is_empty(), "{:?}", emitted.diagnostics);
+        let tree = Arc::new(GeneratedSourceTree {
+            identity: SourceTreeIdentity::Generated {
+                module: ModuleId(0),
+                event_path: vec![0, 1],
+            },
+            emitter: SourceDeclarationSite {
+                tree: SourceTreeIdentity::Original(ModuleId(0)),
+                declaration: NodeId(1),
+                event_path: vec![1],
+            },
+            module: Arc::new(emitted.module),
+            declarations: vec![NodeId(4)],
+        });
+        let mut generated = zil_syntax::GeneratedSyntax::ItemList(tree.module.items.clone());
+        crate::remap_generated_spans(&mut generated, parsed.module.items[1].span, &limits).unwrap();
+        let zil_syntax::GeneratedSyntax::ItemList(mut generated) = generated else {
+            unreachable!()
+        };
+        let mut output = parsed.module.clone();
+        output.items[1] = generated.remove(0);
+        rows[0].items[1] = DeclarationOrigin {
+            closure_sites: crate::source_context::ClosureSiteLineage::Unavailable,
+            declaration: NodeId(4),
+            identity: tree.root_identity(0, &rows[0].items[0].identity).unwrap(),
+            retained_members: None,
+            generated: Some(GeneratedDeclarationOrigin {
+                tree: tree.clone(),
+                root: 0,
+            }),
+        };
+        let load = |module: &Module, rows: &[crate::source_context::ModuleDeclarationOrigins]| {
+            let mut budget = Budget::new(&limits);
+            let context = SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Aligned(rows),
+            }
+            .resolve(std::slice::from_ref(&source), &mut budget)?;
+            let mut origins = Origins::single(module, false, &mut budget)?;
+            origins.capture_identities(module, false, &context, &mut budget)
+        };
+        load(&output, &rows).unwrap();
+        let mut changed = output.clone();
+        let ItemKind::Function(function) = &mut changed.items[1].kind else {
+            unreachable!()
+        };
+        function.body = FunctionBody::Expression(Expr {
+            span: function.span,
+            kind: ExprKind::Literal(Literal::Integer("9".into())),
+        });
+        let error = load(&changed, &rows).unwrap_err();
+        assert!(
+            error.message.contains("complete frozen source body"),
+            "{error:?}"
+        );
+        for mutation in 0..5 {
+            let mut forged = rows.clone();
+            let row = &mut forged[0].items[1];
+            match mutation {
+                0 => row.declaration = NodeId(1),
+                1 => row.generated.as_mut().unwrap().root = 1,
+                2 => {
+                    Arc::make_mut(&mut row.generated.as_mut().unwrap().tree)
+                        .emitter
+                        .event_path = vec![2]
+                }
+                3 => Arc::make_mut(&mut row.generated.as_mut().unwrap().tree)
+                    .declarations
+                    .push(NodeId(4)),
+                _ => row.generated = None,
+            }
+            assert!(
+                load(&output, &forged).is_err(),
+                "forged deferred runtime ledger {mutation}"
+            );
+        }
     }
 }

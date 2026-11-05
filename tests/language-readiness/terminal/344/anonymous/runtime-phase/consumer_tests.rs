@@ -135,3 +135,14 @@ fn g447_runtime_ct_generic_host_retains_existing_ordinary_boundary() {
         assert_eq!(report.verification_runs, 0);
     }
 }
+
+#[test]
+fn g447_runtime_ct_instances_share_all_request_ledgers() {
+    let input = include_str!("../ct6-runtime-multiple-instances.zil");
+    for ledger in ["work", "nodes", "steps", "bytes"] {
+        let boundary = g44_source_request_boundary(input, ledger);
+        eprintln!(
+            "G4.4.7 runtime multiple instances {ledger} N={boundary}; N-1/cold/warm/fresh agree"
+        );
+    }
+}

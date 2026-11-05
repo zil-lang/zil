@@ -162,8 +162,9 @@ impl RuntimePhase<'_> {
         definition: &RuntimeDefinition,
         environment: &mut Environment<'_>,
     ) -> CompileResult<Declaration> {
-        if definition.origin.closure_sites
-            != zil_expand::source_context::ClosureSiteLineage::Original
+        if definition.origin.generated.is_none()
+            && definition.origin.closure_sites
+                != zil_expand::source_context::ClosureSiteLineage::Original
         {
             return Err(category(
                 "runtime CT transformed declaration requires retained source call correspondence",
@@ -215,6 +216,27 @@ impl RuntimePhase<'_> {
                 None,
             )
         };
+        if definition.origin.generated.is_some() {
+            // The Expand reader has compared this entire deferred function to
+            // its frozen generated root before normalization. Generated closure
+            // identities stay Unavailable and confer no runtime CT permission.
+            let original = source.module().items.get(local.0 as usize).ok_or_else(|| {
+                category("generated runtime CT source root absent", Span::default())
+            })?;
+            let s::ItemKind::Function(function) = &original.kind else {
+                return Err(category(
+                    "generated runtime CT root is not a function",
+                    original.span,
+                ));
+            };
+            let max_depth = environment.remaining_limits_for_input().max_call_depth;
+            if !deferred(function, &mut environment.budget, max_depth)? {
+                return Err(category(
+                    "generated runtime CT parent lacks complete deferred-body correspondence",
+                    original.span,
+                ));
+            }
+        }
         if source.module().id != definition.module {
             return Err(category(
                 "runtime CT source module differs",
