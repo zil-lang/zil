@@ -556,6 +556,11 @@ pub(crate) fn at_type<'a>(
             ));
         }
     }
+    if matches!(ty, Type::Tuple(_) | Type::ErrorUnion { .. }) {
+        // Successful independent whole-endpoint reconstruction also enables
+        // the existing complete Sum drop recipes on this verified module.
+        b.mark_sum(Some(f.id.0 as usize))?;
+    }
     Ok(ty)
 }
 /// Consume only an actual current edge observation reconstructed by this
