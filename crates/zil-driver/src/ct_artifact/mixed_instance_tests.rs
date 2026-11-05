@@ -375,11 +375,16 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                         &mut CtExecutionBudget::new(expected.budget),
                     )
                     .unwrap_err();
+                let expected_message = if attack == 0 {
+                    "CT relocation changes the complete ordered nominal actual vector"
+                } else {
+                    "CT relocation changes the complete nominal context graph"
+                };
                 assert!(
-                    errors.iter().any(|d| d
-                        .message
-                        .contains("complete nominal arguments or context shape")),
-                    "{errors:?}"
+                    errors.iter().any(|d| d.phase == Phase::Ct
+                        && d.code == "E-UNSUPPORTED"
+                        && d.message == expected_message),
+                    "attack {attack}: {errors:?}"
                 );
             }
         }
