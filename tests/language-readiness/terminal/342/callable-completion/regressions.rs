@@ -761,7 +761,7 @@ fn g339_same_generic_qualified_runtime_positions_source_raw_wire() {
             roles_seen += 1;
         }
     }
-    assert_eq!(roles_seen, 2);
+    assert_eq!(roles_seen, 3);
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
