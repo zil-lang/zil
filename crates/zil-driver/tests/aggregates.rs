@@ -10147,6 +10147,13 @@ fn g4453_host_generated_member_life_owners_source_native() {
 }
 
 #[test]
+fn g4453_generated_factory_forwards_its_real_life_source_native() {
+    g4453_host_source_native(include_str!(
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory-forward-life.zil"
+    ));
+}
+
+#[test]
 fn g4453_ordinary_static_member_keeps_effect_and_duplicate_checks() {
     for text in [
         "struct Host{fn make()->i32{let n=42;let address=&n;return n}}fn main()->i32{return #(Host.make())}",

@@ -1910,7 +1910,7 @@ impl FrozenInvocationContext {
                 let environment = self.function_environment(function, facts, raw, budget)?;
                 self.match_location(location, graph, &environment, raw, index, budget)?;
             }
-            self.validate_nominal_schema_fields(binding, facts, raw, index, budget)?;
+            self.validate_nominal_schema_fields(binding, position, facts, raw, index, budget)?;
             let cost = super::super::execute::value_context::graph_cost(graph, budget)?
                 .saturating_add(std::mem::size_of::<AuthenticatedSchemaSite>() as u64);
             budget.reserve_temporary_bytes(cost)?;

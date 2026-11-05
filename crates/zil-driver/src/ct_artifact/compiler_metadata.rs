@@ -51,6 +51,13 @@ impl Budget<'_> {
         let CtScopeInstance::Instantiated(actuals) = &scope.instance else {
             return Ok(());
         };
+        self.scope_actuals_comparison(actuals, span)
+    }
+    pub(super) fn scope_actuals_comparison(
+        &mut self,
+        actuals: &[CtScopeActual],
+        span: Span,
+    ) -> R<()> {
         self.work(
             actuals
                 .len()
