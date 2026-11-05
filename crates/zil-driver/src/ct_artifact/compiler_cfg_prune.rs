@@ -67,6 +67,31 @@ impl Builder<'_, '_> {
             }
         }
         self.values = types;
+        if !self.compiler.record_relocations.is_empty() {
+            self.compiler
+                .budget
+                .work(self.compiler.record_relocations.len(), span)?;
+            for row in &mut self.compiler.record_relocations {
+                if row.caller != self.id {
+                    continue;
+                }
+                row.block = blocks
+                    .get(row.block.0 as usize)
+                    .copied()
+                    .flatten()
+                    .ok_or_else(|| error(span, "CT record relocation block is unreachable"))?;
+                row.input = values
+                    .get(row.input.0 as usize)
+                    .copied()
+                    .flatten()
+                    .ok_or_else(|| error(span, "CT record relocation input is unreachable"))?;
+                row.output = values
+                    .get(row.output.0 as usize)
+                    .copied()
+                    .flatten()
+                    .ok_or_else(|| error(span, "CT record relocation output is unreachable"))?;
+            }
+        }
         let mut result = Vec::new();
         for (index, block) in std::mem::take(&mut self.blocks).into_iter().enumerate() {
             self.compiler.budget.work(1, span)?;

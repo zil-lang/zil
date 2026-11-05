@@ -5,7 +5,7 @@ use super::*;
 use zil_verify::{CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage};
 
 #[test]
-fn g445_actual_source_context_gap() {
+fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
     let text = include_str!(
         "../../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
     );
@@ -22,7 +22,7 @@ fn g445_actual_source_context_gap() {
     let imports = vec![Vec::new()];
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let environment = Environment::new(
+    let mut environment = Environment::new(
         &sources,
         &parsed,
         &paths,
@@ -57,7 +57,7 @@ fn g445_actual_source_context_gap() {
     };
     let input = environment.empty_input(expression.span).unwrap();
     let modules = environment.index.modules(&sources, &syntax);
-    let errors = compiler::compile_scoped(CompileRequest {
+    let (expected, facts) = compiler::compile_scoped(CompileRequest {
         target_pointer_width: 64,
         modules: &modules,
         source_fingerprint: sources[0].fingerprint(),
@@ -65,7 +65,7 @@ fn g445_actual_source_context_gap() {
             module: ModuleId(0),
             expression,
             definition: definition.clone(),
-            lexical_owner: Some(definition),
+            lexical_owner: Some(definition.clone()),
             expected: None,
             parameters: &[],
         },
@@ -73,13 +73,208 @@ fn g445_actual_source_context_gap() {
         snapshot: &environment.snapshot,
         limits: &limits,
     })
-    .unwrap_err();
-    assert!(
-        errors
+    .unwrap();
+    assert_eq!(expected.record_schemas.len(), 3);
+    assert_eq!(facts.calls.len(), 3);
+    assert_eq!(facts.bindings.len(), 3);
+    assert_eq!(facts.relocations.len(), 2);
+    assert_eq!(facts.scopes.len(), 4);
+    assert_ne!(facts.bindings[0].definition, facts.bindings[1].definition);
+    assert_eq!(
+        facts
+            .bindings
             .iter()
-            .any(|d| d.message.contains("actual expected type")),
-        "{errors:?}"
+            .map(|row| row.parameters.clone())
+            .collect::<Vec<_>>(),
+        [vec![1], vec![0], vec![2]]
     );
+    let (origins, _) = zil_expand::source_context::capture_original(
+        &sources,
+        &syntax,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(0),
+            aliases: &paths,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+        &limits,
+    )
+    .unwrap();
+    let origins = Arc::new(origins.unwrap());
+    let entry = || Entry::Expression {
+        module: ModuleId(0),
+        expression,
+        definition: definition.clone(),
+        lexical_owner: Some(definition.clone()),
+        expected: None,
+        parameters: &[],
+    };
+    let mut invocation = super::super::invocation_context::FrozenInvocationContext::freeze(
+        &entry(),
+        &parsed,
+        &environment.index,
+        Some(&origins),
+        &mut CtExecutionBudget::new(expected.budget),
+    )
+    .unwrap()
+    .unwrap();
+    Arc::get_mut(&mut invocation)
+        .unwrap()
+        .extend_calls(
+            &facts.calls,
+            &facts.scopes,
+            &expected,
+            &environment.index,
+            &mut environment.budget,
+        )
+        .unwrap();
+    invocation
+        .validate_record_relocations(
+            &facts.relocations,
+            &facts.calls,
+            &expected,
+            &mut environment.budget,
+        )
+        .unwrap();
+    let authority = FrozenAuthority {
+        source_fingerprint: sources[0].fingerprint(),
+        snapshot: &environment.snapshot,
+        input: &input,
+        index: &environment.index,
+        expected_functions: &expected.functions,
+        expected_artifact: &expected,
+        invocation_context: Some(&invocation),
+    };
+    let wire = |raw: &CtArtifactProgram| {
+        zil_ir::ct_wire::decode_program(
+            &zil_ir::ct_wire::encode_program(raw, &limits).unwrap(),
+            &limits,
+        )
+        .unwrap()
+    };
+    for raw in [expected.clone(), wire(&expected)] {
+        invocation
+            .validate_record_relocations(
+                &facts.relocations,
+                &facts.calls,
+                &raw,
+                &mut CtExecutionBudget::new(expected.budget),
+            )
+            .unwrap();
+        let verified = zil_verify::verify_ct_artifact(raw, &limits, &authority).unwrap();
+        let reader = FrozenReadView {
+            record_schemas: &expected.record_schemas,
+            enum_schemas: &expected.enum_schemas,
+            ambient_life_scopes: &expected.ambient_life_scopes,
+            invocation_context: Some(&invocation),
+            index: &environment.index,
+            sources: &sources,
+            syntax: &syntax,
+            shape: environment.shape.as_ref(),
+            impl_index: environment.impl_index.as_ref(),
+            shape_failure: environment.shape_failure.as_deref(),
+            input: None,
+            limits: &limits,
+            target: &target,
+            snapshot: &environment.snapshot,
+        };
+        let (value, _) = zil_ct::evaluate_ct_artifact(
+            &verified,
+            &[],
+            &reader,
+            &mut CtExecutionBudget::new(expected.budget),
+        )
+        .unwrap();
+        assert!(matches!(value, CtValue::Record { fields, .. }
+            if fields == [CtValue::Scalar(zil_ir::Constant::I32(42))]));
+    }
+    let context = value_context::ValueContext::capture(
+        &expected,
+        &facts.bindings,
+        Some(invocation.clone()),
+        &mut CtExecutionBudget::new(expected.budget),
+    )
+    .unwrap();
+    let (_, sources) = context
+        .type_with_scopes(&context.ty, &mut CtExecutionBudget::new(expected.budget))
+        .unwrap();
+    assert_eq!(sources.len(), 1);
+    assert_eq!(sources[0].definition, definition);
+    assert_eq!(sources[0].parameters, [0]);
+    for attack in 0..5 {
+        let mut rows = facts.relocations.clone();
+        match attack {
+            0 => rows[0].input = rows[0].output,
+            1 => rows[0].target = rows[0].source,
+            2 => rows[0].caller = CtFunctionId(0),
+            3 => rows[0].output = rows[0].input,
+            _ => rows.push(rows[0]),
+        }
+        assert!(
+            invocation
+                .validate_record_relocations(
+                    &rows,
+                    &facts.calls,
+                    &expected,
+                    &mut CtExecutionBudget::new(expected.budget)
+                )
+                .is_err(),
+            "private relocation attack {attack}"
+        );
+    }
+    for attack in 0..3 {
+        let mut raw = expected.clone();
+        let row = facts.relocations[0];
+        let function = &mut raw.functions[row.caller.0 as usize];
+        let block = function
+            .blocks
+            .iter_mut()
+            .find(|block| block.id == row.block)
+            .unwrap();
+        let at = block
+            .instructions
+            .iter()
+            .position(|instruction| instruction.result == Some(row.input))
+            .unwrap();
+        match attack {
+            0 => {
+                let CtInstructionKind::ExtractField { index, .. } =
+                    &mut block.instructions[at + 1].kind
+                else {
+                    unreachable!()
+                };
+                *index = 1;
+            }
+            1 => {
+                let CtInstructionKind::MakeRecord { fields, .. } =
+                    &mut block.instructions[at + 2].kind
+                else {
+                    unreachable!()
+                };
+                fields.clear();
+            }
+            _ => {
+                let CtInstructionKind::MakeRecord { fields, .. } =
+                    &mut block.instructions[at + 2].kind
+                else {
+                    unreachable!()
+                };
+                fields[0] = row.input;
+            }
+        }
+        for raw in [raw.clone(), wire(&raw)] {
+            assert!(
+                invocation
+                    .validate_record_relocations(
+                        &facts.relocations,
+                        &facts.calls,
+                        &raw,
+                        &mut CtExecutionBudget::new(expected.budget)
+                    )
+                    .is_err(),
+                "raw relocation attack {attack}"
+            );
+        }
+    }
 }
 
 struct InventoryOnly<'a> {
