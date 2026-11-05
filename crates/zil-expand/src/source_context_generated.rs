@@ -36,6 +36,23 @@ pub struct GeneratedSourceTree {
     pub declarations: Vec<NodeId>,
 }
 impl GeneratedSourceTree {
+    /// Canonical generated root binding, using only the actual event and root
+    /// structure. The caller prepays the returned identity's owned strings.
+    pub fn root_identity(&self, root: u32, namespace: &zil_ir::LifeDeclarationIdentity) -> Option<zil_ir::LifeDeclarationIdentity> {
+        use zil_syntax::ast::{ItemKind, AggregateKind};
+        let item = self.module.items.get(root as usize)?;
+        let SourceTreeIdentity::Generated { event_path, .. } = &self.identity else { return None; };
+        let kind = match &item.kind {
+            ItemKind::Function(_) => "function", ItemKind::Extern { .. } => "extern",
+            ItemKind::Aggregate(a) => match a.kind { AggregateKind::Struct => "struct", AggregateKind::Package => "package", AggregateKind::Resource => "resource" },
+            ItemKind::Enum(_) => "enum", ItemKind::Trait(_) => "trait", ItemKind::Impl(_) => "impl",
+            ItemKind::TypeAlias(_) => "alias", ItemKind::Const(_) => "const", ItemKind::Import(_) => "import", ItemKind::Meta(_) => "meta",
+        };
+        Some(zil_ir::LifeDeclarationIdentity {
+            package: namespace.package.clone(), module_path: namespace.module_path.clone(),
+            declaration_path: vec![kind.to_owned(), root.to_string()], generation_path: event_path.clone(),
+        })
+    }
     /// Address encoding only. A matching digest never authenticates the tree,
     /// emitter, declaration inventory, or any permission.
     pub fn generation_fingerprint(&self) -> Option<zil_base::Fingerprint> {

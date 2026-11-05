@@ -176,7 +176,7 @@ impl<'a> Environment<'a> {
         };
         if event_path.is_empty()
             || *module != tree.emitter.tree.module()
-            || module.0 as usize >= self.parsed.len()
+            || !self.parsed.iter().any(|source| source.module.id == *module)
             || tree.declarations.len() > self.limits.max_nodes
             || self.generated_catalog.trees.len() >= self.limits.max_nodes
         {
@@ -190,6 +190,8 @@ impl<'a> Environment<'a> {
         if self.generated_catalog.find(&tree.identity).is_some() {
             return Err(error("duplicate generated source tree identity", span));
         }
+        let seen_bytes = tree.declarations.len() as u64 * 48;
+        self.budget.reserve_temporary_bytes(seen_bytes)?;
         let mut seen = std::collections::BTreeSet::new();
         for declaration in &tree.declarations {
             if !seen.insert(*declaration)
@@ -208,6 +210,8 @@ impl<'a> Environment<'a> {
                 .saturating_add(event_path.len() as u64 * 4)
                 .saturating_add(128),
         )?;
+        self.index.register_generated_tree(&tree, self.limits, &mut self.budget)?;
+        self.budget.release_temporary_bytes(seen_bytes);
         self.generated_catalog.trees.reserve_exact(1);
         self.generated_catalog.trees.push(tree);
         Ok(row)
