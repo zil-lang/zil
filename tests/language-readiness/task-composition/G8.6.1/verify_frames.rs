@@ -13,8 +13,9 @@ fn candidate(text: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let text = format!("{RESOURCE}{text}fn main(){{}}");
     let typed = zil_types::check(&expand(&text, &limits).unwrap().core, &target, &limits).unwrap();
     // Preserve Yield's Unit SSA definition and initialization effect using a
-    // Unit constant plus Direct header to obtain untrusted init/Hold rows from the
-    // already supported ordinary Sum path. Verify sees the original actual
+    // Unit constant plus Direct header (and a direct child's ordinary Call)
+    // obtains untrusted init/Hold rows from the existing ordinary Sum path.
+    // Verify sees the original actual
     // Source Suspend worker and independently constructs its frame plan.
     let mut ordinary = typed.clone();
     let worker = ordinary
@@ -29,6 +30,15 @@ fn candidate(text: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
             if matches!(instruction.kind, I::TaskYield) {
                 assert!(instruction.result.is_some());
                 instruction.kind = I::Constant(zil_ir::Constant::Unit);
+            } else if let I::SuspendCall {
+                function,
+                arguments,
+            } = &instruction.kind
+            {
+                instruction.kind = I::Call {
+                    function: *function,
+                    arguments: arguments.clone(),
+                };
             }
         }
     }
@@ -197,6 +207,16 @@ fn g8611_verify_enum_frame_preserves_input_result_and_nested_storage_fences() {
             "new non-i32 result",
             "enum Packet{Item(manages Token)}fn worker(give token:Token)->bool{let packet=Packet.Item(give token);task_yield();return true}",
             ResultCategory::Unsupported,
+        ),
+        (
+            "owned Enum result",
+            "enum Packet{Item(manages Token)}fn worker(give token:Token)->Packet{task_yield();return Packet.Item(give token)}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "child owned Enum result",
+            "enum Packet{Item(manages Token)}fn child(give token:Token)->Packet{return Packet.Item(give token)}fn worker(give token:Token)->i32{let packet=task_await(child,give token);task_yield();match packet{Packet.Item(value)=>{return value.code}}}",
+            ResultCategory::SafeReject,
         ),
     ] {
         let (typed, plan) = candidate(text);
