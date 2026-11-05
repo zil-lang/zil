@@ -547,6 +547,7 @@ impl<'a> Compiler<'a> {
         // function. Check its bound independently before any monomorphized body
         // can accidentally grant scalar/field capabilities.
         let mut scratch = Self::unindexed(self.modules, self.budget.limits);
+        scratch.generated_catalog = self.generated_catalog;
         for d in &self.declarations {
             self.budget.node(d.item.span)?;
         }
