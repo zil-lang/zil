@@ -451,6 +451,9 @@ impl<'a> Engine<'a> {
                 "stored nominal application requires an aggregate",
             ));
         };
+        if !aggregate.methods.is_empty() {
+            return Err(unsupported(span,"generic resource or methods require capability resolution"));
+        }
         for _ in &aggregate.generics {
             self.budget.node(span, depth)?;
         }

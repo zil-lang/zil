@@ -5,6 +5,8 @@ use crate::ct_artifact::compiler::{
     SourceCompilation, SourceInstanceCall,
     source_sites::{self, LocatedNode, Selection, SourceNode, SourceSite, SourceTreeId},
 };
+#[path = "invocation_context_static_host.rs"]
+mod static_host;
 
 #[derive(Clone)]
 pub(super) struct AuthenticatedTypeSite {

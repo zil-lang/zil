@@ -16,6 +16,8 @@ mod generics;
 mod host_context;
 #[path = "compiler_members.rs"]
 mod members;
+#[path = "compiler_static_namespace.rs"]
+pub(super) mod static_namespace;
 #[path = "compiler_mixed_generics.rs"]
 mod mixed_generics;
 #[path = "compiler_quote.rs"]

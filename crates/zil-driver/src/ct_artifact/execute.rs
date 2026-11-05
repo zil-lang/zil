@@ -17,6 +17,8 @@ use zil_base::{
 use zil_ct::{CtExecutionBudget, CtReadView};
 use zil_ir::{CoreImport, ct_artifact::*};
 use zil_syntax::ParseResult;
+#[path = "execute_static_host.rs"]
+mod static_host;
 
 fn error(message: &str, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -44,6 +46,7 @@ pub(super) struct Environment<'a> {
     target: &'a TargetProfile,
     source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
     pub(super) generated_catalog: zil_expand::source_context::GeneratedSourceCatalog,
+    static_host_invocations: Vec<static_host::Invocation>,
 }
 
 impl<'a> Environment<'a> {
@@ -164,6 +167,7 @@ impl<'a> Environment<'a> {
             target,
             source_origins: None,
             generated_catalog: Default::default(),
+            static_host_invocations: Vec::new(),
         })
     }
 
@@ -943,7 +947,19 @@ impl<'a> Environment<'a> {
         } else {
             None
         };
-        if context.is_none()
+        let retain_host = source_bindings.calls.iter().any(|call| call.enclosing.is_some());
+        self.budget.reserve_analysis_work(source_bindings.calls.len() as u64)?;
+        if retain_host {
+            // Only a successful independently admitted, verified AND evaluated
+            // request reaches this private event constructor.
+            self.retain_static_host_invocation(
+                expected,
+                source_bindings.calls,
+                source_bindings.scopes,
+                invocation_context.as_ref().ok_or_else(|| error("CT namespace lost its authentic invocation",span))?.clone(),
+            )?;
+        }
+        if context.is_none() && !retain_host
             && let Some(invocation_context) = invocation_context
         {
             self.budget

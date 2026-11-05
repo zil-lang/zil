@@ -45,6 +45,22 @@ pub struct RuntimeInstance {
 /// remove all deferred CT expressions, and debit the supplied remaining limits.
 /// The template and instance are syntax, not certificates.
 pub trait RuntimeCt {
+    /// Recheck a complete ordinary generic host against a successful actual CT
+    /// call and immutable source. The syntax and descriptor are untrusted;
+    /// implementations check all sibling definitions, including unused ones.
+    /// This never authorizes a runtime instance of the host.
+    fn check_static_host(
+        &self,
+        _definition: &RuntimeDefinition,
+        actual: &ast::Item,
+        _remaining: &mut Limits,
+    ) -> CompileResult<()> {
+        Err(vec![zil_base::Diagnostic::unsupported(
+            zil_base::Phase::Expand,
+            "generic resource or methods require capability resolution",
+            Some(actual.span),
+        )])
+    }
     /// Check the actual original CT expression under symbolic declaration
     /// binders, even when the runtime function is never instantiated. The
     /// returned type is computed from that expression, not its receiving slot.

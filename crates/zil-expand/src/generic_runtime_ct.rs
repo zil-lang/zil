@@ -3,6 +3,35 @@
 use super::*;
 use crate::runtime_ct::{RuntimeArgument, RuntimeCallSite, RuntimeDefinition, RuntimeInstance};
 
+pub(super) fn check_static_host(
+    item: &Item,
+    origin: Option<origins::Origin>,
+    origins: Option<&origins::Origins>,
+    callback: Option<&dyn crate::runtime_ct::RuntimeCt>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    let Some(callback) = callback else {
+        return Err(unsupported(
+            item.span,
+            "generic resource or methods require capability resolution",
+        ));
+    };
+    let origin = origin.ok_or_else(|| error(item.span, "CT namespace source origin absent"))?;
+    let origins =
+        origins.ok_or_else(|| error(item.span, "CT namespace source inventory absent"))?;
+    let row = origins.identity(origin.declaration, budget, item.span)?;
+    origins::pay_declaration_copy(row, budget, item.span)?;
+    let definition = RuntimeDefinition {
+        module: origin.declaration.module,
+        origin: row.clone(),
+        member: origin.member,
+    };
+    let mut remaining = budget.remaining_limits();
+    let result = callback.check_static_host(&definition, item, &mut remaining);
+    budget.adopt_remaining(&remaining);
+    result.map_err(|mut errors| errors.remove(0))
+}
+
 struct Expressions<'a, 'b> {
     budget: &'a mut Budget<'b>,
     nodes: BTreeMap<usize, u32>,
