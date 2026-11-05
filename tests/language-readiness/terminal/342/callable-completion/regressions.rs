@@ -875,3 +875,226 @@ fn g339_once_adaptation_retains_actual_owned_environment_cleanup() {
         rejected.to_json()
     );
 }
+
+#[test]
+fn g339_once_adapter_nearest_raw_wire_and_lending_rejections() {
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    // Actual extra i32 operation keeps all SSA and plan slots unchanged when
+    // replaced by a second well-typed call of the consumed receiver.
+    let text = include_str!("once-adapt-managed.zil").replace(
+        "if invoke{return f(x)}",
+        "if invoke{let seen=f(x);return seen+0}",
+    );
+    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    for actual_kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
+        let closure = typed
+            .closures
+            .iter()
+            .find(|d| {
+                d.kind == actual_kind
+                    && d.captures
+                        .iter()
+                        .any(|ty| matches!(ty, zil_ir::Type::Managed(_)))
+            })
+            .unwrap()
+            .id;
+        let helper = typed
+            .functions
+            .iter()
+            .position(|f| {
+                f.callable_contract
+                    .as_ref()
+                    .is_some_and(|c| c.roles.len() == 1 && c.roles[0].closure == closure)
+            })
+            .unwrap();
+        for double in [false, true] {
+            let mut forged = typed.clone();
+            let f = &mut forged.functions[helper];
+            let block = f
+                .blocks
+                .iter_mut()
+                .find(|b| {
+                    b.instructions
+                        .iter()
+                        .any(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                })
+                .unwrap();
+            let call_index = block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::CallClosureOnce { .. }))
+                .unwrap();
+            let call = block.instructions[call_index].kind.clone();
+            let InstructionKind::CallClosureOnce { callee, .. } = call else {
+                unreachable!()
+            };
+            if double {
+                let operation = block
+                    .instructions
+                    .iter_mut()
+                    .skip(call_index + 1)
+                    .find(|i| {
+                        i.result
+                            .is_some_and(|v| f.values[v.0 as usize] == zil_ir::Type::I32)
+                            && matches!(
+                                i.kind,
+                                InstructionKind::Constant(_) | InstructionKind::Binary { .. }
+                            )
+                    })
+                    .unwrap();
+                operation.kind = call;
+            } else {
+                let producer = block
+                    .instructions
+                    .iter_mut()
+                    .find(|i| i.result == Some(callee))
+                    .unwrap();
+                let InstructionKind::TakeLocal { local } = producer.kind else {
+                    panic!("actual Once receiver is not a Take")
+                };
+                producer.kind = InstructionKind::Load(local);
+            }
+            let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| d.category != ResultCategory::ResourceLimit),
+                "{errors:?}"
+            );
+            eprintln!(
+                "G339 adapted {actual_kind:?} double={double} Analyze: {}",
+                errors[0].message
+            );
+            let mut claim = plan.clone();
+            claim.module_fingerprint = forged.fingerprint();
+            let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+            for wire_mode in [false, true] {
+                let result = if wire_mode {
+                    zil_verify::verify_module_bytes(&wire, &target, &limits)
+                } else {
+                    zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+                };
+                let errors = result.unwrap_err();
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| d.category != ResultCategory::ResourceLimit),
+                    "{errors:?}"
+                );
+                assert!(
+                    errors
+                        .iter()
+                        .all(|d| !d.message.contains("candidate initialization")
+                            && !d.message.contains("candidate plan")),
+                    "must reach actual transfer/owner proof: {errors:?}"
+                );
+                eprintln!(
+                    "G339 adapted {actual_kind:?} double={double} wire={wire_mode}: {}",
+                    errors[0].message
+                );
+            }
+        }
+    }
+
+    // Replace the real caller's helper Call by a consuming call of its actual
+    // inline lending environment; result is the same existing &i32 SSA slot.
+    let lending = zil_types::check(
+        &g334_core(include_str!("qualified-lending.zil")),
+        &target,
+        &limits,
+    )
+    .unwrap();
+    let plan = zil_analyze::analyze(&lending, &limits).unwrap();
+    let mut forged = lending.clone();
+    let mut changed = false;
+    for f in &mut forged.functions {
+        for block in &mut f.blocks {
+            for index in 0..block.instructions.len() {
+                let InstructionKind::Call {
+                    function,
+                    ref arguments,
+                } = block.instructions[index].kind
+                else {
+                    continue;
+                };
+                if lending.functions[function.0 as usize]
+                    .callable_contract
+                    .is_none()
+                {
+                    continue;
+                }
+                let Some(zil_ir::Type::Address { inner, .. }) =
+                    arguments.first().map(|v| &f.values[v.0 as usize])
+                else {
+                    continue;
+                };
+                let zil_ir::Type::Closure(id) = inner.as_ref() else {
+                    continue;
+                };
+                if lending.closures[id.0 as usize].lending_captures.is_empty() {
+                    continue;
+                }
+                let Some(callee) = block.instructions.iter().find_map(|i| {
+                    matches!(i.kind,InstructionKind::MakeClosure{closure,..} if closure == *id)
+                        .then_some(i.result)
+                        .flatten()
+                }) else {
+                    continue;
+                };
+                let actual_arguments = arguments[1..].to_vec();
+                block.instructions[index].kind = InstructionKind::CallClosureOnce {
+                    callee,
+                    arguments: actual_arguments,
+                };
+                changed = true;
+                break;
+            }
+            if changed {
+                break;
+            }
+        }
+        if changed {
+            break;
+        }
+    }
+    assert!(changed);
+    let errors = zil_analyze::analyze(&forged, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .all(|d| d.category != ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    eprintln!("G339 actual lending Once Analyze: {}", errors[0].message);
+    let mut claim = plan;
+    claim.module_fingerprint = forged.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
+    for wire_mode in [false, true] {
+        let result = if wire_mode {
+            zil_verify::verify_module_bytes(&wire, &target, &limits)
+        } else {
+            zil_verify::verify_module(forged.clone(), claim.clone(), &target, &limits)
+        };
+        let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|d| !d.message.contains("candidate initialization")
+                    && !d.message.contains("candidate plan")),
+            "{errors:?}"
+        );
+        eprintln!(
+            "G339 actual lending Once wire={wire_mode}: {}",
+            errors[0].message
+        );
+    }
+}
