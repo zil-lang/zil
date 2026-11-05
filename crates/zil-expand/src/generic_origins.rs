@@ -606,8 +606,8 @@ mod retained_member_tests {
                 declarations: DeclarationPlacement::Aligned(rows),
             };
             let resolved = context.resolve(std::slice::from_ref(&source), &mut budget)?;
-            let mut origins = Origins::single(&actual, false, &mut budget)?;
-            origins.capture_identities(&actual, false, &resolved, &mut budget)?;
+                let mut origins = Origins::single(actual, false, &mut budget)?;
+                origins.capture_identities(actual, false, &resolved, &mut budget)?;
             Ok::<_, Diagnostic>(origins)
         };
         let origins = load(&actual, &rows).unwrap();
