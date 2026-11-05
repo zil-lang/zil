@@ -109,7 +109,38 @@ pub(crate) fn observe<'a>(
     max_depth: usize,
     observer: impl FnMut(SiteEvent<'a>) -> R<()>,
 ) -> R<()> {
-    walk_source_nodes(module, tree, Selection::All, None, max_depth, observer).map(|_| ())
+    walk_source_nodes(
+        module.id,
+        Some(module),
+        tree,
+        Selection::All,
+        None,
+        None,
+        max_depth,
+        observer,
+    )
+    .map(|_| ())
+}
+/// Item-local ordinals support a synchronous clone bridge. The caller maps
+/// them to the frozen module's canonical sites before supplying authority.
+pub(crate) fn observe_item<'a>(
+    item: &'a s::Item,
+    module: zil_base::ModuleId,
+    tree: SourceTreeId,
+    max_depth: usize,
+    observer: impl FnMut(SiteEvent<'a>) -> R<()>,
+) -> R<()> {
+    walk_source_nodes(
+        module,
+        None,
+        tree,
+        Selection::All,
+        None,
+        Some(item),
+        max_depth,
+        observer,
+    )
+    .map(|_| ())
 }
 fn select_from_node<'a>(
     module: &'a s::Module,
@@ -120,10 +151,12 @@ fn select_from_node<'a>(
     mut pay: impl FnMut(usize) -> R<()>,
 ) -> R<Option<LocatedNode<'a>>> {
     walk_source_nodes(
-        module,
+        module.id,
+        Some(module),
         tree,
         selection,
         root,
+        None,
         max_depth,
         |event| match event {
             SiteEvent::Work(work) => pay(work),
@@ -132,10 +165,12 @@ fn select_from_node<'a>(
     )
 }
 fn walk_source_nodes<'a>(
-    module: &'a s::Module,
+    module_id: zil_base::ModuleId,
+    module: Option<&'a s::Module>,
     tree: SourceTreeId,
     selection: Selection,
     root: Option<SourceNode<'a>>,
+    root_item: Option<&'a s::Item>,
     max_depth: usize,
     pay: impl FnMut(SiteEvent<'a>) -> R<()>,
 ) -> R<Option<LocatedNode<'a>>> {
@@ -151,10 +186,10 @@ fn walk_source_nodes<'a>(
     }
     impl<'a, F: FnMut(SiteEvent<'a>) -> R<()>> Walk<'a, F> {
         fn step(&mut self, depth: usize) -> R<bool> {
+            (self.pay)(SiteEvent::Work(1))?;
             if self.found.is_some() {
                 return Ok(false);
             }
-            (self.pay)(SiteEvent::Work(1))?;
             if depth > self.max_depth {
                 return Err(vec![Diagnostic::limit(
                     Phase::Ct,
@@ -684,7 +719,7 @@ fn walk_source_nodes<'a>(
         }
     }
     let mut walk = Walk {
-        module: module.id,
+        module: module_id,
         tree,
         next: 0,
         selection,
@@ -697,10 +732,14 @@ fn walk_source_nodes<'a>(
         Some(SourceNode::Expr(node)) => walk.expr(node, 0)?,
         Some(SourceNode::Type(node)) => walk.ty(node, 0)?,
         None => {
-            for item in &module.items {
+            if let Some(item) = root_item {
                 walk.item(item, 0)?;
-                if walk.found.is_some() {
-                    break;
+            } else if let Some(module) = module {
+                for item in &module.items {
+                    walk.item(item, 0)?;
+                    if walk.found.is_some() {
+                        break;
+                    }
                 }
             }
         }
