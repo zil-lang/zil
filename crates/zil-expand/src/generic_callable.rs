@@ -572,6 +572,11 @@ fn template_with_state(
     remaining: &mut usize,
     is_state: impl Fn(&TypeRef, &str, bool) -> bool,
 ) -> R<Option<CallableTemplates>> {
+    // Larger inventories pay their complete declaration classification before
+    // the temporary vector is allocated; the two-declaration path is retained.
+    if function.generics.len() > 2 {
+        hrtb::pay(remaining, function.generics.len(), function.span)?;
+    }
     let callables: Vec<_> = function.generics.iter().enumerate().filter(|(_, p)| matches!(&p.kind,
         GenericParamKind::Type(bounds) if bounds.iter().any(|b| matches!(&bound_inner(b).kind,
             TypeKind::Named { path, .. } if path.len() == 1 && matches!(path[0].as_str(), "Fn" | "FnMut" | "FnOnce"))))).collect();
@@ -603,18 +608,17 @@ fn template_with_state(
             "owning callable factories require one direct callable type and no ordinary type parameter",
         ));
     }
-    if callables.len() > 2
-        || function
-            .generics
-            .iter()
-            .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
-            .count()
-            > callables.len() + 1
+    if function
+        .generics
+        .iter()
+        .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
+        .count()
+        > callables.len() + 1
         || !function.where_clause.is_empty()
     {
         return Err(unsupported(
             function.span,
-            "at most two callable types and one ordinary Copy type with direct bounds are implemented",
+            "callable types and at most one ordinary Copy type with direct bounds are implemented",
         ));
     }
     for ordinary in function.generics.iter().filter(|p| {
@@ -798,12 +802,6 @@ fn template_with_state(
                 _ => {}
             }
             count += 1;
-            if roles.len() >= 2 {
-                return Err(unsupported(
-                    input.span,
-                    "at most two nonescaping callable environment roles are implemented",
-                ));
-            }
             if let Some(life) = &life {
                 hrtb::pay(
                     remaining,
@@ -812,6 +810,27 @@ fn template_with_state(
                         .saturating_add(life.binder_count as usize)
                         .saturating_add(2),
                     parameter.span,
+                )?;
+            }
+            if roles.len() >= 2 {
+                // This copy allowance uses the caller's live work remainder.
+                // Input AST shape/depth were bounded before classification.
+                let limits = Limits {
+                    max_analysis_steps: *remaining,
+                    max_nodes: *remaining,
+                    max_call_depth: *remaining,
+                    ..Limits::default()
+                };
+                let mut copy = Budget::new(&limits);
+                copy.text(&parameter.name, parameter.span)?;
+                for ty in parameters.iter().chain(std::iter::once(result)) {
+                    copy.ty(ty)?;
+                }
+                *remaining = copy.remaining_limits().max_analysis_steps;
+                hrtb::pay(
+                    remaining,
+                    std::mem::size_of::<CallableTemplate>(),
+                    input.span,
                 )?;
             }
             let binding = CallableTemplate {
@@ -888,6 +907,15 @@ fn template_with_state(
                 "two callable State constructors require two distinct direct declared inputs",
             ));
         }
+    }
+    if roles.len() > 2 {
+        hrtb::pay(
+            remaining,
+            roles
+                .len()
+                .saturating_mul(roles.len().checked_ilog2().map_or(1, |n| n as usize + 1)),
+            function.span,
+        )?;
     }
     roles.sort_by_key(|role| role.index);
     Ok(Some(CallableTemplates {
