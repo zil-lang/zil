@@ -1,0 +1,303 @@
+{
+  "task": "G3.3.2",
+  "decision": "AcceptLimitedCapturedSourceFixedAndOwningOnce",
+  "integrator": "/root",
+  "tested_source": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+  "tested_tree": "2fa745f1a22d36375b78c2d4a78fef05d93b3b13",
+  "main_before": "6d4d3e1182001290f87cc0105f9c5a64d769b153",
+  "scope": [
+    "Actual original free life-only creator declarations and closure expressions preserve full declaration/parameter identities through Core source contexts and CT materialization lineage.",
+    "Types forms actual shared qualified input captures and jointly canonicalizes P/C/R; Analyze and independent Verify reconstruct actual capture and invocation relationships from current raw inputs.",
+    "Finite scalar shared Fn, stateful move FnMut and real Managed scalar-record FnOnce capture flow through raw/Wire, Lower and both existing native backends.",
+    "Owning common scope uses teardown=None, actual resource definition identity and existing resource responsibility/cleanup checks. Source permission does not originate from copied metadata.",
+    "Existing inline closure environments and pointer representation; no new Typed/Wire table, schema, implicit box, RC or lock."
+  ],
+  "independent_reviews": [
+    {
+      "path": "docs/validation/G3.3.2-review.json",
+      "sha256": "4cff04436df87ed397e15a0adb00f33b99a1dba2c4f0922993c65129ffa3772f"
+    },
+    {
+      "path": "docs/validation/G3.3.2.1-review.json",
+      "sha256": "ef651ade35ff7db478b756c1e246017bae01b0090db1a75c04a2a4a6561e9d24"
+    },
+    {
+      "path": "docs/validation/G3.3.2.2-review.json",
+      "sha256": "7e43467f8bc0dc09038bdfb9388118e6204de0205c8694cb67bddb38b2e334b9"
+    },
+    {
+      "path": "docs/validation/G3.3.2.3-review.json",
+      "sha256": "b98b42ad14ff18b3c5095f7e1db077abc0f9c104421a00f07bfdb5d0a8ff04f1"
+    },
+    {
+      "path": "docs/validation/G3.3.2.4-review.json",
+      "sha256": "ef7a026545d46673afcaf9b7cf11184c260faa51d1d4afdf74419f5b3d2e27f9"
+    },
+    {
+      "path": "docs/validation/G3.3.2.5-review.json",
+      "sha256": "2a063c1a000d8e2ea03ec2ebd972b138082da5c7ce5cdd5f3e2cb55f6a24a6ae"
+    },
+    {
+      "path": "docs/validation/G3.3.2.6-review.json",
+      "sha256": "0558a935d7dc8d65d89aed110e39b244898b7d276582ac63f80b67d46cea5483"
+    },
+    {
+      "path": "docs/validation/G3.3.3-review.json",
+      "sha256": "92acda83c09b9808013f94dbd25f53e29ac6223562aa894ba81b392969f28cc7"
+    },
+    {
+      "path": "docs/validation/G3.3.3.1-review.json",
+      "sha256": "356af574689b3535aa568f94b4849a74fb80391bec7c903f8dd95591bc67b413"
+    },
+    {
+      "path": "docs/validation/G3.3.2.1-main-merge-review.json",
+      "sha256": "9e589e98810b95299fada7414a809b2e194eabff0de6f83c4b061f4d9f4cb4a5"
+    }
+  ],
+  "default": {
+    "source": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "source_after": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 431.12,
+    "groups": 422,
+    "passed": 4703,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "6329c12cadb2fa53d5801e69e277618ee71cfab259a57a180e7336d447af1c4d",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 15205176960
+  },
+  "reference": {
+    "source": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "source_after": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast",
+      "--no-default-features"
+    ],
+    "exit_code": 0,
+    "status": "Pass",
+    "elapsed_seconds": 385.8,
+    "groups": 422,
+    "passed": 4591,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "dcc6e01e56d51151fa6297d3bfaab38ba6d23e294469400e92b09a67b86d23a1",
+    "failures": [],
+    "reclaimed_cache_files": 408,
+    "reclaimed_cache_bytes": 14516914384
+  },
+  "strict_format_and_clippy": [
+    {
+      "name": "fmt",
+      "command": [
+        "cargo",
+        "fmt",
+        "--all",
+        "--",
+        "--check"
+      ],
+      "exit_code": 0,
+      "seconds": 5.9,
+      "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+    },
+    {
+      "name": "clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 0.99,
+      "log_sha256": "ae76658b442a40b74a75ce4a16b5b4bd5c4c0daf70b57a439a62af4a346a9075"
+    },
+    {
+      "name": "reference-clippy",
+      "command": [
+        "cargo",
+        "clippy",
+        "--locked",
+        "--workspace",
+        "--all-targets",
+        "--no-default-features",
+        "--",
+        "-D",
+        "warnings"
+      ],
+      "exit_code": 0,
+      "seconds": 26.89,
+      "log_sha256": "2e3062e30694a075c4587c5959860d39cd786e0be867409f45bddb8221bfa969"
+    }
+  ],
+  "text_reference": {
+    "passed": 70,
+    "failed": 0,
+    "ignored": 0,
+    "log_sha256": "0af4e9446824bafacc9bc5b48027171e6cb0a8a6c7478922e1cc32981c79eed7"
+  },
+  "release_consumer": {
+    "status": "Pass",
+    "source_commit": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "cli_sha256": "9bd22fed5e8847e1cd659a4f79fb03c9ab1d177e0805e37f5d71b62c17db593b",
+    "clang_sha256": "c336d48383874cffaab0dc4c5c359456d871f21380b746520dde5c7f4c125a67",
+    "commands": 145,
+    "oracle_sha256": "2993bc9e0714515c3e22add3997a12b3ea55cc5e91dc18fd1d0dc4156d4893cb",
+    "builds": 16,
+    "observations": 128,
+    "summary_sha256": "821db6bcd3415af428dae4ca4c051310941acb0b26586d7458c6354682d8f5da"
+  },
+  "engineering": {
+    "source": "6f375bbe0b63eb65c5a9685c54ce1127f8fea002",
+    "results": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "a75e2c61366074cca43109a0b144d23a3aa393ad9a2fe89e9070aed147a18921"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G3.3.2-common-run/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "3f867480571e7ff1f261b599cd0474112dfe194b3f5264f725cfba2e7987cbe5"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "9d49de442d5f2ad0eafbeadb7f51e3225d156a5c00625e6150938794165992d5"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "730c0b94408960827c89a5acfe826491c8dcbf6aab67ba71df4ff6ef48281b37"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "3cf594f1e5b995a7520421e75ba4957b17bd78a883f886c0abb4b85e1176a023"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "8f59626053fe8a06e24f89ce51a8821fe2f3a4da6e3cbfd4528e7a1a6b266cc9"
+      }
+    ]
+  },
+  "actual_source_controls": {
+    "existing_target": "zil-driver generic_regressions",
+    "native_matrix": "Fn single call, FnMut two calls, genuine Managed FnOnce; Clang/LLVM API O0/O2, 12 distinct cases; exact stdout 42 newline, exit 0, no fallback.",
+    "raw_wire": "Real Source-produced modules and Analyze plan reach independent Verify raw and encoded bytes; six mutated actual LIR capture/contract inputs reject before code generation.",
+    "final_whole_source_to_lower_N": {
+      "Fn": 24224,
+      "FnMut_two_calls": 34804,
+      "FnOnce": 36926
+    },
+    "budget_scope": "Current-request Source-to-Lower thresholds, not isolated Lower/codegen or performance superiority. The earlier representation receipt FnOnce N36307 predates the independently reviewed Analyze identity correction."
+  },
+  "failed_attempts": [
+    "Old cross-worktree Cargo metadata lacked new Core fields. Original cache was quarantined; fresh candidate cache rebuilt before this run.",
+    "First fresh all-target linking exhausted workspace disk and failed before tests. Only documented generated ELF outputs were reclaimed; source and logs preserved.",
+    "Fresh be066 default run: 4702 passed, 1 failed. Existing negative diagnostic matcher did not include the new precise Unsupported/Expand creator-header message. Only that matcher changed; compiler rejection remained required. Receipt: docs/validation/G3.3.2-initial-default-result.json.",
+    "After both full suites passed, the reused release target still contained old Core metadata and failed to compile. The failed log/receipt were retained; only release/consumer/engineering stages resumed on the same frozen source with a new task-specific release target."
+  ],
+  "handoff_scope": "Engineering handoff reads actual main worktree records, not candidate development states. Post-merge actual-main result is recorded separately; historical unavailable objects are not revalidated.",
+  "github_ci": {
+    "status": "NotObservedForThisPR",
+    "previous": "PR39 Actions had no started steps because payment/spending limit; not counted Pass",
+    "bypass": false
+  },
+  "not_completed": [
+    "G3.3.4 source F-helper bound/header bridge and general generated/member/mixed creators, lending or captured borrow returns.",
+    "User Drop and general owning/nested/borrowed capture combinations.",
+    "G1.3.4 whole Package replacement and G4.4.2 full mixed CT instance vectors remain separate in-progress source branches.",
+    "General trait/dyn/state/concurrency, complete libraries/ZUI, native Windows and same-semantics Rust product cost comparisons."
+  ],
+  "post_gate_change_scope": "This acceptance record only; no production, test, configuration or proposal changes after the tested source."
+}
