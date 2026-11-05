@@ -56,6 +56,50 @@ impl crate::ct_selection::Visitor for Expressions<'_, '_> {
     }
 }
 
+// Computed CT types carry frozen source nominal names. Ordinary generic
+// substitution deliberately replaces only bare type variables, so applied
+// nominals need their own origin-backed binding relocation.
+fn relocate_computed_nominals(
+    ty: &mut TypeRef,
+    bindings: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<()> {
+    budget.node(ty.span, depth)?;
+    match &mut ty.kind {
+        TypeKind::Named { path, args } => {
+            if path.len() == 1 {
+                budget.text(&path[0], ty.span)?;
+                if let Some(binding) = bindings.get(&path[0]).and_then(trait_bounds::plain) {
+                    budget.text(binding, ty.span)?;
+                    path[0] = binding.to_owned();
+                }
+            }
+            for argument in args {
+                budget.node(ty.span, depth)?;
+                if let GenericArg::Type(inner) = argument {
+                    relocate_computed_nominals(inner, bindings, budget, depth + 1)?;
+                }
+            }
+        }
+        TypeKind::Tuple(parts) => {
+            for part in parts {
+                relocate_computed_nominals(part, bindings, budget, depth + 1)?;
+            }
+        }
+        TypeKind::Array { element, .. } | TypeKind::Group(element) => {
+            relocate_computed_nominals(element, bindings, budget, depth + 1)?;
+        }
+        _ => {
+            return Err(unsupported(
+                ty.span,
+                "computed CT type needs a source nominal relocation adapter",
+            ));
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn symbolic_types(
     item: &Item,
     origin: Option<origins::Origin>,
@@ -152,6 +196,7 @@ pub(super) fn symbolic_types(
             .definition_expression(&definition, source_ordinal, &mut remaining)
             .map_err(|mut e| e.remove(0))?;
         budget.adopt_remaining(&remaining);
+        relocate_computed_nominals(&mut result, &substitutions, budget, 0)?;
         budget.substituted_type(&result, &substitutions)?;
         Substitution {
             substitutions: &substitutions,

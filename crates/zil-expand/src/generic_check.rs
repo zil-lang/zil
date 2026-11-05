@@ -529,6 +529,60 @@ fn substituted_type(
     Substitution { substitutions }.ty(&mut result);
     Ok(result)
 }
+// Preserve the nominal's complete formal order while projecting a field.
+// Lifetime labels are rebound through the caller's genuine declaration before
+// substituting Type/Const arguments, so labels inside actual types keep their
+// own caller meaning.
+fn nominal_field_type(
+    parameters: &[GenericParam],
+    arguments: &[GenericArg],
+    field: &TypeRef,
+    source: &Function,
+    budget: &mut Budget<'_>,
+) -> R<TypeRef> {
+    let frame = role_check::Frame::nominal(parameters, arguments, source, budget, field.span)?;
+    let mut substitutions = BTreeMap::new();
+    for (parameter, argument) in parameters.iter().zip(arguments) {
+        budget.node(field.span, 0)?;
+        budget.text(&parameter.name, field.span)?;
+        let actual = match (&parameter.kind, argument) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_)) => continue,
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => {
+                budget.ty(ty)?;
+                ty.clone()
+            }
+            (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                let carrier = consts::carrier(value, budget)?;
+                if let ExprKind::Name(name) = &value.kind {
+                    let (_, formal) =
+                        consts::symbolic_parameter(source, name).ok_or_else(|| {
+                            error(value.span, "generic field const has no source binder")
+                        })?;
+                    let GenericParamKind::Const(actual_domain) = &formal.kind else {
+                        unreachable!()
+                    };
+                    same(actual_domain, domain, value.span, budget)?;
+                    carrier
+                } else {
+                    consts::normalize(parameter, &carrier, budget)?
+                }
+            }
+            _ => {
+                return Err(error(
+                    field.span,
+                    "generic record actual kind differs from its declared binder",
+                ));
+            }
+        };
+        substitutions.insert(parameter.name.clone(), actual);
+    }
+    if rich_pointer::has_life(field, budget)? {
+        let field = frame.substitute(field, source, budget)?;
+        substituted_type(&field, &substitutions, budget)
+    } else {
+        substituted_type(field, &substitutions, budget)
+    }
+}
 /// Only floating literals can receive a floating format from the other operand.
 /// Group/unary inspection is metadata work, before either value is evaluated.
 pub(super) fn uncontextual_float(
@@ -2197,16 +2251,14 @@ impl Check<'_, '_, '_> {
                         if aggregate.generics.len() != args.len() {
                             return Ok(None);
                         }
-                        let mut substitutions = BTreeMap::new();
-                        for (parameter, argument) in aggregate.generics.iter().zip(args) {
-                            let GenericArg::Type(ty) = argument else {
-                                return Ok(None);
-                            };
-                            self.budget.text(&parameter.name, span)?;
-                            self.budget.ty(ty)?;
-                            substitutions.insert(parameter.name.clone(), ty.clone());
-                        }
-                        return substituted_type(&field.ty, &substitutions, self.budget).map(Some);
+                        return nominal_field_type(
+                            &aggregate.generics,
+                            args,
+                            &field.ty,
+                            self.source_definition,
+                            self.budget,
+                        )
+                        .map(Some);
                     }
                     _ => None,
                 };
@@ -4852,14 +4904,13 @@ impl Check<'_, '_, '_> {
                         "record field is private to its declaring module",
                     ));
                 }
-                let mut substitutions = BTreeMap::new();
-                for (p, arg) in aggregate.generics.iter().zip(args) {
-                    let GenericArg::Type(ty) = arg else {
-                        return Err(unsupported(e.span, "generic constant field shape"));
-                    };
-                    substitutions.insert(p.name.clone(), ty.clone());
-                }
-                let ty = substituted_type(&field.ty, &substitutions, self.budget)?;
+                let ty = nominal_field_type(
+                    &aggregate.generics,
+                    args,
+                    &field.ty,
+                    self.source_definition,
+                    self.budget,
+                )?;
                 if through_address && (field.manages || !self.known_copy(&ty)?) {
                     return Err(unsupported(
                         e.span,
