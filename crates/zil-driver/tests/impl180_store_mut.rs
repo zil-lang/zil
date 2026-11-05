@@ -1369,36 +1369,47 @@ fn owning_store_call_raw_and_wire_recompute_instance_invalidation() {
 
 #[test]
 fn owning_store_descriptor_arguments_preserve_actual_entry_apart_checks() {
-    for body in [
-        "let v=store_at_mut(s,0);let old=v.owner;return inspect(v,old)",
-        "return 0",
+    for (inspect, message) in [
+        (
+            "replace(v);return old.code",
+            "actual replacement may retire a resource instance whose description is required later",
+        ),
+        // No Commit is reachable from this inspect: retain an independent
+        // Source witness of the older simultaneous-argument apart consumer.
+        ("return old.code", "simultaneous actual head arguments"),
     ] {
-        let source = format!(
-            "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn inspect(v:&mut Cell,old:R)->i32{{replace(v);return old.code}}fn main()->i32{{{SETUP}{body}}}"
-        );
-        let report = check(&source);
-        if body == "return 0" {
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
+        for body in [
+            "let v=store_at_mut(s,0);let old=v.owner;return inspect(v,old)",
+            "return 0",
+        ] {
+            let source = format!(
+                "{MODEL}fn replace(v:&mut Cell){{v.owner=R{{code:90}}}}fn inspect(v:&mut Cell,old:R)->i32{{{inspect}}}fn main()->i32{{{SETUP}{body}}}"
             );
-        } else {
-            assert_eq!(
-                report.status,
-                ResultCategory::SafeReject,
-                "{}",
-                report.to_json()
-            );
-            assert!(
-                report
-                    .diagnostics
-                    .iter()
-                    .any(|d| d.message.contains("simultaneous actual head arguments")),
-                "{}",
-                report.to_json()
-            );
+            let report = check(&source);
+            if body == "return 0" {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+            } else {
+                assert_eq!(
+                    report.status,
+                    ResultCategory::SafeReject,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+                assert!(
+                    report
+                        .diagnostics
+                        .iter()
+                        .any(|d| d.code == "E-ANALYZE-IR" && d.message.contains(message)),
+                    "{}",
+                    report.to_json()
+                );
+            }
         }
     }
 }
