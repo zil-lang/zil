@@ -7457,6 +7457,17 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
                     zil_verify::verify_module(changed.clone(), claim.clone(), &target, &limits)
                 };
                 let errors = result.unwrap_err();
+                let expected = [
+                    "ambiguous or repeated Stores",
+                    "before initialization",
+                    "never copying Load",
+                    "Return cleanup",
+                    "consumes a callback role more than once",
+                ][case];
+                assert!(
+                    errors[0].message.contains(expected),
+                    "case {case}/{wire}: {errors:?}"
+                );
                 assert!(
                     errors.iter().any(|d| matches!(
                         d.category,
@@ -7514,6 +7525,10 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
             "{errors:?}"
         );
         eprintln!("G336 actual equal-Type wrong class: {}", errors[0].message);
+        assert!(
+            errors[0].message.contains("retained class equality"),
+            "{errors:?}"
+        );
     }
     let mut changed = raw.clone();
     let f = changed
@@ -7549,6 +7564,12 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
         eprintln!(
             "G336 actual caller duplicate owned SSA: {}",
             errors[0].message
+        );
+        assert!(
+            errors[0]
+                .message
+                .contains("managed SSA value was not available exactly once"),
+            "{errors:?}"
         );
     }
 }
