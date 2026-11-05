@@ -480,11 +480,13 @@ comparison, general helper/lending and broader ownership combinations remain
 unmeasured or incomplete as recorded in the goal board.
 
 
-G4.4.2.1 composition advances three actual consumers: complete explicit CT
+G4.4.2.1 composition advances four actual consumers: complete explicit CT
 Type/Const/Life factory arguments keep their original scope and distinct full
 instance identities; complete local Package replacement retires the old leaf
 and transfers the real RHS origin; shared Fn helpers preserve captured Fixed
-relationships through Source formation and independent kernel checks. Review
+relationships through Source formation and independent kernel checks; owning
+Enum values and shared internal views survive suspension in stable heap
+frames with explicit completion/cancellation cleanup. Review
 found and closed reused CT dependency-depth accounting and non-singleton
 Package strong-update defects. Native controls consume complete results and
 cleanup order, including helper argument evaluation order, with existing

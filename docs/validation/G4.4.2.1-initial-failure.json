@@ -25,5 +25,13 @@
   "reclaimed_cache_files": 408,
   "reclaimed_cache_bytes": 15353900488,
   "classification": "Retained failed formal attempt: old Task diagnostic expected TASK after mutating Drop to Suspend; new actual resource entry validation correctly rejects earlier at RESOURCE. Acceptance remains Fail.",
-  "correction": "57e5e8b43: only case2 first-error expectation changed; raw and Wire still require rejection; all other assertions unchanged."
+  "correction": "57e5e8b43: only case2 first-error expectation changed; raw and Wire still require rejection; all other assertions unchanged.",
+  "independent_correction_review": "G4.4.2.1-diagnostic-review.json",
+  "root_composition_recheck": {
+    "source": "4c7d2cd771ec09702872a51d5658f38a53df9fff",
+    "filter": "general_task343::owned_task343_raw_moves_effects_and_result_debt_are_independent",
+    "passed": 1,
+    "failed": 0,
+    "note": "One targeted Cargo test at the same production/test bytes as 4c7d2cd77; docs were not yet committed. Not a formal full pass."
+  }
 }
