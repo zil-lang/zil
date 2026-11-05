@@ -265,108 +265,109 @@ impl Origins {
             let ordinal = index
                 .checked_sub(usize::from(inserted_option))
                 .ok_or_else(|| error(item.span, "source declaration ordinal underflow"))?;
-            let captured = if let Some(supplied) = supplied {
-                let captured = &supplied.items[ordinal];
-                pay_identity(&captured.identity, budget, item.span)?;
-                validate_retained_members(item, captured, budget)?;
-                budget.text(&context.package, item.span)?;
-                if captured.identity.package != context.package {
-                    return Err(error(
-                        item.span,
-                        "declaration package differs from request context",
-                    ));
-                }
-                for part in module_path {
-                    budget.node(item.span, 0)?;
-                    budget.text(part, item.span)?;
-                }
-                if captured.identity.module_path != module_path {
-                    return Err(error(
-                        item.span,
-                        "aligned declaration canonical module differs",
-                    ));
-                }
-                if !captured.identity.generation_path.is_empty() {
-                    return Err(unsupported(
-                        item.span,
-                        "generated declaration lineage requires the actual materialization ledger",
-                    ));
-                }
-                let (kind, name) = declaration_shape(item);
-                budget.text(kind, item.span)?;
-                let path = &captured.identity.declaration_path;
-                if path.len() != 2 || path[0] != kind {
-                    return Err(error(
-                        item.span,
-                        "aligned original declaration kind differs",
-                    ));
-                }
-                if let Some(name) = name {
-                    budget.text(name, item.span)?;
-                    if path[1] != name {
+            let captured =
+                if let Some(supplied) = supplied {
+                    let captured = &supplied.items[ordinal];
+                    pay_identity(&captured.identity, budget, item.span)?;
+                    validate_retained_members(item, captured, budget)?;
+                    budget.text(&context.package, item.span)?;
+                    if captured.identity.package != context.package {
                         return Err(error(
                             item.span,
-                            "aligned original declaration binding differs",
+                            "declaration package differs from request context",
                         ));
                     }
-                }
-                for _ in 0..12usize
-                    .saturating_mul(seen_ids.len().checked_ilog2().map_or(1, |n| n as usize + 2))
-                {
-                    budget.node(item.span, 0)?;
-                }
-                if !seen_ids.insert(captured.declaration) {
-                    return Err(error(item.span, "duplicate aligned source declaration"));
-                }
-                for _ in 0..12usize.saturating_mul(
-                    seen_identities
-                        .len()
-                        .checked_ilog2()
-                        .map_or(1, |n| n as usize + 2),
-                ) {
-                    pay_identity(&captured.identity, budget, item.span)?;
-                }
-                if !seen_identities.insert(&captured.identity) {
-                    return Err(error(item.span, "duplicate aligned declaration identity"));
-                }
-                pay_declaration_copy(captured, budget, item.span)?;
-                captured.clone()
-            } else {
-                let (kind, actual_name) = declaration_shape(item);
-                budget.text(&context.package, item.span)?;
-                for part in module_path {
-                    budget.node(item.span, 0)?;
-                    budget.text(part, item.span)?;
-                }
-                budget.text(kind, item.span)?;
-                let actual_name = if let Some(actual_name) = actual_name {
-                    budget.text(actual_name, item.span)?;
-                    actual_name.to_owned()
-                } else {
-                    // An anonymous declaration uses its actual source structural
-                    // ordinal. This is not a location/span or a generated name.
-                    for _ in 0..=ordinal.checked_ilog10().unwrap_or(0) {
+                    for part in module_path {
+                        budget.node(item.span, 0)?;
+                        budget.text(part, item.span)?;
+                    }
+                    if captured.identity.module_path != module_path {
+                        return Err(error(
+                            item.span,
+                            "aligned declaration canonical module differs",
+                        ));
+                    }
+                    let (kind, name) = declaration_shape(item);
+                    budget.text(kind, item.span)?;
+                    let path = &captured.identity.declaration_path;
+                    if path.len() != 2 || path[0] != kind {
+                        return Err(error(
+                            item.span,
+                            "aligned original declaration kind differs",
+                        ));
+                    }
+                    if captured.generated.is_some() {
+                        validate_generated(item, captured, module.id, budget)?;
+                    } else if !captured.identity.generation_path.is_empty() {
+                        return Err(error(
+                            item.span,
+                            "generated identity has no actual source ledger",
+                        ));
+                    } else if let Some(name) = name {
+                        budget.text(name, item.span)?;
+                        if path[1] != name {
+                            return Err(error(
+                                item.span,
+                                "aligned original declaration binding differs",
+                            ));
+                        }
+                    }
+                    for _ in 0..12usize.saturating_mul(
+                        seen_ids.len().checked_ilog2().map_or(1, |n| n as usize + 2),
+                    ) {
                         budget.node(item.span, 0)?;
                     }
-                    ordinal.to_string()
-                };
-                budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), item.span)?;
-                DeclarationOrigin {
-                    closure_sites: crate::source_context::ClosureSiteLineage::Original,
-                    retained_members: None,
-                    declaration: NodeId(
-                        u32::try_from(ordinal).map_err(|_| {
+                    if !seen_ids.insert(captured.declaration) {
+                        return Err(error(item.span, "duplicate aligned source declaration"));
+                    }
+                    for _ in 0..12usize.saturating_mul(
+                        seen_identities
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2),
+                    ) {
+                        pay_identity(&captured.identity, budget, item.span)?;
+                    }
+                    if !seen_identities.insert(&captured.identity) {
+                        return Err(error(item.span, "duplicate aligned declaration identity"));
+                    }
+                    pay_declaration_copy(captured, budget, item.span)?;
+                    captured.clone()
+                } else {
+                    let (kind, actual_name) = declaration_shape(item);
+                    budget.text(&context.package, item.span)?;
+                    for part in module_path {
+                        budget.node(item.span, 0)?;
+                        budget.text(part, item.span)?;
+                    }
+                    budget.text(kind, item.span)?;
+                    let actual_name = if let Some(actual_name) = actual_name {
+                        budget.text(actual_name, item.span)?;
+                        actual_name.to_owned()
+                    } else {
+                        // An anonymous declaration uses its actual source structural
+                        // ordinal. This is not a location/span or a generated name.
+                        for _ in 0..=ordinal.checked_ilog10().unwrap_or(0) {
+                            budget.node(item.span, 0)?;
+                        }
+                        ordinal.to_string()
+                    };
+                    budget.lineage_bytes(std::mem::size_of::<DeclarationOrigin>(), item.span)?;
+                    DeclarationOrigin {
+                        generated: None,
+                        closure_sites: crate::source_context::ClosureSiteLineage::Original,
+                        retained_members: None,
+                        declaration: NodeId(u32::try_from(ordinal).map_err(|_| {
                             error(item.span, "source declaration identity exhausted")
-                        })?,
-                    ),
-                    identity: LifeDeclarationIdentity {
-                        package: context.package.to_owned(),
-                        module_path: module_path.to_vec(),
-                        declaration_path: vec![kind.to_owned(), actual_name],
-                        generation_path: Vec::new(),
-                    },
-                }
-            };
+                        })?),
+                        identity: LifeDeclarationIdentity {
+                            package: context.package.to_owned(),
+                            module_path: module_path.to_vec(),
+                            declaration_path: vec![kind.to_owned(), actual_name],
+                            generation_path: Vec::new(),
+                        },
+                    }
+                };
             for _ in 0..self
                 .identities
                 .len()
@@ -392,6 +393,234 @@ impl Origins {
         }
         Ok(self.identities.clone())
     }
+}
+
+fn validate_generated(
+    item: &Item,
+    row: &DeclarationOrigin,
+    module: ModuleId,
+    budget: &mut Budget<'_>,
+) -> R<()> {
+    use crate::source_context::SourceTreeIdentity;
+    let generated = row
+        .generated
+        .as_ref()
+        .ok_or_else(|| error(item.span, "generated source ledger absent"))?;
+    let tree = &generated.tree;
+    let SourceTreeIdentity::Generated {
+        module: owner,
+        event_path,
+    } = &tree.identity
+    else {
+        return Err(error(
+            item.span,
+            "generated ledger has original tree identity",
+        ));
+    };
+    budget.identity_work(
+        event_path
+            .len()
+            .saturating_add(tree.declarations.len())
+            .saturating_add(1),
+        item.span,
+    )?;
+    if *owner != module
+        || tree.module.id != module
+        || tree.emitter.tree.module() != module
+        || event_path.is_empty()
+        || tree.emitter.event_path.is_empty()
+        || row.identity.generation_path != *event_path
+        || tree.declarations.get(generated.root as usize) != Some(&row.declaration)
+        || tree
+            .declarations
+            .windows(2)
+            .any(|pair| pair[0].0.checked_add(1) != Some(pair[1].0))
+    {
+        return Err(error(
+            item.span,
+            "generated tree, event or unique declaration inventory differs",
+        ));
+    }
+    let event_matches = match &tree.emitter.tree {
+        SourceTreeIdentity::Original(_) => {
+            event_path.first() == Some(&0)
+                && event_path.get(1..) == Some(tree.emitter.event_path.as_slice())
+        }
+        SourceTreeIdentity::Generated {
+            event_path: parent, ..
+        } => {
+            budget.identity_work(parent.len(), item.span)?;
+            event_path.starts_with(parent)
+                && event_path.get(parent.len()) == Some(&1)
+                && event_path.get(parent.len() + 1..) == Some(tree.emitter.event_path.as_slice())
+        }
+    };
+    if !event_matches {
+        return Err(error(
+            item.span,
+            "generated emitter structural path differs",
+        ));
+    }
+    let mut inventory_count = tree.module.items.len();
+    for source in &tree.module.items {
+        inventory_count = inventory_count
+            .checked_add(generated_children_count(source, budget, 0)?)
+            .ok_or_else(|| error(item.span, "generated source inventory count overflow"))?;
+    }
+    if tree.declarations.len() != inventory_count {
+        return Err(error(
+            item.span,
+            "generated source inventory does not cover actual declarations",
+        ));
+    }
+    let original = tree
+        .module
+        .items
+        .get(generated.root as usize)
+        .ok_or_else(|| error(item.span, "generated ledger root absent"))?;
+    let (kind, _) = declaration_shape(original);
+    budget.text(kind, item.span)?;
+    budget.lineage_bytes(10, item.span)?;
+    let root_name = generated.root.to_string();
+    budget.text(&root_name, item.span)?;
+    if row.identity.declaration_path.len() != 2
+        || row.identity.declaration_path[0] != kind
+        || row.identity.declaration_path[1] != root_name
+    {
+        return Err(error(
+            item.span,
+            "generated declaration structural root differs",
+        ));
+    }
+    // Reproduce diagnostic remapping only, then compare the actual declaration
+    // header and complete generic binder sequence. CT body rewrites are not
+    // declaration identity and may legitimately differ after materialization.
+    let limits = budget.remaining_limits();
+    let cost =
+        crate::ct_selection::item_cost(original, &limits).map_err(|mut errors| errors.remove(0))?;
+    budget.identity_work(cost.work, item.span)?;
+    budget.lineage_bytes(
+        cost.nodes
+            .saturating_mul(
+                std::mem::size_of::<Item>()
+                    + std::mem::size_of::<Stmt>()
+                    + std::mem::size_of::<Expr>()
+                    + std::mem::size_of::<TypeRef>()
+                    + std::mem::size_of::<Pattern>(),
+            )
+            .saturating_add(cost.work),
+        item.span,
+    )?;
+    let mut syntax = zil_syntax::GeneratedSyntax::ItemList(vec![original.clone()]);
+    let work = crate::remap_generated_spans(&mut syntax, item.span, &budget.remaining_limits())
+        .map_err(|mut errors| errors.remove(0))?;
+    budget.identity_work(work, item.span)?;
+    let zil_syntax::GeneratedSyntax::ItemList(original) = syntax else {
+        unreachable!()
+    };
+    let original = &original[0];
+    fn binders(item: &Item) -> &[GenericParam] {
+        match &item.kind {
+            ItemKind::Function(f) | ItemKind::Extern { function: f, .. } => f.generics.as_slice(),
+            ItemKind::Aggregate(a) => a.generics.as_slice(),
+            ItemKind::Enum(e) => e.generics.as_slice(),
+            ItemKind::Trait(t) => t.generics.as_slice(),
+            ItemKind::Impl(i) => i.generics.as_slice(),
+            ItemKind::TypeAlias(a) => a.generics.as_slice(),
+            _ => &[],
+        }
+    }
+    fn headers(
+        original: &Item,
+        item: &Item,
+        retained: Option<&crate::source_context::RetainedMemberOrigins>,
+        budget: &mut Budget<'_>,
+        depth: usize,
+    ) -> R<()> {
+        budget.node(item.span, depth)?;
+        budget.identity_work(
+            binders(original).len().saturating_add(binders(item).len()),
+            item.span,
+        )?;
+        if declaration_shape(original) != declaration_shape(item)
+            || original.public != item.public
+            || original.attributes != item.attributes
+            || binders(original) != binders(item)
+        {
+            return Err(error(
+                item.span,
+                "generated output declaration header or full binder order differs",
+            ));
+        }
+        let (source, output) = match (&original.kind, &item.kind) {
+            (ItemKind::Aggregate(a), ItemKind::Aggregate(b)) => {
+                (a.methods.as_slice(), b.methods.as_slice())
+            }
+            (ItemKind::Trait(a), ItemKind::Trait(b)) => {
+                (a.members.as_slice(), b.members.as_slice())
+            }
+            (ItemKind::Impl(a), ItemKind::Impl(b)) => (a.members.as_slice(), b.members.as_slice()),
+            _ => return Ok(()),
+        };
+        if retained.is_none() && source.len() != output.len() {
+            return Err(error(
+                item.span,
+                "generated members changed without retained source events",
+            ));
+        }
+        if let Some(retained) = retained {
+            if retained.original_count as usize != source.len()
+                || retained.positions.len() != output.len()
+            {
+                return Err(error(
+                    item.span,
+                    "generated retained member source count differs",
+                ));
+            }
+        }
+        for (ordinal, member) in output.iter().enumerate() {
+            let source_ordinal = retained.map_or(ordinal, |map| map.positions[ordinal] as usize);
+            let original = source.get(source_ordinal).ok_or_else(|| {
+                error(item.span, "generated retained member source ordinal absent")
+            })?;
+            headers(original, member, None, budget, depth + 1)?;
+        }
+        Ok(())
+    }
+    headers(original, item, row.retained_members.as_ref(), budget, 0)
+}
+
+fn generated_children_count(item: &Item, budget: &mut Budget<'_>, depth: usize) -> R<usize> {
+    budget.node(item.span, depth)?;
+    let (mut count, members) = match &item.kind {
+        ItemKind::Aggregate(host) => (host.fields.len(), host.methods.as_slice()),
+        ItemKind::Trait(host) => (0, host.members.as_slice()),
+        ItemKind::Impl(host) => (0, host.members.as_slice()),
+        ItemKind::Enum(host) => {
+            let mut count = host.variants.len();
+            for variant in &host.variants {
+                budget.node(variant.span, depth + 1)?;
+                count += match &variant.fields {
+                    VariantFields::Unit => 0,
+                    VariantFields::Tuple(fields) => fields.len(),
+                    VariantFields::Record(fields) => fields.len(),
+                };
+            }
+            (count, &[][..])
+        }
+        _ => (0, &[][..]),
+    };
+    budget.identity_work(count.saturating_add(members.len()), item.span)?;
+    for member in members {
+        count = count
+            .checked_add(1)
+            .and_then(|n| n.checked_add(0))
+            .ok_or_else(|| error(item.span, "generated source inventory overflow"))?;
+        count = count
+            .checked_add(generated_children_count(member, budget, depth + 1)?)
+            .ok_or_else(|| error(item.span, "generated source inventory overflow"))?;
+    }
+    Ok(count)
 }
 
 pub(crate) fn pay_declaration_copy(
@@ -429,8 +658,7 @@ fn validate_retained_members(
     };
     budget.identity_work(members.positions.len().saturating_add(1), item.span)?;
     if host.kind != AggregateKind::Struct
-        || !host.generics.is_empty()
-        || !row.identity.generation_path.is_empty()
+        || (!row.identity.generation_path.is_empty() && row.generated.is_none())
         || members.positions.len() != host.methods.len()
         || members.original_count as usize <= members.positions.len()
         || members

@@ -29,6 +29,8 @@ fn error(message: &str, span: Span) -> Vec<Diagnostic> {
 
 pub(super) struct Environment<'a> {
     sources: &'a [SourceUnit],
+    paths: &'a BTreeMap<Vec<String>, ModuleId>,
+    root: ModuleId,
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
     pub shape: Option<ShapeSnapshot>,
@@ -41,6 +43,7 @@ pub(super) struct Environment<'a> {
     source_fingerprint: Fingerprint,
     target: &'a TargetProfile,
     source_origins: Option<Arc<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>>,
+    pub(super) generated_catalog: zil_expand::source_context::GeneratedSourceCatalog,
 }
 
 impl<'a> Environment<'a> {
@@ -50,7 +53,7 @@ impl<'a> Environment<'a> {
     pub(super) fn new(
         sources: &'a [SourceUnit],
         parsed: &'a [Arc<ParseResult>],
-        paths: &BTreeMap<Vec<String>, ModuleId>,
+        paths: &'a BTreeMap<Vec<String>, ModuleId>,
         imports: &[Vec<CoreImport>],
         root: ModuleId,
         fingerprint: Fingerprint,
@@ -146,6 +149,8 @@ impl<'a> Environment<'a> {
         };
         Ok(Self {
             sources,
+            paths,
+            root,
             parsed,
             index,
             shape,
@@ -158,7 +163,110 @@ impl<'a> Environment<'a> {
             source_fingerprint: fingerprint,
             target,
             source_origins: None,
+            generated_catalog: Default::default(),
         })
+    }
+
+    /// Retain the exact parse+hygiene tree before output remapping. The row is
+    /// only an address; frozen source admission independently authenticates it.
+    pub(super) fn register_generated_tree(
+        &mut self,
+        tree: Arc<zil_expand::source_context::GeneratedSourceTree>,
+    ) -> CompileResult<u32> {
+        use zil_expand::source_context::SourceTreeIdentity;
+        let span = Span::default();
+        let SourceTreeIdentity::Generated { module, event_path } = &tree.identity else {
+            return Err(error(
+                "generated catalog requires a generated tree identity",
+                span,
+            ));
+        };
+        if event_path.is_empty()
+            || *module != tree.emitter.tree.module()
+            || !self.parsed.iter().any(|source| source.module.id == *module)
+            || tree.declarations.len() > self.limits.max_nodes
+            || self.generated_catalog.trees.len() >= self.limits.max_nodes
+        {
+            return Err(error(
+                "generated source inventory exceeds its source domain",
+                span,
+            ));
+        }
+        let work = self.generated_catalog.trees.iter().fold(
+            tree.declarations.len() as u64 + event_path.len() as u64 + 1,
+            |cost, row| {
+                cost.saturating_add(
+                    (row.declarations.len() as u64 + 1)
+                        .saturating_mul(tree.declarations.len() as u64 + 1),
+                )
+            },
+        );
+        self.budget.reserve_analysis_work(work)?;
+        if self.generated_catalog.find(&tree.identity).is_some() {
+            return Err(error("duplicate generated source tree identity", span));
+        }
+        let seen_bytes = tree.declarations.len() as u64 * 48;
+        self.budget.reserve_temporary_bytes(seen_bytes)?;
+        let mut seen = std::collections::BTreeSet::new();
+        for declaration in &tree.declarations {
+            if !seen.insert(*declaration)
+                || self.generated_catalog.trees.iter().any(|row| {
+                    row.identity.module() == *module && row.declarations.contains(declaration)
+                })
+            {
+                return Err(error(
+                    "generated declarations must have distinct output identities",
+                    span,
+                ));
+            }
+        }
+        let row = u32::try_from(self.generated_catalog.trees.len())
+            .map_err(|_| error("generated catalog row exceeds its index domain", span))?;
+        self.budget.reserve_temporary_bytes(
+            (self.generated_catalog.trees.len() as u64 + 1)
+                .saturating_mul(16)
+                .saturating_add(tree.declarations.len() as u64 * 48)
+                .saturating_add(event_path.len() as u64 * 4)
+                .saturating_add(128),
+        )?;
+        self.index
+            .register_generated_tree(&tree, &self.limits, &mut self.budget)?;
+        self.budget.release_temporary_bytes(seen_bytes);
+        self.generated_catalog.trees.reserve_exact(1);
+        self.generated_catalog.trees.push(tree);
+        self.classify_definitions()?;
+        Ok(row)
+    }
+
+    fn require_source_origins(&mut self) -> CompileResult<()> {
+        if self.source_origins.is_some() {
+            return Ok(());
+        }
+        let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let limits = self.remaining_limits();
+        let (origins, remaining) = zil_expand::source_context::capture_original_required(
+            self.sources,
+            &syntax,
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: self.root,
+                aliases: self.paths,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+            &limits,
+        )?;
+        self.budget.reserve_analysis_work(
+            limits
+                .max_analysis_steps
+                .saturating_sub(remaining.max_analysis_steps) as u64,
+        )?;
+        self.budget
+            .reserve_generated_nodes(limits.max_nodes.saturating_sub(remaining.max_nodes) as u64)?;
+        self.budget.reserve_temporary_bytes(
+            limits
+                .max_source_bytes
+                .saturating_sub(remaining.max_source_bytes) as u64,
+        )?;
+        self.bind_source_origins(Some(&origins))
     }
 
     pub(super) fn bind_source_origins(
@@ -240,7 +348,8 @@ impl<'a> Environment<'a> {
         let modules = self.index.modules(self.sources, &syntax);
         let mut limits = self.remaining_limits();
         let before = self.budget.remaining();
-        let result = compiler::definitions_entry(&modules, &mut limits);
+        let catalog = (!self.generated_catalog.trees.is_empty()).then_some(&self.generated_catalog);
+        let result = compiler::definitions_entry_with_catalog(&modules, &mut limits, catalog);
         self.budget.reserve_analysis_work(
             before
                 .max_analysis_work
@@ -275,9 +384,9 @@ impl<'a> Environment<'a> {
         })?;
         let input_tokens = self.empty_input(span)?;
         let selected_limits = self.remaining_limits();
-        let mut expected = compiler::compile(CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
+        let mut expected = compiler::compile_scoped_with_catalog(CompileRequest { target_pointer_width: self.target.pointer_width, modules: &modules,
             source_fingerprint: self.source_fingerprint, entry: Entry::Function(entry),
-            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }).map_err(|mut errors| {
+            input_tokens: &input_tokens, snapshot: &self.snapshot, limits: &selected_limits }, catalog).map(|(program, _)| program).map_err(|mut errors| {
                 for error in &mut errors {
                     if error.code == "E-CT-SOURCE" && error.message == "foreign functions cannot execute in CT" {
                         error.code = "E-CT-RUNTIME".into();
@@ -411,7 +520,7 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<CtValue> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false)
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, false, None)
             .map(|output| output.value)
     }
     pub(super) fn evaluate_data(
@@ -422,7 +531,26 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
     ) -> CompileResult<EvaluatedData> {
-        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true)
+        self.evaluate_data_impl(entry, input_tokens, input, arguments, span, true, None)
+    }
+    pub(super) fn evaluate_data_at_source(
+        &mut self,
+        entry: Entry<'_>,
+        input_tokens: &CtInputTable,
+        input: Option<&CtTokenTree>,
+        arguments: &[CtValue],
+        span: Span,
+        site: compiler::source_sites::SourceSite,
+    ) -> CompileResult<EvaluatedData> {
+        self.evaluate_data_impl(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            true,
+            Some(site),
+        )
     }
     fn evaluate_data_impl(
         &mut self,
@@ -432,11 +560,19 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
         retain_context: bool,
+        source_site: Option<compiler::source_sites::SourceSite>,
     ) -> CompileResult<EvaluatedData> {
         let before = self.budget.live_temporary_bytes();
         let query_capacity = self.budget.usage().queries.capacity();
-        let result =
-            self.evaluate_data_inner(entry, input_tokens, input, arguments, span, retain_context);
+        let result = self.evaluate_data_inner(
+            entry,
+            input_tokens,
+            input,
+            arguments,
+            span,
+            retain_context,
+            source_site,
+        );
         if result.is_err() {
             let keep = (self
                 .budget
@@ -459,26 +595,53 @@ impl<'a> Environment<'a> {
         arguments: &[CtValue],
         span: Span,
         retain_context: bool,
+        source_site: Option<compiler::source_sites::SourceSite>,
     ) -> CompileResult<EvaluatedData> {
-        let mut invocation_context = super::invocation_context::FrozenInvocationContext::freeze(
-            &entry,
-            self.parsed,
-            &self.index,
-            self.source_origins.as_ref(),
-            &mut self.budget,
-        )?;
+        // Fixed-size source seed only; type/category inputs are not proof and
+        // are unnecessary when retrying complete lexical freezing after compile.
+        let retry_entry = match &entry {
+            Entry::Expression {
+                module,
+                expression,
+                definition,
+                lexical_owner,
+                ..
+            } => Some(Entry::Expression {
+                module: *module,
+                expression,
+                definition: definition.clone(),
+                lexical_owner: lexical_owner.clone(),
+                expected: None,
+                parameters: &[],
+            }),
+            Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
+        };
+        let mut invocation_context =
+            super::invocation_context::FrozenInvocationContext::freeze_at_source(
+                &entry,
+                self.parsed,
+                &self.index,
+                self.source_origins.as_ref(),
+                Some(&self.generated_catalog),
+                source_site,
+                &mut self.budget,
+            )?;
         let syntax = self.parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
         let modules = self.index.modules(self.sources, &syntax);
         let selected_limits = self.remaining_limits();
-        let (expected, source_bindings) = compiler::compile_scoped(CompileRequest {
-            target_pointer_width: self.target.pointer_width,
-            modules: &modules,
-            source_fingerprint: self.source_fingerprint,
-            entry,
-            input_tokens,
-            snapshot: &self.snapshot,
-            limits: &selected_limits,
-        })?;
+        let (expected, source_bindings) = compiler::compile_scoped_at_source(
+            CompileRequest {
+                target_pointer_width: self.target.pointer_width,
+                modules: &modules,
+                source_fingerprint: self.source_fingerprint,
+                entry,
+                input_tokens,
+                snapshot: &self.snapshot,
+                limits: &selected_limits,
+            },
+            Some(&self.generated_catalog),
+            source_site,
+        )?;
         let declared = expected.budget;
         let before = self.budget.remaining();
         self.budget.reserve_analysis_work(
@@ -493,6 +656,22 @@ impl<'a> Environment<'a> {
         )?;
         for _ in 0..before.max_instances.saturating_sub(declared.max_instances) {
             self.budget.reserve_instance()?;
+        }
+        if invocation_context.is_none() && !source_bindings.calls.is_empty() {
+            self.require_source_origins()?;
+            invocation_context =
+                super::invocation_context::FrozenInvocationContext::freeze_at_source_force(
+                    retry_entry.as_ref().ok_or_else(|| {
+                        error("complete source call lost its immutable entry", span)
+                    })?,
+                    self.parsed,
+                    &self.index,
+                    self.source_origins.as_ref(),
+                    Some(&self.generated_catalog),
+                    source_site,
+                    true,
+                    &mut self.budget,
+                )?;
         }
         if !source_bindings.calls.is_empty() || !source_bindings.relocations.is_empty() {
             let context = invocation_context
@@ -516,6 +695,26 @@ impl<'a> Environment<'a> {
                 &source_bindings.relocations,
                 &source_bindings.calls,
                 &expected,
+                &mut self.budget,
+            )?;
+        }
+        if !expected.ambient_life_scopes.is_empty()
+            || !source_bindings.type_sites.is_empty()
+            || !source_bindings.bindings.is_empty()
+        {
+            let context = invocation_context
+                .as_mut()
+                .and_then(std::sync::Arc::get_mut)
+                .ok_or_else(|| {
+                    error(
+                        "contextual Type requires an authentic source invocation",
+                        span,
+                    )
+                })?;
+            context.validate_type_contexts(
+                &source_bindings,
+                &expected,
+                &self.index,
                 &mut self.budget,
             )?;
         }
@@ -576,7 +775,7 @@ impl<'a> Environment<'a> {
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;
         let context = if retain_context
-            && matches!(
+            && (matches!(
                 result_ty,
                 CtTy::Record(_)
                     | CtTy::Enum(_)
@@ -584,7 +783,8 @@ impl<'a> Environment<'a> {
                     | CtTy::Tuple(_)
                     | CtTy::Array { .. }
                     | CtTy::List(_)
-            ) {
+            ) || matches!(&value, CtValue::Type(graph) if !graph.ambient_classes.is_empty()))
+        {
             Some(value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings.bindings,

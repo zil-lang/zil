@@ -3,6 +3,66 @@
 use super::*;
 use cfg::{Builder, Value};
 
+// A field keeps its exact CtTy during reconstruction. This walk establishes
+// finite ordinary value contents, separately from context equivalence below.
+fn pure_field(
+    ty: &CtTy,
+    records: &[CtRecordSchema],
+    enums: &[CtEnumSchema],
+    budget: &mut Budget<'_>,
+    depth: usize,
+    span: Span,
+) -> R<bool> {
+    if matches!(ty, CtTy::Scalar(_)) {
+        return Ok(true);
+    }
+    budget.depth(depth, span)?;
+    budget.work(1, span)?;
+    match ty {
+        CtTy::Scalar(_) => Ok(true),
+        CtTy::Tuple(fields) => {
+            for field in fields {
+                if !pure_field(field, records, enums, budget, depth + 1, span)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        CtTy::Array { element, .. } => {
+            pure_field(element, records, enums, budget, depth + 1, span)
+        }
+        CtTy::Record(id) => {
+            let Some(schema) = records.get(id.0 as usize) else {
+                return Ok(false);
+            };
+            if schema.origin != CtSchemaOrigin::UserPure {
+                return Ok(false);
+            }
+            for field in &schema.fields {
+                if !pure_field(field, records, enums, budget, depth + 1, span)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        CtTy::Enum(id) => {
+            let Some(schema) = enums.get(id.0 as usize) else {
+                return Ok(false);
+            };
+            if schema.origin != CtSchemaOrigin::UserPure {
+                return Ok(false);
+            }
+            for field in schema.variants.iter().flatten() {
+                if !pure_field(field, records, enums, budget, depth + 1, span)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        _ => Ok(false),
+    }
+}
+
 fn endpoint(
     scopes: &[CtAmbientLifeScope],
     budget: &mut Budget<'_>,
@@ -64,15 +124,15 @@ impl Compiler<'_> {
             || right.origin != CtSchemaOrigin::UserPure
             || left.name != right.name
             || left.fields.is_empty()
-            || left
-                .fields
-                .iter()
-                .chain(&right.fields)
-                .any(|ty| !matches!(ty, CtTy::Scalar(_)))
             || left.arguments != right.arguments
             || left.fields != right.fields
         {
             return Ok(false);
+        }
+        for field in left.fields.iter().chain(&right.fields) {
+            if !pure_field(field, &self.records, &self.enums, &mut self.budget, 0, span)? {
+                return Ok(false);
+            }
         }
         let (Some(left), Some(right)) = (&left.life_context, &right.life_context) else {
             return Ok(false);
@@ -142,17 +202,18 @@ impl Builder<'_, '_> {
         let block = self.reserve_record_relocation(fields, span)?;
         let mut copied = Vec::with_capacity(fields);
         for index in 0..fields {
-            let scalar = match &self.compiler.records[source.0 as usize].fields[index] {
-                CtTy::Scalar(scalar) => *scalar,
-                _ => unreachable!("record relocation admitted only scalar fields"),
-            };
+            let ty = &self.compiler.records[source.0 as usize].fields[index];
+            if !matches!(ty, CtTy::Scalar(_)) {
+                self.compiler.budget.copy_ty(ty, 0, span)?;
+            }
+            let ty = ty.clone();
             copied.push(
                 self.emit(
                     CtInstructionKind::ExtractField {
                         aggregate: value.id,
                         index: index as u32,
                     },
-                    CtTy::Scalar(scalar),
+                    ty,
                     span,
                 )?
                 .id,

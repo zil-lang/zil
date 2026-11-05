@@ -3,6 +3,62 @@
 use super::*;
 use crate::ct_artifact::compiler::{SourceInstanceCall, SourceRecordRelocation};
 
+// Independent consumer classification: no producer predicate, Copy marker or
+// schema equality alone proves finite ordinary payloads.
+fn validate_pure_field(
+    ty: &CtTy,
+    raw: &CtArtifactProgram,
+    budget: &mut CtExecutionBudget,
+    depth: usize,
+) -> CompileResult<()> {
+    if matches!(ty, CtTy::Scalar(_)) {
+        return Ok(());
+    }
+    budget.reserve_analysis_work(1)?;
+    if depth > budget.remaining().max_call_depth as usize {
+        return Err(vec![Diagnostic::limit(
+            Phase::Ct,
+            "CT relocation field depth exceeded",
+            None,
+        )]);
+    }
+    match ty {
+        CtTy::Scalar(_) => Ok(()),
+        CtTy::Tuple(fields) => {
+            for field in fields {
+                validate_pure_field(field, raw, budget, depth + 1)?;
+            }
+            Ok(())
+        }
+        CtTy::Array { element, .. } => validate_pure_field(element, raw, budget, depth + 1),
+        CtTy::Record(id) => {
+            let schema = raw.record_schemas.get(id.0 as usize).ok_or_else(|| {
+                unsupported("CT relocation pure field references an absent record")
+            })?;
+            if schema.origin != CtSchemaOrigin::UserPure {
+                return Err(unsupported("CT relocation field is not an ordinary pure record"));
+            }
+            for field in &schema.fields {
+                validate_pure_field(field, raw, budget, depth + 1)?;
+            }
+            Ok(())
+        }
+        CtTy::Enum(id) => {
+            let schema = raw.enum_schemas.get(id.0 as usize).ok_or_else(|| {
+                unsupported("CT relocation pure field references an absent enum")
+            })?;
+            if schema.origin != CtSchemaOrigin::UserPure {
+                return Err(unsupported("CT relocation field is not an ordinary pure enum"));
+            }
+            for field in schema.variants.iter().flatten() {
+                validate_pure_field(field, raw, budget, depth + 1)?;
+            }
+            Ok(())
+        }
+        _ => Err(unsupported("CT relocation field carries a CT-only value category")),
+    }
+}
+
 impl FrozenInvocationContext {
     pub(in crate::ct_artifact) fn validate_record_relocations(
         &self,
@@ -87,19 +143,17 @@ impl FrozenInvocationContext {
                     + 64,
             )?;
             if source.fields.is_empty()
-                || source
-                    .fields
-                    .iter()
-                    .chain(&target.fields)
-                    .any(|ty| !matches!(ty, CtTy::Scalar(_)))
                 || source.origin != CtSchemaOrigin::UserPure
                 || target.origin != CtSchemaOrigin::UserPure
                 || source.name != target.name
                 || source.fields != target.fields
             {
                 return Err(unsupported(
-                    "CT record relocation is not the same pure scalar-field nominal",
+                    "CT record relocation is not the same pure value nominal",
                 ));
+            }
+            for field in source.fields.iter().chain(&target.fields) {
+                validate_pure_field(field, raw, budget, 0)?;
             }
             let (Some(left), Some(right)) = (&source.life_context, &target.life_context) else {
                 return Err(unsupported(

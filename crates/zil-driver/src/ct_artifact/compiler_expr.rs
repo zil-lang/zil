@@ -96,12 +96,23 @@ impl Builder<'_, '_> {
                 path.push(name.clone());
                 Ok(Some(path))
             }
-            s::ExprKind::Group(inner) => self.source_path(inner, depth + 1),
+            s::ExprKind::Group(inner) | s::ExprKind::TypeApply { callee: inner, .. } => {
+                self.source_path(inner, depth + 1)
+            }
             _ => Ok(None),
         }
     }
 
     pub(super) fn expr(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
+        let old = self
+            .compiler
+            .current_source_expr
+            .replace((self.module, e as *const s::Expr as usize));
+        let result = self.expr_at_source(e, expected, depth);
+        self.compiler.current_source_expr = old;
+        result
+    }
+    fn expr_at_source(&mut self, e: &s::Expr, expected: Option<&CtTy>, depth: usize) -> R<Value> {
         if let Some(CtTy::AnonymousSum(members)) = expected
             && !matches!(e.kind, s::ExprKind::If { .. } | s::ExprKind::MetaBlock(_))
         {
@@ -578,6 +589,50 @@ impl Builder<'_, '_> {
                     ));
                 }
                 let (owner, item) = self.compiler.named_item(self.module, &names, span)?;
+                if arguments
+                    .iter()
+                    .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
+                    if self.compiler.checking_generics {
+                        self.compiler.check_abstract_type_application(
+                            self.module, item, arguments, depth + 1, span,
+                        )?;
+                        return self.emit(
+                            CtInstructionKind::TypePrimitive(CtScalarTy::Unit),
+                            CtTy::Type,
+                            span,
+                        );
+                    }
+                    let data = self.compiler.source_scoped_nominal(
+                        self.module,
+                        owner,
+                        item,
+                        arguments,
+                        depth + 1,
+                        span,
+                    )?;
+                    let graph = self.compiler.metadata_data(&data, span, depth + 1)?;
+                    return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+                }
+                if !self.compiler.checking_generics {
+                    for argument in arguments {
+                        if let s::GenericArg::Type(ty) = argument
+                            && self.compiler.metadata_source_has_ambient(ty, depth + 1)?
+                        {
+                            let syntax = s::TypeRef {
+                                kind: s::TypeKind::Named {
+                                    path: names.clone(),
+                                    args: arguments.clone(),
+                                },
+                                span,
+                            };
+                            let graph =
+                                self.compiler
+                                    .metadata_type(self.module, &syntax, depth + 1)?;
+                            return self.metadata_type_value(&graph, graph.root, depth + 1, span);
+                        }
+                    }
+                }
                 let nominal = self.compiler.item_symbol(owner, item)?;
                 let mut ids = Vec::new();
                 for argument in arguments {
@@ -725,7 +780,23 @@ impl Builder<'_, '_> {
         self.emit(CtInstructionKind::TypeName(symbol), CtTy::Type, span)
     }
     pub(super) fn type_ref(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
+        let old = self
+            .compiler
+            .current_source_type
+            .replace((module, ty as *const s::TypeRef as usize));
+        let result = self.type_ref_inner(module, ty, depth);
+        self.compiler.current_source_type = old;
+        result
+    }
+    fn type_ref_inner(&mut self, module: usize, ty: &s::TypeRef, depth: usize) -> R<Value> {
         self.compiler.budget.depth(depth, ty.span)?;
+        if !self.compiler.checking_generics
+            && !matches!(&ty.kind, s::TypeKind::Named { args, .. } if args.is_empty())
+            && self.compiler.metadata_source_has_ambient(ty, depth + 1)?
+        {
+            let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
+            return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+        }
         match &ty.kind {
             s::TypeKind::Named { path, args } if args.is_empty() => {
                 if path.len() == 1 {
@@ -754,6 +825,22 @@ impl Builder<'_, '_> {
                 result
             }
             s::TypeKind::Named { path, args } => {
+                if self.compiler.checking_generics
+                    && args.iter().any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
+                    let (_, item) = self.compiler.named_item(module, path, ty.span)?;
+                    self.compiler.check_abstract_type_application(module, item, args, depth + 1, ty.span)?;
+                    return self.emit(CtInstructionKind::TypePrimitive(CtScalarTy::Unit), CtTy::Type, ty.span);
+                }
+
+                if !self.compiler.checking_generics
+                    && args
+                        .iter()
+                        .any(|arg| matches!(arg, s::GenericArg::Lifetime(_)))
+                {
+                    let graph = self.compiler.metadata_type(module, ty, depth + 1)?;
+                    return self.metadata_type_value(&graph, graph.root, depth + 1, ty.span);
+                }
                 if path.len() == 1 && self.compiler.binding(&path[0], ty.span)?.is_some() {
                     return Err(error(ty.span, "CT type binder takes no type arguments"));
                 }
@@ -1110,8 +1197,24 @@ impl Builder<'_, '_> {
             .generics
             .is_empty()
             || explicit.is_some()
+            || matches!(&callee.kind, s::ExprKind::Member { object, .. } if matches!(object.kind, s::ExprKind::TypeApply { .. }))
         {
-            return self.generic_call(
+            let host_arguments = match &callee.kind {
+                s::ExprKind::Member { object, .. } => match &object.kind {
+                    s::ExprKind::TypeApply { arguments, .. } => Some(arguments.as_slice()),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let host = self.compiler.source_host_instance(
+                self.module,
+                declaration,
+                host_arguments,
+                depth + 1,
+                span,
+            )?;
+            let previous_host = std::mem::replace(&mut self.compiler.active_host, host);
+            let result = self.generic_call(
                 declaration,
                 explicit.map(Vec::as_slice),
                 arguments,
@@ -1119,6 +1222,8 @@ impl Builder<'_, '_> {
                 depth + 1,
                 span,
             );
+            self.compiler.active_host = previous_host;
+            return result;
         }
         let (types, result) = self.compiler.header(declaration)?;
         if types.len() != arguments.len() {
@@ -1168,9 +1273,9 @@ impl Builder<'_, '_> {
             return self.abstract_mixed_call(declaration, explicit, arguments, depth, span);
         }
         if !self.compiler.checking_generics
-            && Compiler::mixed_parameters(
+            && (Compiler::mixed_parameters(
                 &self.compiler.declarations[declaration].function.generics,
-            )
+            ) || self.compiler.active_host.is_some())
         {
             return self.mixed_generic_call(
                 declaration,

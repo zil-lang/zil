@@ -299,6 +299,25 @@ impl Builder<'_, '_> {
                 slot.ok_or_else(|| error(span, "CT complete type argument cannot be inferred"))
             })
             .collect::<R<Vec<_>>>()?;
+        if concrete
+            .iter()
+            .any(|graph| !graph.ambient_classes.is_empty())
+        {
+            if explicit.is_none() {
+                return Err(error(
+                    span,
+                    "ambient Type inference needs an independently authenticated explicit source vector",
+                ));
+            }
+            return self.contextual_metadata_call(
+                declaration,
+                concrete,
+                actual,
+                &actual_types,
+                expected,
+                span,
+            );
+        }
         let (parameters, result) = self
             .compiler
             .metadata_instance_header(declaration, &concrete)?;

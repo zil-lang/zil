@@ -215,7 +215,12 @@ impl<'a> Compiler<'a> {
         span: Span,
     ) -> R<(usize, &'a s::Item)> {
         let (module, name) = self.resolve_path(current, path, span)?;
-        let mut found = None;
+        let mut found = self.generated_named_item(module, &name, span)?;
+        if let Some(item) = found {
+            if current != module && !item.public {
+                return Err(error(span, "CT type is private to its defining module"));
+            }
+        }
         for item in &self.modules[module].syntax.items {
             self.budget.work(1, span)?;
             let actual = match &item.kind {

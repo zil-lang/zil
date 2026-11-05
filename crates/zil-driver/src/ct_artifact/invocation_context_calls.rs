@@ -17,7 +17,6 @@ impl FrozenInvocationContext {
             self.validate_scope(&call.caller_scope, budget)?;
             budget.reserve_analysis_work(index.symbol_lookup_work().saturating_mul(3))?;
             if !index.contains(&call.callee)
-                || call.callee.generation_path.is_some()
                 || !index.visible(&call.caller_scope.declaration, &call.callee)
             {
                 return Err(unsupported(
@@ -98,7 +97,9 @@ impl FrozenInvocationContext {
                     CtScopeActual::Scalar(_) => {}
                 }
             }
-            let row = self.call_scope(call, budget)?;
+            self.extend_call_host(call, source_scopes, expected, index, budget)?;
+            self.validate_source_call_actuals(call, source_scopes, expected, index, budget)?;
+            let row = self.call_scope(call, source_scopes, budget)?;
             budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
             self.charge_instance_lookup(&row.raw, budget)?;
             if !self.active.iter().any(|active| active.raw == row.raw) {
@@ -156,28 +157,17 @@ impl FrozenInvocationContext {
     fn call_scope(
         &mut self,
         call: &SourceInstanceCall,
+        source_scopes: &[CtAmbientLifeScope],
         budget: &mut CtExecutionBudget,
     ) -> CompileResult<ActiveScope> {
-        budget.reserve_analysis_work(self.modules.len() as u64)?;
-        let module = self
-            .modules
-            .iter()
-            .find(|module| module.module.id == call.callee.module)
-            .ok_or_else(|| unsupported("CT factory has no original module"))?;
-        let original = super::super::compiler::source_scope::original_function(
-            &module.module,
-            call.callee.declaration,
-            budget.remaining().max_call_depth as usize,
-            |work| budget.reserve_analysis_work(work as u64),
-        )?
-        .ok_or_else(|| unsupported("CT factory has no original function"))?;
-        if original.generic_host || !matches!(original.item.kind, s::ItemKind::Function(_)) {
+        let (module, original, tree) = self.source_function_source(&call.callee, budget)?;
+        if !matches!(original.item.kind, s::ItemKind::Function(_)) {
             return Err(unsupported(
                 "CT full instance requires an original nongenerated factory",
             ));
         }
         let function = original.function;
-        let host = &module.module.items[original.top];
+        let host = &module.items[original.top];
         if !std::ptr::eq(original.item, host) {
             let s::ItemKind::Aggregate(aggregate) = &host.kind else {
                 return Err(unsupported("CT member factory has no actual struct host"));
@@ -188,8 +178,7 @@ impl FrozenInvocationContext {
             for parameter in &function.params {
                 budget.reserve_analysis_work(parameter.name.len().min(4) as u64 + 1)?;
             }
-            if !aggregate.generics.is_empty()
-                || aggregate.kind != s::AggregateKind::Struct
+            if aggregate.kind != s::AggregateKind::Struct
                 || aggregate
                     .methods
                     .iter()
@@ -200,23 +189,42 @@ impl FrozenInvocationContext {
                     .params
                     .iter()
                     .any(|parameter| parameter.name == "self")
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Type(_)))
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Const(_)))
-                || !function
-                    .generics
-                    .iter()
-                    .any(|parameter| matches!(parameter.kind, s::GenericParamKind::Lifetime))
             {
                 return Err(unsupported(
                     "CT member factory requires an actual nongeneric struct, static entry and complete mixed parameters",
                 ));
             }
+        }
+        if original.generic_host {
+            let parent_id = call
+                .enclosing
+                .ok_or_else(|| unsupported("CT member instance has no actual lexical host"))?;
+            let parent = source_scopes
+                .get(parent_id.0 as usize)
+                .ok_or_else(|| unsupported("CT member enclosing scope placement is absent"))?;
+            self.validate_scope(parent, budget)?;
+            budget.reserve_analysis_work(64)?;
+            let expected_parent = if let Some(tree) = tree {
+                original
+                    .lexical_parent
+                    .and_then(|local| tree.declarations.get(local.0 as usize))
+                    .copied()
+            } else {
+                original.lexical_parent
+            };
+            if parent.declaration.module != call.callee.module
+                || Some(parent.declaration.declaration) != expected_parent
+                || parent.declaration.generation_path != call.callee.generation_path
+                || parent.enclosing.is_some()
+            {
+                return Err(unsupported(
+                    "CT member enclosing scope is not the actual lexical host",
+                ));
+            }
+        } else if call.enclosing.is_some() {
+            return Err(unsupported(
+                "CT free or nongeneric member instance has an unexpected enclosing host",
+            ));
         }
         if function.generics.len() != call.actuals.len() {
             return Err(unsupported("CT call ledger full actual arity differs"));
@@ -226,20 +234,42 @@ impl FrozenInvocationContext {
             .as_ref()
             .ok_or_else(|| unsupported("CT factory original lineage absent"))?;
         budget.reserve_analysis_work(origins.len() as u64)?;
-        let origin = origins
-            .iter()
-            .find(|row| row.module == call.callee.module)
-            .and_then(|row| row.items.get(original.top))
-            .ok_or_else(|| unsupported("CT factory original source identity absent"))?;
-        if origin.declaration.0 as usize != original.top {
-            return Err(unsupported(
-                "CT factory original declaration ordinal differs",
-            ));
-        }
+        let identity_before = budget.live_temporary_bytes();
+        let generated_identity;
+        let identity = if let Some(tree) = tree {
+            let catalog = self
+                .generated_catalog
+                .as_ref()
+                .ok_or_else(|| unsupported("CT generated factory catalog absent"))?;
+            budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+            let row = catalog
+                .trees
+                .iter()
+                .position(|candidate| std::ptr::eq(&**candidate, tree))
+                .ok_or_else(|| unsupported("CT generated factory tree absent"))?;
+            generated_identity =
+                super::generated::root_identity(catalog, row, original.top, origins, budget)?;
+            &generated_identity
+        } else {
+            let origin = origins
+                .iter()
+                .find(|row| row.module == call.callee.module)
+                .and_then(|row| row.items.get(original.top))
+                .ok_or_else(|| unsupported("CT factory original source identity absent"))?;
+            if origin.declaration.0 as usize != original.top {
+                return Err(unsupported(
+                    "CT factory original declaration ordinal differs",
+                ));
+            }
+            &origin.identity
+        };
+        let identity_temporary = budget
+            .live_temporary_bytes()
+            .saturating_sub(identity_before);
         budget.reserve_analysis_work(function.generics.len() as u64)?;
         let bytes = std::mem::size_of::<ActiveScope>() as u64
             + function.generics.len() as u64 * std::mem::size_of::<CtScopeParameterKind>() as u64
-            + identity_cost(&origin.identity, budget)?;
+            + identity_cost(identity, budget)?;
         budget.reserve_temporary_bytes(bytes)?;
         let mut parameters = Vec::with_capacity(function.generics.len());
         for (parameter, actual) in function.generics.iter().zip(&call.actuals) {
@@ -282,6 +312,7 @@ impl FrozenInvocationContext {
         }
         let raw = CtAmbientLifeScope {
             declaration: call.callee.clone(),
+            enclosing: call.enclosing,
             binder_site: Vec::new(),
             instance: CtScopeInstance::Instantiated(Vec::new()),
         };
@@ -295,14 +326,16 @@ impl FrozenInvocationContext {
             }
         }
         budget.reserve_temporary_bytes(cost)?;
-        self.bytes = self.bytes.saturating_add(bytes).saturating_add(cost);
-        Ok(ActiveScope {
+        let row = ActiveScope {
             raw: CtAmbientLifeScope {
                 instance: CtScopeInstance::Instantiated(call.actuals.clone()),
                 ..raw
             },
-            identity: origin.identity.clone(),
+            identity: identity.clone(),
             parameters,
-        })
+        };
+        budget.release_temporary_bytes(identity_temporary);
+        self.bytes = self.bytes.saturating_add(bytes).saturating_add(cost);
+        Ok(row)
     }
 }

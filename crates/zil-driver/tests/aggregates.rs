@@ -10015,3 +10015,51 @@ mod terminal340_nonlocal_replace;
 // Independent complete-parent consumers; staged failures remain visible during integration.
 #[path = "../../../.task/G10.1.10-inputs/consumers.rs"]
 mod g10110_independent_parent_consumers;
+#[test]
+fn g4453_contextual_type_result_preserves_life_across_factories() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-type-result.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_pure_composite_fields_keep_every_returned_bit() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"18446744073709551557\n");
+}
+
+#[test]
+fn g4453_ambient_type_actual_retains_nested_life_graph() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_generic_host_keeps_its_actual_type_binding() {
+    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-context.zil");
+    let report = compile_source(&source(text), &CompileOptions::default());
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    assert_eq!(report.verification_runs, 1);
+    review329_native_entry_output(&[("main", text)], "main", b"42\n");
+}
+
+#[test]
+fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
+    for text in [
+        include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-const-only-factory.zil"),
+        include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-parameter-subsets.zil"),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 1);
+        review329_native_entry_output(&[("main", text)], "main", b"42\n");
+    }
+}

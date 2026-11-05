@@ -508,6 +508,7 @@ impl<'a> Compiler<'a> {
                 ));
             };
             self.bindings = self.instance_bindings(declaration, &arguments)?;
+            self.bind_abstract_host(declaration)?;
             self.prepare_abstract_scope(declaration)?;
             cfg::function(self, id, declaration)?;
             self.abstract_scalars.clear();

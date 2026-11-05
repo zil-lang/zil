@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(super) struct MemberLocation<'a> {
     pub declaration: usize,
-    host: &'a s::Item,
+    pub(super) host: &'a s::Item,
 }
 
 impl<'a> Compiler<'a> {
@@ -13,7 +13,7 @@ impl<'a> Compiler<'a> {
         let s::ItemKind::Aggregate(aggregate) = &host.kind else {
             return Ok(());
         };
-        if !aggregate.generics.is_empty() || aggregate.kind != s::AggregateKind::Struct {
+        if aggregate.kind != s::AggregateKind::Struct {
             return Ok(());
         }
         for item in &aggregate.methods {
@@ -21,11 +21,7 @@ impl<'a> Compiler<'a> {
             let s::ItemKind::Function(function) = &item.kind else {
                 continue;
             };
-            self.budget
-                .work(function.generics.len().saturating_mul(3), item.span)?;
-            if !Self::mixed_parameters(&function.generics) {
-                continue;
-            }
+            self.budget.work(function.generics.len(), item.span)?;
             let mut receiver = false;
             for parameter in &function.params {
                 self.budget
@@ -125,7 +121,7 @@ impl<'a> Compiler<'a> {
             };
             (module, &path[1], &path[2])
         };
-        let mut host = None;
+        let mut host = self.generated_named_item(module, host_name, span)?;
         for item in &self.modules[module].syntax.items {
             self.budget.work(1, span)?;
             let s::ItemKind::Aggregate(aggregate) = &item.kind else {

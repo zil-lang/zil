@@ -79,6 +79,13 @@ impl<A: CtArtifactAuthority> Visit<'_, '_, A> {
         self.state[index] = 1;
         let raw = self.raw;
         let mut height = 0;
+        if let Some(parent) = raw.ambient_life_scopes[index].enclosing {
+            self.meter.charge(1, None)?;
+            if parent.0 as usize >= raw.ambient_life_scopes.len() {
+                return Err(reject(None, "CT lexical host scope is outside inventory"));
+            }
+            height = self.scope(parent.0 as usize, depth + 1)?.saturating_add(1);
+        }
         if let CtScopeInstance::Instantiated(actuals) = &raw.ambient_life_scopes[index].instance {
             self.meter.charge(actuals.len(), None)?;
             for actual in actuals {
@@ -133,7 +140,9 @@ fn charge_lookup(
     bound: usize,
     meter: &mut CtVerificationMeter,
 ) -> Check<()> {
-    let work = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+    let work = if scope.enclosing.is_some()
+        || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+    {
         weight.saturating_mul(bound)
     } else {
         32usize.saturating_mul(bound.saturating_sub(1))
@@ -183,7 +192,9 @@ pub(super) fn check(
         if scope.binder_site.len() > limits.max_call_depth {
             return Err(limit(None, "CT binder-site depth exceeds quota"));
         }
-        let weight = if matches!(scope.instance, CtScopeInstance::Instantiated(_)) {
+        let weight = if scope.enclosing.is_some()
+            || matches!(scope.instance, CtScopeInstance::Instantiated(_))
+        {
             if weights.is_none() {
                 // State, comparison weights and dependency heights coexist.
                 let bytes = count.saturating_mul(2 * std::mem::size_of::<usize>() + 1);
@@ -292,7 +303,17 @@ pub(super) fn check(
             }
         }
         if !lifetime {
-            return Err(reject(None, "CT ambient scope has no lifetime parameter"));
+            meter.charge(count, None)?;
+            if !raw
+                .ambient_life_scopes
+                .iter()
+                .any(|child| child.enclosing == Some(CtAmbientScopeId(index as u32)))
+            {
+                return Err(reject(
+                    None,
+                    "CT ambient scope without life binders is not a lexical host",
+                ));
+            }
         }
     }
     let mut visit = Visit {
@@ -341,6 +362,13 @@ pub(super) fn check(
             }) = node
             {
                 visit.graph(graph, 0)?;
+            }
+        }
+    }
+    for function in &raw.functions {
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                visit.graph(ty, 0)?;
             }
         }
     }

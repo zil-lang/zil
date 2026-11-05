@@ -755,6 +755,39 @@ fn type_ref_matches(
     raw: &CtArtifactProgram,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<bool> {
+    if !reference.ambient_classes.is_empty()
+        || matches!(reference.nodes.get(reference.root.0 as usize), Some(CtTypeNode::BorrowedStorage { .. }))
+    {
+        // New contextual values can only reuse complete graphs independently
+        // admitted at actual source Type sites in this verified program.
+        for instruction in raw.functions.iter().flat_map(|function| &function.blocks)
+            .flat_map(|block| &block.instructions)
+        {
+            budget.reserve_analysis_work(1)?;
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                let cost = storage::graph(reference, Some(budget))?
+                    .saturating_add(storage::graph(ty, Some(budget))?);
+                budget.reserve_analysis_work(cost)?;
+                if ty == reference {
+                    let mut limits = zil_base::Limits::default();
+                    limits.max_nodes = raw.budget.max_generated_nodes as usize;
+                    limits.max_source_bytes = raw.budget.max_temporary_bytes as usize;
+                    limits.max_call_depth = raw.budget.max_call_depth as usize;
+                    limits.max_analysis_steps = budget.remaining().max_analysis_work as usize;
+                    let mut meter = zil_verify::CtVerificationMeter::new(
+                        budget.remaining().max_analysis_work,
+                    );
+                    let checked = zil_verify::verify_ct_type_graph_metered(
+                        reference, raw, &limits, &mut meter,
+                    );
+                    budget.reserve_analysis_work(meter.spent())?;
+                    checked?;
+                    return Ok(true);
+                }
+            }
+        }
+        return Ok(false);
+    }
     let mut anonymous = false;
     if !type_ref_valid(reference, raw, &mut anonymous) {
         return Ok(false);
@@ -1195,6 +1228,10 @@ fn execute_instruction(
             copy_bytes(frame, fields, budget)?
         }
         K::TypePrimitive(_) | K::TypeBuiltin(_) => std::mem::size_of::<CtTypeNode>() as u64,
+        K::TypeInContext { ty } => {
+            budget.reserve_generated_nodes(ty.nodes.len() as u64)?;
+            storage::graph(ty, Some(budget))?
+        }
         K::MakeAnonymousSum {
             members, payload, ..
         } => {
@@ -1456,6 +1493,7 @@ fn execute_instruction(
             root: CtTypeNodeId(0),
             ambient_classes: Vec::new(),
         })),
+        K::TypeInContext { ty } => Some(CtValue::Type(ty.clone())),
         K::TypeName(symbol) => Some(CtValue::Type(reader.type_name(
             &frame.function.definition,
             symbol,
@@ -2861,6 +2899,7 @@ mod tests {
             ambient_classes: Vec::new(),
         };
         p.ambient_life_scopes.push(CtAmbientLifeScope {
+            enclosing: None,
             declaration: symbol(),
             binder_site: Vec::new(),
             instance: CtScopeInstance::Definition,
@@ -2966,6 +3005,16 @@ mod tests {
                 verify_ct_artifact(bad, &limits, &authority).is_err(),
                 "joint scope attack {attack}"
             );
+        }
+        // A caller-supplied lexical host edge remains an untrusted graph edge.
+        // Even a broad test authority cannot turn a cycle or missing row into
+        // an admissible complete scope inventory.
+        for parent in [CtAmbientScopeId(0), CtAmbientScopeId(u32::MAX)] {
+            let mut bad = p.clone();
+            bad.ambient_life_scopes[0].enclosing = Some(parent);
+            let bytes = zil_ir::ct_wire::encode_program(&bad, &limits).unwrap();
+            let decoded = zil_ir::ct_wire::decode_program(&bytes, &limits).unwrap();
+            assert!(verify_ct_artifact(decoded, &limits, &authority).is_err());
         }
         let mut different = p.clone();
         let schema = &mut different.record_schemas[0];

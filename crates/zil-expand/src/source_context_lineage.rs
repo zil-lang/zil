@@ -15,6 +15,11 @@ impl Visitor for Discovery<'_, '_> {
         self.0.text(text, span).map_err(|error| vec![error])
     }
     fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
+        if matches!(item.kind, s::ItemKind::Meta(s::MetaItem::Emit(_))) {
+            // A future ItemList can introduce nominal/life declarations. Its
+            // source namespace must be frozen before the first event runs.
+            self.0.note_source_identity();
+        }
         if let s::ItemKind::Function(function) = &item.kind
             && function.generics.len() >= 3
         {
@@ -61,7 +66,34 @@ pub(crate) fn capture_original_impl(
     context: SourceIdentityContext<'_>,
     limits: &Limits,
 ) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
+    capture_impl(sources, modules, context, limits, false)
+}
+
+pub(crate) fn capture_required_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+) -> CompileResult<(Vec<ModuleDeclarationOrigins>, Limits)> {
+    capture_impl(sources, modules, context, limits, true).map(|(rows, remaining)| {
+        (
+            rows.expect("forced original capture always constructs a namespace"),
+            remaining,
+        )
+    })
+}
+
+fn capture_impl(
+    sources: &[SourceUnit],
+    modules: &[&Module],
+    context: SourceIdentityContext<'_>,
+    limits: &Limits,
+    required: bool,
+) -> CompileResult<(Option<Vec<ModuleDeclarationOrigins>>, Limits)> {
     let mut budget = Budget::new(limits);
+    if required {
+        budget.note_source_identity();
+    }
     let result =
         (|| {
             if !matches!(

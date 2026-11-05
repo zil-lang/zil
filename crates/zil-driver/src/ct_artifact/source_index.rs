@@ -153,6 +153,106 @@ fn children(
 }
 
 impl SourceIndex {
+    /// Register the actual frozen event inventory. The Materializer owns the
+    /// verified emission; this only adds its precise source bindings and normal
+    /// public/private flags, never type, scope, reflection, or loan authority.
+    pub(super) fn register_generated_tree(
+        &mut self,
+        tree: &zil_expand::source_context::GeneratedSourceTree,
+        limits: &zil_base::Limits,
+        budget: &mut zil_ct::CtExecutionBudget,
+    ) -> CompileResult<()> {
+        let span = tree.module.span;
+        budget.reserve_analysis_work(self.module_ids.len() as u64 + 1)?;
+        let owner = self
+            .module_ids
+            .iter()
+            .position(|module| *module == tree.module.id)
+            .ok_or_else(|| error("E-CT-SOURCE-INDEX", span, "generated source module absent"))?;
+        let fingerprint = tree.generation_fingerprint().ok_or_else(|| {
+            error(
+                "E-CT-SOURCE-INDEX",
+                span,
+                "generated source tree identity absent",
+            )
+        })?;
+        let cost = zil_expand::ct_selection::module_cost(&tree.module, limits)?;
+        budget.reserve_analysis_work(cost.work as u64)?;
+        let count = tree.declarations.len();
+        budget.reserve_analysis_work(
+            (count as u64).saturating_mul(self.public.len() as u64 + count as u64 + 1),
+        )?;
+        budget.reserve_generated_nodes(cost.nodes as u64)?;
+        // Temporary local inventory and final enlarged destinations are paid
+        // before either allocation. The temporary vector is released on success.
+        let entry_bytes =
+            std::mem::size_of::<(Span, CtSymbolId)>() + std::mem::size_of::<(CtSymbolId, bool)>();
+        let temporary = cost.nodes as u64 * entry_bytes as u64;
+        budget.reserve_temporary_bytes(
+            temporary
+                + (self.symbols[owner].len() + count) as u64
+                    * std::mem::size_of::<(Span, CtSymbolId)>() as u64
+                + (self.public.len() + count) as u64
+                    * std::mem::size_of::<(CtSymbolId, bool)>() as u64,
+        )?;
+        let mut symbols = Vec::with_capacity(cost.nodes);
+        let mut public = Vec::with_capacity(cost.nodes);
+        for (local, item) in tree.module.items.iter().enumerate() {
+            let symbol = CtSymbolId {
+                module: tree.module.id,
+                declaration: NodeId(local as u32),
+                generation_path: None,
+            };
+            symbols.push((item.span, symbol.clone()));
+            public.push((symbol, item.public));
+        }
+        let mut next = u32::try_from(tree.module.items.len())
+            .map_err(|_| error("E-CT-SYMBOL-LIMIT", span, "generated root count overflow"))?;
+        for item in &tree.module.items {
+            children(
+                item,
+                tree.module.id,
+                &mut symbols,
+                &mut public,
+                &mut next,
+                item.public,
+            )?;
+        }
+        if next as usize != count || symbols.len() != count || public.len() != count {
+            return Err(error(
+                "E-CT-SOURCE-INDEX",
+                span,
+                "generated frozen declaration inventory count differs",
+            ));
+        }
+        for (ordinal, ((_, symbol), (visible_symbol, _))) in
+            symbols.iter_mut().zip(&mut public).enumerate()
+        {
+            let declaration = tree.declarations[ordinal];
+            if tree.declarations[..ordinal].contains(&declaration)
+                || self
+                    .public
+                    .iter()
+                    .any(|(old, _)| old.module == tree.module.id && old.declaration == declaration)
+            {
+                return Err(error(
+                    "E-CT-SOURCE-INDEX",
+                    span,
+                    "generated declaration ID collides with existing source inventory",
+                ));
+            }
+            symbol.declaration = declaration;
+            symbol.generation_path = Some(fingerprint);
+            *visible_symbol = symbol.clone();
+        }
+        self.symbols[owner].reserve_exact(count);
+        self.public.reserve_exact(count);
+        self.symbols[owner].extend(symbols);
+        self.public.extend(public);
+        budget.release_temporary_bytes(temporary);
+        Ok(())
+    }
+
     pub(super) fn freeze(
         sources: &[SourceUnit],
         syntax: &[&s::Module],

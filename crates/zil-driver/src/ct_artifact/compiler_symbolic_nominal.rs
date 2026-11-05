@@ -153,6 +153,46 @@ impl<'a> Compiler<'a> {
         Ok(())
     }
 
+    /// A Type expression needs checked symbolic actual kinds and capabilities,
+    /// without allocating an executable value schema for the named declaration.
+    pub(super) fn check_abstract_type_application(
+        &mut self,
+        module: usize,
+        item: &s::Item,
+        args: &[s::GenericArg],
+        depth: usize,
+        span: Span,
+    ) -> R<()> {
+        self.budget.depth(depth, span)?;
+        let parameters = match &item.kind {
+            s::ItemKind::Aggregate(a) => &a.generics,
+            s::ItemKind::Enum(e) => &e.generics,
+            _ => return Err(error(span, "CT Type application requires a nominal declaration")),
+        };
+        if args.len() != parameters.len() { return Err(error(span, "CT abstract Type argument arity differs")); }
+        for (parameter, argument) in parameters.iter().zip(args) {
+            self.budget.node(span)?;
+            match (&parameter.kind, argument) {
+                (s::GenericParamKind::Type(_), s::GenericArg::Type(ty)) => {
+                    self.generic_names(std::slice::from_ref(parameter), &[], span)?;
+                    let actual = self.ty(module, ty, depth + 1)?;
+                    self.ordinary_copy(&actual, depth + 1, span)?;
+                }
+                (s::GenericParamKind::Const(_), argument) => { self.abstract_scalar(parameter, argument, span)?; }
+                (s::GenericParamKind::Lifetime, s::GenericArg::Lifetime(name)) => {
+                    let mut found = false;
+                    for (bound, _, _) in &self.abstract_lives {
+                        self.budget.work(name.len().min(bound.len()).saturating_add(1), span)?;
+                        found |= bound == name;
+                    }
+                    if !found { return Err(error(span, "CT abstract Type life actual is not an authentic binder")); }
+                }
+                _ => return Err(error(span, "CT abstract Type actual kind differs")),
+            }
+        }
+        Ok(())
+    }
+
     pub(super) fn abstract_nominal(
         &mut self,
         module: usize,
@@ -164,7 +204,7 @@ impl<'a> Compiler<'a> {
     ) -> R<CtTy> {
         self.budget.depth(depth, span)?;
         let s::ItemKind::Aggregate(declaration) = &item.kind else {
-            unreachable!()
+            return Err(forbidden(span, "CT abstract nominal requires a supported pure declaration"));
         };
         if declaration.kind != s::AggregateKind::Struct {
             return Err(forbidden(

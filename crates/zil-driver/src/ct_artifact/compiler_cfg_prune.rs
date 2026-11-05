@@ -92,6 +92,16 @@ impl Builder<'_, '_> {
                     .ok_or_else(|| error(span, "CT record relocation output is unreachable"))?;
             }
         }
+        if !self.compiler.source_type_sites.is_empty() {
+            self.compiler.budget.work(self.compiler.source_type_sites.len(), span)?;
+            self.compiler.source_type_sites.retain_mut(|row| {
+                if row.caller != self.id { return true; }
+                match values.get(row.value.0 as usize).copied().flatten() {
+                    Some(value) => { row.value = value; true }
+                    None => false,
+                }
+            });
+        }
         let mut result = Vec::new();
         for (index, block) in std::mem::take(&mut self.blocks).into_iter().enumerate() {
             self.compiler.budget.work(1, span)?;
@@ -212,7 +222,8 @@ impl Builder<'_, '_> {
                     | CtInstructionKind::Load(_)
                     | CtInstructionKind::TypePrimitive(_)
                     | CtInstructionKind::TypeBuiltin(_)
-                    | CtInstructionKind::TypeName(_) => {}
+                    | CtInstructionKind::TypeName(_)
+                    | CtInstructionKind::TypeInContext { .. } => {}
                 }
             }
             let value = |v: CtValueId| -> R<CtValueId> {
