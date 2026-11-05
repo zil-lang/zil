@@ -502,6 +502,9 @@ fn update(
     update(next, rest, incoming, validate, b)
 }
 impl Context<'_> {
+    // Keep authority, update strength, validation and budget explicit, as in
+    // the adjacent resource replacement kernel.
+    #[allow(clippy::too_many_arguments)]
     fn apply(
         &self,
         flow: &Flow<'_>,
