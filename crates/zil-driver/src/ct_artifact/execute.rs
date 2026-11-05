@@ -905,8 +905,15 @@ impl<'a> Environment<'a> {
             target: self.target,
             snapshot: &self.snapshot,
         };
-        let (value, _usage) =
-            zil_ct::evaluate_ct_artifact(&verified, arguments, &reader, &mut self.budget).map_err(
+        self.budget.reserve_analysis_work(source_bindings.calls.len() as u64)?;
+        let has_host_calls = source_bindings.calls.iter().any(|call|call.enclosing.is_some());
+        let evaluated = if has_host_calls {
+            zil_ct::evaluate_ct_artifact_with_completed_calls(&verified,arguments,&reader,&mut self.budget)
+        } else {
+            zil_ct::evaluate_ct_artifact(&verified,arguments,&reader,&mut self.budget)
+                .map(|(value,usage)|(value,usage,Vec::new()))
+        };
+        let (value, _usage, completed_calls) = evaluated.map_err(
                 |mut errors| {
                     for diagnostic in &mut errors {
                         if diagnostic.span.is_none() {
@@ -947,8 +954,10 @@ impl<'a> Environment<'a> {
         } else {
             None
         };
-        let retain_host = source_bindings.calls.iter().any(|call| call.enclosing.is_some());
-        self.budget.reserve_analysis_work(source_bindings.calls.len() as u64)?;
+        self.budget.reserve_analysis_work((source_bindings.calls.len() as u64).saturating_mul(completed_calls.len() as u64))?;
+        let retain_host = source_bindings.calls.iter().any(|call| call.enclosing.is_some()
+            && call.execution.is_some_and(|(block,instruction)|completed_calls.iter().any(|event|
+                event.caller==call.caller && event.block==block && event.instruction==instruction && event.callee==call.instance)));
         if retain_host {
             // Only a successful independently admitted, verified AND evaluated
             // request reaches this private event constructor.
@@ -957,7 +966,10 @@ impl<'a> Environment<'a> {
                 source_bindings.calls,
                 source_bindings.scopes,
                 invocation_context.as_ref().ok_or_else(|| error("CT namespace lost its authentic invocation",span))?.clone(),
+                completed_calls,
             )?;
+        } else {
+            self.budget.release_temporary_bytes(completed_calls.capacity() as u64 * std::mem::size_of::<zil_ct::CtCompletedCall>() as u64);
         }
         if context.is_none() && !retain_host
             && let Some(invocation_context) = invocation_context

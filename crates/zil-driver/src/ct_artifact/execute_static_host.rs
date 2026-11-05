@@ -10,6 +10,7 @@ pub(super) struct Invocation {
     calls: Vec<compiler::SourceInstanceCall>,
     scopes: Vec<CtAmbientLifeScope>,
     context: Arc<FrozenInvocationContext>,
+    completed_calls: Vec<zil_ct::CtCompletedCall>,
 }
 
 impl Environment<'_> {
@@ -22,6 +23,7 @@ impl Environment<'_> {
         calls: Vec<compiler::SourceInstanceCall>,
         scopes: Vec<CtAmbientLifeScope>,
         context: Arc<FrozenInvocationContext>,
+        completed_calls: Vec<zil_ct::CtCompletedCall>,
     ) -> CompileResult<()> {
         // Payloads move from the already prepaid successful producer request.
         // Reserve the entire replacement backing before Vec can grow.
@@ -36,6 +38,7 @@ impl Environment<'_> {
             calls,
             scopes,
             context,
+            completed_calls,
         });
         Ok(())
     }
@@ -75,6 +78,7 @@ impl Environment<'_> {
                     &symbol,
                     &self.index,
                     &mut self.budget,
+                    &invocation.completed_calls,
                 )? {
                     let identity_work = super::super::invocation_context::identity_cost(
                         identity,

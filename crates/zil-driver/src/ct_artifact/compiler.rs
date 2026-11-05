@@ -329,6 +329,8 @@ pub(crate) struct SourceRuntimeFrame {
 }
 #[derive(Clone, Debug)]
 pub(crate) struct SourceInstanceCall {
+    /// Exact instruction position, including Unit calls without an SSA result.
+    pub execution: Option<(CtBlockId,u32)>,
     /// Exact fresh actual call definition, bound before any relocation emits.
     pub occurrence: Option<(CtBlockId, CtValueId)>,
     pub caller: CtFunctionId,

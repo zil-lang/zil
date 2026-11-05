@@ -85,8 +85,16 @@ pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> b
             && parsed.tokens.iter().any(|token| token.span.start >= function.span.start
                 && token.span.end <= function.span.end && token.text(&source.text) == "#"))
     });
+    // Candidate routing only. A real static-host call, its complete source
+    // actuals, effects and successful execution are checked by the CT consumer.
+    // An unrelated #(7) cannot qualify any of these ordinary methods.
+    let static_namespace_ct = parsed.module.items.iter().any(|item| {
+        matches!(&item.kind, ast::ItemKind::Aggregate(host)
+            if !host.generics.is_empty() && !host.methods.is_empty())
+    }) && parsed.tokens.iter().any(|token| token.text(&source.text) == "#");
     standard
         || runtime_generic_ct
+        || static_namespace_ct
         || parsed.type_meta_candidate
         || parsed.tokens.iter().any(|token| {
             token.kind == zil_syntax::token::TokenKind::Identifier

@@ -380,15 +380,50 @@ fn integer_index(value: &CtValue, len: usize) -> CompileResult<usize> {
         .ok_or_else(|| error("CT index is outside its bounds"))
 }
 
+/// An actual Call which returned normally in this VM invocation. Instruction
+/// position also distinguishes Unit calls and repeated calls to one instance.
+/// This is an execution observation, never source or artifact authority.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CtCompletedCall {
+    pub caller: CtFunctionId,
+    pub block: CtBlockId,
+    pub instruction: u32,
+    pub callee: CtFunctionId,
+    pub result: Option<CtValueId>,
+}
+
 pub fn evaluate_ct_artifact(
     program: &VerifiedCTArtifactProgram,
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
+    evaluate_ct_artifact_retaining_calls(program,arguments,reader,budget,None)
+}
+
+/// Retain bounded, actual normal-return events. A trap or failed whole request
+/// returns no events. The old evaluator has no collection or collection fees.
+pub fn evaluate_ct_artifact_with_completed_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+) -> CompileResult<(CtValue, CtUsageReceipt, Vec<CtCompletedCall>)> {
+    let mut calls = Vec::new();
+    let (value,usage) = evaluate_ct_artifact_retaining_calls(program,arguments,reader,budget,Some(&mut calls))?;
+    Ok((value,usage,calls))
+}
+
+fn evaluate_ct_artifact_retaining_calls(
+    program: &VerifiedCTArtifactProgram,
+    arguments: &[CtValue],
+    reader: &impl CtReadView,
+    budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
+) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let before = budget.live_temporary_bytes;
     let query_capacity = budget.usage.queries.capacity();
-    let result = evaluate_ct_artifact_inner(program, arguments, reader, budget);
+    let result = evaluate_ct_artifact_inner(program, arguments, reader, budget,completed_calls.as_deref_mut());
     let query_bytes = (budget
         .usage
         .queries
@@ -404,6 +439,8 @@ pub fn evaluate_ct_artifact(
                     receipt.queries.capacity() as u64
                         * std::mem::size_of::<CtQueryDependency>() as u64,
                 )
+                .saturating_add(completed_calls.as_ref().map_or(0,|calls|
+                    calls.capacity() as u64 * std::mem::size_of::<CtCompletedCall>() as u64))
         })
         .saturating_add(query_bytes);
     let added = budget.live_temporary_bytes.saturating_sub(before);
@@ -431,6 +468,7 @@ fn evaluate_ct_artifact_inner(
     arguments: &[CtValue],
     reader: &impl CtReadView,
     budget: &mut CtExecutionBudget,
+    mut completed_calls: Option<&mut Vec<CtCompletedCall>>,
 ) -> CompileResult<(CtValue, CtUsageReceipt)> {
     let raw = program.program();
     budget.constrain_to_program(raw.budget)?;
@@ -559,6 +597,7 @@ fn evaluate_ct_artifact_inner(
                     live_cells -=
                         (completed.function.locals.len() + completed.function.values.len()) as u64;
                     let destination = completed.destination;
+                    let callee = completed.function.id;
                     completed.release(budget);
                     if let Some(parent) = frames.last_mut() {
                         if let Some(id) = destination {
@@ -566,6 +605,24 @@ fn evaluate_ct_artifact_inner(
                             budget.release_temporary_bytes(old);
                             parent.value_bytes[id.0 as usize] = bytes;
                             parent.values[id.0 as usize] = Some(output);
+                        }
+                        if let Some(calls) = completed_calls.as_deref_mut() {
+                            if calls.len()==calls.capacity() {
+                                let old = calls.capacity();
+                                let new = calls.len().checked_add(1).ok_or_else(||limit("CT completed-call inventory overflow"))?;
+                                budget.reserve_analysis_work(old as u64 + 1)?;
+                                budget.reserve_temporary_bytes(new as u64 * std::mem::size_of::<CtCompletedCall>() as u64)?;
+                                calls.reserve_exact(new-calls.len());
+                                budget.release_temporary_bytes(old as u64 * std::mem::size_of::<CtCompletedCall>() as u64);
+                            }
+                            budget.reserve_analysis_work(1)?;
+                            calls.push(CtCompletedCall{
+                                caller:parent.function.id,
+                                block:parent.function.blocks[parent.block].id,
+                                instruction:u32::try_from(parent.instruction-1).map_err(|_|limit("CT completed-call instruction ordinal overflow"))?,
+                                callee,
+                                result:destination,
+                            });
                         }
                     } else {
                         budget.release_temporary_bytes(frame_vector_bytes);

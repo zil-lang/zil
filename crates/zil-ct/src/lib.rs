@@ -12,7 +12,8 @@ mod ct_artifact;
 pub use anonymous_type::canonicalize_anonymous_type;
 mod materialize;
 pub use aggregate_metadata::{preflight_aggregate_metadata, preflight_core_metadata};
-pub use ct_artifact::{CtExecutionBudget, CtReadView, evaluate_ct_artifact};
+pub use ct_artifact::{CtCompletedCall, CtExecutionBudget, CtReadView, evaluate_ct_artifact,
+    evaluate_ct_artifact_with_completed_calls};
 mod program;
 mod source;
 pub use program::{CompileTimeValue, ProgramEvaluation, evaluate_program};
