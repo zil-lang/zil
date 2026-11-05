@@ -42,13 +42,58 @@ pub(super) fn local(f: &TypedFunction, target: &Target, b: &mut Budget) -> Compi
         _ => Err(unsupported()),
     }
 }
+// Copy alone includes code/foreign carriers. This result profile permits only
+// ordinary finite value trees, so it introduces no borrowed or owning output.
+fn copy_result(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+    if *ty == Type::Unit {
+        return Ok(true);
+    }
+    b.type_work(
+        ty,
+        true,
+        "whole Package helper finite Copy result qualification",
+    )?;
+    fee(b, 1)?;
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        fee(b, 1)?;
+        match ty {
+            ty if ty.is_b0_scalar() => {}
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Array { element, .. } => {
+                fee(b, 1)?;
+                pending.push(element);
+            }
+            Type::Record { fields, .. } => {
+                fee(b, fields.len())?;
+                pending.extend(fields.iter().map(|(_, child)| child));
+            }
+            Type::Enum { variants, .. } => {
+                fee(b, variants.len())?;
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                fee(b, 2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+
 // The borrowed shell stays the caller's responsibility. Admission binds the
 // actual mutable parameter and complete endpoint, independently of the ticket.
 pub(super) fn borrowed(f: &TypedFunction, target: &Target, b: &mut Budget) -> CompileResult<u32> {
     if f.foreign.is_some()
         || f.environment.is_some()
         || f.call_kind != CallKind::Direct
-        || f.return_type != Type::Unit
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
@@ -56,6 +101,9 @@ pub(super) fn borrowed(f: &TypedFunction, target: &Target, b: &mut Budget) -> Co
         || !target.path.is_empty()
         || !target.mutable
     {
+        return Err(unsupported());
+    }
+    if !copy_result(&f.return_type, b)? {
         return Err(unsupported());
     }
     let origins::Root::Parameter(parameter) = target.root else {
