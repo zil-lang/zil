@@ -1361,12 +1361,84 @@ impl FrozenInvocationContext {
                 .as_ref()
                 .ok_or_else(|| unsupported("CT host original lineage absent"))?;
             budget.reserve_analysis_work(origins.len() as u64)?;
-            let identity = &origins
-                .iter()
-                .find(|row| row.module == host_symbol.module)
-                .and_then(|row| row.items.get(host_symbol.declaration.0 as usize))
-                .ok_or_else(|| unsupported("CT host original declaration identity absent"))?
-                .identity;
+            let generated_identity;
+            let identity = if let Some(fingerprint) = host_symbol.generation_path {
+                let catalog = self.generated_catalog.as_ref().ok_or_else(|| {
+                    unsupported("CT generated host has no actual frozen source catalog")
+                })?;
+                budget.reserve_analysis_work(catalog.trees.len() as u64)?;
+                let mut selected = None;
+                for (row, tree) in catalog.trees.iter().enumerate() {
+                    budget.reserve_analysis_work(
+                        (tree.identity_path_len() as u64)
+                            .saturating_mul(4)
+                            .saturating_add(tree.declarations.len() as u64)
+                            .saturating_add(32),
+                    )?;
+                    if tree.module.id != host_symbol.module
+                        || tree.generation_fingerprint() != Some(fingerprint)
+                    {
+                        continue;
+                    }
+                    let Some(local) = tree
+                        .declarations
+                        .iter()
+                        .position(|id| *id == host_symbol.declaration)
+                    else {
+                        continue;
+                    };
+                    let actual = super::super::compiler::source_scope::original_declaration(
+                        &tree.module,
+                        zil_base::NodeId(local as u32),
+                        budget.remaining().max_call_depth as usize,
+                        |work| budget.reserve_analysis_work(work as u64),
+                    )?
+                    .ok_or_else(|| {
+                        unsupported("CT generated host has no actual declaration item")
+                    })?;
+                    if !std::ptr::eq(actual.item, host_item) {
+                        return Err(unsupported(
+                            "CT generated host source item differs from its actual catalog placement",
+                        ));
+                    }
+                    if selected.replace((row, actual.top)).is_some() {
+                        return Err(unsupported(
+                            "CT generated host source placement is ambiguous",
+                        ));
+                    }
+                }
+                let (row, top) = selected.ok_or_else(|| {
+                    unsupported("CT generated host declaration inventory is absent")
+                })?;
+                generated_identity =
+                    super::generated::root_identity(catalog, row, top, origins, budget)?;
+                &generated_identity
+            } else {
+                budget.reserve_analysis_work(self.modules.len() as u64)?;
+                let module = self
+                    .modules
+                    .iter()
+                    .find(|module| module.module.id == host_symbol.module)
+                    .ok_or_else(|| unsupported("CT host actual original module is absent"))?;
+                let actual = super::super::compiler::source_scope::original_declaration(
+                    &module.module,
+                    host_symbol.declaration,
+                    budget.remaining().max_call_depth as usize,
+                    |work| budget.reserve_analysis_work(work as u64),
+                )?
+                .ok_or_else(|| unsupported("CT host actual original declaration is absent"))?;
+                if !std::ptr::eq(actual.item, host_item) {
+                    return Err(unsupported(
+                        "CT host source declaration differs from its actual original placement",
+                    ));
+                }
+                &origins
+                    .iter()
+                    .find(|row| row.module == host_symbol.module)
+                    .and_then(|row| row.items.get(actual.top))
+                    .ok_or_else(|| unsupported("CT host original declaration identity absent"))?
+                    .identity
+            };
             let mut cost = super::super::execute::value_context::ambient_cost(
                 std::slice::from_ref(host),
                 budget,
