@@ -997,6 +997,12 @@ impl Builder<'_, '_> {
                     self.closures
                         .snapshot(borrowed_fp::metadata_work(life), span)?;
                 }
+                if bound.source_life.is_some()
+                    && let Some(life) = &source_role_life
+                {
+                    self.closures
+                        .snapshot(borrowed_fp::metadata_work(life), span)?;
+                }
                 roles.push(CallableRole {
                     life: if bound.source_life.is_some() {
                         source_role_life.clone()

@@ -6150,3 +6150,437 @@ fn captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire() {
         }
     }
 }
+
+const G334_SIMPLE: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+);
+const G334_REVERSE: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/reverse-generics-good.zil"
+);
+const G334_CALLER: &str = include_str!(
+    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-good.zil"
+);
+fn g334_core(text: &str) -> zil_ir::CoreModule {
+    use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
+    let input = source(text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &Limits::default(),
+        &zil_base::TargetProfile::host_llvm(),
+        SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core
+}
+fn g334_role(core: &zil_ir::CoreModule) -> &zil_ir::CoreCallableParameter {
+    core.functions
+        .iter()
+        .flat_map(|f| &f.callable_parameters)
+        .find(|r| r.source_life.is_some())
+        .unwrap()
+}
+
+#[test]
+fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let a = g334_core(include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-a.zil"
+    ));
+    let b = g334_core(include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil"
+    ));
+    let (a, b) = (g334_role(&a), g334_role(&b));
+    assert_eq!(a.parameters, b.parameters);
+    assert_eq!(a.result, b.result);
+    assert_eq!(a.life, b.life);
+    let (a, b) = (
+        a.source_life.as_ref().unwrap(),
+        b.source_life.as_ref().unwrap(),
+    );
+    assert_eq!(a.parameters, b.parameters);
+    assert_eq!(a.inputs, b.inputs);
+    assert_eq!(a.named_fixed[0].parameter, 0);
+    assert_eq!(b.named_fixed[0].parameter, 1);
+    for (source, expected) in [(0, StorageBinder::Fixed(0)), (1, StorageBinder::Fixed(1))] {
+        assert!(a.inputs.iter().any(|i| i.source_parameter == Some(source)
+            && i.header_binder == expected
+            && matches!(i.position, CoreClosureHeaderPosition::Class(_))));
+    }
+    let reverse = g334_core(G334_REVERSE);
+    let role = g334_role(&reverse);
+    let context = role.source_life.as_ref().unwrap();
+    assert_eq!(
+        context.parameters,
+        vec![
+            LifeParameterKind::Lifetime,
+            LifeParameterKind::Type,
+            LifeParameterKind::Lifetime
+        ]
+    );
+    assert_eq!(
+        (context.generic_parameter, role.generic_index, role.index),
+        (1, 0, 0)
+    );
+    assert_eq!(context.named_fixed[0].parameter, 2);
+    assert!(context.inputs.iter().any(|i| i.parameter == 2
+        && i.source_parameter == Some(2)
+        && i.header_binder == StorageBinder::Fixed(1)
+        && matches!(i.position, CoreClosureHeaderPosition::Class(_))));
+    for text in [G334_SIMPLE, G334_REVERSE, G334_CALLER] {
+        let core = g334_core(text);
+        let raw = zil_types::check(&core, &target, &limits).unwrap();
+        let d = &raw.closures[0];
+        assert_eq!(d.kind, CallableKind::Fn);
+        let helper = raw
+            .functions
+            .iter()
+            .find(|f| f.callable_contract.is_some())
+            .unwrap();
+        let role = &helper.callable_contract.as_ref().unwrap().roles[0];
+        assert_eq!(role.life, d.storage_life);
+        let header = helper.storage_life.as_ref().unwrap();
+        for class in 0..d.storage_life.as_ref().unwrap().fixed_binder_count {
+            assert!(header.classes.iter().any(|r| r.position.base
+                == StorageBase::Parameter(role.parameter)
+                && r.position.path == [LifeTypeProjection::Pointee]
+                && r.position.class == class));
+        }
+        let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+        let wire = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+        zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    }
+    let twice = G334_SIMPLE.replace(
+        "return helper(&f,seed)",
+        "let first=helper(&f,seed);return first+helper(&f,seed)-42",
+    );
+    let report = compile_source(
+        &source(&twice),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let wrong = include_str!(
+        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil"
+    );
+    let report = compile_source(
+        &source(wrong),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, zil_base::Phase::Analyze);
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("actual retained classes"))
+    );
+}
+
+#[test]
+fn g334_source_derived_actual_call_and_capture_neighbors_reach_both_kernels() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let raw = zil_types::check(&g334_core(G334_CALLER), &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let helper = raw
+        .functions
+        .iter()
+        .find(|f| f.callable_contract.is_some())
+        .unwrap()
+        .id;
+    let caller =
+        raw.functions
+            .iter()
+            .position(|f| {
+                f.blocks.iter().flat_map(|b| &b.instructions).any(
+                    |i| matches!(i.kind,InstructionKind::Call {function,..} if function==helper),
+                )
+            })
+            .unwrap();
+    let right = raw.functions[caller].parameters[1];
+    let right_value = raw.functions[caller]
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::Load(local) if local == right => i.result,
+            _ => None,
+        })
+        .unwrap();
+    for change_capture in [false, true] {
+        let mut bad = raw.clone();
+        let mut changed = false;
+        for instruction in bad.functions[caller]
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+        {
+            match &mut instruction.kind {
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } if !change_capture && *function == helper => {
+                    arguments[1] = right_value;
+                    changed = true;
+                }
+                InstructionKind::MakeClosure { captures, .. } if change_capture => {
+                    captures[0] = right_value;
+                    changed = true;
+                }
+                _ => {}
+            }
+        }
+        assert!(changed);
+        let analyze = zil_analyze::analyze(&bad, &limits).unwrap_err();
+        assert!(
+            analyze.iter().any(|d| d.message.contains("class")),
+            "actual class proof: {analyze:?}"
+        );
+        // Rebind only the untrusted current-module fingerprint. This is an
+        // adversarial raw candidate, not an Analyze-produced success plan.
+        let mut forged_plan = plan.clone();
+        forged_plan.module_fingerprint = bad.fingerprint();
+        let wire = wire::encode_module_candidate(&bad, &forged_plan, &limits).unwrap();
+        for errors in [
+            zil_verify::verify_module(bad, forged_plan, &target, &limits).unwrap_err(),
+            zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err(),
+        ] {
+            assert!(
+                errors.iter().any(|d| d.message.contains("class")),
+                "actual independent class proof: {errors:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn g334_malformed_context_clone_budget_and_fresh_warm_requests() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let core = g334_core(G334_SIMPLE);
+    let helper = core
+        .functions
+        .iter()
+        .position(|f| {
+            f.callable_parameters
+                .iter()
+                .any(|r| r.source_life.is_some())
+        })
+        .unwrap();
+    for mutation in 0..9 {
+        let mut bad = core.clone();
+        let role = &mut bad.functions[helper].callable_parameters[0];
+        match mutation {
+            0 => role.source_life = None,
+            1 => role.source_life.as_mut().unwrap().generic_parameter = 0,
+            2 => role.generic_index = 1,
+            3 => role.index = u32::MAX,
+            4 => role.source_life.as_mut().unwrap().named_fixed[0].parameter = 99,
+            5 => {
+                role.source_life.as_mut().unwrap().inputs[0].header_binder =
+                    StorageBinder::Fixed(99)
+            }
+            6 => role.source_life.as_mut().unwrap().bound_ordinal = 99,
+            7 => {
+                let duplicate = role.source_life.as_ref().unwrap().inputs[0].clone();
+                role.source_life.as_mut().unwrap().inputs.push(duplicate);
+            }
+            _ => role.source_life.as_mut().unwrap().inputs[0].parameter = 99,
+        }
+        let errors = zil_types::check(&bad, &target, &limits).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|d| d.category != ResultCategory::ResourceLimit),
+            "{mutation}: {errors:?}"
+        );
+        eprintln!("G334 malformed bridge {mutation}: {}", errors[0].message);
+    }
+    let mut renamed = core.clone();
+    let identity = renamed.functions[helper].callable_parameters[0]
+        .source_life
+        .as_mut()
+        .unwrap();
+    identity.identity.package = "raw-provenance-record-only".into();
+    identity.declaration.declaration = zil_base::NodeId(999);
+    assert_eq!(
+        zil_types::check(&renamed, &target, &limits).unwrap(),
+        zil_types::check(&core, &target, &limits).unwrap()
+    );
+    let bounded = Limits {
+        max_analysis_steps: 16_384,
+        ..limits.clone()
+    };
+    zil_types::infer_source_closures(&core, &bounded).unwrap();
+    for huge_path in [false, true] {
+        let mut huge = core.clone();
+        let context = huge.functions[helper].callable_parameters[0]
+            .source_life
+            .as_mut()
+            .unwrap();
+        if huge_path {
+            context.inputs[0].position = CoreClosureHeaderPosition::Borrow(StoragePosition {
+                base: StorageBase::Parameter(0),
+                path: vec![
+                    ContractProjection::Place(PlaceProjection::Field(0));
+                    limits.max_call_depth + 1
+                ],
+            });
+        } else {
+            context.identity.package = "x".repeat(32_768);
+        }
+        let errors = zil_types::infer_source_closures(&huge, &bounded).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::ResourceLimit
+                    && d.message.contains("context")),
+            "{errors:?}"
+        );
+    }
+    let expected = zil_types::check(&core, &target, &limits).unwrap();
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let mid = low + (high - low) / 2;
+        let probe = Limits {
+            max_analysis_steps: mid,
+            ..limits.clone()
+        };
+        match zil_types::check(&core, &target, &probe) {
+            Ok(_) => high = mid,
+            Err(errors)
+                if errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = mid + 1
+            }
+            Err(errors) => panic!("{errors:?}"),
+        }
+    }
+    for n in [low, low - 1, low] {
+        let probe = Limits {
+            max_analysis_steps: n,
+            ..limits.clone()
+        };
+        let result = zil_types::check(&core, &target, &probe);
+        if n == low {
+            assert_eq!(result.unwrap(), expected);
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit)
+            );
+        }
+    }
+    let program = CoreProgram {
+        root: core.module_id,
+        source_fingerprint: core.source_fingerprint,
+        modules: vec![ProgramModule {
+            core,
+            imports: vec![],
+            exports: vec![],
+        }],
+    };
+    let mut session = zil_types::FunctionSession::default();
+    let mut prior = None;
+    for _ in 0..2 {
+        let prepared = zil_types::infer_program_for_ct(&program, &limits)
+            .unwrap()
+            .into_prepared();
+        let output = session
+            .check_prepared_program(&prepared, &target, &limits)
+            .unwrap();
+        if let Some(prior) = &prior {
+            assert_eq!(prior, &output);
+        }
+        prior = Some(output);
+    }
+    eprintln!(
+        "G334 whole Types N={low}/N-1/fresh; repeated actual FunctionSession request checked (qualified profile has no scalar reuse claim)"
+    );
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn g334_actual_source_native_clang_api_o0_o2_full_results() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let mut runs = 0;
+    for (case, text) in [("simple", G334_SIMPLE), ("reverse", G334_REVERSE)] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-g334-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{case}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none());
+                let result = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(
+                    result.status.success(),
+                    "{case}/{backend:?}/{optimization:?}: {result:?}"
+                );
+                assert_eq!(result.stdout, b"42\n");
+                assert!(result.stderr.is_empty());
+                std::fs::remove_dir_all(dir).unwrap();
+                runs += 1;
+            }
+        }
+    }
+    eprintln!(
+        "G334 real Source native runs={runs}; stdout42 newline, empty stderr, exit0, selected backend and no fallback checked"
+    );
+}

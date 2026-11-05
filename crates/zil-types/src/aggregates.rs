@@ -571,11 +571,17 @@ fn resolve_indexed(
     }
     // Resolve using the original declaration headers while moving function bodies.
     // State selectors need the unmodified headers, but cloning every body is unnecessary.
-    let original_headers: Vec<_> = core
-        .functions
-        .iter()
-        .map(|f| (f.callable_parameters.clone(), f.state_parameters.clone()))
-        .collect();
+    let mut original_headers = Vec::with_capacity(core.functions.len());
+    for function in &core.functions {
+        let callable = inference::snapshot_callable_parameters(
+            &function.callable_parameters,
+            limits,
+            remaining,
+            function.span,
+        )
+        .map_err(|e| vec![e])?;
+        original_headers.push((callable, function.state_parameters.clone()));
+    }
     let mut functions = std::mem::take(&mut core.functions);
     for (f, (callable_parameters, state_parameters)) in functions.iter_mut().zip(&original_headers)
     {

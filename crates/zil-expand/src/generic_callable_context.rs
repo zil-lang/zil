@@ -14,6 +14,7 @@ pub(crate) struct Produced {
 #[derive(Default)]
 pub(crate) struct Ledger {
     pub(crate) rows: Vec<Option<Produced>>,
+    consumed: Vec<(origins::Origin, u32, u32, u32)>,
 }
 fn unavailable(span: Span, message: &str) -> Diagnostic {
     Diagnostic::unsupported(Phase::Expand, message, Some(span))
@@ -28,7 +29,20 @@ impl Ledger {
         budget: &mut Budget<'_>,
         span: Span,
     ) -> R<Option<Produced>> {
-        budget.identity_work(self.rows.len().saturating_add(1), span)?;
+        budget.identity_work(
+            self.rows
+                .len()
+                .saturating_add(self.consumed.len())
+                .saturating_add(1),
+            span,
+        )?;
+        let key = (origin, parameter, generic, bound);
+        if self.consumed.contains(&key) {
+            return Err(unavailable(
+                span,
+                "source helper original selected bound is lowered more than once",
+            ));
+        }
         let mut selected = None;
         for (index, row) in self.rows.iter().enumerate() {
             if row.as_ref().is_some_and(|r| {
@@ -44,6 +58,10 @@ impl Ledger {
                     ));
                 }
             }
+        }
+        if selected.is_some() {
+            budget.identity_work(1, span)?;
+            self.consumed.push(key);
         }
         Ok(selected.and_then(|index| self.rows[index].take()))
     }
