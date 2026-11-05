@@ -540,14 +540,14 @@ pub(super) fn reserve_emission(
                 && let Some(result) = i.result
                 && !f.values[result.0 as usize].is_copy_value()
                 && pure_composite(&f.values[result.0 as usize])
+                && snapshots
+                    .get(&f.id)
+                    .is_none_or(|plan| !plan.contains_key(&result))
             {
-                let snapshot = snapshots.get(&f.id);
+                // Planned enum results already prepay each nonsnapshot field's
+                // canonical store in copy_aggregates::plan. Only an SSA enum
+                // result reaches this additional reservation.
                 for field in fields {
-                    if snapshot
-                        .is_some_and(|plan| plan.contains_key(&result) && plan.contains_key(field))
-                    {
-                        continue;
-                    }
                     pay(
                         work,
                         copy_aggregates::canonical_payload_work(&f.values[field.0 as usize])
@@ -796,6 +796,83 @@ mod tests {
             "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
         ));
     }
+    #[test]
+    fn g4463_snapshot_enum_canonical_store_is_reserved_once() {
+        // Synthetic physical budgeting probe, not a verified source program.
+        let mut module = fixture::module();
+        module.functions.truncate(1);
+        let qualify = |storage| Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let input = qualify(Type::Record {
+            name: "Leaf".into(),
+            fields: vec![("bits".into(), Type::U64)],
+        });
+        let output = qualify(Type::Enum {
+            name: "Wide".into(),
+            variants: vec![
+                ("Small".into(), vec![input.clone()]),
+                (
+                    "Wide".into(),
+                    vec![Type::Array {
+                        element: Box::new(Type::U64),
+                        length: 1024,
+                    }],
+                ),
+            ],
+        });
+        let f = &mut module.functions[0];
+        f.parameters.clear();
+        f.locals.clear();
+        f.return_type = Type::Unit;
+        f.values = vec![input.clone(), output];
+        f.blocks.truncate(1);
+        f.blocks[0].instructions = vec![fixture::instruction(
+            Some(1),
+            InstructionKind::MakeVariant {
+                variant: 0,
+                fields: vec![ValueId(0)],
+            },
+        )];
+        f.blocks[0].terminator = Terminator::Return(None);
+        let view = LirView {
+            schema_version: module.schema_version,
+            module_id: module.module_id,
+            verified_fingerprint: zil_base::Fingerprint::ZERO,
+            target: &module.target,
+            functions: &module.functions,
+            closures: &[],
+            resources: &[],
+            layouts: std::borrow::Cow::Borrowed(&[]),
+        };
+        let limits = Limits::default();
+        let planned = copy_aggregates::plan(&view, &limits, usize::MAX).unwrap();
+        let snapshot = &planned.values[&module.functions[0].id];
+        assert!(snapshot.contains_key(&ValueId(1)));
+        assert!(!snapshot.contains_key(&ValueId(0)));
+        let mut with_snapshot = usize::MAX;
+        reserve_emission(&view, &limits, &planned.values, &mut with_snapshot).unwrap();
+        let mut without_snapshot = usize::MAX;
+        reserve_emission(&view, &limits, &BTreeMap::new(), &mut without_snapshot).unwrap();
+        assert_eq!(
+            with_snapshot - without_snapshot,
+            copy_aggregates::canonical_payload_work(&input) * 16
+        );
+        let needed = usize::MAX - with_snapshot;
+        let mut exact = needed;
+        reserve_emission(&view, &limits, &planned.values, &mut exact).unwrap();
+        assert_eq!(exact, 0);
+        let errors =
+            reserve_emission(&view, &limits, &planned.values, &mut (needed - 1)).unwrap_err();
+        assert_eq!(errors[0].category, zil_base::ResultCategory::ResourceLimit);
+    }
+
     fn verified() -> VerifiedModule {
         let module = fixture::wide_shared(64);
         let origins = vec![
