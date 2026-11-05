@@ -1,0 +1,75 @@
+{
+  "task": "G4.4.5.3",
+  "date": "2026-11-05",
+  "status": "ParentPendingTwoSourceGaps",
+  "source_commit": "66f242b1a7834bb81c6f79fc2e2032cc1b1a3f92",
+  "source_dirty": false,
+  "target": "/workspace/.zil-env/target344",
+  "tmpdir": "/workspace/.zil-env/G4.4.5.3-tmp",
+  "runs": [
+    {
+      "command": "cargo test -p zil-driver --lib invocation_context:: -- --nocapture",
+      "passed": 12,
+      "failed": 1,
+      "log": "parent-schema-auth-fifth-tests.log",
+      "sha256": "8bd57c4e466dc1eb9d74462485e2e7aeab762b7e77f396e6c2992582092c688d",
+      "failure": "Host own-zero definition/instance scratch scopes retained by check_generic_definitions; actual source-call ledger independently correct. Producer cleanup pending replay."
+    },
+    {
+      "command": "cargo test -p zil-driver --lib g4454_ -- --nocapture",
+      "passed": 3,
+      "failed": 2,
+      "log": "recursive-parent-fifth-source-tests.log",
+      "sha256": "0f466886b046040b715678e8172d4ab16452ee882aa83a24f6fc695ebd6af267",
+      "partial_success": "Original composite Source/Verify and Clang O0/O2 complete output 18446744073709551557 succeeded before recursive fixture; independent recursive trace/Wire controls and work241727/nodes248 N/N-1/fresh passed. These do not turn both failing aggregate test functions into Pass.",
+      "failure": "New recursive differing-schema fixture rejects at Expand source lifetime annotation; independent nominal-source field layout controls pass."
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates g447_runtime_ct -- --nocapture",
+      "passed": 13,
+      "failed": 0,
+      "log": "runtime-seventh-integrated-source-tests.log",
+      "sha256": "c150b1dc5b0fad503da0ae2edf58df63d9173dacc11913494e3866ca0bda1042",
+      "source_project_native": "Nine positive cases each use two same-session Source requests, independent project, verification_runs=1 per request, Clang O0/O2 complete stdout; includes caller-life qualified actual Type and actual Type-value result.",
+      "negative_controls": [
+        "Unused definition runtime capture",
+        "Unused ordinary helper actual forbidden body",
+        "Ordinary generic-host runtime method plain and CT existing qualification boundary"
+      ],
+      "request_boundaries": {
+        "multiple_instances": {
+          "work": 103818,
+          "nodes": 3407,
+          "steps": 18,
+          "bytes": 54541
+        },
+        "qualified_type_value": {
+          "work": 83730,
+          "nodes": 2031,
+          "steps": 8,
+          "bytes": 46387
+        },
+        "controls": "All four N/N-1/cold/warm/fresh, failure cleanup, recovery, zero active query count; no default quota increase."
+      }
+    },
+    {
+      "command": "cargo test -p zil-driver --test aggregates g4453_generated_factory_forwards_its_real_life_source_native -- --nocapture",
+      "passed": 1,
+      "failed": 0,
+      "log": "generated-factory-forward-life-first-source.log",
+      "sha256": "90e7e7f773616192a3a2d55e8fe032e6d559d1b4419d7f32936131c60fb74769",
+      "scope": "Generated CT-only factory forwards its own original life ordinal to original ordinary relay; Source/Verify and Clang O0/O2 full output42."
+    }
+  ],
+  "earlier_proofs": [
+    "Runtime metadata-only graph builder true original-source tests 3/3 at9b1d94320; no value schemas or forged caller.",
+    "Ordinary static member effect/duplicate/privacy controls2/2 and generated whole deferred body mutation control1/1 at2228816a2.",
+    "Historical runtime first8/2 failure and later10/0 remain in G4.4.7-runtime-integrated-source.json; no failure record removed."
+  ],
+  "remaining": [
+    "Discarded symbolic CT6 inventory cleanup replay for own-zero full generic host actual source.",
+    "Generic host/member ordinary pure static declaration qualification and whole unused definition obligations, including member Type shadowing.",
+    "New recursive Enum differing-life-schema Source through Expand actual source-class inference and complete LifeNominalInstance producer/consumer; no guard deletion or scalar-only replacement.",
+    "Final same-freeze original Source/native and all applicable budget migration, independent review and parent formal gates by root."
+  ]
+}
