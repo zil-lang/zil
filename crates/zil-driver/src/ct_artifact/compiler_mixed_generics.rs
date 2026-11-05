@@ -317,10 +317,39 @@ impl Compiler<'_> {
                             error(parameter.span, "CT full life actual has no caller scope")
                         })?;
                     if caller.declaration.generation_path.is_some() {
-                        return Err(error(
-                            parameter.span,
-                            "CT full life actual has generated caller",
-                        ));
+                        // Generated spelling or a raw scope row is not source
+                        // authority. Resolve the frozen catalog declaration and
+                        // its original full ordinal before retaining this edge;
+                        // the consumer independently checks the actual Call.
+                        self.budget.work(32, parameter.span)?;
+                        let definition = caller.declaration.clone();
+                        let (_, item) = self.metadata_declaration(&definition, parameter.span)?;
+                        let parameters = match &item.kind {
+                            s::ItemKind::Function(function) => &function.generics,
+                            s::ItemKind::Aggregate(host)
+                                if host.kind == s::AggregateKind::Struct =>
+                            {
+                                &host.generics
+                            }
+                            _ => {
+                                return Err(error(
+                                    parameter.span,
+                                    "CT generated life actual has no original lexical scope declaration",
+                                ));
+                            }
+                        };
+                        self.budget.work(1, parameter.span)?;
+                        if !parameters
+                            .get(reference.parameter as usize)
+                            .is_some_and(|parameter| {
+                                matches!(parameter.kind, s::GenericParamKind::Lifetime)
+                            })
+                        {
+                            return Err(error(
+                                parameter.span,
+                                "CT generated life actual does not select its original full life ordinal",
+                            ));
+                        }
                     }
                 }
                 _ => {
