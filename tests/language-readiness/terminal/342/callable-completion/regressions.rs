@@ -1,8 +1,9 @@
 use super::*;
-const CASES: [(&str, &str); 3] = [
+const CASES: [(&str, &str); 4] = [
     ("before", include_str!("loop-before.zil")),
     ("after", include_str!("loop-after.zil")),
     ("nested-transfer", include_str!("loop-transfer.zil")),
+    ("consume-break", include_str!("loop-consume-break.zil")),
 ];
 #[test]
 fn g339_source_loop_origins_raw_wire() {
@@ -155,6 +156,11 @@ fn g339_actual_completion_native_clang_api_o0_o2() {
             "give-companion",
             include_str!("managed-companion.zil"),
             "45\n",
+        ),
+        (
+            "consume-break",
+            include_str!("loop-consume-break.zil"),
+            "AB42\n0\n",
         ),
         ("lending", include_str!("qualified-lending.zil"), "0\n"),
         (
