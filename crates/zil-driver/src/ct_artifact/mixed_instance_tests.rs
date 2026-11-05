@@ -319,10 +319,10 @@ fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
                         )
                         .unwrap_err();
                     assert!(
-                        errors
-                            .iter()
-                            .any(|d| d.message.contains("original life source or full ordinal")),
-                        "{errors:?}"
+                        errors.iter().any(|d| d.phase == Phase::Ct
+                            && d.code == "E-UNSUPPORTED"
+                            && d.message == "CT relocation changes the original source lifetime endpoint/full ordinal"),
+                        "changed target={target} lifetime endpoint: {errors:?}"
                     );
                 }
             }

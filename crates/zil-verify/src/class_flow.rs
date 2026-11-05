@@ -10,6 +10,7 @@ struct Ports {
     outer: Option<usize>,
     classes: Vec<usize>,
     keys: Vec<(Vec<LifeTypeProjection>, u32)>,
+    direct: bool,
     environment: bool,
 }
 fn pure_class_keys(
@@ -217,6 +218,7 @@ impl Equations {
             outer,
             classes,
             keys,
+            direct,
             environment,
         })
     }
@@ -295,6 +297,8 @@ fn link_projection(
         } else {
             &[]
         };
+        let scan = parent.keys.len().saturating_add(retained.len());
+        b.spend(scan)?;
         let full_len = path.len().saturating_add(1);
         let lookup_work = parent
             .keys
@@ -307,7 +311,7 @@ fn link_projection(
             }))
             .saturating_add(full_len.saturating_mul(3))
             .saturating_add(1);
-        b.spend(lookup_work)?;
+        b.spend(lookup_work.saturating_sub(scan))?;
         let tail = if path.first() == Some(&LifeTypeProjection::Pointee) {
             &path[1..]
         } else {
@@ -390,6 +394,19 @@ fn bind(
     }
     for row in &c.classes {
         if row.position.base == base {
+            if p.direct {
+                let index = row.position.class as usize;
+                let (path, class) = p
+                    .keys
+                    .get(index)
+                    .ok_or_else(|| bad("qualified class has no actual carrier position"))?;
+                if *path != row.position.path || *class != row.position.class {
+                    return Err(bad("qualified class has no exact actual type path"));
+                }
+                e.equal(p.classes[index], select(v, row.binder)?, b)?;
+                continue;
+            }
+            b.spend(p.keys.len())?;
             let lookup_work = p.keys.iter().fold(0usize, |n, (path, _)| {
                 n.saturating_add(
                     path.len()
@@ -397,7 +414,7 @@ fn bind(
                         .saturating_add(1),
                 )
             });
-            b.spend(lookup_work)?;
+            b.spend(lookup_work.saturating_sub(p.keys.len()))?;
             let index = p
                 .keys
                 .iter()
@@ -770,6 +787,7 @@ fn check_with(
                         }
                         if let (Some(out), Some(id)) = (out, i.result)
                             && !out.classes.is_empty()
+                            && !matches!(shape(&f.values[id.0 as usize]), Some(life) if life.retained.is_empty())
                         {
                             let parent_ty = &f.values[id.0 as usize];
                             for (index, field) in fields.iter().enumerate() {
@@ -848,6 +866,7 @@ fn check_with(
                     InstructionKind::MakeVariant { variant, fields } => {
                         if let (Some(out), Some(id)) = (out, i.result)
                             && !out.classes.is_empty()
+                            && !matches!(shape(&f.values[id.0 as usize]), Some(life) if life.retained.is_empty())
                         {
                             for (index, field) in fields.iter().enumerate() {
                                 link_projection(

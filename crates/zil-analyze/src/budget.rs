@@ -49,6 +49,8 @@ pub(super) struct Budget {
     pub(super) registrations: bool,
     pub(super) async_registrations: bool,
     pub(super) stored_borrows: bool,
+    // Eligibility only; each pure use still proves the actual physical type.
+    pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
@@ -92,6 +94,7 @@ impl Budget {
             registrations: false,
             async_registrations: false,
             stored_borrows: false,
+            pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
             shared_thread_functions: BTreeSet::new(),

@@ -321,6 +321,8 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_borrows: bool,
+    // Eligibility only; pure reads and values still prove their actual shape.
+    pure_nominal: bool,
     stored_context: bool,
 }
 impl Budget {
@@ -349,6 +351,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_borrows: false,
+            pure_nominal: false,
             stored_context: false,
         }
     }

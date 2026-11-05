@@ -511,7 +511,8 @@ pub(super) fn qualification(
 /// This admits only a qualified pure value, retaining its complete semantic
 /// type. The ordinary read's actual pointer/loan proof remains mandatory.
 pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
+    if !b.pure_nominal
+        || !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. }))
     {
         return Ok(false);
     }
@@ -525,7 +526,7 @@ pub(super) fn pure_read(module: &TypedModule, ty: &Type, b: &mut Budget) -> Chec
 }
 
 pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
-    if module.life_instances.is_empty()
+    if !b.pure_nominal
         || ty.is_copy_value()
         || !matches!(
             ty,
@@ -748,6 +749,9 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
     }
     for (i, instance) in module.life_instances.iter().enumerate() {
         type_work(&instance.ty, limits, b)?;
+        if matches!(&instance.ty, Type::BorrowedStorage { life, .. } if life.slots.is_empty()) {
+            b.pure_nominal = true;
+        }
         physical(&instance.ty, limits, b)?;
         let (storage, _) = qualified(&instance.ty)
             .ok_or_else(|| err("nominal instance has no complete qualified type"))?;
@@ -844,6 +848,49 @@ fn relation(
 }
 
 pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) -> Check<()> {
+    fn nested_class(ty: &Type, depth: usize, b: &mut Budget) -> Check<bool> {
+        if depth > b.limits.max_call_depth {
+            return Err(limit("stored signature class depth exceeds limit"));
+        }
+        b.spend(1)?;
+        match ty {
+            Type::BorrowedStorage { .. } => Ok(true),
+            Type::Address { inner, .. } | Type::Array { element: inner, .. } => {
+                nested_class(inner, depth + 1, b)
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                for field in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                for (_, field) in fields {
+                    if nested_class(field, depth + 1, b)? {
+                        return Ok(true);
+                    }
+                }
+                Ok(false)
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    for field in fields {
+                        if nested_class(field, depth + 1, b)? {
+                            return Ok(true);
+                        }
+                    }
+                }
+                Ok(false)
+            }
+            _ => Ok(false),
+        }
+    }
     for p in &f.parameters {
         b.spend(1)?;
         if f.locals.get(p.0 as usize).is_none() {
@@ -860,6 +907,11 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
             b.spend(1)?;
             if f.environment.is_none() && (qualified(ty).is_some() || addressed(ty).is_some()) {
                 return Err(err("stored signature requires complete class relation"));
+            }
+            if !module.life_instances.is_empty() && nested_class(ty, 0, b)? {
+                return Err(err(
+                    "nested qualified signature requires complete class relation",
+                ));
             }
         }
         return Ok(());
