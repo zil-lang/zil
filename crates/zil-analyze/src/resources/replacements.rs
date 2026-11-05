@@ -13,6 +13,7 @@ pub(super) struct CheckPoint<'a> {
     pub(super) validate: bool,
     pub(super) live: Option<&'a Live>,
     pub(super) output: Option<ValueId>,
+    pub(super) position: Option<(usize,usize)>,
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum StoreInvalidation {
@@ -30,6 +31,7 @@ pub(super) type Effects = BTreeMap<Target, BTreeSet<Birth>>;
 pub(super) struct Program {
     routes: Vec<origins::Facts>,
     definitions: Vec<Definitions>,
+    retirement_pairs: RefCell<Vec<retirement::Pairs>>,
 }
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "actual replacement origin transfer")
@@ -225,6 +227,7 @@ impl Program {
         Ok(Self {
             routes,
             definitions,
+            retirement_pairs:RefCell::new(vec![retirement::Pairs::new();module.functions.len()]),
         })
     }
     pub(super) fn extend_shapes(
@@ -605,6 +608,7 @@ impl Program {
                         validate: check,
                         live,
                         output: None,
+                        position:None,
                     },
                     b,
                 )?;
