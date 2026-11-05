@@ -193,7 +193,59 @@ fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
 
 /// Shape admission for a real nonlocal complete endpoint. Authority and actual
 /// target substitution stay in this kernel's independent origin/loan passes.
+fn helper_owned_result(module: &TypedModule, ty: &Type, b: &mut Budget) -> Check<bool> {
+    if helper_copy_result(ty, b)? {
+        return Ok(true);
+    }
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        b.spend(1)?;
+        match ty {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                resources::check_type_for(module, ty, None, b)?;
+            }
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                b.spend(fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Enum { variants, .. } => {
+                b.spend(variants.len())?;
+                for (_, fields) in variants {
+                    b.spend(fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?;
+                pending.push(element);
+            }
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+            | Type::U8
+            | Type::U16 => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
 fn package_helper(
+    module: &TypedModule,
     f: &TypedFunction,
     endpoint: &Type,
     parameter: Option<u32>,
@@ -207,8 +259,11 @@ fn package_helper(
     {
         return Ok(false);
     }
-    if !helper_copy_result(&f.return_type, b)?
-        || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(endpoint, b)?)
+    if !(if f.environment.is_some() {
+        helper_copy_result(&f.return_type, b)?
+    } else {
+        helper_owned_result(module, &f.return_type, b)?
+    }) || (package_owners(endpoint, b)?.is_none() && !enum_endpoint(endpoint, b)?)
     {
         return Ok(false);
     }
@@ -454,8 +509,8 @@ pub(crate) fn at_type<'a>(
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
         let whole_input = target.steps.is_empty()
             && match target.base {
-                actual::Base::Input(p) => package_helper(f, ty, Some(p), b)?,
-                actual::Base::Environment(_) => package_helper(f, ty, None, b)?,
+                actual::Base::Input(p) => package_helper(module, f, ty, Some(p), b)?,
+                actual::Base::Environment(_) => package_helper(module, f, ty, None, b)?,
                 actual::Base::InputCapture(p, c) => {
                     f.foreign.is_none()
                         && f.callable_return_contract.is_none()
@@ -465,7 +520,7 @@ pub(crate) fn at_type<'a>(
                         && resources::public_roles::mutable_capture(module, f, p, c, b)?
                 }
                 actual::Base::Element(_) => {
-                    matches!(ty, Type::Package { .. }) && package_helper(f, ty, None, b)?
+                    matches!(ty, Type::Package { .. }) && package_helper(module, f, ty, None, b)?
                 }
                 _ => false,
             };

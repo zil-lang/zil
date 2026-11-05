@@ -232,6 +232,31 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
                 ),
                 ("store", STORE, b"AB42\n".as_slice()),
                 (
+                    "owning-result",
+                    include_str!("owning-result-helper.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "owning-give-result",
+                    include_str!("owning-result-give.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
+                    "owning-result-abort",
+                    include_str!("owning-result-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+                (
+                    "owning-error-abort",
+                    include_str!("owning-error-abort.zil"),
+                    b"BCA42\n".as_slice(),
+                ),
+                (
+                    "store-owning-result",
+                    include_str!("store-owning-result.zil"),
+                    b"ACB42\n".as_slice(),
+                ),
+                (
                     "two-leaf",
                     include_str!("two-leaf-helper.zil"),
                     b"ABCD42\n".as_slice(),
@@ -368,6 +393,33 @@ fn g139_public_role_trace_cannot_hide_actual_invocation() {
         zil_verify::verify_module_bytes(&bytes, &forged.target, &limits),
     ] {
         let errors = result.unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn g139_owned_result_helper_responsibility_and_failure() {
+    for text in [
+        include_str!("owning-result-helper.zil"),
+        include_str!("owning-result-give.zil"),
+        include_str!("owning-result-abort.zil"),
+        include_str!("owning-error-abort.zil"),
+        include_str!("store-owning-result.zil"),
+    ] {
+        check(text);
+    }
+    for text in [
+        include_str!("owning-result-old-desc.zil"),
+        include_str!("owning-result-no-must.zil"),
+        include_str!("owning-result-false-create.zil"),
+    ] {
+        let module = typed(text);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
         assert!(
             errors
                 .iter()

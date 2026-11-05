@@ -121,6 +121,52 @@ pub(super) struct Admission {
     pub(super) owners: Vec<u32>,
     pub(super) legacy_must: bool,
 }
+pub(super) fn ordinary_result(
+    module: &TypedModule,
+    ty: &Type,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if copy_result(ty, b)? {
+        return Ok(true);
+    }
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        fee(b, 1)?;
+        match ty {
+            Type::Managed(payload)
+                if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
+            Type::Managed(_) if dynamic_store::is_owned_carrier(ty) => {
+                dynamic_store::ordinary_owned(module, ty, b)?;
+            }
+            Type::Tuple(fields) => {
+                fee(b, fields.len())?;
+                pending.extend(fields);
+            }
+            Type::Package { fields, .. } | Type::Record { fields, .. } => {
+                fee(b, fields.len())?;
+                pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Enum { variants, .. } => {
+                fee(b, variants.len())?;
+                for (_, fields) in variants {
+                    fee(b, fields.len())?;
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                fee(b, 2)?;
+                pending.extend([error.as_ref(), result.as_ref()]);
+            }
+            Type::Array { element, .. } => {
+                fee(b, 1)?;
+                pending.push(element);
+            }
+            ty if ty.is_b0_scalar() => {}
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
 // The borrowed shell stays the caller's responsibility. Admission binds the
 // actual mutable parameter and complete endpoint, independently of the ticket.
 pub(super) fn borrowed(
@@ -139,7 +185,11 @@ pub(super) fn borrowed(
     {
         return Err(unsupported());
     }
-    if !copy_result(&f.return_type, b)? {
+    if !(if f.environment.is_some() {
+        copy_result(&f.return_type, b)?
+    } else {
+        ordinary_result(module, &f.return_type, b)?
+    }) {
         return Err(unsupported());
     }
     let (parameter, root) = match target.root {

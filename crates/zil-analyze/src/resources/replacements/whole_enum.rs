@@ -109,7 +109,11 @@ pub(super) fn borrowed(
         || f.callable_return_contract.is_some()
         || f.reference_return_bound.is_some()
         || f.storage_life.is_some()
-        || !package::copy_result(&f.return_type, b)?
+        || !(if f.environment.is_some() {
+            package::copy_result(&f.return_type, b)?
+        } else {
+            package::ordinary_result(module, &f.return_type, b)?
+        })
     {
         return Err(unsupported());
     }
