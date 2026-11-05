@@ -58,6 +58,18 @@ pub(super) fn aggregate<'a>(
     ))
 }
 
+fn enum_declaration<'a>(core: &'a CoreModule, name: &str, left: &mut usize) -> R<&'a CoreEnum> {
+    for declaration in &core.enums {
+        fee(left, declaration.name.len().saturating_add(name.len()).saturating_add(40), declaration.span)?;
+        if name == declaration.name
+            || name == format!("@module{}:{}", core.module_id.0, declaration.name)
+        {
+            return Ok(declaration);
+        }
+    }
+    Err(error("E-STORED-IDENTITY", Span::default(), "stored Enum has no actual declaration"))
+}
+
 pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) -> R<()> {
     if core.life_instances.is_empty() && core.life_declarations.is_empty() {
         return Ok(());
@@ -147,14 +159,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance is unqualified",
             ));
         };
-        let Type::Record { name, fields } = storage.as_ref() else {
-            return Err(unsupported(
-                span,
-                "stored nominal kind requires its consumer",
-            ));
-        };
-        if declaration.kind != LifeNominalKind::Record
-            || declaration.parameters.len() != instance.arguments.len()
+        if declaration.parameters.len() != instance.arguments.len()
         {
             return Err(error(
                 "E-STORED-IDENTITY",
@@ -162,13 +167,12 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "stored instance kind or full argument arity differs",
             ));
         }
-        fee(
-            left,
-            name.len()
-                .saturating_add(1)
-                .saturating_mul(names.len().saturating_add(1)),
-            span,
-        )?;
+        let name = match storage.as_ref() {
+            Type::Record { name, .. } if declaration.kind == LifeNominalKind::Record => name,
+            Type::Enum { name, .. } if declaration.kind == LifeNominalKind::Enum => name,
+            _ => return Err(unsupported(span, "stored nominal kind requires its actual consumer")),
+        };
+        fee(left, name.len().saturating_add(1).saturating_mul(names.len().saturating_add(1)), span)?;
         if !names.insert(name) {
             return Err(error(
                 "E-STORED-IDENTITY",
@@ -176,6 +180,28 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                 "multiple stored instances claim the same actual declaration layout",
             ));
         }
+        if let Type::Enum { variants, .. } = storage.as_ref() {
+            let actual = enum_declaration(core, name, left)?;
+            fee(left, actual.variants.len().saturating_add(variants.len()), actual.span)?;
+            if actual.variants.len() != variants.len() {
+                return Err(error("E-STORED-TYPE", actual.span, "stored Enum variant count differs from actual declaration"));
+            }
+            for ((name, fields), (decl_name, decl_fields)) in variants.iter().zip(&actual.variants) {
+                fee(left, name.len().saturating_add(decl_name.len()).saturating_add(fields.len()).saturating_add(decl_fields.len()), actual.span)?;
+                if name != decl_name || fields.len() != decl_fields.len() {
+                    return Err(error("E-STORED-TYPE", actual.span, "stored Enum variant differs from actual declaration"));
+                }
+                for (field, declared) in fields.iter().zip(decl_fields) {
+                    for ty in [field, declared] {
+                        let work = inference::type_snapshot_work(ty, actual.span, &Limits { max_analysis_steps: *left, ..limits.clone() })?;
+                        fee(left, work, actual.span)?;
+                    }
+                    if field != declared {
+                        return Err(error("E-STORED-TYPE", actual.span, "stored Enum payload differs from actual declaration"));
+                    }
+                }
+            }
+        } else if let Type::Record { fields, .. } = storage.as_ref() {
         let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
         if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
             return Err(error(
@@ -208,6 +234,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                     "stored instance physical fields differ from actual declaration",
                 ));
             }
+        }
         }
         nominal::rows(core, instance, limits, left, InventoryPhase::Core)?;
         for prior in &core.life_instances[..index] {

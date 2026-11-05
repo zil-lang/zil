@@ -746,7 +746,7 @@ impl<'a> Engine<'a> {
                     }
                 }
                 if matches!(parameter.kind, GenericParamKind::Lifetime)
-                    && matches!(item.kind, ItemKind::Aggregate(_))
+                    && matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_))
                 {
                     continue;
                 }

@@ -7,7 +7,11 @@ use zil_ir::{
 };
 
 pub(super) fn has_life(item: &Item) -> bool {
-    matches!(&item.kind, ItemKind::Aggregate(a) if a.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)))
+    match &item.kind {
+        ItemKind::Aggregate(a) => a.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)),
+        ItemKind::Enum(e) => e.generics.iter().any(|p| matches!(p.kind, GenericParamKind::Lifetime)),
+        _ => false,
+    }
 }
 
 impl<'a> Engine<'a> {
@@ -27,8 +31,8 @@ impl<'a> Engine<'a> {
         let Some(item) = self.templates.get(name) else {
             return Ok(false);
         };
-        if let ItemKind::Aggregate(aggregate) = &item.kind {
-            for _ in &aggregate.generics {
+        if let ItemKind::Aggregate(_) | ItemKind::Enum(_) = &item.kind {
+            for _ in params(item) {
                 self.budget.node(span, 0)?;
             }
             Ok(has_life(item))
@@ -445,16 +449,15 @@ impl<'a> Engine<'a> {
             .get(template)
             .copied()
             .ok_or_else(|| error(span, "stored nominal declaration is absent"))?;
-        let ItemKind::Aggregate(aggregate) = &item.kind else {
-            return Err(error(
-                span,
-                "stored nominal application requires an aggregate",
-            ));
+        let formals = match &item.kind {
+            ItemKind::Aggregate(a) => a.generics.as_slice(),
+            ItemKind::Enum(e) => e.generics.as_slice(),
+            _ => return Err(error(span, "stored nominal application requires an actual declaration")),
         };
-        for _ in &aggregate.generics {
+        for _ in formals {
             self.budget.node(span, depth)?;
         }
-        if aggregate.generics.len() != arguments.len() {
+        if formals.len() != arguments.len() {
             return Err(error(
                 span,
                 "stored nominal requires its full ordered argument list",
@@ -501,8 +504,7 @@ impl<'a> Engine<'a> {
         let mut keys = Vec::new();
         let mut local_classes = Vec::new();
         let mut qualified_actuals = BTreeMap::new();
-        for (ordinal, (formal, actual)) in aggregate
-            .generics
+        for (ordinal, (formal, actual)) in formals
             .iter()
             .zip(arguments.iter_mut())
             .enumerate()
@@ -586,7 +588,7 @@ impl<'a> Engine<'a> {
         }
         self.with_origin(Some(origin), |engine| {
             engine.traits.check_arguments(
-                &aggregate.generics,
+                formals,
                 &substitution,
                 (
                     &trait_bounds::Bounds::new(),
