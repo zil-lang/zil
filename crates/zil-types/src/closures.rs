@@ -4985,9 +4985,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let Some(types) = self.enums else {
             return Ok(None);
         };
-        let Some(ty @ Type::Enum { variants, .. }) =
-            enums::constructor_type(types, name, expression.span)?
-        else {
+        let Some(ty) = enums::constructor_type(types, name, expression.span)? else {
+            return Ok(None);
+        };
+        let Type::Enum { variants, .. } = stored::physical(ty) else {
             return Ok(None);
         };
         if owner.is_some() {
@@ -5012,8 +5013,12 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         depth: usize,
         span: Span,
     ) -> R<LocalType> {
-        let Type::Enum { variants, .. } = ty else {
-            unreachable!()
+        let Type::Enum { variants, .. } = stored::physical(ty) else {
+            return Err(error(
+                "E-ENUM-TYPE",
+                span,
+                "enum constructor lacks its actual physical variant layout",
+            ));
         };
         let fields = &variants[index].1;
         if fields.len() != arguments.len() {
