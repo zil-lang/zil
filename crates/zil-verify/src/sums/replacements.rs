@@ -13,7 +13,7 @@ pub(super) struct Context<'a> {
     actual: &'a actual::Program,
     places: &'a [Inventory],
     summaries: &'a [Rows],
-    whole_must: &'a [bool],
+    whole_must: &'a BTreeSet<usize>,
     written: RefCell<Rows>,
     store_calls: &'a RefCell<BTreeSet<usize>>,
 }
@@ -596,6 +596,12 @@ impl Context<'_> {
                     None,
                 ));
             }
+            let strong = if whole {
+                lookup(b, self.whole_must.len())?;
+                self.whole_must.contains(&entry)
+            } else {
+                true
+            };
             let incoming = flow.instantiate(payload, arguments, state, b)?;
             for target in targets {
                 if matches!(target.base, actual::Base::Element(_)) {
@@ -603,15 +609,7 @@ impl Context<'_> {
                     b.spend(needed.len().saturating_add(1))?;
                     needed.insert(entry);
                 }
-                self.apply(
-                    flow,
-                    state,
-                    &target,
-                    &incoming,
-                    !whole || self.whole_must[entry],
-                    validate,
-                    b,
-                )?;
+                self.apply(flow, state, &target, &incoming, strong, validate, b)?;
             }
         }
         Ok(())
@@ -778,11 +776,14 @@ pub(super) fn check(
     let mut places = Vec::with_capacity(module.functions.len());
     let mut result = Vec::with_capacity(module.functions.len());
     let mut effects = vec![Rows::new(); module.functions.len()];
-    let mut whole_must_rows = Vec::with_capacity(module.functions.len());
+    let mut whole_must_rows = BTreeSet::new();
     let store_calls = RefCell::new(BTreeSet::new());
     for (f, graph) in module.functions.iter().zip(graphs) {
         let inventory = Inventory::reconstruct(module, f, b)?;
-        whole_must_rows.push(whole_must(f, &inventory, b)?);
+        if whole_must(f, &inventory, b)? {
+            b.spend(whole_must_rows.len().saturating_add(1))?;
+            whole_must_rows.insert(f.id.0 as usize);
+        }
         if f.foreign.is_none() {
             inventory.activation_entries(f, graph, b)?;
         }
