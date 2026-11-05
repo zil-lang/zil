@@ -106,20 +106,18 @@ fn merge_endpoint(to: &mut Content, from: &Content, b: &mut Budget) -> Check<boo
 }
 /// Structural admission only; actual roots, debts, loans and epochs are checked
 /// independently. No full Product or nested owning profile is implied.
-pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
+pub(crate) fn package_owners(ty: &Type, b: &mut Budget) -> Check<Option<Vec<usize>>> {
     let Type::Package { fields, .. } = ty else {
         return Ok(None);
     };
     b.spend(fields.len())?;
-    let mut owner = None;
+    let mut owners = Vec::new();
     for (index, (_, ty)) in fields.iter().enumerate() {
         match ty {
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() =>
             {
-                if owner.replace(index).is_some() {
-                    return Ok(None);
-                }
+                owners.push(index);
             }
             Type::Unit
             | Type::Bool
@@ -134,7 +132,7 @@ pub(crate) fn package_owner(ty: &Type, b: &mut Budget) -> Check<Option<usize>> {
             _ => return Ok(None),
         }
     }
-    Ok(owner)
+    Ok((!owners.is_empty()).then_some(owners))
 }
 /// Result shape only; the independent module/type checks validate nominal
 /// identity and actual instructions. No borrow or owner can leave this lane.
@@ -187,34 +185,28 @@ fn helper_copy_result(ty: &Type, b: &mut Budget) -> Check<bool> {
     Ok(true)
 }
 
-/// This private lane admits one real mutable Package parameter. Other inputs
-/// may only prepare a scalar or a complete finite owning RHS; they cannot
-/// introduce a second address, capture, Store or callable authority.
-fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bool> {
+/// Shape admission for a real nonlocal complete endpoint. Authority and actual
+/// target substitution stay in this kernel's independent origin/loan passes.
+fn package_helper(
+    f: &TypedFunction,
+    endpoint: &Type,
+    parameter: Option<u32>,
+    b: &mut Budget,
+) -> Check<bool> {
     if f.foreign.is_some()
-        || f.environment.is_some()
-        || f.call_kind != zil_ir::CallKind::Direct
         || f.callable_contract.is_some()
         || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.storage_life.is_some()
     {
         return Ok(false);
     }
-    if !helper_copy_result(&f.return_type, b)? {
-        return Ok(false);
-    }
-    let Type::Address {
-        mutable: true,
-        inner: endpoint,
-    } = &f.locals[f.parameters[parameter as usize].0 as usize].ty
-    else {
-        return Ok(false);
-    };
-    if package_owner(endpoint, b)?.is_none() {
+    if !helper_copy_result(&f.return_type, b)? || package_owners(endpoint, b)?.is_none() {
         return Ok(false);
     }
     b.spend(f.parameters.len())?;
     for (index, local) in f.parameters.iter().enumerate() {
-        if index == parameter as usize {
+        if parameter == Some(index as u32) {
             continue;
         }
         let ty = &f.locals[local.0 as usize].ty;
@@ -231,7 +223,8 @@ fn package_helper(f: &TypedFunction, parameter: u32, b: &mut Budget) -> Check<bo
             | Type::U16 => {}
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
-            Type::Package { .. } if ty == endpoint.as_ref() => {}
+            Type::Package { .. } if ty == endpoint => {}
+            Type::Address { inner, .. } if inner.as_ref() == endpoint => {}
             _ => return Ok(false),
         }
     }
@@ -254,6 +247,19 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
     {
         return Ok(false);
     }
+    // New capture/multiple-address admission remains a may relation.
+    if f.environment.is_some() || f.call_kind != zil_ir::CallKind::Direct {
+        return Ok(false);
+    }
+    b.spend(f.parameters.len())?;
+    if f.parameters
+        .iter()
+        .filter(|local| matches!(f.locals[local.0 as usize].ty, Type::Address { .. }))
+        .count()
+        != 1
+    {
+        return Ok(false);
+    }
     let mut commits = 0usize;
     let mut whole = false;
     for instruction in &f.blocks[0].instructions {
@@ -261,7 +267,8 @@ fn whole_must(f: &TypedFunction, places: &Inventory, b: &mut Budget) -> Check<bo
         match instruction.kind {
             InstructionKind::CommitPlaceReplace { reservation, .. } => {
                 commits += 1;
-                whole = matches!(places.get(reservation, b)?.ty, Type::Package { .. });
+                whole = package_owners(&places.get(reservation, b)?.ty, b)?
+                    .is_some_and(|owners| owners.len() == 1);
             }
             InstructionKind::Call { .. }
             | InstructionKind::CallClosure { .. }
@@ -379,7 +386,7 @@ pub(crate) fn at_type<'a>(
             &module.closures[id.0 as usize].captures[c as usize]
         }
         actual::Base::Element(value) => {
-            if !matches!(target.steps.as_slice(), [PlaceProjection::Field(_)]) {
+            if !matches!(target.steps.as_slice(), [] | [PlaceProjection::Field(_)]) {
                 return Err(unsupported(
                     "Store replacement requires a direct complete owning field",
                     None,
@@ -428,13 +435,15 @@ pub(crate) fn at_type<'a>(
     {
         let whole_local = matches!(target.base, actual::Base::Local(_)) && target.steps.is_empty();
         let whole_input = target.steps.is_empty()
-            && if let actual::Base::Input(p) = target.base {
-                package_helper(f, p, b)?
-            } else {
-                false
+            && match target.base {
+                actual::Base::Input(p) => package_helper(f, ty, Some(p), b)?,
+                actual::Base::Environment(_) | actual::Base::Element(_) => {
+                    package_helper(f, ty, None, b)?
+                }
+                _ => false,
             };
         if (!whole_local && !whole_input)
-            || (package_owner(ty, b)?.is_none() && !enum_endpoint(ty, b)?)
+            || (package_owners(ty, b)?.is_none() && !enum_endpoint(ty, b)?)
         {
             return Err(unsupported(
                 "owning replacement endpoint cleanup/hold bridge is under construction",

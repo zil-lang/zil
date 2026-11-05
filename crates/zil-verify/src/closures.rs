@@ -194,16 +194,19 @@ pub(super) fn check_definitions(
         for ty in &closure.captures {
             budget.owning_address_captures |= owning_capture_address(ty);
             if ty.is_package_address() {
-                let Type::Address {
-                    mutable: false,
-                    inner,
-                } = ty
-                else {
-                    return Err(unsupported(
-                        "mutable Product capture is not implemented",
-                        None,
-                    ));
+                let Type::Address { mutable, inner } = ty else {
+                    unreachable!()
                 };
+                if *mutable {
+                    if closure.kind == zil_ir::CallableKind::Fn {
+                        return Err(reject(
+                            "E-VERIFY-CLOSURE",
+                            None,
+                            "exclusive Product capture requires an exclusive environment entry",
+                        ));
+                    }
+                    budget.owning_address_captures = true;
+                }
                 packages::check_shared_product_type(module, inner, None, budget)?;
                 resources::charge_payload(&closure.result, budget)?;
                 if !closure.result.is_copy_value() {

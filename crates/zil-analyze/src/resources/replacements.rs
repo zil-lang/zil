@@ -214,11 +214,14 @@ impl Program {
                             if matches!(target.root, origins::Root::Local(_)) {
                                 package::local(f, target, b)?;
                             } else {
-                                package::borrowed(f, target, b)?;
+                                package::borrowed(module, f, target, b)?;
                                 b.lookup(whole_helpers.len(), "whole Package helper insertion")?;
                                 // Non-Unit/error results add no exit-sensitive
                                 // must fact: their provenance stays may-only.
-                                if f.return_type == Type::Unit && f.blocks.len() == 1 {
+                                if f.return_type == Type::Unit
+                                    && f.blocks.len() == 1
+                                    && package::must_input(f, target, b)?
+                                {
                                     whole_helpers.insert(f.id);
                                 }
                             }
@@ -846,20 +849,23 @@ impl Program {
                         if matches!(target.root, origins::Root::Local(_)) {
                             package::apply(flow, state, &target, *value, point, b)?;
                         } else {
-                            let index = package::borrowed(f, &target, b)?;
-                            let mut leaf = target.clone();
-                            fee(b, leaf.path.len().saturating_add(1))?;
-                            leaf.path.push(PlaceProjection::Field(index));
-                            retirement::check(flow, state, &leaf, point, b)?;
-                            let incoming = product::birth(
-                                state,
-                                product::Carrier::Value(*value),
-                                &[index],
-                                b,
-                            )?;
-                            self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
-                            if let Some(rows) = &mut state.whole_commits {
-                                add(rows, &leaf, &incoming, b)?;
+                            let owners = package::borrowed(flow.module, f, &target, b)?;
+                            fee(b, owners.len())?;
+                            for index in owners {
+                                let mut leaf = target.clone();
+                                fee(b, leaf.path.len().saturating_add(1))?;
+                                leaf.path.push(PlaceProjection::Field(index));
+                                retirement::check(flow, state, &leaf, point, b)?;
+                                let incoming = product::birth(
+                                    state,
+                                    product::Carrier::Value(*value),
+                                    &[index],
+                                    b,
+                                )?;
+                                self.update(flow, state, effect, &leaf, &incoming, check, live, b)?;
+                                if let Some(rows) = &mut state.whole_commits {
+                                    add(rows, &leaf, &incoming, b)?;
+                                }
                             }
                         }
                     } else if matches!(d.ty, Type::Enum { .. }) {
