@@ -118,6 +118,108 @@ fn g8611_verify_whole_enum_local_and_unpack_frame_order() {
 }
 
 #[test]
+fn g8611_verify_complete_enum_ssa_is_the_live_yield_owner() {
+    let (mut typed, mut claim) = candidate(PAIR);
+    let worker = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    let block = worker
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::TaskYield))
+        })
+        .unwrap();
+    let at = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TaskYield))
+        .unwrap();
+    let yield_instruction = block.instructions.remove(at);
+    let make = block
+        .instructions
+        .iter()
+        .position(|i| matches!(&i.kind, I::MakeVariant { fields, .. } if fields.len() == 2))
+        .unwrap();
+    let root = block.instructions[make].result.unwrap();
+    // Move only the real Unit-producing Yield into the already prepared
+    // whole SSA interval, before Store publishes the ordinary local.
+    block.instructions.insert(make + 1, yield_instruction);
+    let worker_id = worker.id;
+    claim.module_fingerprint = typed.fingerprint();
+    let limits = Limits::default();
+    let target = typed.target.clone();
+    for wire in [false, true] {
+        let verified = if wire {
+            let bytes = zil_ir::wire::encode_module_candidate(&typed, &claim, &limits).unwrap();
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap()
+        } else {
+            zil_verify::verify_module(typed.clone(), claim.clone(), &target, &limits).unwrap()
+        };
+        let frame = verified.task_ownership(worker_id).unwrap();
+        assert_eq!(frame.boundaries().len(), 1);
+        let live = frame.boundaries()[0].may_live();
+        assert_eq!(live.len(), 1, "{frame:?}");
+        assert_eq!(frame.owners()[live[0]].slot(), S::Value(root));
+        assert_eq!(frame.owner_for_value(root), Some(live[0]));
+        assert!(matches!(frame.owners()[live[0]].ty(), Type::Enum { .. }));
+    }
+}
+
+#[test]
+fn g8611_verify_enum_frame_preserves_input_result_and_nested_storage_fences() {
+    for (name, text, category) in [
+        (
+            "owned input",
+            "enum Packet{Item(manages Token)}fn worker(packet:Packet)->i32{task_yield();match packet{Packet.Item(value)=>{return value.code}}}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "borrowed input",
+            "enum Packet{Item(manages Token)}fn worker(packet:&Packet)->i32{task_yield();return 0}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "borrowed local",
+            "enum Packet{Item(manages Token)}fn worker(give token:Token)->i32{let packet=Packet.Item(give token);let view=&packet;task_yield();return 0}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "Product containing Sum",
+            "enum Packet{Item(manages Token)}package Box{packet:Packet}fn worker(give token:Token)->i32{let box=Box{packet:Packet.Item(give token)};task_yield();return 0}",
+            ResultCategory::SafeReject,
+        ),
+        (
+            "new non-i32 result",
+            "enum Packet{Item(manages Token)}fn worker(give token:Token)->bool{let packet=Packet.Item(give token);task_yield();return true}",
+            ResultCategory::Unsupported,
+        ),
+    ] {
+        let (typed, plan) = candidate(text);
+        let limits = Limits::default();
+        let target = typed.target.clone();
+        for wire in [false, true] {
+            let errors = if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+            } else {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits)
+                    .unwrap_err()
+            };
+            assert!(
+                errors.iter().any(|d| d.category == category),
+                "{name}: {errors:?}"
+            );
+            eprintln!("G8.6.1.1 closed {name} wire={wire} {}", errors[0].code);
+        }
+    }
+}
+
+#[test]
 fn g8611_verify_enum_frame_raw_wire_rejects_repeated_and_missing_debt() {
     let (typed, plan) = candidate(PAIR);
     let limits = Limits::default();
