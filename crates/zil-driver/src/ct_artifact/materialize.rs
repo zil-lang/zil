@@ -1831,10 +1831,26 @@ impl Materializer<'_, '_> {
             }
             s::TypeKind::MetaEval(expression) => {
                 self.reject_alias_cycle(owner, expression)?;
-                let value = self.expression_value(module, owner, expression, Some(CtTy::Type))?;
-                let CtValue::Type(value) = value else {
+                let output = self.expression_data(module, owner, expression, Some(CtTy::Type))?;
+                let CtValue::Type(value) = output.value else {
                     return Err(category("type #(...) needs Type value", ty.span));
                 };
+                if !value.ambient_classes.is_empty() {
+                    let context = output.context.as_ref().ok_or_else(|| {
+                        runtime("contextual Type result lost its actual source context", ty.span)
+                    })?;
+                    let scopes = context.source_scopes_for_graph(&value, &mut self.environment.budget)?;
+                    self.environment.budget.reserve_temporary_bytes(
+                        (value.nodes.len() as u64).saturating_mul(256),
+                    )?;
+                    let previous = std::mem::replace(&mut self.data_source_scopes, scopes);
+                    let replacement = self.owner_node(&value, value.root, module, ty.span, depth + 1);
+                    self.data_source_scopes = previous;
+                    self.environment.budget.release_value(&CtValue::Type(value));
+                    self.environment.budget.release_temporary_bytes(context.bytes);
+                    *ty = replacement?;
+                    return Ok(());
+                }
                 let syntax = self.environment.type_syntax(&value)?;
                 self.environment.budget.release_value(&CtValue::Type(value));
                 let GeneratedSyntax::Type(replacement) =

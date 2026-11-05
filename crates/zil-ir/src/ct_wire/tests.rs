@@ -37,6 +37,45 @@ fn program() -> CtArtifactProgram {
 }
 
 #[test]
+fn ct6_contextual_type_instruction_transports_the_complete_graph() {
+    let limits = Limits::default();
+    let graph = CtTypeRef {
+        nodes: vec![CtTypeNode::Primitive(CtScalarTy::I32)],
+        root: CtTypeNodeId(0),
+        ambient_classes: vec![CtAmbientClassBinding {
+            owner: CtTypeNodeId(0),
+            class: 3,
+            source: CtAmbientLifeReference { scope: CtAmbientScopeId(7), parameter: 4 },
+        }],
+    };
+    // Transport deliberately preserves untrusted claims. This is not a Type
+    // admission test: independent source and graph validation must reject it.
+    let mut raw = program();
+    raw.functions.push(CtFunction {
+        id: CtFunctionId(0),
+        definition: CtSymbolId { module: ModuleId(0), declaration: NodeId(0), generation_path: None },
+        parameters: vec![], parameter_types: vec![], result_type: CtTy::Type,
+        locals: vec![], values: vec![CtTy::Type],
+        blocks: vec![CtBlock {
+            id: CtBlockId(0),
+            instructions: vec![CtInstruction {
+                result: Some(CtValueId(0)), kind: CtInstructionKind::TypeInContext { ty: graph },
+                span: Span::default(),
+            }],
+            terminator: CtTerminator::Return(Some(CtValueId(0))),
+        }],
+        entry: CtBlockId(0), span: Span::default(),
+    });
+    let bytes = encode_program(&raw, &limits).unwrap();
+    assert_eq!(&bytes[..8], b"ZILCTP02");
+    assert_eq!(decode_program(&bytes, &limits).unwrap(), raw);
+    let mut stale = bytes;
+    stale[8..12].copy_from_slice(&5u32.to_le_bytes());
+    resign(&mut stale, CT_ARTIFACT_FINGERPRINT_DOMAIN);
+    assert_eq!(decode_program(&stale, &limits), Err(WireError::BadVersion));
+}
+
+#[test]
 fn rich_callable_and_ambient_scope_claims_are_lossless_bounded_raw_data() {
     use crate::{
         FunctionLifeContract, LifeTypeProjection, SignatureLifeClass, SignatureLifeClassBinding,
@@ -730,6 +769,7 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
         ][index];
         assert_eq!(decode_value(prior, &limits), Err(WireError::BadFingerprint));
         let mut current = prior.to_vec();
+        current[..8].copy_from_slice(VALUE_MAGIC);
         current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
         resign(&mut current, VALUE_DOMAIN);
         assert_eq!(fresh, current);
@@ -767,6 +807,7 @@ fn iterative_recursive_variants_preserve_historical_bytes_and_explicit_context_m
     // Schema2 adds only the explicitly frozen target width after the inner
     // schema; all pre-iterative recursive payload bytes remain the old golden.
     let mut current = prior.to_vec();
+    current[..8].copy_from_slice(PROGRAM_MAGIC);
     current[8..12].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current[12..16].copy_from_slice(&CT_ARTIFACT_SCHEMA_VERSION.to_le_bytes());
     current.splice(16..16, 64u16.to_le_bytes());

@@ -344,6 +344,13 @@ pub(super) fn check(
             }
         }
     }
+    for function in &raw.functions {
+        for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let CtInstructionKind::TypeInContext { ty } = &instruction.kind {
+                visit.graph(ty, 0)?;
+            }
+        }
+    }
     if visit.next != count {
         return Err(reject(
             None,

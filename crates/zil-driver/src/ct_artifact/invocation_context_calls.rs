@@ -98,6 +98,7 @@ impl FrozenInvocationContext {
                     CtScopeActual::Scalar(_) => {}
                 }
             }
+            self.validate_source_call_actuals(call, source_scopes, expected, index, budget)?;
             let row = self.call_scope(call, budget)?;
             budget.reserve_analysis_work(self.active.len() as u64 * 32)?;
             self.charge_instance_lookup(&row.raw, budget)?;

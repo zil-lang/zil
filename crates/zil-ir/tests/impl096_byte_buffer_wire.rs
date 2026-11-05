@@ -223,7 +223,7 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     use zil_base::{Limits, ResultCategory};
     assert_eq!(SCHEMA_VERSION, 42);
     assert_eq!(wire::WIRE_VERSION, 42);
-    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 5);
+    assert_eq!(ct_artifact::CT_ARTIFACT_SCHEMA_VERSION, 6);
     let limits = Limits::default();
     let mut raw = candidate();
     raw.functions[0].foreign = Some(ForeignDeclaration {

@@ -83,6 +83,7 @@ impl<'a> Compiler<'a> {
         span: Span,
     ) -> R<CtTy> {
         self.budget.depth(depth, span)?;
+        let site = self.source_site_for_arguments(module, args, span)?;
         let parameters = match &item.kind {
             s::ItemKind::Aggregate(a) => &a.generics,
             s::ItemKind::Enum(e) => &e.generics,
@@ -117,6 +118,7 @@ impl<'a> Compiler<'a> {
         )?;
         let mut actual_parameters = Vec::with_capacity(args.len());
         let mut nodes = Vec::new();
+        let mut nested_ambient = Vec::new();
         let mut arguments = Vec::with_capacity(args.len());
         let mut rows = Vec::with_capacity(args.len());
         self.budget
@@ -194,6 +196,22 @@ impl<'a> Compiler<'a> {
                     self.budget.metadata(&graph, span)?;
                     let offset = u32::try_from(nodes.len())
                         .map_err(|_| error(span, "scoped graph ID overflow"))?;
+                    if !graph.ambient_classes.is_empty() {
+                        self.budget.work(graph.ambient_classes.len(), span)?;
+                        Budget::take(
+                            &mut self.budget.bytes,
+                            nested_ambient.len().saturating_add(graph.ambient_classes.len())
+                                .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                            span,
+                            "CT nested ambient class backing exhausted",
+                        )?;
+                        nested_ambient.reserve_exact(graph.ambient_classes.len());
+                        for mut row in graph.ambient_classes {
+                            row.owner.0 = row.owner.0.checked_add(offset)
+                                .ok_or_else(|| error(span, "CT nested ambient owner overflow"))?;
+                            nested_ambient.push(row);
+                        }
+                    }
                     for mut node in graph.nodes {
                         let mut invalid = false;
                         metadata::ids(&mut node, |id| {
@@ -326,7 +344,22 @@ impl<'a> Compiler<'a> {
                     parameter: *parameter,
                 },
             })
-            .collect();
+            .collect::<Vec<_>>();
+        let ambient_classes = if nested_ambient.is_empty() {
+            ambient_classes
+        } else {
+            self.budget.work(ambient_classes.len(), span)?;
+            Budget::take(
+                &mut self.budget.bytes,
+                nested_ambient.len().saturating_add(ambient_classes.len())
+                    .saturating_mul(std::mem::size_of::<CtAmbientClassBinding>()),
+                span,
+                "CT joint ambient class backing exhausted",
+            )?;
+            nested_ambient.reserve_exact(ambient_classes.len());
+            nested_ambient.extend(ambient_classes);
+            nested_ambient
+        };
         let context = self.meta_normalize(
             CtTypeRef {
                 nodes,
@@ -367,14 +400,17 @@ impl<'a> Compiler<'a> {
             span,
             "CT scoped source binding bytes exhausted",
         )?;
-        self.closed_nominal_context(
+        let previous_site = self.current_nominal_site.replace(site);
+        let result = self.closed_nominal_context(
             owner,
             item,
             schema_args,
             Some((context, actual_parameters)),
             depth + 1,
             span,
-        )
+        );
+        self.current_nominal_site = previous_site;
+        result
     }
     pub(super) fn registered_scoped_data_type(&mut self, graph: &CtTypeRef, span: Span) -> R<CtTy> {
         for (enumeration, count) in [(false, self.records.len()), (true, self.enums.len())] {

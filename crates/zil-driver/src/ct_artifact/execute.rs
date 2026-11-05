@@ -519,6 +519,12 @@ impl<'a> Environment<'a> {
                 &mut self.budget,
             )?;
         }
+        if !source_bindings.type_sites.is_empty() || !source_bindings.bindings.is_empty() {
+            let context = invocation_context.as_mut()
+                .and_then(std::sync::Arc::get_mut)
+                .ok_or_else(|| error("contextual Type requires an authentic source invocation", span))?;
+            context.validate_type_contexts(&source_bindings, &expected, &self.index, &mut self.budget)?;
+        }
         let copied_bytes = value_context::program_copy_cost(&expected, &mut self.budget)?;
         self.budget.reserve_temporary_bytes(copied_bytes)?;
         let raw = expected.clone();
@@ -576,7 +582,7 @@ impl<'a> Environment<'a> {
         let result_ty =
             &verified.program().functions[verified.program().entry.0 as usize].result_type;
         let context = if retain_context
-            && matches!(
+            && (matches!(
                 result_ty,
                 CtTy::Record(_)
                     | CtTy::Enum(_)
@@ -584,7 +590,7 @@ impl<'a> Environment<'a> {
                     | CtTy::Tuple(_)
                     | CtTy::Array { .. }
                     | CtTy::List(_)
-            ) {
+            ) || matches!(&value, CtValue::Type(graph) if !graph.ambient_classes.is_empty())) {
             Some(value_context::ValueContext::capture(
                 verified.program(),
                 &source_bindings.bindings,
