@@ -54,12 +54,13 @@
 | G4.1 | 普通泛型Type返回、具体纯泛型记录的CT计算/反射和已有Syntax组合 | 已合入 | — | — | [已合入证据][e37]；完整上下文和值范围另列。 |
 | G4.2 | CT4混合const/life/type全序号身份及原源重实体化 | 已合入 | — | — | [本批验收][e41]；CT4 全序号及原源重实体化已通过共同验收。 |
 | G4.3 | CT5真实Definition上下文、上下文键、物理字节计费和phantom Code/field查询 | 已合入 | — | — | [本批验收][e41]；CT5 实际上下文、键与物理字节计费已通过共同验收。 |
-| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root | free/原始非泛型静态成员及嵌套 mixed 标量结果已合入，见 G4.4.2–4；跨工厂 Phantom/Type 结果、ambient Type 实参、泛型 host/member/generated 归属与运行时泛型体 CT 相位仍缺。 |
+| G4.4 | 完整实例实际参数向量、成员/生成作用域、重定位与声明归属 | 部分实现 | P0 | root | free/原始静态成员、嵌套标量及跨工厂纯标量 Phantom 返回已合入，见 G4.4.2–5.1；带life的Type结果、非标量纯字段、ambient Type 实参、泛型 host/member/generated 归属及运行时泛型体 CT 相位仍缺。 |
 | G4.4.2 | free CT factory 的完整 Type/Const/Life 实例向量与原声明身份 | 已合入 | — | — | [PR41 验收][e-pr41]；完整向量、作用域、复用深度计费及实际消费者通过。 |
 | G4.4.3 | 原始非泛型宿主的静态混合参数 CT 工厂及成员删除后来源保留 | 已合入 | — | — | [PR42 验收][e-pr42]；实际原声明身份、物理复制/扫描费用、预算、语义缓存与原生消费者通过。 |
 | G4.4.4 | 原始 CT factory 嵌套 Type/Const/Life 显式转发的标量结果 | 已合入 | — | — | [PR43 验收][e-pr43]；无占位结构体的3层转发、原成员嵌套调用及身份负控通过，真实向量/作用域和容量预付闭合。Phantom跨工厂结果及泛型宿主另缺。 |
-| G4.4.5 | 嵌套 CT 跨工厂返回 Phantom/Type 的实际 life 归属与重定位 | 进行中 | P0 | CT / 独审（sol high） | 保留双方 schema/原声明的显式返回值重构已实现并推送，沿真实完整参数链独立核 life 末端；正在运行首轮 probe，并补普通纯标量字段。带 life 的 Type 返回另有既存缺口，尚未验收。 |
-| G4.4.5.1 | 跨工厂 Phantom 返回的纯标量字段复制与真实 life 端点核验 | 实现待验 | P0 | CT / root / 独审（sol high） | [PR45](https://github.com/zil-lang/zil/pull/45)：纯标量向量、完整u64/负数/小数、两life来源、raw反控与四余额边界已通过限定验证；修复真实Unit回写错误，正在共同全量验收。带life的Type构造不计入。 |
+| G4.4.5 | 嵌套 CT 跨工厂返回 Phantom/Type 的实际 life 归属与重定位 | 部分实现 | P0 | root | 纯标量 Phantom 返回及真实 life 端点证明已由 G4.4.5.1 合入；非标量纯字段和带life的Type构造/跨工厂结果仍缺，后者见 G4.4.5.3。 |
+| G4.4.5.1 | 跨工厂 Phantom 返回的纯标量字段复制与真实 life 端点核验 | 已合入 | — | — | [PR45 验收][e-pr45]；双方原 schema/完整实参保留，独立核真实 Call、字段复制及 Definition/ordinal 端点。完整u64/负数/小数/Unit、两life和四余额边界闭合，并修复既存Unit回写错误。 |
+| G4.4.5.3 | 带life的Type值构造与跨工厂返回的声明归属 | 待排期 | P0 | 待派 | 已定位 metadata_type_value/BorrowedStorage 与 TypeApply life 的既存 Unsupported；先补真实Type值生产/消费者及原scope证明。已支持的闭合 T→Type 转发不重做。 |
 | G4.5 | rich callable、ambient Type导出和更一般可序列化值/匿名Sum/拥有载荷组合 | 部分实现 | P1 | 待派 | 依赖 G4.4、G3.3、G3.4；补齐实际消费者。 |
 
 ## G5 · 动态抽象
@@ -116,15 +117,15 @@
 | ID | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.0 | 原大数组O0崩溃、默认2MiB API/深调用栈可靠性及普通大型按值ABI | 已合入 | — | — | [已合入证据][e37]；原 O0 崩溃已修复，更广 ABI 见 G10.3。 |
-| G10.1 | 精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | 最新 [PR44][e-pr44]：默认4860/0、参考4748/0、text70/0、双配置严格检查、release既有消费者及新增18源码/16原生观察、10项工程检查通过；实际 main handoff=CurrentPass0。原失败保留；Actions账单/额度未启动。 |
+| G10.1 | 精确源码独审、受影响组合/既有正式门、修正与合入裁决 | 已合入 | — | — | 最新 [PR45][e-pr45]：默认4866/0、参考4754/0、text70/0、双配置严格检查、release既有消费者及新增12源码/16原生观察、10项工程检查通过；实际 main handoff=CurrentPass0。原失败保留；Actions账单/额度未启动。 |
 | G10.2 | 有限f32/f64与UInt组合、匿名tagged Copy源Sum及CT Type结构Sum | 已合入 | — | — | [已合入证据][e37]；CT Sum 值与拥有载荷见 G4.5、G10.3。 |
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
 
-[design]: https://github.com/zil-lang/zil/blob/a9c5075fed796560cfa30e74872ae57eb0ca8fec/_zil_design.md
-[gates]: https://github.com/zil-lang/zil/blob/a9c5075fed796560cfa30e74872ae57eb0ca8fec/validation/product-gates.json
+[design]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/_zil_design.md
+[gates]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
 [e37]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-root37-integration-20261104.json
@@ -148,3 +149,5 @@
 [e-pr43]: https://github.com/zil-lang/zil/blob/917971a13a1590ee912db73be7474d0cceef2b2c/docs/validation/G1.3.7.3-common-acceptance.json
 
 [e-pr44]: https://github.com/zil-lang/zil/blob/a9c5075fed796560cfa30e74872ae57eb0ca8fec/docs/validation/G1.3.8.3-common-acceptance.json
+
+[e-pr45]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/docs/validation/G4.4.5.1-common-acceptance.json
