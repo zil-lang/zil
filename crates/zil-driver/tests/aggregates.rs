@@ -8530,19 +8530,11 @@ fn terminal340_package_terminal_source_types_and_analyze() {
     );
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
     assert_eq!(report.phase, Phase::Analyze);
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|d| d.message.contains("exact whole local owner")),
-        "{}",
-        report.to_json()
-    );
     let pin = format!(
         "{prefix}fn change(p:&mut P)->P{{p.n=9;return P{{owner:R{{code:66}},n:42}}}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:0}};let target=&mut packet;*target=change(target);return packet.n}}"
     );
@@ -8850,7 +8842,8 @@ fn terminal340_package_terminal_exact_request_budget() {
                 // G1.3.6 paid producer exclusion inventory: previous13945+9.
                 13_954
             } else {
-                28_743
+                // G1.3.7: old28743 + three actual complete-RHS nodes.
+                28_746
             },
             "{stage:?}: actual Package work changed"
         );
