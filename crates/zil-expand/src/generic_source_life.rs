@@ -1028,6 +1028,13 @@ impl Check<'_, '_, '_> {
                     _ => (None, None),
                 };
                 let mut output = Fact::Unknown;
+                if root.is_none() {
+                    if let Some(member) =
+                        self.member_call_result(callee, scope, e.span, depth + 1)?
+                    {
+                        return Ok(member);
+                    }
+                }
                 if let Some(name) = root {
                     self.lookup(env.len(), name.len(), e.span)?;
                 }
@@ -1091,6 +1098,128 @@ impl Check<'_, '_, '_> {
             _ => unreachable!("source fact expression dispatcher"),
         };
         Ok(actual)
+    }
+
+    // Resolve a CT host/member call from the actual source AST and inventory.
+    // The host and member own separate full ordinal domains, including when
+    // their lifetime parameters have the same spelling.
+    fn member_call_result(
+        &mut self,
+        callee: &Expr,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Option<Fact>> {
+        let (member, member_args) = match &callee.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee, None),
+        };
+        let ExprKind::Member {
+            object,
+            member: MemberName::Name(method),
+        } = &member.kind
+        else {
+            return Ok(None);
+        };
+        let (host, host_args) = match &object.kind {
+            ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (object.as_ref(), None),
+        };
+        let ExprKind::Name(host_name) = &host.kind else {
+            return Ok(None);
+        };
+        for host_index in 0..self.records.len() {
+            let declaration = self.records[host_index];
+            self.budget.text(host_name, span)?;
+            self.budget.text(&declaration.name, span)?;
+            if declaration.name != *host_name {
+                continue;
+            }
+            for owner in 0..self.functions.len() {
+                self.pay(span, 1)?;
+                if self.hosts[owner] != Some(host_index) {
+                    continue;
+                }
+                let function = self.functions[owner];
+                self.budget.text(method, span)?;
+                self.budget.text(&function.name, span)?;
+                if function.name != *method {
+                    continue;
+                }
+                let Some(host_args) = host_args else {
+                    return Ok(None);
+                };
+                let Some(member_args) = member_args else {
+                    return Ok(None);
+                };
+                if host_args.len() != declaration.generics.len()
+                    || member_args.len() != function.generics.len()
+                {
+                    return Err(unsupported(
+                        span,
+                        "source host/member needs its full ordered actuals",
+                    ));
+                }
+                let mut map = Substitutions::new();
+                for (ordinal, (formal, actual)) in
+                    declaration.generics.iter().zip(host_args).enumerate()
+                {
+                    let fact = self.member_actual(formal, actual, caller, span, depth + 1)?;
+                    self.lookup(map.len(), 2, span)?;
+                    map.insert(Binder(self.functions.len() + host_index, ordinal), fact);
+                }
+                for (ordinal, (formal, actual)) in
+                    function.generics.iter().zip(member_args).enumerate()
+                {
+                    let fact = self.member_actual(formal, actual, caller, span, depth + 1)?;
+                    self.lookup(map.len(), 2, span)?;
+                    map.insert(Binder(owner, ordinal), fact);
+                }
+                let definition = Scope {
+                    owner,
+                    parameters: &function.generics,
+                    host: Some(host_index),
+                };
+                let Some(result) = &function.return_type else {
+                    return Ok(Some(Fact::Unknown));
+                };
+                let formal = self.ty(result, &definition, depth + 1)?;
+                return self.substitute(&formal, &map, span).map(Some);
+            }
+        }
+        Ok(None)
+    }
+
+    fn member_actual(
+        &mut self,
+        formal: &GenericParam,
+        actual: &GenericArg,
+        caller: &Scope<'_>,
+        span: Span,
+        depth: usize,
+    ) -> R<Fact> {
+        self.budget.node(span, depth)?;
+        match (&formal.kind, actual) {
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                match self.binder(caller, name, span)? {
+                    Some((binder, true)) => Ok(Fact::Class(binder)),
+                    _ => Err(unsupported(
+                        span,
+                        "source member life actual has no caller binder",
+                    )),
+                }
+            }
+            (GenericParamKind::Type(_), GenericArg::Type(ty)) => self.ty(ty, caller, depth + 1),
+            (GenericParamKind::Const(_), GenericArg::Const(_)) => Ok(Fact::Unknown),
+            _ => Err(unsupported(
+                span,
+                "source member actual kind differs from full ordinal",
+            )),
+        }
     }
 
     #[inline(never)]
