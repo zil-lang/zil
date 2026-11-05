@@ -103,6 +103,8 @@ mod source_life;
 mod states;
 #[path = "generic_store_templates.rs"]
 pub(super) mod store_templates;
+#[path = "generic_stored_actuals.rs"]
+mod stored_actuals;
 #[path = "generic_stored_nominal.rs"]
 mod stored_nominal;
 #[path = "generic_store.rs"]
@@ -1251,7 +1253,7 @@ impl<'a> Engine<'a> {
             TypeKind::Named { path, args } => {
                 if self.stored_nominals
                     && path.len() == 1
-                    && self.stored_declaration(&path[0], ty.span)?
+                    && self.stored_application(&path[0], args, ty.span, depth + 1)?
                 {
                     let (name, _) = self.stored_nominal(&path[0], args, ty.span, depth + 1)?;
                     *path = vec![name];

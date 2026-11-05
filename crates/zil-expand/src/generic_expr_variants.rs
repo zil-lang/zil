@@ -372,7 +372,10 @@ impl Engine<'_> {
                 && let ExprKind::Name(template) = &callee.kind
                 && let Some((declaration, stored)) = self.record_declaration(template, e.span)?
             {
-                if stored {
+                if stored
+                    || (self.stored_nominals
+                        && self.stored_application(template, arguments, e.span, depth + 1)?)
+                {
                     let (name, _) = self.stored_nominal(template, arguments, e.span, depth + 1)?;
                     t.kind = ExprKind::Name(name);
                 } else {

@@ -328,7 +328,12 @@ fn pay_instance(instance: &Instance, budget: &mut generics::Budget<'_>, span: Sp
     pay_type(&instance.instance.ty, budget, span, 0)
 }
 
-fn pay_type(ty: &Type, budget: &mut generics::Budget<'_>, span: Span, depth: usize) -> R<()> {
+pub(super) fn pay_type(
+    ty: &Type,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+    depth: usize,
+) -> R<()> {
     budget.node(span, depth)?;
     match ty {
         Type::BorrowedStorage { storage, life } => {
@@ -577,11 +582,19 @@ fn spend(budget: &mut generics::Budget<'_>, span: Span, count: usize) -> R<()> {
     Ok(())
 }
 
+pub(super) struct QualifiedActual {
+    pub(super) name: String,
+    pub(super) ty: Type,
+    pub(super) classes: Vec<LexicalLife>,
+}
+
 struct Shape<'a, 'l> {
     budget: &'a mut generics::Budget<'l>,
     formals: &'a [(String, LexicalLife)],
     classes: Vec<LexicalLife>,
     slots: Vec<StorageLifeSlot>,
+    retained: Vec<StorageRetainedBinding>,
+    qualified: &'a BTreeMap<usize, QualifiedActual>,
 }
 
 impl Shape<'_, '_> {
@@ -617,6 +630,51 @@ impl Shape<'_, '_> {
         depth: usize,
     ) -> R<Type> {
         self.budget.node(source.span, depth)?;
+        if let s::TypeKind::Named { path: name, args } = &source.kind
+            && name.len() == 1
+            && args.is_empty()
+        {
+            let mut selected: Option<&QualifiedActual> = None;
+            for actual in self.qualified.values() {
+                self.budget.text(&actual.name, source.span)?;
+                self.budget.text(&name[0], source.span)?;
+                if actual.name == name[0] {
+                    if let Some(prior) = selected {
+                        spend(
+                            self.budget,
+                            source.span,
+                            prior.classes.len().saturating_add(actual.classes.len()),
+                        )?;
+                        if prior.classes != actual.classes {
+                            return Err(Diagnostic::unsupported(
+                                Phase::Expand,
+                                "physical Type field needs its unambiguous original formal class mapping",
+                                Some(source.span),
+                            ));
+                        }
+                    }
+                    selected = Some(actual);
+                }
+            }
+            if let Some(actual) = selected {
+                for (class, lexical) in actual.classes.iter().enumerate() {
+                    let binder = self.class(*lexical, source.span)?;
+                    spend(self.budget, source.span, path.len().saturating_add(1))?;
+                    self.retained.push(StorageRetainedBinding {
+                        path: path
+                            .iter()
+                            .copied()
+                            .map(LifeTypeProjection::Place)
+                            .collect(),
+                        class: u32::try_from(class)
+                            .map_err(|_| invalid(source.span, "retained class overflow"))?,
+                        binder,
+                    });
+                }
+                pay_type(&actual.ty, self.budget, source.span, depth + 1)?;
+                return Ok(actual.ty.clone());
+            }
+        }
         match &source.kind {
             s::TypeKind::Group(inner) => self.field(inner, path, depth + 1),
             s::TypeKind::Reference {
@@ -714,6 +772,26 @@ pub(super) fn instantiate(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<Instance> {
+    instantiate_joint(
+        aggregate,
+        declaration,
+        arguments,
+        lifetime_arguments,
+        &BTreeMap::new(),
+        budget,
+        span,
+    )
+}
+
+pub(super) fn instantiate_joint(
+    aggregate: &s::Aggregate,
+    declaration: LifeNominalDeclaration,
+    arguments: Vec<LifeNominalActual>,
+    lifetime_arguments: &[(String, LexicalLife)],
+    qualified: &BTreeMap<usize, QualifiedActual>,
+    budget: &mut generics::Budget<'_>,
+    span: Span,
+) -> R<Instance> {
     if aggregate.kind != s::AggregateKind::Struct || declaration.kind != LifeNominalKind::Record {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
@@ -758,6 +836,8 @@ pub(super) fn instantiate(
         formals: lifetime_arguments,
         classes: vec![],
         slots: vec![],
+        retained: vec![],
+        qualified,
     };
     for (index, (name, _)) in lifetime_arguments.iter().enumerate() {
         for (prior, _) in &lifetime_arguments[..index] {
@@ -773,6 +853,53 @@ pub(super) fn instantiate(
     // accidentally rename nominal lifetime positions.
     for (_, actual) in lifetime_arguments {
         shape.class(*actual, span)?;
+    }
+    // The outer nominal's direct life actuals precede every Type argument.
+    // Nested rows retain their real declaration/ordinal and full TypeArgument path.
+    let mut nested_nominal_arguments = Vec::new();
+    for (ordinal, actual) in qualified {
+        let Some(LifeNominalActual::Type(ty)) = arguments.get(*ordinal) else {
+            return Err(invalid(
+                span,
+                "qualified Type actual ordinal is not a Type parameter",
+            ));
+        };
+        pay_type(ty, shape.budget, span, 0)?;
+        if ty != &actual.ty {
+            return Err(invalid(span, "qualified Type actual metadata differs"));
+        }
+        let Type::BorrowedStorage { life, .. } = ty else {
+            return Err(invalid(
+                span,
+                "qualified actual lacks its complete storage shape",
+            ));
+        };
+        if life.binder_count as usize != actual.classes.len() {
+            return Err(invalid(
+                span,
+                "qualified actual source classes are incomplete",
+            ));
+        }
+        for row in &life.nominal_arguments {
+            let lexical = *actual
+                .classes
+                .get(row.binder as usize)
+                .ok_or_else(|| invalid(span, "qualified actual class is absent"))?;
+            let binder = shape.class(lexical, span)?;
+            spend(shape.budget, span, row.path.len().saturating_add(2))?;
+            let mut path = Vec::with_capacity(row.path.len() + 1);
+            path.push(LifeTypeProjection::TypeArgument(
+                u32::try_from(*ordinal)
+                    .map_err(|_| invalid(span, "Type actual ordinal overflow"))?,
+            ));
+            path.extend_from_slice(&row.path);
+            nested_nominal_arguments.push(NominalLifeArgument {
+                path,
+                declaration: row.declaration,
+                argument: row.argument,
+                binder,
+            });
+        }
     }
     let mut fields = Vec::new();
     for (index, field) in aggregate.fields.iter().enumerate() {
@@ -800,6 +927,7 @@ pub(super) fn instantiate(
             });
         }
     }
+    nominal_arguments.extend(nested_nominal_arguments);
     shape.budget.text(&aggregate.name, span)?;
     let binder_count =
         u32::try_from(shape.classes.len()).map_err(|_| invalid(span, "life class overflow"))?;
@@ -811,7 +939,7 @@ pub(super) fn instantiate(
         life: StorageLifeShape {
             binder_count,
             slots: shape.slots,
-            retained: vec![],
+            retained: shape.retained,
             nominal_arguments,
         },
     };
