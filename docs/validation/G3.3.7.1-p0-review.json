@@ -1,13 +1,13 @@
 {
   "schema_version": 1,
   "reviewer": "/root/p0_cross_review",
-  "verdict": "Pending",
-  "scope": "Early non-author static review; not acceptance",
+  "verdict": "Pass",
+  "scope": "Limited non-author static/Source/native review of exact owning tail profile and scalar-result nested mixed CT forwarding; not parent-task or formal full acceptance",
   "baseline": "fcdea036500945b51991b044a00bbbcc8578ade7",
   "goal_reference": "f14fdb1f18c0519de249992f138f9c899d60205c",
   "implementation_checkpoints": {
-    "G3.3.7": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
-    "G4.4.4": "1c9666c95586f6011862aa67d2b609aea79d420d"
+    "G3.3.7": "4537731f081d3afbd5165963cebb6d92dc71c9ce",
+    "G4.4.4": "13d5e7c495bae80a1817ee351c82b092e394380f"
   },
   "static_observations": [
     "G4.4.4 queues the callee universal declaration check before call-site symbolic header substitution.",
@@ -23,16 +23,18 @@
     "Const domain mismatch, original ordinal mismatch and sibling life scope forgery must reject independently."
   ],
   "execution": {
-    "source_checks": 11,
-    "raw_or_wire_checks": 0,
-    "native_executions": 0,
-    "builds": 0,
-    "status": "Partial; CT lineage correctness defect reproduced; owning candidate not yet in tested CLI"
+    "source_check_invocations": 22,
+    "raw_or_wire_checks_independently_executed": 0,
+    "successful_native_compile_and_run": 5,
+    "compiler_builds": 0,
+    "formal_full_tests": 0,
+    "status": "LimitedPass; original CT lineage defect fixed; declared gaps remain"
   },
   "limitations": [
-    "No general acyclic owning helper CFG claim.",
-    "No generic host, generated context or runtime generic CT phase claim.",
-    "No Rust cost comparison or product-level breakthrough claim."
+    "Exactly entry plus two distinct terminal leaves for owning helper; no branch-before-call, cross-block owner chain, loop, lending, user Drop or general CFG claim.",
+    "Scalar-result mixed CT forwarding with actual Type/Const/Life identities; Phantom results and ambient-life-containing Type actual probe still reject before runtime Verify.",
+    "Nongeneric original static member-to-free composition is a measured natural consumer (full85), while generic-host nearest source remains rejected.",
+    "No Rust time/RSS/compile/maintenance cost comparison or product-level breakthrough claim."
   ],
   "fixture_inputs": [
     {
@@ -46,6 +48,10 @@
     {
       "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
       "sha256": "4ce28cb5e3db89496be2f743a9c03881e35ab57c343cf94a658d4292bdfd6d4e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-generic-host-to-free.zil",
+      "sha256": "658298cff7939fdc378db1c7d5e737fff9696b539a5f30483e54cf2c086656e0"
     },
     {
       "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
@@ -68,18 +74,14 @@
       "sha256": "aa4a9b23cd366d0009b194e4ccb806a611dcebf8402e0652fac0d71508b2d606"
     },
     {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/member-to-free-host-identity.zil",
+      "sha256": "68d236e14febf0d7a4d215b85fe8a545c500e45c584579b62ed1f97db48b4baa"
+    },
+    {
       "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
       "sha256": "5a7d6270e262a826f3fb49f958c2cfb8e83a8146b7f78b7df414df1b8f18c534"
     }
   ],
-  "tested_binary": {
-    "source_commit": "17f63e34181c4fd5b9bb8653abfde159c2e74c46",
-    "sha256_before_and_after": "5d0f1fb237f7795f1cd4791d8a7d2a72dfa4821e85dd0e365de918a7847514f1",
-    "path": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
-    "CT_production_commit": "1c9666c95586f6011862aa67d2b609aea79d420d",
-    "G3.3.7_candidate_included": false,
-    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib"
-  },
   "source_results": [
     {
       "path": "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
@@ -337,11 +339,436 @@
     {
       "id": "CT-lineage-without-unused-aggregate",
       "severity": "Correctness blocker for ordinary scalar nested forwarding",
-      "status": "Reproduced; author notified",
+      "status": "Fixed by a79c5fb193bbbd4d0b44a221ace025c09f655c44; original bytes now Success/Verify1 and O0/O2 stdout42",
       "trigger": "Remove an entirely unused life-generic struct from a successful nested mixed scalar factory source.",
       "actual": "Unsupported at CT: CT ambient scope requires original declaration lineage; verification_runs=0. Adding the unused struct restores Success/Verify1.",
       "cause": "zil-expand/src/source_context_lineage.rs Discovery::item inventories Aggregate/Enum generic parameters but no Function generic parameters, so original lineage is not captured for pure mixed CT function sources.",
       "required_followup": "Capture actual original lineage for the new source capability without a dummy declaration; preserve the original failure and add a nearest valid source check."
     }
-  ]
+  ],
+  "original_tested_binary": {
+    "source_commit": "17f63e34181c4fd5b9bb8653abfde159c2e74c46",
+    "sha256_before_and_after": "5d0f1fb237f7795f1cd4791d8a7d2a72dfa4821e85dd0e365de918a7847514f1",
+    "path": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+    "CT_production_commit": "1c9666c95586f6011862aa67d2b609aea79d420d",
+    "G3.3.7_candidate_included": false,
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib"
+  },
+  "tested_binary": {
+    "source_commit": "905866c20c37428b069cbb1a25d596b652b43bb5",
+    "sha256_before_and_after": "98c16e5f79fded0659b124a205c95120a7a9ac456fb8de090fdbb0f232f4cb88",
+    "path": "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+    "G3.3.7_production_commit": "4c642615915c77c101cbe6dea5cbe7c3aa31f3d4",
+    "G4.4.4_production_commit": "a79c5fb193bbbd4d0b44a221ace025c09f655c44",
+    "LD_LIBRARY_PATH": "/workspace/.zil-env/llvm-23.1.4/lib"
+  },
+  "fixed_source_results": [
+    {
+      "path": "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "input_fingerprint": "12aa56e435cfeb283ac13d051043ce534cab0b1546fac17816fb2d0f9962ee92"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-domain.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT abstract scalar argument domain differs",
+          "span": {
+            "file": 0,
+            "start": 208,
+            "end": 230
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "9d2d95e596898ca6db13b1b87256ef9d142d57e0b303c0c2d7c0e0d1c6257f69"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-const-identity.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "f7db1569a42004873f33bafb1a6c60d608c463006aa5b47de1d073d9b54fb3fe"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-life-identity.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "68dd6b7eafbfd00f78d250511187f2b98099d1473026ec263d424bd0f132820c"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-type-identity.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 212,
+            "end": 234
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "df926980b93e0437b5c380f4352fed688d576a924796b4d9030760c19bd85929"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT expression type does not match its actual expected type",
+          "span": {
+            "file": 0,
+            "start": 298,
+            "end": 322
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "3ac7dc42b45fcb0993da55aa6aaa290632bfece52d6b8bafe652092729dc3dee"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar-with-unused-struct.zil",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "input_fingerprint": "17d2fff8ccbb1327e6ac27d2da7681b191cc8057a17ae48171a2ed95ebcabc2a"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "input_fingerprint": "466a79c62d175e7749c3321e2c936fdf3b0b085f8b719efaba3fdd3e6814d63e"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/probe-ambient-type-scalar.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "nominal lifetime is not bound by its actual enclosing metadata scope",
+          "span": {
+            "file": 0,
+            "start": 237,
+            "end": 254
+          },
+          "notes": []
+        }
+      ],
+      "input_fingerprint": "80eb279369ff0009b4219d9a16a9c4db7b46231a842ec93227c1c31f08ba4b06"
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/member-to-free-host-identity.zil",
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": []
+    },
+    {
+      "path": "tests/language-readiness/terminal/344/anonymous/p0-review444/bad-generic-host-to-free.zil",
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "ct",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "ct",
+          "category": "SafeReject",
+          "code": "E-CT-SOURCE",
+          "message": "CT call requires a concrete ordinary function or imported standard operation",
+          "span": {
+            "file": 0,
+            "start": 205,
+            "end": 243
+          },
+          "notes": []
+        }
+      ]
+    }
+  ],
+  "original_native_infrastructure_failure": {
+    "case": "owning198/O0",
+    "status": "InfraError",
+    "code": "E-LINK-IO",
+    "message": "run native build tool (clang): No such file or directory (os error 2)",
+    "verification_runs": 1,
+    "resolution": "Rerun unchanged Source with explicit --clang /workspace/.zil-env/llvm-23.1.4/bin/clang-23; Success, full stdout198. Not counted as a language rejection or successful native run."
+  },
+  "native_results": [
+    {
+      "case": "owning198",
+      "command": [
+        "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+        "build",
+        "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+        "-o",
+        "/tmp/p0-cross-review-native/owning198-O0",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/tmp/p0-cross-review-native/owning198-O0-ir",
+        "--json"
+      ],
+      "build_exit": 0,
+      "verification_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "run": {
+        "exit_code": 0,
+        "stdout": "198\n",
+        "stderr": "",
+        "expected_stdout": "198\n"
+      },
+      "executable_sha256": "b6bc81601aa2bb742cdb06035c91337f4c579b83deb855592345b9ed070119b8",
+      "artifact_sha256": {
+        "typed": "2515f458c31e786f402ed60e243c0bf0cb284306ead12a47e85d3f5e553275fe",
+        "verified": "fa883abb1d7fdce495f44ae3d3a1f6a5417b92a566268c2593cb41211a33b410",
+        "lir": "045e73b3f4ad607d82b09cc083d4892d80fe309ef9eb4151949f6cf82e87a7f1",
+        "llvm": "ff7e79873975e2a71f7e57e80d2861c1ba93370bc160cd84a2fd0c736f899833"
+      }
+    },
+    {
+      "case": "owning198",
+      "command": [
+        "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+        "build",
+        "tests/language-readiness/terminal/342/fnonce-helper-p0-review/two-environments-dynamic-tail.zil",
+        "-o",
+        "/tmp/p0-cross-review-native/owning198-O2",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/tmp/p0-cross-review-native/owning198-O2-ir",
+        "--json"
+      ],
+      "build_exit": 0,
+      "verification_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "run": {
+        "exit_code": 0,
+        "stdout": "198\n",
+        "stderr": "",
+        "expected_stdout": "198\n"
+      },
+      "executable_sha256": "d98d281445a90d4d0083cd07a6afce86fb9a71c8b7d0125b47917d24e6c0fb8e",
+      "artifact_sha256": {
+        "typed": "2515f458c31e786f402ed60e243c0bf0cb284306ead12a47e85d3f5e553275fe",
+        "verified": "fa883abb1d7fdce495f44ae3d3a1f6a5417b92a566268c2593cb41211a33b410",
+        "lir": "045e73b3f4ad607d82b09cc083d4892d80fe309ef9eb4151949f6cf82e87a7f1",
+        "llvm": "ff7e79873975e2a71f7e57e80d2861c1ba93370bc160cd84a2fd0c736f899833"
+      }
+    },
+    {
+      "case": "ct42",
+      "command": [
+        "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+        "build",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+        "-o",
+        "/tmp/p0-cross-review-native/ct42-O0",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/tmp/p0-cross-review-native/ct42-O0-ir",
+        "--json"
+      ],
+      "build_exit": 0,
+      "verification_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "run": {
+        "exit_code": 0,
+        "stdout": "42\n",
+        "stderr": "",
+        "expected_stdout": "42\n"
+      },
+      "executable_sha256": "7ac5474e80780a3676482233cffa6abaffab45ec73c757a665c7fe10fcdd28aa",
+      "artifact_sha256": {
+        "typed": "b23149b76548ee4dd6e1643a578bbcd14f0c588ba8f1e9f5f3a1b284b4a12966",
+        "verified": "3259f0866ef8eaed7163066d6f82853692dc1601139b42a740fa6dd282fc9068",
+        "lir": "2285d7c9dbb6a3c76cc6c35e72faaf61016fcb7d52aa00c75b4bdfcfd05c43c2",
+        "llvm": "8305d37719abd7adc1d657077cea031da7d5bb2e926083f1d831484bd5cc5172"
+      }
+    },
+    {
+      "case": "ct42",
+      "command": [
+        "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+        "build",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-scalar.zil",
+        "-o",
+        "/tmp/p0-cross-review-native/ct42-O2",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/tmp/p0-cross-review-native/ct42-O2-ir",
+        "--json"
+      ],
+      "build_exit": 0,
+      "verification_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "run": {
+        "exit_code": 0,
+        "stdout": "42\n",
+        "stderr": "",
+        "expected_stdout": "42\n"
+      },
+      "executable_sha256": "a542d30e468a1702257eec52c8cc62e25bcd0e2f10ddeb9a080d9bd196504222",
+      "artifact_sha256": {
+        "typed": "b23149b76548ee4dd6e1643a578bbcd14f0c588ba8f1e9f5f3a1b284b4a12966",
+        "verified": "3259f0866ef8eaed7163066d6f82853692dc1601139b42a740fa6dd282fc9068",
+        "lir": "2285d7c9dbb6a3c76cc6c35e72faaf61016fcb7d52aa00c75b4bdfcfd05c43c2",
+        "llvm": "8305d37719abd7adc1d657077cea031da7d5bb2e926083f1d831484bd5cc5172"
+      }
+    },
+    {
+      "case": "member-host-identity85",
+      "command": [
+        "/workspace/.zil-env/target-G1.3.5.2/debug/zil",
+        "build",
+        "tests/language-readiness/terminal/344/anonymous/p0-review444/member-to-free-host-identity.zil",
+        "-o",
+        "/tmp/p0-cross-review-native/member-host-identity-O0",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--clang",
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang-23",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/tmp/p0-cross-review-native/member-host-identity-O0-ir",
+        "--json"
+      ],
+      "build_exit": 0,
+      "verification_runs": 1,
+      "backend": "llvm-api",
+      "fallback": null,
+      "run": {
+        "exit_code": 0,
+        "stdout": "85\n",
+        "stderr": "",
+        "expected_stdout": "85\n"
+      },
+      "executable_sha256": "13bcece8e1da503ed6d4da4557a015848f1a04093a60d54c4515ba67364b623e",
+      "artifact_sha256": {
+        "typed": "1a866c8f8dc073383f21026a04b471f8d247dc2ba9a6b2d20da0028d8e3417e3",
+        "verified": "ac15d12b932b316ced0b31b398e3deeb956179121bfcd664c2253b753f7b155b",
+        "lir": "190bdcd6ce440e4f087950f63d543dbe5654a3013ee9b5828f3c2ae95eb22e07",
+        "llvm": "9219e82cd7ec163dc2bc22f32e3710de93bc7546297b25a03014a6e4f2ce24fe"
+      }
+    }
+  ],
+  "machine_static_observation": "Independent owning198 O0 LLVM has inline %zil_env_0 = { { i32 }, ptr, i1 }, two distinct actual Mark payloads, Take-cleared flags and a unique helper consuming call before its dynamic branch. The scalar TeardownNone payload does not expose a user Drop counter; stdout is not cleanup-count evidence.",
+  "evidence_boundaries": [
+    "Independent Source checks exercise current Analyze and Verify, but author raw/Wire hostile tests and budget receipts were statically reviewed, not independently rerun here. Root owns final affected-suite/formal integration.",
+    "Source check invocation counts include the original failure and controlled source neighbors; they are not distinct capability or accepted-case counts.",
+    "The original owning Source was tested once on a CLI without the owning candidate and rejected; this is preserved but not claimed as a candidate regression."
+  ],
+  "post_functional_fee_review": {
+    "implementation_commit": "13d5e7c495bae80a1817ee351c82b092e394380f",
+    "verdict": "Pass",
+    "method": "Independent static review; functional/native executions remain bound to 905866c20c37428b069cbb1a25d596b652b43bb5, not this later fee patch.",
+    "observations": [
+      "Four symbol backing vectors prepay full generic arity times their actual element sizes before with_capacity, including unused kind slots.",
+      "Header parameter CtTy and call argument CtValueId capacities are prepaid before allocation; each vector pushes at most the already checked arity.",
+      "String and recursive Type copies retain their preceding text/copy_ty charges; CtSymbolId is fixed-size.",
+      "Header failure restores caller data/metadata/scalar/life bindings.",
+      "Old header allocates an empty Vec::new, then delegates to the original body; this wrapper adds no heap allocation or capacity charge to the old path."
+    ],
+    "new_fee_runtime_boundaries": "Root-coordinated checks; old measured N values are not reused as evidence for this changed allocation charge."
+  }
 }
