@@ -2,13 +2,19 @@
 //! owning position. The old destination has no second invented local debt.
 use super::*;
 use crate::place_replacements::{Inventory, actual};
+use std::cell::RefCell;
 use std::collections::BTreeMap;
+mod retirement;
+pub(super) use retirement::Sources;
 pub(super) struct Plan {
     actual: actual::Program,
     inventories: Vec<Inventory>,
     written: Vec<BTreeSet<Root>>,
     targets: BTreeMap<usize, Vec<actual::Target>>,
     retirements: BTreeMap<usize, Vec<actual::Target>>,
+    active_pairs: bool,
+    pairs: RefCell<Vec<retirement::Pairs>>,
+    calls: RefCell<Vec<Vec<retirement::Call>>>,
 }
 #[derive(Clone, Copy)]
 struct Point {
@@ -17,12 +23,14 @@ struct Point {
     validate: bool,
     span: Span,
     sealed: bool,
+    output: Option<usize>,
 }
 struct Invocation<'a> {
     entry: usize,
     arguments: &'a [ValueId],
     captures: Option<&'a actual::Captures>,
     carrier: Option<usize>,
+    sources: Option<usize>,
 }
 fn nested_descriptor_boundary(module: &TypedModule, b: &mut Budget) -> Check<()> {
     b.spend(module.closures.len())?;
@@ -99,7 +107,22 @@ impl Plan {
                 }
             }
         }
+        let active_pairs = !targets.is_empty() || !retirements.is_empty();
+        if active_pairs {
+            b.spend(module.functions.len().saturating_mul(2))?;
+        }
         Ok(Self {
+            active_pairs,
+            pairs: RefCell::new(if active_pairs {
+                vec![retirement::Pairs::new(); module.functions.len()]
+            } else {
+                vec![]
+            }),
+            calls: RefCell::new(if active_pairs {
+                (0..module.functions.len()).map(|_| Vec::new()).collect()
+            } else {
+                vec![]
+            }),
             actual,
             inventories,
             written: writes.to_vec(),
@@ -113,6 +136,7 @@ impl Plan {
         slots: &mut Slots,
         b: &mut Budget,
     ) -> Check<()> {
+        slots.retirement = self.active_pairs;
         let routes = &self.actual.functions[f.id.0 as usize].values;
         for (value, row) in routes.iter().enumerate() {
             b.spend(row.len().saturating_add(1))?;
@@ -167,80 +191,34 @@ impl Plan {
         point: Point,
         b: &mut Budget,
     ) -> Check<()> {
-        if !point.validate {
+        if !point.validate || !self.active_pairs {
             return Ok(());
         }
-        sums::replacements::at_type(transfer.module, transfer.f, target, b)?;
-        let root = match target.base {
-            actual::Base::Local(local) => match target.steps.first() {
-                Some(zil_ir::PlaceProjection::Field(index))
-                    if matches!(transfer.f.locals[local.0 as usize].ty, Type::Package { .. }) =>
-                {
-                    Root::PackageField {
-                        local,
-                        index: *index,
-                    }
-                }
-                _ => Root::Local(local),
-            },
-            actual::Base::Input(p) | actual::Base::InputCapture(p, _) => Root::Parameter(p),
-            actual::Base::Environment(c) => Root::BorrowedCapture(c),
-            actual::Base::Element(_) => return Ok(()), // separate Store instance protocol
-        };
-        if matches!(root, Root::Parameter(_) | Root::BorrowedCapture(_)) {
-            // Incoming descriptions are not exclusive loans. Distinct input
-            // ordinals alone cannot establish disjoint runtime resource heads.
-            // A continuing mutable parent address is not an old weak Desc.
-            for (ty, slot) in transfer
-                .f
-                .values
-                .iter()
-                .zip(&transfer.slots.desc_value)
-                .chain(
-                    transfer
-                        .f
-                        .locals
-                        .iter()
-                        .map(|local| &local.ty)
-                        .zip(&transfer.slots.desc_local),
-                )
-            {
-                b.spend(1)?;
-                if !(matches!(ty, Type::Desc(_) | Type::Closure(_))
-                    || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Closure(_))))
-                {
-                    continue;
-                }
-                let Some(slot) = *slot else {
-                    continue;
-                };
-                if transfer.after[point.block][point.position][slot] {
-                    let roots = &state.desc[slot];
-                    b.spend(roots.len())?;
-                    if roots.iter().any(|candidate| {
-                        matches!(
-                            candidate.parent(),
-                            Root::Parameter(_) | Root::BorrowedCapture(_)
-                        )
-                    }) {
-                        return Err(bad(
-                            point.span,
-                            "possible replacement retirement would invalidate a live nonlocal resource description",
-                        ));
-                    }
-                }
-            }
-            Ok(())
-        } else {
-            no_live_description(
-                state,
-                &transfer.after[point.block][point.position],
-                root,
-                point.span,
-                b,
-            )
-        }
+        retirement::observe(self, transfer, state, target, point, b)
     }
+    pub(super) fn seed_sources(
+        &self,
+        module: &TypedModule,
+        f: &TypedFunction,
+        slots: &Slots,
+        state: &mut State,
+        b: &mut Budget,
+    ) -> Check<()> {
+        retirement::seed(self, module, f, slots, state, b)
+    }
+    pub(super) fn source_step(
+        &self,
+        transfer: &Transfer<'_>,
+        state: &mut State,
+        instruction: &Instruction,
+        b: &mut Budget,
+    ) -> Check<()> {
+        retirement::step(self, transfer, state, instruction, b)
+    }
+    pub(super) fn close_pairs(&self, module: &TypedModule, b: &mut Budget) -> Check<()> {
+        retirement::close(self, module, b)
+    }
+
     fn invalidate_store(
         &self,
         transfer: &Transfer<'_>,
@@ -341,6 +319,9 @@ impl Plan {
     ) -> Check<()> {
         let f = transfer.f;
         let callee = &transfer.module.functions[invocation.entry];
+        if point.validate && self.active_pairs {
+            retirement::call(self, transfer, state, &invocation, point, b)?;
+        }
         // A checked public envelope does not authorize looking at private rows.
         // Actual Store invalidation in such a body is independently closed by
         // invalidate_store, rather than importing a private effect at the call.
@@ -476,6 +457,9 @@ impl Plan {
             validate,
             span: instruction.span,
             sealed: false,
+            output: instruction
+                .result
+                .and_then(|value| transfer.slots.desc_value[value.0 as usize]),
         };
         let facts = &self.actual.functions[f.id.0 as usize];
         let scoped = match instruction.kind {
@@ -504,6 +488,7 @@ impl Plan {
                     arguments: &[],
                     captures: Some(&facts.captures[value.0 as usize]),
                     carrier: transfer.slots.desc_value[value.0 as usize],
+                    sources: transfer.slots.desc_value[value.0 as usize],
                 },
                 b,
             )?;
@@ -517,6 +502,7 @@ impl Plan {
                 arguments,
                 captures: None,
                 carrier: None,
+                sources: None,
             }),
             InstructionKind::CallClosureShared { callee, arguments }
             | InstructionKind::CallClosureMut { callee, arguments } => {
@@ -530,6 +516,7 @@ impl Plan {
                     arguments,
                     captures: facts.local_captures.get(callee),
                     carrier: transfer.slots.desc_local[callee.0 as usize],
+                    sources: transfer.slots.desc_local[callee.0 as usize],
                 })
             }
             InstructionKind::CallClosure { callee, arguments }
@@ -545,6 +532,7 @@ impl Plan {
                 arguments,
                 captures: Some(&facts.captures[callee.0 as usize]),
                 carrier: transfer.slots.desc_value[callee.0 as usize],
+                sources: transfer.slots.desc_value[callee.0 as usize],
             }),
             _ => None,
         };
