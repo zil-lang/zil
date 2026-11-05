@@ -341,11 +341,15 @@ pub(super) fn contract(
                     state,
                     instruction.span,
                 )?;
-                if forwarded.roles.len() > 2 {
-                    state.snapshot(
-                        addition.calls.saturating_mul(forwarded.roles.len()),
-                        instruction.span,
-                    )?;
+                let child_roles = forwarded
+                    .roles
+                    .len()
+                    .saturating_add(forwarded.concrete.len());
+                if child_roles > 2 {
+                    // Each event probes the concrete-role set before finding
+                    // its forwarded position. C comparisons bound the tree
+                    // lookup and R bound the ordered role scan.
+                    state.snapshot(addition.calls.saturating_mul(child_roles), instruction.span)?;
                 }
                 let mut child = state.helper_functions[position]
                     .callable_contract
