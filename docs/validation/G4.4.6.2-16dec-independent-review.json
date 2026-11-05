@@ -1,0 +1,54 @@
+{
+  "task": "G4.4.6.2",
+  "reviewer": "static_host_design",
+  "production_commit": "16dec86f70cafbcca3cece8c8f535d17d868aebf",
+  "source_tree": "/workspace/zil-G4.4.6-static-host",
+  "tree_clean_at_review_start_and_end": true,
+  "method": "Independent read-only static inspection of exact clean commit; no builds or tests run by reviewer; no production edits.",
+  "decision": "Changes required before complete acceptance; core actual-execution authorization design statically confirmed.",
+  "confirmed": [
+    "VM saves caller/block/instruction/callee/result before entering a callee; pending LIFO emits an event only after normal Return. Entry creates no event; repeated and recursive calls remain distinct events.",
+    "Whole-VM failure returns no completed trace; success retains trace capacity in evaluator cleanup accounting.",
+    "Source calls carry exact instruction position, including Unit calls. CFG pruning validates the actual Call and remaps retained block IDs without changing instruction order.",
+    "Namespace consumption rechecks source actuals and lexical host, actual IR instruction, exact completed event including result, and rejects duplicate source execution locators. Same callee existence alone is insufficient.",
+    "Whole original/generated host syntax and normalizer replay are compared after per-node metering; generated span remapping debits shared work during bounded preflight before mutation.",
+    "All actual sibling functions are registered before symbolic definition checks; receivers, unsupported attributes/contracts, malformed bodies and unsupported effectful bodies remain rejected.",
+    "Const source-class forwarding resolves the actual caller member-first/host-second binder and requires original Const kind/domain; closed scalar values reuse const argument normalization. These facts do not substitute for full CT actual-value authentication."
+  ],
+  "findings": [
+    {
+      "id": "D16-UNIT",
+      "status": "Confirmed by static inspection and root-owned test log; reviewer did not execute test",
+      "location": "crates/zil-verify/src/ct_artifact.rs:1504",
+      "problem": "Compiler intentionally emits no-result Unit Call, but check_instruction always yields Some(Unit); result-presence verification rejects before VM execution.",
+      "fix": "After complete Call target/visibility/arity/argument checks, allow result=None only when the actual callee result is Unit. Preserve non-Unit presence rejection and exact execution locator. Do not weaken all Unit instructions."
+    },
+    {
+      "id": "D16-LINEAGE",
+      "status": "Confirmed by static inspection and root-owned test log; reviewer did not execute test",
+      "location": "crates/zil-driver/src/ct_artifact/execute.rs:740",
+      "problem": "Ordinary freeze_at_source runs before require_source_origins fallback. An actual entry with life binders can reject missing original lineage before source-call compilation reaches fallback, preventing the runtime-instance negative control from reaching its Expand gate.",
+      "fix": "Ensure actual source origins before freezing an entry requiring this context, with bounded source-derived selection and old-path budget preservation. Keep origin authentication and phase assertions."
+    },
+    {
+      "id": "D16-PENDING-BACKING",
+      "status": "Static finding; no execution claim",
+      "location": "crates/zil-ct/src/ct_artifact.rs:670",
+      "problem": "Root Return releases pending_calls capacity charge while the Vec allocation remains live, then allocates the cloned query receipt. For invocations containing calls and queries, the real overlap of pending backing and receipt backing is not represented by the ledger.",
+      "fix": "Save capacity, drop pending_calls, then release its charge before receipt allocation. The adjacent existing frame-vector release can likewise drop frames before releasing its backing charge."
+    }
+  ],
+  "external_execution_evidence": {
+    "owner": "root",
+    "log": "/workspace/tmp-G4.4.6/g4462-second-source.log",
+    "observed_log_result": "11 tests: 9 passed, 2 failed (Unit result presence; runtime-instance control rejected early for missing original lineage)",
+    "attribution": "Log inspected, not independently rerun; this receipt does not promote author or root execution into reviewer execution."
+  },
+  "remaining_acceptance": [
+    "Fresh exact commit review of fixes",
+    "Unit positive and runtime-instance negative reach their intended stages",
+    "Actual trace budget N/N-1/fresh recovery with calls and query receipts",
+    "Root-owned Source/native and final formal checks"
+  ],
+  "rust_goals": "Static improvement: explicit VM events connect compiler provenance to actual execution without adding runtime namespace permissions or Wire fields. Runtime performance, RSS and final budget boundaries were not measured by this reviewer."
+}

@@ -667,10 +667,11 @@ fn evaluate_ct_artifact_inner(
                         if !pending_calls.is_empty() {
                             return Err(error("CT completed-call frame stack is not empty"));
                         }
-                        budget.release_temporary_bytes(
-                            pending_calls.capacity() as u64
-                                * std::mem::size_of::<CtCompletedCall>() as u64,
-                        );
+                        let pending_bytes = pending_calls.capacity() as u64
+                            * std::mem::size_of::<CtCompletedCall>() as u64;
+                        drop(pending_calls);
+                        budget.release_temporary_bytes(pending_bytes);
+                        drop(frames);
                         budget.release_temporary_bytes(frame_vector_bytes);
                         budget.reserve_temporary_bytes(
                             budget.usage.queries.len() as u64

@@ -725,6 +725,10 @@ impl<'a> Environment<'a> {
             }),
             Entry::Function(symbol) => Some(Entry::Function(symbol.clone())),
         };
+        // Missing source origins may need a required capture once fresh source
+        // calls are known. Defer this one freeze, rather than fail before the
+        // existing call-triggered capture or repeat the old no-call scan.
+        let delayed_original_freeze = runtime_source.is_none() && self.source_origins.is_none();
         let mut invocation_context = if let Some(source) = runtime_source {
             self.require_source_origins()?;
             super::invocation_context::FrozenInvocationContext::freeze_runtime_at_source(
@@ -736,6 +740,8 @@ impl<'a> Environment<'a> {
                 source,
                 &mut self.budget,
             )?
+        } else if delayed_original_freeze {
+            None
         } else {
             super::invocation_context::FrozenInvocationContext::freeze_at_source(
                 &entry,
@@ -810,6 +816,20 @@ impl<'a> Environment<'a> {
                     Some(&self.generated_catalog),
                     source_site,
                     true,
+                    &mut self.budget,
+                )?;
+        }
+        if delayed_original_freeze && invocation_context.is_none() {
+            invocation_context =
+                super::invocation_context::FrozenInvocationContext::freeze_at_source(
+                    retry_entry.as_ref().ok_or_else(|| {
+                        error("source freezing lost its immutable entry", span)
+                    })?,
+                    self.parsed,
+                    &self.index,
+                    self.source_origins.as_ref(),
+                    Some(&self.generated_catalog),
+                    source_site,
                     &mut self.budget,
                 )?;
         }
