@@ -80,9 +80,16 @@ fn extended_profile(module: &TypedModule, d: &ClosureDefinition, b: &mut Budget)
         super::super::stored_flow::type_work(ty, &b.limits.clone(), b)?;
     }
     super::captured_profile(d, b)?;
-    if d.kind != CallableKind::FnOnce || d.storage_life.is_none() {
+    if d.storage_life.is_none()
+        || !matches!(
+            d.kind,
+            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+        )
+        || !scalar(&d.result)
+        || !d.lending_captures.is_empty()
+    {
         return Err(bad(
-            "staged callback requires an actual owning Fixed definition",
+            "staged callback requires an actual scalar nonlending owning Fixed definition",
         ));
     }
     let mut owners = 0usize;
