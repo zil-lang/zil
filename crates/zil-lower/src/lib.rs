@@ -238,7 +238,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
         } else {
             false
         };
-        if !old_return && !extra_return {
+        if !old_return && !extra_return && !sum_budget.pure_composite(&function.return_type, 0)? {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Lower,
                 "lowering requires a supported ordinary function result",
@@ -264,7 +264,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             } else {
                 false
             };
-            if !old && !extra {
+            if !old && !extra && !sum_budget.pure_composite(ty, 0)? {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,
                     "lowering requires a supported ordinary parameter",
@@ -298,6 +298,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 } else {
                     false
                 }
+                && !sum_budget.pure_composite(ty, 0)?
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,
