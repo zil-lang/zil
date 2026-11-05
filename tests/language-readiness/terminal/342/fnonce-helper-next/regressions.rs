@@ -104,11 +104,12 @@ fn g337_actual_source_tail_and_raw_wire_hostile_neighbors() {
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
-    for (text, phase, fragment) in [(
-        include_str!("give-f.zil"),
-        zil_base::Phase::Expand,
-        "callable parameter must",
-    )] {
+    {
+        let (text, phase, fragment) = (
+            include_str!("give-f.zil"),
+            zil_base::Phase::Expand,
+            "callable parameter must",
+        );
         let report = compile_source(
             &source(text),
             &CompileOptions {
@@ -171,12 +172,10 @@ fn g337_actual_source_whole_analyze_verify_work_boundaries() {
             if n == low {
                 check(n).unwrap();
             } else {
-                assert!(
-                    check(n)
-                        .unwrap_err()
-                        .iter()
-                        .any(|d| d.category == ResultCategory::ResourceLimit)
-                );
+                assert!(check(n)
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit));
             }
         }
         eprintln!(
