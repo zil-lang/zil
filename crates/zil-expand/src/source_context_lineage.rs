@@ -20,6 +20,15 @@ impl Visitor for Discovery<'_, '_> {
             // source namespace must be frozen before the first event runs.
             self.0.note_source_identity();
         }
+        if matches!(&item.kind,s::ItemKind::Aggregate(host)
+            if host.kind==s::AggregateKind::Struct && !host.generics.is_empty() && !host.methods.is_empty())
+        {
+            // A retained ordinary CT namespace needs its original output
+            // correspondence before any body is materialized, including when
+            // the host has only Type/Const binders. This inventory choice does
+            // not authorize a member, an execution event, or a runtime instance.
+            self.0.note_source_identity();
+        }
         if let s::ItemKind::Function(function) = &item.kind
             && function.generics.len() >= 3
         {

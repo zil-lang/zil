@@ -1774,6 +1774,9 @@ mod tests {
     use super::*;
     use zil_base::{Fingerprint, Limits, ModuleId, NodeId, Span};
     use zil_verify::{CtArtifactAuthority, CtSymbolUsage, verify_ct_artifact};
+    mod completed_trace {
+        include!("ct_artifact_trace_tests.rs");
+    }
 
     fn symbol() -> CtSymbolId {
         CtSymbolId {
