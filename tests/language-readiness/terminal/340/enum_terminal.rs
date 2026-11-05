@@ -2,9 +2,96 @@
 use super::*;
 
 const PENDING: &str = include_str!("replace-enum-terminal-pending.zil");
-const FRESH: &str = include_str!("replace-enum-terminal-fresh-rhs.zil");
+const FRESH: &str = include_str!("replace-enum-terminal-fresh-runtime.zil");
+const KNOWN_FRESH: &str = include_str!("replace-enum-terminal-fresh-rhs.zil");
 const INCOMING: &str = include_str!("replace-enum-terminal-incoming-rhs.zil");
 const FAILURE: &str = include_str!("replace-enum-terminal-failure.zil");
+const INTO_EMPTY: &str = include_str!("replace-enum-terminal-into-empty.zil");
+const FROM_EMPTY: &str = include_str!("replace-enum-terminal-from-empty.zil");
+
+#[test]
+fn native_original_shell_cleanup_age_survives_new_rhs_birth() {
+    review329_native_entry_output(
+        &[("main", include_str!("replace-enum-terminal-shell-age.zil"))],
+        "main",
+        b"ACB266\n",
+    );
+}
+
+#[test]
+fn semantic_cache_rechecks_actual_tagged_candidates_after_change_and_reorder() {
+    use zil_driver::{CompilationSession, DiskCacheStatus};
+    let directory = Temp::new();
+    let options = CompileOptions {
+        semantic_cache: Some(directory.0.clone()),
+        ..CompileOptions::default()
+    };
+    let changed = PENDING.replace("E.Right(2,R{code:66})", "E.Right(4,R{code:66})");
+    let reordered = PENDING.replace(
+        "Left(manages R,i32),Right(i32,manages R),Empty",
+        "Right(i32,manages R),Empty,Left(manages R,i32)",
+    );
+    assert_ne!(changed, PENDING);
+    assert_ne!(reordered, PENDING);
+    let mut session = CompilationSession::default();
+    for (index, text) in [
+        PENDING,
+        PENDING,
+        changed.as_str(),
+        reordered.as_str(),
+        PENDING,
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        let report = session.compile_project(&review329_project(&[("main", text)]), &options);
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        if index == 1 || index == 4 {
+            assert_eq!(
+                report.disk_cache,
+                DiskCacheStatus::Hit,
+                "{}",
+                report.to_json()
+            );
+        }
+        assert_eq!(session.active_query_count(), 0);
+    }
+    let store = directory.0.join("semantic-v4");
+    let mut candidates = 0;
+    for entry in fs::read_dir(&store).unwrap() {
+        let path = entry.unwrap().path();
+        if path.extension().is_none_or(|x| x != "candidate") {
+            continue;
+        }
+        let key =
+            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
+        let zil_db::CacheRead::Candidate(payload) =
+            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
+                .inspect_candidate(key)
+                .unwrap()
+        else {
+            panic!("actual semantic candidate missing")
+        };
+        assert_eq!(&payload[..8], b"ZILSEM04");
+        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
+        let bytes = &payload[12..12 + length];
+        let (typed, plan) =
+            zil_ir::wire::decode_module_candidate(bytes, &Limits::default()).unwrap();
+        zil_verify::verify_module(typed.clone(), plan, &typed.target, &Limits::default()).unwrap();
+        zil_verify::verify_module_bytes(bytes, &typed.target, &Limits::default()).unwrap();
+        candidates += 1;
+    }
+    assert_eq!(candidates, 3);
+    println!(
+        "G1.3.5 actual semantic cold/warm/change/reorder/revert; {candidates} actual candidates raw/Wire reverified"
+    );
+}
 
 #[test]
 fn source_tickets_and_actual_both_kernels() {
@@ -12,6 +99,8 @@ fn source_tickets_and_actual_both_kernels() {
         ("runtime", PENDING, false),
         ("fresh", FRESH, false),
         ("failure", FAILURE, true),
+        ("into Empty", INTO_EMPTY, false),
+        ("from Empty", FROM_EMPTY, false),
     ] {
         let temp = Temp::new();
         let report = compile_source(
@@ -75,6 +164,50 @@ fn actual_rhs_created_and_given_origins_are_distinct() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn known_single_arm_create_retains_its_existing_cfg_boundary() {
+    let ordinary = KNOWN_FRESH
+        .replace(
+            "var value=input;",
+            "var unused=input;var value=E.Right(42,R{code:66});",
+        )
+        .replace(
+            "    let target=&mut value;\n    *target=E.Right(42,R{code:66});\n",
+            "",
+        );
+    for text in [KNOWN_FRESH, ordinary.as_str()] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Analyze,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-VERIFY-RESOURCE" && d.message.contains("create result")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
@@ -289,7 +422,14 @@ fn native_runtime_tags_full_values_origins_and_preparation_failure() {
                         (b"R".as_slice(), b"CD168\n".as_slice()),
                     ],
                 ),
-                ("fresh", FRESH, vec![(b"".as_slice(), b"AB42\n".as_slice())]),
+                (
+                    "fresh",
+                    FRESH,
+                    vec![
+                        (b"L".as_slice(), b"AB662\n".as_slice()),
+                        (b"R".as_slice(), b"AD682\n".as_slice()),
+                    ],
+                ),
                 (
                     "given",
                     given.as_str(),
@@ -299,6 +439,16 @@ fn native_runtime_tags_full_values_origins_and_preparation_failure() {
                     "failure",
                     FAILURE,
                     vec![(b"".as_slice(), b"BA42\n".as_slice())],
+                ),
+                (
+                    "into-empty",
+                    INTO_EMPTY,
+                    vec![(b"".as_slice(), b"A43\n".as_slice())],
+                ),
+                (
+                    "from-empty",
+                    FROM_EMPTY,
+                    vec![(b"".as_slice(), b"B366\n".as_slice())],
                 ),
             ] {
                 let directory = Temp::new();
