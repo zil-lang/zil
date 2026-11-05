@@ -109,7 +109,11 @@ impl FrozenInvocationContext {
             ));
         }
         let SourceNode::Expr(s::Expr {
-            kind: s::ExprKind::Call { callee, .. },
+            kind:
+                s::ExprKind::Call {
+                    callee,
+                    arguments: value_arguments,
+                },
             ..
         }) = call_site.node
         else {
@@ -122,11 +126,24 @@ impl FrozenInvocationContext {
             step(budget, 0)?;
             callee = inner;
         }
-        let s::ExprKind::TypeApply { callee, arguments } = &callee.kind else {
-            return Err(unsupported(
-                "CT runtime entry requires original explicit Type/Const actuals",
-            ));
+        let (callee, arguments) = match &callee.kind {
+            s::ExprKind::TypeApply { callee, arguments } => {
+                (callee.as_ref(), Some(arguments.as_slice()))
+            }
+            _ => (callee, None),
         };
+        if arguments.is_none() {
+            budget.reserve_analysis_work(
+                value_arguments.len() as u64 + target.function.params.len() as u64,
+            )?;
+            if value_arguments.len() != target.function.params.len()
+                || value_arguments.iter().any(|argument| argument.spread)
+            {
+                return Err(unsupported(
+                    "CT runtime inferred source arguments have missing or spread values",
+                ));
+            }
+        }
         let before = budget.live_temporary_bytes();
         let mut path = Vec::new();
         let checked = (|| {
@@ -143,7 +160,7 @@ impl FrozenInvocationContext {
                 (target.function.generics.len()
                     + frame.arguments.len()
                     + actuals.len()
-                    + arguments.len()) as u64,
+                    + arguments.map_or(0, <[s::GenericArg]>::len)) as u64,
             )?;
             if target.function.generics.len() != actuals.len()
                 || actuals.len() != frame.arguments.len()
@@ -154,7 +171,7 @@ impl FrozenInvocationContext {
             }
             let env =
                 self.source_environment(caller_scope, caller_id, &raw.ambient_life_scopes, budget)?;
-            let mut explicit = arguments.iter();
+            let mut explicit = arguments.unwrap_or(&[]).iter();
             for (ordinal, ((parameter, recipe), actual)) in target
                 .function
                 .generics
@@ -184,18 +201,33 @@ impl FrozenInvocationContext {
                         RuntimeArgument::Type(_),
                         CtScopeActual::Type(graph),
                     ) => {
-                        let Some(s::GenericArg::Type(ty)) = explicit.next() else {
-                            return Err(unsupported(
-                                "CT runtime Type actual is absent at its original full ordinal",
-                            ));
-                        };
-                        self.source_type(ty, graph, graph.root, &env, raw, index, budget, 0)?;
+                        if arguments.is_some() {
+                            let Some(s::GenericArg::Type(ty)) = explicit.next() else {
+                                return Err(unsupported(
+                                    "CT runtime Type actual is absent at its original full ordinal",
+                                ));
+                            };
+                            self.source_type(ty, graph, graph.root, &env, raw, index, budget, 0)?;
+                        } else {
+                            self.validate_runtime_inferred_type(
+                                parameter,
+                                target.function,
+                                value_arguments,
+                                graph,
+                                budget,
+                            )?;
+                        }
                     }
                     (
                         s::GenericParamKind::Const(domain),
                         RuntimeArgument::Const(_),
                         CtScopeActual::Scalar(value),
                     ) => {
+                        if arguments.is_none() {
+                            return Err(unsupported(
+                                "CT runtime inferred const needs an independent original source rule",
+                            ));
+                        }
                         let actual = explicit.next().ok_or_else(|| {
                             unsupported(
                                 "CT runtime scalar actual is absent at its original full ordinal",
@@ -231,6 +263,89 @@ impl FrozenInvocationContext {
         })();
         budget.release_temporary_bytes(budget.live_temporary_bytes().saturating_sub(before));
         checked
+    }
+
+    // Literal constraints are reconstructed separately from the producer's
+    // inference. Recipes select a kind, never a Type graph or an inferred value.
+    fn validate_runtime_inferred_type(
+        &self,
+        generic: &s::GenericParam,
+        target: &s::Function,
+        arguments: &[s::Argument],
+        graph: &CtTypeRef,
+        budget: &mut CtExecutionBudget,
+    ) -> CompileResult<()> {
+        budget.reserve_analysis_work(target.params.len() as u64)?;
+        let mut constraints = 0usize;
+        for (formal, actual) in target.params.iter().zip(arguments) {
+            let mut ty = &formal.ty;
+            let mut depth = 0;
+            while let s::TypeKind::Group(inner) = &ty.kind {
+                step(budget, depth)?;
+                depth += 1;
+                ty = inner;
+            }
+            step(budget, depth)?;
+            let s::TypeKind::Named { path, args } = &ty.kind else {
+                continue;
+            };
+            budget.reserve_analysis_work((path.len() + args.len()) as u64)?;
+            let [name] = path.as_slice() else {
+                continue;
+            };
+            budget.reserve_analysis_work(name.len().min(generic.name.len()) as u64 + 1)?;
+            if !args.is_empty() || name != &generic.name {
+                continue;
+            }
+            constraints += 1;
+            let mut value = &actual.value;
+            let mut depth = 0;
+            while let s::ExprKind::Group(inner) = &value.kind {
+                step(budget, depth)?;
+                depth += 1;
+                value = inner;
+            }
+            step(budget, depth)?;
+            let expected = match &value.kind {
+                s::ExprKind::Literal(s::Literal::Bool(_)) => CtScalarTy::Bool,
+                s::ExprKind::Literal(s::Literal::Integer(text)) => {
+                    budget.reserve_analysis_work(text.len() as u64)?;
+                    match zil_types::parse_integer_literal(text, None, false, value.span)? {
+                        zil_ir::Constant::U8(_) => CtScalarTy::U8,
+                        zil_ir::Constant::U16(_) => CtScalarTy::U16,
+                        zil_ir::Constant::U64(_) => CtScalarTy::U64,
+                        zil_ir::Constant::Usize(_) => CtScalarTy::Usize,
+                        zil_ir::Constant::I32(_) => CtScalarTy::I32,
+                        zil_ir::Constant::I64(_) => CtScalarTy::I64,
+                        _ => {
+                            return Err(unsupported(
+                                "CT runtime inferred integer has no original scalar domain",
+                            ));
+                        }
+                    }
+                }
+                _ => {
+                    return Err(unsupported(
+                        "CT runtime inference requires an independently typed original value argument",
+                    ));
+                }
+            };
+            budget.reserve_analysis_work(4)?;
+            if graph.root != CtTypeNodeId(0)
+                || !graph.ambient_classes.is_empty()
+                || graph.nodes.as_slice() != [CtTypeNode::Primitive(expected)]
+            {
+                return Err(unsupported(
+                    "CT runtime inferred Type differs from an original source value constraint",
+                ));
+            }
+        }
+        if constraints == 0 {
+            return Err(unsupported(
+                "CT runtime Type binder has no independently inferred original source constraint",
+            ));
+        }
+        Ok(())
     }
 
     fn runtime_existing_scope(
