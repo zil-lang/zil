@@ -453,6 +453,8 @@ fn main()->i32{let f=move(x:i32)=>x+1;let g=move(x:i32)=>x*2;let h=move(x:i32)=>
 
 const SAME_F_NESTED_SOURCE: &str = "fn leaf<F:Fn()->i32>(a:&F,b:&F,c:&F,d:&F)->i32{return a()+b()+c()+d()}fn outer<F:Fn()->i32>(a:&F,b:&F,c:&F,d:&F)->i32{return leaf(d,c,b,a)+leaf(b,d,a,c)}fn make(n:i32)->impl Fn()->i32{return move()=>n}fn main()->i32{let a=make(1);let b=make(2);let c=make(3);let d=make(4);return outer(&a,&b,&c,&d)-20}";
 
+const ONE_FORWARDED_THREE_CONCRETE_SOURCE: &str = "fn leaf<A:Fn()->i32,B:Fn()->i32,C:Fn()->i32,D:Fn()->i32>(a:&A,b:&B,c:&C,d:&D)->i32{return a()+b()+c()+d()}fn outer<F:Fn()->i32>(a:&F)->i32{let b=move()=>2;let c=move()=>3;let d=move()=>4;return leaf(a,&b,&c,&d)}fn make()->impl Fn()->i32{return move()=>1}fn main()->i32{let a=make();return outer(&a)-10}";
+
 #[test]
 fn four_callable_binders_preserve_actual_child_permutation() {
     let module = typed(FOUR_ROLE_SOURCE);
@@ -640,6 +642,10 @@ fn one_two_and_four_role_physical_tables_have_paid_fresh_boundaries() {
         ("two", ORIGINALS[6].1),
         ("four", FOUR_ROLE_SOURCE),
         ("same-f-nested", SAME_F_NESTED_SOURCE),
+        (
+            "one-forwarded-three-concrete",
+            ONE_FORWARDED_THREE_CONCRETE_SOURCE,
+        ),
     ] {
         let unit = SourceUnit::new(FileId(0), ModuleId(0), "role-budget.zil", source);
         let syntax = zil_syntax::parse(&unit).into_result().unwrap();
