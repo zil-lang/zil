@@ -657,7 +657,6 @@ impl<'a> Environment<'a> {
     // Keep the source, candidate, scope and request meter explicit at this proof boundary.
 
     #[allow(clippy::too_many_arguments)]
-
     fn evaluate_data_impl(
         &mut self,
         entry: Entry<'_>,
