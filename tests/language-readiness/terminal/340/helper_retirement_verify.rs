@@ -45,6 +45,15 @@ fn stale_source(text: &str, entry: &str, local_commit: bool) {
     stale_source_in(text, entry, "main", local_commit);
 }
 fn stale_source_in(text: &str, entry: &str, caller: &str, local_commit: bool) {
+    stale_source_expected(text, entry, caller, local_commit, Some("invalidate"));
+}
+fn stale_source_expected(
+    text: &str,
+    entry: &str,
+    caller: &str,
+    local_commit: bool,
+    error: Option<&str>,
+) {
     let module = typed(text);
     let callee = module
         .functions
@@ -116,7 +125,7 @@ fn stale_source_in(text: &str, entry: &str, caller: &str, local_commit: bool) {
         .splice(before_parent..before_parent, moved);
     let plan = zil_analyze::analyze(&before, &Limits::default()).unwrap();
     verify(&before, &plan, None);
-    verify(&module, &plan, Some("invalidate"));
+    verify(&module, &plan, error);
 }
 
 #[test]
@@ -126,11 +135,33 @@ fn g1361_verify_nonlocal_desc_alias_and_read_before_retirement() {
     let after = format!(
         "{prefix}fn relay(old:R,target:&mut P)->i32{{reset(target);return old.code}}{tail}"
     );
-    stale_source_in(&after, "reset", "relay", false);
+    stale_source_expected(&after, "reset", "relay", false, None);
     let before = format!(
         "{prefix}fn relay(old:R,target:&mut P)->i32{{let seen=old.code;reset(target);return seen}}{tail}"
     );
     positive(&before);
+    // These caller roots really are separate, but the independently checked
+    // callee header supplies no resource-Desc/apart relation between inputs.
+    // The safety fix therefore has a measured conservative acceptance delta.
+    let apart = include_str!("helper-retirement-nonlocal-apart.zil");
+    let module = typed(apart);
+    let relay = module.functions.iter().find(|f| f.name == "relay").unwrap();
+    eprintln!(
+        "G1.3.6.1 apart relay header storage_life={:?} reference_return_bound={:?} callable_contract={:?}",
+        relay.storage_life, relay.reference_return_bound, relay.callable_contract
+    );
+    stale_source_expected(apart, "reset", "relay", false, None);
+    let report = compile_source(&source(apart), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    eprintln!(
+        "G1.3.6.1 apart caller Source actual new rejection: {}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -212,6 +243,121 @@ fn g1361_verify_readonly_and_scalar_neighbor_helpers_do_not_retire() {
     positive(&format!(
         "{PREFIX}fn reset(target:&mut P){{target.owner=R{{code:66}};}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:42}};let route=&mut packet;reset(route);return route.n}}"
     ));
+    let (module, _) = positive(&format!(
+        "{PREFIX}fn observe(input:R)->i32{{return input.code}}fn marker(head:&R)->i32{{return observe(head)}}fn reset(target:&mut P){{target.owner=R{{code:66}};}}fn main()->i32{{var packet=P{{owner:R{{code:65}},n:42}};let route=&mut packet;reset(route);return route.n}}"
+    ));
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::DescribeAddress { .. }))
+    );
+}
+
+#[test]
+fn g1361_verify_current_raw_wire_and_source_limits() {
+    let text = include_str!("helper-retirement-old-desc.zil")
+        .replace(
+            "    reset(&mut packet);",
+            "    let seen=old.code;\n    reset(&mut packet);",
+        )
+        .replace("    return old.code;", "    return seen;");
+    let (module, plan) = positive(&text);
+    let defaults = Limits::default();
+    let target = TargetProfile::default();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &defaults).unwrap();
+    for wire in [false, true] {
+        let run = |work| {
+            let limits = Limits {
+                max_analysis_steps: work,
+                ..defaults.clone()
+            };
+            let result = if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &limits)
+            } else {
+                zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits)
+            };
+            match result {
+                Ok(verified) => Some(verified.fingerprint()),
+                Err(errors) => {
+                    assert!(
+                        errors
+                            .iter()
+                            .all(|d| d.category == ResultCategory::ResourceLimit),
+                        "{errors:?}"
+                    );
+                    None
+                }
+            }
+        };
+        let (mut low, mut high) = (1, defaults.max_analysis_steps);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            if run(mid).is_some() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+
+        let fp = run(low).unwrap();
+        for _ in 0..2 {
+            assert!(run(low - 1).is_none());
+            assert_eq!(run(low), Some(fp));
+        }
+        eprintln!("G1.3.6.1 Verify wire={wire} work N={low} N-1 ResourceLimit fresh/retry Pass");
+    }
+    let input = source(&text);
+    for (kind, max) in [
+        ("work", defaults.max_analysis_steps),
+        ("nodes", defaults.max_nodes),
+        ("bytes", defaults.max_source_bytes),
+        ("depth", defaults.max_call_depth),
+    ] {
+        let options = |n| {
+            let mut limits = defaults.clone();
+            match kind {
+                "work" => limits.max_analysis_steps = n,
+                "nodes" => limits.max_nodes = n,
+                "bytes" => limits.max_source_bytes = n,
+                _ => limits.max_call_depth = n,
+            }
+            CompileOptions {
+                stop_after: Stage::Verify,
+                limits,
+                ..CompileOptions::default()
+            }
+        };
+        let (mut low, mut high) = (1, max);
+        while low < high {
+            let mid = low + (high - low) / 2;
+            match compile_source(&input, &options(mid)).status {
+                ResultCategory::Success => high = mid,
+                ResultCategory::ResourceLimit => low = mid + 1,
+                status => panic!("{kind} {status:?}"),
+            }
+        }
+        let mut warm = zil_driver::CompilationSession::default();
+        for (n, status) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                compile_source(&input, &options(n)),
+                warm.compile_source(&input, &options(n)),
+            ] {
+                assert_eq!(report.status, status, "{kind}: {}", report.to_json());
+                if status == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1);
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("G1.3.6.1 Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
+    }
 }
 
 #[test]
