@@ -2566,15 +2566,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             owned_shapes::validate(inner, self.work_left, self.limits.max_call_depth, span)?;
         }
         if ty.is_package_address() {
-            let Type::Address {
-                mutable: false,
-                inner,
-            } = ty
-            else {
-                return Err(unsupported(
-                    span,
-                    "mutable Product capture is not implemented",
-                ));
+            let Type::Address { inner, .. } = ty else {
+                unreachable!()
             };
             // This is shape admission, not origin authority. Analyze and Verify
             // independently exclude dynamic Store and unknown incoming roots.
@@ -2714,13 +2707,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             {
                 (inner.as_ref(), Some(*mutable))
             }
-            Type::Address {
-                mutable: false,
-                inner,
-            } if matches!(inner.as_ref(), Type::Package { .. }) => {
+            Type::Address { mutable, inner } if matches!(inner.as_ref(), Type::Package { .. }) => {
                 // Complete Product qualification was charged above. Capturing
                 // the address keeps a loan; it never creates an owning slot.
-                (inner.as_ref(), Some(false))
+                (inner.as_ref(), Some(*mutable))
             }
             _ => {
                 return Err(unsupported(

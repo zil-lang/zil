@@ -639,7 +639,7 @@ impl Plan {
                         // A Package shell is not a single newly-created Managed
                         // leaf. Transfer the actual RHS field provenance, while
                         // keeping every destination obligation and cleanup age.
-                        if let Some(owner) = sums::replacements::package_owner(&place.ty, b)? {
+                        if let Some(owners) = sums::replacements::package_owners(&place.ty, b)? {
                             let fields = transfer.slots.fields(local);
                             b.spend(fields.len())?;
                             if validate
@@ -653,18 +653,25 @@ impl Plan {
                                     "whole replacement requires every old field live",
                                 ));
                             }
-                            let field = fields.get(owner).copied().flatten().ok_or_else(|| {
-                                bad(span, "whole replacement has no actual owned field debt")
-                            })?;
-                            let incoming = state
-                                .package_fresh
-                                .get(value.0 as usize)
-                                .and_then(|fields| fields.get(owner))
-                                .copied()
-                                .ok_or_else(|| {
-                                    bad(span, "whole replacement RHS field provenance absent")
-                                })?;
-                            state.fresh[field] = incoming;
+                            b.spend(owners.len())?;
+                            for owner in owners {
+                                let field =
+                                    fields.get(owner).copied().flatten().ok_or_else(|| {
+                                        bad(
+                                            span,
+                                            "whole replacement has no actual owned field debt",
+                                        )
+                                    })?;
+                                let incoming = state
+                                    .package_fresh
+                                    .get(value.0 as usize)
+                                    .and_then(|fields| fields.get(owner))
+                                    .copied()
+                                    .ok_or_else(|| {
+                                        bad(span, "whole replacement RHS field provenance absent")
+                                    })?;
+                                state.fresh[field] = incoming;
+                            }
                             transfer
                                 .slots
                                 .product

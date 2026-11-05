@@ -181,7 +181,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                     || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
                     // Only the immutable verifier capability reaches Lower;
                     // ordinary shared Product captures retain plain pointers.
-                    || (ty.is_package_address() && matches!(ty, Type::Address { mutable: false, .. }))
+                    || ty.is_package_address()
                     // Verify already qualified the complete captured Store
                     // leaf, canonical definition, result and actual operands.
                     // A borrowed Store description still has no owning ABI.

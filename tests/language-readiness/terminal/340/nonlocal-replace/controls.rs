@@ -1,0 +1,250 @@
+//! Source-driven owning replacement through independent nonlocal positions.
+use super::*;
+const CAPTURE: &str = include_str!("captured-whole.zil");
+const MULTIPLE: &str = include_str!("multiple-inputs.zil");
+const STORE: &str = include_str!("store-whole.zil");
+fn typed(text: &str) -> zil_ir::TypedModule {
+    let input = source(text);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()
+}
+fn check(text: &str) {
+    let module = typed(text);
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &limits).unwrap();
+}
+#[test]
+fn g139_nonlocal_complete_package_source_raw_wire() {
+    for text in [
+        CAPTURE,
+        MULTIPLE,
+        STORE,
+        include_str!("two-leaf-helper.zil"),
+        include_str!("two-leaf-local.zil"),
+        include_str!("store-abort.zil"),
+        include_str!("pin-apart.zil"),
+        include_str!("enum-helper.zil"),
+    ] {
+        check(text);
+    }
+}
+
+#[test]
+fn g139_nonlocal_replacement_source_safety_neighbors() {
+    for text in [
+        include_str!("captured-old-desc.zil"),
+        include_str!("store-old-desc.zil"),
+        include_str!("same-inputs.zil"),
+        include_str!("pin-overlap.zil"),
+    ] {
+        let module = typed(text);
+        let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+    }
+    for text in [
+        include_str!("captured-escape.zil"),
+        include_str!("captured-return.zil"),
+    ] {
+        let report = compile_source(
+            &source(text),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(report.phase, Phase::Parse, "{}", report.to_json());
+    }
+}
+
+fn verify_reject(module: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan, code: &str) {
+    let limits = Limits::default();
+    let mut claim = plan.clone();
+    claim.module_fingerprint = module.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(module, &claim, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module.clone(), claim, &module.target, &limits),
+        zil_verify::verify_module_bytes(&bytes, &module.target, &limits),
+    ] {
+        let errors = result.unwrap_err();
+        assert!(errors.iter().any(|d| d.code == code), "{errors:?}");
+    }
+}
+#[test]
+fn g139_independent_verify_abort_and_unpaid_old_owner_neighbors() {
+    let module = typed(include_str!("store-abort.zil"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut missing_abort = module.clone();
+    let mut removed = 0;
+    for f in &mut missing_abort.functions {
+        for block in &mut f.blocks {
+            block.instructions.retain(|i| {
+                if matches!(i.kind, InstructionKind::AbortPlaceReservation { .. }) {
+                    removed += 1;
+                    false
+                } else {
+                    true
+                }
+            });
+        }
+    }
+    assert!(removed > 0);
+    verify_reject(&missing_abort, &plan, "E-VERIFY-PLACE-REPLACE");
+    let module = typed(include_str!("two-leaf-helper.zil"));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut missing_old_cleanup = module;
+    let f = missing_old_cleanup
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "work")
+        .unwrap();
+    let mut removed = 0;
+    for block in &mut f.blocks {
+        block.instructions.retain(|i| {
+            if matches!(i.kind, InstructionKind::DropPackage { .. }) {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+    }
+    assert_eq!(removed, 1);
+    verify_reject(&missing_old_cleanup, &plan, "E-VERIFY-RESOURCE");
+}
+#[test]
+fn g139_independent_verify_captured_and_store_retirement() {
+    for (text, code) in [
+        (include_str!("captured-old-desc.zil"), "E-VERIFY-RESOURCE"),
+        (include_str!("store-old-desc.zil"), "E-BORROW-CONFLICT"),
+    ] {
+        let module = typed(text);
+        let mut safe = module.clone();
+        let f = safe
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "work")
+            .unwrap();
+        let block = f
+            .blocks
+            .iter_mut()
+            .find(|block| {
+                block
+                    .instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+            })
+            .unwrap();
+        let read = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, InstructionKind::ReadDesc { .. }))
+            .unwrap();
+        let InstructionKind::ReadDesc { desc, .. } = block.instructions[read].kind else {
+            unreachable!()
+        };
+        let start = block
+            .instructions
+            .iter()
+            .position(|i| i.result == Some(desc))
+            .unwrap();
+        let moved: Vec<_> = block.instructions.drain(start..=read).collect();
+        let borrow = block
+            .instructions
+            .iter()
+            .position(|i| {
+                matches!(
+                    i.kind,
+                    InstructionKind::BorrowLocalMut { .. }
+                        | InstructionKind::OwnedStoreBorrowMut { .. }
+                )
+            })
+            .unwrap();
+        block.instructions.splice(borrow..borrow, moved);
+        let plan = zil_analyze::analyze(&safe, &Limits::default()).unwrap();
+        zil_verify::verify_module(safe.clone(), plan.clone(), &safe.target, &Limits::default())
+            .unwrap();
+        verify_reject(&module, &plan, code);
+    }
+}
+#[test]
+fn g139_native_old_drop_full_store_and_preparation_abort() {
+    use zil_driver::{NativeBackend, Optimization};
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (name, text, expected) in [
+                ("capture", CAPTURE, b"AB42\n".as_slice()),
+                ("store", STORE, b"AB42\n".as_slice()),
+                (
+                    "two-leaf",
+                    include_str!("two-leaf-helper.zil"),
+                    b"ABCD42\n".as_slice(),
+                ),
+                (
+                    "local-two-leaf",
+                    include_str!("two-leaf-local.zil"),
+                    b"ABCD42\n".as_slice(),
+                ),
+                (
+                    "tagged",
+                    include_str!("enum-helper.zil"),
+                    b"ABAC42,43\n".as_slice(),
+                ),
+                (
+                    "store-abort",
+                    include_str!("store-abort.zil"),
+                    b"BA42\n".as_slice(),
+                ),
+            ] {
+                let directory = Temp::new();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(directory.0.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{name}: {}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let output = Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert!(output.status.success(), "{name}: {output:?}");
+                assert_eq!(
+                    output.stdout, expected,
+                    "{name}/{backend:?}/{optimization:?}"
+                );
+                assert!(output.stderr.is_empty());
+            }
+        }
+    }
+}

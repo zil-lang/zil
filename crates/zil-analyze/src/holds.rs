@@ -3211,10 +3211,15 @@ pub(super) fn infer_module(
                                     bad("shared Product capture parameter is absent")
                                 })?;
                                 match &f.locals[local.0 as usize].ty {
-                                    Type::Address {
-                                        mutable: false,
-                                        inner,
-                                    } => inner.as_ref(),
+                                    Type::Address { mutable, inner }
+                                        if *mutable
+                                            || matches!(
+                                                f.values[value.0 as usize],
+                                                Type::Address { mutable: false, .. }
+                                            ) =>
+                                    {
+                                        inner.as_ref()
+                                    }
                                     _ => {
                                         return Err(vec![Diagnostic::unsupported(
                                             Phase::Analyze,
