@@ -58,8 +58,18 @@ impl zil_expand::ct_selection::Visitor for Scan<'_> {
             if !native {
                 self.has_dependent_root = true;
             }
-            self.budget
-                .reserve_temporary_bytes(std::mem::size_of::<(usize, bool)>() as u64)?;
+            if self.roots.len() == self.roots.capacity() {
+                let old = self.roots.capacity();
+                self.budget
+                    .reserve_analysis_work(self.roots.len() as u64 + 1)?;
+                self.budget.reserve_temporary_bytes(
+                    (self.roots.len() as u64 + 1) * std::mem::size_of::<(usize, bool)>() as u64,
+                )?;
+                self.roots.reserve_exact(1);
+                self.budget.release_temporary_bytes(
+                    old as u64 * std::mem::size_of::<(usize, bool)>() as u64,
+                );
+            }
             self.roots
                 .push((inner.as_ref() as *const s::Expr as usize, native));
             if self.roots_only {
@@ -524,11 +534,15 @@ impl RuntimeCt for RuntimePhase<'_> {
                 return Err(category("runtime CT source body absent", original.span));
             }
         }
-        let mut roots = Vec::new();
-        for (address, native) in scan.roots {
-            environment
-                .budget
-                .reserve_temporary_bytes(std::mem::size_of::<(SourceSite, bool)>() as u64)?;
+        let scanned_roots = std::mem::take(&mut scan.roots);
+        drop(scan);
+        let count = scanned_roots.len();
+        environment.budget.reserve_analysis_work(count as u64)?;
+        environment.budget.reserve_temporary_bytes(
+            count as u64 * std::mem::size_of::<(SourceSite, bool)>() as u64,
+        )?;
+        let mut roots = Vec::with_capacity(count);
+        for (address, native) in scanned_roots {
             roots.push((declaration.site(address, &mut environment)?, native));
         }
         let owner = declaration.symbol.clone();
