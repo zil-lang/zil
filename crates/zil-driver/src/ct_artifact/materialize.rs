@@ -27,6 +27,8 @@ mod self_constant_coverage;
 mod self_constants;
 #[path = "materialize_source_sites.rs"]
 mod source_sites;
+#[path = "materialize_runtime_phase.rs"]
+mod runtime_phase;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -53,7 +55,9 @@ fn late_import(span: Span) -> Vec<Diagnostic> {
     )]
 }
 
-pub(crate) struct Materialized {
+pub(crate) struct Materialized<'a> {
+    pub(super) runtime_environment: Option<Environment<'a>>,
+    pub(super) capture_usage: (u64, u64),
     pub modules: Vec<s::Module>,
     pub previews: Vec<Preview>,
     pub required_imports: Vec<(ModuleId, CoreImport)>,
@@ -63,7 +67,16 @@ pub(crate) struct Materialized {
     pub declaration_origins: Option<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>,
     pub lineage_remaining: Option<Limits>,
 }
-impl Materialized {
+impl Materialized<'_> {
+    #[cfg(test)]
+    fn without_runtime(self) -> Materialized<'static> {
+        Materialized {
+            runtime_environment: None, capture_usage: self.capture_usage,
+            modules: self.modules, previews: self.previews, required_imports: self.required_imports,
+            usage: self.usage, declaration_origins: self.declaration_origins,
+            lineage_remaining: self.lineage_remaining,
+        }
+    }
     pub(crate) fn retain_items(
         &mut self,
         index: usize,
@@ -214,6 +227,8 @@ impl Preview {
 }
 
 struct Materializer<'a, 'b> {
+    runtime_binding: Option<runtime_phase::RuntimeBinding<'a>>,
+    runtime_deferred: bool,
     environment: &'a mut Environment<'b>,
     sources: &'b [SourceUnit],
     parsed: &'b [Arc<ParseResult>],
@@ -908,6 +923,9 @@ impl Materializer<'_, '_> {
         expression: &s::Expr,
         expected: Option<CtTy>,
     ) -> CompileResult<super::execute::EvaluatedData> {
+        if self.runtime_binding.is_some() {
+            return self.runtime_expression_data(expression.span);
+        }
         if let s::ExprKind::SyntaxIsland { path, tree } = &expression.kind {
             return self
                 .provider(
@@ -1623,6 +1641,10 @@ impl Materializer<'_, '_> {
         self.depth(depth, item.span)?;
         match &mut item.kind {
             s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } => {
+                if runtime_phase::deferred(f, &mut self.environment.budget, self.max_depth)? {
+                    self.runtime_deferred = true;
+                    return Ok(());
+                }
                 for param in &mut f.params {
                     self.ty(module, &mut param.ty, owner, depth + 1)?;
                 }
@@ -2090,7 +2112,7 @@ impl Materializer<'_, '_> {
                 ));
             }
             s::ExprKind::MetaEval(inner) => {
-                if !self.uses_ct_domain(module, inner)? {
+                if self.runtime_binding.is_none() && !self.uses_ct_domain(module, inner)? {
                     // Ordinary scalar, Copy record, enum and opaque CT values
                     // retain the established producer and receiving type
                     // context. Selection happens before either VM runs.
@@ -2244,19 +2266,19 @@ impl Materializer<'_, '_> {
 // This is the single project materialization boundary: the parsed graph,
 // target, limits and frozen provider registry are all independent inputs.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn materialize(
-    sources: &[SourceUnit],
-    parsed: &[Arc<ParseResult>],
+pub(crate) fn materialize<'a>(
+    sources: &'a [SourceUnit],
+    parsed: &'a [Arc<ParseResult>],
     modules: &[&s::Module],
-    paths: &BTreeMap<Vec<String>, ModuleId>,
+    paths: &'a BTreeMap<Vec<String>, ModuleId>,
     imports: &[Vec<CoreImport>],
     root: ModuleId,
     fingerprint: Fingerprint,
-    target: &TargetProfile,
+    target: &'a TargetProfile,
     limits: &Limits,
     registry: Option<&CtLockedProviderRegistry>,
     original_declarations: bool,
-) -> CompileResult<Materialized> {
+) -> CompileResult<Materialized<'a>> {
     let (mut declaration_origins, capture_remaining) = if original_declarations {
         zil_expand::source_context::capture_original(
             sources,
@@ -2303,6 +2325,8 @@ pub(crate) fn materialize(
         }
     }
     let mut materializer = Materializer {
+        runtime_binding: None,
+        runtime_deferred: false,
         environment: &mut environment,
         sources,
         parsed,
@@ -2412,10 +2436,19 @@ pub(crate) fn materialize(
         .generated_nodes
         .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
         .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
+    let previews = std::mem::take(&mut materializer.previews);
+    let required_imports = std::mem::take(&mut materializer.required_imports);
+    let runtime_deferred = materializer.runtime_deferred;
+    drop(materializer);
     Ok(Materialized {
+        runtime_environment: runtime_deferred.then_some(environment),
+        capture_usage: (
+            (limits.max_analysis_steps - capture_remaining.max_analysis_steps) as u64,
+            (limits.max_nodes - capture_remaining.max_nodes) as u64,
+        ),
         modules: output,
-        previews: materializer.previews,
-        required_imports: materializer.required_imports,
+        previews,
+        required_imports,
         usage,
         declaration_origins,
         lineage_remaining,
@@ -2561,10 +2594,10 @@ mod data_value;
 #[cfg(test)]
 mod scoped_tests {
     use super::*;
-    fn run(text: &str) -> CompileResult<Materialized> {
+    fn run(text: &str) -> CompileResult<Materialized<'static>> {
         run_limited(text, &Limits::default())
     }
-    fn run_limited(text: &str, limits: &Limits) -> CompileResult<Materialized> {
+    fn run_limited(text: &str, limits: &Limits) -> CompileResult<Materialized<'static>> {
         let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "ct4-scoped.zil", text);
         let parsed = Arc::new(zil_syntax::parse(&source));
         let syntax = &parsed.module;
@@ -2580,7 +2613,7 @@ mod scoped_tests {
             limits,
             None,
             true,
-        )
+        ).map(Materialized::without_runtime)
     }
     #[test]
     fn closure_site_lineage_tracks_actual_materialization_and_retained_rows() {
@@ -2701,7 +2734,7 @@ mod scoped_tests {
                 },
                 None,
                 true,
-            )
+            ).map(Materialized::without_runtime)
         };
         let expected = run(Limits::default().max_analysis_steps).unwrap();
         let origins = expected.declaration_origins.unwrap();
@@ -2770,6 +2803,8 @@ mod scoped_tests {
             )?;
             environment.classify_definitions()?;
             let mut materializer = Materializer {
+                runtime_binding: None,
+                runtime_deferred: false,
                 environment: &mut environment,
                 sources,
                 parsed: parsed_slice,
@@ -2918,7 +2953,7 @@ mod scoped_tests {
             &limits,
             None,
             true,
-        )
+        ).map(Materialized::without_runtime)
         .unwrap();
         let core = zil_expand::expand(&source, &materialized.modules[0]).unwrap();
         let typed = zil_types::check(&core, &target, &limits).unwrap();
@@ -3000,7 +3035,7 @@ mod scoped_tests {
             &limits,
             None,
             true,
-        )
+        ).map(Materialized::without_runtime)
         .unwrap();
         for (name, lifetime) in [("first", "left"), ("second", "right")] {
             let function = output.modules[0]
