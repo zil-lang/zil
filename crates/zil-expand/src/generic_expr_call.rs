@@ -488,7 +488,17 @@ impl Engine<'_> {
                             && !parameter
                                 .is_some_and(|p| matches!(p.kind, GenericParamKind::Const(_)))
                         {
-                            self.ty(t, depth + 1)?;
+                            // A qualified nominal Type actual must reach
+                            // instantiate_inner with its source lifetime
+                            // application intact. That path publishes the
+                            // joint stored instance and only then substitutes
+                            // its physical type into the callee body.
+                            if !(self.stored_nominals
+                                && !self.life_scope.is_empty()
+                                && self.qualified_actual_syntax(t, depth + 1)?)
+                            {
+                                self.ty(t, depth + 1)?;
+                            }
                             types.push(t.clone());
                         } else {
                             types.push(consts::argument(arg, parameter, &mut self.budget)?);

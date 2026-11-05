@@ -31,6 +31,7 @@ pub(super) fn concrete_storage(
         depth: 0,
         symbolic: None,
         instantiated: None,
+        source: None,
     }
     .copy(ty)
 }
@@ -55,6 +56,26 @@ pub(super) fn require_registered<'n>(
     variables: &BTreeSet<String>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    require_registered_scoped(
+        ty,
+        nominals,
+        instantiated,
+        available,
+        variables,
+        budget,
+        None,
+    )
+}
+
+pub(super) fn require_registered_scoped<'n>(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &'n Item>,
+    instantiated: Option<&'n BTreeMap<String, Item>>,
+    available: &trait_bounds::Bounds,
+    variables: &BTreeSet<String>,
+    budget: &mut Budget<'_>,
+    source: Option<&Function>,
+) -> R<()> {
     Shape {
         nominals,
         budget,
@@ -62,6 +83,7 @@ pub(super) fn require_registered<'n>(
         depth: 0,
         symbolic: Some((available, variables)),
         instantiated,
+        source,
     }
     .copy(ty)
     .map(|_| ())
@@ -83,6 +105,7 @@ struct Shape<'s, 'b, 'n, 'l> {
     active: BTreeSet<String>,
     depth: usize,
     symbolic: Option<(&'s trait_bounds::Bounds, &'s BTreeSet<String>)>,
+    source: Option<&'s Function>,
 }
 
 impl<'n> Shape<'_, '_, 'n, '_> {
@@ -141,20 +164,66 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         }
         let mut substitutions = BTreeMap::new();
         for (parameter, argument) in aggregate.generics.iter().zip(args) {
-            let GenericArg::Type(ty) = argument else {
-                return Err(unsupported(ty.span, "StoreElement constant type argument"));
-            };
-            self.budget.ty(ty)?;
-            if let GenericParamKind::Type(bounds) = &parameter.kind {
-                for bound in bounds {
-                    if is_bound(bound) {
-                        // Bounds constrain actual arguments even when a parameter
-                        // is phantom and contributes no field to this layout.
-                        self.copy(ty)?;
+            match (&parameter.kind, argument) {
+                (GenericParamKind::Type(bounds), GenericArg::Type(ty)) => {
+                    self.budget.ty(ty)?;
+                    for bound in bounds {
+                        if is_bound(bound) {
+                            self.copy(ty)?;
+                        }
+                    }
+                    substitutions.insert(parameter.name.clone(), ty.clone());
+                }
+                (GenericParamKind::Const(domain), GenericArg::Const(value)) => {
+                    let source = self.source.ok_or_else(|| {
+                        unsupported(ty.span, "Copy const actual needs source binder proof")
+                    })?;
+                    let symbolic = if let ExprKind::Name(name) = &value.kind {
+                        consts::symbolic_parameter(source, name).map(|(_, parameter)| parameter)
+                    } else {
+                        None
+                    };
+                    if let Some(GenericParam {
+                        kind: GenericParamKind::Const(actual_domain),
+                        ..
+                    }) = symbolic
+                    {
+                        if type_key(actual_domain, self.budget)? != type_key(domain, self.budget)? {
+                            return Err(error(
+                                value.span,
+                                "Copy const actual domain differs from source binder",
+                            ));
+                        }
+                        substitutions
+                            .insert(parameter.name.clone(), consts::carrier(value, self.budget)?);
+                    } else {
+                        let carrier = consts::carrier(value, self.budget)?;
+                        substitutions.insert(
+                            parameter.name.clone(),
+                            consts::normalize(parameter, &carrier, self.budget)?,
+                        );
                     }
                 }
+                (GenericParamKind::Lifetime, GenericArg::Lifetime(name)) => {
+                    let source = self.source.ok_or_else(|| {
+                        unsupported(ty.span, "Copy life actual needs source binder proof")
+                    })?;
+                    self.budget.text(name, ty.span)?;
+                    if !source
+                        .generics
+                        .iter()
+                        .any(|p| p.name == *name && matches!(p.kind, GenericParamKind::Lifetime))
+                    {
+                        return Err(error(ty.span, "Copy life actual has no source binder"));
+                    }
+                }
+                _ => {
+                    return Err(error(
+                        ty.span,
+                        "Copy actual kind differs from nominal declaration",
+                    ));
+                }
             }
-            substitutions.insert(parameter.name.clone(), ty.clone());
         }
         Ok((aggregate, substitutions))
     }
@@ -270,8 +339,19 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 // Copy qualification distinguishes Box<Box<i32>> from Box<i32>.
                 // The complete instance key pays its normal syntax work first.
                 // StoreElement retains its prior nominal activity rule and cost.
+                let scoped = if self.source.is_some() {
+                    self.budget.identity_work(args.len(), ty.span)?;
+                    args.iter()
+                        .any(|arg| matches!(arg, GenericArg::Lifetime(_)))
+                } else {
+                    false
+                };
                 let key = if self.symbolic.is_some() {
-                    Cow::Owned(type_key(ty, self.budget)?)
+                    Cow::Owned(if let Some(source) = self.source.filter(|_| scoped) {
+                        check::source_class_key(ty, source, self.budget)?
+                    } else {
+                        type_key(ty, self.budget)?
+                    })
                 } else {
                     Cow::Borrowed(name.as_str())
                 };
