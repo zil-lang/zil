@@ -18,11 +18,44 @@ pub(super) fn scalar(t: &Type) -> bool {
             | Type::F64
     )
 }
+pub(super) fn scalar_foreign(f: &TypedFunction, b: &mut Budget) -> CompileResult<bool> {
+    if f.foreign.is_none() {
+        return Ok(false);
+    }
+    b.spend(
+        f.parameters.len().saturating_add(1),
+        "stored scalar foreign signature",
+    )?;
+    Ok(f.environment.is_none()
+        && f.call_kind == CallKind::Direct
+        && f.storage_life.is_none()
+        && f.callable_contract.is_none()
+        && f.callable_return_contract.is_none()
+        && f.reference_return_bound.is_none()
+        && f.result_mode == zil_ir::PassingMode::Infer
+        && scalar(&f.return_type)
+        && f.blocks.is_empty()
+        && f.values.is_empty()
+        && f.parameters
+            .iter()
+            .all(|p| f.locals.get(p.0 as usize).is_some_and(|l| scalar(&l.ty))))
+}
+
+pub(super) fn lending(d: &ClosureDefinition) -> bool {
+    d.storage_life.is_some()
+        && !d.lending_captures.is_empty()
+        && d.kind != CallableKind::FnOnce
+        && matches!(&d.result, Type::Address { mutable:false, inner } if scalar(inner))
+}
+pub(super) fn life_result(d: &ClosureDefinition) -> &Type {
+    if lending(d) { &Type::Unit } else { &d.result }
+}
+
 pub(super) fn finite(module: &TypedModule, id: zil_ir::ClosureId) -> bool {
     module
         .closures
         .get(id.0 as usize)
-        .is_some_and(|d| d.lending_captures.is_empty() && scalar(&d.result))
+        .is_some_and(|d| (d.lending_captures.is_empty() && scalar(&d.result)) || lending(d))
 }
 pub(super) fn fixed_value(module: &TypedModule, t: &Type) -> bool {
     let t = if let Type::Address { inner, .. } = t {
@@ -116,7 +149,12 @@ pub(super) fn definitions(module: &TypedModule, b: &mut Budget) -> CompileResult
                     "actual captured closure entry relation differs from definition",
                 ));
             }
-            super::signature_life::capture_relation(&d.parameters, &d.captures, &d.result, life)?;
+            super::signature_life::capture_relation(
+                &d.parameters,
+                &d.captures,
+                life_result(d),
+                life,
+            )?;
         } else if f.storage_life.is_some() {
             return Err(bad("closure definition omits actual entry relation"));
         }
@@ -217,6 +255,10 @@ pub(super) fn instruction(module: &TypedModule, f: &TypedFunction, i: &Instructi
             .locals
             .get(local.0 as usize)
             .is_some_and(|l| value(module, &l.ty)),
+        InstructionKind::BorrowCapture { mutable: false, .. } => f
+            .environment
+            .and_then(|id| module.closures.get(id.0 as usize))
+            .is_some_and(lending),
         _ => called(module, f, &i.kind).is_some(),
     }
 }

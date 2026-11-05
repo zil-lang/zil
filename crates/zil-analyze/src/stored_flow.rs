@@ -2,7 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 use std::collections::BTreeMap;
-mod owned;
+pub(super) mod owned;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) struct Target {
@@ -717,7 +717,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         return super::signature_life::capture_relation(
             &parameters,
             &d.captures,
-            &f.return_type,
+            super::stored_callables::life_result(d),
             c,
         );
     }
@@ -731,7 +731,66 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     Ok(())
 }
 
-fn returns(f: &TypedFunction, facts: &Facts, b: &mut Budget) -> CompileResult<()> {
+fn returns(
+    module: &TypedModule,
+    f: &TypedFunction,
+    facts: &Facts,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if let Some(d) = f
+        .environment
+        .and_then(|id| module.closures.get(id.0 as usize))
+        && super::stored_callables::lending(d)
+    {
+        fee(b, d.lending_captures.len().saturating_add(1))?;
+        let mut actual = BTreeSet::new();
+        for (path, sources) in &facts.returned {
+            if !path.is_empty() || sources.is_empty() {
+                return Err(failure(
+                    "lending result lacks actual inline capture sources",
+                ));
+            }
+            for source in sources {
+                fee(
+                    b,
+                    source
+                        .place
+                        .len()
+                        .saturating_add(source.stored.len())
+                        .saturating_add(1),
+                )?;
+                let HoldRoot::Capture(index) = source.base else {
+                    return Err(failure(
+                        "environment result escapes local or explicit input storage",
+                    ));
+                };
+                if !source.place.is_empty()
+                    || !source.stored.is_empty()
+                    || !d
+                        .captures
+                        .get(index as usize)
+                        .is_some_and(super::stored_callables::scalar)
+                {
+                    return Err(failure(
+                        "lending source is not an actual inline scalar capture",
+                    ));
+                }
+                ordered(b, actual.len(), 0)?;
+                actual.insert(index);
+            }
+        }
+        if actual.len() != d.lending_captures.len()
+            || actual
+                .into_iter()
+                .zip(&d.lending_captures)
+                .any(|(actual, proposed)| actual != *proposed)
+        {
+            return Err(failure(
+                "lending capture proposal differs from actual returned environment fields",
+            ));
+        }
+        return Ok(());
+    }
     for (path, sources) in &facts.returned {
         if sources.is_empty() {
             return Err(failure(
@@ -1379,7 +1438,7 @@ fn transfer(
                     out.slots.insert(path.clone(), permission);
                 }
             }
-            if callee.foreign.is_some()
+            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
@@ -1409,6 +1468,91 @@ fn transfer(
                 }
             }
             out.creation_complete = Some(complete);
+        }
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let d = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| super::stored_callables::lending(d))
+                .ok_or_else(|| failure("inline capture loan has no lending environment"))?;
+            if !d
+                .captures
+                .get(*index as usize)
+                .is_some_and(super::stored_callables::scalar)
+            {
+                return Err(failure("inline capture loan requires a real scalar field"));
+            }
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                base: HoldRoot::Capture(*index),
+                stored: vec![],
+                place: vec![],
+            });
+        }
+        kind if super::stored_callables::called(module, f, kind)
+            .is_some_and(|(d, _)| super::stored_callables::lending(d)) =>
+        {
+            let (d, _) = super::stored_callables::called(module, f, kind)
+                .ok_or_else(|| failure("lending callee missing"))?;
+            let mut receiver = Permission::default();
+            match kind {
+                InstructionKind::CallClosureBorrowed { callee, .. } => {
+                    union(&mut receiver, &get(*callee)?.pointer, b)?;
+                }
+                InstructionKind::CallClosureShared { callee, .. }
+                | InstructionKind::CallClosureMut { callee, .. } => {
+                    fee(b, 1)?;
+                    receiver.targets.insert(Target {
+                        base: HoldRoot::Local(*callee),
+                        stored: vec![],
+                        place: vec![],
+                    });
+                }
+                _ => {
+                    return Err(failure(
+                        "lending invocation must borrow its actual runtime environment",
+                    ));
+                }
+            }
+            if let Some(sources) = summaries[d.function.0 as usize].returned.get(&Vec::new()) {
+                for source in sources {
+                    let HoldRoot::Capture(index) = source.base else {
+                        return Err(failure(
+                            "callee lending result lacks an actual capture source",
+                        ));
+                    };
+                    if !source.stored.is_empty() {
+                        return Err(failure("lender cannot return an external capture target"));
+                    }
+                    for target in &receiver.targets {
+                        fee(
+                            b,
+                            target
+                                .place
+                                .len()
+                                .saturating_add(target.stored.len())
+                                .saturating_add(source.place.len())
+                                .saturating_add(3),
+                        )?;
+                        let mut target = target.clone();
+                        target.place.push(PlaceProjection::Field(index));
+                        target.place.extend_from_slice(&source.place);
+                        ordered(
+                            b,
+                            out.pointer.targets.len(),
+                            target.place.len().saturating_add(target.stored.len()),
+                        )?;
+                        out.pointer.targets.insert(target);
+                    }
+                    for loan in &receiver.loans {
+                        ordered(b, out.pointer.loans.len(), 0)?;
+                        out.pointer.loans.insert(*loan);
+                    }
+                }
+            }
         }
         InstructionKind::ReadCapture { index } if !state.captures.is_empty() => {
             ordered(b, state.captures.len(), 0)?;
@@ -1472,6 +1616,10 @@ fn transfer(
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
                 | InstructionKind::Call { .. }
+                | InstructionKind::BorrowCapture { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
         )
         && matches!(value_type(f, result)?, Type::Address { .. })
     {
@@ -1864,6 +2012,18 @@ fn windows(
                     });
                     let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
                     use_permission(&actual, write, &current, loans, apart, b)?;
+                }
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            base: HoldRoot::Capture(*index),
+                            stored: vec![],
+                            place: vec![],
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    fee(b, 1)?;
+                    use_permission(&actual, *mutable, &current, loans, apart, b)?;
                 }
                 InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
@@ -2270,7 +2430,7 @@ pub(super) fn derive(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
-        returns(f, facts, b)?;
+        returns(module, f, facts, b)?;
         for (ty, roots) in f.values.iter().zip(&facts.values) {
             fee(b, 1)?;
             let needs_target = matches!(ty, Type::Address { .. })
@@ -2293,7 +2453,7 @@ pub(super) fn infer(
     b.stored_owned_fixed = owned::profile(module, b)?;
     super::stored_callables::definitions(module, b)?;
     for f in &module.functions {
-        if f.foreign.is_some()
+        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -2341,7 +2501,9 @@ pub(super) fn infer(
                 Some(f.span),
             )]);
         }
-        actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        if f.foreign.is_none() {
+            actual_instructions(module, f, &graphs[f.id.0 as usize], b)?;
+        }
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].1, b)?;
     }
     super::stored_callables::roles(module, graphs, b)?;
@@ -2483,6 +2645,24 @@ fn actual_instructions(
                 super::stored_callables::types(module, f, i, b)?;
             }
             match &i.kind {
+                InstructionKind::BorrowCapture {
+                    index,
+                    mutable: false,
+                } => {
+                    let d = f
+                        .environment
+                        .and_then(|id| module.closures.get(id.0 as usize))
+                        .filter(|d| super::stored_callables::lending(d))
+                        .ok_or_else(|| failure("capture borrow outside real lending entry"))?;
+                    let ty = d
+                        .captures
+                        .get(*index as usize)
+                        .filter(|ty| super::stored_callables::scalar(ty))
+                        .ok_or_else(|| {
+                            failure("capture borrow lacks actual inline scalar field")
+                        })?;
+                    address_result(f, i, false, ty, b)?;
+                }
                 InstructionKind::ExtractField { aggregate, index } => {
                     let ty = value_type(f, *aggregate)?;
                     b.type_work(ty, false, "stored profile ordinary Copy field extraction")?;

@@ -287,11 +287,7 @@ pub(crate) fn parameter_mode(ty: &TypeRef, name: &str) -> Option<Option<bool>> {
         return Some(None);
     }
     match &ty.kind {
-        TypeKind::Reference {
-            mutable,
-            lifetime: None,
-            inner,
-        } if matches!(&grouped(inner).kind, TypeKind::Named { path, args } if path.as_slice() == [name] && args.is_empty()) => {
+        TypeKind::Reference { mutable, inner, .. } if matches!(&grouped(inner).kind, TypeKind::Named { path, args } if path.as_slice() == [name] && args.is_empty()) => {
             Some(Some(*mutable))
         }
         _ => None,

@@ -118,6 +118,75 @@ fn value(module: &TypedModule, ty: &Type, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 
+// Raw teardown metadata is independently authenticated before it can explain
+// a borrowed receiver or participate in implicit environment destruction.
+pub(crate) fn teardown(
+    module: &TypedModule,
+    resource: &zil_ir::ResourceDefinition,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    let Some(id) = resource.teardown else {
+        return Ok(());
+    };
+    fee(b, 1)?;
+    let f = module
+        .functions
+        .get(id.0 as usize)
+        .ok_or_else(|| failure("Fixed owner teardown entry is absent"))?;
+    if f.id != id
+        || f.foreign.is_some()
+        || f.environment.is_some()
+        || f.call_kind != CallKind::Direct
+        || f.callable_contract.is_some()
+        || f.callable_return_contract.is_some()
+        || f.reference_return_bound.is_some()
+        || f.storage_life.is_some()
+        || f.parameters.len() != 1
+        || f.return_type != Type::Unit
+        || f.result_mode != PassingMode::Infer
+    {
+        return Err(failure(
+            "Fixed owner teardown requires an ordinary actual Desc-to-Unit entry",
+        ));
+    }
+    let Some(Type::Desc(actual)) = f
+        .parameters
+        .first()
+        .and_then(|p| f.locals.get(p.0 as usize))
+        .map(|l| &l.ty)
+    else {
+        return Err(failure(
+            "Fixed owner teardown receiver is not an actual Desc",
+        ));
+    };
+    b.type_work(actual, false, "Fixed teardown actual payload")?;
+    b.type_work(
+        &resource.payload,
+        false,
+        "Fixed teardown registered payload",
+    )?;
+    if **actual != resource.payload {
+        return Err(failure(
+            "Fixed owner teardown has a different nominal payload",
+        ));
+    }
+    // Teardown is an implicit responsibility edge, never a public direct call,
+    // function value or closure entry that could discharge a different owner.
+    fee(b, module.closures.len())?;
+    if module.closures.iter().any(|d| d.function == id) {
+        return Err(failure("Fixed teardown is also a closure entry"));
+    }
+    for f in &module.functions {
+        for block in &f.blocks {
+            fee(b, block.instructions.len())?;
+            if block.instructions.iter().any(|i| matches!(i.kind,
+                InstructionKind::Call{function,..} | InstructionKind::FunctionRef { function } if function == id))
+            { return Err(failure("Fixed owner teardown cannot be called as an ordinary function")); }
+        }
+    }
+    Ok(())
+}
+
 pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<bool> {
     if module.resources.is_empty() {
         return Ok(false);
@@ -176,10 +245,17 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
                 return Err(failure("resource definition name is not unique"));
             }
         }
-        if r.teardown.is_some() {
-            return Err(closed(
-                "owned Fixed with user-defined Drop is outside this profile",
-            ));
+        teardown(module, r, b)?;
+        if let Some(id) = r.teardown {
+            fee(b, index)?;
+            if module.resources[..index]
+                .iter()
+                .any(|previous| previous.teardown == Some(id))
+            {
+                return Err(failure(
+                    "Fixed owner teardown is registered for two resources",
+                ));
+            }
         }
     }
     for d in &module.closures {
@@ -208,11 +284,20 @@ pub(super) fn profile(module: &TypedModule, b: &mut Budget) -> CompileResult<boo
         }
         for p in &f.parameters {
             let ty = &f.locals[p.0 as usize].ty;
-            if matches!(ty, Type::Managed(_) | Type::Desc(_)) {
-                return Err(closed(
-                    "owned Fixed resource parameter transfer is outside this profile",
-                ));
+            if matches!(ty, Type::Desc(_)) {
+                fee(b, module.resources.len())?;
+                if !module
+                    .resources
+                    .iter()
+                    .any(|resource| resource.teardown == Some(f.id))
+                {
+                    return Err(closed(
+                        "owned Fixed description parameters require the actual resource teardown entry",
+                    ));
+                }
             }
+            // A direct Managed parameter is already the actual owning carrier.
+            // The mandatory independent resource ledger proves its transfer.
         }
         for ty in f
             .locals

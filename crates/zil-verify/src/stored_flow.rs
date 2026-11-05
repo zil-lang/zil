@@ -810,7 +810,7 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         return super::signature_life::closure_relation(
             &parameters,
             &d.captures,
-            &f.return_type,
+            super::stored_callables::life_result(d),
             c,
             Some(f.span),
         );
@@ -818,7 +818,10 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
     if has_fixed_environment {
         b.spend(parameters.len())?;
         for ty in &parameters {
-            if !fixed_environment(module, ty) && !super::stored_callables::shared_input(ty) {
+            if !fixed_environment(module, ty)
+                && !super::stored_callables::shared_input(ty)
+                && !super::stored_owned::owner(ty)
+            {
                 return Err(unsupported(
                     "captured Fixed helper requires shared finite data parameters",
                     Some(f.span),
@@ -1211,6 +1214,83 @@ fn step(
                 b,
             )?;
         }
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let definition = captured_definition(module, f)
+                .filter(|d| super::stored_callables::lending(d))
+                .ok_or_else(|| err("capture loan has no qualified lender entry"))?;
+            if !definition
+                .captures
+                .get(*index as usize)
+                .is_some_and(super::stored_callables::scalar)
+            {
+                return Err(err("capture loan does not address an inline scalar field"));
+            }
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Capture(*index),
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
+        kind if super::stored_callables::called(module, f, kind)
+            .is_some_and(|(definition, _)| super::stored_callables::lending(definition)) =>
+        {
+            let (definition, _) = super::stored_callables::called(module, f, kind)
+                .ok_or_else(|| err("lender entry absent"))?;
+            let receiver = match kind {
+                InstructionKind::CallClosureShared { callee, .. }
+                | InstructionKind::CallClosureMut { callee, .. } => {
+                    b.spend(1)?;
+                    Permission {
+                        sources: vec![Source {
+                            base: HoldRoot::Local(*callee),
+                            leaf: vec![],
+                            inline: vec![],
+                        }],
+                        loans: vec![],
+                    }
+                }
+                InstructionKind::CallClosureBorrowed { callee, .. } => {
+                    let mut permission = Permission::default();
+                    join_permission(&mut permission, &val(*callee)?.address, b)?;
+                    permission
+                }
+                _ => {
+                    return Err(err(
+                        "environment result requires a borrowed actual receiver",
+                    ));
+                }
+            };
+            for (path, returned) in &summaries[definition.function.0 as usize].result {
+                b.spend(path.len().saturating_add(1))?;
+                if !path.is_empty() {
+                    return Err(err("environment lending result has extra stored leaves"));
+                }
+                for actual in returned {
+                    let HoldRoot::Capture(field) = actual.base else {
+                        return Err(err("lender returned a nonenvironment origin"));
+                    };
+                    if !actual.leaf.is_empty() {
+                        return Err(err("lender returned an external capture target"));
+                    }
+                    for original in &receiver.sources {
+                        b.spend(
+                            width(original)
+                                .saturating_add(actual.inline.len())
+                                .saturating_add(2),
+                        )?;
+                        let mut source = original.clone();
+                        source.inline.push(PlaceProjection::Field(field));
+                        source.inline.extend_from_slice(&actual.inline);
+                        add_sources(&mut out.address.sources, &[source], b)?;
+                    }
+                    add_loans(&mut out.address.loans, &receiver.loans, b)?;
+                }
+            }
+        }
         InstructionKind::MakeClosure { closure, captures }
             if module
                 .closures
@@ -1307,7 +1387,7 @@ fn step(
                 .functions
                 .get(function.0 as usize)
                 .ok_or_else(|| err("call target absent"))?;
-            if callee.foreign.is_some()
+            if (callee.foreign.is_some() && !super::stored_callables::scalar_foreign(callee, b)?)
                 || callee.environment.is_some()
                 || callee.call_kind != CallKind::Direct
             {
@@ -1372,6 +1452,10 @@ fn step(
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
                 | InstructionKind::Call { .. }
+                | InstructionKind::BorrowCapture { .. }
+                | InstructionKind::CallClosureBorrowed { .. }
+                | InstructionKind::CallClosureShared { .. }
+                | InstructionKind::CallClosureMut { .. }
         )
         && matches!(vt(f, id)?, Type::Address { .. })
     {
@@ -1772,6 +1856,18 @@ fn windows(
                         b,
                     )?;
                 }
+                InstructionKind::BorrowCapture { index, mutable } => {
+                    b.spend(1)?;
+                    let actual = Permission {
+                        sources: vec![Source {
+                            base: HoldRoot::Capture(*index),
+                            leaf: vec![],
+                            inline: vec![],
+                        }],
+                        loans: vec![],
+                    };
+                    access(&actual, *mutable, &active, &solution.loans, requirements, b)?;
+                }
                 InstructionKind::Store { local, .. }
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::TakeLocal { local }
@@ -2134,7 +2230,7 @@ pub(super) fn check(
                 Some(f.span),
             ));
         }
-        if f.foreign.is_some()
+        if (f.foreign.is_some() && !super::stored_callables::scalar_foreign(f, b)?)
             || f.callable_return_contract.is_some()
             || f.call_kind != CallKind::Direct
         {
@@ -2222,11 +2318,51 @@ pub(super) fn check(
                 "stored/reference operation has no complete actual target permission",
             ));
         }
+        let lender = captured_definition(module, f).filter(|d| super::stored_callables::lending(d));
+        if let Some(definition) = lender {
+            b.spend(definition.lending_captures.len().saturating_add(1))?;
+            let mut fields = Vec::new();
+            for (path, origins) in &s.result {
+                if !path.is_empty() || origins.is_empty() {
+                    return Err(err("lender result lacks real capture sources"));
+                }
+                for origin in origins {
+                    b.spend(width(origin).saturating_add(fields.len()).saturating_add(1))?;
+                    let HoldRoot::Capture(field) = origin.base else {
+                        return Err(err(
+                            "lender retained activation or explicit argument storage",
+                        ));
+                    };
+                    if !origin.leaf.is_empty()
+                        || !origin.inline.is_empty()
+                        || !definition
+                            .captures
+                            .get(field as usize)
+                            .is_some_and(super::stored_callables::scalar)
+                    {
+                        return Err(err(
+                            "lender result is not grounded in a real inline scalar capture",
+                        ));
+                    }
+                    if let Err(index) = fields.binary_search(&field) {
+                        fields.insert(index, field);
+                    }
+                }
+            }
+            if fields != definition.lending_captures {
+                return Err(err(
+                    "lending capture claim differs from independently recovered fields",
+                ));
+            }
+        }
         for (path, sources) in &s.result {
             if sources.is_empty() {
                 return Err(err("stored/reference result has no actual input source"));
             }
             for source in sources {
+                if lender.is_some() {
+                    continue;
+                }
                 let HoldRoot::Parameter(position) = source.base else {
                     return Err(err(
                         "stored/reference return retains activation or capture storage",
