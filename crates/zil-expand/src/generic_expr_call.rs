@@ -253,7 +253,13 @@ impl Engine<'_> {
                 .expr_call_conversion(arguments, e.span, env, name, depth)
                 .map(|result| result.expect("numeric conversion handler"));
         }
-        let call = self.runtime_calls.get(&(e as *const Expr as usize)).copied();
+        let call = match &e.kind {
+            ExprKind::Call { callee, .. } => self
+                .runtime_calls
+                .get(&(callee.as_ref() as *const Expr as usize))
+                .copied(),
+            _ => None,
+        };
         let previous = std::mem::replace(&mut self.runtime_call, call);
         let result = self.expr_call_selected(e, env, context, depth);
         self.runtime_call = previous;

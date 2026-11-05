@@ -125,7 +125,7 @@ pub fn observe_explicit_calls(
                         self.expression(callee, depth + 1)?;
                     }
                     for argument in arguments {
-                        self.expression(argument, depth + 1)?;
+                        self.expression(&argument.value, depth + 1)?;
                     }
                     Ok(())
                 }

@@ -181,8 +181,11 @@ impl Engine<'_> {
                     self.budget
                         .lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span)
                         .map_err(|e| vec![e])?;
+                    let ExprKind::Call { callee, .. } = &expression.kind else {
+                        unreachable!("runtime call visitor emits calls")
+                    };
                     self.runtime_calls
-                        .insert(expression as *const Expr as usize, ordinal);
+                        .insert(callee.as_ref() as *const Expr as usize, ordinal);
                     Ok(())
                 }
             }
