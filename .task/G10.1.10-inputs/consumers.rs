@@ -57,11 +57,10 @@ fn input(name: &str, text: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), format!("g10110-{name}.zil"), text)
 }
 
-#[test]
-fn g10110_source_and_honest_raw_wire() {
+fn source_and_honest_raw_wire(inputs: &[(&str, &str, &[u8])]) {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    for &(name, text, _) in INPUTS {
+    for &(name, text, _) in inputs {
         let source = input(name, text);
         let report = compile_source(
             &source,
@@ -133,8 +132,7 @@ fn replace_once(text: &str, from: &str, to: &str) -> String {
     text.replacen(from, to, 1)
 }
 
-#[test]
-fn g10110_nearest_source_negatives() {
+fn nearest_source_negatives(ownership: bool) {
     let two = include_str!("two-leaf-package-helper.zil");
     let stale = replace_once(
         two,
@@ -169,14 +167,20 @@ fn g10110_nearest_source_negatives() {
         "dispatch(&mut f,&mut g,left,3)",
         "dispatch(&mut f,&mut f,left,3)",
     );
-    for (name, text, early_consumption) in [
+    for (ordinal, (name, text, early_consumption)) in [
         ("second-leaf-stale-desc", stale, false),
         ("same-store-reserve", store, false),
         ("actual-f-double-consume", twice, true),
         ("overlapping-lending-call", overlap, false),
         ("dead-lending-environment", escaped, false),
         ("two-mut-roles-one-instance", aliased, false),
-    ] {
+    ]
+    .into_iter()
+    .enumerate()
+    {
+        if (ordinal < 2) != ownership {
+            continue;
+        }
         let report = compile_source(
             &input(name, &text),
             &CompileOptions {
@@ -213,10 +217,9 @@ fn g10110_nearest_source_negatives() {
     }
 }
 
-#[test]
 #[cfg(target_os = "linux")]
-fn g10110_native_complete_consumers() {
-    for &(name, text, stdout) in INPUTS {
+fn native_complete_consumers(inputs: &[(&str, &str, &[u8])]) {
+    for &(name, text, stdout) in inputs {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
                 continue;
@@ -257,10 +260,42 @@ fn g10110_native_complete_consumers() {
                 // Every fixture independently computes zero on success.
                 let mut expected = stdout.to_vec();
                 expected.extend_from_slice(b"0\n");
-                assert_eq!(output.stdout, expected, "{name}/{backend:?}/{optimization:?}");
+                assert_eq!(
+                    output.stdout, expected,
+                    "{name}/{backend:?}/{optimization:?}"
+                );
                 assert!(output.stderr.is_empty(), "{name}: {output:?}");
                 std::fs::remove_dir_all(directory).unwrap();
             }
         }
     }
+}
+
+// Disjoint groups allow each implementation to be independently checked while
+// the complete existing aggregates target still executes every prepared case.
+#[test]
+fn g10110_ownership_source_raw_wire() {
+    source_and_honest_raw_wire(&INPUTS[..7]);
+}
+#[test]
+fn g10110_callable_source_raw_wire() {
+    source_and_honest_raw_wire(&INPUTS[7..]);
+}
+#[test]
+fn g10110_ownership_negatives() {
+    nearest_source_negatives(true);
+}
+#[test]
+fn g10110_callable_negatives() {
+    nearest_source_negatives(false);
+}
+#[test]
+#[cfg(target_os = "linux")]
+fn g10110_ownership_native() {
+    native_complete_consumers(&INPUTS[..7]);
+}
+#[test]
+#[cfg(target_os = "linux")]
+fn g10110_callable_native() {
+    native_complete_consumers(&INPUTS[7..]);
 }
