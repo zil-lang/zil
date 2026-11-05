@@ -517,6 +517,7 @@ struct Engine<'a> {
     // signature replaces it with its physical name. Only body checking reads
     // this hint; the emitted function header remains physical.
     source_enum_return: Option<TypeRef>,
+    source_enum_return_active: bool,
     callable_name: Option<String>,
     callable_pair: Option<[String; 2]>,
     active_callables: Option<callable::CallableTemplates>,
@@ -621,6 +622,7 @@ impl<'a> Engine<'a> {
             nominals: BTreeMap::new(),
             return_type: None,
             source_enum_return: None,
+            source_enum_return_active: false,
             callable_name: None,
             callable_pair: None,
             active_callables: None,
@@ -1616,22 +1618,31 @@ impl<'a> Engine<'a> {
                     self.ty(t, 0)?;
                 }
                 let mut env = Env::parameters(&f.params, f.span)?;
+                let source_enum_result = self.source_enum_return.is_some();
                 let body_result = self
                     .source_enum_return
                     .take()
                     .or_else(|| f.return_type.clone())
                     .unwrap_or_else(|| check::unit(f.span));
                 let saved_result = self.return_type.replace(body_result);
+                let saved_source_enum_result =
+                    std::mem::replace(&mut self.source_enum_return_active, source_enum_result);
                 let saved_callables = std::mem::replace(&mut self.active_callables, callable);
                 match &mut f.body {
                     FunctionBody::Block(body) => self.block(body, &mut env, 0)?,
                     FunctionBody::Expression(value) => {
+                        if self.source_enum_return_active
+                            && let Some(result) = &self.return_type
+                        {
+                            self.budget.ty(result)?;
+                        }
                         let expected = self.return_type.clone();
                         self.expr_expected(value, &mut env, expected.as_ref(), 0)?;
                     }
                     FunctionBody::Declaration => {}
                 }
                 self.return_type = saved_result;
+                self.source_enum_return_active = saved_source_enum_result;
                 self.active_callables = saved_callables;
                 self.callable_name = saved_callable;
                 self.callable_pair = saved_pair;
@@ -1987,6 +1998,11 @@ impl<'a> Engine<'a> {
                 );
             }
             StmtKind::Return(Some(e)) => {
+                if self.source_enum_return_active
+                    && let Some(result) = &self.return_type
+                {
+                    self.budget.ty(result)?;
+                }
                 let expected = self.return_type.clone();
                 self.expr_expected(e, env, expected.as_ref(), depth + 1)?;
             }
