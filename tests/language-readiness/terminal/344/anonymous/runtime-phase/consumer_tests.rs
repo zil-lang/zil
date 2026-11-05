@@ -172,8 +172,6 @@ fn g447_runtime_ct_qualified_type_value_shares_all_request_ledgers() {
     let input = include_str!("../ct6-runtime-qualified-type-value.zil");
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let boundary = g44_source_request_boundary(input, ledger);
-        eprintln!(
-            "G4.4.7 qualified Type value {ledger} N={boundary}; N-1/cold/warm/fresh agree"
-        );
+        eprintln!("G4.4.7 qualified Type value {ledger} N={boundary}; N-1/cold/warm/fresh agree");
     }
 }

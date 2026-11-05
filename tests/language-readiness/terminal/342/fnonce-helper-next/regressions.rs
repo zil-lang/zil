@@ -172,10 +172,12 @@ fn g337_actual_source_whole_analyze_verify_work_boundaries() {
             if n == low {
                 check(n).unwrap();
             } else {
-                assert!(check(n)
-                    .unwrap_err()
-                    .iter()
-                    .any(|d| d.category == ResultCategory::ResourceLimit));
+                assert!(
+                    check(n)
+                        .unwrap_err()
+                        .iter()
+                        .any(|d| d.category == ResultCategory::ResourceLimit)
+                );
             }
         }
         eprintln!(

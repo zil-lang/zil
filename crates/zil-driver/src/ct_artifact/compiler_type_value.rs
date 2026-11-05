@@ -13,7 +13,10 @@ impl Builder<'_, '_> {
         self.compiler.budget.node(span)?;
         if id == graph.root
             && (!graph.ambient_classes.is_empty()
-                || matches!(graph.nodes.get(id.0 as usize), Some(CtTypeNode::BorrowedStorage { .. })))
+                || matches!(
+                    graph.nodes.get(id.0 as usize),
+                    Some(CtTypeNode::BorrowedStorage { .. })
+                ))
         {
             self.compiler.budget.metadata(graph, span)?;
             let value = self.emit(

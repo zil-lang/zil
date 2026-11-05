@@ -21,14 +21,14 @@ mod associated_constants;
 mod generated_lineage;
 #[path = "materialize_member_lineage.rs"]
 mod member_lineage;
+#[path = "materialize_runtime_phase.rs"]
+mod runtime_phase;
 #[path = "self_constant_coverage.rs"]
 mod self_constant_coverage;
 #[path = "self_constants.rs"]
 mod self_constants;
 #[path = "materialize_source_sites.rs"]
 mod source_sites;
-#[path = "materialize_runtime_phase.rs"]
-mod runtime_phase;
 
 fn category(message: impl Into<String>, span: Span) -> Vec<Diagnostic> {
     vec![Diagnostic::error(
@@ -71,9 +71,13 @@ impl Materialized<'_> {
     #[cfg(test)]
     fn without_runtime(self) -> Materialized<'static> {
         Materialized {
-            runtime_environment: None, capture_usage: self.capture_usage,
-            modules: self.modules, previews: self.previews, required_imports: self.required_imports,
-            usage: self.usage, declaration_origins: self.declaration_origins,
+            runtime_environment: None,
+            capture_usage: self.capture_usage,
+            modules: self.modules,
+            previews: self.previews,
+            required_imports: self.required_imports,
+            usage: self.usage,
+            declaration_origins: self.declaration_origins,
             lineage_remaining: self.lineage_remaining,
         }
     }
@@ -2623,7 +2627,8 @@ mod scoped_tests {
             limits,
             None,
             true,
-        ).map(Materialized::without_runtime)
+        )
+        .map(Materialized::without_runtime)
     }
     #[test]
     fn closure_site_lineage_tracks_actual_materialization_and_retained_rows() {
@@ -2744,7 +2749,8 @@ mod scoped_tests {
                 },
                 None,
                 true,
-            ).map(Materialized::without_runtime)
+            )
+            .map(Materialized::without_runtime)
         };
         let expected = run(Limits::default().max_analysis_steps).unwrap();
         let origins = expected.declaration_origins.unwrap();
@@ -2963,7 +2969,8 @@ mod scoped_tests {
             &limits,
             None,
             true,
-        ).map(Materialized::without_runtime)
+        )
+        .map(Materialized::without_runtime)
         .unwrap();
         let core = zil_expand::expand(&source, &materialized.modules[0]).unwrap();
         let typed = zil_types::check(&core, &target, &limits).unwrap();
@@ -3045,7 +3052,8 @@ mod scoped_tests {
             &limits,
             None,
             true,
-        ).map(Materialized::without_runtime)
+        )
+        .map(Materialized::without_runtime)
         .unwrap();
         for (name, lifetime) in [("first", "left"), ("second", "right")] {
             let function = output.modules[0]

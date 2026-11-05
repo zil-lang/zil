@@ -57,7 +57,12 @@ impl Visitor for Discovery<'_, '_> {
         result
     }
     fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
-        if self.1 && matches!(expression.kind, s::ExprKind::MetaEval(_) | s::ExprKind::MetaBlock(_)) {
+        if self.1
+            && matches!(
+                expression.kind,
+                s::ExprKind::MetaEval(_) | s::ExprKind::MetaBlock(_)
+            )
+        {
             self.0.note_source_identity();
         }
         crate::ct_selection::walk_expression(self, expression, depth)

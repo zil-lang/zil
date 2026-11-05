@@ -45,7 +45,10 @@ fn ct6_contextual_type_instruction_transports_the_complete_graph() {
         ambient_classes: vec![CtAmbientClassBinding {
             owner: CtTypeNodeId(0),
             class: 3,
-            source: CtAmbientLifeReference { scope: CtAmbientScopeId(7), parameter: 4 },
+            source: CtAmbientLifeReference {
+                scope: CtAmbientScopeId(7),
+                parameter: 4,
+            },
         }],
     };
     // Transport deliberately preserves untrusted claims. This is not a Type
@@ -53,18 +56,27 @@ fn ct6_contextual_type_instruction_transports_the_complete_graph() {
     let mut raw = program();
     raw.functions.push(CtFunction {
         id: CtFunctionId(0),
-        definition: CtSymbolId { module: ModuleId(0), declaration: NodeId(0), generation_path: None },
-        parameters: vec![], parameter_types: vec![], result_type: CtTy::Type,
-        locals: vec![], values: vec![CtTy::Type],
+        definition: CtSymbolId {
+            module: ModuleId(0),
+            declaration: NodeId(0),
+            generation_path: None,
+        },
+        parameters: vec![],
+        parameter_types: vec![],
+        result_type: CtTy::Type,
+        locals: vec![],
+        values: vec![CtTy::Type],
         blocks: vec![CtBlock {
             id: CtBlockId(0),
             instructions: vec![CtInstruction {
-                result: Some(CtValueId(0)), kind: CtInstructionKind::TypeInContext { ty: graph },
+                result: Some(CtValueId(0)),
+                kind: CtInstructionKind::TypeInContext { ty: graph },
                 span: Span::default(),
             }],
             terminator: CtTerminator::Return(Some(CtValueId(0))),
         }],
-        entry: CtBlockId(0), span: Span::default(),
+        entry: CtBlockId(0),
+        span: Span::default(),
     });
     let bytes = encode_program(&raw, &limits).unwrap();
     assert_eq!(&bytes[..8], b"ZILCTP02");
@@ -135,7 +147,7 @@ fn rich_callable_and_ambient_scope_claims_are_lossless_bounded_raw_data() {
     assert_eq!(decode_value(&bytes, &limits), Ok(value.clone()));
     let mut p = program();
     p.ambient_life_scopes.push(CtAmbientLifeScope {
-            enclosing: None,
+        enclosing: None,
         declaration: CtSymbolId {
             module: ModuleId(4),
             declaration: NodeId(7),
