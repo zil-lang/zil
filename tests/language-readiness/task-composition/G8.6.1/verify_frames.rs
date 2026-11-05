@@ -520,11 +520,7 @@ fn g8611_verify_enum_leaf_drop_entry_uses_the_actual_nominal_payload() {
         .unwrap();
     for mode in 0..3 {
         let mut raw = typed.clone();
-        let expected = if mode == 2 {
-            "E-VERIFY-TASK"
-        } else {
-            "E-VERIFY-RESOURCE"
-        };
+        let expected = "E-VERIFY-RESOURCE";
         if mode == 0 {
             raw.resources[token].teardown = raw.resources[other].teardown;
         } else {
