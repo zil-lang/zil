@@ -299,6 +299,7 @@ pub(super) fn check_role(
                 None,
             )]);
         }
+        super::borrowed_fp::qualified_array_relation_work(&d.captures, &Type::Unit, b)?;
         super::signature_life::capture_relation(
             &d.parameters,
             &d.captures,
