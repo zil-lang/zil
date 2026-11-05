@@ -8059,3 +8059,6 @@ fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-next/regressions.rs"]
 mod g337_tail;
+
+#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs"]
+mod p0_g338_review;
