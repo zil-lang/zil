@@ -339,6 +339,7 @@ pub(crate) struct SourceLifeBinding {
     pub site: Option<source_sites::SourceSite>,
 }
 struct SourceLifeScope {
+    tree: source_sites::SourceTreeId,
     enclosing: Option<CtAmbientScopeId>,
     definition: CtSymbolId,
     span: Span,
