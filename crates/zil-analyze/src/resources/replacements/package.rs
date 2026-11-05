@@ -105,15 +105,13 @@ pub(super) fn apply(
     let place = Place::PackageField { local, index };
     let mut old = copied(state, place, b)?;
     fee(b, old.birth.len().saturating_add(incoming.len()))?;
-    old.birth.extend(&incoming);
+    // This is a definite write to one actual local, unlike a may-write
+    // summary. Retiring the old leaf does not retain its origin alternatives.
+    old.birth = incoming.clone();
     replace(state, place, old, b)?;
-    state.sums.replace_birth(
-        local,
-        &[PlaceProjection::Field(index)],
-        &incoming,
-        point.validate,
-        b,
-    )?;
+    state
+        .sums
+        .replace_package_birth(local, index, &incoming, point.validate, b)?;
     Ok(())
 }
 

@@ -553,6 +553,46 @@ impl Facts {
         }
         Ok(())
     }
+    /// Synchronize only a complete direct Managed field of the new whole
+    /// Package local operation. General tagged/Managed summaries keep their
+    /// conservative union; no parent shell age or activity is reconstructed.
+    pub(super) fn replace_package_birth(
+        &mut self,
+        local: LocalId,
+        index: u32,
+        birth: &BTreeSet<Birth>,
+        check: bool,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        budget.lookup(self.locals.len(), "complete Package exact origin tree")?;
+        if let Some(tree) = self.locals.get_mut(&local) {
+            budget.spend(1, "complete Package origin root")?;
+            if check && tree.missing {
+                return Err(error("Package replacement origin root is missing"));
+            }
+            let Node::Product(fields) = &mut edit(tree, budget)?.node else {
+                return Err(error("Package replacement origin root is not a Product"));
+            };
+            let child = fields
+                .get_mut(index as usize)
+                .ok_or_else(|| error("Package replacement origin field is absent"))?;
+            budget.spend(1, "complete Package origin child")?;
+            if check && child.missing {
+                return Err(error("Package replacement origin child is missing"));
+            }
+            let Node::Leaf(old) = &mut edit(child, budget)?.node else {
+                return Err(error(
+                    "Package replacement origin child is not a Managed leaf",
+                ));
+            };
+            budget.spend(
+                old.len().saturating_add(birth.len()),
+                "complete Package exact leaf origin copy",
+            )?;
+            *old = birth.clone();
+        }
+        Ok(())
+    }
     pub(super) fn replace_birth(
         &mut self,
         local: LocalId,
