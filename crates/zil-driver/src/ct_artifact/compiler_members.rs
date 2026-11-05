@@ -5,7 +5,7 @@ use super::*;
 #[derive(Clone, Copy)]
 pub(super) struct MemberLocation<'a> {
     pub declaration: usize,
-    host: &'a s::Item,
+    pub(super) host: &'a s::Item,
 }
 
 impl<'a> Compiler<'a> {
@@ -13,7 +13,7 @@ impl<'a> Compiler<'a> {
         let s::ItemKind::Aggregate(aggregate) = &host.kind else {
             return Ok(());
         };
-        if !aggregate.generics.is_empty() || aggregate.kind != s::AggregateKind::Struct {
+        if aggregate.kind != s::AggregateKind::Struct {
             return Ok(());
         }
         for item in &aggregate.methods {
