@@ -579,6 +579,7 @@ impl Engine<'_> {
             check::validate_parametric_with_bounds(
                 &checked,
                 check::ParametricTables {
+                ct_types: None,
                     source_definition: Some(&checked),
                     expression_origins: None,
                     definition_equations: (self.traits.has_generic_methods

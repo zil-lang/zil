@@ -451,7 +451,7 @@ fn specialize_with_budget<'a>(
     let module = prepared.as_ref().unwrap_or(module);
     let lifted = trait_methods::lift(module, has_generic_methods, origins.as_mut(), &mut budget)?;
     let module = lifted.as_ref().unwrap_or(module);
-    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget)?;
+    let mut engine = Engine::with_budget(module, limits, pattern_types, origins.as_ref(), budget, runtime_ct)?;
     engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
@@ -466,6 +466,7 @@ fn specialize_with_budget<'a>(
         pattern_types,
         origins.as_ref(),
         engine.budget,
+        runtime_ct,
     )?;
     engine.runtime_ct = runtime_ct;
     if engine.nominal_binder_collision {
@@ -573,10 +574,11 @@ impl<'a> Engine<'a> {
         pattern_types: &'a BTreeMap<String, TypeRef>,
         origins: Option<&'a origins::Origins>,
         mut budget: Budget<'a>,
+        runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
-            runtime_ct: None,
+            runtime_ct,
             runtime_calls: BTreeMap::new(),
             runtime_call: None,
             runtime_instance: None,
@@ -800,11 +802,20 @@ impl<'a> Engine<'a> {
                     return Err(unsupported(f.span, "generic where/contract solving"));
                 }
                 stores::result_mode(f)?;
-                let checked =
-                    consts::definition(f, &mut engine.budget, engine.traits.has_instances, None)?;
+                let ct_types = runtime_ct_phase::symbolic_types(
+                    item, engine.budget.context.origin, engine.origins, module,
+                    engine.runtime_ct, &mut engine.budget,
+                )?;
+                let source_ids = if ct_types.is_some() {
+                    Some(trait_instances::expression_ids(&f.body, &mut engine.budget)?)
+                } else { None };
+                let checked = consts::definition(
+                    f, &mut engine.budget, engine.traits.has_instances || ct_types.is_some(), source_ids,
+                )?;
                 validate_parametric(
                     &checked,
                     check::ParametricTables {
+                        ct_types: ct_types.as_ref(),
                         source_definition: Some(f),
                         expression_origins: checked.source_ids.as_ref(),
                         definition_equations: None,

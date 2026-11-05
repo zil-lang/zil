@@ -53,7 +53,8 @@ fn late_import(span: Span) -> Vec<Diagnostic> {
     )]
 }
 
-pub(crate) struct Materialized {
+pub(crate) struct Materialized<'a> {
+    pub(super) runtime_environment: Option<Environment<'a>>,
     pub modules: Vec<s::Module>,
     pub previews: Vec<Preview>,
     pub required_imports: Vec<(ModuleId, CoreImport)>,
@@ -63,7 +64,7 @@ pub(crate) struct Materialized {
     pub declaration_origins: Option<Vec<zil_expand::source_context::ModuleDeclarationOrigins>>,
     pub lineage_remaining: Option<Limits>,
 }
-impl Materialized {
+impl Materialized<'_> {
     pub(crate) fn retain_items(
         &mut self,
         index: usize,
@@ -2229,19 +2230,19 @@ impl Materializer<'_, '_> {
 // This is the single project materialization boundary: the parsed graph,
 // target, limits and frozen provider registry are all independent inputs.
 #[allow(clippy::too_many_arguments)]
-pub(crate) fn materialize(
-    sources: &[SourceUnit],
-    parsed: &[Arc<ParseResult>],
+pub(crate) fn materialize<'a>(
+    sources: &'a [SourceUnit],
+    parsed: &'a [Arc<ParseResult>],
     modules: &[&s::Module],
     paths: &BTreeMap<Vec<String>, ModuleId>,
     imports: &[Vec<CoreImport>],
     root: ModuleId,
     fingerprint: Fingerprint,
-    target: &TargetProfile,
+    target: &'a TargetProfile,
     limits: &Limits,
     registry: Option<&CtLockedProviderRegistry>,
     original_declarations: bool,
-) -> CompileResult<Materialized> {
+) -> CompileResult<Materialized<'a>> {
     let (mut declaration_origins, capture_remaining) = if original_declarations {
         zil_expand::source_context::capture_original(
             sources,
@@ -2397,10 +2398,14 @@ pub(crate) fn materialize(
         .generated_nodes
         .checked_add((limits.max_nodes - capture_remaining.max_nodes) as u64)
         .ok_or_else(|| category("declaration capture node count overflow", Span::default()))?;
+    let previews = std::mem::take(&mut materializer.previews);
+    let required_imports = std::mem::take(&mut materializer.required_imports);
+    drop(materializer);
     Ok(Materialized {
+        runtime_environment: Some(environment),
         modules: output,
-        previews: materializer.previews,
-        required_imports: materializer.required_imports,
+        previews,
+        required_imports,
         usage,
         declaration_origins,
         lineage_remaining,

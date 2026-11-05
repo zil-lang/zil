@@ -8,6 +8,7 @@ struct Expressions<'a, 'b> {
     nodes: BTreeMap<usize, u32>,
     next: u32,
     has_ct: bool,
+    meta: BTreeMap<usize, u32>,
 }
 impl crate::ct_selection::Visitor for Expressions<'_, '_> {
     fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
@@ -22,6 +23,10 @@ impl crate::ct_selection::Visitor for Expressions<'_, '_> {
         self.next = self.next.checked_add(1)
             .ok_or_else(|| vec![error(expression.span, "runtime CT expression ordinal overflow")])?;
         self.has_ct |= matches!(expression.kind, ExprKind::MetaEval(_) | ExprKind::MetaBlock(_));
+        if matches!(expression.kind, ExprKind::MetaEval(_)) {
+            self.budget.lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span).map_err(|e| vec![e])?;
+            self.meta.insert(expression as *const Expr as usize, ordinal);
+        }
         self.budget.identity_work(1 + self.nodes.len().checked_ilog2().unwrap_or(0) as usize, expression.span).map_err(|e| vec![e])?;
         self.budget.lineage_bytes(std::mem::size_of::<(usize, u32)>(), expression.span).map_err(|e| vec![e])?;
         self.nodes.insert(expression as *const Expr as usize, ordinal);
@@ -29,10 +34,65 @@ impl crate::ct_selection::Visitor for Expressions<'_, '_> {
     }
 }
 
+pub(super) fn symbolic_types(
+    item: &Item, origin: Option<origins::Origin>, origins: Option<&origins::Origins>,
+    module: &Module, callback: Option<&dyn crate::runtime_ct::RuntimeCt>, budget: &mut Budget<'_>,
+) -> R<Option<BTreeMap<usize, TypeRef>>> {
+    let Some(callback) = callback else { return Ok(None); };
+    let ItemKind::Function(function) = &item.kind else { return Ok(None); };
+    let mut visitor = Expressions { budget, nodes: BTreeMap::new(), next: 0, has_ct: false, meta: BTreeMap::new() };
+    crate::ct_selection::Visitor::item(&mut visitor, item, 0).map_err(|mut e| e.remove(0))?;
+    if !visitor.has_ct { return Ok(None); }
+    let meta = visitor.meta;
+    if meta.is_empty() { return Err(unsupported(item.span, "runtime generic CT blocks need symbolic result checking")); }
+    let origin = origin.ok_or_else(|| error(item.span, "symbolic CT source declaration is absent"))?;
+    let origins = origins.ok_or_else(|| error(item.span, "symbolic CT source inventory is absent"))?;
+    let row = origins.identity(origin.declaration, budget, item.span)?;
+    origins::pay_identity(&row.identity, budget, item.span)?;
+    origins::pay_declaration_copy(row, budget, item.span)?;
+    let definition = RuntimeDefinition { module: origin.declaration.module, origin: row.clone(), member: origin.member };
+    let body_ids = trait_instances::expression_ids(&function.body, budget)?;
+    let mut substitutions = BTreeMap::new();
+    // The actual normalizer's declaration ledger relates a source nominal to
+    // its current binding. No generated spelling is interpreted as an owner.
+    for (ordinal, candidate) in module.items.iter().enumerate() {
+        budget.node(candidate.span, 0)?;
+        if !matches!(candidate.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) { continue; }
+        let candidate_origin = origins.get(ordinal, candidate.span)?;
+        if candidate_origin.declaration.module != definition.module { continue; }
+        let original = origins.identity(candidate_origin.declaration, budget, candidate.span)?;
+        let Some(source_name) = original.identity.declaration_path.get(1) else { continue; };
+        if function.generics.iter().any(|p| p.name == *source_name) { continue; }
+        if let Some(normalized) = name(candidate) {
+            budget.text(source_name, candidate.span)?;
+            budget.text(normalized, candidate.span)?;
+            substitutions.insert(source_name.clone(), named(normalized, candidate.span));
+        }
+    }
+    for (ordinal, parameter) in function.generics.iter().filter(|p| matches!(p.kind, GenericParamKind::Const(_))).enumerate() {
+        budget.text(&parameter.name, parameter.span)?;
+        let value = Expr { span: parameter.span, kind: ExprKind::Name(consts::symbol(ordinal)) };
+        substitutions.insert(parameter.name.clone(), consts::carrier(&value, budget)?);
+    }
+    let mut output = BTreeMap::new();
+    for (address, source_ordinal) in meta {
+        let body_ordinal = body_ids.get(&address).ok_or_else(|| unsupported(item.span, "runtime CT in generic signature needs symbolic signature checking"))?;
+        let mut remaining = budget.remaining_limits();
+        let mut result = callback.definition_expression(&definition, source_ordinal, &mut remaining)
+            .map_err(|mut e| e.remove(0))?;
+        budget.adopt_remaining(&remaining);
+        budget.substituted_type(&result, &substitutions)?;
+        Substitution { substitutions: &substitutions }.ty(&mut result);
+        budget.lineage_bytes(std::mem::size_of::<(usize, TypeRef)>(), item.span)?;
+        output.insert(*body_ordinal, result);
+    }
+    Ok(Some(output))
+}
+
 impl Engine<'_> {
     pub(super) fn runtime_bind_calls(&mut self, item: &Item) -> R<()> {
         if self.runtime_ct.is_none() { return Ok(()); }
-        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false };
+        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false, meta: BTreeMap::new() };
         crate::ct_selection::Visitor::item(&mut visitor, item, 0).map_err(|mut e| e.remove(0))?;
         self.runtime_calls = visitor.nodes;
         Ok(())
@@ -56,7 +116,7 @@ impl Engine<'_> {
     ) -> R<()> {
         let Some(callback) = self.runtime_ct else { return Ok(()); };
         let ItemKind::Function(function) = &template.kind else { return Ok(()); };
-        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false };
+        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false, meta: BTreeMap::new() };
         crate::ct_selection::Visitor::item(&mut visitor, template, 0).map_err(|mut e| e.remove(0))?;
         if !visitor.has_ct { return Ok(()); }
         let origin = self.template_origin(template)?;
@@ -92,7 +152,7 @@ impl Engine<'_> {
         let mut remaining = self.budget.remaining_limits();
         callback.instantiated(&recipe, template, instance, &mut remaining).map_err(|mut e| e.remove(0))?;
         self.budget.adopt_remaining(&remaining);
-        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false };
+        let mut visitor = Expressions { budget: &mut self.budget, nodes: BTreeMap::new(), next: 0, has_ct: false, meta: BTreeMap::new() };
         crate::ct_selection::Visitor::item(&mut visitor, instance, 0).map_err(|mut e| e.remove(0))?;
         if visitor.has_ct {
             return Err(error(instance.span, "runtime CT consumer left a deferred expression in the instance"));

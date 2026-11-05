@@ -45,6 +45,16 @@ pub struct RuntimeInstance {
 /// remove all deferred CT expressions, and debit the supplied remaining limits.
 /// The template and instance are syntax, not certificates.
 pub trait RuntimeCt {
+    /// Check the actual original CT expression under symbolic declaration
+    /// binders, even when the runtime function is never instantiated. The
+    /// returned type is computed from that expression, not its receiving slot.
+    fn definition_expression(
+        &self,
+        definition: &RuntimeDefinition,
+        expression_ordinal: u32,
+        remaining: &mut Limits,
+    ) -> CompileResult<ast::TypeRef>;
+
     fn instantiated(
         &self,
         instance: &RuntimeInstance,
