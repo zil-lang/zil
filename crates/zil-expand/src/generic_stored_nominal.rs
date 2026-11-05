@@ -702,6 +702,35 @@ impl<'a> Engine<'a> {
                 }
                 Ok(physical_witness)
             }
+            TypeKind::Array { element, .. } => {
+                let before = occurrences.len();
+                type_path.push(zil_ir::LifeTypeProjection::Element);
+                let witness = self.storage_header(
+                    element,
+                    base,
+                    path,
+                    type_path,
+                    occurrences,
+                    stored,
+                    next_elided,
+                    depth + 1,
+                );
+                type_path.pop();
+                let witness = witness?;
+                self.budget
+                    .identity_work(occurrences.len().saturating_sub(before), ty.span)?;
+                if witness
+                    || occurrences[before..].iter().any(|row| {
+                        matches!(row.position, stored_types::OccurrencePosition::Borrow(_))
+                    })
+                {
+                    return Err(unsupported(
+                        ty.span,
+                        "array signature physical borrow needs an actual element place projection",
+                    ));
+                }
+                Ok(false)
+            }
             _ => Ok(false),
         }
     }

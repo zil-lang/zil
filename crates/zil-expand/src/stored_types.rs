@@ -1413,6 +1413,16 @@ mod source_tests {
     }
 
     #[test]
+    fn scoped_unit_enum_and_type_only_enum_keep_source_actuals_for_patterns() {
+        for source in [
+            "enum Empty<life a>{Only}fn read<life a>(p:&'a i32)->i32{let x:Empty<'a>=Empty::<'a>.Only();match x{Empty.Only()=>{return 1}}}fn main(){}",
+            "struct Leaf<life a>{n:i32}enum Boxed<T:Copy>{V(T)}fn read<life a>(p:&'a i32)->i32{let x:Boxed<Leaf<'a>>=Boxed::<Leaf<'a>>.V(Leaf::<'a>{n:3});match x{Boxed.V(v)=>{return v.n}}}fn main(){}",
+        ] {
+            expand_text(source).unwrap();
+        }
+    }
+
+    #[test]
     fn stored_const_actuals_preserve_full_life_type_const_ordinals_and_bits() {
         for (domain, literal, expected) in [
             ("i32", "7", Constant::I32(7)),

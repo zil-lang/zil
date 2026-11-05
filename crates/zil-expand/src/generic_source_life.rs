@@ -277,7 +277,8 @@ impl Check<'_, '_, '_> {
                         _ => Fact::Unknown,
                     });
                 }
-                Fact::Named(self.head(path, ty.span)?, actuals)
+                let qualified = actuals.iter().any(Fact::has_class);
+                Fact::Named(self.head(path, ty.span, qualified)?, actuals)
             }
             TypeKind::Reference {
                 lifetime, inner, ..
@@ -311,7 +312,7 @@ impl Check<'_, '_, '_> {
             _ => self.unknown_type(ty, scope, depth + 1)?,
         })
     }
-    fn head(&mut self, path: &[String], span: Span) -> R<Head> {
+    fn head(&mut self, path: &[String], span: Span, qualified: bool) -> R<Head> {
         self.pay(span, path.len().saturating_add(1))?;
         for part in path {
             self.budget.text(part, span)?;
@@ -324,11 +325,13 @@ impl Check<'_, '_, '_> {
                 return Ok(Head::Declaration(index));
             }
         }
-        for (index, declaration) in self.enums.iter().enumerate() {
-            self.budget.text(&spelling, span)?;
-            self.budget.text(&declaration.name, span)?;
-            if declaration.name == spelling {
-                return Ok(Head::Enum(index));
+        if qualified {
+            for (index, declaration) in self.enums.iter().enumerate() {
+                self.budget.text(&spelling, span)?;
+                self.budget.text(&declaration.name, span)?;
+                if declaration.name == spelling {
+                    return Ok(Head::Enum(index));
+                }
             }
         }
         Ok(Head::Plain(path.to_vec()))
@@ -574,6 +577,59 @@ impl Check<'_, '_, '_> {
                     env,
                 )?;
             }
+            PatternKind::Constructor { path, arguments }
+                if let Fact::Named(Head::Enum(index), actuals) = fact =>
+            {
+                let declaration = self.enums.get(*index).copied().ok_or_else(|| {
+                    unsupported(p.span, "source enum pattern declaration is absent")
+                })?;
+                if path.len() != 2
+                    || path[0] != declaration.name
+                    || actuals.len() != declaration.generics.len()
+                {
+                    return Err(unsupported(
+                        p.span,
+                        "source enum pattern differs from actual declaration",
+                    ));
+                }
+                let variant = declaration
+                    .variants
+                    .iter()
+                    .find(|v| v.name == path[1])
+                    .ok_or_else(|| unsupported(p.span, "source enum pattern variant is absent"))?;
+                let fields: &[VariantTupleField] = match &variant.fields {
+                    VariantFields::Unit => &[],
+                    VariantFields::Tuple(fields) => fields,
+                    VariantFields::Record(_) => {
+                        return Err(unsupported(
+                            p.span,
+                            "source enum record pattern needs named payload proof",
+                        ));
+                    }
+                };
+                if fields.len() != arguments.len() {
+                    return Err(unsupported(
+                        p.span,
+                        "source enum pattern payload arity differs",
+                    ));
+                }
+                let owner = self.functions.len() + self.records.len() + index;
+                let scope = Scope {
+                    owner,
+                    parameters: &declaration.generics,
+                    host: None,
+                };
+                let mut map = Substitutions::new();
+                for (ordinal, actual) in actuals.iter().enumerate() {
+                    self.lookup(map.len(), 2, p.span)?;
+                    map.insert(Binder(owner, ordinal), self.copy(actual, p.span)?);
+                }
+                for (child, field) in arguments.iter().zip(fields) {
+                    let formal = self.ty(&field.ty, &scope, 0)?;
+                    let actual = self.substitute(&formal, &map, p.span)?;
+                    self.bind(child, &actual, env)?;
+                }
+            }
             _ => {}
         }
         Ok(())
@@ -746,7 +802,11 @@ impl Check<'_, '_, '_> {
                                     _ => Fact::Unknown,
                                 });
                             }
-                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, args)
+                            let qualified = args.iter().any(Fact::has_class);
+                            Fact::Named(
+                                self.head(std::slice::from_ref(name), e.span, qualified)?,
+                                args,
+                            )
                         }
                         _ => Fact::Unknown,
                     },
@@ -755,7 +815,10 @@ impl Check<'_, '_, '_> {
                         if name == "Self" {
                             self.self_type(scope, e.span)?.unwrap_or(Fact::Unknown)
                         } else {
-                            Fact::Named(self.head(std::slice::from_ref(name), e.span)?, vec![])
+                            Fact::Named(
+                                self.head(std::slice::from_ref(name), e.span, false)?,
+                                vec![],
+                            )
                         }
                     }
                     _ => Fact::Unknown,
@@ -1022,7 +1085,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         scope: &Scope<'_>,
         env: &mut Facts,
-        _wanted: Option<&Fact>,
+        wanted: Option<&Fact>,
         depth: usize,
     ) -> R<Fact> {
         let actual = match &e.kind {
@@ -1046,8 +1109,14 @@ impl Check<'_, '_, '_> {
                 };
                 let mut output = Fact::Unknown;
                 if root.is_none()
-                    && let Some(variant) =
-                        self.variant_call_result(callee, &actuals, scope, e.span, depth + 1)?
+                    && let Some(variant) = self.variant_call_result(
+                        callee,
+                        &actuals,
+                        wanted,
+                        scope,
+                        e.span,
+                        depth + 1,
+                    )?
                 {
                     return Ok(variant);
                 }
@@ -1148,6 +1217,7 @@ impl Check<'_, '_, '_> {
         &mut self,
         callee: &Expr,
         actuals: &[Fact],
+        wanted: Option<&Fact>,
         caller: &Scope<'_>,
         span: Span,
         depth: usize,
@@ -1181,11 +1251,15 @@ impl Check<'_, '_, '_> {
                 if variant.name != *variant_name {
                     continue;
                 }
-                let VariantFields::Tuple(fields) = &variant.fields else {
-                    return Err(unsupported(
-                        span,
-                        "scoped source enum constructor needs tuple payload evidence",
-                    ));
+                let fields: &[VariantTupleField] = match &variant.fields {
+                    VariantFields::Unit => &[],
+                    VariantFields::Tuple(fields) => fields,
+                    VariantFields::Record(_) => {
+                        return Err(unsupported(
+                            span,
+                            "scoped source enum record constructor needs named payload evidence",
+                        ));
+                    }
                 };
                 if fields.len() != actuals.len() {
                     return Err(unsupported(
@@ -1215,10 +1289,18 @@ impl Check<'_, '_, '_> {
                         self.lookup(map.len(), 2, span)?;
                         map.insert(Binder(owner, ordinal), fact);
                     }
+                } else if let Some(Fact::Named(Head::Enum(expected), classes)) = wanted
+                    && *expected == index
+                    && classes.len() == declaration.generics.len()
+                {
+                    for (ordinal, class) in classes.iter().enumerate() {
+                        self.lookup(map.len(), 2, span)?;
+                        map.insert(Binder(owner, ordinal), self.copy(class, span)?);
+                    }
                 }
                 for (field, actual) in fields.iter().zip(actuals) {
                     let formal = self.ty(&field.ty, &definition, depth + 1)?;
-                    if explicit.is_some() {
+                    if !map.is_empty() {
                         let expected = self.substitute(&formal, &map, span)?;
                         self.compatible(&expected, actual, span)?;
                     } else {
@@ -1725,11 +1807,8 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     found.records.push(a);
                     inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
                 }
-                ItemKind::Enum(e)
-                    if e.generics
-                        .iter()
-                        .any(|p| matches!(p.kind, GenericParamKind::Lifetime)) =>
-                {
+                ItemKind::Enum(e) => {
+                    budget.lineage_bytes(std::mem::size_of::<&EnumDecl>(), item.span)?;
                     found.enums.push(e);
                 }
                 ItemKind::Impl(i) => {
