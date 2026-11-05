@@ -280,3 +280,26 @@ fn g139_native_old_drop_full_store_and_preparation_abort() {
         }
     }
 }
+
+#[test]
+fn g139_public_role_capture_current_contract_probe() {
+    let module = typed(include_str!("public-role-capture-probe.zil"));
+    for function in &module.functions {
+        if let Some(contract) = &function.callable_contract {
+            println!("G139 public-role helper {} {:?}", function.name, contract);
+            for block in &function.blocks {
+                println!("G139 actual helper instructions {:?}", block.instructions);
+            }
+        }
+    }
+    let result = zil_analyze::analyze(&module, &Limits::default());
+    println!("G139 public-role actual Analyze result {result:?}");
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::CommitPlaceReplace { .. }))
+    );
+}
