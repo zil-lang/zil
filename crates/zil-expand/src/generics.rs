@@ -329,8 +329,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -350,8 +349,7 @@ fn specialize_products_prepared<'a>(
                     &aliased.pattern_types,
                     budget,
                     products,
-                    has_associated,
-                    has_generic_methods,
+                    (has_associated, has_generic_methods),
                     runtime_ct,
                 )
             }
@@ -361,8 +359,7 @@ fn specialize_products_prepared<'a>(
                 &BTreeMap::new(),
                 budget,
                 products,
-                has_associated,
-                has_generic_methods,
+                (has_associated, has_generic_methods),
                 runtime_ct,
             ),
         }
@@ -400,8 +397,7 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
-            has_associated,
-            has_generic_methods,
+            (has_associated, has_generic_methods),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -427,8 +423,7 @@ fn specialize_products_prepared<'a>(
         &BTreeMap::new(),
         names_budget,
         products,
-        has_associated,
-        has_generic_methods,
+        (has_associated, has_generic_methods),
         runtime_ct,
     )
     .map(Cow::Owned)
@@ -441,10 +436,10 @@ fn specialize_with_budget<'a>(
     pattern_types: &'a BTreeMap<String, TypeRef>,
     mut budget: Budget<'a>,
     products: &mut products::Products,
-    has_associated: bool,
-    has_generic_methods: bool,
+    type_features: (bool, bool),
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
+    let (has_associated, has_generic_methods) = type_features;
     source_life::validate(module, &mut budget)?;
     let mut origins = products.origins.take();
     let methods =
