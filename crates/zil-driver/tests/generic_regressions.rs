@@ -7443,3 +7443,141 @@ fn g336_actual_owning_source_types_forms_owned_receiver_and_complete_relations()
         );
     }
 }
+
+#[test]
+fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
+    use zil_ir::*;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::host_llvm();
+    let core = g334_core(G336_OWNED);
+    let expected = zil_types::check(&core, &target, &limits).unwrap();
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: middle,
+                ..limits.clone()
+            },
+        ) {
+            Ok(_) => high = middle,
+            Err(errors)
+                if errors
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = middle + 1
+            }
+            Err(errors) => panic!("{errors:?}"),
+        }
+    }
+    for n in [low, low - 1, low] {
+        let result = zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        );
+        if n == low {
+            assert_eq!(result.unwrap(), expected)
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit)
+            )
+        }
+    }
+    zil_types::infer_source_closures(
+        &core,
+        &Limits {
+            max_analysis_steps: 16384,
+            ..limits.clone()
+        },
+    )
+    .unwrap();
+    let mut huge = core.clone();
+    let f = huge
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.callable_parameters
+                .iter()
+                .any(|r| r.source_life.is_some())
+        })
+        .unwrap();
+    let bound = &mut f.callable_parameters[0];
+    bound.generic_name = "F".repeat(32768);
+    f.parameters[bound.index as usize].ty = Type::Named(bound.generic_name.clone());
+    let errors = zil_types::infer_source_closures(
+        &huge,
+        &Limits {
+            max_analysis_steps: 16384,
+            ..limits.clone()
+        },
+    )
+    .unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::ResourceLimit),
+        "{errors:?}"
+    );
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/phantom-wrong-class.zil"
+    );
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 0);
+    assert!(
+        report.diagnostics.iter().any(|d| d
+            .message
+            .contains("signature omits actual closure free Fixed domain")),
+        "{}",
+        report.to_json()
+    );
+    let mut phantom = g334_core(text);
+    assert!(
+        phantom
+            .functions
+            .iter()
+            .flat_map(|f| &f.callable_parameters)
+            .all(|r| r.source_life.is_none())
+    );
+    let template = g334_role(&core);
+    let role = phantom
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.callable_parameters)
+        .find(|r| r.kind == CallableKind::FnOnce)
+        .unwrap();
+    role.source_life = template.source_life.clone();
+    role.life = template.life.clone();
+    let errors = zil_types::check(&phantom, &target, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.category == ResultCategory::Unsupported
+                && d.message.contains("shared qualified")),
+        "{errors:?}"
+    );
+    eprintln!(
+        "G336 isolated whole Types N={low}/N-1/fresh; Named owned-F huge preflight and actual Phantom source/raw gates checked, no whole Source acceptance claim"
+    );
+}
