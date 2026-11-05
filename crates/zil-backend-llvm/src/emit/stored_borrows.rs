@@ -235,6 +235,13 @@ pub(super) fn representation_type(t: &Type) -> bool {
         || pure_composite(t)
 }
 
+/// An actual verified root pointer to pure storage. Never use this predicate
+/// for the pointee's fields: pure_composite rejects nested Address nodes.
+/// The complete type visit was prepaid before physical representation queries.
+pub(super) fn pure_storage_address(t: &Type) -> bool {
+    matches!(t, Type::Address { inner, .. } if pure_composite(inner))
+}
+
 // reserve_callable_metadata has already bounded and paid the complete type
 // walk before bind_lir calls this predicate. All variant payloads are visited,
 // including inactive ones; no address or owning/resource leaf enters this new
@@ -725,6 +732,58 @@ mod tests {
         });
         assert!(!representation_type(&slotted));
     }
+    #[test]
+    fn g4463_index_root_address_is_pointer_not_snapshot_or_embedded_value() {
+        // Synthetic representation probe only; not source/loan authority.
+        let qualify = |storage| Type::BorrowedStorage {
+            storage: Box::new(storage),
+            life: StorageLifeShape {
+                binder_count: 1,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let leaf = qualify(Type::Record {
+            name: "Leaf".into(),
+            fields: vec![("bits".into(), Type::U64)],
+        });
+        let pointee = Type::Array {
+            element: Box::new(leaf),
+            length: 4096,
+        };
+        let root = Type::Address {
+            inner: Box::new(pointee.clone()),
+            mutable: false,
+        };
+        assert!(pure_storage_address(&root));
+        assert!(!pure_composite(&root));
+        assert_eq!(llvm_type(&root).unwrap(), m::Ty::Ptr);
+        assert_eq!(alignment(&root, &BTreeMap::new()).unwrap(), 8);
+        let mut work = usize::MAX;
+        assert!(
+            copy_aggregates::classify(&root, &mut work, &Limits::default())
+                .unwrap()
+                .is_none(),
+            "pointer itself must not become a pointee-sized snapshot"
+        );
+        assert!(
+            copy_aggregates::classify(&pointee, &mut work, &Limits::default())
+                .unwrap()
+                .is_some(),
+            "ReadAddress result retains the existing large snapshot"
+        );
+        let bad = Type::Address {
+            inner: Box::new(Type::Array {
+                element: Box::new(root),
+                length: 2,
+            }),
+            mutable: false,
+        };
+        assert!(!pure_storage_address(&bad));
+        assert!(llvm_type(&bad).is_err());
+    }
+
     #[test]
     fn callable40_rich_relation_rows_paths_and_pointer_layout_are_metered() {
         use zil_ir::{

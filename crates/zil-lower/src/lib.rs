@@ -298,7 +298,7 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
                 } else {
                     false
                 }
-                && !sum_budget.pure_composite(ty, 0)?
+                && !sum_budget.pure_value_or_address(ty, 0)?
             {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Lower,

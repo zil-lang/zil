@@ -898,6 +898,7 @@ fn bind_lir(
                 && !packages::supported_value_type(ty, lir.resources)
                 && !errors::supported_type(ty, lir.resources)
                 && !arrays::supported_type(ty, lir.resources)
+                && !stored_borrows::pure_storage_address(ty)
             {
                 return unsupported(
                     format!("LLVM representation for {}", ty.name()),
@@ -1966,7 +1967,7 @@ impl FunctionEmitter<'_> {
                         Some(instruction.span),
                     );
                 };
-                let Type::Array { length, .. } = inner.as_ref() else {
+                let Type::Array { length, .. } = enums::storage_shape(inner) else {
                     return invalid(
                         "E-CODEGEN-CFG",
                         "index projection requires an array",
@@ -3456,7 +3457,8 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) =>
+                )
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Ok("ptr".into())
         }
@@ -3544,7 +3546,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                 || matches!(
                     inner.as_ref(),
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) =>
+                )
+                || stored_borrows::pure_storage_address(ty) =>
         {
             Ok(8)
         }
