@@ -2256,7 +2256,7 @@ impl<'a> Builder<'a, '_> {
                 ));
             }
             if !ty.is_copy_value()
-                && !stored::pure_value(&ty, &mut self.match_work_left, &self.limits, e.span)?
+                && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, e.span)?
             {
                 return Err(unsupported(
                     e.span,

@@ -74,17 +74,17 @@ impl Bindings {
             slots.resize(required, None);
             *self = Self::Extended(Rc::new(slots));
         }
-        if let Self::Extended(slots) = self {
-            if Rc::strong_count(slots) > 1 {
-                state.snapshot(
-                    slots
-                        .len()
-                        .saturating_mul(std::mem::size_of::<Option<ClosureId>>())
-                        .saturating_add(std::mem::size_of::<Vec<Option<ClosureId>>>())
-                        .saturating_add(2 * std::mem::size_of::<usize>()),
-                    span,
-                )?;
-            }
+        if let Self::Extended(slots) = self
+            && Rc::strong_count(slots) > 1
+        {
+            state.snapshot(
+                slots
+                    .len()
+                    .saturating_mul(std::mem::size_of::<Option<ClosureId>>())
+                    .saturating_add(std::mem::size_of::<Vec<Option<ClosureId>>>())
+                    .saturating_add(2 * std::mem::size_of::<usize>()),
+                span,
+            )?;
         }
         let slot = match self {
             Self::Inline(slots) => &mut slots[index],

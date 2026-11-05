@@ -854,31 +854,27 @@ pub(crate) fn joint_header(
                 for data in &source.classes {
                     if header.classes.iter().any(|actual| {
                         actual.position == data.position && actual.binder == row.binder
-                    }) {
-                        if anchor
-                            .replace(data.binder)
-                            .is_some_and(|old| old != data.binder)
-                        {
-                            return Err(bad(
-                                span,
-                                "multiple role header equates distinct original data classes",
-                            ));
-                        }
+                    }) && anchor
+                        .replace(data.binder)
+                        .is_some_and(|old| old != data.binder)
+                    {
+                        return Err(bad(
+                            span,
+                            "multiple role header equates distinct original data classes",
+                        ));
                     }
                 }
                 for data in &source.bindings {
                     if header.bindings.iter().any(|actual| {
                         actual.position == data.position && actual.binder == row.binder
-                    }) {
-                        if anchor
-                            .replace(data.binder)
-                            .is_some_and(|old| old != data.binder)
-                        {
-                            return Err(bad(
-                                span,
-                                "multiple role header equates distinct original borrows",
-                            ));
-                        }
+                    }) && anchor
+                        .replace(data.binder)
+                        .is_some_and(|old| old != data.binder)
+                    {
+                        return Err(bad(
+                            span,
+                            "multiple role header equates distinct original borrows",
+                        ));
                     }
                 }
                 let key = match anchor {
