@@ -500,7 +500,8 @@ fn third_and_fourth_role_event_swap_rejects_raw_and_wire() {
     // Analyze must reconstruct the supplied contract, and raw Verify must do
     // so independently even with a genuine candidate for the original body.
     assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
-    let candidate = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    let mut candidate = zil_analyze::analyze(&original, &Limits::default()).unwrap();
+    candidate.module_fingerprint = forged.fingerprint();
     assert!(
         zil_verify::verify_module(
             forged.clone(),
@@ -519,6 +520,7 @@ fn third_and_fourth_role_event_swap_rejects_raw_and_wire() {
 fn third_and_fourth_actual_alias_and_once_reuse_do_not_gain_permission() {
     let sources = [
         "fn run<F:FnMut()->i32,G:FnMut()->i32,H:FnMut()->i32,I:FnMut()->i32>(f:&mut F,g:&mut G,h:&mut H,i:&mut I)->i32{return f()+g()+h()+i()}fn main()->i32{var a=0;var b=0;var c=0;var f=move()=>{a+=1;return a};var g=move()=>{b+=1;return b};var h=move()=>{c+=1;return c};return run(&mut f,&mut g,&mut h,&mut h)}",
+        "resource R{n:i32}fn consume(give r:R)->i32{return r.n}fn make(give r:R)->impl FnOnce()->i32{return move()=>consume(give r)}fn run<F:FnOnce()->i32,G:FnOnce()->i32,H:FnOnce()->i32,I:FnOnce()->i32>(f:F,g:G,h:H,i:I)->i32{return f()+g()+h()+i()}fn main()->i32{let a=make(R{n:1});let b=make(R{n:2});let c=make(R{n:3});return run(a,b,c,c)}",
         "fn bad<F:FnOnce()->i32,G:FnOnce()->i32,H:FnOnce()->i32,I:FnOnce()->i32>(f:F,g:G,h:H,i:I)->i32{return f()+g()+h()+i()+h()}fn main()->i32{let f=move()=>1;let g=move()=>2;let h=move()=>3;let i=move()=>4;return bad(f,g,h,i)}",
         "fn unused<F:Fn()->i32,G:Fn()->i32,H:FnOnce()->i32,I:Fn()->i32>(f:&F,g:&G,h:&H,i:&I)->i32{return i()}fn main()->i32{return 0}",
     ];
@@ -531,7 +533,7 @@ fn third_and_fourth_actual_alias_and_once_reuse_do_not_gain_permission() {
             "{}",
             report.to_json()
         );
-        if index == 0 {
+        if index <= 1 {
             assert_eq!(
                 report.status,
                 ResultCategory::SafeReject,

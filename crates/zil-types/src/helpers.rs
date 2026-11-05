@@ -41,6 +41,9 @@ impl Bindings {
             Self::Extended(slots) => slots,
         }
     }
+    pub(super) fn storage_delta_work() -> usize {
+        std::mem::size_of::<Self>().saturating_sub(std::mem::size_of::<[Option<ClosureId>; 2]>())
+    }
     /// Additional comparison work beyond the old fixed two-slot key.
     pub(super) fn extra_key_work(&self) -> usize {
         self.slots().len().saturating_sub(2)
@@ -58,7 +61,14 @@ impl Bindings {
         })?;
         if required > self.slots().len() {
             // Bound and pay the full new physical vector before allocation.
-            state.snapshot(required.saturating_add(self.slots().len()), span)?;
+            state.snapshot(
+                required
+                    .saturating_mul(std::mem::size_of::<Option<ClosureId>>())
+                    .saturating_add(self.slots().len())
+                    .saturating_add(std::mem::size_of::<Vec<Option<ClosureId>>>())
+                    .saturating_add(2 * std::mem::size_of::<usize>()),
+                span,
+            )?;
             let mut slots = Vec::with_capacity(required);
             slots.extend_from_slice(self.slots());
             slots.resize(required, None);
@@ -66,7 +76,14 @@ impl Bindings {
         }
         if let Self::Extended(slots) = self {
             if Rc::strong_count(slots) > 1 {
-                state.snapshot(slots.len(), span)?;
+                state.snapshot(
+                    slots
+                        .len()
+                        .saturating_mul(std::mem::size_of::<Option<ClosureId>>())
+                        .saturating_add(std::mem::size_of::<Vec<Option<ClosureId>>>())
+                        .saturating_add(2 * std::mem::size_of::<usize>()),
+                    span,
+                )?;
             }
         }
         let slot = match self {
@@ -990,8 +1007,12 @@ impl Builder<'_, '_> {
             span,
         )?;
         self.closures.snapshot(24, span)?;
-        self.closures
-            .snapshot(bindings.extra_key_work().saturating_mul(12), span)?;
+        self.closures.snapshot(
+            bindings
+                .extra_key_work()
+                .saturating_mul(std::mem::size_of::<String>().saturating_add(32)),
+            span,
+        )?;
         let label = bindings.label();
         let id = self.closures.allocate_function(span)?;
         function.name = format!("{}::<env{}>", function.name, label);
@@ -1191,6 +1212,8 @@ impl Builder<'_, '_> {
                 .saturating_mul(bindings.extra_key_work()),
             span,
         )?;
+        self.closures
+            .snapshot(Bindings::storage_delta_work(), span)?;
         self.closures.helper_instances.insert((key, bindings), id);
         Ok(id)
     }

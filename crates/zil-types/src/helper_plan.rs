@@ -784,6 +784,8 @@ impl Walk<'_, '_> {
                                 .saturating_add(1),
                             expression.span,
                         )?;
+                        self.state
+                            .snapshot(Bindings::storage_delta_work(), expression.span)?;
                         self.found.insert(Node::Callable((key, bindings.clone())));
                         self.has_forward |= forwarding::signature(signature).is_some();
                         self.shape(
@@ -1176,9 +1178,15 @@ fn dependencies(
                 .saturating_add(1),
             span,
         )?;
+        walk.state.snapshot(Bindings::storage_delta_work(), span)?;
         walk.state.forward_callers.insert(instance);
     }
-    walk.state.snapshot(walk.found.len(), span)?;
+    walk.state.snapshot(
+        walk.found
+            .len()
+            .saturating_mul(Bindings::storage_delta_work().saturating_add(1)),
+        span,
+    )?;
     Ok(walk.found.into_iter().collect())
 }
 
@@ -1190,7 +1198,7 @@ pub(super) fn order(
     limits: &Limits,
     span: Span,
 ) -> R<Vec<Node>> {
-    state.snapshot(1, span)?;
+    state.snapshot(1usize.saturating_add(Bindings::storage_delta_work()), span)?;
     let mut pending = vec![(root, false)];
     let mut edges = BTreeMap::<Node, Vec<Node>>::new();
     let mut active = BTreeSet::new();
@@ -1234,6 +1242,7 @@ pub(super) fn order(
                     .saturating_add(2),
                 span,
             )?;
+            state.snapshot(Bindings::storage_delta_work(), span)?;
             heights.insert(instance.clone(), height);
             active.remove(&instance);
             state.snapshot(
@@ -1241,6 +1250,7 @@ pub(super) fn order(
                 span,
             )?;
             if !instance.ready(state) {
+                state.snapshot(Bindings::storage_delta_work(), span)?;
                 result.push(instance);
             }
         } else {
@@ -1263,6 +1273,7 @@ pub(super) fn order(
                     .saturating_add(1),
                 span,
             )?;
+            state.snapshot(Bindings::storage_delta_work(), span)?;
             if !active.insert(instance.clone()) {
                 return Err(unsupported(
                     span,
@@ -1290,6 +1301,13 @@ pub(super) fn order(
                     .saturating_add(tree_work(edges.len()))
                     .saturating_mul(instance.key_factor())
                     .saturating_add(2),
+                span,
+            )?;
+            state.snapshot(
+                children
+                    .len()
+                    .saturating_add(2)
+                    .saturating_mul(Bindings::storage_delta_work()),
                 span,
             )?;
             pending.push((instance.clone(), true));
