@@ -242,10 +242,10 @@ pub(super) fn parameter(
                     if actual != p {
                         return Err(closed());
                     }
-                    if std::ptr::eq(&i.kind, call) || i.kind == *call {
-                        if answer.replace(actual).is_some_and(|old| old != actual) {
-                            return Err(closed());
-                        }
+                    if (std::ptr::eq(&i.kind, call) || i.kind == *call)
+                        && answer.replace(actual).is_some_and(|old| old != actual)
+                    {
+                        return Err(closed());
                     }
                     *value = Origin::Empty;
                     frame.done = Origin::Input(actual);
