@@ -106,10 +106,8 @@ fn walk(
         for child in &module.life_instances {
             type_work(&child.ty, limits, b)?;
             type_work(ty, limits, b)?;
-            if child.ty == *ty {
-                if selected.replace(child).is_some() {
-                    return Err(err("Type actual has ambiguous complete nominal instances"));
-                }
+            if child.ty == *ty && selected.replace(child).is_some() {
+                return Err(err("Type actual has ambiguous complete nominal instances"));
             }
         }
         let child = selected.ok_or_else(|| err("Type actual has no complete nominal instance"))?;
