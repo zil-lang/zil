@@ -305,6 +305,27 @@ pub(super) fn types(
         return Ok(());
     }
     match &i.kind {
+        InstructionKind::BorrowCapture {
+            index,
+            mutable: false,
+        } => {
+            let definition = f
+                .environment
+                .and_then(|id| module.closures.get(id.0 as usize))
+                .filter(|d| lending(d))
+                .ok_or_else(|| bad("capture loan requires an actual lending entry"))?;
+            let actual = definition
+                .captures
+                .get(*index as usize)
+                .filter(|ty| scalar(ty))
+                .ok_or_else(|| bad("capture loan requires a real inline scalar field"))?;
+            b.type_work(actual, false, "inline capture loan actual payload")?;
+            if !matches!(i.result.and_then(|v|f.values.get(v.0 as usize)),Some(Type::Address {mutable:false,inner}) if inner.as_ref()==actual)
+            {
+                return Err(bad("inline capture loan has a different actual result"));
+            }
+            return Ok(());
+        }
         InstructionKind::ReadCapture { index } | InstructionKind::WriteCapture { index, .. } => {
             let d = f
                 .environment

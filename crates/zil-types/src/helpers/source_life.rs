@@ -429,7 +429,7 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
                 if position.base != base
                     || !position.path.is_empty()
                     || !matches!(parameter.ty, Type::Address { mutable, .. }
-                        if mutable == (input.parameter == bound.index && bound.kind == CallableKind::FnMut))
+                        if mutable == function.callable_parameters.iter().any(|role|role.index==input.parameter && role.kind==CallableKind::FnMut))
                     || !header
                         .bindings
                         .iter()

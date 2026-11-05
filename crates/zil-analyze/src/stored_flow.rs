@@ -2346,7 +2346,12 @@ pub(super) fn derive(
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
-                            if !matches!(target.base, HoldRoot::Parameter(_)) {
+                            if !matches!(target.base, HoldRoot::Parameter(_))
+                                && !(matches!(target.base, HoldRoot::Capture(_))
+                                    && f.environment
+                                        .and_then(|id| module.closures.get(id.0 as usize))
+                                        .is_some_and(super::stored_callables::lending))
+                            {
                                 return Err(failure(
                                     "stored return would retain an activation-local target",
                                 ));

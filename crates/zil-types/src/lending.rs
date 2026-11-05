@@ -79,10 +79,7 @@ impl Builder<'_, '_> {
         {
             return Ok(false);
         }
-        if self.closures.pending[id.0 as usize]
-            .source_context
-            .is_some()
-        {
+        if self.closures.has_source_context(id) {
             return Ok(true);
         }
         let arity = self.closures.pending[id.0 as usize].parameters.len();

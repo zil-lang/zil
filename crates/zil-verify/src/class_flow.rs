@@ -289,7 +289,7 @@ pub(super) fn check_role(
         super::signature_life::closure_relation(
             &d.parameters,
             &d.captures,
-            &d.result,
+            super::stored_callables::life_result(d),
             life,
             Some(f.span),
         )?;

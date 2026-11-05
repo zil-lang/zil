@@ -794,19 +794,24 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     super::signature_life::capture_relation(
                         &definition.parameters,
                         &definition.captures,
-                        &definition.result,
+                        super::stored_callables::life_result(definition),
                         life,
                     )?;
                     budget.spend(
                         function.parameters.len(),
                         "captured Fixed helper shared arguments",
                     )?;
-                    if function.parameters.iter().any(|p| {
+                    if claim.roles.len() > 1 {
+                        budget.spend(
+                            function.parameters.len().saturating_mul(claim.roles.len()),
+                            "actual exclusive callable role exclusion",
+                        )?;
+                    }
+                    if function.parameters.iter().enumerate().any(|(position,p)| {
                         p != local
-                            && matches!(
-                                function.locals[p.0 as usize].ty,
-                                Type::Address { mutable: true, .. }
-                            )
+                            && matches!(function.locals[p.0 as usize].ty,Type::Address { mutable:true,.. })
+                            && !claim.roles.iter().any(|other|other.parameter as usize==position && other.kind==CallableKind::FnMut
+                                && matches!(&function.locals[p.0 as usize].ty,Type::Address {mutable:true,inner} if inner.as_ref()==&Type::Closure(other.closure)))
                     }) {
                         return Err(vec![Diagnostic::unsupported(
                             Phase::Analyze,
