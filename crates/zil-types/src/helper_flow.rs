@@ -600,19 +600,17 @@ fn classify(
                 state.snapshot(node.calls.len().saturating_add(1), span)?;
             }
         }
-        if bounds.iter().any(|bound| {
-            bound.kind == CallableKind::FnOnce
+        for bound in bounds {
+            if bound.kind == CallableKind::FnOnce
                 && !(roles.forward
                     && flow.nodes.iter().all(|node| {
                         node.calls
                             .iter()
                             .all(|event| event.parameter != bound.index)
                     }))
-        }) {
-            return Err(unsupported(
-                span,
-                "cyclic FnOnce helper requires an additional consumption contract",
-            ));
+            {
+                scoped_once(&flow, bound.index, state, span)?;
+            }
         }
         return Ok(CallableTraces::Flow(flow));
     }

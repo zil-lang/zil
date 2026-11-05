@@ -549,11 +549,14 @@ pub(super) fn check(
                 .iter()
                 .any(|role| role.kind == CallableKind::FnOnce)
         {
-            return Err(vec![Diagnostic::unsupported(
-                Phase::Analyze,
-                "cyclic FnOnce helper requires an additional consumption contract",
-                Some(function.span),
-            )]);
+            budget.spend(claim.roles.len(), "cyclic actual Once-role inventory")?;
+            let roles: BTreeSet<_> = claim
+                .roles
+                .iter()
+                .filter(|role| role.kind == CallableKind::FnOnce)
+                .map(|role| role.parameter)
+                .collect();
+            once_paths(&rows, &roles, budget)?;
         }
         let CallableTraces::Flow(flow) = &claim.traces else {
             return Err(bad("cyclic helper requires its exact Flow contract"));
