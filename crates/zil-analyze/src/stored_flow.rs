@@ -767,9 +767,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         parameters.push(ty.clone());
     }
     b.type_work(&f.return_type, true, "stored signature result relation")?;
+    let new_nominal = |ty: &Type| {
+        matches!(ty, Type::BorrowedStorage { storage, life }
+        if life.slots.is_empty()
+            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
+                || !life.retained.is_empty()))
+    };
     if (matches!(f.return_type, Type::Array { .. }) && !f.return_type.is_copy_value())
+        || new_nominal(&f.return_type)
         || matches!(&f.return_type, Type::Address { inner, .. }
-            if matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+            if (matches!(inner.as_ref(), Type::Array { .. }) && !inner.is_copy_value())
+                || new_nominal(inner))
     {
         b.type_work(&f.return_type, false, "pure Array result relation walk")?;
     }
