@@ -86,7 +86,7 @@ impl generics::products::Products {
                     })?;
                 if role.source_life.is_some()
                     || role.generic_index != 0
-                    || role.kind != CallableKind::Fn
+                    || !matches!(role.kind, CallableKind::Fn | CallableKind::FnMut)
                 {
                     return Err(Diagnostic::unsupported(
                         Phase::Expand,

@@ -157,11 +157,15 @@ impl<'a> Engine<'a> {
             stored |= parameter_stored;
             if callable_parameter.is_some() {
                 match &parameter.ty.kind {
-                    TypeKind::Reference {
-                        mutable: false,
-                        inner,
-                        ..
-                    } if matches!(inner.kind, TypeKind::Named { .. }) => {
+                    TypeKind::Reference { mutable, inner, .. }
+                        if matches!(inner.kind, TypeKind::Named { .. })
+                            && (!*mutable
+                                || callable_parameter.is_some_and(|ordinal| {
+                                    matches!(&inner.kind, TypeKind::Named { path, args }
+                                    if args.is_empty() && matches!(path.as_slice(), [name]
+                                        if name == &function.generics[ordinal].name))
+                                })) =>
+                    {
                         if parameter_stored {
                             callable_data_profile &=
                                 occurrences.len() - before == 2 && physical_witness;

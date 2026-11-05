@@ -58,7 +58,7 @@ pub(crate) fn reserve(
     }
     if context.declaration.compiler
         || !context.identity.generation_path.is_empty()
-        || bound.kind != CallableKind::Fn
+        || !matches!(bound.kind, CallableKind::Fn | CallableKind::FnMut)
         || bound.closed_environment
         || bound.generic_index != 0
         || context.bound_ordinal != 0
@@ -265,7 +265,8 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
         || function.callable_return.is_some()
         || !scalar(&function.return_type)
         || !matches!(function.parameters.get(bound.index as usize).map(|p|&p.ty),
-            Some(Type::Address {mutable:false,inner}) if matches!(inner.as_ref(),Type::Named(name) if name == &bound.generic_name))
+            Some(Type::Address {mutable,inner}) if *mutable == (bound.kind == CallableKind::FnMut)
+                && matches!(inner.as_ref(),Type::Named(name) if name == &bound.generic_name))
     {
         return Err(unsupported(
             span,
@@ -313,7 +314,8 @@ pub(crate) fn validate(function: &CoreFunction, bound: &CoreCallableParameter) -
             CoreClosureHeaderPosition::Borrow(position) => {
                 if position.base != base
                     || !position.path.is_empty()
-                    || !matches!(parameter.ty, Type::Address { mutable: false, .. })
+                    || !matches!(parameter.ty, Type::Address { mutable, .. }
+                        if mutable == (input.parameter == bound.index && bound.kind == CallableKind::FnMut))
                     || !header
                         .bindings
                         .iter()
@@ -448,7 +450,7 @@ pub(crate) fn form(
             "source helper actual environment has no capture contract",
         )
     })?;
-    if definition.kind != CallableKind::Fn
+    if !compatible(definition.kind, bound.kind)
         || definition.parameters != bound.parameters
         || definition.result != bound.result
     {
