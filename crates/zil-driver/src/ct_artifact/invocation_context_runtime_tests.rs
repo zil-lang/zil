@@ -225,3 +225,57 @@ fn runtime_original_call_rejects_coordinated_actual_kind_and_ordinal_substitutio
         );
     }
 }
+
+#[test]
+fn runtime_source_authority_rejects_unrelated_and_reordered_scope_roots_after_wire() {
+    let mut f = fixture();
+    f.context
+        .extend_runtime_entry(&f.source, &f.raw, &f.index, &mut f.budget)
+        .unwrap();
+    let limits = Limits::default();
+    let verify = |raw: &CtArtifactProgram| {
+        let transported = zil_ir::ct_wire::decode_program(
+            &zil_ir::ct_wire::encode_program(raw, &limits).unwrap(),
+            &limits,
+        )
+        .unwrap();
+        let authority = crate::ct_artifact::authority::FrozenAuthority {
+            source_fingerprint: raw.source_fingerprint,
+            snapshot: &raw.snapshot,
+            input: &raw.input_tokens,
+            index: &f.index,
+            expected_functions: &raw.functions,
+            // Deliberately let whole-producer equality agree with the mutation;
+            // independently frozen scope attribution must still reject it.
+            expected_artifact: raw,
+            invocation_context: Some(&f.context),
+        };
+        zil_verify::verify_ct_artifact(transported, &limits, &authority)
+    };
+    verify(&f.raw).unwrap();
+    for attack in 0..4 {
+        let mut raw = f.raw.clone();
+        match attack {
+            0 => {
+                let mut row = raw.ambient_life_scopes[0].clone();
+                row.declaration = f.source.caller.clone();
+                assert!(!f.context.authorized_runtime_scope_root(&row));
+                raw.ambient_life_scopes.push(row);
+            }
+            1 => raw.ambient_life_scopes.swap(0, 1),
+            2 => {
+                let mut row = raw.ambient_life_scopes[1].clone();
+                row.binder_site.push(0);
+                assert!(!f.context.authorized_runtime_scope_root(&row));
+                raw.ambient_life_scopes.push(row);
+            }
+            _ => raw
+                .ambient_life_scopes
+                .push(raw.ambient_life_scopes[0].clone()),
+        }
+        assert!(
+            verify(&raw).is_err(),
+            "untrusted runtime root mutation {attack}"
+        );
+    }
+}
