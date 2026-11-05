@@ -21,8 +21,8 @@ mod capture_tests;
 
 pub(super) type TemplateKey = (ModuleId, NodeId);
 pub(super) type Tables = BTreeMap<ModuleId, BTreeMap<String, Signature>>;
-/// Inline legacy keys retain their old allocation/charge path. Larger ordered
-/// keys share compiler metadata only; this is never a runtime environment RC.
+/// Inline keys avoid a vector allocation; their larger enum storage is paid
+/// separately. Extended keys share compiler metadata, never runtime values.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(super) enum Bindings {
     Inline([Option<ClosureId>; 2]),
@@ -271,6 +271,34 @@ pub(super) fn validate_template(
         return Err(reject());
     }
     for bound in bounds {
+        if bounds.len() > 2 {
+            // Dense ordinal checks and consistency comparisons precede no
+            // uncharged variable signature/life/name equality on larger sets.
+            for _ in bounds {
+                for _ in 0..bound.generic_name.len().saturating_add(3) {
+                    prepay(&Type::Unit, function.span)?;
+                }
+                for ty in bound
+                    .parameters
+                    .iter()
+                    .chain(std::iter::once(&bound.result))
+                {
+                    prepay(ty, function.span)?;
+                }
+                if let Some(life) = &bound.life {
+                    borrowed_fp::charge_contract(
+                        life,
+                        |work| {
+                            for _ in 0..work {
+                                prepay(&Type::Unit, function.span)?;
+                            }
+                            Ok(())
+                        },
+                        1,
+                    )?;
+                }
+            }
+        }
         if (bound.generic_index > 0
             && !bounds
                 .iter()
@@ -297,11 +325,6 @@ pub(super) fn validate_template(
                 && callable_fields::placeholder_package(&parameter.ty, &bound.generic_name))
         {
             return Err(reject());
-        }
-        if bounds.len() > 2 {
-            for _ in bounds {
-                prepay(&Type::Unit, function.span)?;
-            }
         }
         for prior in bounds.iter().take_while(|prior| prior.index < bound.index) {
             if (prior.generic_index == bound.generic_index)
@@ -351,6 +374,13 @@ pub(super) fn validate_template(
             function.span,
             "two-input owning State constructors require finite Copy or direct Managed ordinary parameters",
         ));
+    }
+    if bounds.len() > 2 {
+        for _ in &function.parameters {
+            for _ in bounds {
+                prepay(&Type::Unit, function.span)?;
+            }
+        }
     }
     for (index, p) in function.parameters.iter().enumerate() {
         if bounds.iter().any(|bound| bound.index as usize == index) {

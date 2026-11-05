@@ -447,8 +447,8 @@ fn actual_non_copy_once_environment_cannot_fill_two_owned_roles() {
 
 const FOUR_ROLE_SOURCE: &str = r#"
 fn leaf<A:Fn(i32)->i32,B:Fn(i32)->i32,C:Fn(i32)->i32,D:Fn(i32)->i32>(a:&A,b:&B,c:&C,d:&D,x:i32)->i32{return a(b(c(d(x))))}
-fn route<F:Fn(i32)->i32,G:Fn(i32)->i32,H:Fn(i32)->i32,I:Fn(i32)->i32>(f:&F,g:&G,h:&H,i:&I,x:i32)->i32{return leaf(i,h,g,f,x)}
-fn main()->i32{let f=move(x:i32)=>x+1;let g=move(x:i32)=>x*2;let h=move(x:i32)=>x-3;let i=move(x:i32)=>x*5;return route(&f,&g,&h,&i,4)-35}
+fn route<F:Fn(i32)->i32,G:Fn(i32)->i32,H:Fn(i32)->i32,I:Fn(i32)->i32>(f:&F,g:&G,h:&H,i:&I,x:i32)->i32{let local=move()=>0;let zero=local();return leaf(i,h,g,f,x+zero)}
+fn main()->i32{let f=move(x:i32)=>x+1;let g=move(x:i32)=>x*2;let h=move(x:i32)=>x-3;let i=move(x:i32)=>x*5;let first=leaf(&f,&g,&h,&i,4);let second=leaf(&f,&g,&i,&h,4);return route(&f,&g,&h,&i,4)+first+second-81}
 "#;
 
 #[test]
@@ -459,8 +459,30 @@ fn four_callable_binders_preserve_actual_child_permutation() {
         .iter()
         .filter_map(|f| f.callable_contract.as_ref())
         .collect();
-    assert_eq!(contracts.len(), 2);
+    assert_eq!(contracts.len(), 4);
     assert!(contracts.iter().all(|c| c.roles.len() == 4));
+    assert!(
+        contracts
+            .iter()
+            .any(|left| contracts.iter().any(|right| left.roles[0].closure
+                == right.roles[0].closure
+                && left.roles[1].closure == right.roles[1].closure
+                && left.roles[2].closure != left.roles[3].closure
+                && left.roles[2].closure == right.roles[3].closure
+                && left.roles[3].closure == right.roles[2].closure)),
+        "the two later generic slots must produce distinct concrete instances"
+    );
+    assert!(
+        module.functions.iter().any(|f| f
+            .callable_contract
+            .as_ref()
+            .is_some_and(|c| c.roles.len() == 4)
+            && f.blocks.iter().any(|b| b
+                .instructions
+                .iter()
+                .any(|i| matches!(i.kind, zil_ir::InstructionKind::MakeClosure { .. })))),
+        "the four-role caller must exercise Analyze's precise CFG snapshots"
+    );
     let paths: Vec<_> = contracts
         .iter()
         .flat_map(|c| c.traces.as_finite().unwrap())
@@ -499,21 +521,36 @@ fn third_and_fourth_role_event_swap_rejects_raw_and_wire() {
     }
     // Analyze must reconstruct the supplied contract, and raw Verify must do
     // so independently even with a genuine candidate for the original body.
-    assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
+    let analyzed = zil_analyze::analyze(&forged, &Limits::default()).unwrap_err();
+    assert!(
+        analyzed
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+        "{analyzed:?}"
+    );
     let mut candidate = zil_analyze::analyze(&original, &Limits::default()).unwrap();
     candidate.module_fingerprint = forged.fingerprint();
-    assert!(
-        zil_verify::verify_module(
-            forged.clone(),
-            candidate.clone(),
-            &forged.target,
-            &Limits::default()
-        )
-        .is_err()
-    );
+    let raw = zil_verify::verify_module(
+        forged.clone(),
+        candidate.clone(),
+        &forged.target,
+        &Limits::default(),
+    )
+    .unwrap_err();
     let wire =
         zil_ir::wire::encode_module_candidate(&forged, &candidate, &Limits::default()).unwrap();
-    assert!(zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err());
+    let decoded = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+    assert_eq!(decoded, (forged.clone(), candidate));
+    let decoded =
+        zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).unwrap_err();
+    for diagnostics in [raw, decoded] {
+        assert!(
+            diagnostics.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-CALLABLE-CONTRACT"),
+            "{diagnostics:?}"
+        );
+    }
 }
 
 #[test]
