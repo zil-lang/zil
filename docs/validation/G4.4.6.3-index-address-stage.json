@@ -1,0 +1,45 @@
+{
+  "task": "G4.4.6.3-index-address",
+  "status": "RootAddressRepresentationImplementedNoLinkPassSourcePending",
+  "date": "2026-11-05",
+  "implementation_commit": "fb6c63757c2d5b84beaf23286fc33186689161cc",
+  "base": "cd0223df6bfada6c0711044db387455745abd447",
+  "source_dirty": false,
+  "actual_failure": {
+    "log": "/workspace/.zil-env/G10.1.11-fourth-targeted/enum-backend.log",
+    "case": "g4463_qualified_array_snapshot_preserves_every_u64_bit",
+    "verification_runs": 1,
+    "phase": "Lower",
+    "category": "Unsupported",
+    "shape": "Address { mutable:false, inner:14 nested Array<qualified Leaf U64> }"
+  },
+  "changes": [
+    "Only Local/SSA Lower fallback distinguishes outer Address then independently meters the complete pure pointee. Function parameter/result pure-composite gates still reject a new Address signature.",
+    "Complete Type and shared/mutable access mode remain unchanged; pure_composite continues to reject every embedded Address/Managed/slot-bearing leaf.",
+    "LLVM adds the same private outer-address physical predicate only after prior local admission guards and prior pointer/alignment guards. AddressIndex reads actual Array length/storage shape and retains existing bounds trap.",
+    "Pointer values are not pointee-sized snapshots. Actual ReadAddress large pure results retain existing snapshot and LargeCopy protocol. No schema/ABI/default quota change."
+  ],
+  "check": {
+    "command": "cargo check -p zil-lower -p zil-backend-llvm --tests -j1",
+    "kind": "NoLinkCompileOnly",
+    "result": "Pass",
+    "initial_compile_seconds": 14.47,
+    "target": "/workspace/.zil-env/target-G4.4.6.3-backend",
+    "log": "/workspace/.zil-env/G4.4.6.3-index-address-tmp/qualified-index-address-frozen-check.log",
+    "sha256": "47d1ebe904a90b00c5b9e4f31a52db52e92ee8caeaa47e1a29a4a65b6baf0c9d"
+  },
+  "new_private_tests": "CompiledNotExecuted: Lower 14-level shared/mutable root-address pure-pointee N/N-1/fresh versus embedded target/Managed rejection; LLVM root pointer representation/alignment and not-snapshot versus ReadAddress result snapshot, embedded-address rejection.",
+  "source_native_result": "NotExecutedByAuthor",
+  "remaining": [
+    "Root joint source/native and private unit batch.",
+    "Large parameter Analyze class-row issue remains independently assigned; no claim this Lower/backend delta fixes it.",
+    "Independent review and affected budget/final parent acceptance."
+  ],
+  "rust_goals": {
+    "safety": "Physical root address only after independent Verify root/loan proof; embedded targets remain excluded.",
+    "cost": "Old success guards short-circuit; new root/pointee visits charge one Lower ledger, LLVM metadata remains prepaid.",
+    "machine": "Actual length/index and pointer layout preserved, large ReadAddress retains snapshot.",
+    "boundary": "Lower and LLVM only, full semantic types retained; no new raw authority.",
+    "breakthrough_and_limit": "Bridges the actual checked Array-index pointer shape; evidence still no-link only."
+  }
+}
