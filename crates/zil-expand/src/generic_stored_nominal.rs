@@ -1205,6 +1205,7 @@ impl<'a> Engine<'a> {
             _ => unreachable!(),
         };
         let classes = produced.classes;
+        self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
             match &mut instance.kind {
                 ItemKind::Aggregate(physical) => physical.generics.clear(),

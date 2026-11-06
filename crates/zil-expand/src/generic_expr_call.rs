@@ -243,6 +243,7 @@ impl Engine<'_> {
         context: ExprExpectedContext<'_>,
         depth: usize,
     ) -> R<Option<TypeRef>> {
+        self.inherent_call(e, env, depth)?;
         // Reserved bare/grouped numeric names cannot select a trait member or
         // another primitive family. Keep their recursive argument visit out
         // of the ordinary call-state and Task-construction stack frames.

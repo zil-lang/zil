@@ -144,7 +144,7 @@ fn prepare_inner(module: &Module, width: u16, limits: &Limits) -> R<Plan> {
     let patterns = BTreeMap::new();
     let checked = trait_bounds::associated::prepare(module, true, None, None, &mut budget)?
         .expect("associated checking requested");
-    let mut engine = Engine::with_budget(&checked, limits, &patterns, None, budget, None)?;
+    let mut engine = Engine::with_budget(&checked, limits, &patterns, None, &[], budget, None)?;
     let index = trait_bounds::Index::new(module, &mut engine.budget)?;
     let mut definitions = Vec::new();
     let mut relevant = BTreeSet::new();
