@@ -201,7 +201,7 @@ fn pod_llvm_requires_the_exact_verified_resource_and_protocol() {
 }
 
 #[test]
-fn pod_source_derived_unused_package_and_product_cannot_own_pod_store() {
+fn pod_source_derived_unused_owning_containers_cannot_own_pod_store() {
     let source = "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73})}";
     let (original, plan) = candidate(source);
     let store = original
@@ -211,9 +211,10 @@ fn pod_source_derived_unused_package_and_product_cannot_own_pod_store() {
         .unwrap()
         .payload
         .clone();
+    let head = Type::Managed(Box::new(store));
     let bag = Type::Package {
         name: "@module0:Bag".into(),
-        fields: vec![("items".into(), Type::Managed(Box::new(store)))],
+        fields: vec![("items".into(), head.clone())],
     };
     let product = Type::Package {
         name: "@module0:Product".into(),
@@ -222,6 +223,24 @@ fn pod_source_derived_unused_package_and_product_cannot_own_pod_store() {
     for (label, ty) in [
         ("pod-unused-package-owning-store", bag),
         ("pod-unused-product-owning-store", product),
+        (
+            "pod-unused-tuple-owning-store",
+            Type::Tuple(vec![head.clone()]),
+        ),
+        (
+            "pod-unused-enum-owning-store",
+            Type::Enum {
+                name: "@module0:Message".into(),
+                variants: vec![("Own".into(), vec![head.clone()]), ("Empty".into(), vec![])],
+            },
+        ),
+        (
+            "pod-unused-error-owning-store",
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(head),
+            },
+        ),
     ] {
         let mut module = original.clone();
         let main = module
