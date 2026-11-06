@@ -272,6 +272,15 @@ impl Tree {
         ty: &Type,
         budget: &mut Budget,
     ) -> CompileResult<()> {
+        if budget.pod_stores {
+            budget.spend(1, "POD Sum terminal tag classification")?;
+            // Actual private facts already represent ordinary Record payloads
+            // as Copy and managed headers as Leaf. Neither stores tag facts.
+            // Do not rescan their complete types after every unrelated write.
+            if matches!(self.node, Node::Copy | Node::Leaf(_)) {
+                return Ok(());
+            }
+        }
         budget.type_work(ty, true, "mutable local Enum tag knowledge")?;
         if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) && ty.is_copy_value() {
             let old = self.copied(budget)?;

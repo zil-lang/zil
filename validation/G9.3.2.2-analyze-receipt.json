@@ -1,0 +1,23 @@
+{
+  "task": "G9.3.2.2",
+  "source_commit": "2f16652f66ada507c47b746b8c02883ba7371a6f",
+  "base_commit": "f655674982642c9f395a7593755c791f6c591242",
+  "scope": "Author focused Analyze raw controls; not independent review or Source/Wire/native/formal acceptance",
+  "commands": [
+    { "command": "cargo fmt --all --check", "exit": 0 },
+    { "command": "git diff --check", "exit": 0 },
+    { "command": "cargo check --locked -p zil-analyze --tests -j1", "exit": 0 },
+    { "command": "cargo test --locked -p zil-analyze --test impl201_store -j1 -- --nocapture", "exit": 0, "passed": 18, "failed": 0 }
+  ],
+  "budget": {
+    "old_package_N": 561,
+    "old_callback_N": [772, 1031, 2023, 1717],
+    "pod_owner_N": 738,
+    "pod_view_N": 1702,
+    "N_minus_1": "ResourceLimit",
+    "fresh_plan": "Identical"
+  },
+  "retained_limit": "Same-call view and may-write Store overlap rejects conservatively even when the callee reads first; distinct Store helper and caller last-use controls pass",
+  "history": ".task/G9.3.2.2.md records the original live-window omission, retained helper rejection and withdrawn Unit1 layout hypothesis",
+  "rust_cost_comparison": "Not measured"
+}
