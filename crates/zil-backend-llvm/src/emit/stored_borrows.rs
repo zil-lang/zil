@@ -232,7 +232,26 @@ pub(super) fn reserve_callable_metadata(
 pub(super) fn representation_type(t: &Type) -> bool {
     matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)))
         || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_))))
+        || shared_pointer_enum(t)
         || pure_composite(t)
+}
+
+// Machine shape only, after immutable Verify capability and full LIR binding.
+// A Slice pointee is deliberately excluded: that Address is a fat {ptr,len}.
+// No nominal name, class or source permission is inferred by this predicate.
+pub(super) fn shared_pointer_enum(t: &Type) -> bool {
+    let Type::BorrowedStorage { storage, .. } = t else {
+        return false;
+    };
+    let Type::Enum { variants, .. } = storage.as_ref() else {
+        return false;
+    };
+    let [empty, present] = variants.as_slice() else {
+        return false;
+    };
+    empty.1.is_empty()
+        && matches!(present.1.as_slice(), [Type::Address { mutable: false, inner }]
+            if inner.is_copy_value())
 }
 
 /// An actual verified root pointer to pure storage. Never use this predicate
@@ -546,7 +565,8 @@ pub(super) fn reserve_emission(
             if let InstructionKind::MakeVariant { fields, .. } = &i.kind
                 && let Some(result) = i.result
                 && !f.values[result.0 as usize].is_copy_value()
-                && pure_composite(&f.values[result.0 as usize])
+                && (pure_composite(&f.values[result.0 as usize])
+                    || shared_pointer_enum(&f.values[result.0 as usize]))
                 && snapshots
                     .get(&f.id)
                     .is_none_or(|plan| !plan.contains_key(&result))
@@ -676,6 +696,46 @@ impl FunctionEmitter<'_> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn g3_4_1_borrowed_enum_representation_is_a_thin_pointer_slice_only() {
+        // Synthetic machine-layout probe only. Source/native acceptance still
+        // requires a genuine immutable Verify capability and full LIR binding.
+        let qualify = |payload| Type::BorrowedStorage {
+            storage: Box::new(Type::Enum {
+                name: "machine-shape-only".into(),
+                variants: vec![("empty".into(), vec![]), ("present".into(), vec![payload])],
+            }),
+            life: StorageLifeShape {
+                binder_count: 0,
+                slots: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        };
+        let thin = qualify(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I64),
+        });
+        assert!(shared_pointer_enum(&thin));
+        assert!(representation_type(&thin));
+        assert_eq!(
+            llvm_type(&thin).unwrap(),
+            m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::array(1, m::Ty::Int(64))])
+        );
+        assert_eq!(alignment(&thin, &BTreeMap::new()).unwrap(), 8);
+        assert_eq!(enums::union_layout(&thin).unwrap().words, 1);
+        assert!(!representation_type(&qualify(Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I64)
+        })));
+        assert!(!representation_type(&qualify(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Slice {
+                element: Box::new(Type::I64)
+            })
+        })));
+    }
 
     #[test]
     fn g4463_pure_representation_checks_every_variant_and_array_element() {

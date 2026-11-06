@@ -41,7 +41,7 @@ fn g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire() {
                 let Some(result) = instruction.result else {
                     continue;
                 };
-                if ORIGINAL.get(instruction.span.start as usize..instruction.span.end as usize)
+                if ORIGINAL.get(instruction.span.start..instruction.span.end)
                     == Some("self.index")
                     && matches!(&function.values[address.0 as usize], zil_ir::Type::Address { mutable: true, inner }
                         if matches!(inner.as_ref(), zil_ir::Type::BorrowedStorage { .. }))
