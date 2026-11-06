@@ -412,5 +412,110 @@
     "cargo test --locked -p zil-llvm-api --features text-reference",
     "cargo build --locked --release -p zil-cli",
     "tools/research/208/validate.py with the newly built CLI and supported clang; ten engineering commands recorded above"
-  ]
+  ],
+  "final_document_engineering": {
+    "source": "5de35813c3522604ccfbabe958db91f00a93d105",
+    "results": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "a733874578b87037407ca520210824960426827c385cdfad2ed371a2d761a618"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G10.1.12-closeout-engineering/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "4776a9275c32e9b1d063b9ecdda6a8b15571872d8780260d66d1d4041a9ef4a0"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "7cf2b1cf5e3735fdf1c9ba8db36ce6b865c2ef63451ed367a8cfc00bc26798df"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "62f4845f33c3b77be774211e035a582a3597281b4bec7b9d6b14a8ce06b41fd9"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "5a0df550367bcff1da3a511cddb8f3e051f7e2c36fce0b03d796bf71a803248d"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "2e690279db3d650a6b926fd6e6d2f4a123725b0d536775dced0b2cc7c797d511"
+      }
+    ]
+  },
+  "post_test_changes": "After frozen 76e109506, only final independent/author review JSON, this acceptance record and two delivery/Rust-goal documents changed. Production, test inputs, tools, public schema, Cargo and product gates remain identical. The document closeout was separately checked by all ten engineering gates."
 }
