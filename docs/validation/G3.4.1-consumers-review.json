@@ -2,7 +2,7 @@
   "task": "G3.4.1",
   "reviewer": "general_text_impl",
   "role": "Independent consumer review; not an Option implementation author",
-  "reviewed_commit": "34cdeef1a8b5b542f36eee46039f10ef1a6545cb",
+  "reviewed_commit": "3d667cf4d158bc6ee8e72e964e2efb5848ad2b85",
   "consumer_commits": [
     "2515e7fb2",
     "97a7057fc",
@@ -10,9 +10,11 @@
     "f2ed64b81",
     "69e4932e5",
     "f1d75dd0e",
-    "34cdeef1a"
+    "34cdeef1a",
+    "ae40fb6b7",
+    "3d667cf4d"
   ],
-  "status": "BaseFindingsClosed_PatternExtensionPending",
+  "status": "StaticReviewed_FunctionalMatrixPassed_LoopAndIndependentSourceNegativePending",
   "scope": {
     "included": [
       "crates/zil-types/src/stored.rs",
@@ -24,7 +26,10 @@
       "crates/zil-analyze/src/stored_flow/option_address.rs",
       "crates/zil-verify/src/stored_flow.rs",
       "crates/zil-verify/src/stored_flow/nominal.rs",
-      "crates/zil-verify/src/stored_flow/option_address.rs"
+      "crates/zil-verify/src/stored_flow/option_address.rs",
+      "crates/zil-types/src/enums.rs (only new Option value-pattern dispatch)",
+      "crates/zil-analyze/src/signature_life.rs (only new Option signature dispatch)",
+      "crates/zil-verify/src/signature_life.rs (only new Option signature dispatch)"
     ],
     "excluded": [
       "All G9.3.1 text implementation written by this reviewer",
@@ -41,16 +46,16 @@
     "No independent heavy build or full suite executed in this review"
   ],
   "source_sha256": {
-    "crates/zil-types/src/stored.rs": "60f005399387a7ca7fce1fac1c8645512a6e9c8e54ea0c2478d28a95c41d971b",
+    "crates/zil-types/src/stored.rs": "936b786628835b79a625046e313d8dd4819d48c3f521eec3f2c397bbab0ff370",
     "crates/zil-types/src/stored/nominal.rs": "c0af8b437ebf506238f590f175a5b8076248dffda5f3b258eba5079c4bceb8af",
     "crates/zil-types/src/stored/option_address.rs": "b3388598c1b5b18b6cab78fdd2996fe4c3fde748edd14c0d21177bb61b9c3cf5",
     "crates/zil-types/src/aggregates.rs": "11edf85e50b97c673ccdfd0b472ddd0f8f25a995f6afc967e8b94948659bec5d",
-    "crates/zil-analyze/src/stored_flow.rs": "962a87d0c3541f5898992a3512981b2a070f6f8a7368cafe025bbd6c6f3852a8",
+    "crates/zil-analyze/src/stored_flow.rs": "8fe6db56147979e46c3f9e9ce94bbee6921a315b1b161b41e41e9fbdea3baad4",
     "crates/zil-analyze/src/stored_flow/nominal.rs": "398e6f320d542df60fc5b5ac28828744391fac1458c470dff15c87fa430e401c",
-    "crates/zil-analyze/src/stored_flow/option_address.rs": "515e43830f35a603bf456f56186294803e5bf59a4944f6a7af23e0e20a954435",
-    "crates/zil-verify/src/stored_flow.rs": "f0e83971f72c03c64f07d83338bc25606345e3a4c2fe297f8ca9fcea880a4c5c",
+    "crates/zil-analyze/src/stored_flow/option_address.rs": "570661e23d705cf04eb17f4b3a62059f038ab77b998394c5470d8cb78b7e7db4",
+    "crates/zil-verify/src/stored_flow.rs": "24cb36b22ccb58a98cf5d7515ac1771301430d87e6d96c47309f9ad949814a09",
     "crates/zil-verify/src/stored_flow/nominal.rs": "a527aada3f289f51cf63a1aeb8310ae3e9516d6b1b0539202cfdc46992bc7c5e",
-    "crates/zil-verify/src/stored_flow/option_address.rs": "57635cfa0aaf242d293b720d5e7f59aa441bc20501b6eed93269ba66bfd1416f"
+    "crates/zil-verify/src/stored_flow/option_address.rs": "08789aa8cc819a63ad3c38132cc4d0a1a3f04f8708453c3712dfbd60575bc2cd"
   },
   "findings": [
     {
@@ -152,7 +157,7 @@
     "Review None joined with unresolved/ungrounded producer, None joined with Some, copied Some invalidated source, and actual original SliceIter loop",
     "Record any id(None) or general Option-parameter precision boundary explicitly rather than treating it as tested composition"
   ],
-  "acceptance": "The two original findings are closed in exact base consumer 34cdeef1a. No new blocking safety issue found in that base by static review and the inspected 9/0 author module log. Added value-pattern source ae40fb6b7 remains pending its actual functional matrix and review of any required dead-edge proof; no whole G3.4.1 or original SliceIter acceptance is inferred.",
+  "acceptance": "Exact 3d667cf4d has no new blocking static finding in this review. Original a4cf None and comparison-fee findings are closed. Inspected root logs demonstrate the added Some/mixed/None value-match matrix and tag/condition/opcode raw/Wire controls; actual loop-backedge consumer and independent wrong-source negative execution remain pending, and original native SliceIter is codegen Unsupported. This record does not claim whole G3.4.1 or machine acceptance.",
   "initial_review": {
     "source_commit": "a4cf8ebfce1722622698b012719c39e85d98fdf6",
     "status": "ChangesRequested",
@@ -192,7 +197,7 @@
   },
   "pattern_extension": {
     "source_commit": "ae40fb6b78de1b01a938c51e70ceb06d5f12bba3",
-    "status": "StaticBoundaryReviewed_ExecutionAndDeadBranchProofPending",
+    "status": "ExactScopeReviewed_FunctionalMatrixPassInInspectedRootLog",
     "scope": [
       "crates/zil-types/src/enums.rs conditional_pattern",
       "crates/zil-types/src/enums.rs enum_match",
@@ -203,6 +208,66 @@
       "crates/zil-types/src/stored.rs": "936b786628835b79a625046e313d8dd4819d48c3f521eec3f2c397bbab0ff370"
     },
     "review": "Both new value-pattern entry points ask the existing exact Option shape checker on Resolver output. They do not change pure_value, ordinary Copy classification, mutable payload admission or provenance. Pattern lowering emits actual VariantTag, equality branch and Some ReadVariant; permission still comes from the actual Option payload.",
-    "open_requirement": "Run the added Some/mixed/None helper-to-match matrix. Known None leaves a structurally reachable Some arm whose extracted Address is ungrounded; any narrow reachability/completion correction must derive the edge from actual checked tag/CFG evidence. It must preserve all potentially executable ungrounded Address/Some checks. No new reachability patch has been reviewed or approved in this record."
-  }
+    "resolution_commit": "3d667cf4d158bc6ee8e72e964e2efb5848ad2b85"
+  },
+  "none_cfg_review": {
+    "source_commit": "3d667cf4d158bc6ee8e72e964e2efb5848ad2b85",
+    "result": "No new blocking static issue found",
+    "proof_chain": [
+      "Run original untrimmed interprocedural permission/variant fixed point to convergence first",
+      "Freeze only each final SSA value whose actual variant mask is exactly None=1; mask0 is never None and None|Some=3 is not pruned",
+      "Require actual Bool Equal instruction, both operands I32, real VariantTag of the frozen SSA, real I32 constant0 or1, and actual Branch destinations; either operand order is checked",
+      "Build private successors/predecessors/reachability from those checked conditions",
+      "Recompute permission/call-summary solution once on that private graph, with the same graph used by liveness, window, active-loan and return checks",
+      "Exempt source completeness only for instruction result IDs in blocks that were original-reachable and become unreachable; old already-dead policy is unchanged",
+      "The replay receives an inactive table and cannot request another refinement, so narrowed summaries never feed a second edge proof",
+      "Original full-graph instruction types, complete nominal identity, SSA definition availability and definite initialization remain checked before permission replay",
+      "Independent candidate-hold comparison still reconstructs actual roots for every value; the private dead-value set is not public metadata"
+    ],
+    "budget_review": "Definition tables, block graph vectors, worklist traversal, None-set lookup, private graph copies and replay all debit the existing current-request ledger on this new profile. No-None old path does not enter refine/replay. CaptureViews/role_data_uses cloning has explicit cardinality prepayment."
+  },
+  "observed_new_execution": {
+    "role": "Inspected root/life execution log; not an independently executed reviewer run",
+    "path": "/tmp/G3.4.1-combined-all-third.log",
+    "sha256": "485fe9db491fdb851660d91df997f1106af91d1f9928a31e46d676254810a1ba",
+    "reported_combination": "45867de3 (author-reported root combination; consumer source reviewed at exact 3d667cf4d)",
+    "total": 17,
+    "passed": 14,
+    "failed": 3,
+    "option_module_total": 13,
+    "option_module_passed": 11,
+    "option_module_failed": 2,
+    "passing_new_consumer_evidence": [
+      "Some-only/runtime-mixed/None-only helper-to-match matrix",
+      "Source-derived actual Some projection plus five opcode raw/Wire mutations",
+      "Known None edge proof plus five tag/Equal/Branch raw/Wire mutations",
+      "Original SliceIter two-kernel raw/Wire admission",
+      "Original SliceIter actual target invalidation rejection"
+    ],
+    "preserved_failures": [
+      {
+        "case": "None-to-Some loop backedge",
+        "phase": "Expand",
+        "actual": "Unsupported source enum pattern differs from actual declaration",
+        "meaning": "Does not prove the intended loop consumer or backedge root assertion; producer repair and real rerun required"
+      },
+      {
+        "case": "wrong actual source after Types",
+        "phase": "Expand",
+        "actual": "Unsupported retained reference class needs its actual source class",
+        "meaning": "Upstream source rejection is real but is not the intended Analyze/Verify negative execution. A source-derived raw wrong-root control remains required."
+      },
+      {
+        "case": "original SliceIter native result42",
+        "phase": "codegen",
+        "actual": "Unsupported LLVM representation for BorrowedStorage wrapping Enum",
+        "meaning": "Source/independent kernels reached successfully, no machine result42 demonstrated in this run"
+      }
+    ]
+  },
+  "open_dynamic_requirements": [
+    "Repair producer handling of the actual local Option name in loop patterns, then execute the None-to-Some backedge test and its real Parameter(0) root assertion",
+    "Retain the now-earlier source-class rejection with its true Expand phase; provide a source-derived raw/Wire actual-local-source mutation so independent consumer rejection is exercised rather than bypassed by upstream failure",
+    "Keep machine borrowed-Enum lowering and original native result42 separate from this consumer review; root owns downstream implementation and integration acceptance"
+  ]
 }
