@@ -5,10 +5,10 @@
     "_zil_design.md": "f524256931a7abb044b98a3062df40ca220889b0fcf4fd659894016f0cc6b1a5",
     "spec/grammar.ebnf": "a5787c2df545f4d47c0e8c24d5749d11b6d680b65df99027fcdf6e93077fd15c",
     "spec/attributes.json": "6c44e6decee8fead4c9542e38e7b40057b23d27a142c38458eef8854738121fa",
-    "spec/diagnostics.json": "ba356a1a99284cde9cd8459acda742657bfe674e6228def7b07df6008bc7ea2c",
+    "spec/diagnostics.json": "26f7f6422801401572a9b88c942f511b9af1a8451cb1c18d147b2323fc8ae6a0",
     "spec/interfaces.json": "05cae8b39c73bbd613616415b83da00063da4d793436a44b9e67bdb15e9e45c7",
     "policy/dependencies.json": "f3a87bc6284ac6e7d8e4354d696975f9b97daab3426ce01c49c74d27dcc56ca7",
     "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311"
   },
-  "normative_hash": "56a963952816815dcbfe38c871060a27d503bb250f8d01b5a60fa6977a64d0ae"
+  "normative_hash": "39cad1263831b6320fa54ea5499dcf778f4a5be05c8d98e98b09700495f957fe"
 }
