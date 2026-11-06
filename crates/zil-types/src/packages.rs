@@ -26,12 +26,18 @@ pub(super) fn has_store_fields(ty: &Type) -> bool {
 }
 
 pub(super) fn supported(ty: &Type) -> bool {
-    matches!(ty, Type::Package { fields, .. }
-        if fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
-        && fields.iter().all(|(_, t)| t.is_copy_value()
-            || array_field_supported(t)
-            || matches!(t, Type::Closure(_))
-            || matches!(t, Type::Managed(_) if resources::supported(t))))
+    let Type::Package { fields, .. } = ty else {
+        return false;
+    };
+    fields.iter().any(|(_, t)| matches!(t, Type::Managed(_)))
+        && fields.iter().all(|(_, t)| {
+            t.is_copy_value()
+                || array_field_supported(t)
+                || matches!(t, Type::Closure(_))
+                || (matches!(t, Type::Managed(_))
+                    && resources::supported(t)
+                    && !matches!(dynamic_store::element(t), Some(Type::Record { .. })))
+        })
 }
 
 /// Ordinary owned values have a separate Product gate. Store, Sum and
