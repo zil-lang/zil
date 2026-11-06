@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。下一批 G2.4.1 补 trait 逐调用 lending iterator，复用已有关联 Item 和 Option 共享结果，再推进 dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的 trait 逐调用 lending iterator 已实现，当前进行集成验收；之后优先普通集合可变元素与 trait 静态工厂，再推进 dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -49,17 +49,17 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 进行中 | P0 | root 集成 / sol high 并行 | [实施合同](https://github.com/zil-lang/zil/blob/56e197646/changes/G2.4.1-trait-lending-iterator.md)已冻结；四路并行接声明/实例化、life/Types、Analyze、Verify，另有独立消费者与复核。先复用现有表示，保持真实借用来源及定义期义务。 |
+| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 实现待验 | P0 | root 集成 / sol high 并行 | [源码](https://github.com/zil-lang/zil/tree/task/G2.4.1)已推送；原始五模块及 std.iter 两后端 O0/O2 输出42通过，独立来源反例已通过。正在补齐边界和共同全量验收；资源移动/lending owning 容器不在已通过范围。 |
 
 <details>
 <summary>G2.4.1 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.1.1 | trait 方法声明、impl binder 对齐与关联 Item 实例化 | 进行中 | P0 | lending_trait · sol high | 完整身份、alpha改名与未用定义义务；不擦除life放行。 |
-| G2.4.1.2 | life/Types 关系与 Option 结果合同 | 进行中 | P0 | lending_life_types · sol high | 优先复用 StorageLifeContract，保留实际参数来源上界。 |
-| G2.4.1.3 | Analyze 实际接收者、调用窗口与返回来源 | 进行中 | P0 | lending_analyze · sol high | 从真实成功Source核现有消费者，必要修复及来源反例。 |
-| G2.4.1.4 | Verify 独立来源/父loan与 raw/Wire 复核 | 进行中 | P0 | lending_verify · sol high | 独立核真实根，不共享Analyze求证；活结果阻止相交推进。 |
+| G2.4.1.1 | trait 方法声明、impl binder 对齐与关联 Item 实例化 | 实现待验 | P0 | lending_trait · sol high | 完整 provider 身份、alpha 对齐、未用定义义务和符号 Option 贷款已接；等待共同验收。 |
+| G2.4.1.2 | life/Types 关系与 Option 结果合同 | 实现待验 | P0 | lending_life_types · sol high | 实际 receiver 字段来源、认证跨模块 Option 目录及构造器已接；全量与新增精确预算检查进行中。 |
+| G2.4.1.3 | Analyze 实际接收者、调用窗口与返回来源 | 实现待验 | P0 | lending_analyze · sol high | Source 派生正例和局部载荷伪造反例 2/2 通过；未改 Analyze 生产核。 |
+| G2.4.1.4 | Verify 独立来源/父loan与 raw/Wire 复核 | 实现待验 | P0 | lending_verify · sol high | Source 派生 raw/Wire 活结果相交调用拒绝通过；未改 Verify 生产核。 |
 
 </details>
 
