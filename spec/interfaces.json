@@ -1764,5 +1764,13 @@
     "native": "Fixed context stack slot before register; guarded same-thread C trampoline(c_handle,i32)->i64. Null registration -> (false,0), success body/cleanup then Closing/close/no-future -> (true,result). No heap/RC/global table; abort does not unwind exposed slot",
     "budget": "No default limits increased. Existing semantic fees on absent feature unchanged; new actual work prepaid from current request; new wire role byte is charged as part of schema32 format",
     "status": "In construction; no external lifetime acceptance claimed before source/raw/native independent tests"
+  },
+  "trait_lending_G2_4_1": {
+    "source": "_zil_design.md §18.1; changes/G2.4.1-trait-lending-iterator.md",
+    "representation": "Existing function-local life relation and StorageLifeContract positions, canonical Option shared-address profile; no new opcode/schema",
+    "identity": "Static trait/provider and complete associated substitution; alpha-equivalent local binders preserve relation and receiver mode",
+    "consumer": "Types checks declaration relations; Analyze and Verify independently reconstruct actual return/call roots, parent loans, live result windows and unused definitions",
+    "scope": "Ordinary nongeneric traits; concrete/type-only nominal generic impls; life-only method generics and Copy referent; no GAT/impl-life/default-body widening",
+    "budget": "Prepay actual new scans/maps/clones/substitutions with existing request, no default limit increase"
   }
 }

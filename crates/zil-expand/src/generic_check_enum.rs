@@ -618,6 +618,39 @@ impl Check<'_, '_, '_> {
             _ => Ok(false),
         }
     }
+    fn option_payload_sources(&mut self, ty: &TypeRef, value: &Expr) -> R<Option<Vec<usize>>> {
+        if !matches!(&group(ty).kind, TypeKind::Named { path, args }
+            if path.as_slice() == [super::super::options::TEMPLATE]
+                && matches!(args.as_slice(), [GenericArg::Type(payload)]
+                    if matches!(group(payload).kind, TypeKind::Reference { mutable: false, .. })))
+        {
+            return Ok(None);
+        }
+        let actual = self.alias_result_copy(value.span)?;
+        // An empty set is an unknown borrowed payload, not proof that Some
+        // carries no reference. Binding that payload must fail closed.
+        Ok(Some(actual))
+    }
+    fn begin_option_payload(&mut self, pattern: &Pattern, sources: Option<&[usize]>) -> R<()> {
+        if sources.is_some()
+            && matches!(&pattern.kind, PatternKind::Constructor { path, arguments }
+                if path.last().is_some_and(|name| name == "Some")
+                    && matches!(arguments.as_slice(), [Pattern { kind: PatternKind::Reference { .. }, .. }]))
+        {
+            return Err(unsupported(
+                pattern.span,
+                "nested Option reference payload pattern requires its borrowing consumer",
+            ));
+        }
+        if let Some(sources) = sources
+            && matches!(&pattern.kind, PatternKind::Constructor { path, arguments }
+                if path.last().is_some_and(|name| name == "Some")
+                    && matches!(arguments.as_slice(), [Pattern { kind: PatternKind::Name(_), .. }]))
+        {
+            self.alias_option_payload_begin(sources, pattern.span)?;
+        }
+        Ok(())
+    }
     fn pattern_value(&mut self, value: &Expr, state: &mut State, keep_place: bool) -> R<TypeRef> {
         let previous = self.pattern_read;
         if keep_place {
@@ -701,6 +734,12 @@ impl Check<'_, '_, '_> {
                 }
                 self.budget.ty(ty)?;
                 self.bind_local(state, name.clone(), ty.clone())?;
+                if matches!(group(ty).kind, TypeKind::Reference { mutable: false, .. })
+                    && self.alias_option_payload_pending()
+                {
+                    let local = state.locals[name].id;
+                    self.alias_option_payload_bind(state, local, p.span)?;
+                }
                 Pat::Any
             }
             PatternKind::Wildcard => Pat::Any,
@@ -965,8 +1004,19 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Named { path: base, .. } = &group(ty).kind else {
                     return Err(error(p.span, "enum pattern requires declared enum type"));
                 };
+                // Option's source spelling is sealed and rewritten to the
+                // compiler enum in type positions. Pattern paths retain their
+                // source spelling; compare that one exact alias to the actual
+                // inferred enum, then resolve its fields from the real type.
+                let builtin_option = if path.len() == 2 && base.len() == 1 && path[0] == "Option" {
+                    self.budget.text(&path[0], p.span)?;
+                    self.budget.text(&base[0], p.span)?;
+                    base[0] == super::super::options::TEMPLATE
+                } else {
+                    false
+                };
                 if path.len() != base.len() + 1
-                    || (alias.is_none() && path[..path.len() - 1] != base[..])
+                    || (alias.is_none() && !builtin_option && path[..path.len() - 1] != base[..])
                 {
                     return Err(error(p.span, "generic pattern nominal type mismatch"));
                 }
@@ -1076,10 +1126,13 @@ impl Check<'_, '_, '_> {
     ) -> R<BlockFlow> {
         let has_ref = self.budget.has_reference_patterns() && self.pattern_has_ref(pattern, 0)?;
         let ty = self.pattern_value(value, state, has_ref)?;
+        let option_payload = self.option_payload_sources(&ty, value)?;
         let mut yes = self.clone_state(state)?;
         let first = self.next_local;
         self.prepare_pattern_place(pattern, value, &yes)?;
+        self.begin_option_payload(pattern, option_payload.as_deref())?;
         let pattern = self.pattern(pattern, &ty, &mut yes, &mut BTreeSet::new())?;
+        self.alias_option_payload_end();
         let irrefutable = !self.useful(
             &[vec![pattern]],
             &[Pat::Any],
@@ -1131,10 +1184,13 @@ impl Check<'_, '_, '_> {
         let entry = self.clone_loop_state(state, value.span)?;
         let has_ref = self.budget.has_reference_patterns() && self.pattern_has_ref(pattern, 0)?;
         let ty = self.pattern_value(value, state, has_ref)?;
+        let option_payload = self.option_payload_sources(&ty, value)?;
         self.loop_invariant(&entry, state, value.span)?;
         let mut iteration = self.clone_loop_state(state, body.span)?;
         self.prepare_pattern_place(pattern, value, &iteration)?;
+        self.begin_option_payload(pattern, option_payload.as_deref())?;
         self.pattern(pattern, &ty, &mut iteration, &mut BTreeSet::new())?;
+        self.alias_option_payload_end();
         let place = self.pattern_place.take();
         self.loop_body_pattern(body, state, iteration, span, aliases, place.as_ref())
     }
@@ -1154,6 +1210,7 @@ impl Check<'_, '_, '_> {
             }
         }
         let ty = self.pattern_value(value, state, has_ref)?;
+        let option_payload = self.option_payload_sources(&ty, value)?;
         let prepared = if has_ref {
             Some(self.alias_pattern_prepare(value, state)?)
         } else {
@@ -1173,7 +1230,9 @@ impl Check<'_, '_, '_> {
                 .as_ref()
                 .map(|place| self.alias_pattern_clone(place, arm.span))
                 .transpose()?;
+            self.begin_option_payload(&arm.pattern, option_payload.as_deref())?;
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
+            self.alias_option_payload_end();
             if !self.useful(
                 &rows,
                 std::slice::from_ref(&p),

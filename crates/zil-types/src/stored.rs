@@ -368,6 +368,35 @@ pub(super) fn copy_inventory(
     Ok((core.life_declarations.clone(), core.life_instances.clone()))
 }
 
+/// A physical compiler Option may be referenced by a generated provider in
+/// another module. Admit that declaration into the project resolver only
+/// after the producing module's full stored inventory authenticates it.
+pub(super) fn project_option_enum(
+    core: &CoreModule,
+    declaration: &CoreEnum,
+    left: &mut usize,
+    limits: &Limits,
+) -> R<bool> {
+    let mut candidate = false;
+    for instance in &core.life_instances {
+        fee(
+            left,
+            declaration.name.len().saturating_add(1),
+            declaration.span,
+        )?;
+        if instance.declaration.compiler
+            && matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Enum { name, .. } if name == &declaration.name))
+        {
+            candidate = true;
+        }
+    }
+    if candidate {
+        inventory(core, left, limits)?;
+    }
+    Ok(candidate)
+}
+
 fn closed_copy(ty: &Type, left: &mut usize, depth: usize, limit: usize, span: Span) -> R<bool> {
     fee(left, 1, span)?;
     if depth > limit {
@@ -442,7 +471,7 @@ pub(super) fn option_address_value(
     limits: &Limits,
     span: Span,
 ) -> R<bool> {
-    option_address::shape(ty, left, limits.max_call_depth, span)
+    option_address::shape(ty, left, limits.max_call_depth, span, false)
 }
 
 /// Narrow value-only qualification for an actual nested stored field. This
@@ -521,7 +550,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if option_address::shape(ty, left, depth_limit, span)? {
+    if option_address::shape(ty, left, depth_limit, span, false)? {
         return Ok(());
     }
     if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })

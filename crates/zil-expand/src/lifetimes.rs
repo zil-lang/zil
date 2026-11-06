@@ -97,8 +97,14 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
+                // The trait method itself has a per-call life scope. A lifted
+                // provider retains its nominal Copy premise and the trait
+                // obligation in its where clause until specialization.
+                let trait_method_life = self.trait_scope && only_life(f);
+                let provider_life = lending_provider_life(f);
                 self.mutable_life = !self.binders.is_empty()
                     || only_life(f)
+                    || provider_life
                     || !self.impl_scope && (copy_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
@@ -114,10 +120,10 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     }
                 }
                 if !self.binders.is_empty()
-                    && (self.trait_scope
+                    && ((self.trait_scope && !trait_method_life)
                         || matches!(item.kind, s::ItemKind::Extern { .. })
                         || !(self.mutable_life || !self.impl_scope && copy_life(f))
-                        || !f.where_clause.is_empty())
+                        || (!f.where_clause.is_empty() && !provider_life))
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
@@ -125,7 +131,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                         Some(f.span),
                     )]);
                 }
-                if !self.trait_scope && !matches!(item.kind, s::ItemKind::Extern { .. }) {
+                if (!self.trait_scope || trait_method_life)
+                    && !matches!(item.kind, s::ItemKind::Extern { .. })
+                {
                     for ty in f.params.iter().map(|p| &p.ty).chain(f.return_type.iter()) {
                         self.budget.node(ty.span, depth).map_err(|e| vec![e])?;
                         self.headers.push(std::ptr::from_ref(reference(ty)));
@@ -378,6 +386,13 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
     types == 1 && lives > 0
 }
 
+/// This spelling is created only by the method lift; source identifiers cannot
+/// contain `$`. It selects the existing life or Copy/life profile while
+/// retaining the provider's nominal trait obligation for definition-time checking.
+fn lending_provider_life(function: &s::Function) -> bool {
+    function.name.starts_with("$generic_method_") && (only_life(function) || copy_life(function))
+}
+
 /// Ordinary helper lifetime formals stay in the function's rigid source
 /// domain; higher-rank callable formals retain their separate invocation scope.
 pub(super) fn callable_life(function: &s::Function) -> bool {
@@ -435,8 +450,9 @@ pub(super) fn contract(
     if !present {
         return Ok(None);
     }
+    let provider_life = lending_provider_life(function);
     let mutable_life = only_life(function) || copy_life(function) || callable_life(function);
-    if !mutable_life || !function.where_clause.is_empty() {
+    if !mutable_life || (!function.where_clause.is_empty() && !provider_life) {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "life with type/callable/const parameters or where clauses is not implemented",

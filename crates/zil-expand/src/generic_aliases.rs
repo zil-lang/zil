@@ -72,6 +72,8 @@ pub(super) struct Tracker {
     uses: Vec<Use>,
     joins: Vec<BTreeMap<usize, usize>>,
     inputs: BTreeSet<usize>,
+    lending_call: Option<(usize, Vec<usize>)>,
+    option_payload: Option<Vec<usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -97,6 +99,47 @@ fn tree_work(size: usize) -> usize {
 }
 
 impl Check<'_, '_, '_> {
+    pub(super) fn alias_lending_call(&mut self, site: &Expr, inputs: Vec<usize>) -> R<()> {
+        self.alias_fee(inputs.len().saturating_add(1), site.span)?;
+        self.aliases.lending_call = Some((site as *const Expr as usize, inputs));
+        Ok(())
+    }
+
+    pub(super) fn alias_option_payload_begin(&mut self, loans: &[usize], span: Span) -> R<()> {
+        self.alias_fee(loans.len().saturating_add(1), span)?;
+        self.aliases.option_payload = Some(loans.to_vec());
+        Ok(())
+    }
+
+    pub(super) fn alias_option_payload_end(&mut self) {
+        self.aliases.option_payload = None;
+    }
+
+    pub(super) fn alias_option_payload_pending(&self) -> bool {
+        self.aliases.option_payload.is_some()
+    }
+
+    pub(super) fn alias_option_payload_bind(
+        &mut self,
+        state: &mut State,
+        local: usize,
+        span: Span,
+    ) -> R<()> {
+        let loans = self
+            .aliases
+            .option_payload
+            .take()
+            .ok_or_else(|| unsupported(span, "Option payload has no actual symbolic source"))?;
+        if loans.is_empty() {
+            return Err(unsupported(
+                span,
+                "Option payload has no actual symbolic source",
+            ));
+        }
+        self.alias_fee(loans.len(), span)?;
+        self.aliases.result = loans;
+        self.alias_bind(state, local, span)
+    }
     fn alias_fee(&mut self, count: usize, span: Span) -> R<()> {
         for _ in 0..count {
             self.budget.node(span, 0)?;
@@ -537,6 +580,24 @@ impl Check<'_, '_, '_> {
                 let Some(local) = state.locals.get(name) else {
                     return Ok(Vec::new());
                 };
+                // A local Option value has its own physical slot. Its tracked
+                // child loans describe the possible Some payload referent,
+                // and must not turn `&option` into a borrow of that referent.
+                if matches!(&group(&local.ty).kind, TypeKind::Named { path, args }
+                    if path.as_slice() == [super::super::options::TEMPLATE]
+                        && matches!(args.as_slice(), [GenericArg::Type(payload)]
+                            if matches!(group(payload).kind, TypeKind::Reference { mutable: false, .. })))
+                {
+                    self.alias_fee(1, expression.span)?;
+                    return Ok(vec![Origin {
+                        position: Position {
+                            owner: local.id,
+                            field: None,
+                            route: None,
+                        },
+                        parents: Vec::new(),
+                    }]);
+                }
                 if let Some(aliases) = &state.aliases {
                     self.alias_fee(tree_work(aliases.locals.len()), expression.span)?;
                     if let Some(loans) = aliases.locals.get(&local.id) {
@@ -1051,6 +1112,73 @@ impl Check<'_, '_, '_> {
         expression: &Expr,
     ) -> R<()> {
         let span = expression.span;
+        if let Some((site, allowed)) = self.aliases.lending_call.take() {
+            let selected = match &expression.kind {
+                ExprKind::Call { callee, .. } => match &callee.kind {
+                    ExprKind::TypeApply { callee, .. } => callee.as_ref(),
+                    _ => callee.as_ref(),
+                },
+                _ => expression,
+            };
+            if site != selected as *const Expr as usize {
+                return Err(error(
+                    span,
+                    "lending call lost its selected declaration identity",
+                ));
+            }
+            self.alias_fee(
+                self.aliases
+                    .active
+                    .len()
+                    .saturating_sub(base)
+                    .saturating_mul(allowed.len().saturating_add(2)),
+                span,
+            )?;
+            let held = self.aliases.active[base..].to_vec();
+            self.aliases.active.truncate(base);
+            self.aliases.result.clear();
+            for parent in held {
+                if !parent
+                    .argument
+                    .is_some_and(|index| allowed.contains(&index))
+                {
+                    continue;
+                }
+                let aliases = state
+                    .aliases
+                    .as_ref()
+                    .expect("held receiver has actual loan");
+                self.alias_fee(tree_work(aliases.loans.len()), span)?;
+                let loan = &aliases.loans[&parent.loan];
+                if loan.invalid {
+                    return Err(error(
+                        span,
+                        "lending result retains an invalid receiver loan",
+                    ));
+                }
+                self.alias_fee(loan.parents.len().saturating_add(3), span)?;
+                let mut parents = Vec::with_capacity(loan.parents.len() + 1);
+                parents.extend(&loan.parents);
+                parents.push(parent.loan);
+                let child = self.alias_new(
+                    state,
+                    Origin {
+                        position: loan.position.clone(),
+                        parents,
+                    },
+                    false,
+                    span,
+                )?;
+                self.aliases.result.push(child);
+            }
+            if self.aliases.result.is_empty() {
+                return Err(unsupported(
+                    span,
+                    "lending result has no actual permitted input loan",
+                ));
+            }
+            return Ok(());
+        }
         if base == self.aliases.active.len() {
             if !matches!(group(result).kind, TypeKind::Reference { .. }) {
                 self.aliases.result.clear();

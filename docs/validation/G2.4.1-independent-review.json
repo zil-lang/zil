@@ -1,0 +1,67 @@
+{
+  "reviewer": "independent non-implementation sol-high agent",
+  "root_sha": "d1ee456eedf23667479de7389e165afc9c5d3d8f",
+  "post_focus_commits_reviewed": [
+    "ff6c53bad: Clippy let-chain is semantically equivalent to the nested return-life check, with identical short-circuit and budget call order",
+    "a3b7ea9fd: removes a one-element alpha-renaming test loop without changing its Source or assertions",
+    "f96bd6ab3: groups identical phase/code/message literals into one test-helper tuple without changing assertions",
+    "696427af5 and 43970135a: restrict the new direct-address Option rule to a method-declared lifetime on an actual self Reference receiver; old fixed nominal SliceIter and free Option forwarding retain their existing source-class checks",
+    "78fa169a8: updates the legacy wrong-local oracle to its exact SafeReject diagnostic without changing downstream challenges"
+  ],
+  "integration_inputs": {
+    "trait_provider_tip": "d6f86d640",
+    "life_types_slice_tip": "49822d51c (phase-record commit containing prior semantic commits)",
+    "life_types_final_semantic_commits": [
+      "5c75cb02a",
+      "afd1469e5",
+      "319b0ab46",
+      "47255c2f8",
+      "f1e94df91"
+    ],
+    "stdlib_callable_bound": "2df19f7c1"
+  },
+  "status": "CodeReviewPassWithCommonEvidence",
+  "code_review": [
+    "Method-local lifetime signatures compare complete input/result relations by binder ordinal; implementation body keeps its own binder spelling. Unmodeled nested lifetime constructors reject explicitly.",
+    "Unused lifted life-only providers enter definition-time checking only from an actual trait member origin. A generated spelling alone grants no provenance; provider registry and retained relation checks are metered.",
+    "Source return roots come from actual receiver address, nominal field and array projection, not expected result class. A retained local address without a source class SafeRejects.",
+    "Selected generic calls carry only actual held arguments permitted by the declared result-life input relation. Option Some(Name) binds those loans through match, if-let and while-let; None and wildcard do not invent a root; Option container storage remains distinct from payload referent.",
+    "The initial nested Some(ref slot) alias-overwrite risk is closed by afd1469e5: actual sealed Option reference payload patterns explicitly return Unsupported before binding. No nested-reference permission was added.",
+    "Core Option's unresolved nonempty Named pointee is deferred only for authenticated compiler Option identity. Mandatory resolved inventory repeats structural Copy and exact physical payload proof; foreign Option index and constructor admission use actual nominal inventory, not generated-name prefixes as authority.",
+    "Real std.iter callable FnMut bounds use the existing callable-aware function-bound path in 2df19f7c1; other item bound handling is unchanged.",
+    "New map lookups and scans have explicit work charges. The selected-method transient Vec is prepaid by Budget::node before each push; no new public budget or ABI limit was introduced."
+  ],
+  "observed_before_final_root_rebuild": [
+    "At 0b4c07b13, focused consumers passed 11/11, including canonical Clang O0/O2 native output 42 and real std.iter; LLVM API execution is conditional on the Cargo feature and is not established by that default-feature log. Subsequent tests changed, so the count is not final-head evidence.",
+    "Source-derived Verify control passed raw and Wire rejection after forging a second actual receiver while the first Option remains live.",
+    "Analyze source-derived local Option payload mutation rejected; corrected relation/source selector later passed 2/2 in child focused run.",
+    "Canonical direct Expand work N=324346 and Types work N=103620 each passed at N, ResourceLimit at N-1, and repeated equal output at N in child focused run. Existing stored Types boundary N=733/N-1 passed."
+  ],
+  "first_full_run_and_regression_closure": {
+    "failed_source": "f96bd6ab3fc5d72a8ef456aed5ef19ab7154a0d0",
+    "first_run": "workspace test failed 6 of 5146 at legacy G3.4.1 fixed-host/Option forwarding positives and old wrong-local diagnostic; docs/validation/G2.4.1-first-full.json retains the failure, not acceptance",
+    "code_review": "New direct-input rule now uses actual method-local life binder plus actual self Reference parameter only as a rejecting gate. It grants no root; existing contract/source class and both kernels remain authoritative.",
+    "affected_child_retest": "zil-expand lib 69/69, generics 28/28, llvm-api cross_function_borrows 108/108, impl162_trait_bounds 77/77, focused Verify 1/1 passed in /tmp/G2.4.1.2-regression-*.log",
+    "current_source_exact_work": "after the gate narrowing, direct Expand N=324070 and Types N=103620, each N-1 ResourceLimit and fresh N equality (/tmp/G2.4.1.2-regression-budget-values.log)",
+    "root_common_rerun": "The clean d1 source passed all 11 final common stages, including fmt, strict default/reference Clippy, default workspace 5146/0 across 423 groups, reference workspace 5034/0 across 423 groups, text-reference 70/0 across 10 groups, release CLI build, consumer209 and engineering checks. complete.json records source d1 and tree 071f787b055d340e18625904f8dc2dfc67b6c1ed. All 11 stage log hashes and all 10 engineering sub-log hashes independently matched; release CLI SHA256 matched the receipt. Consumer209 summary independently showed 16 LLVM API builder builds with no fallback and one Verify each, 128 observations, 56 injected failures."
+  },
+  "explicit_boundaries_and_limits": [
+    "Resource receiver head addresses remain Unsupported; the attempted resource parent-move pair has no legal baseline and supplies no movement-safety evidence.",
+    "Nested Option Some(ref slot) remains Unsupported. Rewrapped symbolic Option payload and while-let over a held outer Option have separate existing Unsupported boundaries; their rejection is not claimed as loan-safety evidence.",
+    "Copy-only associated Item does not grant arithmetic; unsupported generic arithmetic is a capability boundary.",
+    "Common engineering gates pass for d1. Complete language/B0/ZUI obligations, Rust cost comparison and native Windows remain unverified; no product-level net breakthrough is claimed."
+  ],
+  "final_root_rebuild": {
+    "source_sha": "b79f86b76273caedd8cc44056b51f9e6fdc5c524",
+    "controlled_rebuild": true,
+    "results_file": "/workspace/.zil-env/G2.4.1-final-focused/results.json",
+    "default_feature_results": [
+      "consumers 14/14 passed, including canonical Clang O0/O2 stdout 42 and real embedded std.iter",
+      "Analyze plus direct Expand/Types budget controls 3/3 passed; Expand N=324346 and Types N=103620, each N-1 ResourceLimit and repeated N equality",
+      "source-derived raw and Wire Verify receiver mutation 1/1 passed",
+      "trait Expand alpha, non-Copy and exact work controls 3/3 passed"
+    ],
+    "llvm_api_feature": "cargo test --locked -p zil-driver --features llvm-api --test impl162_trait_bounds g241 -- --nocapture passed 14/14 on clean b79 root (log /workspace/.zil-env/G2.4.1-final-focused/consumers-llvm-api.log); canonical native test covers LLVM API O0/O2 with builder object reports, no fallback, exit 0 and stdout 42",
+    "common_acceptance": "d1 common engineering pipeline Pass; this is not overall language or product acceptance"
+  }
+}

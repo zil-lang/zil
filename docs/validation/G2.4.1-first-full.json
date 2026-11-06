@@ -1,0 +1,150 @@
+{
+  "profiles": {
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_PROFILE_DEV_DEBUG": "0",
+    "CARGO_PROFILE_TEST_DEBUG": "0",
+    "CARGO_BUILD_JOBS": "2"
+  },
+  "source": "f96bd6ab3fc5d72a8ef456aed5ef19ab7154a0d0",
+  "source_after": "f96bd6ab3fc5d72a8ef456aed5ef19ab7154a0d0",
+  "worktree_after": "",
+  "command": [
+    "cargo",
+    "test",
+    "--locked",
+    "--workspace",
+    "--no-fail-fast"
+  ],
+  "exit_code": 101,
+  "status": "Fail",
+  "elapsed_seconds": 533.5,
+  "groups": 423,
+  "passed": 5140,
+  "failed": 6,
+  "ignored": 0,
+  "log_sha256": "5b8d8eaa3c69d88e4bcf5746a447fe40b059722cad476b0b65b014012c31ec1e",
+  "failures": [
+    "test g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types ... FAILED",
+    "test g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected ... FAILED",
+    "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+    "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire ... FAILED",
+    "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`",
+    "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... FAILED",
+    "error: test failed, to rerun pass `-p zil-expand --lib`",
+    "test generic_inherent::unused_option_reference_actuals_keep_their_declared_source_classes ... FAILED",
+    "error: test failed, to rerun pass `-p zil-expand --test generics`",
+    "error: 3 targets failed:"
+  ],
+  "reclaimed_cache_files": 409,
+  "reclaimed_cache_bytes": 17338371080,
+  "diagnosis": {
+    "positive_regressions": "New Option direct-address rule was applied to both fixed nominal host classes (old SliceIter) and ordinary Option parameter forwarding; both must retain existing class/source proof rather than be forced into receiver invocation relations.",
+    "diagnostic_oracle": "One old wrong-local test still required Unsupported; the same source now precisely SafeRejects at Expand. Update exact diagnostic only, preserve raw/Wire challenges.",
+    "policy": "Old positive Source and existing safety counterexamples remain unchanged. This failed run is not common acceptance."
+  },
+  "earlier_strict_checks": [
+    {
+      "source": "d728f7addd12455aa75d4740f06ecd5aa966ab30",
+      "stages": [
+        {
+          "name": "fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 6.53,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 101,
+          "seconds": 11.62,
+          "log_sha256": "1b0456106779772797ffe38d520cc2a75a429041650be0f1e124afd1d79d9a75"
+        }
+      ]
+    },
+    {
+      "source": "ff6c53badcc6f3721023dbc6d3bea682372e7d5f",
+      "stages": [
+        {
+          "name": "fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 6.33,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 101,
+          "seconds": 9.04,
+          "log_sha256": "7c6bf836b47d506f1aefe8438c0b2f552e34f0ca9e067b1b6e69a6e1e4483331"
+        }
+      ]
+    },
+    {
+      "source": "a3b7ea9fdeec7954dfcb70db8257e26255555520",
+      "stages": [
+        {
+          "name": "fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 6.12,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 101,
+          "seconds": 22.56,
+          "log_sha256": "9a5b1d3c980bfa1a4205e8dd235fc1db3eeb9ea3712f02050e4aa811d6e0ee08"
+        }
+      ]
+    }
+  ]
+}

@@ -724,7 +724,20 @@ impl<'a> Engine<'a> {
                     .foreign_signatures
                     .insert(&function.name, (abi, function));
             }
-            if !params(item).is_empty() {
+            let lifted_life = if let ItemKind::Function(f) = &item.kind
+                && super::lifetimes::only_life(f)
+                && f.name.as_bytes().first() == Some(&b'$')
+            {
+                engine.budget.text(&f.name, f.span)?;
+                f.name.starts_with("$generic_method_")
+                    && engine
+                        .traits
+                        .origin(item, &mut engine.budget)?
+                        .is_some_and(|origin| origin.provider)
+            } else {
+                false
+            };
+            if !params(item).is_empty() || lifted_life {
                 let key = name(item).expect("template has a name").to_owned();
                 if engine.templates.insert(key, item).is_some() {
                     return Err(error(item.span, "duplicate generic declaration"));
@@ -783,7 +796,20 @@ impl<'a> Engine<'a> {
                                 true
                             } else {
                                 engine.budget.identity_work(f.generics.len(), f.span)?;
-                                super::lifetimes::copy_life(f)
+                                if super::lifetimes::copy_life(f) {
+                                    true
+                                } else if engine
+                                    .budget
+                                    .context
+                                    .origin
+                                    .is_some_and(|origin| origin.provider)
+                                {
+                                    engine.budget.text(&f.name, f.span)?;
+                                    f.name.starts_with("$generic_method_")
+                                        && super::lifetimes::only_life(f)
+                                } else {
+                                    false
+                                }
                             };
                             allow_source_life = Some(allowed);
                             allowed
@@ -1046,10 +1072,49 @@ impl<'a> Engine<'a> {
                 Some(anchors) => anchors,
                 None => self.runtime_call_anchors(&item)?,
             };
+            // Concrete specializations inherit the checked provider origin;
+            // their exact generated spelling has one additional prefix.
+            let source_life_provider = origin.is_some_and(|origin| origin.provider)
+                && matches!(&item.kind, ItemKind::Function(function)
+                    if (function.name.starts_with("$generic_method_")
+                        || function.name.starts_with("$generic_$generic_method_"))
+                        && super::lifetimes::only_life(function));
             let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
             let processed = self.with_origin(origin, |engine| engine.item(&mut item));
             self.current_member_calls = previous;
             processed?;
+            if source_life_provider {
+                let ItemKind::Function(function) = &item.kind else {
+                    return Err(error(
+                        item.span,
+                        "method provider lost its function declaration",
+                    ));
+                };
+                // Stored Option headers erase only their source life formals
+                // after recording the complete relation in the catalog.
+                if function.generics.is_empty() {
+                    self.stored_lookup_fee(
+                        self.products.storage.functions.len(),
+                        function.name.len(),
+                        item.span,
+                    )?;
+                    if !self.products.storage.functions.contains_key(&function.name) {
+                        return Err(error(item.span, "method provider lost its life relation"));
+                    }
+                }
+                self.budget.text(&function.name, item.span)?;
+                self.budget.identity_work(
+                    self.products
+                        .method_providers
+                        .len()
+                        .checked_ilog2()
+                        .map_or(1, |n| n as usize + 2),
+                    item.span,
+                )?;
+                if !self.products.method_providers.insert(function.name.clone()) {
+                    return Err(error(item.span, "duplicate method provider identity"));
+                }
+            }
             if self.origins.is_some() {
                 self.budget.node(item.span, 0)?;
                 output_origins

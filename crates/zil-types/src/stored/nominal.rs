@@ -108,8 +108,13 @@ fn walk(
             },
         )?;
         fee(left, work, span)?;
-        if !option_address::shape(&instance.ty, left, limits.max_call_depth, span)?
-            || !matches!((instance.arguments.as_slice(), storage.as_ref()),
+        if !option_address::shape(
+            &instance.ty,
+            left,
+            limits.max_call_depth,
+            span,
+            phase == InventoryPhase::Core,
+        )? || !matches!((instance.arguments.as_slice(), storage.as_ref()),
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
                 if actual == &variants[1].1[0])
         {
