@@ -129,15 +129,9 @@ pub(super) fn pod_element(ty: &Type) -> bool {
 
 /// Extra work is exclusive to the new Record family. Legacy Package receipts
 /// keep their exact charges. Call before the private POD predicate or new copy.
-pub(super) fn charge_pod(
-    ty: &Type,
-    limits: &Limits,
-    span: Span,
-    charge: &mut impl FnMut(usize) -> R<()>,
-) -> R<()> {
+pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
     if matches!(ty, Type::Record { .. }) {
-        let cost = inference::type_snapshot_work(ty, span, limits)?;
-        charge(cost.saturating_mul(4))?;
+        inference::charge_type_snapshot(ty, span, limits, remaining, 4)?;
     }
     Ok(())
 }
@@ -447,6 +441,7 @@ pub(super) fn add_definitions(
     closures: &[ClosureDefinition],
     bound_elements: &[(Type, Span)],
     limits: &Limits,
+    remaining: &mut usize,
 ) -> R<()> {
     let mut work = limits.max_analysis_steps;
     let exhausted = || {
@@ -474,14 +469,11 @@ pub(super) fn add_definitions(
             let mut pending = vec![ty];
             while let Some(ty) = pending.pop() {
                 if let Some(element) = element(ty) {
+                    charge_pod(element, limits, function.span, remaining)?;
                     let cost = inference::type_snapshot_work(element, function.span, limits)?;
                     work = work
                         .checked_sub(cost.saturating_add(2))
                         .ok_or_else(exhausted)?;
-                    charge_pod(element, limits, function.span, &mut |cost| {
-                        work = work.checked_sub(cost).ok_or_else(exhausted)?;
-                        Ok(())
-                    })?;
                     if !legacy_element(element)
                         && !product_element(element)
                         && !pod_element(element)
@@ -503,18 +495,21 @@ pub(super) fn add_definitions(
                     if matches!(element, Type::Record { .. }) {
                         // Cover the canonical name copy and ordered-map key
                         // comparisons before constructing or looking up it.
-                        work = work
+                        *remaining = remaining
                             .checked_sub(cost.saturating_mul(found.len().saturating_add(2)))
                             .ok_or_else(exhausted)?;
                     }
                     let name = definition_name(element);
                     if let Some(old) = found.get(&name) {
                         if matches!(element, Type::Record { .. }) {
-                            let old_cost =
-                                inference::type_snapshot_work(old, function.span, limits)?;
-                            work = work
-                                .checked_sub(cost.saturating_add(old_cost))
-                                .ok_or_else(exhausted)?;
+                            inference::charge_type_snapshot(
+                                old,
+                                function.span,
+                                limits,
+                                remaining,
+                                1,
+                            )?;
+                            *remaining = remaining.checked_sub(cost).ok_or_else(exhausted)?;
                         }
                         if old != element {
                             return Err(error(
@@ -557,14 +552,11 @@ pub(super) fn add_definitions(
     // constraint even when its body only transfers T and never makes a Store.
     // Reuse the same canonical definition, with no value or ownership event.
     for (element, span) in bound_elements {
+        charge_pod(element, limits, *span, remaining)?;
         let cost = inference::type_snapshot_work(element, *span, limits)?;
         work = work
             .checked_sub(cost.saturating_mul(2).saturating_add(2))
             .ok_or_else(exhausted)?;
-        charge_pod(element, limits, *span, &mut |cost| {
-            work = work.checked_sub(cost).ok_or_else(exhausted)?;
-            Ok(())
-        })?;
         if !legacy_element(element) && !product_element(element) && !pod_element(element) {
             if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                 return Err(unsupported(
@@ -574,11 +566,20 @@ pub(super) fn add_definitions(
             }
             check_callback_captures(element, closures, &mut work, limits, *span)?;
         }
+        if matches!(element, Type::Record { .. }) {
+            *remaining = remaining
+                .checked_sub(cost.saturating_mul(found.len().saturating_add(2)))
+                .ok_or_else(exhausted)?;
+        }
         let name = definition_name(element);
         work = work
             .checked_sub(found.len().saturating_mul(name.len().saturating_add(1)))
             .ok_or_else(exhausted)?;
         if let Some(old) = found.get(&name) {
+            if matches!(element, Type::Record { .. }) {
+                inference::charge_type_snapshot(old, *span, limits, remaining, 1)?;
+                *remaining = remaining.checked_sub(cost).ok_or_else(exhausted)?;
+            }
             let old_cost = inference::type_snapshot_work(old, *span, limits)?;
             work = work
                 .checked_sub(cost.saturating_add(old_cost))
@@ -631,11 +632,11 @@ impl Builder<'_, '_> {
         }
         let (kind, ty) = if name == "store_new" {
             let element = expected.and_then(element).ok_or_else(|| error("E-OWNED-STORE-TYPE", span, "store_new requires a concrete Store<Package> annotation or owning result context"))?;
+            if matches!(element, Type::Record { .. }) {
+                self.closures.snapshot_type(element, 4, 0, span)?;
+            }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
             self.closures.snapshot(work.saturating_mul(4), span)?;
-            charge_pod(element, self.limits, span, &mut |cost| {
-                self.closures.snapshot(cost, span)
-            })?;
             if !supported_element(element) {
                 return Err(unsupported(
                     span,
@@ -660,12 +661,12 @@ impl Builder<'_, '_> {
                     "Store primitive requires its real resource description",
                 )
             })?;
+            if matches!(element, Type::Record { .. }) {
+                self.closures.snapshot_type(element, 4, 0, span)?;
+            }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
             self.closures.snapshot(work.saturating_mul(4), span)?;
             let element = element.clone();
-            charge_pod(&element, self.limits, span, &mut |cost| {
-                self.closures.snapshot(cost, span)
-            })?;
             if !supported_element(&element) {
                 return Err(unsupported(
                     span,
@@ -785,22 +786,42 @@ mod pod_tests {
         });
         let limits = Limits::default();
         let span = Span::new(zil_base::FileId(0), 0, 1);
-        let mut cost = 0;
-        charge_pod(&ty, &limits, span, &mut |n| {
-            cost += n;
-            Ok(())
-        })
-        .unwrap();
+        let mut remaining = limits.max_analysis_steps;
+        charge_pod(&ty, &limits, span, &mut remaining).unwrap();
+        let cost = limits.max_analysis_steps - remaining;
         assert!(cost > 0);
         for allowance in [cost, cost - 1, cost] {
             let mut remaining = allowance;
-            let result = charge_pod(&ty, &limits, span, &mut |n| {
-                remaining = remaining.checked_sub(n).ok_or_else(|| {
-                    Diagnostic::limit(Phase::Types, "POD test allowance", Some(span))
-                })?;
-                Ok(())
-            });
+            let result = charge_pod(&ty, &limits, span, &mut remaining);
             assert_eq!(result.is_ok(), allowance == cost);
+        }
+    }
+    #[test]
+    fn pod_definition_registration_borrows_current_request_work() {
+        let ty = record(Type::Tuple(vec![Type::F32, Type::U64]));
+        let limits = Limits::default();
+        let span = Span::new(zil_base::FileId(0), 0, 1);
+        let bound = [(ty.clone(), span)];
+        let mut remaining = limits.max_analysis_steps;
+        let mut definitions = Vec::new();
+        add_definitions(&[], &mut definitions, &[], &bound, &limits, &mut remaining).unwrap();
+        let cost = limits.max_analysis_steps - remaining;
+        assert!(cost > 0);
+        assert_eq!(
+            definitions[0].payload,
+            Type::OwnedStore {
+                element: Box::new(ty)
+            }
+        );
+        for allowance in [cost, cost - 1, cost] {
+            let mut remaining = allowance;
+            let mut definitions = Vec::new();
+            let result =
+                add_definitions(&[], &mut definitions, &[], &bound, &limits, &mut remaining);
+            assert_eq!(result.is_ok(), allowance == cost);
+            if let Err(d) = result {
+                assert_eq!(d.category, zil_base::ResultCategory::ResourceLimit);
+            }
         }
     }
 }

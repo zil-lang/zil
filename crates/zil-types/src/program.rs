@@ -476,6 +476,7 @@ pub(super) fn check_resolved_program_with_reuse(
         &closures,
         &bound_elements,
         limits,
+        &mut remaining,
     )
     .map_err(|e| vec![e])?;
     let mut life_declarations = Vec::new();

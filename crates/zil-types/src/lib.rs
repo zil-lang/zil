@@ -546,6 +546,7 @@ pub fn check(
         &closures,
         &bound_elements,
         limits,
+        &mut remaining,
     )
     .map_err(|e| vec![e])?;
     let (life_declarations, life_instances) =
