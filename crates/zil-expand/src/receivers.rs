@@ -154,12 +154,14 @@ impl Expander<'_> {
         // The normalizer records actual lifted member origins. A retained
         // concrete trait premise is allowed only on its life-only provider;
         // the premise has already been checked in the provider definition.
-        let life_method_provider = if f.name.starts_with("$generic_method_") {
+        let life_method_provider = if f.name.starts_with("$generic_method_")
+            || f.name.starts_with("$generic_$generic_method_")
+        {
             if let Some(providers) = self.method_providers {
                 let work = f
                     .name
                     .len()
-                    .saturating_add("$generic_method_".len())
+                    .saturating_add("$generic_$generic_method_".len())
                     .saturating_mul(
                         providers
                             .len()
