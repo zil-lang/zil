@@ -237,14 +237,18 @@ fn static_utf8_rejects_mutable_reborrow_even_without_a_write() {
 #[test]
 fn static_utf8_charges_raw_bytes_and_current_request_budget() {
     let m = module();
-    let mut limits = Limits::default();
-    limits.max_nodes = 2;
+    let limits = Limits {
+        max_nodes: 2,
+        ..Limits::default()
+    };
     assert_eq!(
         analyze(&m, &limits).unwrap_err()[0].category,
         zil_base::ResultCategory::ResourceLimit
     );
-    let mut limits = Limits::default();
-    limits.max_analysis_steps = 1;
+    let limits = Limits {
+        max_analysis_steps: 1,
+        ..Limits::default()
+    };
     assert_eq!(
         analyze(&m, &limits).unwrap_err()[0].category,
         zil_base::ResultCategory::ResourceLimit
