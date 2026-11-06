@@ -126,6 +126,135 @@
         "    Checking zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
         "    Finished `dev` profile [unoptimized] target(s) in 14.12s"
       ]
+    },
+    {
+      "case": "all-consumers-first",
+      "source_revision": "25fd0771a269d561b55a7bc78e68df134e2d9aba",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j1 -- --nocapture",
+      "log_sha256": "cbb9c67e7db968d7f4ee281dcd8b92ae6b7fa8993c093e406ea36d6731d329f8",
+      "test_summary": "test result: FAILED. 2 passed; 10 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.01s",
+      "log_tail": [
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_actual_none_and_mixed_variants_forward_without_invented_targets",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_none_cannot_hide_recursive_ungrounded_some_input",
+        "    g3_4_1_option_consumers::g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 2 passed; 10 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "complete-core-first",
+      "source_revision": "2053dc718500e6ff971aed632b9d139e0789c85b",
+      "command": "cargo test -p zil-expand --lib g3_4_1_ -j1 -- --nocapture",
+      "log_sha256": "ffcd91ab443331fc509a19daa09af31bb3ced6c19c557d0616e483b549aa181c",
+      "test_summary": "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+      "log_tail": [
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... FAILED",
+        "",
+        "thread 'stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core' (31545) panicked at crates/zil-expand/src/stored_types.rs:1473:10:",
+        "called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"stored enum payload type cannot be inferred\", span: Some(Span { file: FileId(0), start: 400, end: 418 }), notes: [] }]",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter",
+        "    stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core",
+        "",
+        "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-expand --lib`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "complete-core-second",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-expand --lib g3_4_1_ -j1 -- --nocapture",
+      "log_sha256": "cb642157a799e8fd41928b4b0cf6bd5a1974abc4235200d1196839db7bba6c81",
+      "test_summary": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 11.77s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 2 tests",
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... ok",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... ok",
+        "",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "generics-after-source-hints",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-expand --test generics -j1 -- --nocapture",
+      "log_sha256": "d08b8ea0662059bdb2f56c6afea4219e13d79d33bea21dcbe468b35484687886",
+      "test_summary": "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+      "log_tail": [
+        "inherent budget work=true N=1431",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=496",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=true N=974",
+        "inherent budget work=false N=484",
+        "test generic_inherent::inherent_specialization_preserves_exact_request_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1206",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=false N=531",
+        "test concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=456",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "all-consumers-second-diagnostic",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j1 -- --nocapture",
+      "log_sha256": "c9b0c3fd01e988669975b1962ce04021bb6129623d1653e34b0456ca36dc1486",
+      "test_summary": "test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.03s",
+      "log_tail": [
+        "  left: SafeReject",
+        " right: Success",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.03s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "diagnostic_only": true,
+      "working_tree_difference": "temporary eprintln actual HELPER Typed instructions in source_permissions positive test; exact lines removed after run; source tree restored clean; no production edits"
     }
   ]
 }
