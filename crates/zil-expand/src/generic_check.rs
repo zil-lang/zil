@@ -2799,6 +2799,7 @@ impl Check<'_, '_, '_> {
                         reference,
                         member: name.to_owned(),
                         generic: !method.generics.is_empty(),
+                        static_host: static_method,
                     },
                 );
         }
