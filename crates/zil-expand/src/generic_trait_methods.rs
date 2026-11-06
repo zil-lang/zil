@@ -718,6 +718,7 @@ pub(super) fn align(
         ));
     }
     let mut substitutions = BTreeMap::new();
+    let mut life_count = 0usize;
     for (source, target) in actual.generics.iter().zip(&required.generics) {
         budget.node(source.span, 0)?;
         budget.text(&source.name, source.span)?;
@@ -736,7 +737,9 @@ pub(super) fn align(
                 )?;
                 substitutions.insert(source.name.clone(), value);
             }
-            (GenericParamKind::Lifetime, GenericParamKind::Lifetime) => {}
+            (GenericParamKind::Lifetime, GenericParamKind::Lifetime) => {
+                life_count = life_count.saturating_add(1);
+            }
             _ => {
                 return Err(error(
                     source.span,
@@ -758,18 +761,26 @@ pub(super) fn align(
         unreachable!()
     };
     actual = function;
-    let actual_lives: Vec<_> = actual
-        .generics
-        .iter()
-        .filter(|p| matches!(p.kind, GenericParamKind::Lifetime))
-        .map(|p| p.name.as_str())
-        .collect();
-    let required_lives: Vec<_> = required
-        .generics
-        .iter()
-        .filter(|p| matches!(p.kind, GenericParamKind::Lifetime))
-        .map(|p| p.name.as_str())
-        .collect();
+    let mut actual_lives = Vec::new();
+    let mut required_lives = Vec::new();
+    if life_count != 0 {
+        budget.lineage_bytes(
+            life_count
+                .saturating_mul(2)
+                .saturating_mul(std::mem::size_of::<&str>()),
+            actual.span,
+        )?;
+        actual_lives.reserve_exact(life_count);
+        required_lives.reserve_exact(life_count);
+        for (source, target) in actual.generics.iter().zip(&required.generics) {
+            budget.node(source.span, 0)?;
+            budget.node(target.span, 0)?;
+            if matches!(source.kind, GenericParamKind::Lifetime) {
+                actual_lives.push(source.name.as_str());
+                required_lives.push(target.name.as_str());
+            }
+        }
+    }
     if !actual_lives.is_empty() {
         let implicit_receiver = actual
             .params
