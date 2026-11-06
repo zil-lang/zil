@@ -194,7 +194,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
-    if super::super::lifetimes::copy_life(function) || check.class_scope.active {
+    if (function.name.starts_with("$generic_method_")
+        && super::super::lifetimes::only_life(function))
+        || super::super::lifetimes::copy_life(function)
+        || check.class_scope.active
+    {
         let mut remaining = check.budget.remaining_limits();
         let life =
             super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
@@ -236,17 +240,54 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                 )?;
             }
         }
-        if matches!(group(&check.result).kind, TypeKind::Reference { .. }) {
+        let option_result_life = match &group(&check.result).kind {
+            TypeKind::Named { path, args } if path.as_slice() == [super::options::TEMPLATE] => {
+                match args.as_slice() {
+                    [GenericArg::Type(payload)] => match &group(payload).kind {
+                        TypeKind::Reference {
+                            mutable: false,
+                            lifetime: Some(name),
+                            ..
+                        } => {
+                            let mut found = None;
+                            for (index, binder) in life.binders.iter().enumerate() {
+                                check.budget.node(payload.span, 0)?;
+                                check.budget.text(name, payload.span)?;
+                                check.budget.text(binder, payload.span)?;
+                                if binder == name {
+                                    found = Some(index as u32);
+                                }
+                            }
+                            Some(found.ok_or_else(|| {
+                                error(payload.span, "Option result uses an undeclared life binder")
+                            })?)
+                        }
+                        _ => None,
+                    },
+                    _ => None,
+                }
+            }
+            _ => None,
+        };
+        if matches!(group(&check.result).kind, TypeKind::Reference { .. })
+            || option_result_life.is_some()
+        {
             let mut allowed = BTreeSet::new();
             for (index, parameter) in function.params.iter().enumerate() {
                 check.budget.node(parameter.span, 0)?;
                 if matches!(group(&parameter.ty).kind, TypeKind::Reference { .. })
-                    && life
-                        .result_life
+                    && option_result_life
+                        .or(life.result_life)
                         .is_none_or(|tag| life.parameter_lives[index] == Some(tag))
                 {
                     allowed.insert(index);
                 }
+            }
+            if option_result_life.is_some() && allowed.is_empty() {
+                return Err(error(
+                    function.span,
+                    "Option result life has no address input",
+                ));
             }
             check.life_allowed = Some(allowed);
             if matches!(
@@ -1002,6 +1043,23 @@ impl Check<'_, '_, '_> {
                 self.life_expression(value, state)
             }
             ExprKind::Group(inner) => self.life_expression(inner, state),
+            ExprKind::Call { callee, arguments }
+                if super::enums::constructor(callee).is_some_and(|(name, variant, _)| {
+                    name == super::options::TEMPLATE && matches!(variant, "Some" | "None")
+                }) =>
+            {
+                let (_, variant, _) = super::enums::constructor(callee).expect("guarded");
+                match (variant, arguments.as_slice()) {
+                    ("None", []) => Ok(BTreeSet::new()),
+                    ("Some", [argument]) if !argument.spread => {
+                        self.life_expression(&argument.value, state)
+                    }
+                    _ => Err(error(
+                        expression.span,
+                        "lending Option constructor has wrong payload",
+                    )),
+                }
+            }
             ExprKind::Unary {
                 op: UnaryOp::Borrow | UnaryOp::BorrowMut,
                 operand,
@@ -1737,7 +1795,12 @@ impl Check<'_, '_, '_> {
             for _ in &roots {
                 self.budget.node(expression.span, 0)?;
             }
-            if roots.is_empty() || !roots.is_subset(allowed) {
+            let empty_option = matches!(&group(&self.result).kind,
+                TypeKind::Named { path, .. } if path.as_slice() == [super::options::TEMPLATE])
+                && matches!(&expression.kind, ExprKind::Call { callee, arguments }
+                    if arguments.is_empty() && super::enums::constructor(callee)
+                        .is_some_and(|(name, variant, _)| name == super::options::TEMPLATE && variant == "None"));
+            if (!empty_option && roots.is_empty()) || !roots.is_subset(allowed) {
                 return Err(Diagnostic::error(
                     Phase::Expand,
                     "E-LIFE-ORIGIN",
