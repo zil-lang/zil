@@ -541,7 +541,7 @@ StoreElement在既有拥有Package族之外，接受完整有限且总布局非�
 
 普通std.store的T:StoreElement模板据此实例化；该bound本身不授予Copy、字段访问、拥有、give/create或capture权限。具体POD及外层既有push/pop错误协议沿普通Copy值规则；Store头仍是真实唯一管理资源，普通参数仍为Desc。复用完整OwnedStore类型、canonical资源名与opcode80–88；schema/Wire43及公开ABI不变。Types、Analyze、Verify各自核完整类型、未用定义和实际指令，不能由名字或生产者标记授予资格。
 
-reserve失败保持旧指针、容量、长度和内容；push不隐式扩容，失败返回完整未插入值，成功写入后增加初始化前缀；pop缩短前缀并返回实际尾值。POD无元素析构责任，释放Store分配无需空析构循环。共享窗口采用既有store_at返回&Record；活窗口禁止reserve/push/pop/give/drop及父壳移动，即使容量足够、地址未变。最后使用和不同实际Store保持精度。本片明确拒绝POD的OwnedStoreBorrowMut，不限制其他普通&mut Record；连续切片、捕获及其他拥有/生命周期组合不由此开放。
+reserve失败保持旧指针、容量、长度和内容；push不隐式扩容，失败返回完整未插入值，成功写入后增加初始化前缀；pop缩短前缀并返回实际尾值。POD无元素析构责任，释放Store分配无需空析构循环。共享窗口采用既有store_at返回&Record；活窗口禁止reserve/push/pop/give/drop及父壳移动，即使容量足够、地址未变。最后使用和不同实际Store保持精度。G9.3.3 接续允许相同完整 POD Record 元素的 store_at_mut 独占窗口；沿实际 Store 根保持父结构依赖，任意下标的同 Store 共享/独占窗口均不分离，活窗口禁止 reserve/push/pop/give/drop/父壳移动，即使操作未重分配或失败。最后使用和不同实际 Store 保持合法；字段派生及同步 helper 重借用保持父窗口。连续切片、捕获及其他拥有/生命周期组合不由此开放。
 
 大元素也适用：按完整push/pop协议布局核既有4096字节Copy阈值，用内存快照及私有指针/out helper接入，不生成巨型SSA桥接、循环大栈分配或提高默认栈/预算。新类型、布局、身份、复制、队列和机器计划工作在实际遍历/增长前从同一请求预费；旧Package路径及其精确费用保留。准入须真实Source、raw/Wire独立反例、完整机器值、容量/分配失败保留、借用窗口及大元素O0/O2证据闭合；提案和表示不等于验收。
 
@@ -1099,6 +1099,8 @@ impl Measure for Point {
 前导点不表示 enum 变体、管道输入或 with 对象。枚举值使用 `Alignment.Center`；若当前 receiver 确实有名为 Center 的成员，`.Center` 仍是普通成员访问。
 
 `object.method(args)` 降为关联函数调用，receiver 求值一次且先于普通参数。只在已确定的 receiver 类型允许时自动产生短地址借入；不尝试多种权限直到安全检查成功。冲突 trait 候选使用显式 `Trait.method(receiver, args)` 指定，未消歧时报名字错误。
+
+G2.4.2 接续：普通静态 trait 的无接收者关联函数按既有 type-only 方法参数、where、普通值参数及结果规则调用，包含 Self 与当前支持的关联替换。具体类型宿主须选择唯一实际 impl/provider；符号类型宿主须具有当前词法作用域中的精确 trait bound。值绑定优先，类型宿主不求值为运行时对象，实参从左到右各求值一次。定义和未用泛型体保留完整义务、可见性与来源检查，trait bound 不额外授予 Copy/拥有/借用权限；不增加方法 life/const、默认体、dyn 或新 impl 家族。
 
 `Type.method` 是含显式首参数的无绑定函数项；`object.method` 若指方法本身而非数据字段则拒绝取值。绑定回调显式写 `(args) => object.method(args)`，让捕获、存储和逃逸使用同一套闭包规则。具名 callable 字段可以普通取值。同一名义类型的固有字段与固有方法禁止重名，所有 impl 合并后检查；若字段与已导入 trait 方法同名，点号先解析现有字段，调用非 callable 字段会报类型错误，不回退 trait。调用该 trait 方法使用 `Trait.method(object, args)`；多个 trait 候选冲突也需显式路径。
 
