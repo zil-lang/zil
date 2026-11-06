@@ -685,12 +685,6 @@ impl Builder<'_, '_> {
                     InstructionKind::OwnedStorePush { store, value }
                 }
                 "store_at" | "store_at_mut" => {
-                    if name == "store_at_mut" && matches!(element, Type::Record { .. }) {
-                        return Err(unsupported(
-                            span,
-                            "POD Store elements expose only shared windows",
-                        ));
-                    }
                     if name == "store_at_mut" && packages::product::nested(&element) {
                         return Err(unsupported(
                             span,
