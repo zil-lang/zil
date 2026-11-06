@@ -29,7 +29,7 @@ mod scoped_thread;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
-mod static_utf8;
+pub(crate) mod static_utf8;
 mod stored_borrows;
 mod tasks;
 use std::collections::{BTreeMap, BTreeSet};

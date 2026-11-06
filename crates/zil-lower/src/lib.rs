@@ -748,6 +748,54 @@ mod tests {
     }
 
     #[test]
+    fn owned_static_utf8_clone_prepays_exact_bytes_without_charging_old_clones() {
+        // Component-level retained-IR copy check; source/native acceptance is
+        // covered in the existing driver target by the parent implementation.
+        let original = checked(TargetProfile::host_llvm());
+        let scalar = &original.module().functions[0];
+        let zero = zil_base::Limits {
+            max_analysis_steps: 0,
+            ..zil_base::Limits::default()
+        };
+        assert_eq!(
+            clone_function(scalar, &mut owned_sums::Budget::new(&zero)).unwrap(),
+            *scalar
+        );
+        for bytes in [b"".as_slice(), b"A\0Z".as_slice(), "é中😀".as_bytes()] {
+            let mut function = scalar.clone();
+            function.values[0] = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+            };
+            function.return_type = function.values[0].clone();
+            function.blocks[0].instructions[0].kind = InstructionKind::StaticUtf8 {
+                bytes: bytes.to_vec(),
+            };
+            let needed = bytes.len() + 1;
+            for _ in 0..2 {
+                let exact = zil_base::Limits {
+                    max_analysis_steps: needed,
+                    ..zil_base::Limits::default()
+                };
+                assert_eq!(
+                    clone_function(&function, &mut owned_sums::Budget::new(&exact)).unwrap(),
+                    function
+                );
+                let short = zil_base::Limits {
+                    max_analysis_steps: needed - 1,
+                    ..zil_base::Limits::default()
+                };
+                let errors =
+                    clone_function(&function, &mut owned_sums::Budget::new(&short)).unwrap_err();
+                assert!(errors.iter().all(|error| error.phase == Phase::Lower
+                    && error.category == zil_base::ResultCategory::ResourceLimit));
+            }
+        }
+    }
+
+    #[test]
     fn preserves_the_exact_checked_cfg_and_target_identity() {
         let verified = checked(TargetProfile::host_llvm());
         let lowered = lower(&verified).unwrap();
