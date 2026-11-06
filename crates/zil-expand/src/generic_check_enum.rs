@@ -701,6 +701,12 @@ impl Check<'_, '_, '_> {
                 }
                 self.budget.ty(ty)?;
                 self.bind_local(state, name.clone(), ty.clone())?;
+                if matches!(group(ty).kind, TypeKind::Reference { mutable: false, .. })
+                    && self.alias_option_payload_pending()
+                {
+                    let local = state.locals[name].id;
+                    self.alias_option_payload_bind(state, local, p.span)?;
+                }
                 Pat::Any
             }
             PatternKind::Wildcard => Pat::Any,
@@ -1165,6 +1171,15 @@ impl Check<'_, '_, '_> {
             }
         }
         let ty = self.pattern_value(value, state, has_ref)?;
+        let option_payload = if matches!(&group(&ty).kind, TypeKind::Named { path, args }
+            if path.as_slice() == [super::super::options::TEMPLATE]
+                && matches!(args.as_slice(), [GenericArg::Type(payload)]
+                    if matches!(group(payload).kind, TypeKind::Reference { mutable: false, .. })))
+        {
+            Some(self.alias_result_copy(value.span)?)
+        } else {
+            None
+        };
         let prepared = if has_ref {
             Some(self.alias_pattern_prepare(value, state)?)
         } else {
@@ -1184,7 +1199,15 @@ impl Check<'_, '_, '_> {
                 .as_ref()
                 .map(|place| self.alias_pattern_clone(place, arm.span))
                 .transpose()?;
+            if let Some(loans) = &option_payload
+                && matches!(&arm.pattern.kind, PatternKind::Constructor { path, arguments }
+                    if path.as_slice() == ["Option", "Some"]
+                        && matches!(arguments.as_slice(), [Pattern { kind: PatternKind::Name(_), .. }]))
+            {
+                self.alias_option_payload_begin(loans, arm.span)?;
+            }
             let p = self.pattern(&arm.pattern, &ty, &mut branch, &mut BTreeSet::new())?;
+            self.alias_option_payload_end();
             if !self.useful(
                 &rows,
                 std::slice::from_ref(&p),

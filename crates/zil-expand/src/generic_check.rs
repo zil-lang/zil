@@ -2991,6 +2991,40 @@ impl Check<'_, '_, '_> {
             )?;
             Ok(())
         })?;
+        if !method.generics.is_empty()
+            && method
+                .generics
+                .iter()
+                .all(|p| matches!(p.kind, GenericParamKind::Lifetime))
+            && let Some(result) = &method.return_type
+            && let TypeKind::Named { path, args } = &group(result).kind
+            && path.as_slice() == [super::options::TEMPLATE]
+            && let [GenericArg::Type(payload)] = args.as_slice()
+            && let TypeKind::Reference {
+                lifetime: Some(result_life),
+                mutable: false,
+                ..
+            } = &group(payload).kind
+        {
+            let mut allowed = Vec::new();
+            for (index, parameter) in method.params.iter().enumerate() {
+                self.budget.node(parameter.span, 0)?;
+                self.budget.text(result_life, parameter.span)?;
+                if matches!(&group(&parameter.ty).kind, TypeKind::Reference { lifetime: Some(input), .. }
+                    if input == result_life)
+                {
+                    self.budget.node(parameter.span, 0)?;
+                    allowed.push(index);
+                }
+            }
+            if allowed.is_empty() {
+                return Err(error(
+                    site.span,
+                    "lending method result has no declared address input",
+                ));
+            }
+            self.alias_lending_call(site, allowed)?;
+        }
         match &method.return_type {
             Some(result) => {
                 let mut result = substituted_type(result, &substitutions, self.budget)?;

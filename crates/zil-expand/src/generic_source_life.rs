@@ -141,7 +141,7 @@ struct Check<'a, 'b, 'l> {
     records: Vec<&'a Aggregate>,
     enums: Vec<&'a EnumDecl>,
     hosts: Vec<Option<usize>>,
-    impl_targets: Vec<Option<&'a TypeRef>>,
+    impl_targets: BTreeMap<usize, &'a TypeRef>,
     standalone: Vec<bool>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
@@ -1359,7 +1359,7 @@ impl Check<'_, '_, '_> {
                             owner,
                             parameters: &f.generics,
                             host: self.hosts[owner],
-                            impl_target: self.impl_targets[owner],
+                            impl_target: self.impl_targets.get(&owner).copied(),
                         };
                         let mut map = Substitutions::new();
                         if let Some(args) = explicit {
@@ -2000,7 +2000,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         records: Vec<&'a Aggregate>,
         enums: Vec<&'a EnumDecl>,
         hosts: Vec<Option<usize>>,
-        impl_targets: Vec<Option<&'a TypeRef>>,
+        impl_targets: BTreeMap<usize, &'a TypeRef>,
         standalone: Vec<bool>,
     }
     fn inventory<'a>(
@@ -2016,10 +2016,14 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             budget.node(item.span, depth)?;
             match &item.kind {
                 ItemKind::Function(f) => {
-                    budget.identity_work(4, item.span)?;
+                    budget.identity_work(3, item.span)?;
+                    if let Some(target) = impl_target {
+                        budget
+                            .identity_work(found.impl_targets.len().saturating_add(1), item.span)?;
+                        found.impl_targets.insert(found.functions.len(), target);
+                    }
                     found.functions.push(f);
                     found.hosts.push(host);
-                    found.impl_targets.push(impl_target);
                     found.standalone.push(top);
                 }
                 ItemKind::Aggregate(a) => {
@@ -2083,7 +2087,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         records: Vec::new(),
         enums: Vec::new(),
         hosts: Vec::new(),
-        impl_targets: Vec::new(),
+        impl_targets: BTreeMap::new(),
         standalone: Vec::new(),
     };
     inventory(&module.items, &mut found, None, None, true, budget, 0)?;
@@ -2121,7 +2125,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             owner,
             parameters: &f.generics,
             host: check.hosts[owner],
-            impl_target: check.impl_targets[owner],
+            impl_target: check.impl_targets.get(&owner).copied(),
         };
         let mut env = Facts::new();
         for p in &f.params {
