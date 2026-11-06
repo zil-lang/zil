@@ -802,13 +802,26 @@ fn run()->void!i32 {
 #[test]
 fn pod_store_element_uses_real_generic_wrappers_and_complete_nominal_types() {
     let core = expand(POD_STORE_SOURCE);
-    assert_header(function(&core, "push"));
-    assert_header(function(&core, "pop"));
-    // Unbound templates retain an opaque T; no Copy or ownership capability
-    // is inferred from this successful concrete numeric Record consumer.
+    // Concrete calls use the existing eager specializer. Inspect the real
+    // substituted value/protocol signatures, not erased template names.
+    let push = core
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("$generic_push_"))
+        .unwrap();
+    let pop = core
+        .functions
+        .iter()
+        .find(|f| f.name.starts_with("$generic_pop_"))
+        .unwrap();
+    assert!(push.type_parameters.is_empty());
+    assert_eq!(push.parameters[1].ty, Type::Named("Vertex".into()));
     assert_eq!(
-        function(&core, "push").parameters[1].ty,
-        Type::Named("T".into())
+        pop.return_type,
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(Type::Named("Vertex".into()))
+        }
     );
     eprintln!("pod_store_expand_n={}", boundary(POD_STORE_SOURCE));
 }
@@ -825,7 +838,7 @@ fn pod_store_element_checks_all_nested_fields_and_unused_templates() {
         "fn()->i32",
     ] {
         let text = format!(
-            "enum E{{A}} struct Bad{{field:{field}}} fn unused<T:StoreElement>(x:T)->T{{return x}} fn run(){{let s:Store<Bad>=store_new()}} "
+            "enum E{{A}} struct Bad{{field:{field}}} fn empty<T:StoreElement>()->Store<T> contract{{result(create)}}{{return store_new()}} fn run(){{let s:Store<Bad>=empty()}} "
         );
         let unit = source(&text);
         let syntax = zil_syntax::parse(&unit).into_result().unwrap();

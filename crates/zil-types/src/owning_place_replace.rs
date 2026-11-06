@@ -108,7 +108,7 @@ fn whole_sum_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<b
                     unreachable!()
                 };
                 if matches!(element.as_ref(), Type::Record { .. }) {
-                    state.snapshot_type(element, 4, 0, span)?;
+                    return Ok(false);
                 }
                 if !dynamic_store::supported_element(element) {
                     return Ok(false);

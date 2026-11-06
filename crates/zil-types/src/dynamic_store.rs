@@ -824,4 +824,43 @@ mod pod_tests {
             }
         }
     }
+    #[test]
+    fn pod_store_does_not_inherit_package_or_sum_ownership() {
+        let head = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(record(Type::F32)),
+        }));
+        let bag = Type::Package {
+            name: "Bag".into(),
+            fields: vec![("items".into(), head.clone())],
+        };
+        assert!(!packages::supported(&bag));
+        assert!(!packages::product::owned_supported(&bag));
+        assert!(!owned_shapes::value(&bag));
+        assert!(!owned_shapes::sum(&Type::Tuple(vec![head.clone()])));
+        assert!(resources::supported(&head));
+        let created = Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(head.clone()),
+        };
+        assert!(errors::supported(&created));
+        let hidden_bag = Type::Package {
+            name: "Hidden".into(),
+            fields: vec![("items".into(), created)],
+        };
+        assert!(!owned_shapes::value(&hidden_bag));
+        let owned = Type::Package {
+            name: "Owned".into(),
+            fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+        };
+        let old_head = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(owned),
+        }));
+        let old_bag = Type::Package {
+            name: "OldBag".into(),
+            fields: vec![("items".into(), old_head)],
+        };
+        assert!(packages::supported(&old_bag));
+        assert!(packages::product::owned_supported(&old_bag));
+        assert!(owned_shapes::value(&old_bag));
+    }
 }

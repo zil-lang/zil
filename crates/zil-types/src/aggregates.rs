@@ -839,6 +839,12 @@ impl Resolver<'_> {
     }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
+        if matches!(dynamic_store::element(&resolved), Some(Type::Record { .. })) {
+            return Err(unsupported(
+                field.span,
+                "POD Store ownership in aggregate fields is not implemented",
+            ));
+        }
         if dynamic_store::is_carrier(&resolved) && !field.manages {
             return Err(unsupported(
                 field.span,
