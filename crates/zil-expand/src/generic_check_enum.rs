@@ -632,6 +632,16 @@ impl Check<'_, '_, '_> {
         Ok(Some(actual))
     }
     fn begin_option_payload(&mut self, pattern: &Pattern, sources: Option<&[usize]>) -> R<()> {
+        if sources.is_some()
+            && matches!(&pattern.kind, PatternKind::Constructor { path, arguments }
+                if path.last().is_some_and(|name| name == "Some")
+                    && matches!(arguments.as_slice(), [Pattern { kind: PatternKind::Reference { .. }, .. }]))
+        {
+            return Err(unsupported(
+                pattern.span,
+                "nested Option reference payload pattern requires its borrowing consumer",
+            ));
+        }
         if let Some(sources) = sources
             && matches!(&pattern.kind, PatternKind::Constructor { path, arguments }
                 if path.last().is_some_and(|name| name == "Some")

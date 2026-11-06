@@ -539,7 +539,7 @@ impl Check<'_, '_, '_> {
             // and kernel consumer's responsibility. Pointee classes are invariant.
             (Fact::Address(expected_life, x), Fact::Address(actual_life, y)) => {
                 if retained && let Some(expected_life) = expected_life {
-                    let actual_life = actual_life.as_ref().ok_or_else(|| unsupported(span, "retained reference class needs its actual source class"))?;
+                    let actual_life = actual_life.as_ref().ok_or_else(|| error(span, "retained reference has no actual declared source class"))?;
                     this.compatible_position(expected_life, actual_life, span, true)?;
                 }
                 this.compatible_position(x, y, span, retained)?;

@@ -284,7 +284,15 @@ pub(super) fn project_definitions(
             stored::inventory(&module.core, remaining, limits).map_err(|e| vec![e])?;
         }
         for e in &module.core.enums {
-            if module.core.module_id != current.module_id && !aggregates::project_symbol(&e.name) {
+            let foreign_stored_candidate = module.core.module_id != current.module_id
+                && !aggregates::project_symbol(&e.name)
+                // Only a work filter. The matching sealed instance and full
+                // inventory below provide the actual admission proof.
+                && e.name.starts_with("$stored_");
+            if module.core.module_id != current.module_id
+                && !aggregates::project_symbol(&e.name)
+                && !foreign_stored_candidate
+            {
                 continue;
             }
             let limit = || {
@@ -367,6 +375,7 @@ pub(super) fn project_definitions(
                 variants: e.variants.clone(),
             };
             let mut qualified = None;
+            let mut sealed_option = false;
             for instance in &module.core.life_instances {
                 let Type::BorrowedStorage { storage, .. } = &instance.ty else {
                     continue;
@@ -376,14 +385,19 @@ pub(super) fn project_definitions(
                 *remaining = remaining
                     .checked_sub(work.saturating_add(1))
                     .ok_or_else(limit)?;
-                if storage.as_ref() == &physical && qualified.replace(instance.ty.clone()).is_some()
-                {
-                    return Err(vec![error(
-                        "E-STORED-IDENTITY",
-                        e.span,
-                        "project Enum has multiple complete stored instances",
-                    )]);
+                if storage.as_ref() == &physical {
+                    sealed_option = instance.declaration.compiler;
+                    if qualified.replace(instance.ty.clone()).is_some() {
+                        return Err(vec![error(
+                            "E-STORED-IDENTITY",
+                            e.span,
+                            "project Enum has multiple complete stored instances",
+                        )]);
+                    }
                 }
+            }
+            if foreign_stored_candidate && !sealed_option {
+                continue;
             }
             if result
                 .insert(e.name.clone(), qualified.unwrap_or(physical))
