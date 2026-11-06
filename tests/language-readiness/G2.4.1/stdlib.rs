@@ -59,10 +59,7 @@ fn g241_std_iter_resolves_real_trait_and_generic_consumer() {
                 report.to_json()
             );
             assert!(
-                report
-                    .source_files
-                    .values()
-                    .any(|p| p == "<std.iter>"),
+                report.source_files.values().any(|p| p == "<std.iter>"),
                 "{}",
                 report.to_json()
             );

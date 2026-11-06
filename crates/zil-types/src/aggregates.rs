@@ -1027,7 +1027,9 @@ impl Resolver<'_> {
                             // `ty` has already expanded imported nominal names.
                             // Compare the actual declaration field first, then
                             // resolved_inventory checks the complete layout.
-                            .is_some_and(|instance| stored::option_address_payload(instance, field))
+                            .is_some_and(|instance| {
+                                stored::option_address_payload(instance, field)
+                            })
                         || (stored_instance.is_some()
                             && stored::pure_inline(
                                 &ty,

@@ -2,7 +2,9 @@
 //! borrow test target after the ordinary trait producer is integrated.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
-use zil_ir::{CoreImport, CoreProgram, InstructionKind, TypedModule};
+use zil_ir::{
+    CoreImport, CoreProgram, InstructionKind, StorageBase, StorageBinder, Type, TypedModule,
+};
 
 fn lending_module(cursor_change: impl FnOnce(String) -> String) -> TypedModule {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -67,8 +69,42 @@ fn lending_module(cursor_change: impl FnOnce(String) -> String) -> TypedModule {
 fn g2_4_1_analyze_source_actual_option_return_roots() {
     let module = lending_module(|text| text);
     let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let cursor = include_str!("project/cursor.zil");
+    let provider_start = cursor.find("fn next<life p>").unwrap();
     assert!(module.functions.iter().any(|f| {
-        f.storage_life.is_some() && f.reference_return_bound.is_none() && f.name.contains("next")
+        let actual_source = f.span.file == FileId(2)
+            && f.span.start >= provider_start
+            && f.span.end <= cursor.len();
+        let actual_receiver = f.parameters.len() == 1
+            && matches!(
+                f.locals[f.parameters[0].0 as usize].ty,
+                Type::Address { mutable: true, .. }
+            );
+        let actual_result = matches!(
+            &f.return_type,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Enum { variants, .. }
+                    if matches!(variants.as_slice(), [(_, empty), (_, some)]
+                        if empty.is_empty() && matches!(some.as_slice(), [Type::Address { mutable: false, .. }])))
+        );
+        let relation = f.storage_life.as_ref().is_some_and(|life| {
+            life.fixed_binder_count == 0
+                && life.invocation_binder_count == 1
+                && matches!(life.bindings.as_slice(), [row]
+                    if row.position.base == StorageBase::Parameter(0)
+                        && row.position.path.is_empty()
+                        && row.binder == StorageBinder::Invocation(0))
+                && matches!(life.classes.as_slice(), [row]
+                    if row.position.base == StorageBase::Result
+                        && row.position.path.is_empty()
+                        && row.position.class == 0
+                        && row.binder == StorageBinder::Invocation(0))
+        });
+        actual_source
+            && actual_receiver
+            && actual_result
+            && relation
+            && f.reference_return_bound.is_none()
     }));
     assert!(plan.functions.iter().any(|f| {
         f.holds

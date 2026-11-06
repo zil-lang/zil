@@ -114,8 +114,7 @@ fn walk(
             limits.max_call_depth,
             span,
             phase == InventoryPhase::Core,
-        )?
-            || !matches!((instance.arguments.as_slice(), storage.as_ref()),
+        )? || !matches!((instance.arguments.as_slice(), storage.as_ref()),
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
                 if actual == &variants[1].1[0])
         {
