@@ -1243,8 +1243,21 @@ impl Engine<'_> {
                 found.insert(p.name.clone(), actual);
             }
         }
-        if let (Some(result), Some(expected)) = (&f.return_type, expected.as_ref())
-            && callable::opaque_signature(result).is_none()
+        let source_result = if self.stored_nominals {
+            f.return_type
+                .as_ref()
+                .map(|result| {
+                    stored_option_source_hint(result, &self.instance_types, &mut self.budget)
+                })
+                .transpose()?
+                .flatten()
+        } else {
+            None
+        };
+        if let (Some(result), Some(expected)) = (
+            source_result.as_ref().or(f.return_type.as_ref()),
+            expected.as_ref(),
+        ) && callable::opaque_signature(result).is_none()
             && callable::opaque_signature(expected).is_none()
         {
             if self.traits.has_associated
@@ -1297,27 +1310,10 @@ impl Engine<'_> {
                 }
                 self.budget.ty(&p.ty)?;
                 if self.stored_nominals
-                    && let TypeKind::Named { path, args } = &grouped(&p.ty).kind
-                    && path.len() == 1
-                    && args.is_empty()
+                    && let Some(source) =
+                        stored_option_source_hint(&p.ty, &self.instance_types, &mut self.budget)?
                 {
-                    self.budget.identity_work(
-                        self.instance_types
-                            .len()
-                            .checked_ilog2()
-                            .map_or(1, |n| n as usize + 2)
-                            .saturating_mul(path[0].len().saturating_add(1))
-                            .saturating_mul(12),
-                        p.span,
-                    )?;
-                    if self.instance_types.get(&path[0]).is_some_and(|source| {
-                        matches!(&grouped(source).kind, TypeKind::Named { path, .. }
-                            if path.as_slice() == [options::TEMPLATE])
-                    }) {
-                        // Both sides of ordinary argument inference use the
-                        // same private source layout; no stored relation changes.
-                        return original_type(&p.ty, &self.instance_types, &mut self.budget, 0);
-                    }
+                    return Ok(source);
                 }
                 Ok(p.ty.clone())
             })
@@ -1331,6 +1327,36 @@ impl Engine<'_> {
             found,
         }))
     }
+}
+// Argument and result inference must compare the same private layout on both
+// sides. The full retained catalog remains the only storage relation input.
+fn stored_option_source_hint(
+    ty: &TypeRef,
+    instances: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<Option<TypeRef>> {
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return Ok(None);
+    };
+    if path.len() != 1 || !args.is_empty() || instances.is_empty() {
+        return Ok(None);
+    }
+    budget.identity_work(
+        instances
+            .len()
+            .checked_ilog2()
+            .map_or(1, |n| n as usize + 2)
+            .saturating_mul(path[0].len().saturating_add(1))
+            .saturating_mul(12),
+        ty.span,
+    )?;
+    if instances.get(&path[0]).is_some_and(|source| {
+        matches!(&grouped(source).kind, TypeKind::Named { path, .. }
+            if path.as_slice() == [options::TEMPLATE])
+    }) {
+        return original_type(ty, instances, budget, 0).map(Some);
+    }
+    Ok(None)
 }
 pub(super) fn contains(ty: &TypeRef, variable: &str) -> bool {
     match &ty.kind {
