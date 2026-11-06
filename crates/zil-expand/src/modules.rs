@@ -488,10 +488,39 @@ fn normalize(
         }
     }
     let mut has_trait_instances = false;
+    let mut static_trait_methods = BTreeMap::<String, BTreeSet<String>>::new();
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            let (defaults, associated, methods) =
-                generics::trait_defaults::features_with_methods(t, &mut budget)?;
+            // This is the same paid member walk as features_with_methods.
+            // Record only declarations with no receiver; an impl may omit
+            // `self` while inheriting a receiver from its trait signature.
+            let mut defaults = false;
+            let mut associated = false;
+            let mut methods = false;
+            for member in &t.members {
+                budget.node(member.span, 0)?;
+                associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+                if let ItemKind::Function(function) = &member.kind {
+                    methods |= !function.generics.is_empty();
+                    defaults |= !matches!(function.body, FunctionBody::Declaration);
+                    if function.generics.is_empty()
+                        && !function.params.first().is_some_and(|p| p.name == "self")
+                    {
+                        budget.text(&t.name, item.span)?;
+                        budget.text(&function.name, member.span)?;
+                        budget.lineage_bytes(
+                            std::mem::size_of::<(String, BTreeSet<String>)>()
+                                .saturating_add(t.name.len())
+                                .saturating_add(function.name.len()),
+                            member.span,
+                        )?;
+                        static_trait_methods
+                            .entry(t.name.clone())
+                            .or_default()
+                            .insert(function.name.clone());
+                    }
+                }
+            }
             has_trait_instances |=
                 defaults || associated || methods || !t.generics.is_empty() || !t.bounds.is_empty();
         }
@@ -593,11 +622,15 @@ fn normalize(
             ));
         }
         if let ItemKind::Impl(implementation) = &item.kind
-            && implementation.trait_type.is_some()
+            && let Some(trait_name) = implementation
+                .trait_type
+                .as_ref()
+                .and_then(trait_instances::head)
+            && let Some(static_members) = static_trait_methods.get(trait_name)
             && implementation.members.iter().any(|member| {
                 matches!(&member.kind,
                 ItemKind::Function(method) if method.generics.is_empty()
-                    && !method.params.first().is_some_and(|p| p.name == "self"))
+                    && static_members.contains(&method.name))
             })
         {
             budget.lineage_bytes(std::mem::size_of::<(&Item, ModuleId)>(), item.span)?;
@@ -643,7 +676,9 @@ fn normalize(
                     continue;
                 };
                 if !method.generics.is_empty()
-                    || method.params.first().is_some_and(|p| p.name == "self")
+                    || !static_trait_methods
+                        .get(trait_name)
+                        .is_some_and(|names| names.contains(&method.name))
                 {
                     continue;
                 }
