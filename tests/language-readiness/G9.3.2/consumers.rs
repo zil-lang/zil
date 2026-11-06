@@ -192,7 +192,8 @@ fn g932_4080_4088_4096_records_classify_complete_push_and_pop_protocols() {
     let mut source = String::from("extern \"C\" fn putchar(value:i32)->i32;\n");
     arrays(&mut source, 9, "u64");
     // align=8: (element, push, pop) byte sizes are respectively
-    // (4080,4096,4088), (4088,4104,4096), (4096,4112,4104).
+    // Unit aggregate fields remain empty: (4080,4088,4088),
+    // (4088,4096,4096), (4096,4104,4104).
     for bytes in [4080, 4088, 4096] {
         large_record(&mut source, bytes, "u64", 8);
     }
