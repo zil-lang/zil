@@ -7,11 +7,9 @@ use zil_ir::{CandidatePlan, InstructionKind, Type, TypedModule};
 
 fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
     let limits = Limits::default();
-    let analyze = zil_analyze::analyze(&module, &limits).expect_err(label);
-    assert!(
-        analyze.iter().any(|d| d.phase == Phase::Analyze),
-        "{label}: {analyze:?}"
-    );
+    // Keep the producer outcome separate: raw and Wire kernel checks execute
+    // even when Analyze itself has failed to reject the forged scope.
+    let analyze = zil_analyze::analyze(&module, &limits);
     plan.module_fingerprint = module.fingerprint();
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     let target = TargetProfile::host_llvm();
@@ -38,6 +36,11 @@ fn rejected(label: &str, module: TypedModule, mut plan: CandidatePlan) {
         );
         fs::write(dir.join(format!("{name}.txt")), format!("{diagnostics:#?}")).unwrap();
     }
+    let analyze = analyze.expect_err(label);
+    assert!(
+        analyze.iter().any(|d| d.phase == Phase::Analyze),
+        "{label}: {analyze:?}"
+    );
 }
 
 #[test]
@@ -194,5 +197,48 @@ fn pod_llvm_requires_the_exact_verified_resource_and_protocol() {
             errors.iter().any(|d| d.code == "E-CODEGEN-UNBOUND-LIR"),
             "variant{variant}: {errors:?}"
         );
+    }
+}
+
+#[test]
+fn pod_source_derived_unused_package_and_product_cannot_own_pod_store() {
+    let source = "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73})}";
+    let (original, plan) = candidate(source);
+    let store = original
+        .resources
+        .iter()
+        .find(|definition| matches!(definition.payload, Type::OwnedStore { .. }))
+        .unwrap()
+        .payload
+        .clone();
+    let bag = Type::Package {
+        name: "@module0:Bag".into(),
+        fields: vec![("items".into(), Type::Managed(Box::new(store)))],
+    };
+    let product = Type::Package {
+        name: "@module0:Product".into(),
+        fields: vec![("child".into(), bag.clone())],
+    };
+    for (label, ty) in [
+        ("pod-unused-package-owning-store", bag),
+        ("pod-unused-product-owning-store", product),
+    ] {
+        let mut module = original.clone();
+        let main = module
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "main")
+            .unwrap();
+        // An unused local has neither storage events nor initialized debts.
+        // The complete type alone must be rejected by this scope admission;
+        // ordinary direct Store locals above remain a real accepted control.
+        main.locals.push(zil_ir::LocalDecl {
+            id: zil_ir::LocalId(main.locals.len() as u32),
+            name: "unused_owning_container".into(),
+            ty,
+            mutable: false,
+            span: main.span,
+        });
+        rejected(label, module, plan.clone());
     }
 }
