@@ -155,6 +155,23 @@ impl Check<'_, '_, '_> {
                         }
                         let mut substitutions = BTreeMap::new();
                         for (parameter, argument) in aggregate.generics.iter().zip(args) {
+                            if matches!(parameter.kind, GenericParamKind::Lifetime)
+                                && matches!(argument, GenericArg::Lifetime(_))
+                            {
+                                // Preserve the complete declaration-ordered
+                                // Type/Life substitution, including any life
+                                // written in the field. Mutable qualification
+                                // still comes from the real projected base.
+                                return Ok((
+                                    enums::source_field_actuals(
+                                        &aggregate.generics,
+                                        args,
+                                        &field.ty,
+                                        self.budget,
+                                    )?,
+                                    mutable,
+                                ));
+                            }
                             let GenericArg::Type(ty) = argument else {
                                 return Err(unsupported(span, "constant generic place"));
                             };
