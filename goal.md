@@ -51,7 +51,7 @@
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 已合入 | — | — | [PR46 验收][e-pr46] 本表 Fixed/Invocation、闭包 helper、循环及多 role 组合已闭合；普通闭包 Value 的 give 按规范拒绝，一般 lending 继续见 G3.4。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、借入 Iterator 和 Source 地址数组参数。原 SliceIter 已通过两核 raw/Wire，LLVM 借用枚举表示仍阻塞原生执行，见 G3.4.1。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、借入 Iterator 和 Source 地址数组参数。原 SliceIter 已通过两核 raw/Wire 与四配置原生执行；一般 lending 仍未完成，首片验收见 G3.4.1。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -84,7 +84,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 进行中 | P0 | sol high · life | 原始源码、两核 raw/Wire、真实失效及字段模式反例已通过；当前 17 项定向检查 14 过，正补循环展开、独核错来源反例和 LLVM 借用枚举表示。尚未全量验收。 |
+| G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 实现待验 | P0 | sol high · life | 原始源码/两核 raw/Wire/Clang与API O0/O2完整输出42及最近反例已通过；17项定向通过，后继105项借用组合与旧life回归修复已复验。[PR48](https://github.com/zil-lang/zil/pull/48)共同验收中，尚未合入。 |
 
 </details>
 
@@ -258,7 +258,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.1.11 | 剩余 P0 的共同验收、回归修复与合入 | 已合入 | — | — | [PR46 验收][e-pr46] 精确源码 `953913782`：默认 **5007/0**、参考 **4895/0**、文本 **70/0**，两配置严格 Clippy、release 消费者与 10 项工程检查全过；远端 main `adbead51` 已核。Actions 因付款/额度未启动，原失败保留。 |
-| G10.1.12 | 通用文本、泛型方法与借入迭代共同验收 | 进行中 | P0 | root · 集成，sol high · 独审 | G9.3.1 与 G3.4.1 已集成至开发分支并推送；Source、两核和机器表示并行收口，schema43/静态来源已接。定向检查和独审推进中，全量通过后才合入。 |
+| G10.1.12 | 通用文本、泛型方法与借入迭代共同验收 | 进行中 | P0 | root · 集成，sol high · 独审 | 冻结源码已推送；首轮默认5065过/5旧life回归失败，原5项修复并独审、定向复验通过。第二轮完整默认/参考、release及工程验收进行中；正式全门通过后合入。 |
 
 </details>
 
