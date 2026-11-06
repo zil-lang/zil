@@ -49,7 +49,8 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 实现待验 | P0 | root 集成 / sol high 并行 | [源码](https://github.com/zil-lang/zil/tree/task/G2.4.1)已推送；原始五模块及 std.iter 两后端 O0/O2 输出42通过，独立来源反例已通过。首轮全量5140通过/6失败：已定位新检查误伤旧固定life与Option参数转发，正在修复；资源移动/lending owning 容器未交付。 |
+| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 实现待验 | P0 | root 集成 / sol high 并行 | [源码](https://github.com/zil-lang/zil/tree/task/G2.4.1)已推送；原始五模块及 std.iter 两后端 O0/O2 输出42通过，独立来源反例已通过。首轮6项回归已修复，受影响完整目标282项及Verify反例通过；正在重跑共同全量。资源移动/lending owning容器未交付。 |
+| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 待执行 | P0 | 待派 · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
 
 <details>
 <summary>G2.4.1 · 子任务</summary>
@@ -230,6 +231,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
+| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 待执行 | P0 | 待派 · sol high | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
 
 <details>
 <summary>G9.3.2 · 子任务</summary>
