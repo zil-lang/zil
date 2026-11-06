@@ -207,40 +207,5 @@ fn g932_262144_byte_record_actual_store_native_o0_reliability() {
     arrays(&mut source, 18, "u8");
     large_record(&mut source, 262144, "u8", 1);
     source.push_str("fn main()->i32{if run262144()!=0{return 1};unsafe{putchar(76);putchar(65);putchar(82);putchar(71);putchar(69);putchar(10)};return 0}");
-    let dir = directory("g932-large-o0");
-    fs::write(dir.join("source.zil"), &source).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "large-g932.zil", source);
-    let backend = if cfg!(feature = "llvm-api") {
-        NativeBackend::LlvmApi
-    } else {
-        NativeBackend::Clang
-    };
-    let exe = dir.join("program");
-    let report = compile_source(
-        &unit,
-        &CompileOptions {
-            backend,
-            stop_after: Stage::Build,
-            optimization: Optimization::O0,
-            output: Some(exe.clone()),
-            emit_dir: Some(dir.join("phases")),
-            ..CompileOptions::default()
-        },
-    );
-    fs::write(dir.join("compile.json"), report.to_json()).unwrap();
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.verification_runs, 1);
-    assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
-    let output = Command::new(exe).output().unwrap();
-    fs::write(dir.join("stdout"), &output.stdout).unwrap();
-    fs::write(dir.join("stderr"), &output.stderr).unwrap();
-    fs::write(dir.join("exit"), format!("{:?}", output.status.code())).unwrap();
-    assert_eq!(output.status.code(), Some(0), "{output:?}");
-    assert_eq!(output.stdout, b"LARGE\n", "{output:?}");
-    assert!(output.stderr.is_empty(), "{output:?}");
+    native("g932-large-o0-o2", &source, b"LARGE\n", 0);
 }
