@@ -754,6 +754,7 @@ pub(crate) fn rewrite_calls(
 ) -> R<()> {
     let mut resolved = BTreeMap::new();
     let mut static_hosts = BTreeSet::new();
+    let mut static_direct = BTreeSet::new();
     for (ordinal, target) in symbolic {
         budget.node(item.span, 0)?;
         let mut reference = Reference {
@@ -779,14 +780,26 @@ pub(crate) fn rewrite_calls(
         if target.static_host {
             budget.node(item.span, 0)?;
             static_hosts.insert(*ordinal);
+            if !target.generic {
+                budget.node(item.span, 0)?;
+                static_direct.insert(*ordinal);
+            }
         }
     }
-    rewrite_resolved_calls(item, &resolved, &static_hosts, substitutions, budget)
+    rewrite_resolved_calls(
+        item,
+        &resolved,
+        &static_hosts,
+        &static_direct,
+        substitutions,
+        budget,
+    )
 }
 fn rewrite_resolved_calls(
     item: &mut Item,
     calls: &BTreeMap<usize, String>,
     static_hosts: &BTreeSet<usize>,
+    static_direct: &BTreeSet<usize>,
     substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
@@ -804,6 +817,7 @@ fn rewrite_resolved_calls(
     struct Prepay<'a, 'b, 'l> {
         calls: &'a BTreeMap<usize, String>,
         static_hosts: &'a BTreeSet<usize>,
+        static_direct: &'a BTreeSet<usize>,
         substitutions: &'a BTreeMap<String, TypeRef>,
         ids: &'a BTreeMap<usize, usize>,
         budget: &'b mut Budget<'l>,
@@ -842,12 +856,24 @@ fn rewrite_resolved_calls(
                     )]);
                 }
             }
+            if let ExprKind::Member { object, .. } = &e.kind
+                && let Some(ordinal) = self.ids.get(&(e as *const Expr as usize))
+                && self.static_direct.contains(ordinal)
+                && let Some(host) = static_host_label(object, self.substitutions)
+                && let Some(target) = self.calls.get(ordinal)
+            {
+                self.budget.node(e.span, depth).map_err(|e| vec![e])?;
+                self.text(host, e.span)?;
+                self.text(".", e.span)?;
+                self.text(target, e.span)?;
+            }
             super::super::ct_selection::walk_expression(self, e, depth)
         }
     }
     Prepay {
         calls,
         static_hosts,
+        static_direct,
         substitutions,
         ids: &ids,
         budget,
@@ -857,6 +883,7 @@ fn rewrite_resolved_calls(
     let visitor = CallRewrite {
         calls,
         static_hosts,
+        static_direct,
         substitutions,
         ids: &ids,
         receiver: None,
@@ -879,6 +906,21 @@ fn static_host_name(mut object: &Expr) -> Option<&str> {
     } else {
         None
     }
+}
+fn static_host_label<'a>(
+    object: &'a Expr,
+    substitutions: &'a BTreeMap<String, TypeRef>,
+) -> Option<&'a str> {
+    let name = static_host_name(object)?;
+    if let Some(actual) = substitutions.get(name) {
+        if let TypeKind::Named { path, .. } = &grouped(actual).kind
+            && path.len() == 1
+        {
+            return Some(path[0].as_str());
+        }
+        return None;
+    }
+    Some(name)
 }
 fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
     let TypeKind::Named { path, args } = &grouped(actual).kind else {
@@ -903,6 +945,7 @@ fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
 struct CallRewrite<'a> {
     calls: &'a BTreeMap<usize, String>,
     static_hosts: &'a BTreeSet<usize>,
+    static_direct: &'a BTreeSet<usize>,
     substitutions: &'a BTreeMap<String, TypeRef>,
     ids: &'a BTreeMap<usize, usize>,
     receiver: Option<&'a str>,
@@ -931,6 +974,7 @@ pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) 
     let visitor = CallRewrite {
         calls: &empty,
         static_hosts: &BTreeSet::new(),
+        static_direct: &BTreeSet::new(),
         substitutions: &BTreeMap::new(),
         ids: &BTreeMap::new(),
         receiver: Some(NAME),
@@ -1021,6 +1065,15 @@ impl CallRewrite<'_> {
     }
     fn expr(&self, e: &mut Expr) {
         let site = e as *const Expr as usize;
+        if let ExprKind::Member { object, .. } = &e.kind
+            && let Some(ordinal) = self.ids.get(&site)
+            && self.static_direct.contains(ordinal)
+            && let Some(host) = static_host_label(object, self.substitutions)
+            && let Some(target) = self.calls.get(ordinal)
+        {
+            e.kind = ExprKind::Name(format!("{host}.{target}"));
+            return;
+        }
         let method = match &mut e.kind {
             ExprKind::Member {
                 member: MemberName::Name(name) | MemberName::Constrained { name, .. },
@@ -1298,6 +1351,7 @@ mod static_trait_request {
     const CONCRETE: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn main()->i32{return Cell.make::<i32>(3).n-7}";
     const SYMBOLIC: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn build<F:Factory>()->F{return F.make::<i32>(3)}fn main()->i32{return build::<Cell>().n-7}";
     const MULTI: &str = "trait Measure<Tag:Copy>{fn score<A:Copy,B:Copy>(a:A,b:B,tag:Tag)->i32;}struct Cell{n:i32}impl Measure<i32> for Cell{fn score<X:Copy,Y:Copy>(a:X,b:Y,tag:i32)->i32{return tag+1}}fn run<H:Measure<i32>>(x:i32)->i32{return H.score::<i32,bool>(3,true,x)}fn main()->i32{return run::<Cell>(7)-8}";
+    const ZERO: &str = "trait Construct<T:Copy>{fn make(value:T)->Self;}struct Cell<T:Copy>{n:T}impl<T:Copy> Construct<T> for Cell<T>{fn make(value:T)->Self{return Cell::<T>{n:value}}}fn build<H:Construct<i32>>(v:i32)->H{return H.make(v)}fn main()->i32{let row=build::<Cell<i32>>(42);return row.n-42}";
 
     fn expand(text: &str, work: usize) -> zil_base::CompileResult<crate::ExpandedModule> {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "static242.zil", text);
@@ -1318,6 +1372,7 @@ mod static_trait_request {
             ("concrete", CONCRETE),
             ("symbolic", SYMBOLIC),
             ("multi", MULTI),
+            ("zero", ZERO),
         ] {
             let mut low = 0usize;
             let mut high = Limits::default().max_analysis_steps;
