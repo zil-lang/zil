@@ -59,6 +59,7 @@ mod store_templates;
 mod stored;
 mod tasks;
 mod tuple_bindings;
+mod utf8_literals;
 pub use inference::{infer_program_closures, infer_source_closures};
 pub use program::{check_program, resolve_program_shapes};
 type R<T> = Result<T, Diagnostic>;
@@ -1746,6 +1747,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             | CoreExprKind::Integer(_)
             | CoreExprKind::Bool(_)
             | CoreExprKind::Unit => self.expr_literal_body(e, expected),
+            CoreExprKind::String(spelling) => self.utf8_literal(spelling, e.span),
             CoreExprKind::Ascribed { ty, value } => self.expr(value, Some(ty)),
             CoreExprKind::IntegerConvert { .. } => self.scalar_expr_integer_convert(e, expected),
             CoreExprKind::Try(operand) => {
@@ -2342,6 +2344,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 _ => None,
             },
             CoreExprKind::Literal(value) => Some(value.ty()),
+            CoreExprKind::String(_) => Some(utf8_literals::ty()),
             CoreExprKind::Ascribed { ty, .. } => Some(ty.clone()),
             CoreExprKind::IntegerConvert { target, .. } | CoreExprKind::NumericConvert { target, .. } => Some(target.clone()),
             CoreExprKind::Float(text) if text.ends_with("f32") || text.ends_with("f64") => floats::ty(text, None, e.span).ok(),
@@ -3398,6 +3401,76 @@ mod tests {
             unsupported: vec![],
         }
     }
+    #[test]
+    fn utf8_runtime_core_produces_static_bytes_and_rejects_forged_spelling() {
+        for (spelling, bytes) in [
+            ("\"\"", vec![]),
+            ("\"按钮\"", "按钮".as_bytes().to_vec()),
+            (r#""a\0\u{1f642}""#, "a\0🙂".as_bytes().to_vec()),
+        ] {
+            let mut core = module(expr(CoreExprKind::String(spelling.into())));
+            core.functions[0].return_type = utf8_literals::ty();
+            let typed = check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+            assert!(typed.functions[0].blocks.iter().flat_map(|b| &b.instructions).any(|i| matches!(&i.kind, InstructionKind::StaticUtf8 { bytes: actual } if *actual == bytes)));
+            core.functions[0].return_type = Type::Address {
+                mutable: true,
+                inner: Box::new(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+            };
+            assert_eq!(
+                check(&core, &TargetProfile::default(), &Limits::default()).unwrap_err()[0].code,
+                "E-TYPE-MISMATCH"
+            );
+        }
+        for spelling in ["plain", r#""\u{D800}""#, r#""\x41""#] {
+            let mut core = module(expr(CoreExprKind::String(spelling.into())));
+            core.functions[0].return_type = utf8_literals::ty();
+            assert_eq!(
+                check(&core, &TargetProfile::default(), &Limits::default()).unwrap_err()[0].code,
+                "E-UTF8-LITERAL"
+            );
+        }
+    }
+
+    #[test]
+    fn utf8_runtime_types_exact_work_boundary_and_fresh_retry() {
+        let mut core = module(expr(CoreExprKind::String("\"按钮🙂\"".into())));
+        core.functions[0].return_type = utf8_literals::ty();
+        let target = TargetProfile::default();
+        let baseline = check(&core, &target, &Limits::default()).unwrap();
+        let mut low = 0;
+        let mut high = Limits::default().max_analysis_steps;
+        while low < high {
+            let mid = low + (high - low) / 2;
+            let limits = Limits {
+                max_analysis_steps: mid,
+                ..Limits::default()
+            };
+            if check(&core, &target, &limits).is_ok() {
+                high = mid
+            } else {
+                low = mid + 1
+            }
+        }
+        for n in [low, low - 1, low] {
+            let limits = Limits {
+                max_analysis_steps: n,
+                ..Limits::default()
+            };
+            let actual = check(&core, &target, &limits);
+            if n == low {
+                assert_eq!(actual.unwrap(), baseline)
+            } else {
+                assert_eq!(
+                    actual.unwrap_err()[0].category,
+                    zil_base::ResultCategory::ResourceLimit
+                )
+            }
+        }
+        println!("UTF8 Types exact N={low}, N-1 ResourceLimit, fresh N identical");
+    }
+
     #[test]
     fn scalar_arithmetic_builds_cfg() {
         let m = module(expr(CoreExprKind::Binary {

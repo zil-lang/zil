@@ -3464,7 +3464,9 @@ impl<'a> Reader<'a> {
         let kind = match self.u8()? {
             139 => {
                 let count = self.count(self.limits.max_source_bytes, 1)?;
-                InstructionKind::StaticUtf8 { bytes: self.take(count)?.to_vec() }
+                InstructionKind::StaticUtf8 {
+                    bytes: self.take(count)?.to_vec(),
+                }
             }
             80 => InstructionKind::OwnedStoreNew {
                 element: self.ty(0)?,
