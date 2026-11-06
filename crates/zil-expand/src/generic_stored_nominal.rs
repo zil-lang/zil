@@ -1264,14 +1264,18 @@ impl<'a> Engine<'a> {
                 self.budget.text(template, span)?;
                 self.budget.text(&generated, span)?;
                 let mut hint = arguments.to_vec();
-                if let [
-                    GenericArg::Type(TypeRef {
-                        kind: TypeKind::Reference { lifetime, .. },
-                        ..
-                    }),
-                ] = hint.as_mut_slice()
-                {
-                    *lifetime = None;
+                if let [GenericArg::Type(ty)] = hint.as_mut_slice() {
+                    let mut ty = ty;
+                    loop {
+                        match &mut ty.kind {
+                            TypeKind::Group(inner) => ty = inner,
+                            TypeKind::Reference { lifetime, .. } => {
+                                *lifetime = None;
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
                 }
                 self.instance_types.insert(
                     generated.clone(),

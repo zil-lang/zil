@@ -1490,6 +1490,33 @@ mod source_tests {
     }
 
     #[test]
+    fn g3_4_1_grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint() {
+        let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<(&'s i64)>{return Option::<(&'s i64)>.Some(&slice[0]);}fn result()->i64{let values:[i64;1]=[42];let value=next(&values[..]);match value{Option.Some(n)=>{return *n},Option.None()=>{return 0}}}").unwrap();
+        let instance = core
+            .life_instances
+            .iter()
+            .find(|instance| instance.declaration.compiler)
+            .unwrap();
+        assert_eq!(
+            instance.arguments,
+            vec![LifeNominalActual::Type(Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I64),
+            })]
+        );
+        let Type::BorrowedStorage { life, .. } = &instance.ty else {
+            panic!("{instance:?}")
+        };
+        assert_eq!(life.retained.len(), 1);
+        assert_eq!(life.slots.len(), 1);
+        assert!(
+            core.functions
+                .iter()
+                .any(|function| function.name == "result")
+        );
+    }
+
+    #[test]
     fn option_reference_actual_keeps_real_source_class_and_variant_slot() {
         let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn main(){}").unwrap();
         let declaration = core
