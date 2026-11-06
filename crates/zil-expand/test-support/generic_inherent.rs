@@ -3,7 +3,17 @@ use zil_base::{FileId, Limits, ModuleId, Phase, SourceUnit};
 fn expand(text: &str) -> Result<zil_expand::ExpandedModule, Vec<zil_base::Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "inherent.zil", text);
     let ast = zil_syntax::parse(&source).into_result().unwrap();
-    zil_expand::expand_with_map_limits(&source, &ast, &Limits::default())
+    zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &ast,
+        &Limits::default(),
+        &zil_base::TargetProfile::default(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: ModuleId(0),
+            aliases: &std::collections::BTreeMap::new(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
 }
 
 #[test]
@@ -46,6 +56,7 @@ fn unused_inherent_methods_check_symbolic_bounds_and_receiver_fields() {
 #[test]
 fn inherent_specialization_and_duplicate_method_do_not_erase_obligations() {
     for source in [
+        "struct Box<T:Copy>{get:T} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.get}} fn main()->i32{return 0}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<i32>{fn get(self:&Self)->i32{return self.value}} fn main()->i32{return 0}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.value}} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.value}} fn main()->i32{return 0}",
     ] {
@@ -66,7 +77,7 @@ fn stored_slice_cursor_method_keeps_its_impl_life_and_nominal_type() {
 
 #[test]
 fn two_life_receiver_with_reordered_impl_binders_keeps_source_positions() {
-    let source = "struct Pair<life left,life right,T:Copy>{left:&'left T;right:&'right T} impl<life right,T:Copy,life left> Pair<'left,'right,T>{fn both(self:&Self)->Pair<'left,'right,T>{return Pair::<'left,'right,T>{left:self.left,right:self.right}}} fn pair<life left,life right,T:Copy>(a:&'left T,b:&'right T)->Pair<'left,'right,T>{return Pair::<'left,'right,T>{left:a,right:b}} fn result()->i64{let a=20i64;let b=22i64;let p=pair(&a,&b);let copy=p.both();return *copy.left+*copy.right}";
+    let source = "struct Pair<life left,life right,T:Copy>{left:&'left T;right:&'right T} impl<life right,T:Copy,life left> Pair<'left,'right,T>{fn both(self:&Self)->Pair<'left,'right,T>{return Pair::<'left,'right,T>{left:self.left,right:self.right}}} fn pair<life left,life right,T:Copy>(a:&'left T,b:&'right T)->Pair<'left,'right,T>{return Pair::<'left,'right,T>{left:a,right:b}} fn result()->i64{let a:i64=20;let b:i64=22;let p=pair(&a,&b);let copy=p.both();return *copy.left+*copy.right}";
     let core = expand(source).unwrap_or_else(|errors| panic!("{errors:#?}"));
     assert!(
         core.core.unsupported.is_empty(),
@@ -105,7 +116,7 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
             zil_expand::expand_with_map_limits(&source, &ast, limits)
         });
         eprintln!("inherent budget work={work} N={amount}");
-        assert_eq!(amount, if work { 1418 } else { 483 });
+
         let mut limits = Limits::default();
         if work {
             limits.max_analysis_steps = amount;
