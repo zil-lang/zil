@@ -312,6 +312,97 @@ pub(crate) fn validate_declaration(
             ));
         }
         let mut method_variables = Cow::Borrowed(&variables);
+        let lending = method
+            .generics
+            .iter()
+            .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+        if lending {
+            if !declaration.generics.is_empty()
+                || !method
+                    .generics
+                    .iter()
+                    .all(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                || !method.where_clause.is_empty()
+                || !matches!(method.body, FunctionBody::Declaration)
+            {
+                return Err(unsupported(
+                    member.span,
+                    "lending trait method requires life-only local binders and an ordinary declaration",
+                ));
+            }
+            let receiver = method
+                .params
+                .first()
+                .filter(|p| p.name == "self")
+                .ok_or_else(|| {
+                    error(
+                        member.span,
+                        "lending method requires a receiver in parameter zero",
+                    )
+                })?;
+            if receiver.give
+                || !matches!(&grouped(&receiver.ty).kind,
+                TypeKind::Reference { inner, .. }
+                    if matches!(&grouped(inner).kind, TypeKind::Named { path, args } if path.as_slice() == ["Self"] && args.is_empty()))
+            {
+                return Err(unsupported(
+                    receiver.span,
+                    "lending method requires an ordinary borrowed Self receiver",
+                ));
+            }
+            let result = method
+                .return_type
+                .as_ref()
+                .ok_or_else(|| error(member.span, "lending method requires a shared result"))?;
+            let payload = match &grouped(result).kind {
+                TypeKind::Reference { .. } => result,
+                TypeKind::Named { path, args }
+                    if path.as_slice() == [super::options::TEMPLATE]
+                        || path.as_slice() == ["Option"] =>
+                {
+                    let [GenericArg::Type(payload)] = args.as_slice() else {
+                        return Err(unsupported(
+                            result.span,
+                            "lending Option requires one shared address payload",
+                        ));
+                    };
+                    payload
+                }
+                _ => {
+                    return Err(unsupported(
+                        result.span,
+                        "lending result requires a shared address or Option of one",
+                    ));
+                }
+            };
+            let referent = match &grouped(payload).kind {
+                TypeKind::Reference {
+                    mutable: false,
+                    lifetime: Some(_),
+                    inner,
+                } => inner,
+                _ => {
+                    return Err(unsupported(
+                        payload.span,
+                        "lending result requires an explicitly related shared address",
+                    ));
+                }
+            };
+            if matches!(&grouped(referent).kind, TypeKind::Named { path, args }
+                if path.as_slice() == ["Self", "Item"] && args.is_empty())
+            {
+                let copy_item = declaration.members.iter().any(|member| {
+                    matches!(&member.kind, ItemKind::TypeAlias(alias)
+                        if alias.name == "Item" && alias.bounds.iter().any(copy::is_bound))
+                });
+                if !copy_item {
+                    return Err(error(
+                        referent.span,
+                        "lending associated Item requires a declared Copy bound",
+                    ));
+                }
+            }
+        }
         for parameter in &method.generics {
             budget.node(parameter.span, 0)?;
             budget.text(&parameter.name, parameter.span)?;
