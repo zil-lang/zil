@@ -5,6 +5,7 @@ use super::*;
 mod pure_copy;
 
 mod nominal;
+mod option_address;
 mod retained;
 
 type Path = Vec<PlaceProjection>;
@@ -309,6 +310,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
+    if option_address::shape(ty, limits, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
@@ -1363,6 +1367,7 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let option_transfer = option_address::transfer(module, f, i, values, b)?;
     match &i.kind {
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
@@ -1633,6 +1638,7 @@ fn step(
                 }
             }
         }
+        _ if option_transfer.is_some() => { out = option_transfer.unwrap(); }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in instruction_operands(&i.kind) {

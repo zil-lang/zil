@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod option_address;
 mod retained;
 use std::collections::BTreeMap;
 pub(super) mod owned;
@@ -988,6 +989,9 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
+    if option_address::shape(ty, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
@@ -1516,6 +1520,7 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
+    let option_transfer = option_address::transfer(module, f, i, values, b)?;
     match &i.kind {
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
@@ -1838,6 +1843,7 @@ fn transfer(
             state.locals.remove(local);
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
+        _ if option_transfer.is_some() => { out = option_transfer.unwrap(); }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in resources::uses(&i.kind) {

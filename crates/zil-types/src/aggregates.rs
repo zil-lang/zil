@@ -1012,6 +1012,7 @@ impl Resolver<'_> {
                 for field in raw_fields {
                     let ty = self.ty(field, depth + 1, declaration.span)?;
                     let copy = ty.is_copy_value()
+                        || stored_instance.is_some_and(|instance| stored::option_address_payload(instance, &ty))
                         || (stored_instance.is_some()
                             && stored::pure_inline(
                                 &ty,
