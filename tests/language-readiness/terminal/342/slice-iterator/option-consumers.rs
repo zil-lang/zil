@@ -1,0 +1,252 @@
+//! All mutations begin with genuine source-produced Core/Typed metadata.
+use super::*;
+use zil_ir::{LifeNominalActual, LifeTypeProjection, PlaceProjection, Type};
+
+const HELPER: &str = include_str!("option-helper.zil");
+
+fn shape(module: &mut TypedModule) -> &mut zil_ir::StorageLifeShape {
+    let Type::BorrowedStorage { life, .. } = &mut module.life_instances[0].ty else {
+        panic!("source omitted qualified Option");
+    };
+    life
+}
+
+fn accept(module: &TypedModule) -> zil_ir::CandidatePlan {
+    let limits = Limits::default();
+    let plan = zil_analyze::analyze(module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(module, &plan, &limits).unwrap();
+    let (decoded, decoded_plan) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+    assert_eq!(&decoded, module);
+    assert_eq!(&decoded_plan, &plan);
+    assert_eq!(zil_analyze::analyze(&decoded, &limits).unwrap(), plan);
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    plan
+}
+
+#[test]
+fn g3_4_1_option_source_permissions_survive_raw_and_wire_consumers() {
+    let module = typed(HELPER);
+    assert_eq!(module.life_declarations.len(), 1);
+    assert_eq!(module.life_instances.len(), 1);
+    let Type::BorrowedStorage { life, .. } = &module.life_instances[0].ty else {
+        panic!("source erased Option relation");
+    };
+    assert_eq!(life.retained[0].path, [LifeTypeProjection::TypeArgument(0)]);
+    assert_eq!(
+        life.slots[0].path,
+        [PlaceProjection::Variant(zil_ir::VariantProjection {
+            variant: 1,
+            index: 0
+        })]
+    );
+    let plan = accept(&module);
+    assert!(
+        plan.functions
+            .iter()
+            .flat_map(|f| &f.holds)
+            .any(|h| h.roots.contains(&HoldRoot::Parameter(0))),
+        "no actual input source survived Option construction"
+    );
+}
+
+#[test]
+fn g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel() {
+    let module = typed(HELPER);
+    let plan = accept(&module);
+    let mutations: &[(&str, fn(&mut TypedModule))] = &[
+        ("compiler flag alone", |m| {
+            m.life_declarations[0].identity.package = "spoof".into()
+        }),
+        ("canonical builtin module", |m| {
+            m.life_declarations[0].id.module.0 = 0
+        }),
+        ("canonical builtin ordinal", |m| {
+            m.life_declarations[0].id.declaration.0 = 1
+        }),
+        ("canonical builtin module path", |m| {
+            m.life_declarations[0].identity.module_path = vec!["other".into()]
+        }),
+        ("canonical builtin declaration path", |m| {
+            m.life_declarations[0].identity.declaration_path[1] = "Other".into()
+        }),
+        ("canonical builtin generation", |m| {
+            m.life_declarations[0].identity.generation_path.push(0)
+        }),
+        ("no builtin flag", |m| {
+            m.life_declarations[0].id.compiler = false
+        }),
+        ("wrong full formal kind", |m| {
+            m.life_declarations[0].parameters[0] = zil_ir::LifeParameterKind::Lifetime
+        }),
+        ("missing retained map", |m| shape(m).retained.clear()),
+        ("wrong actual ordinal", |m| {
+            shape(m).retained[0].path = vec![LifeTypeProjection::TypeArgument(1)]
+        }),
+        ("nominal row cannot stand in for address", |m| {
+            let id = m.life_declarations[0].id;
+            shape(m)
+                .nominal_arguments
+                .push(zil_ir::NominalLifeArgument {
+                    path: vec![LifeTypeProjection::TypeArgument(0)],
+                    declaration: id,
+                    argument: 0,
+                    binder: 0,
+                });
+        }),
+        ("wrong local address class", |m| {
+            shape(m).retained[0].class = 1
+        }),
+        ("conflicting enclosing binder", |m| {
+            shape(m).retained[0].binder = 1
+        }),
+        ("duplicate class mapping", |m| {
+            let row = shape(m).retained[0].clone();
+            shape(m).retained.push(row);
+        }),
+        ("missing physical slot", |m| shape(m).slots.clear()),
+        ("wrong physical variant", |m| {
+            shape(m).slots[0].path = vec![PlaceProjection::Variant(zil_ir::VariantProjection {
+                variant: 0,
+                index: 0,
+            })]
+        }),
+        ("wrong physical binder", |m| shape(m).slots[0].binder = 1),
+        ("unused class", |m| shape(m).binder_count = 2),
+        ("actual does not match payload", |m| {
+            m.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I64)
+        }),
+        ("mutable actual", |m| {
+            let LifeNominalActual::Type(Type::Address { mutable, .. }) =
+                &mut m.life_instances[0].arguments[0]
+            else {
+                panic!()
+            };
+            *mutable = true;
+        }),
+        ("wrong real payload", |m| {
+            let Type::BorrowedStorage { storage, .. } = &mut m.life_instances[0].ty else {
+                panic!()
+            };
+            let Type::Enum { variants, .. } = storage.as_mut() else {
+                panic!()
+            };
+            variants[1].1[0] = Type::I64;
+        }),
+        ("swapped real variants", |m| {
+            let Type::BorrowedStorage { storage, .. } = &mut m.life_instances[0].ty else {
+                panic!()
+            };
+            let Type::Enum { variants, .. } = storage.as_mut() else {
+                panic!()
+            };
+            variants.swap(0, 1);
+        }),
+    ];
+    for (label, mutate) in mutations {
+        let mut forged = module.clone();
+        mutate(&mut forged);
+        assert!(
+            zil_analyze::analyze(&forged, &Limits::default()).is_err(),
+            "Analyze accepted {label}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&forged, &claim, &Limits::default()).unwrap();
+        let (decoded, _) =
+            zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &Limits::default()).is_err(),
+            "Wire Analyze accepted {label}"
+        );
+        assert!(
+            zil_verify::verify_module(forged, claim, &module.target, &Limits::default()).is_err(),
+            "Verify accepted {label}"
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err(),
+            "Wire Verify accepted {label}"
+        );
+    }
+}
+
+#[test]
+fn g3_4_1_option_wrong_actual_source_is_rejected_after_types() {
+    let source_text = HELPER.replace(
+        "return Option::<&'s i64>.Some(&slice[0]);",
+        "let local:i64=1; return Option::<&'s i64>.Some(&local);",
+    );
+    assert_ne!(source_text, HELPER);
+    let module = typed(&source_text);
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().all(|d| d.phase == Phase::Analyze),
+        "{errors:?}"
+    );
+    // Reuse only a source-produced candidate, with its raw fingerprint refreshed.
+    // Verify must reject from its own actual-body proof.
+    let mut claim = accept(&typed(HELPER));
+    claim.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &Limits::default()).unwrap();
+    assert!(
+        zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default())
+            .is_err()
+    );
+    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile() {
+    let module = typed(HELPER);
+    let plan = accept(&module);
+    for pointee in [
+        Type::Managed(Box::new(Type::I64)),
+        Type::CWideString,
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I64),
+        },
+        Type::FunctionPointer {
+            parameters: vec![],
+            result: Box::new(Type::I64),
+        },
+        Type::Tuple(vec![Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I64),
+        }]),
+        Type::Slice {
+            element: Box::new(Type::Managed(Box::new(Type::I64))),
+        },
+    ] {
+        let mut forged = module.clone();
+        let address = Type::Address {
+            mutable: false,
+            inner: Box::new(pointee.clone()),
+        };
+        forged.life_instances[0].arguments[0] = LifeNominalActual::Type(address.clone());
+        let Type::BorrowedStorage { storage, .. } = &mut forged.life_instances[0].ty else {
+            panic!()
+        };
+        let Type::Enum { variants, .. } = storage.as_mut() else {
+            panic!()
+        };
+        variants[1].1[0] = address;
+        assert!(
+            zil_analyze::analyze(&forged, &Limits::default()).is_err(),
+            "Analyze accepted pointee {pointee:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&forged, &claim, &Limits::default()).unwrap();
+        assert!(
+            zil_verify::verify_module(forged, claim, &module.target, &Limits::default()).is_err(),
+            "Verify accepted pointee {pointee:?}"
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err(),
+            "Wire Verify accepted pointee {pointee:?}"
+        );
+    }
+}

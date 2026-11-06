@@ -1439,3 +1439,6 @@ fn g3_4_1_option_borrowed_source_keeps_lexical_life_in_core() {
         );
     }
 }
+
+#[path = "../../../tests/language-readiness/terminal/342/slice-iterator/option-consumers.rs"]
+mod g3_4_1_option_consumers;
