@@ -65,6 +65,7 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
     const PREFIX: &str = "struct Cell{value:i32}fn consume(give items:Store<Cell>){}fn destroy(give items:Store<Cell>){}fn main()->i32{let items:Store<Cell>=store_new();store_reserve(items,3);store_push(items,Cell{value:41});store_push(items,Cell{value:42});";
     // Both shared and exclusive views have a legal isolated baseline. The
     // return reads the original view, so each inserted operation is live.
+    let mut mismatches = Vec::new();
     for (label, view, change) in [
         (
             "shared-other-index",
@@ -106,21 +107,29 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
         assert!(accepted.verification_runs > 0);
         let source = format!("{PREFIX}let view={view};{change}return view.value}}");
         let report = check(&format!("g933-{label}"), &source, Stage::Verify);
-        assert_eq!(
+        let diagnosis = report.diagnostics.first();
+        eprintln!(
+            "g933 {label}: status={:?} phase={:?} code={:?} message={:?}",
             report.status,
-            ResultCategory::SafeReject,
-            "{}",
-            report.to_json()
+            report.phase,
+            diagnosis.map(|d| &d.code),
+            diagnosis.map(|d| &d.message)
         );
-        assert_eq!(report.phase, Phase::Verify, "{}", report.to_json());
-        assert!(
-            report
-                .diagnostics
-                .iter()
-                .any(|d| d.code == "E-BORROW-CONFLICT"),
-            "{}",
-            report.to_json()
-        );
-        assert!(!report.artifacts.contains_key("executable"));
+        let precise_conflict = diagnosis.is_some_and(|d| match report.phase {
+            Phase::Analyze => {
+                d.code == "E-ANALYZE-IR"
+                    && d.message
+                        .contains("actual borrowed resource access conflicts")
+            }
+            Phase::Verify => d.code == "E-BORROW-CONFLICT",
+            _ => false,
+        });
+        if report.status != ResultCategory::SafeReject
+            || !precise_conflict
+            || report.artifacts.contains_key("executable")
+        {
+            mismatches.push(format!("{label}: {}", report.to_json()));
+        }
     }
+    assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }

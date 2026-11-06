@@ -6,7 +6,7 @@ const SYMBOLIC: &str = include_str!("symbolic-factory.zil");
 #[test]
 fn g242_original_static_and_symbolic_sources_reach_both_native_backends() {
     for text in [CONCRETE, SYMBOLIC] {
-        let report = check(text);
+        let report = checked(text);
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -20,7 +20,7 @@ fn g242_original_static_and_symbolic_sources_reach_both_native_backends() {
 #[test]
 fn g242_multiple_method_and_trait_actuals_and_ordered_arguments() {
     let text = "trait Measure<Tag:Copy>{fn score<A:Copy,B:Copy>(a:A,b:B,tag:Tag)->i32;}struct Cell{n:i32}struct Other{n:i32}impl Measure<i32> for Cell{fn score<X:Copy,Y:Copy>(a:X,b:Y,tag:i32)->i32{return tag+1}}impl Measure<i32> for Other{fn score<X:Copy,Y:Copy>(a:X,b:Y,tag:i32)->i32{return tag+2}}fn run<H:Measure<i32>>(x:i32)->i32{return H.score::<i32,bool>(3,true,x)}fn main()->i32{if Cell.score::<i32,bool>(3,true,7)!=8{return 1}if run::<Other>(8)!=10{return 2}return 0}";
-    let r = check(text);
+    let r = checked(text);
     assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
     native_value(&[("main", text)]);
 }
@@ -35,7 +35,7 @@ fn g242_cross_module_provider_and_generic_consumer() {
         ("api", "pub trait Factory{fn make<T:Copy>(value:T)->Self;}"),
         (
             "model",
-            "import api;pub struct Cell{n:i32}impl api.Factory for Cell{pub fn make<T:Copy>(value:T)->Self{return Cell{n:42}}}",
+            "import api;pub struct Cell{pub n:i32}impl api.Factory for Cell{pub fn make<T:Copy>(value:T)->Self{return Cell{n:42}}}",
         ),
         (
             "usecase",
@@ -49,13 +49,13 @@ fn g242_cross_module_provider_and_generic_consumer() {
 
 #[test]
 fn g242_missing_bounds_and_unused_invalid_method_are_rejected() {
-    assert_eq!(check(CONCRETE).status, ResultCategory::Success);
+    assert_eq!(checked(CONCRETE).status, ResultCategory::Success);
     for text in [
         SYMBOLIC.replace("F:Factory", "F"),
         CONCRETE.replace("return Cell{n:7}", "return value+1"),
         CONCRETE.replace("value:T)->Self{return Cell{n:7}", "value:T)->i32{return 7"),
     ] {
-        let r = check(&text);
+        let r = checked(&text);
         assert_eq!(
             r.status,
             ResultCategory::SafeReject,
@@ -115,4 +115,16 @@ fn native_value(files: &[(&str, &str)]) {
             fs::remove_dir_all(dir).unwrap();
         }
     }
+}
+
+fn checked(text: &str) -> CompileReport {
+    let path = std::path::PathBuf::from("/tmp/zil-g242-core")
+        .join(format!("{}", NEXT.fetch_add(1, Ordering::Relaxed)));
+    compile_source(
+        &source(text),
+        &CompileOptions {
+            emit_dir: Some(path),
+            ..CompileOptions::default()
+        },
+    )
 }

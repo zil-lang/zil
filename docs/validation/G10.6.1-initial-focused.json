@@ -1,0 +1,22 @@
+{
+  "static_and_verify_source": "f899b2fbfd6e4d46c384b6065092af4e9a824672",
+  "store_source": "65532ec43",
+  "checks": [
+    {
+      "name": "store",
+      "log_sha256": "1ee683a84727ea04aeda6621c14f80655000e9dd3b52d43d0e11a5e577a1f71a",
+      "scope": "WIP focused, not acceptance"
+    },
+    {
+      "name": "static",
+      "log_sha256": "659b10bf3d0e4685f2250482711847954710c15cbbde2cf9541ae3d5b414f558",
+      "scope": "WIP focused, not acceptance"
+    },
+    {
+      "name": "verify",
+      "log_sha256": "ae51f6276b47652855ef1785ddc99b734acf4624d871603cce88026bce67d584",
+      "scope": "WIP focused, not acceptance"
+    }
+  ],
+  "outcome": "Store native positives pass; store rejection oracle wrongly expected Verify instead of actual Analyze. Static Source reveals unresolved calls in Types, one private field fixture and an arithmetic Unsupported boundary. Verify test compilation selected wrong check_instruction return API; production unaffected. Failures retained, no acceptance."
+}
