@@ -249,18 +249,41 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                             lifetime: Some(name),
                             ..
                         } => {
-                            let mut found = None;
-                            for (index, binder) in life.binders.iter().enumerate() {
-                                check.budget.node(payload.span, 0)?;
+                            // A life inherited from the enclosing nominal is
+                            // fixed storage, not an invocation result derived
+                            // from this function's outer address parameters.
+                            // SliceIter.next may return its stored slice class
+                            // while self has only an elided short borrow.
+                            let mut local = false;
+                            for parameter in &function.generics {
+                                check.budget.node(parameter.span, 0)?;
                                 check.budget.text(name, payload.span)?;
-                                check.budget.text(binder, payload.span)?;
-                                if binder == name {
-                                    found = Some(index as u32);
+                                check.budget.text(&parameter.name, parameter.span)?;
+                                if parameter.name == *name
+                                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                                {
+                                    local = true;
                                 }
                             }
-                            Some(found.ok_or_else(|| {
-                                error(payload.span, "Option result uses an undeclared life binder")
-                            })?)
+                            if !local {
+                                None
+                            } else {
+                                let mut found = None;
+                                for (index, binder) in life.binders.iter().enumerate() {
+                                    check.budget.node(payload.span, 0)?;
+                                    check.budget.text(name, payload.span)?;
+                                    check.budget.text(binder, payload.span)?;
+                                    if binder == name {
+                                        found = Some(index as u32);
+                                    }
+                                }
+                                Some(found.ok_or_else(|| {
+                                    error(
+                                        payload.span,
+                                        "Option result uses an undeclared life binder",
+                                    )
+                                })?)
+                            }
                         }
                         _ => None,
                     },
