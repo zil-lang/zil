@@ -1240,7 +1240,10 @@ impl Check<'_, '_, '_> {
                                             let field =
                                                 self.field(&owner, member, object.span, depth + 1)?;
                                             if let Fact::List(element) = field {
-                                                Some(Fact::Address(Some(life.clone()), element))
+                                                Some(Fact::Address(
+                                                    Some(Box::new(self.copy(life, object.span)?)),
+                                                    element,
+                                                ))
                                             } else {
                                                 None
                                             }
