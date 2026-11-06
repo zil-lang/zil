@@ -225,6 +225,12 @@ pub(super) fn plan(
     }
     for function in lir.functions {
         for instruction in function.blocks.iter().flat_map(|block| &block.instructions) {
+            if let InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
+                // Reuse the existing full instruction inventory. Reserve exact
+                // data copying, escaped text/native constants, symbol/hash work
+                // and the two slice instructions before any machine emission.
+                super::static_utf8::reserve_emission(bytes.len(), remaining)?;
+            }
             if let InstructionKind::TaskCreate { worker, .. }
             | InstructionKind::SuspendCall {
                 function: worker, ..

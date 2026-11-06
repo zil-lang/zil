@@ -29,6 +29,7 @@ mod scoped_thread;
 #[cfg(all(test, target_os = "linux"))]
 mod scoped_thread_tests;
 mod slices;
+mod static_utf8;
 mod stored_borrows;
 mod tasks;
 use std::collections::{BTreeMap, BTreeSet};
@@ -119,7 +120,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
-    let sum_helpers = bind_lir(verified, lir, options.entry)?;
+    let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_emission(
@@ -289,6 +290,13 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     for function in lir.functions {
         for block in &function.blocks {
             for instruction in &block.instructions {
+                if let InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
+                    text.push(m::Event::Global(static_utf8::global(
+                        function.id,
+                        result(instruction)?,
+                        bytes,
+                    )));
+                }
                 if let InstructionKind::Constant(Constant::WideString(units)) = &instruction.kind {
                     let id = result(instruction)?;
                     let data = units
@@ -645,6 +653,7 @@ fn bind_lir(
     verified: &VerifiedModule,
     lir: &LirView<'_>,
     entry: EntryPoint,
+    remaining_work: &mut usize,
 ) -> CompileResult<m::Code> {
     let module = verified.module();
     let layouts = vec![
@@ -707,7 +716,7 @@ fn bind_lir(
         || lir.module_id != module.module_id
         || lir.verified_fingerprint != verified.fingerprint()
         || *lir.target != module.target
-        || !same_slice(lir.functions, &module.functions)
+        || !static_utf8::same_functions(lir.functions, &module.functions, remaining_work)?
         || !same_slice(lir.closures, &module.closures)
         || !same_slice(lir.resources, &module.resources)
         || lir.layouts.as_ref() != layouts
@@ -1867,6 +1876,9 @@ impl FunctionEmitter<'_> {
                         )),
                     ))),
                 }
+            }
+            InstructionKind::StaticUtf8 { bytes } => {
+                self.static_utf8(instruction, bytes.len())?;
             }
             InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                 let result = result(instruction)?;
