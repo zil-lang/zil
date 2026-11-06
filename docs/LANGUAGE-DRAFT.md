@@ -13,7 +13,7 @@
 
 ## 快速开始（候选）
 
-在具备 `rust-toolchain.toml` 指定 Rust、相应 LLVM/clang 与系统链接器的已支持环境中，从仓库根目录运行：
+在具备 `rust-toolchain.toml` 指定 Rust、相应 LLVM/clang 与系统链接器的已支持环境中，从仓库根目录运行。LLVM 安装、环境变量和版本检查见 [LLVM 工具链](LLVM-API.md#安装与构建)；先 `cargo fetch --locked` 备妥依赖，再使用离线构建：
 
 ```sh
 cargo build --offline --locked -p zil-cli
@@ -24,7 +24,12 @@ mkdir -p out
 printf '10 20 -3\n' | ./out/stream
 ```
 
-该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；最终发布时须在所标源码与环境重新执行。集合可变窗口和 trait 静态工厂的快速开始样例须待本轮共同验收后，引用实际通过的仓库源文件与命令，不能预填成功。
+该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；最终发布时须在所标源码与环境重新执行。本批组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。候选命令如下，只有同批机器验证通过后才记入最终收据：
+
+```sh
+./target/debug/zil run examples/mainline/draft_foundations/main.zil --entry main
+# 完整返回值应为 42
+```
 
 ## 未支持及环境限制
 

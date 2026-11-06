@@ -157,20 +157,23 @@ fn g1061_joint_factory_real_library_mutation_and_error_cleanup() {
     let files = [
         (
             "main",
-            "import std.store;import model;import usecase;import operations;fn main()->i32{let rows:Store<model.Row>=store.new();if !store.reserve(rows,1){return -1}match store.push(rows,usecase.make::<model.Row>(40)){.ok(())=>{},.err(_)=>{return -2}}let view=store_at_mut(rows,0);operations.bump(view);return view.value}",
+            include_str!("../../../examples/mainline/draft_foundations/main.zil"),
         ),
-        ("api", "pub trait Factory<T:Copy>{fn make(value:T)->Self;}"),
+        (
+            "api",
+            include_str!("../../../examples/mainline/draft_foundations/api.zil"),
+        ),
         (
             "model",
-            "import api;pub struct Row{pub value:i32}impl api.Factory<i32> for Row{fn make(value:i32)->Self{return Row{value:value}}}",
+            include_str!("../../../examples/mainline/draft_foundations/model.zil"),
         ),
         (
             "usecase",
-            "import api;pub fn make<F:api.Factory<i32>>(value:i32)->F{return F.make(value)}",
+            include_str!("../../../examples/mainline/draft_foundations/usecase.zil"),
         ),
         (
             "operations",
-            "import model;pub fn bump(value:&mut model.Row){value.value+=2}",
+            include_str!("../../../examples/mainline/draft_foundations/operations.zil"),
         ),
     ];
     native_expected(&files, b"42\n");
