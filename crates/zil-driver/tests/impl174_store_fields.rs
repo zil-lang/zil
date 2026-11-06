@@ -489,12 +489,12 @@ fn raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature() 
         element: Box::new(Type::I32),
     };
     rejected_candidate(
-        "state-only-invalid-element",
+        "state-only-mismatched-element-identity",
         wrong,
         plan,
-        ResultCategory::Unsupported,
-        "E-UNSUPPORTED",
-        "complete direct-Managed Package",
+        ResultCategory::SafeReject,
+        "E-VERIFY-OWNED-STORE",
+        "canonical element identity",
     );
 }
 
