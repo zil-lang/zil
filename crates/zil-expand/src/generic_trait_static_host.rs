@@ -8,29 +8,29 @@ pub(super) enum Host {
     Symbolic {
         ty: TypeRef,
         reference: trait_instances::Reference,
-        method: Function,
+        method: Box<Function>,
     },
+}
+
+pub(super) struct Scope<'a, 'l> {
+    pub nominals: &'a BTreeMap<String, &'l Item>,
+    pub variables: &'a BTreeSet<String>,
+    pub bounds: &'a trait_bounds::Bounds,
+    pub traits: &'a trait_bounds::Index<'l>,
 }
 
 pub(super) fn classify(
     mut object: &Expr,
     member: &str,
     is_value: impl Fn(&str) -> bool,
-    nominals: &BTreeMap<String, &Item>,
-    variables: &BTreeSet<String>,
-    bounds: &trait_bounds::Bounds,
-    traits: &trait_bounds::Index<'_>,
+    scope: Scope<'_, '_>,
     budget: &mut Budget<'_>,
 ) -> R<Option<Host>> {
     let original = object;
     let mut depth = 0;
-    loop {
-        if let ExprKind::Group(inner) = &object.kind {
-            object = inner;
-            depth += 1;
-        } else {
-            break;
-        }
+    while let ExprKind::Group(inner) = &object.kind {
+        object = inner;
+        depth += 1;
     }
     let (name, args) = match &object.kind {
         ExprKind::Name(name) => (name, &[][..]),
@@ -45,7 +45,7 @@ pub(super) fn classify(
     if is_value(name) {
         return Ok(None);
     }
-    if variables.contains(name) {
+    if scope.variables.contains(name) {
         for layer in 0..=depth {
             budget.node(object.span, layer)?;
         }
@@ -59,19 +59,36 @@ pub(super) fn classify(
                 "type parameter host does not take type arguments",
             ));
         }
-        let method = traits.method(bounds, name, member, budget, object.span)?;
-        let reference =
-            traits.method_reference(bounds, name, member, &method.name, budget, object.span)?;
+        let method = scope
+            .traits
+            .method(scope.bounds, name, member, budget, object.span)?;
+        let reference = scope.traits.method_reference(
+            scope.bounds,
+            name,
+            member,
+            &method.name,
+            budget,
+            object.span,
+        )?;
+        if matches!(&method, Cow::Borrowed(_)) {
+            budget.function_snapshot(&method)?;
+        }
+        budget.lineage_bytes(std::mem::size_of::<Function>(), object.span)?;
         let ty = named(name, object.span);
         return Ok(Some(Host::Symbolic {
             ty,
             reference,
-            method: method.into_owned(),
+            method: Box::new(method.into_owned()),
         }));
     }
-    if nominals.contains_key(name) {
-        return trait_bounds::constants::host_expression(original, nominals, |_| true, budget)
-            .map(|host| host.map(Host::Nominal));
+    if scope.nominals.contains_key(name) {
+        return trait_bounds::constants::host_expression(
+            original,
+            scope.nominals,
+            |_| true,
+            budget,
+        )
+        .map(|host| host.map(Host::Nominal));
     }
     Ok(None)
 }

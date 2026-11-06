@@ -4240,10 +4240,12 @@ impl Check<'_, '_, '_> {
                 object,
                 name,
                 |host| state.locals.contains_key(host),
-                self.nominals,
-                &self.variables,
-                &self.bounds,
-                self.traits,
+                static_host::Scope {
+                    nominals: self.nominals,
+                    variables: &self.variables,
+                    bounds: &self.bounds,
+                    traits: self.traits,
+                },
                 self.budget,
             )? {
                 match host {
@@ -4264,7 +4266,7 @@ impl Check<'_, '_, '_> {
                                     expected,
                                 },
                                 state,
-                                Some((method, reference)),
+                                Some((*method, reference)),
                             )
                             .map(Some);
                     }
