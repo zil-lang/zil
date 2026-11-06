@@ -1281,3 +1281,236 @@ fn pod932_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
         println!("G9.3.2.3 complete request wire={wire} N={lo}");
     }
 }
+
+fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
+    let element = pod(vec![("n", Type::I64)]);
+    let (mut m, _) = pod_fixture(element.clone());
+    let payload = m.resources[0].payload.clone();
+    let f = &mut m.functions[0];
+    let span = f.span;
+    let push = Type::ErrorUnion {
+        error: Box::new(element.clone()),
+        result: Box::new(Type::Unit),
+    };
+    let pop = Type::ErrorUnion {
+        error: Box::new(Type::Unit),
+        result: Box::new(element.clone()),
+    };
+    assert!(push.is_copy_value() && pop.is_copy_value());
+    f.locals.push(LocalDecl {
+        id: LocalId(1),
+        name: "protocol".into(),
+        ty: push.clone(),
+        mutable: false,
+        span,
+    });
+    f.values.extend([
+        Type::Desc(Box::new(payload)),
+        Type::I64,
+        element,
+        push.clone(),
+        pop,
+        push.clone(),
+        push,
+    ]);
+    let op = |result: Option<u32>, kind| Instruction {
+        result: result.map(ValueId),
+        kind,
+        span,
+    };
+    let original = f.blocks[0].instructions.clone();
+    let mut instructions = original[..2].to_vec();
+    instructions.extend([
+        op(
+            Some(2),
+            InstructionKind::DescribeLocal { local: LocalId(0) },
+        ),
+        op(Some(3), InstructionKind::Constant(Constant::I64(42))),
+        op(
+            Some(4),
+            InstructionKind::MakeAggregate {
+                fields: vec![ValueId(3)],
+            },
+        ),
+        op(
+            Some(5),
+            InstructionKind::OwnedStorePush {
+                store: ValueId(2),
+                value: ValueId(4),
+            },
+        ),
+        // A POD input is Copy: a second push of the same SSA value creates no
+        // element debt. The unique head remains managed and is freed once.
+        op(
+            Some(8),
+            InstructionKind::OwnedStorePush {
+                store: ValueId(2),
+                value: ValueId(4),
+            },
+        ),
+        op(
+            None,
+            InstructionKind::Store {
+                local: LocalId(1),
+                value: ValueId(5),
+            },
+        ),
+        op(Some(7), InstructionKind::Load(LocalId(1))),
+        op(
+            Some(6),
+            InstructionKind::OwnedStorePop { store: ValueId(2) },
+        ),
+    ]);
+    instructions.extend_from_slice(&original[2..]);
+    f.blocks[0].instructions = instructions;
+    let mut holds = vec![vec![]; f.values.len()];
+    holds[2] = vec![HoldRoot::Local(LocalId(0))];
+    let mut plan = pod_plan(&m, holds);
+    plan.functions[0].blocks[0].initialized_out = vec![LocalId(1)];
+    (m, plan)
+}
+
+#[test]
+fn pod932_complete_copy_push_pop_protocols_and_no_element_debt_are_raw_and_wire_checked() {
+    let limits = Limits::default();
+    let (m, plan) = pod_protocol_fixture();
+    for result in pod_both(&m, &plan, &limits) {
+        result.unwrap();
+    }
+    for variant in 0..3 {
+        let mut bad = m.clone();
+        match variant {
+            0 => {
+                bad.functions[0].values[5] = Type::ErrorUnion {
+                    error: Box::new(pod(vec![("n", Type::U64)])),
+                    result: Box::new(Type::Unit),
+                }
+            }
+            1 => {
+                bad.functions[0].values[6] = Type::ErrorUnion {
+                    error: Box::new(Type::Unit),
+                    result: Box::new(pod(vec![("n", Type::U64)])),
+                }
+            }
+            _ => {
+                let drop = bad.functions[0].blocks[0]
+                    .instructions
+                    .iter()
+                    .find(|i| matches!(i.kind, InstructionKind::DropManaged { .. }))
+                    .unwrap()
+                    .clone();
+                bad.functions[0].blocks[0].instructions.insert(10, drop);
+            }
+        }
+        for result in pod_both(&bad, &plan, &limits) {
+            assert!(result.is_err(), "variant={variant}");
+        }
+    }
+}
+
+#[test]
+fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership() {
+    let limits = Limits::default();
+    for nested in [false, true] {
+        let (mut m, plan) = pod_fixture(pod(vec![("n", Type::I64)]));
+        let leaf = Type::Package {
+            name: "Bag932".into(),
+            fields: vec![("items".into(), m.functions[0].locals[0].ty.clone())],
+        };
+        let owner = if nested {
+            Type::Package {
+                name: "Outer932".into(),
+                fields: vec![("child".into(), leaf)],
+            }
+        } else {
+            leaf
+        };
+        assert!(
+            packages::check_ordinary_type(&m, &owner, None, &mut Budget::new(&limits)).is_err()
+        );
+        let span = m.functions[0].span;
+        m.functions[0].locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "unused_bag".into(),
+            ty: owner,
+            mutable: false,
+            span,
+        });
+        for result in pod_both(&m, &plan, &limits) {
+            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+        }
+    }
+    // This scope restriction is specific to the new POD element family. The
+    // previous complete owning Package Store field remains admitted unchanged.
+    let (old_store, resource) = captured_leaf_store();
+    let mut m = module(vec![]);
+    m.resources.push(resource);
+    for nested in [false, true] {
+        let leaf = Type::Package {
+            name: "OldBag932".into(),
+            fields: vec![("items".into(), old_store.clone())],
+        };
+        let owner = if nested {
+            Type::Package {
+                name: "OldOuter932".into(),
+                fields: vec![("child".into(), leaf)],
+            }
+        } else {
+            leaf
+        };
+        packages::check_ordinary_type(&m, &owner, None, &mut Budget::new(&limits)).unwrap();
+    }
+    let (m, _) = pod_fixture(pod(vec![("n", Type::I64)]));
+    assert!(
+        check_owned_capture(
+            &m,
+            &m.functions[0].locals[0].ty,
+            Some(&limits),
+            &mut Budget::new(&limits)
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn pod932_new_head_family_does_not_inherit_owning_sum_containers() {
+    let limits = Limits::default();
+    let (old_store, old_resource) = captured_leaf_store();
+    let wrap = |store: Type| {
+        [
+            Type::Tuple(vec![store.clone()]),
+            Type::Enum {
+                name: "HeadEnum932".into(),
+                variants: vec![("Own".into(), vec![store.clone()])],
+            },
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(store),
+            },
+        ]
+    };
+    let mut old_module = module(vec![]);
+    old_module.resources.push(old_resource);
+    for old_container in wrap(old_store) {
+        sums::check_type_for(&old_module, &old_container, None, &mut Budget::new(&limits)).unwrap();
+    }
+    let (m, _) = pod_fixture(pod(vec![("n", Type::I64)]));
+    let store = m.functions[0].locals[0].ty.clone();
+    resources::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
+    sums::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
+    for container in wrap(store) {
+        assert!(sums::check_type_for(&m, &container, None, &mut Budget::new(&limits)).is_err());
+        let (mut candidate, plan) = pod_fixture(pod(vec![("n", Type::I64)]));
+        let span = candidate.functions[0].span;
+        candidate.functions[0].locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "unused_sum".into(),
+            ty: container,
+            mutable: false,
+            span,
+        });
+        for result in pod_both(&candidate, &plan, &limits) {
+            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+        }
+    }
+}

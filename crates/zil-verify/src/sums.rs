@@ -81,9 +81,16 @@ pub(super) fn check_type_for(
     budget: &mut Budget,
 ) -> Check<()> {
     resources::charge_payload(ty, budget)?;
+    let owning_container = matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
+    );
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if owning_container {
+            dynamic_store::check_owner_field(ty, span)?;
+        }
         if ty.is_copy_value() {
             check_type(ty, span)?;
             continue;

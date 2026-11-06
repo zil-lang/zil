@@ -1121,6 +1121,12 @@ fn check_type_shape(
                 if matches!(ty, Type::OwnedStore { .. })
                     && matches!(element.as_ref(), Type::Record { .. })
                 {
+                    if context & (4 | 64 | 1 | 2) != 0 {
+                        return Err(unsupported(
+                            "POD Store ownership is not admitted inside owning aggregate fields",
+                            None,
+                        ));
+                    }
                     budget.spend(1)?;
                     pod_stores.push(element.as_ref());
                 }

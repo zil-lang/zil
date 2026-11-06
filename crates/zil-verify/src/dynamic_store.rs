@@ -183,6 +183,16 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
+    if matches!(element(ty), Some(Type::Record { .. })) {
+        return Err(unsupported(
+            "POD Store ownership is not admitted in owning aggregate fields",
+            span,
+        ));
+    }
+    Ok(())
+}
+
 fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
     budget.spend(1)?;
     let mut pending = vec![element];
