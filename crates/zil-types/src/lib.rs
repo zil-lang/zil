@@ -408,7 +408,7 @@ fn signature_errors(
                 || stored::shared_address(&p.ty)
                 || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::BorrowMut
-                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
+                && matches!(&p.ty, Type::Address { mutable: true, inner } if inner.is_address_pointee() || stored::shared_address(&p.ty) || p.ty.is_package_address() || p.ty.is_exclusive_task_head_address() || reference_patterns::sum_address(&p.ty)))
             && !(p.mode == PassingMode::Give
                 && (matches!(p.ty, Type::Managed(_)) || errors::managed_success(&p.ty)))
             && !(p.mode == PassingMode::Describe && matches!(p.ty, Type::Desc(_)))
