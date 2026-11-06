@@ -1190,6 +1190,41 @@ mod tests {
     }
 
     #[test]
+    fn static_utf8_private_exact_data_stays_with_its_users_once() {
+        for bytes in [b"".as_slice(), b"A\0Z".as_slice(), "é中😀".as_bytes()] {
+            let data =
+                crate::emit::static_utf8::global(zil_ir::FunctionId(0), zil_ir::ValueId(0), bytes);
+            let name = data.name.clone();
+            let module = m(vec![
+                Item::Global(data.clone()),
+                f("left", Ty::Ptr, Val::Global(name.clone())),
+                f("right", Ty::Ptr, Val::Global(name.clone())),
+                f("independent", Ty::Int(32), Val::Int(42)),
+            ]);
+            let plan = partition(module, &lir(), EntryPoint::None, 64);
+            assert!(plan.units.len() > 1);
+            let owner = plan
+                .units
+                .iter()
+                .find(|unit| definitions(unit).contains(&name))
+                .unwrap();
+            assert!(definitions(owner).contains("left"));
+            assert!(definitions(owner).contains("right"));
+            assert_eq!(
+                plan.units
+                    .iter()
+                    .filter(|unit| definitions(unit).contains(&name))
+                    .count(),
+                1
+            );
+            assert!(owner.items.contains(&Item::Global(data)));
+            for unit in &plan.units {
+                zil_llvm_api::validate_module(unit).unwrap();
+            }
+        }
+    }
+
+    #[test]
     fn local_identity_and_global_initializers_are_colocated_once() {
         let mut hidden = f("hidden", Ty::Int(32), Val::Int(3));
         if let Item::Function(f) = &mut hidden {

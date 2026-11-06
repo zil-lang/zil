@@ -198,6 +198,169 @@ fn checked_simple(function: TypedFunction) -> VerifiedModule {
     checked(vec![function], vec![boundaries])
 }
 
+fn checked_static_utf8(bytes: &[u8]) -> VerifiedModule {
+    let mut module = checked_simple(returning(Constant::I64(0))).module().clone();
+    module.functions = vec![function(
+        0,
+        "static_length",
+        Type::I64,
+        vec![
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+            },
+            Type::I64,
+        ],
+        vec![block(
+            0,
+            vec![
+                instruction(
+                    Some(0),
+                    InstructionKind::StaticUtf8 {
+                        bytes: bytes.to_vec(),
+                    },
+                ),
+                instruction(
+                    Some(1),
+                    InstructionKind::SliceLength {
+                        address: ValueId(0),
+                    },
+                ),
+            ],
+            Terminator::Return(Some(ValueId(1))),
+        )],
+    )];
+    let mut plan = CandidatePlan::empty_for(&module);
+    plan.functions.push(FunctionPlan {
+        function: FunctionId(0),
+        holds: vec![
+            ValueHold {
+                value: ValueId(0),
+                roots: vec![HoldRoot::Static],
+            },
+            ValueHold {
+                value: ValueId(1),
+                roots: vec![],
+            },
+        ],
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![],
+            initialized_out: vec![],
+        }],
+    });
+    let target = module.target.clone();
+    verify_module(module, plan, &target, &Limits::default()).unwrap()
+}
+
+#[test]
+fn static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter() {
+    use zil_llvm_api::model::{Item, Linkage, Op, Ty, Val};
+    for bytes in [b"".as_slice(), b"A\0Z".as_slice(), "é中😀".as_bytes()] {
+        let verified = checked_static_utf8(bytes);
+        let raw = lir(&verified);
+        for incremental in [false, true] {
+            let machine = crate::emit::lower_view_with_incremental_scalar_policy(
+                &verified,
+                &raw.as_view(),
+                &EmitOptions::default(),
+                incremental,
+            )
+            .unwrap();
+            zil_llvm_api::validate_module(&machine).unwrap();
+            let globals = machine
+                .items
+                .iter()
+                .filter_map(|item| match item {
+                    Item::Global(global) => Some(global),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            assert_eq!(globals.len(), 1);
+            let global = globals[0];
+            assert_eq!(global.name, "zil.utf8.0.0");
+            assert_eq!(global.linkage, Linkage::Private);
+            assert_eq!(global.ty, Ty::array(bytes.len() as u64, Ty::Int(8)));
+            assert_eq!(global.initializer, Some(Val::Bytes(bytes.to_vec())));
+            assert!(global.constant && global.unnamed_addr);
+            assert_eq!(global.alignment, 1);
+            let body = machine
+                .items
+                .iter()
+                .find_map(|item| match item {
+                    Item::Function(function) if function.blocks.is_some() => Some(function),
+                    _ => None,
+                })
+                .unwrap();
+            let instructions = &body.blocks.as_ref().unwrap()[0].instructions;
+            assert!(instructions.iter().any(|instruction| matches!(&instruction.op,
+                Op::Insert { index: 0, field, .. } if field.value == Val::Global(global.name.clone()))));
+            assert!(instructions.iter().any(|instruction| matches!(&instruction.op,
+                Op::Insert { index: 1, field, .. } if field.value == Val::Int(bytes.len() as i128))));
+            let text = machine.to_text();
+            assert_eq!(emit(&verified, &raw).unwrap(), text);
+            assert!(!text.contains("malloc"));
+            assert!(!text.contains("zil.wstr"));
+        }
+        let mut stale = raw.clone();
+        let InstructionKind::StaticUtf8 { bytes } =
+            &mut stale.functions[0].blocks[0].instructions[0].kind
+        else {
+            unreachable!()
+        };
+        if bytes.is_empty() {
+            bytes.push(b'X');
+        } else {
+            bytes[0] ^= 1;
+        }
+        let errors = emit(&verified, &stale).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.code == "E-CODEGEN-UNBOUND-LIR")
+        );
+    }
+}
+
+#[test]
+fn static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets() {
+    use crate::emit::static_utf8::{planned_remaining, same_functions};
+    // The same exact equality walk is used for independent raw LIR. An alias
+    // has no comparison, and an old scalar fixture has no static-data fee.
+    let verified = checked_static_utf8("a\0中".as_bytes());
+    let original = &verified.module().functions;
+    let raw = original.clone();
+    let needed = "a\0中".len() + 1;
+    for _ in 0..2 {
+        let mut exact = needed;
+        assert!(same_functions(&raw, original, &mut exact).unwrap());
+        assert_eq!(exact, 0);
+        let errors = same_functions(&raw, original, &mut (needed - 1)).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .all(|error| error.category == ResultCategory::ResourceLimit)
+        );
+    }
+    assert!(same_functions(original, original, &mut 0).unwrap());
+    let scalar = vec![returning(Constant::I64(42))];
+    assert!(same_functions(&scalar.clone(), &scalar, &mut 0).unwrap());
+    for count in [0usize, 5, 1024] {
+        let verified = checked_static_utf8(&vec![b'A'; count]);
+        let raw = lir(&verified);
+        let full = verified.limits().max_analysis_steps;
+        let measured = planned_remaining(&raw.as_view(), verified.limits(), full).unwrap();
+        let needed = full - measured;
+        for _ in 0..2 {
+            let exact = planned_remaining(&raw.as_view(), verified.limits(), needed).unwrap();
+            assert_eq!(exact, 0);
+            assert!(planned_remaining(&raw.as_view(), verified.limits(), needed - 1).is_err());
+        }
+    }
+}
+
 #[test]
 fn current_scalar_facts_reach_calls_before_machine_passes_and_reject_stale_lir() {
     // Raw-IR control complements the real-source/native driver controls. A
