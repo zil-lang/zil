@@ -604,3 +604,686 @@ fn impl204_callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads() {
         }
     }
 }
+
+fn pod(fields: Vec<(&str, Type)>) -> Type {
+    Type::Record {
+        name: "Pod932".into(),
+        fields: fields.into_iter().map(|(n, ty)| (n.into(), ty)).collect(),
+    }
+}
+
+fn pod_resource(element: &Type) -> ResourceDefinition {
+    ResourceDefinition {
+        name: definition_name(element),
+        payload: Type::OwnedStore {
+            element: Box::new(element.clone()),
+        },
+        teardown: None,
+    }
+}
+
+// A complete public raw candidate, without Analyze or a frontend dependency.
+fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
+    let span = Span::new(zil_base::FileId(0), 0, 1);
+    let store = Type::Managed(Box::new(Type::OwnedStore {
+        element: Box::new(element.clone()),
+    }));
+    let mut m = module(vec![]);
+    m.closures.clear();
+    m.resources = vec![pod_resource(&element)];
+    m.functions.push(TypedFunction {
+        storage_life: None,
+        call_kind: CallKind::Direct,
+        reference_return_bound: None,
+        callable_return_contract: None,
+        callable_contract: None,
+        result_mode: PassingMode::Infer,
+        foreign: None,
+        environment: None,
+        id: FunctionId(0),
+        name: "main".into(),
+        parameters: vec![],
+        return_type: Type::I32,
+        locals: vec![LocalDecl {
+            id: LocalId(0),
+            name: "items".into(),
+            ty: store.clone(),
+            mutable: true,
+            span,
+        }],
+        values: vec![store, Type::I32],
+        blocks: vec![BasicBlock {
+            id: BlockId(0),
+            instructions: vec![
+                Instruction {
+                    result: Some(ValueId(0)),
+                    kind: InstructionKind::OwnedStoreNew { element },
+                    span,
+                },
+                Instruction {
+                    result: None,
+                    kind: InstructionKind::Store {
+                        local: LocalId(0),
+                        value: ValueId(0),
+                    },
+                    span,
+                },
+                Instruction {
+                    result: None,
+                    kind: InstructionKind::DropManaged { local: LocalId(0) },
+                    span,
+                },
+                Instruction {
+                    result: Some(ValueId(1)),
+                    kind: InstructionKind::Constant(Constant::I32(42)),
+                    span,
+                },
+            ],
+            terminator: Terminator::Return(Some(ValueId(1))),
+        }],
+        entry: BlockId(0),
+        span,
+    });
+    let plan = pod_plan(&m, vec![vec![], vec![]]);
+    (m, plan)
+}
+
+fn pod_plan(m: &TypedModule, roots: Vec<Vec<HoldRoot>>) -> CandidatePlan {
+    let mut plan = CandidatePlan::empty_for(m);
+    plan.functions.push(FunctionPlan {
+        function: FunctionId(0),
+        holds: roots
+            .into_iter()
+            .enumerate()
+            .map(|(i, roots)| ValueHold {
+                value: ValueId(i as u32),
+                roots,
+            })
+            .collect(),
+        blocks: vec![BlockPlan {
+            block: BlockId(0),
+            initialized_in: vec![],
+            initialized_out: vec![],
+        }],
+    });
+    plan
+}
+
+fn pod_both(
+    m: &TypedModule,
+    plan: &CandidatePlan,
+    limits: &Limits,
+) -> [CompileResult<VerifiedModule>; 2] {
+    let mut plan = plan.clone();
+    plan.module_fingerprint = m.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(m, &plan, &Limits::default()).unwrap();
+    [
+        verify_module(m.clone(), plan, &m.target, limits),
+        verify_module_bytes(&bytes, &m.target, limits),
+    ]
+}
+
+#[test]
+fn pod932_complete_numeric_tree_and_actual_target_layout() {
+    let ty = pod(vec![
+        ("head", Type::U8),
+        (
+            "nested",
+            Type::Tuple(vec![
+                Type::Bool,
+                Type::U16,
+                Type::I32,
+                Type::I64,
+                Type::U64,
+                Type::Usize,
+                Type::F32,
+                Type::F64,
+                zero(),
+                Type::Array {
+                    element: Box::new(Type::U64),
+                    length: 2,
+                },
+            ]),
+        ),
+    ]);
+    let m = module(vec![]);
+    let limits = Limits::default();
+    let mut b = Budget::new(&limits);
+    assert_eq!(
+        pod_layout(&ty, &m.target, None, &mut b).unwrap(),
+        (72, 8, true)
+    );
+    admit(&m, &ty, &limits).unwrap();
+    let (m, plan) = pod_fixture(ty);
+    for result in pod_both(&m, &plan, &limits) {
+        result.unwrap();
+    }
+    let mut wrong = m.target.clone();
+    wrong.pointer_width = 32;
+    assert!(
+        check_pod_element(
+            &pod(vec![("n", Type::Usize)]),
+            &wrong,
+            None,
+            &mut Budget::new(&limits)
+        )
+        .is_err()
+    );
+}
+
+#[test]
+fn pod932_forbidden_leaves_cannot_hide_in_zero_length_arrays() {
+    let forbidden = vec![
+        Type::Enum {
+            name: "E".into(),
+            variants: vec![("A".into(), vec![])],
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(Type::I32),
+        },
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        },
+        Type::Desc(Box::new(Type::ByteBuffer)),
+        Type::Managed(Box::new(Type::ByteBuffer)),
+        Type::ForeignHandle,
+        Type::Closure(ClosureId(0)),
+        Type::FunctionPointer {
+            parameters: vec![],
+            result: Box::new(Type::Unit),
+        },
+        Type::ForeignCallback {
+            parameters: vec![],
+            result: Box::new(Type::Unit),
+        },
+        Type::OwnedStore {
+            element: Box::new(pod(vec![("n", Type::I32)])),
+        },
+        Type::Package {
+            name: "Owner".into(),
+            fields: vec![],
+        },
+        Type::Slice {
+            element: Box::new(Type::U8),
+        },
+        Type::ByteBuffer,
+    ];
+    let limits = Limits::default();
+    for leaf in forbidden {
+        let ty = pod(vec![
+            ("n", Type::U64),
+            (
+                "hidden",
+                Type::Array {
+                    element: Box::new(Type::Tuple(vec![leaf])),
+                    length: 0,
+                },
+            ),
+        ]);
+        let (m, plan) = pod_fixture(ty);
+        for result in pod_both(&m, &plan, &limits) {
+            assert!(result.is_err());
+        }
+    }
+}
+
+#[test]
+fn pod932_unused_definitions_local_and_ssa_types_are_admitted_independently() {
+    let limits = Limits::default();
+    let valid = pod(vec![("n", Type::U64)]);
+    for bad in [
+        zero(),
+        pod(vec![("same", Type::I32), ("same", Type::U8)]),
+        pod(vec![("", Type::I32)]),
+        Type::Record {
+            name: "".into(),
+            fields: vec![("n".into(), Type::U8)],
+        },
+        pod(vec![(
+            "hidden",
+            Type::Tuple(vec![Type::Managed(Box::new(Type::ByteBuffer))]),
+        )]),
+    ] {
+        for position in 0..3 {
+            let (mut m, mut plan) = pod_fixture(valid.clone());
+            let carrier = Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(bad.clone()),
+            }));
+            let span = m.functions[0].span;
+            match position {
+                0 => m.resources.push(pod_resource(&bad)),
+                1 => m.functions[0].locals.push(LocalDecl {
+                    id: LocalId(1),
+                    name: "unused".into(),
+                    ty: carrier,
+                    mutable: false,
+                    span,
+                }),
+                _ => {
+                    m.functions[0].values.push(carrier);
+                    plan.functions[0].holds.push(ValueHold {
+                        value: ValueId(2),
+                        roots: vec![],
+                    });
+                }
+            }
+            for result in pod_both(&m, &plan, &limits) {
+                assert!(result.is_err());
+            }
+        }
+    }
+    let huge = pod(vec![(
+        "a",
+        Type::Array {
+            element: Box::new(Type::Array {
+                element: Box::new(Type::U64),
+                length: u32::MAX,
+            }),
+            length: u32::MAX,
+        },
+    )]);
+    let error = admit(
+        &module(vec![]),
+        &huge,
+        &Limits {
+            max_analysis_steps: usize::MAX,
+            ..limits
+        },
+    )
+    .unwrap_err();
+    assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+    assert!(
+        error
+            .message
+            .contains("layout exceeds target address range")
+    );
+}
+
+#[test]
+fn pod932_canonical_name_and_complete_nominal_identity_are_both_required() {
+    let limits = Limits::default();
+    let ty = pod(vec![("a", Type::I64), ("b", Type::U8)]);
+    for variant in 0..5 {
+        let (mut m, plan) = pod_fixture(ty.clone());
+        match variant {
+            0 => m.resources[0].name.push('x'),
+            1 => m.resources[0].teardown = Some(FunctionId(0)),
+            2 => m.resources.push(m.resources[0].clone()),
+            _ => {
+                let Type::OwnedStore { element } = &mut m.resources[0].payload else {
+                    unreachable!()
+                };
+                let Type::Record { fields, .. } = element.as_mut() else {
+                    unreachable!()
+                };
+                if variant == 3 {
+                    fields[0].1 = Type::U64;
+                } else {
+                    fields.reverse();
+                }
+            }
+        }
+        for result in pod_both(&m, &plan, &limits) {
+            assert!(result.is_err(), "variant={variant}");
+        }
+    }
+}
+
+#[test]
+fn pod932_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
+    let limits = Limits::default();
+    let ty = pod(vec![("n", Type::I64)]);
+    let mut m = module(vec![]);
+    m.resources = vec![pod_resource(&ty)];
+    let (mut fixture, _) = pod_fixture(ty.clone());
+    let f = &mut fixture.functions[0];
+    let desc = Type::Desc(Box::new(m.resources[0].payload.clone()));
+    f.values = vec![
+        desc,
+        ty.clone(),
+        Type::ErrorUnion {
+            error: Box::new(ty.clone()),
+            result: Box::new(Type::Unit),
+        },
+        Type::I64,
+    ];
+    let span = f.span;
+    let push = Instruction {
+        result: Some(ValueId(2)),
+        kind: InstructionKind::OwnedStorePush {
+            store: ValueId(0),
+            value: ValueId(1),
+        },
+        span,
+    };
+    super::super::check_instruction(&m, f, &push, &mut Budget::new(&limits)).unwrap();
+    f.values[1] = pod(vec![("n", Type::U64)]);
+    assert!(super::super::check_instruction(&m, f, &push, &mut Budget::new(&limits)).is_err());
+    f.values[1] = ty.clone();
+    f.values[2] = Type::ErrorUnion {
+        error: Box::new(pod(vec![("n", Type::U64)])),
+        result: Box::new(Type::Unit),
+    };
+    assert!(super::super::check_instruction(&m, f, &push, &mut Budget::new(&limits)).is_err());
+    f.values[2] = Type::Address {
+        mutable: true,
+        inner: Box::new(ty.clone()),
+    };
+    let mutable = Instruction {
+        result: Some(ValueId(2)),
+        kind: InstructionKind::OwnedStoreBorrowMut {
+            store: ValueId(0),
+            index: ValueId(3),
+        },
+        span,
+    };
+    assert!(super::super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).is_err());
+    f.locals[0].ty = ty.clone();
+    let ordinary = Instruction {
+        result: Some(ValueId(2)),
+        kind: InstructionKind::BorrowLocalMut { local: LocalId(0) },
+        span,
+    };
+    super::super::check_instruction(&m, f, &ordinary, &mut Budget::new(&limits)).unwrap();
+    let (mut m, plan) = pod_fixture(ty);
+    let InstructionKind::OwnedStoreNew { element } =
+        &mut m.functions[0].blocks[0].instructions[0].kind
+    else {
+        unreachable!()
+    };
+    *element = pod(vec![("n", Type::U64)]);
+    for result in pod_both(&m, &plan, &limits) {
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn pod932_paid_qualification_has_exact_and_fresh_work_controls() {
+    let ty = pod(vec![
+        ("n", Type::U64),
+        (
+            "tail",
+            Type::Array {
+                element: Box::new(Type::U8),
+                length: 4080,
+            },
+        ),
+    ]);
+    let m = module(vec![]);
+    let limits = Limits::default();
+    let mut budget = Budget::new(&limits);
+    check_element_with_limits(&m, &ty, None, Some(&limits), &mut budget).unwrap();
+    let n = limits.max_analysis_steps - budget.remaining;
+    let exact = Limits {
+        max_analysis_steps: n,
+        ..limits.clone()
+    };
+    admit(&m, &ty, &exact).unwrap();
+    assert_eq!(
+        admit(
+            &m,
+            &ty,
+            &Limits {
+                max_analysis_steps: n - 1,
+                ..limits
+            }
+        )
+        .unwrap_err()
+        .category,
+        zil_base::ResultCategory::ResourceLimit
+    );
+    admit(&m, &ty, &exact).unwrap();
+    println!("G9.3.2.3 independent POD qualification N={n}");
+}
+
+#[test]
+fn pod932_logical_payload_and_stored_unit_stride_are_separate() {
+    let limits = Limits::default();
+    let m = module(vec![]);
+    for ty in [
+        pod(vec![("unit", Type::Unit)]),
+        pod(vec![(
+            "units",
+            Type::Array {
+                element: Box::new(Type::Unit),
+                length: 4,
+            },
+        )]),
+        pod(vec![(
+            "empty",
+            Type::Array {
+                element: Box::new(Type::U64),
+                length: 0,
+            },
+        )]),
+    ] {
+        assert!(admit(&m, &ty, &limits).is_err());
+    }
+    let mixed = pod(vec![
+        ("n", Type::U8),
+        (
+            "units",
+            Type::Array {
+                element: Box::new(Type::Unit),
+                length: 7,
+            },
+        ),
+    ]);
+    assert_eq!(
+        pod_layout(&mixed, &m.target, None, &mut Budget::new(&limits)).unwrap(),
+        (8, 1, true)
+    );
+    admit(&m, &mixed, &limits).unwrap();
+    let overflow = pod(vec![
+        ("n", Type::U8),
+        (
+            "units",
+            Type::Array {
+                element: Box::new(Type::Array {
+                    element: Box::new(Type::Unit),
+                    length: u32::MAX,
+                }),
+                length: u32::MAX,
+            },
+        ),
+    ]);
+    let error = admit(&m, &overflow, &limits).unwrap_err();
+    assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
+    assert!(
+        error
+            .message
+            .contains("layout exceeds target address range")
+    );
+}
+
+fn pod_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, CandidatePlan) {
+    let ty = pod(vec![("n", Type::I64)]);
+    let (mut m, _) = pod_fixture(ty.clone());
+    let payload = m.resources[0].payload.clone();
+    let f = &mut m.functions[0];
+    let span = f.span;
+    let op = |result: Option<u32>, kind| Instruction {
+        result: result.map(ValueId),
+        kind,
+        span,
+    };
+    f.values.extend([
+        Type::Desc(Box::new(payload.clone())),
+        Type::I64,
+        Type::Address {
+            mutable: false,
+            inner: Box::new(ty.clone()),
+        },
+        Type::Bool,
+        ty,
+    ]);
+    let original = f.blocks[0].instructions.clone();
+    let mut instructions = original[..2].to_vec();
+    let (access_desc, mut holds) = if distinct {
+        f.locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "other".into(),
+            ty: f.locals[0].ty.clone(),
+            mutable: true,
+            span,
+        });
+        f.values
+            .extend([f.locals[0].ty.clone(), Type::Desc(Box::new(payload))]);
+        instructions.extend([
+            op(Some(7), original[0].kind.clone()),
+            op(
+                None,
+                InstructionKind::Store {
+                    local: LocalId(1),
+                    value: ValueId(7),
+                },
+            ),
+            op(
+                Some(8),
+                InstructionKind::DescribeLocal { local: LocalId(1) },
+            ),
+        ]);
+        (
+            8,
+            vec![
+                vec![],
+                vec![],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![],
+                vec![],
+                vec![],
+                vec![HoldRoot::Local(LocalId(1))],
+            ],
+        )
+    } else {
+        (
+            2,
+            vec![
+                vec![],
+                vec![],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![],
+                vec![HoldRoot::Local(LocalId(0))],
+                vec![],
+                vec![],
+            ],
+        )
+    };
+    instructions.extend([
+        op(
+            Some(2),
+            InstructionKind::DescribeLocal { local: LocalId(0) },
+        ),
+        op(Some(3), InstructionKind::Constant(Constant::I64(0))),
+        op(
+            Some(4),
+            InstructionKind::OwnedStoreBorrow {
+                store: ValueId(2),
+                index: ValueId(3),
+            },
+        ),
+    ]);
+    let read = op(
+        Some(6),
+        InstructionKind::ReadAddress {
+            address: ValueId(4),
+        },
+    );
+    let reserve = op(
+        Some(5),
+        InstructionKind::OwnedStoreReserve {
+            store: ValueId(access_desc),
+            capacity: ValueId(3),
+        },
+    );
+    if read_first {
+        instructions.extend([read, reserve]);
+    } else {
+        instructions.extend([reserve, read]);
+    }
+    if distinct {
+        instructions.push(op(None, InstructionKind::DropManaged { local: LocalId(1) }));
+    }
+    instructions.extend_from_slice(&original[2..]);
+    f.blocks[0].instructions = instructions;
+    let plan = pod_plan(&m, std::mem::take(&mut holds));
+    (m, plan)
+}
+
+#[test]
+fn pod932_actual_shared_window_blocks_mutation_and_tracks_last_use_and_roots() {
+    let limits = Limits::default();
+    for (distinct, read_first, accept) in [
+        (false, false, false),
+        (false, true, true),
+        (true, false, true),
+    ] {
+        let (m, plan) = pod_window_fixture(distinct, read_first);
+        for result in pod_both(&m, &plan, &limits) {
+            if accept {
+                result.unwrap();
+            } else {
+                let errors = result.unwrap_err();
+                assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
+            }
+        }
+    }
+    let (mut m, plan) = pod_window_fixture(false, false);
+    let instructions = &mut m.functions[0].blocks[0].instructions;
+    let reserve = instructions
+        .iter_mut()
+        .find(|i| matches!(i.kind, InstructionKind::OwnedStoreReserve { .. }))
+        .unwrap();
+    reserve.result = None;
+    reserve.kind = InstructionKind::DropManaged { local: LocalId(0) };
+    for result in pod_both(&m, &plan, &limits) {
+        assert!(result.is_err());
+    }
+    // Candidate claims cannot reassign an actual window to a separate Store.
+    let (m, mut plan) = pod_window_fixture(true, false);
+    plan.functions[0].holds[4].roots = vec![HoldRoot::Local(LocalId(1))];
+    for result in pod_both(&m, &plan, &limits) {
+        assert_eq!(result.unwrap_err()[0].code, "E-VERIFY-HOLD");
+    }
+}
+
+#[test]
+fn pod932_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
+    let (m, plan) = pod_window_fixture(false, true);
+    let limits = Limits::default();
+    for wire in [false, true] {
+        let check = |n| {
+            let selected = Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            };
+            if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&m, &plan, &limits).unwrap();
+                verify_module_bytes(&bytes, &m.target, &selected)
+            } else {
+                verify_module(m.clone(), plan.clone(), &m.target, &selected)
+            }
+        };
+        let (mut lo, mut hi) = (0, limits.max_analysis_steps);
+        check(hi).unwrap();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if check(mid).is_ok() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        check(lo).unwrap();
+        assert_eq!(
+            check(lo - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        check(lo).unwrap();
+        println!("G9.3.2.3 complete request wire={wire} N={lo}");
+    }
+}
