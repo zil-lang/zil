@@ -50,14 +50,14 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 已合入 | — | — | [PR50 验收][e-pr50]：跨模块关联 Item、方法 life、真实 std.iter、两后端 O0/O2；默认5146/0、参考5034/0。原 SliceIter/Option 转发回归已修复；资源宿主/一般 owning lending 仍缺。 |
-| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 进行中 | P0 | static_traits · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
+| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 实现待验 | P0 | static_traits · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
 
 <details>
 <summary>G2.4.2 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.2.1 | 符号类型宿主、定义期义务与词法值优先 | 进行中 | P0 | static_check · sol high | 与静态 provider 选择共享明确私有接口。 |
+| G2.4.2.1 | 符号类型宿主、定义期义务与词法值优先 | 实现待验 | P0 | static_check · sol high | 与静态 provider 选择共享明确私有接口。 |
 
 </details>
 
@@ -240,17 +240,17 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
-| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 进行中 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
-| G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 进行中 | P0 | sol high 三核并行 | 初稿审计确认此前必须包装 Record；同批补直接标量、完整值协议和所有实际窗口，保留旧失败证据。 |
+| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 实现待验 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
+| G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 实现待验 | P0 | sol high 三核并行 | 初稿审计确认此前必须包装 Record；同批补直接标量、完整值协议和所有实际窗口，保留旧失败证据。 |
 
 <details>
 <summary>G9.3.3 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 进行中 | P0 | store_types · sol high | 保留实际类型/范围与大 Copy 协议。 |
-| G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 进行中 | P0 | store_analyze · sol high | 保留 whole-Store 排他与旧费用。 |
-| G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 进行中 | P0 | store_verify · sol high | 不以 Analyze 证明作为权限。 |
+| G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 实现待验 | P0 | store_types · sol high | 保留实际类型/范围与大 Copy 协议。 |
+| G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 实现待验 | P0 | store_analyze · sol high | 保留 whole-Store 排他与旧费用。 |
+| G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 实现待验 | P0 | store_verify · sol high | 不以 Analyze 证明作为权限。 |
 
 </details>
 
@@ -259,9 +259,9 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.4.1 | Source/Types 完整标量准入与 LLVM 计划 | 进行中 | P0 | store_types · sol high | 复用既有协议，保留 owning 排除。 |
-| G9.3.4.2 | Analyze 标量载体与实际窗口 | 进行中 | P0 | store_analyze · sol high | 独立完整类型与实际根。 |
-| G9.3.4.3 | Verify 标量协议与 raw/Wire | 进行中 | P0 | store_verify · sol high | 独立完整类型、原父loan与计费。 |
+| G9.3.4.1 | Source/Types 完整标量准入与 LLVM 计划 | 实现待验 | P0 | store_types · sol high | 复用既有协议，保留 owning 排除。 |
+| G9.3.4.2 | Analyze 标量载体与实际窗口 | 实现待验 | P0 | store_analyze · sol high | 独立完整类型与实际根。 |
+| G9.3.4.3 | Verify 标量协议与 raw/Wire | 实现待验 | P0 | store_verify · sol high | 独立完整类型、原父loan与计费。 |
 
 </details>
 
@@ -308,8 +308,17 @@
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
-| G10.6.1 | 语言初稿候选：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 进行中 | P0 | root / sol high 并行 | 合并 G2.4.2 与 G9.3.3，查缺后按真实普通程序验收；发布边界由审计记录解释。 |
+
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
+
+<details>
+<summary>G10.6 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G10.6.1 | 语言初稿候选：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 实现待验 | P0 | root / sol high 并行 | 联合初稿必备 G2.4.2/G9.3.3/G9.3.4 与真实多模块程序已实现；源码81f9d7ab1已备份，待冻结全仓与冷恢复验收。 |
+
+</details>
 
 <details>
 <summary>G10.3 · 子任务</summary>
