@@ -134,3 +134,65 @@ fn pod_source_derived_unused_user_resource_cannot_hide_an_owning_store() {
     });
     rejected("pod-unused-resource-hidden-owner", module, plan);
 }
+
+#[test]
+fn pod_llvm_requires_the_exact_verified_resource_and_protocol() {
+    let (module, plan) = candidate(
+        "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73});let view=store_at(items,0);let value=view.x;store_pop(items)}",
+    );
+    let target = module.target.clone();
+    let verified = zil_verify::verify_module(module, plan, &target, &Limits::default()).unwrap();
+    let original = zil_lower::lower(&verified).unwrap();
+    zil_backend_llvm::emit(&verified, &original).unwrap();
+    for variant in 0..4 {
+        let mut lir = original.clone();
+        if variant == 0 {
+            let resource = lir
+                .resources
+                .iter_mut()
+                .find(|r| matches!(r.payload, Type::OwnedStore { .. }))
+                .unwrap();
+            let Type::OwnedStore { element } = &mut resource.payload else {
+                unreachable!()
+            };
+            let Type::Record { fields, .. } = element.as_mut() else {
+                unreachable!()
+            };
+            fields[0].0.push_str("_forged");
+        } else {
+            let f = lir.functions.iter_mut().find(|f| f.name == "main").unwrap();
+            let instruction = f
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| match variant {
+                    1 => matches!(i.kind, InstructionKind::OwnedStoreNew { .. }),
+                    2 => matches!(i.kind, InstructionKind::OwnedStorePush { .. }),
+                    3 => matches!(i.kind, InstructionKind::OwnedStoreBorrow { .. }),
+                    _ => false,
+                })
+                .unwrap();
+            match (&mut instruction.kind, variant) {
+                (InstructionKind::OwnedStoreNew { element }, 1) => {
+                    let Type::Record { fields, .. } = element else {
+                        unreachable!()
+                    };
+                    fields[0].0.push_str("_forged");
+                }
+                (_, 2) => f.values[instruction.result.unwrap().0 as usize] = Type::Unit,
+                (InstructionKind::OwnedStoreBorrow { store, index }, 3) => {
+                    instruction.kind = InstructionKind::OwnedStoreBorrowMut {
+                        store: *store,
+                        index: *index,
+                    }
+                }
+                _ => unreachable!(),
+            }
+        }
+        let errors = zil_backend_llvm::emit(&verified, &lir).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.code == "E-CODEGEN-UNBOUND-LIR"),
+            "variant{variant}: {errors:?}"
+        );
+    }
+}
