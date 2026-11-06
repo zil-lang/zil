@@ -1,7 +1,7 @@
 //! Black-box Source consumers for ordinary mutable POD Store elements.
 use super::*;
 
-fn native_all_backends(label: &str, source: &str, expected: &[u8], imported: bool) {
+pub(super) fn native_all_backends(label: &str, source: &str, expected: &[u8], imported: bool) {
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
         backends.push(NativeBackend::LlvmApi);

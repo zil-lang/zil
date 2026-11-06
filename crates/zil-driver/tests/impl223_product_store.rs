@@ -674,3 +674,6 @@ mod pod_collections;
 
 #[path = "../../../tests/language-readiness/G9.3.3/consumers.rs"]
 mod g933_consumers;
+
+#[path = "../../../tests/language-readiness/G9.3.4/consumers.rs"]
+mod g934_consumers;
