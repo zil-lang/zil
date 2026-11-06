@@ -4,6 +4,7 @@ use super::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(super) enum Root {
+    Static,
     Local(LocalId),
     Field(LocalId, u32),
     Projection(LocalId, u32, u32),
@@ -15,6 +16,7 @@ pub(super) enum Root {
 impl Root {
     pub(super) fn coarse(self) -> HoldRoot {
         match self {
+            Self::Static => HoldRoot::Static,
             Self::Local(local) | Self::Field(local, _) | Self::Projection(local, ..) => {
                 HoldRoot::Local(local)
             }

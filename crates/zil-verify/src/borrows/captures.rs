@@ -72,6 +72,7 @@ impl Invocation<'_> {
         };
         let root = if let Root::Window(origin, ..) = root {
             match origin {
+                HoldRoot::Static => Root::Static,
                 HoldRoot::Local(l) => Root::Local(l),
                 HoldRoot::Parameter(p) => Root::Parameter(p),
                 HoldRoot::Capture(c) => Root::Capture(c),
@@ -80,6 +81,13 @@ impl Invocation<'_> {
             root
         };
         let slot = match root {
+            Root::Static => {
+                return Err(reject(
+                    "E-VERIFY-HOLD",
+                    None,
+                    "static UTF8 is not a captured environment slot",
+                ));
+            }
             Root::Parameter(parameter) => {
                 let value = self
                     .arguments
