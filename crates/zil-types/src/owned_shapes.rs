@@ -5,7 +5,7 @@ use super::*;
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
         Type::Managed(_) => (resources::supported(ty)
-            && !matches!(dynamic_store::element(ty), Some(Type::Record { .. })))
+            && !dynamic_store::element(ty).is_some_and(dynamic_store::inline_element))
         .then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;
@@ -47,7 +47,7 @@ fn shape(ty: &Type) -> Option<bool> {
             if matches!(result.as_ref(), Type::Managed(_)) {
                 return (error.is_copy_value()
                     && resources::supported(result)
-                    && !matches!(dynamic_store::element(result), Some(Type::Record { .. })))
+                    && !dynamic_store::element(result).is_some_and(dynamic_store::inline_element))
                 .then_some(true);
             }
             if !matches!(error.as_ref(), Type::Package { .. } | Type::Enum { .. })

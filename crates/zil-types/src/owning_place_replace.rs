@@ -107,7 +107,7 @@ fn whole_sum_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<b
                 let Type::OwnedStore { element } = payload.as_ref() else {
                     unreachable!()
                 };
-                if matches!(element.as_ref(), Type::Record { .. }) {
+                if dynamic_store::inline_element(element) {
                     return Ok(false);
                 }
                 if !dynamic_store::supported_element(element) {
