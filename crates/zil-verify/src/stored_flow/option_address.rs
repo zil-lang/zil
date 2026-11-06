@@ -344,3 +344,155 @@ pub(crate) fn signature(ty: &Type) -> bool {
         && matches!(slot.path.as_slice(), [PlaceProjection::Variant(p)] if p.variant == 1 && p.index == 0)
         && map.class == 0 && map.binder == 0 && map.path == [LifeTypeProjection::TypeArgument(0)])
 }
+
+pub(super) struct Refinement {
+    pub(super) graphs: Vec<FunctionGraph>,
+    pub(super) inactive: Vec<Vec<ValueId>>,
+}
+/// This reads only the fixed point of the original graph. Its output is used
+/// for one permission replay; the replay is never allowed to refine again.
+pub(super) fn refine(
+    module: &TypedModule,
+    original: &[FunctionGraph],
+    frozen: &[Summary],
+    b: &mut Budget,
+) -> Check<Option<Refinement>> {
+    b.spend(module.functions.len().saturating_mul(4))?;
+    let mut result = Refinement {
+        graphs: Vec::with_capacity(module.functions.len()),
+        inactive: Vec::with_capacity(module.functions.len()),
+    };
+    let mut removed = false;
+    for (fi, f) in module.functions.iter().enumerate() {
+        let old = &original[fi];
+        b.spend(
+            f.values
+                .len()
+                .saturating_add(f.blocks.len().saturating_mul(6)),
+        )?;
+        let mut producers = vec![None; f.values.len()];
+        for block in &f.blocks {
+            for instruction in &block.instructions {
+                b.spend(1)?;
+                if let Some(id) = instruction.result {
+                    producers[id.0 as usize] = Some(&instruction.kind);
+                }
+            }
+        }
+        let truth = |condition: ValueId, b: &mut Budget| -> Check<Option<bool>> {
+            b.spend(3)?;
+            if vt(f, condition)? != &Type::Bool {
+                return Ok(None);
+            }
+            let Some(InstructionKind::Binary { op, left, right }) = producers[condition.0 as usize]
+            else {
+                return Ok(None);
+            };
+            if *op != zil_ir::BinaryOp::Equal
+                || vt(f, *left)? != &Type::I32
+                || vt(f, *right)? != &Type::I32
+            {
+                return Ok(None);
+            }
+            for (tag, scalar) in [(*left, *right), (*right, *left)] {
+                b.spend(2)?;
+                let Some(InstructionKind::Constant(Constant::I32(value))) =
+                    producers[scalar.0 as usize]
+                else {
+                    continue;
+                };
+                if *value != 0 && *value != 1 {
+                    continue;
+                }
+                let Some(InstructionKind::VariantTag { value: actual }) = producers[tag.0 as usize]
+                else {
+                    continue;
+                };
+                b.spend(frozen[fi].none_values.len().saturating_add(1))?;
+                if frozen[fi].none_values.contains(actual) {
+                    return Ok(Some(*value == 0));
+                }
+            }
+            Ok(None)
+        };
+        let mut successors = vec![vec![]; f.blocks.len()];
+        let mut predecessors = vec![vec![]; f.blocks.len()];
+        for (bi, block) in f.blocks.iter().enumerate() {
+            b.spend(1)?;
+            match block.terminator {
+                Terminator::Jump(target) => {
+                    b.spend(2)?;
+                    successors[bi].push(target.0 as usize);
+                }
+                Terminator::Branch {
+                    condition,
+                    then_block,
+                    else_block,
+                } => match truth(condition, b)? {
+                    Some(take_then) => {
+                        b.spend(2)?;
+                        let target = if take_then { then_block } else { else_block };
+                        successors[bi].push(target.0 as usize);
+                        removed |= then_block != else_block && old.reachable[bi];
+                    }
+                    None => {
+                        b.spend(4)?;
+                        successors[bi].extend([then_block.0 as usize, else_block.0 as usize]);
+                    }
+                },
+                _ => {}
+            }
+            for target in &successors[bi] {
+                b.spend(1)?;
+                predecessors[*target].push(bi);
+            }
+        }
+        let mut reachable = vec![false; f.blocks.len()];
+        let mut todo = if f.blocks.is_empty() {
+            Vec::new()
+        } else {
+            vec![f.entry.0 as usize]
+        };
+        while let Some(bi) = todo.pop() {
+            b.spend(1)?;
+            if reachable[bi] {
+                continue;
+            }
+            reachable[bi] = true;
+            b.spend(successors[bi].len().saturating_mul(2))?;
+            todo.extend(&successors[bi]);
+        }
+        let mut inactive = Vec::new();
+        for (bi, block) in f.blocks.iter().enumerate() {
+            b.spend(1)?;
+            if old.reachable[bi] && !reachable[bi] {
+                for instruction in &block.instructions {
+                    b.spend(1)?;
+                    if let Some(id) = instruction.result {
+                        b.spend(2)?;
+                        inactive.push(id);
+                    }
+                }
+            }
+        }
+        b.spend(
+            old.package_views
+                .by_local
+                .len()
+                .saturating_add(old.package_views.by_capture.len())
+                .saturating_add(old.role_data_uses.len()),
+        )?;
+        result.graphs.push(FunctionGraph {
+            successors,
+            predecessors,
+            reachable,
+            package_views: packages::CaptureViews {
+                by_local: old.package_views.by_local.clone(),
+                by_capture: old.package_views.by_capture.clone(),
+            },
+            role_data_uses: old.role_data_uses.clone(),
+        });
+        result.inactive.push(inactive);
+    }
+    Ok(removed.then_some(result))
+}

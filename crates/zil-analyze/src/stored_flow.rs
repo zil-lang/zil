@@ -2603,6 +2603,15 @@ pub(super) fn derive(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
+    derive_cfg(module, graphs, None, b)
+}
+fn derive_cfg(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    inactive: Option<&[BTreeSet<ValueId>]>,
+    b: &mut Budget,
+) -> CompileResult<Vec<Facts>> {
+    let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
     loop {
@@ -2684,6 +2693,7 @@ pub(super) fn derive(
             };
             for (id, value) in values.iter().enumerate() {
                 if value.option_variants.none() {
+                    observed_none = true;
                     fee(b, actual.none_values.len().saturating_add(1))?;
                     actual.none_values.insert(ValueId(id as u32));
                 }
@@ -2735,8 +2745,14 @@ pub(super) fn derive(
                 }
             }
             let mut grounded = true;
-            for (ty, value) in f.values.iter().zip(&values) {
+            for (id, (ty, value)) in f.values.iter().zip(&values).enumerate() {
                 fee(b, 1)?;
+                if let Some(rows) = inactive {
+                    ordered(b, rows[index].len(), 0)?;
+                    if rows[index].contains(&ValueId(id as u32)) {
+                        continue;
+                    }
+                }
                 if value.creation_complete == Some(false) {
                     grounded = false;
                 }
@@ -2806,7 +2822,15 @@ pub(super) fn derive(
             break;
         }
     }
-    for (f, facts) in module.functions.iter().zip(&summaries) {
+    // Freeze only the original, fully converged graph facts. A second solve
+    // receives no authority to trim another edge from its narrowed summaries.
+    if inactive.is_none()
+        && observed_none
+        && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
+    {
+        return derive_cfg(module, &proof.graphs, Some(&proof.inactive), b);
+    }
+    for (index, (f, facts)) in module.functions.iter().zip(&summaries).enumerate() {
         if !facts.complete {
             return Err(failure(
                 "stored/address producer has incomplete actual target facts",
@@ -2815,6 +2839,12 @@ pub(super) fn derive(
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
             fee(b, 1)?;
+            if let Some(rows) = inactive {
+                ordered(b, rows[index].len(), 0)?;
+                if rows[index].contains(&ValueId(id as u32)) {
+                    continue;
+                }
+            }
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
             if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32))

@@ -363,3 +363,141 @@ pub(crate) fn signature(ty: &Type) -> bool {
         && matches!(slot.path.as_slice(), [PlaceProjection::Variant(p)] if p.variant == 1 && p.index == 0)
         && map.class == 0 && map.binder == 0 && map.path == [LifeTypeProjection::TypeArgument(0)])
 }
+
+// Only a completed proof on the original graph may supply these None facts.
+// The caller invokes this once; the replacement solve cannot refine again.
+pub(super) struct Refinement {
+    pub(super) graphs: Vec<(Vec<Vec<usize>>, Vec<bool>)>,
+    pub(super) inactive: Vec<BTreeSet<ValueId>>,
+}
+pub(super) fn refine(
+    module: &TypedModule,
+    original: &[(Vec<Vec<usize>>, Vec<bool>)],
+    frozen: &[Facts],
+    b: &mut Budget,
+) -> CompileResult<Option<Refinement>> {
+    fee(b, module.functions.len().saturating_mul(4))?;
+    let mut proof = Refinement {
+        graphs: Vec::with_capacity(module.functions.len()),
+        inactive: Vec::with_capacity(module.functions.len()),
+    };
+    let mut changed = false;
+    for (fi, f) in module.functions.iter().enumerate() {
+        fee(
+            b,
+            f.values
+                .len()
+                .saturating_add(f.blocks.len().saturating_mul(5)),
+        )?;
+        let mut definitions = vec![None; f.values.len()];
+        for block in &f.blocks {
+            for i in &block.instructions {
+                fee(b, 1)?;
+                if let Some(id) = i.result {
+                    definitions[id.0 as usize] = Some(&i.kind);
+                }
+            }
+        }
+        let none = &frozen[fi].none_values;
+        let known_equal = |condition: ValueId, b: &mut Budget| -> CompileResult<Option<bool>> {
+            fee(b, 3)?;
+            if value_type(f, condition)? != &Type::Bool {
+                return Ok(None);
+            }
+            let Some(InstructionKind::Binary {
+                op: zil_ir::BinaryOp::Equal,
+                left,
+                right,
+            }) = definitions[condition.0 as usize]
+            else {
+                return Ok(None);
+            };
+            if value_type(f, *left)? != &Type::I32 || value_type(f, *right)? != &Type::I32 {
+                return Ok(None);
+            }
+            for (tag, constant) in [(*left, *right), (*right, *left)] {
+                fee(b, 2)?;
+                let (
+                    Some(InstructionKind::VariantTag { value }),
+                    Some(InstructionKind::Constant(Constant::I32(n))),
+                ) = (
+                    definitions[tag.0 as usize],
+                    definitions[constant.0 as usize],
+                )
+                else {
+                    continue;
+                };
+                if !matches!(n, 0 | 1) {
+                    continue;
+                }
+                ordered(b, none.len(), 0)?;
+                if none.contains(value) {
+                    return Ok(Some(*n == 0));
+                }
+            }
+            Ok(None)
+        };
+        let mut successors = vec![Vec::new(); f.blocks.len()];
+        let mut predecessors = vec![Vec::new(); f.blocks.len()];
+        for (bi, block) in f.blocks.iter().enumerate() {
+            fee(b, 1)?;
+            match block.terminator {
+                Terminator::Jump(target) => {
+                    fee(b, 2)?;
+                    successors[bi].push(target.0 as usize);
+                }
+                Terminator::Branch {
+                    condition,
+                    then_block,
+                    else_block,
+                } => {
+                    if let Some(equal) = known_equal(condition, b)? {
+                        fee(b, 2)?;
+                        successors[bi].push(if equal { then_block } else { else_block }.0 as usize);
+                        changed |= then_block != else_block && original[fi].1[bi];
+                    } else {
+                        fee(b, 4)?;
+                        successors[bi].extend([then_block.0 as usize, else_block.0 as usize]);
+                    }
+                }
+                _ => {}
+            }
+            for target in &successors[bi] {
+                fee(b, 1)?;
+                predecessors[*target].push(bi);
+            }
+        }
+        let mut reachable = vec![false; f.blocks.len()];
+        let mut pending = if f.blocks.is_empty() {
+            Vec::new()
+        } else {
+            vec![f.entry.0 as usize]
+        };
+        while let Some(bi) = pending.pop() {
+            fee(b, 1)?;
+            if reachable[bi] {
+                continue;
+            }
+            reachable[bi] = true;
+            fee(b, successors[bi].len().saturating_mul(2))?;
+            pending.extend(&successors[bi]);
+        }
+        let mut inactive = BTreeSet::new();
+        for (bi, block) in f.blocks.iter().enumerate() {
+            fee(b, 1)?;
+            if original[fi].1[bi] && !reachable[bi] {
+                for i in &block.instructions {
+                    fee(b, 1)?;
+                    if let Some(id) = i.result {
+                        ordered(b, inactive.len(), 0)?;
+                        fee(b, 1)?;
+                        inactive.insert(id);
+                    }
+                }
+            }
+        }
+        proof.graphs.push((predecessors, reachable));
+        proof.inactive.push(inactive);
+    }
+    Ok(changed.then_some(proof))
+}

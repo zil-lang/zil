@@ -47,6 +47,7 @@ struct Summary {
     apart: Vec<(Source, Source)>,
     complete: bool,
     returned_variants: option_address::Variants,
+    none_values: Vec<ValueId>,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -2392,6 +2393,9 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if !s.none_values.is_empty() {
+        b.spend(s.none_values.len())?;
+    }
     s.returned_variants.work(b)?;
     b.spend(s.result.len().saturating_add(s.apart.len()))?;
     for (path, row) in &s.result {
@@ -2427,14 +2431,25 @@ fn summarize(
     f: &TypedFunction,
     g: &FunctionGraph,
     solution: &Solution,
+    inactive: Option<&[ValueId]>,
     b: &mut Budget,
 ) -> Check<Summary> {
     let mut summary = Summary {
         complete: true,
         ..Summary::default()
     };
-    for (ty, p) in f.values.iter().zip(&solution.values) {
+    for (id, (ty, p)) in f.values.iter().zip(&solution.values).enumerate() {
         b.spend(1)?;
+        if p.option_variants.mask() == 1 {
+            b.spend(2)?;
+            summary.none_values.push(ValueId(id as u32));
+        }
+        if let Some(dead) = inactive {
+            b.spend(dead.len().saturating_add(1))?;
+            if dead.contains(&ValueId(id as u32)) {
+                continue;
+            }
+        }
         if matches!(ty, Type::Address { .. }) && p.address.sources.is_empty() {
             summary.complete = false;
         }
@@ -2581,8 +2596,18 @@ pub(super) fn check(
             }
         }
     }
-    b.spend(module.functions.len().saturating_mul(2))?;
     super::stored_callables::roles(module, graphs, b)?;
+    solve_check(module, graphs, plan, None, b)
+}
+fn solve_check(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    plan: &CandidatePlan,
+    inactive: Option<&[Vec<ValueId>]>,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(module.functions.len().saturating_mul(2))?;
+    let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
     loop {
@@ -2592,7 +2617,15 @@ pub(super) fn check(
         for index in (0..module.functions.len()).rev() {
             let f = &module.functions[index];
             let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
-            let mut summary = summarize(module, f, &graphs[index], &solution, b)?;
+            let mut summary = summarize(
+                module,
+                f,
+                &graphs[index],
+                &solution,
+                inactive.map(|rows| rows[index].as_slice()),
+                b,
+            )?;
+            observed_none |= !summary.none_values.is_empty();
             if summary.complete {
                 windows(
                     module,
@@ -2618,6 +2651,12 @@ pub(super) fn check(
         if !changed {
             break;
         }
+    }
+    if inactive.is_none()
+        && observed_none
+        && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
+    {
+        return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), b);
     }
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
         if !s.complete {
