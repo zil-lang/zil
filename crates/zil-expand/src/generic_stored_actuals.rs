@@ -103,6 +103,8 @@ impl Engine<'_> {
             self.closed_stored_actual(inner, depth + 1)?;
             self.budget.text(name, ty.span)?;
             self.budget.ty(inner)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<LexicalLife>(), ty.span)?;
             return Ok(Some(stored_types::QualifiedActual {
                 name: name.clone(),
                 ty: zil_ir::Type::Address {

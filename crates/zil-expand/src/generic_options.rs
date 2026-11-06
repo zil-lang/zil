@@ -66,6 +66,12 @@ pub(super) fn storage_identity(
         ));
     }
     budget.identity_work(64, item.span)?;
+    budget.lineage_bytes(
+        std::mem::size_of::<zil_ir::LifeDeclarationIdentity>()
+            .saturating_add(3usize.saturating_mul(std::mem::size_of::<String>()))
+            .saturating_add(64),
+        item.span,
+    )?;
     Ok((
         zil_ir::LifeDeclarationId {
             module: zil_base::ModuleId(u32::MAX),
