@@ -451,7 +451,14 @@ pub(crate) fn prepare(
                 span: item.span,
             });
         }
-        let bounds = index.parameter_bounds(&parameters, budget)?;
+        // Ordinary callable parameters keep their independently checked callable
+        // contract; the nominal projection index must not resolve Fn/FnMut as
+        // a user trait merely because another item declares associated types.
+        let bounds = if let ItemKind::Function(function) = &item.kind {
+            index.bounds(function, budget)?
+        } else {
+            index.parameter_bounds(&parameters, budget)?
+        };
         let substitutions = index.projection_names(&bounds, budget, item.span)?;
         match &mut item.kind {
             ItemKind::Trait(t) => {
