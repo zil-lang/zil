@@ -174,27 +174,94 @@ fn g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel() {
 
 #[test]
 fn g3_4_1_option_wrong_actual_source_is_rejected_after_types() {
-    let source_text = HELPER.replace(
+    let bad_source = HELPER.replace(
         "return Option::<&'s i64>.Some(&slice[0]);",
         "let local:i64=1; return Option::<&'s i64>.Some(&local);",
     );
-    assert_ne!(source_text, HELPER);
-    let module = typed(&source_text);
-    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert_ne!(bad_source, HELPER);
+    let unit = source(&bad_source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
     assert!(
-        errors.iter().all(|d| d.phase == Phase::Analyze),
+        errors.iter().all(|d| d.phase == Phase::Expand),
         "{errors:?}"
     );
-    // Reuse only a source-produced candidate, with its raw fingerprint refreshed.
+
+    // Source rejects the wrong life earlier. Challenge each downstream API
+    // separately by changing the actual borrow target in genuine valid Core.
+    let good_source = HELPER.replace(
+        "return Option::<&'s i64>.Some(&slice[0]);",
+        "let local:[i64;1]=[1];let local_slice=&local[..]; return Option::<&'s i64>.Some(&slice[0]);",
+    );
+    let unit = source(&good_source);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let core = zil_types::infer_source_closures(&core, &Limits::default()).unwrap();
+    let mut core =
+        zil_ct::evaluate_source_constants(&core, &TargetProfile::default(), &Limits::default())
+            .unwrap();
+    let positive = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    let mut claim = accept(&positive);
+    let mut changed = false;
+    for f in &mut core.functions {
+        for statement in &mut f.body.statements {
+            if let zil_ir::CoreStatementKind::Return(Some(value)) = &mut statement.kind
+                && let zil_ir::CoreExprKind::Call { arguments, .. } = &mut value.kind
+                && let [argument] = arguments.as_mut_slice()
+                && let zil_ir::CoreExprKind::Unary {
+                    op: zil_ir::UnaryOp::Borrow,
+                    operand,
+                } = &mut argument.kind
+            {
+                let zil_ir::CoreExprKind::Index { object, .. } = &mut operand.kind else {
+                    panic!("source omitted the actual slice index");
+                };
+                assert!(
+                    matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == "slice")
+                );
+                object.kind = zil_ir::CoreExprKind::Name("local_slice".into());
+                changed = true;
+            }
+        }
+    }
+    assert!(changed, "source Core omitted the actual Some borrow");
+    let module = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    // The candidate cannot fail merely because this raw body has another shape.
+    for (actual, good) in module.functions.iter().zip(&positive.functions) {
+        assert_eq!(actual.values, good.values);
+        assert_eq!(actual.locals, good.locals);
+        assert_eq!(actual.blocks.len(), good.blocks.len());
+        for (a, g) in actual.blocks.iter().zip(&good.blocks) {
+            assert_eq!(a.instructions.len(), g.instructions.len());
+        }
+    }
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors.iter().all(|d| d.phase == Phase::Analyze)
+            && errors
+                .iter()
+                .any(|d| d.message.contains("activation-local")),
+        "{errors:?}"
+    );
+    // Reuse only the valid source candidate, with its raw fingerprint refreshed.
     // Verify must reject from its own actual-body proof.
-    let mut claim = accept(&typed(HELPER));
     claim.module_fingerprint = module.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &Limits::default()).unwrap();
-    assert!(
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+    assert!(zil_analyze::analyze(&decoded, &Limits::default()).is_err());
+    let errors =
         zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default())
-            .is_err()
+            .expect_err("raw Verify accepted the activation-local Some payload");
+    assert!(
+        errors.iter().any(|d| d.message.contains("activation")),
+        "{errors:?}"
     );
-    assert!(zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err());
+    let errors = zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default())
+        .expect_err("Wire Verify accepted the activation-local Some payload");
+    assert!(
+        errors.iter().any(|d| d.message.contains("activation")),
+        "{errors:?}"
+    );
 }
 
 #[test]
