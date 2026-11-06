@@ -316,6 +316,8 @@ struct SumContext {
     in_error: bool,
     error_products: u8,
     product_sum: bool,
+    // Presence only, carried through wrappers during the paid type walk.
+    pod_product: bool,
 }
 
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
@@ -699,6 +701,7 @@ pub(super) fn preflight(
                 Type::Tuple(_) => child.in_tuple = true,
                 Type::Package { .. } => {
                     child.in_product = true;
+                    child.pod_product = true;
                     if context.in_error {
                         child.error_products = context.error_products.saturating_add(1);
                     }
@@ -729,11 +732,15 @@ pub(super) fn preflight(
                     new_sum |= extension;
                     child = SumContext {
                         blocked: true,
+                        pod_product: context.pod_product,
                         ..SumContext::default()
                     };
                 }
                 Type::Address { .. } if depth == 0 && sum_address_root => {
-                    child = SumContext::default();
+                    child = SumContext {
+                        pod_product: context.pod_product,
+                        ..SumContext::default()
+                    };
                 }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
@@ -745,6 +752,7 @@ pub(super) fn preflight(
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
+                        pod_product: context.pod_product,
                         ..SumContext::default()
                     }
                 }
@@ -806,6 +814,13 @@ pub(super) fn preflight(
                 }
                 Type::OwnedStore { element } => {
                     if !matches!(element.as_ref(), Type::Package { .. }) {
+                        if context.pod_product {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "POD Store admission does not grant owning Product field qualification",
+                                None,
+                            )]);
+                        }
                         if resource_head && depth != 0 {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
