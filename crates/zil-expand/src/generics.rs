@@ -124,6 +124,8 @@ mod trait_impls;
 pub(super) mod trait_instances;
 #[path = "generic_trait_methods.rs"]
 mod trait_methods;
+#[path = "generic_trait_static_host.rs"]
+mod static_host;
 #[path = "generic_where.rs"]
 mod where_copy;
 

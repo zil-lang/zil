@@ -978,16 +978,22 @@ impl Engine<'_> {
         };
         let mut qualified = false;
         let mut actual = self.value_hint(object, env, depth + 1, false)?;
-        if actual.is_none()
-            && let Some(host) = trait_bounds::constants::host_expression(
+        if actual.is_none() {
+            let no_variables = BTreeSet::new();
+            let no_bounds = trait_bounds::Bounds::new();
+            if let Some(static_host::Host::Nominal(host)) = static_host::classify(
                 object,
+                member,
+                |name| env.contains_key(name),
                 &self.nominals,
-                |name| !env.contains_key(name),
+                &no_variables,
+                &no_bounds,
+                &self.traits,
                 &mut self.budget,
-            )?
-        {
-            actual = Some(host);
-            qualified = true;
+            )? {
+                actual = Some(host);
+                qualified = true;
+            }
         }
         let Some(actual) = actual else { return Ok(()) };
         let actual = self.original_type(&actual)?;
@@ -1064,19 +1070,21 @@ impl Engine<'_> {
             args.extend(explicit.iter().cloned());
         }
         self.budget.node(expression.span, depth)?;
-        let receiver = signature
-            .params
-            .first()
-            .filter(|parameter| parameter.name == "self")
-            .ok_or_else(|| unsupported(expression.span, "generic method without receiver"))?;
-        let borrow = match &grouped(&receiver.ty).kind {
+        let receiver = signature.params.first().filter(|parameter| parameter.name == "self");
+        if receiver.is_none() && !qualified {
+            return Err(error(
+                expression.span,
+                "static trait method requires a type-qualified call",
+            ));
+        }
+        let borrow = receiver.and_then(|receiver| match &grouped(&receiver.ty).kind {
             TypeKind::Reference { mutable, .. } => Some(if *mutable {
                 UnaryOp::BorrowMut
             } else {
                 UnaryOp::Borrow
             }),
             _ => None,
-        };
+        });
         let ExprKind::Call { callee, arguments } = &mut expression.kind else {
             unreachable!()
         };
