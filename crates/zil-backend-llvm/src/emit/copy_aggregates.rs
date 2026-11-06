@@ -21,7 +21,14 @@ pub(super) fn plan(
 ) -> CompileResult<super::large_copy_abi::Plans> {
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
+    let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
     for function in lir.functions {
+        dynamic_store::reserve_operations(
+            function,
+            lir.resources.len(),
+            &store_protocols,
+            &mut work,
+        )?;
         let mut values = Plan::new();
         for (index, ty) in function.values.iter().enumerate() {
             if !matches!(
@@ -113,7 +120,12 @@ pub(super) fn plan(
         }
     }
     let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
-    if !plans.is_empty() || abi.functions.values().any(|s| s.large()) {
+    if !plans.is_empty()
+        || abi.functions.values().any(|s| s.large())
+        || store_protocols
+            .values()
+            .any(dynamic_store::Protocols::large)
+    {
         work = work.checked_sub(256).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
@@ -127,6 +139,7 @@ pub(super) fn plan(
         values: plans,
         functions: abi.functions,
         indirect: abi.indirect,
+        store_protocols,
     })
 }
 
@@ -341,7 +354,7 @@ pub(super) fn classify(
     }))
 }
 
-fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
+pub(super) fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
     let overflow = || {
         vec![Diagnostic::limit(
             Phase::Codegen,
