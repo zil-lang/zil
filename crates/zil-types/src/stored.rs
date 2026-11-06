@@ -490,7 +490,9 @@ pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) 
         && instance.declaration.module.0 == u32::MAX
         && instance.declaration.declaration.0 == 0
         && matches!(instance.arguments.as_slice(), [LifeNominalActual::Type(actual)] if actual == ty)
-        && shared_address(ty)
+        // Inventory already authenticated this exact actual and its complete
+        // finite pointee. shared_address is a different dispatch: &carrier.
+        && matches!(ty, Type::Address { mutable: false, .. })
 }
 
 pub(super) fn shared_address(ty: &Type) -> bool {
