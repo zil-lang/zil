@@ -256,8 +256,12 @@ fn g241_unused_method_rejects_wrong_input_root() {
 #[test]
 fn g241_live_result_blocks_resource_parent_move() {
     canonical_success();
-    let text = "trait Lend{type Item:Copy;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}resource Cursor{values:[i32;2];index:usize}impl Lend for Cursor{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{if self.index>=2usize{return Option::<&'p i32>.None()}let i=self.index;self.index+=1usize;return Option::<&'p i32>.Some(&self.values[i])}}fn main()->i32{var c=Cursor{values:[20,22],index:0usize};let held=c.next();let moved=c;match held{Option.Some(v)=>{return *v},Option.None()=>{return 0}}}";
-    let report = super::check(text);
+    let provider = "trait Lend{type Item:Copy;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}resource Cursor{values:[i32;2];index:usize}impl Lend for Cursor{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{if self.index>=2usize{return Option::<&'p i32>.None()}let i=self.index;self.index+=1usize;return Option::<&'p i32>.Some(&self.values[i])}}fn consume(give c:Cursor)->i32{return c.values[0]}";
+    let legal = format!("{provider}fn main()->i32{{var c=Cursor{{values:[20,22],index:0usize}};let held=c.next();var seen=0;match held{{Option.Some(v)=>{{seen=*v}},Option.None()=>{{return 0}}}}return seen+consume(give c)}}");
+    let good = super::check(&legal);
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    let invalid = format!("{provider}fn main()->i32{{var c=Cursor{{values:[20,22],index:0usize}};let held=c.next();let retired=consume(give c);match held{{Option.Some(v)=>{{return *v+retired}},Option.None()=>{{return 0}}}}}}");
+    let report = super::check(&invalid);
     assert_eq!(
         report.status,
         ResultCategory::SafeReject,
