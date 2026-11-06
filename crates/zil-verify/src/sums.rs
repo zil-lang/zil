@@ -1923,10 +1923,11 @@ fn run_with_replacements(
     };
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(state);
-    let mut pending = VecDeque::from([f.entry.0 as usize]);
+    let mut pending =
+        resources::schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
-    while let Some(block) = pending.pop_front() {
+    while let Some(block) = pending.pop(budget)? {
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
         flow.block(block, &mut output, false, false, budget)?;
@@ -1941,7 +1942,7 @@ fn run_with_replacements(
             };
             if changed && !queued[next] {
                 queued[next] = true;
-                pending.push_back(next);
+                pending.push(next, budget)?;
             }
         }
     }
