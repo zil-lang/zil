@@ -1,0 +1,141 @@
+{
+  "task": "G3.4.1",
+  "reviewer": "general_text_impl",
+  "role": "Independent consumer review; not an Option implementation author",
+  "reviewed_commit": "a4cf8ebfce1722622698b012719c39e85d98fdf6",
+  "consumer_commits": [
+    "2515e7fb2",
+    "97a7057fc",
+    "a4cf8ebfc"
+  ],
+  "status": "ChangesRequested",
+  "scope": {
+    "included": [
+      "crates/zil-types/src/stored.rs",
+      "crates/zil-types/src/stored/nominal.rs",
+      "crates/zil-types/src/stored/option_address.rs",
+      "crates/zil-types/src/aggregates.rs",
+      "crates/zil-analyze/src/stored_flow.rs",
+      "crates/zil-analyze/src/stored_flow/nominal.rs",
+      "crates/zil-analyze/src/stored_flow/option_address.rs",
+      "crates/zil-verify/src/stored_flow.rs",
+      "crates/zil-verify/src/stored_flow/nominal.rs",
+      "crates/zil-verify/src/stored_flow/option_address.rs"
+    ],
+    "excluded": [
+      "All G9.3.1 text implementation written by this reviewer",
+      "Expand producer implementation except reading its actual sealed metadata contract",
+      "Backend implementation and full-gate acceptance"
+    ],
+    "normalization": "Root reports only rustfmt changes relative to this exact consumer snapshot; review is bound to the unformatted commit bytes"
+  },
+  "method": [
+    "Read exact git objects, not current main or author working changes",
+    "Trace declaration inventory through nominal rows, physical qualification and operation transport separately in each kernel",
+    "Check actual parameter/pointer permissions, copy and window/invalidation paths",
+    "Inspect source-derived raw/Wire mutation tests and their precise coverage",
+    "No independent heavy build or full suite executed in this review"
+  ],
+  "source_sha256": {
+    "crates/zil-types/src/stored.rs": "935675ab6f6d2af5c73aaaf2c6834b0c1f83e7554ba5ff09b6173bbe148d1e5d",
+    "crates/zil-types/src/stored/nominal.rs": "84f1377d9740a6249ba36c8df9eee60a983956f0079d16832ce85d046526fe94",
+    "crates/zil-types/src/stored/option_address.rs": "b3388598c1b5b18b6cab78fdd2996fe4c3fde748edd14c0d21177bb61b9c3cf5",
+    "crates/zil-types/src/aggregates.rs": "11edf85e50b97c673ccdfd0b472ddd0f8f25a995f6afc967e8b94948659bec5d",
+    "crates/zil-analyze/src/stored_flow.rs": "53df6450230cb62e5a2a83dc587093ca80045f0a348587ff9a03988a83180b53",
+    "crates/zil-analyze/src/stored_flow/nominal.rs": "03ce0aed97bbdd8f14705b10640475d9bfc86853c3fa40e5f5308ef148ad08ac",
+    "crates/zil-analyze/src/stored_flow/option_address.rs": "a23193aa88fb163a506a3437c44b295907d131f37c462c88041baf322fa5eeae",
+    "crates/zil-verify/src/stored_flow.rs": "c222e7343282dfb5680fa6dacc6c2d02488664897e1ce2f84513328f0d97db70",
+    "crates/zil-verify/src/stored_flow/nominal.rs": "32ba6e401a117f2efcabf588c951a1ab403cf131144d9e00750647a068cab316",
+    "crates/zil-verify/src/stored_flow/option_address.rs": "995753e89bbcb254a28c9ad464b536a02c27dc765922391af70ce424682b9bf5"
+  },
+  "findings": [
+    {
+      "id": "G3.4.1-Option-None-completeness",
+      "severity": "high",
+      "status": "OpenAtReviewedCommit",
+      "kind": "Valid source rejection and incomplete intended consumer",
+      "locations": [
+        "crates/zil-analyze/src/stored_flow.rs:2640",
+        "crates/zil-analyze/src/stored_flow.rs:2704",
+        "crates/zil-verify/src/stored_flow.rs:2371",
+        "crates/zil-verify/src/stored_flow.rs:2537"
+      ],
+      "source_counterexample": "fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.None();} fn main(){}",
+      "proof": "The new authenticated None MakeVariant transfers no slot permission, correctly. Both existing completion loops nevertheless require every declared BorrowedStorage slot of every SSA value to contain a grounded target. The Some physical slot is necessarily absent for a genuine None, so grounded/summary.complete becomes false and the final completeness check rejects it. This also blocks the actual SliceIter next None exit; a Some-only helper does not exercise it.",
+      "required_resolution": [
+        "Track actual proven inactive versus active payload facts independently in both kernels; do not manufacture a root for None",
+        "Preserve those facts through Load/Store/copies, CFG joins and actual callee return summaries",
+        "Keep individual ungrounded Some/address/unknown-producer SSA values incomplete even when a surrounding join also contains None",
+        "Add real None-only and None/Some Source positives plus raw/Wire and ungrounded Some/invalidated-source negatives"
+      ],
+      "execution_level": "Static proof from exact code; author/root composition reproduction pending"
+    },
+    {
+      "id": "G3.4.1-Sealed-declaration-repeat-fee",
+      "severity": "medium",
+      "status": "AuthorResponseRequested",
+      "kind": "Current-request work-accounting concern, not a demonstrated memory-safety bypass",
+      "locations": [
+        "crates/zil-types/src/stored/nominal.rs:60",
+        "crates/zil-analyze/src/stored_flow/nominal.rs:40",
+        "crates/zil-verify/src/stored_flow/nominal.rs:40"
+      ],
+      "proof": "The newly admitted compiler branch repeats option_address::declaration for each nominal walk. Its caller explicitly charges declaration-count lookup, not the identity bytes for this new comparison. Outer inventory does prepay actual identity bytes once per declaration (Types via life_inventory_snapshot_work, Analyze/Verify via identity_work), so long malformed names are bounded before these comparisons. Since equality is against fixed literals and first compares lengths, no unbounded long-name scan is established here. It remains necessary to identify the debit for repeated per-instance comparisons or add a compiler-only debit without changing noncompiler legacy paths.",
+      "required_resolution": [
+        "Provide an exact per-call accounting argument or add the small sealed-identity comparison debit on the new compiler-only path",
+        "Keep long-name/deep-type rejection controls and N/N-1/fresh measurements on actual current requests"
+      ]
+    }
+  ],
+  "confirmed_properties": [
+    {
+      "property": "Complete sealed identity",
+      "detail": "All three consumers require compiler flag, module u32::MAX, declaration ordinal0, full @zil.builtin/[option]/[enum,Option]/empty-generation identity, Enum kind and exactly one Type formal. Ordinary user direct Address Type actuals still follow the old context_free_copy rejection."
+    },
+    {
+      "property": "Physical occurrence equality",
+      "detail": "Exactly None empty / Some one immutable Address payload, one fixed binder, slot Variant(1,0), SharedAddress, retained TypeArgument0/class0/binder0, and empty nominal rows are checked. The compiler nominal branch also requires the complete actual Type to equal the real Some payload."
+    },
+    {
+      "property": "No metadata-created root",
+      "detail": "Analyze copies actual pointer targets and loan ancestry into Some slot; Verify independently copies actual address sources/loans. ReadVariant moves that same leaf permission back into the output address. Retained metadata itself creates no source."
+    },
+    {
+      "property": "Copy and invalidation remain live",
+      "detail": "Existing Load/Store/TakeLocal/copy flow preserves complete Value/Payload permissions, and existing window/access checks consult real sources/loans. The new Option transfer does not bypass address access or actual output-source checks."
+    },
+    {
+      "property": "Legacy fast paths",
+      "detail": "New shape checks return before fee for nonqualified types, non-Enums and empty slots. The added finite profile is reached only on newly admitted address-bearing enum shapes; accepted ordinary Copy/phantom paths retain their previous branch."
+    },
+    {
+      "property": "Independent kernels",
+      "detail": "Analyze uses BTreeMap/BTreeSet permission flow; Verify uses its own vector payload reconstruction, qualification and summaries. Neither new consumer imports a proof from Types or the other kernel."
+    }
+  ],
+  "test_coverage_review": {
+    "author_target": "existing cross_function_borrows",
+    "new_tests": 5,
+    "source_fixture": "tests/language-readiness/terminal/342/slice-iterator/option-helper.zil",
+    "fixture_behavior": "always Some of the actual slice input; does not construct None",
+    "controls_inspected": [
+      "22 distinct metadata mutations with raw/Wire consumers",
+      "6 forbidden pointee-shape mutations",
+      "12 Core-before-Types metadata mutations",
+      "local-origin replacement inside the helper"
+    ],
+    "limitation": "These are source-derived test inputs inspected statically. Runtime results from the life composition are not yet received and are not counted as reviewer executions."
+  },
+  "excluded_probe": {
+    "tool": "Existing shared-target CLI built 2026-11-06 09:18:45",
+    "observed": "Types Unsupported stored compiler nominal requires its authentic builtin declaration",
+    "reason": "Binary lacks this reviewed consumer; its result is excluded from evidence for a4cf8ebfc"
+  },
+  "followup_review_requirements": [
+    "Bind any None/completeness fix to a new exact commit and review the private active/inactive facts plus all copy/call/join transport",
+    "Do not infer None from empty parameter sets, empty callee summary or absent target permission",
+    "Review None joined with unresolved/ungrounded producer, None joined with Some, copied Some invalidated source, and actual original SliceIter loop",
+    "Record any id(None) or general Option-parameter precision boundary explicitly rather than treating it as tested composition"
+  ],
+  "acceptance": "No consumer acceptance is recommended for a4cf8ebfc until the genuine None completion defect is closed; root owns integration and full gates."
+}
