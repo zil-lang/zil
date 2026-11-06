@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；下一批 P0 是 G9.3.3 普通集合可变元素与 G2.4.2 trait 静态关联函数，再推进 dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。G2.4.1 的普通 trait 逐调用共享 lending 已由 [PR50 验收][e-pr50] 合入；本批 G2.4.2、G9.3.3、G9.3.4 和 G10.6.1 已由 [PR51 验收][e-pr51] 合入，有限语言初稿可构建、运行并从远端恢复；后续通用缺口为 dyn/显式存储、更广借用及异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -42,7 +42,7 @@
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
 | G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | 待派 | G2.3.1 有限 Self 依赖常量已由 PR39 [合入][e39]；一般投影、泛型及 Drop 组合仍缺。 |
-| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | G2.4.1 的有限普通 trait 共享 lending 已合入；G2.4.2 静态关联函数为下一批 P0，其余依赖 G2.3、G3.4，保留定义期义务。 |
+| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | G2.4.1 的有限普通 trait 共享 lending 已合入；G2.4.2 静态关联函数已由 PR51 合入，其余依赖 G2.3、G3.4，保留定义期义务。 |
 
 <details>
 <summary>G2.4 · 子任务</summary>
@@ -50,14 +50,14 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 已合入 | — | — | [PR50 验收][e-pr50]：跨模块关联 Item、方法 life、真实 std.iter、两后端 O0/O2；默认5146/0、参考5034/0。原 SliceIter/Option 转发回归已修复；资源宿主/一般 owning lending 仍缺。 |
-| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 实现待验 | P0 | static_traits · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
+| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 已合入 | — | — | [PR51 验收][e-pr51]：具体/符号类型宿主、type-only 方法、where 与完整返回、跨模块 provider 身份通过；旧 receiver 调用费用保持。 |
 
 <details>
 <summary>G2.4.2 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.2.1 | 符号类型宿主、定义期义务与词法值优先 | 实现待验 | P0 | static_check · sol high | 与静态 provider 选择共享明确私有接口。 |
+| G2.4.2.1 | 符号类型宿主、定义期义务与词法值优先 | 已合入 | — | — | [PR51][e-pr51]：词法值优先、符号宿主边界和未用定义期义务均保留；非法声明与最近反例仍拒绝。 |
 
 </details>
 
@@ -228,7 +228,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2 已交付普通 POD Record 动态集合；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2/G9.3.3/G9.3.4 已交付普通 POD Record/九种标量动态集合与元素可变借用；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
 | G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P2 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
 | G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P2 | 待派 | 后续 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
 | G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P2 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
@@ -240,17 +240,17 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
-| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 实现待验 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
-| G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 实现待验 | P0 | sol high 三核并行 | 初稿审计确认此前必须包装 Record；同批补直接标量、完整值协议和所有实际窗口，保留旧失败证据。 |
+| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
+| G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
 
 <details>
 <summary>G9.3.3 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 实现待验 | P0 | store_types · sol high | 保留实际类型/范围与大 Copy 协议。 |
-| G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 实现待验 | P0 | store_analyze · sol high | 保留 whole-Store 排他与旧费用。 |
-| G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 实现待验 | P0 | store_verify · sol high | 不以 Analyze 证明作为权限。 |
+| G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 已合入 | — | — | [PR51][e-pr51]：完整 Record 类型/布局、可变 Address 与大 Copy 读写协议通过。 |
+| G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 已合入 | — | — | [PR51][e-pr51]：真实根/父loan、结构修改互斥及旧费用通过。 |
+| G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 已合入 | — | — | [PR51][e-pr51]：独立实际窗口、stale Hold 与真实重叠 raw/Wire 反例通过。 |
 
 </details>
 
@@ -259,9 +259,9 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.4.1 | Source/Types 完整标量准入与 LLVM 计划 | 实现待验 | P0 | store_types · sol high | 复用既有协议，保留 owning 排除。 |
-| G9.3.4.2 | Analyze 标量载体与实际窗口 | 实现待验 | P0 | store_analyze · sol high | 独立完整类型与实际根。 |
-| G9.3.4.3 | Verify 标量协议与 raw/Wire | 实现待验 | P0 | store_verify · sol high | 独立完整类型、原父loan与计费。 |
+| G9.3.4.1 | Source/Types 完整标量准入与 LLVM 计划 | 已合入 | — | — | [PR51][e-pr51]：九种标量完整准入、不同 canonical 身份与 LLVM 精确计划通过。 |
+| G9.3.4.2 | Analyze 标量载体与实际窗口 | 已合入 | — | — | [PR51][e-pr51]：独立 canonical 载体、完整标量/实际窗口及精确预算通过。 |
+| G9.3.4.3 | Verify 标量协议与 raw/Wire | 已合入 | — | — | [PR51][e-pr51]：独立标量协议、raw/Wire、owning/capture 排除与旧费用通过。 |
 
 </details>
 
@@ -308,7 +308,6 @@
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
-
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
 
 <details>
@@ -316,7 +315,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G10.6.1 | 语言初稿候选：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 实现待验 | P0 | root / sol high 并行 | 联合初稿必备 G2.4.2/G9.3.3/G9.3.4 与真实多模块程序已实现；冻结源码a8c7953e7已推送；首轮5188/2旧标量见证断言已修正，相关24/0，正在重跑完整共同验收与远端冷恢复。 |
+| G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 
 </details>
 
@@ -339,7 +338,7 @@
 
 </details>
 
-[design]: https://github.com/zil-lang/zil/blob/80c197b724c6cab538fbec7bf7fa526aaa877c5f/_zil_design.md
+[design]: https://github.com/zil-lang/zil/blob/15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71/_zil_design.md
 [gates]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
@@ -375,3 +374,5 @@
 
 [e-pr49]: https://github.com/zil-lang/zil/blob/80c197b724c6cab538fbec7bf7fa526aaa877c5f/docs/validation/G9.3.2-common-acceptance.json
 [e-pr50]: https://github.com/zil-lang/zil/blob/bb9d113455d3f940cfa2fe237347039f1e241007/docs/validation/G2.4.1-common-acceptance.json
+
+[e-pr51]: https://github.com/zil-lang/zil/blob/15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71/docs/validation/G10.6.1-common-acceptance.json
