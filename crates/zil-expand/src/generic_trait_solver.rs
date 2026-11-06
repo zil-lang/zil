@@ -839,7 +839,10 @@ impl<'a> Index<'a> {
                     }
                 }
             }
-            return Err(error(span, "selected static trait declaration origin absent"));
+            return Err(error(
+                span,
+                "selected static trait declaration origin absent",
+            ));
         }
         let Some((_, signature, witness)) = self.recipe_method(actual, name, budget, span)? else {
             return Ok(None);

@@ -831,10 +831,15 @@ fn rewrite_resolved_calls(
                 && let Some(actual) = self.substitutions.get(name)
             {
                 self.budget.ty(actual).map_err(|e| vec![e])?;
-                self.budget.node(object.span, depth + 1).map_err(|e| vec![e])?;
+                self.budget
+                    .node(object.span, depth + 1)
+                    .map_err(|e| vec![e])?;
                 if !matches!(&grouped(actual).kind, TypeKind::Named { path, .. } if path.len() == 1)
                 {
-                    return Err(vec![error(object.span, "static trait host is not a nominal type")]);
+                    return Err(vec![error(
+                        object.span,
+                        "static trait host is not a nominal type",
+                    )]);
                 }
             }
             super::super::ct_selection::walk_expression(self, e, depth)
