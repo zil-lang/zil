@@ -1119,7 +1119,8 @@ fn check_type_shape(
             | Type::OwnedStore { element } => {
                 budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
                 if matches!(ty, Type::OwnedStore { .. })
-                    && matches!(element.as_ref(), Type::Record { .. })
+                    && (matches!(element.as_ref(), Type::Record { .. })
+                        || dynamic_store::direct_scalar(element))
                 {
                     if context & (4 | 64 | 1 | 2) != 0 {
                         return Err(unsupported(
