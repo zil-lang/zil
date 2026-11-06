@@ -109,3 +109,28 @@ fn pod_source_derived_unused_definitions_and_operations_reject_forged_types() {
     fields[0].0.push_str("_same_layout");
     rejected("pod-operation-full-identity", module, plan);
 }
+
+#[test]
+fn pod_source_derived_unused_user_resource_cannot_hide_an_owning_store() {
+    let source = "struct Pod{x:i64;y:i64}fn main(){let items:Store<Pod>=store_new();store_reserve(items,1);store_push(items,Pod{x:42,y:73})}";
+    let (mut module, plan) = candidate(source);
+    let store = module
+        .resources
+        .iter()
+        .find(|definition| matches!(definition.payload, Type::OwnedStore { .. }))
+        .unwrap()
+        .payload
+        .clone();
+    // The genuine source-derived Store and canonical definition remain valid.
+    // This unused user resource must independently retain its closed Copy
+    // payload bound; POD admission cannot add ownership to ordinary Records.
+    module.resources.push(zil_ir::ResourceDefinition {
+        name: "@module0:Hidden".into(),
+        payload: Type::Record {
+            name: "@module0:Hidden".into(),
+            fields: vec![("store".into(), Type::Managed(Box::new(store)))],
+        },
+        teardown: None,
+    });
+    rejected("pod-unused-resource-hidden-owner", module, plan);
+}
