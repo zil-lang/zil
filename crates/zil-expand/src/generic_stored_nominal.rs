@@ -1228,6 +1228,24 @@ impl<'a> Engine<'a> {
         let classes = produced.classes;
         self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
+            if let ItemKind::Aggregate(physical) = &instance.kind {
+                self.stored_lookup_fee(self.stored_record_fields.len(), generated.len(), span)?;
+                self.budget.text(&generated, span)?;
+                self.budget.lineage_bytes(
+                    physical
+                        .fields
+                        .len()
+                        .saturating_mul(std::mem::size_of::<(String, TypeRef)>()),
+                    span,
+                )?;
+                let mut fields = Vec::new();
+                for field in &physical.fields {
+                    self.budget.text(&field.name, field.span)?;
+                    self.budget.ty(&field.ty)?;
+                    fields.push((field.name.clone(), field.ty.clone()));
+                }
+                self.stored_record_fields.insert(generated.clone(), fields);
+            }
             // Caller pattern elaboration needs the family and payload layout,
             // not the callee's lexical life name. This private layout hint
             // grants no relation: the actual qualified type and its complete

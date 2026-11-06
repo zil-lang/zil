@@ -1149,7 +1149,7 @@ impl Engine<'_> {
             ..
         }) = self.nominals.get(&path.join("."))
         else {
-            return Ok(None);
+            return self.stored_record_field_hint(&original, member);
         };
         let Some(field) = decl.fields.iter().find(|field| field.name == member) else {
             return Ok(None);
@@ -1179,6 +1179,31 @@ impl Engine<'_> {
             &field.ty,
             &mut self.budget,
         )?))
+    }
+    pub(super) fn stored_record_field_hint(
+        &mut self,
+        ty: &TypeRef,
+        member: &str,
+    ) -> R<Option<TypeRef>> {
+        let TypeKind::Named { path, args } = &grouped(ty).kind else {
+            return Ok(None);
+        };
+        if path.len() != 1 || !args.is_empty() || self.stored_record_fields.is_empty() {
+            return Ok(None);
+        }
+        self.stored_lookup_fee(self.stored_record_fields.len(), path[0].len(), ty.span)?;
+        let Some(fields) = self.stored_record_fields.get(&path[0]) else {
+            return Ok(None);
+        };
+        for (name, field) in fields {
+            self.budget.text(name, ty.span)?;
+            self.budget.text(member, ty.span)?;
+            if name == member {
+                self.budget.ty(field)?;
+                return Ok(Some(field.clone()));
+            }
+        }
+        Ok(None)
     }
     pub(super) fn call_hints(
         &mut self,
@@ -1271,6 +1296,29 @@ impl Engine<'_> {
                     }
                 }
                 self.budget.ty(&p.ty)?;
+                if self.stored_nominals
+                    && let TypeKind::Named { path, args } = &grouped(&p.ty).kind
+                    && path.len() == 1
+                    && args.is_empty()
+                {
+                    self.budget.identity_work(
+                        self.instance_types
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2)
+                            .saturating_mul(path[0].len().saturating_add(1))
+                            .saturating_mul(12),
+                        p.span,
+                    )?;
+                    if self.instance_types.get(&path[0]).is_some_and(|source| {
+                        matches!(&grouped(source).kind, TypeKind::Named { path, .. }
+                            if path.as_slice() == [options::TEMPLATE])
+                    }) {
+                        // Both sides of ordinary argument inference use the
+                        // same private source layout; no stored relation changes.
+                        return original_type(&p.ty, &self.instance_types, &mut self.budget, 0);
+                    }
+                }
                 Ok(p.ty.clone())
             })
             .collect::<R<Vec<_>>>()?;
