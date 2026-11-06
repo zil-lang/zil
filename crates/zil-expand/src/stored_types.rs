@@ -1466,6 +1466,30 @@ mod source_tests {
     use zil_base::{FileId, ModuleId};
 
     #[test]
+    fn g3_4_1_original_slice_iterator_reaches_complete_core() {
+        let core = expand_text(include_str!(
+            "../../../tests/language-readiness/terminal/342/slice_iter.zil"
+        ))
+        .unwrap();
+        assert!(
+            core.functions
+                .iter()
+                .any(|function| function.name == "result")
+        );
+        assert!(
+            core.life_declarations
+                .iter()
+                .any(|declaration| declaration.id.compiler)
+        );
+    }
+
+    #[test]
+    fn g3_4_1_option_result_flows_through_a_real_parameter() {
+        expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.None();}fn id<life s>(value:Option<&'s i64>)->Option<&'s i64>{return value;}fn forward<life s>(slice:&'s [i64])->Option<&'s i64>{let value=next(slice);return id(value);}fn main(){}")
+            .unwrap();
+    }
+
+    #[test]
     fn option_reference_actual_keeps_real_source_class_and_variant_slot() {
         let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn main(){}").unwrap();
         let declaration = core

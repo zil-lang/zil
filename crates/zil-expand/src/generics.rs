@@ -2202,6 +2202,19 @@ impl<'a> Engine<'a> {
                 self.budget.ty(inner)?;
                 Ok(Some(*inner.clone()))
             }
+            ExprKind::Unary {
+                op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
+                operand,
+            } => Ok(self
+                .value_hint(operand, env, depth + 1, default_integer)?
+                .map(|inner| TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Reference {
+                        mutable: *op == UnaryOp::BorrowMut,
+                        lifetime: None,
+                        inner: Box::new(inner),
+                    },
+                })),
             ExprKind::Unary { operand, .. } => {
                 self.value_hint(operand, env, depth + 1, default_integer)
             }
@@ -2297,6 +2310,19 @@ impl<'a> Engine<'a> {
                         };
                         if decl.generics.len() != args.len() {
                             return Ok(None);
+                        }
+                        if decl
+                            .generics
+                            .iter()
+                            .any(|parameter| matches!(parameter.kind, GenericParamKind::Lifetime))
+                        {
+                            return enums::source_field_actuals(
+                                &decl.generics,
+                                args,
+                                &field.ty,
+                                &mut self.budget,
+                            )
+                            .map(Some);
                         }
                         let mut found = BTreeMap::new();
                         for (parameter, argument) in decl.generics.iter().zip(args) {
