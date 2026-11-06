@@ -480,3 +480,137 @@ fn g3_4_1_option_known_and_runtime_variants_match_without_invented_targets() {
         accept(&typed(&text));
     }
 }
+
+#[test]
+fn g3_4_1_option_none_match_dead_edge_requires_the_real_tag_comparison() {
+    let text = include_str!("option-borrowed.zil").replace(
+        "return Option::<&'s i64>.Some(&slice[0]);",
+        "return Option::<&'s i64>.None();",
+    );
+    let module = typed(&text);
+    let plan = accept(&module);
+    for case in 0..5 {
+        let mut forged = module.clone();
+        let mut changed = false;
+        for f in &mut forged.functions {
+            let Some(tag) = f
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find(|i| matches!(i.kind, zil_ir::InstructionKind::VariantTag { .. }))
+                .and_then(|i| i.result)
+            else {
+                continue;
+            };
+            let Some((condition, scalar)) =
+                f.blocks
+                    .iter()
+                    .flat_map(|b| &b.instructions)
+                    .find_map(|i| match i.kind {
+                        zil_ir::InstructionKind::Binary {
+                            op: zil_ir::BinaryOp::Equal,
+                            left,
+                            right,
+                        } if left == tag => Some((i.result.unwrap(), right)),
+                        zil_ir::InstructionKind::Binary {
+                            op: zil_ir::BinaryOp::Equal,
+                            left,
+                            right,
+                        } if right == tag => Some((i.result.unwrap(), left)),
+                        _ => None,
+                    })
+            else {
+                continue;
+            };
+            for block in &mut f.blocks {
+                for i in &mut block.instructions {
+                    if case == 0 && i.result == Some(tag) {
+                        i.kind = zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(0));
+                        changed = true;
+                    }
+                    if (case == 1 || case == 3)
+                        && i.result == Some(condition)
+                        && let zil_ir::InstructionKind::Binary { op, left, right } = &mut i.kind
+                    {
+                        if case == 1 {
+                            *op = zil_ir::BinaryOp::NotEqual;
+                        } else {
+                            *left = scalar;
+                            *right = scalar;
+                        }
+                        changed = true;
+                    }
+                    if case == 4 && i.result == Some(scalar) {
+                        i.kind = zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(0));
+                        changed = true;
+                    }
+                }
+                if case == 2
+                    && let zil_ir::Terminator::Branch {
+                        condition: actual,
+                        then_block,
+                        else_block,
+                    } = &mut block.terminator
+                    && *actual == condition
+                {
+                    std::mem::swap(then_block, else_block);
+                    changed = true;
+                }
+            }
+        }
+        assert!(changed, "missing source tag/condition {case}");
+        assert!(
+            zil_analyze::analyze(&forged, &Limits::default()).is_err(),
+            "condition {case}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&forged, &claim, &Limits::default()).unwrap();
+        let (decoded, _) =
+            zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &Limits::default()).is_err(),
+            "wire condition {case}"
+        );
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim, &forged.target, &Limits::default())
+                .is_err(),
+            "condition {case}"
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err(),
+            "wire condition {case}"
+        );
+    }
+}
+
+#[test]
+fn g3_4_1_option_none_to_some_backedge_keeps_the_runtime_some_arm() {
+    let text = "fn spin<life s>(slice:&'s [i64])->i64{var item:Option<&'s i64> = Option::<&'s i64>.None();while true{match item{Option.None()=>{item=Option::<&'s i64>.Some(&slice[0]);continue},Option.Some(value)=>{return *value}}}return 0;}fn main(){}";
+    let module = typed(text);
+    let plan = accept(&module);
+    let f = module.functions.iter().find(|f| f.name == "spin").unwrap();
+    let mut checked = false;
+    for i in f.blocks.iter().flat_map(|b| &b.instructions) {
+        if matches!(
+            i.kind,
+            zil_ir::InstructionKind::ReadVariant {
+                variant: 1,
+                index: 0,
+                ..
+            }
+        ) {
+            assert!(
+                plan.functions[f.id.0 as usize].holds[i.result.unwrap().0 as usize]
+                    .roots
+                    .contains(&HoldRoot::Parameter(0))
+            );
+            checked = true;
+        }
+    }
+    assert!(
+        checked,
+        "source loop did not contain the actual Some projection"
+    );
+}
