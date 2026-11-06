@@ -4,8 +4,19 @@ use super::*;
 use zil_base::Limits;
 
 fn inline_protocol_element(ty: &Type) -> bool {
-    matches!(ty, Type::Record { .. } | Type::Bool | Type::U8 | Type::U16
-        | Type::I32 | Type::I64 | Type::U64 | Type::Usize | Type::F32 | Type::F64)
+    matches!(
+        ty,
+        Type::Record { .. }
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+    )
 }
 
 /// Private representation plans, built only after exact verified-LIR binding.
@@ -1468,13 +1479,21 @@ mod pod_tests {
     #[test]
     fn g934_scalar_protocols_have_exact_nonzero_stride() {
         for (element, stride) in [
-            (Type::Bool, 1), (Type::U8, 1), (Type::U16, 2),
-            (Type::I32, 4), (Type::I64, 8), (Type::U64, 8),
-            (Type::Usize, 8), (Type::F32, 4), (Type::F64, 8),
+            (Type::Bool, 1),
+            (Type::U8, 1),
+            (Type::U16, 2),
+            (Type::I32, 4),
+            (Type::I64, 8),
+            (Type::U64, 8),
+            (Type::Usize, 8),
+            (Type::F32, 4),
+            (Type::F64, 8),
         ] {
             let resources = [ResourceDefinition {
                 name: format!("@builtin:OwnedStore<{}>", element.name()),
-                payload: Type::OwnedStore { element: Box::new(element) },
+                payload: Type::OwnedStore {
+                    element: Box::new(element),
+                },
                 teardown: None,
             }];
             let mut remaining = usize::MAX;

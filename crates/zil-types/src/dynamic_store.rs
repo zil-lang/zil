@@ -90,8 +90,18 @@ pub(super) fn supported_element(ty: &Type) -> bool {
 }
 
 pub(super) fn scalar_element(ty: &Type) -> bool {
-    matches!(ty, Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
-        | Type::U64 | Type::Usize | Type::F32 | Type::F64)
+    matches!(
+        ty,
+        Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+    )
 }
 
 /// Shape selector for existing owning-composition exclusions. Qualification
@@ -807,7 +817,10 @@ mod pod_tests {
             (Type::F64, "f64"),
         ] {
             assert!(supported_element(&element));
-            assert_eq!(definition_name(&element), format!("@builtin:OwnedStore<{name}>"));
+            assert_eq!(
+                definition_name(&element),
+                format!("@builtin:OwnedStore<{name}>")
+            );
             let head = Type::Managed(Box::new(Type::OwnedStore {
                 element: Box::new(element.clone()),
             }));
@@ -818,7 +831,11 @@ mod pod_tests {
             }));
         }
         assert_ne!(definition_name(&Type::U64), definition_name(&Type::Usize));
-        for forbidden in [Type::Unit, Type::Tuple(vec![Type::I32]), Type::ForeignHandle] {
+        for forbidden in [
+            Type::Unit,
+            Type::Tuple(vec![Type::I32]),
+            Type::ForeignHandle,
+        ] {
             assert!(!supported_element(&forbidden));
         }
     }

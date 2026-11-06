@@ -4,8 +4,8 @@ use super::*;
 fn g934_all_scalar_values_mutate_and_roundtrip_full_error_payloads() {
     for (ty, first, second) in [
         ("bool", "true", "false"),
-        ("u8", "41u8", "42u8"),
-        ("u16", "40000u16", "40001u16"),
+        ("u8", "u8(41)", "u8(42)"),
+        ("u16", "u16(40000)", "u16(40001)"),
         ("i32", "41", "42"),
         ("i64", "-41i64", "-42i64"),
         ("u64", "18446744073709551613u64", "18446744073709551614u64"),
