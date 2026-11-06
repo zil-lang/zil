@@ -355,7 +355,7 @@ fn g3_4_1_option_none_cannot_hide_recursive_ungrounded_some_input() {
 
 #[test]
 fn g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer() {
-    let good = "fn seed<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn missing<life s>(slice:&'s [i64])->Option<&'s i64>{return seed(slice);}fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{let mut value:Option<&'s i64>=Option::<&'s i64>.None();if flag{value=missing(slice);}return value;}fn main(){}";
+    let good = "fn seed<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn missing<life s>(slice:&'s [i64])->Option<&'s i64>{return seed(slice);}fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{var value:Option<&'s i64> = Option::<&'s i64>.None();if flag{value=missing(slice);}return value;}fn main(){}";
     let positive = typed(good);
     let mut plan = accept(&positive);
     let bad = typed(&good.replace("return seed(slice);", "return missing(slice);"));
@@ -366,4 +366,21 @@ fn g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer() 
     assert!(zil_analyze::analyze(&decoded, &Limits::default()).is_err());
     assert!(zil_verify::verify_module(bad.clone(), plan, &bad.target, &Limits::default()).is_err());
     assert!(zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn g3_4_1_option_none_join_forwarding_does_not_retain_transient_empty_leaves() {
+    let text = "fn id<life s>(value:Option<&'s i64>)->Option<&'s i64>{return value;}fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{var value:Option<&'s i64> = Option::<&'s i64>.None();if flag{value=Option::<&'s i64>.None();}else{value=Option::<&'s i64>.None();}let forwarded=id(value);return forwarded;}fn main(){}";
+    let module = typed(text);
+    let plan = accept(&module);
+    let f = module.functions.iter().find(|f| f.name == "next").unwrap();
+    for block in &f.blocks {
+        if let zil_ir::Terminator::Return(Some(value)) = block.terminator {
+            assert!(
+                plan.functions[f.id.0 as usize].holds[value.0 as usize]
+                    .roots
+                    .is_empty()
+            );
+        }
+    }
 }

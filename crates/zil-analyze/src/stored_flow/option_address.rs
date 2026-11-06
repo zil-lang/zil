@@ -68,15 +68,14 @@ pub(super) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         && map.binder == slot.binder)
 }
 
-/// Each operation transports actual permissions; the class row alone never
-/// creates a source. ReadVariant retains its existing runtime tag check.
-pub(super) fn transfer(
+/// Authenticate the complete operation before either preflight or permission flow.
+/// This is private to this kernel; no proof is shared with another consumer.
+pub(super) fn types<'a>(
     module: &TypedModule,
-    f: &TypedFunction,
+    f: &'a TypedFunction,
     i: &Instruction,
-    values: &[Value],
     b: &mut Budget,
-) -> CompileResult<Option<Value>> {
+) -> CompileResult<Option<&'a Type>> {
     let ty = match &i.kind {
         InstructionKind::MakeVariant { .. } => value_type(
             f,
@@ -109,16 +108,67 @@ pub(super) fn transfer(
         i.result
             .ok_or_else(|| failure("Option operation lacks result"))?,
     )?;
+    b.type_work(result, true, "Option actual result equality")?;
+    let Type::BorrowedStorage { storage, .. } = ty else {
+        unreachable!()
+    };
+    let Type::Enum { variants, .. } = storage.as_ref() else {
+        unreachable!()
+    };
+    match &i.kind {
+        InstructionKind::MakeVariant { variant, fields } => {
+            let (_, payload) = variants
+                .get(*variant as usize)
+                .ok_or_else(|| failure("Option variant is absent"))?;
+            if payload.len() != fields.len() {
+                return Err(failure("Option constructor payload arity differs"));
+            }
+            fee(b, fields.len())?;
+            for (id, expected) in fields.iter().zip(payload) {
+                b.type_work(expected, true, "Option payload equality")?;
+                b.type_work(value_type(f, *id)?, true, "Option actual payload equality")?;
+                if value_type(f, *id)? != expected {
+                    return Err(failure("Option payload complete type differs"));
+                }
+            }
+        }
+        InstructionKind::ReadVariant { variant, index, .. } => {
+            b.type_work(&variants[1].1[0], true, "Option projected payload equality")?;
+            if *variant != 1 || *index != 0 || result != &variants[1].1[0] {
+                return Err(failure(
+                    "Option projection differs from actual Some payload",
+                ));
+            }
+        }
+        InstructionKind::VariantTag { .. } => {
+            if result != &Type::I32 {
+                return Err(failure("Option tag result is not i32"));
+            }
+        }
+        _ => unreachable!(),
+    }
+    Ok(Some(ty))
+}
+
+/// Each operation transports actual permissions; the class row alone never
+/// creates a source. ReadVariant retains its existing runtime tag check.
+pub(super) fn transfer(
+    module: &TypedModule,
+    f: &TypedFunction,
+    i: &Instruction,
+    values: &[Value],
+    b: &mut Budget,
+) -> CompileResult<Option<Value>> {
+    let Some(ty) = types(module, f, i, b)? else {
+        return Ok(None);
+    };
     let get = |id: ValueId| {
         values
             .get(id.0 as usize)
             .ok_or_else(|| failure("Option input outside actual values"))
     };
     let mut out = Value::default();
-    let Type::BorrowedStorage { storage, life } = ty else {
-        unreachable!()
-    };
-    let Type::Enum { variants, .. } = storage.as_ref() else {
+    let Type::BorrowedStorage { life, .. } = ty else {
         unreachable!()
     };
     let path = &life.slots[0].path;
@@ -127,43 +177,19 @@ pub(super) fn transfer(
             out.option_variants.constructed = 1u8
                 .checked_shl(*variant)
                 .ok_or_else(|| failure("Option variant bit is invalid"))?;
-            let (_, payload) = variants
-                .get(*variant as usize)
-                .ok_or_else(|| failure("Option variant is absent"))?;
-            if payload.len() != fields.len() {
-                return Err(failure("Option constructor payload arity differs"));
-            }
-            for (id, expected) in fields.iter().zip(payload) {
-                b.type_work(expected, true, "Option payload equality")?;
-                b.type_work(value_type(f, *id)?, true, "Option actual payload equality")?;
-                if value_type(f, *id)? != expected {
-                    return Err(failure("Option payload complete type differs"));
-                }
+            for id in fields {
                 let mut permission = Permission::default();
                 union(&mut permission, &get(*id)?.pointer, b)?;
                 fee(b, path.len().saturating_add(1))?;
                 out.slots.insert(path.clone(), permission);
             }
         }
-        InstructionKind::ReadVariant {
-            value,
-            variant,
-            index,
-        } => {
-            if *variant != 1 || *index != 0 || result != &variants[1].1[0] {
-                return Err(failure(
-                    "Option projection differs from actual Some payload",
-                ));
-            }
+        InstructionKind::ReadVariant { value, .. } => {
             if let Some(permission) = get(*value)?.slots.get(path) {
                 union(&mut out.pointer, permission, b)?;
             }
         }
-        InstructionKind::VariantTag { .. } => {
-            if result != &Type::I32 {
-                return Err(failure("Option tag result is not i32"));
-            }
-        }
+        InstructionKind::VariantTag { .. } => {}
         _ => unreachable!(),
     }
     Ok(Some(out))
