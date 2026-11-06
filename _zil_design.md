@@ -535,6 +535,16 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 
 共享元素窗口按实际Store来源和位置核验，影响前缀/地址的操作与活跃借用冲突，不能用索引不同或地址未变豁免。Types、Analyze、Verify各自核完整形状、来源、责任和实际布局；未使用类型/定义及raw/Wire同样受检。Product内Store、递归Store、闭包元素树、拥有数组和长期借入不由此开放。普通Product共享借入由§8.1.2独立约束；schema/Wire27及默认额度不变，费用在实际增长前计入。准入须原217探针逐字晋升、最近反例、独立审核和逐分配点机器清理证据。
 
+#### 8.2.5 普通 POD 动态集合元素（G9.3.2）
+
+StoreElement在既有拥有Package族之外，接受完整有限且总布局非零的普通Record。递归字段只含Unit、Bool、U8/U16/I32/I64/U64/Usize/F32/F64、Record、Tuple、Array；按真实目标布局核大小、对齐、溢出及i64::MAX界限。嵌套零大小字段合法，但零长数组也须检查所有叶类型；总零大小、Enum/ErrorUnion、Address/Desc/Managed、callable/function/foreign/handle、OwnedStore/BorrowedStorage叶均不因Copy而放行。字段身份、顺序与完整名义类型不得擦除。
+
+普通std.store的T:StoreElement模板据此实例化；该bound本身不授予Copy、字段访问、拥有、give/create或capture权限。具体POD及外层既有push/pop错误协议沿普通Copy值规则；Store头仍是真实唯一管理资源，普通参数仍为Desc。复用完整OwnedStore类型、canonical资源名与opcode80–88；schema/Wire43及公开ABI不变。Types、Analyze、Verify各自核完整类型、未用定义和实际指令，不能由名字或生产者标记授予资格。
+
+reserve失败保持旧指针、容量、长度和内容；push不隐式扩容，失败返回完整未插入值，成功写入后增加初始化前缀；pop缩短前缀并返回实际尾值。POD无元素析构责任，释放Store分配无需空析构循环。共享窗口采用既有store_at返回&Record；活窗口禁止reserve/push/pop/give/drop及父壳移动，即使容量足够、地址未变。最后使用和不同实际Store保持精度。本片明确拒绝POD的OwnedStoreBorrowMut，不限制其他普通&mut Record；连续切片、捕获及其他拥有/生命周期组合不由此开放。
+
+大元素也适用：按完整push/pop协议布局核既有4096字节Copy阈值，用内存快照及私有指针/out helper接入，不生成巨型SSA桥接、循环大栈分配或提高默认栈/预算。新类型、布局、身份、复制、队列和机器计划工作在实际遍历/增长前从同一请求预费；旧Package路径及其精确费用保留。准入须真实Source、raw/Wire独立反例、完整机器值、容量/分配失败保留、借用窗口及大元素O0/O2证据闭合；提案和表示不等于验收。
+
 ### 8.3 有限错误联合的直接拥有成功载荷
 
 在错误侧E为已支持有限Copy值、成功侧R为已支持直接资源的`E!R`返回中，显式`contract { result(create) }`或`result(give)`作用于成功载荷R，形成普通非Copy联合Value `Sum(E, Managed<R>)`；外层联合本身不是资源Desc或额外Managed。未声明拥有模式仍按R的默认类别解析，不从资源描述自动创造管理责任。create/give继续要求真实来源、实际转交和唯一清理。
