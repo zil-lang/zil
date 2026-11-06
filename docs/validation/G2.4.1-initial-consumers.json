@@ -1,0 +1,24 @@
+{
+  "status": "FailRetained",
+  "attempts": [
+    {
+      "run": "first-consumers",
+      "source": "97863eb3ee77f9e0ceacbf0646148bc8f9beab07",
+      "command": "cargo test --locked -p zil-driver --test impl162_trait_bounds g241 -j2 -- --nocapture",
+      "passed": 0,
+      "failed": 8,
+      "log_sha256": "046fb64327911cbc448ebc20e0243e8850bc5480d30fccdac3abdcacd788ca67",
+      "cause": "All positive/negative consumers stop at canonical Source: Expand Unsupported retained reference class needs its actual source class; no safety rejection or native success claimed."
+    },
+    {
+      "run": "second-consumers",
+      "source": "5338bf3611f573468793f79ab19793f01b9da1e3",
+      "command": "cargo test --locked -p zil-driver --test impl162_trait_bounds --test impl185_lending_schema g241 -j2 -- --nocapture",
+      "passed": 0,
+      "failed": 9,
+      "log_sha256": "ad2fc3f379197bc0a978ec99dc4785b55d785be3b7eeb24ca6114236dc5a3361",
+      "cause": "All positive/negative consumers stop at canonical Source: Expand Unsupported retained reference class needs its actual source class; no safety rejection or native success claimed."
+    }
+  ],
+  "note": "Initial derived root projection fix did not address pre-lift impl Self identity; independent consumer oracles kept unchanged. First tests used default native main process convention; later harness explicitly selects main to print its complete return, with unchanged original ZIL source."
+}
