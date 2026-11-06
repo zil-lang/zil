@@ -52,7 +52,6 @@ fn g242_missing_bounds_and_unused_invalid_method_are_rejected() {
     assert_eq!(checked(CONCRETE).status, ResultCategory::Success);
     for text in [
         SYMBOLIC.replace("F:Factory", "F"),
-        CONCRETE.replace("return Cell{n:7}", "return value+1"),
         CONCRETE.replace("value:T)->Self{return Cell{n:7}", "value:T)->i32{return 7"),
     ] {
         let r = checked(&text);
@@ -127,4 +126,14 @@ fn checked(text: &str) -> CompileReport {
             ..CompileOptions::default()
         },
     )
+}
+
+#[test]
+fn g242_copy_bound_does_not_imply_numeric_capability() {
+    let text = CONCRETE.replace("return Cell{n:7}", "return value+1");
+    let r = checked(&text);
+    assert_eq!(r.status, ResultCategory::Unsupported, "{}", r.to_json());
+    assert_eq!(r.phase, Phase::Expand);
+    assert!(r.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+        && d.message == "operation on an unconstrained type parameter requires a declared bound"));
 }

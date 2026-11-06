@@ -115,15 +115,19 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
             diagnosis.map(|d| &d.code),
             diagnosis.map(|d| &d.message)
         );
-        let precise_conflict = diagnosis.is_some_and(|d| match report.phase {
-            Phase::Analyze => {
-                d.code == "E-ANALYZE-IR"
-                    && d.message
-                        .contains("actual borrowed resource access conflicts")
-            }
-            Phase::Verify => d.code == "E-BORROW-CONFLICT",
-            _ => false,
-        });
+        let (code, message) = if label.contains("index") || label == "mut-after-shared" {
+            (
+                "E-ANALYZE-IR",
+                "actual borrowed resource access conflicts with a live child or unrelated address window",
+            )
+        } else {
+            (
+                "E-BORROW-CONFLICT",
+                "owned storage transition invalidates a live address window in main",
+            )
+        };
+        let precise_conflict = report.phase == Phase::Analyze
+            && diagnosis.is_some_and(|d| d.code == code && d.message == message);
         if report.status != ResultCategory::SafeReject
             || !precise_conflict
             || report.artifacts.contains_key("executable")
@@ -133,3 +137,50 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
     }
     assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
 }
+
+#[test]
+fn g933_source_derived_raw_wire_actual_receiver_conflict() {
+    let text = "struct Cell{value:i32}fn main()->i32{let first:Store<Cell>=store_new();let second:Store<Cell>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,Cell{value:20});store_push(second,Cell{value:22});let a=store_at_mut(first,0);let b=store_at_mut(second,0);b.value+=1;return a.value+b.value}";
+    let (mut module, mut plan) = candidate(text);
+    let mut count = 0;
+    for function in &mut module.functions {
+        let mut first = None;
+        for block in &mut function.blocks {
+            for instruction in &mut block.instructions {
+                if let I::OwnedStoreBorrowMut { store, .. } = &mut instruction.kind {
+                    if let Some(actual) = first {
+                        *store = actual;
+                        count += 1;
+                    } else {
+                        first = Some(*store);
+                    }
+                }
+            }
+        }
+    }
+    assert_eq!(count, 1);
+    let limits = Limits::default();
+    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+        "{errors:?}"
+    );
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module.clone(), plan, &module.target, &limits).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && (d.message.contains("conflict") || d.message.contains("live"))),
+            "{errors:?}"
+        );
+    }
+}
+
+#[path = "allocation.rs"]
+mod allocation;
