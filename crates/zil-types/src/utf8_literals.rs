@@ -25,7 +25,9 @@ impl Builder<'_, '_> {
         };
         let mut length = 0usize;
         decode(spelling, |ch| length += ch.len_utf8()).ok_or_else(invalid)?;
-        self.closures.snapshot(length.saturating_add(3), span)?;
+        // Two three-node Address/Slice/U8 trees are materialized: the
+        // returned type and the independent SSA type stored in the function.
+        self.closures.snapshot(length.saturating_add(6), span)?;
         let mut bytes = Vec::with_capacity(length);
         decode(spelling, |ch| {
             let mut encoded = [0; 4];

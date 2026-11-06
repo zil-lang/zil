@@ -201,6 +201,8 @@ fn g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type() {
         &source(include_str!("ct-invalid.zil")),
         &CompileOptions::default(),
     );
-    assert_eq!(ct.status, ResultCategory::Unsupported, "{}", ct.to_json());
+    assert_eq!(ct.status, ResultCategory::SafeReject, "{}", ct.to_json());
+    assert_eq!(ct.phase, Phase::Ct, "{}", ct.to_json());
+    assert_eq!(ct.diagnostics[0].code, "E-CT-FORBIDDEN");
     assert!(!ct.artifacts.contains_key("llvm"));
 }
