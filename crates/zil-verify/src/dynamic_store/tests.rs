@@ -1100,7 +1100,14 @@ fn pod932_logical_payload_and_stored_unit_stride_are_separate() {
 }
 
 fn pod_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, CandidatePlan) {
-    let ty = pod(vec![("n", Type::I64)]);
+    plain_window_fixture(pod(vec![("n", Type::I64)]), distinct, read_first)
+}
+
+fn plain_window_fixture(
+    ty: Type,
+    distinct: bool,
+    read_first: bool,
+) -> (TypedModule, CandidatePlan) {
     let (mut m, _) = pod_fixture(ty.clone());
     let payload = m.resources[0].payload.clone();
     let f = &mut m.functions[0];
@@ -1216,7 +1223,12 @@ fn pod_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, Candida
 }
 
 fn pod_mut_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, CandidatePlan) {
-    let (mut module, plan) = pod_window_fixture(distinct, read_first);
+    mutable_window_fixture(pod_window_fixture(distinct, read_first))
+}
+
+fn mutable_window_fixture(
+    (mut module, plan): (TypedModule, CandidatePlan),
+) -> (TypedModule, CandidatePlan) {
     let function = &mut module.functions[0];
     let Type::Address { mutable, .. } = &mut function.values[4] else {
         unreachable!("shared Store window fixture has an address result")
@@ -1400,6 +1412,254 @@ fn pod933_mutable_raw_and_wire_requests_have_exact_fresh_work_boundaries() {
         );
         check(lo).unwrap();
         println!("G9.3.3.3 mutable request wire={wire} N={lo}");
+    }
+}
+
+#[test]
+fn scalar934_nine_direct_elements_and_canonical_carriers_are_independent() {
+    let limits = Limits::default();
+    for scalar in [
+        Type::Bool,
+        Type::U8,
+        Type::U16,
+        Type::I32,
+        Type::I64,
+        Type::U64,
+        Type::Usize,
+        Type::F32,
+        Type::F64,
+    ] {
+        assert!(direct_scalar(&scalar));
+        let (module, plan) = pod_fixture(scalar.clone());
+        assert_eq!(
+            module.resources[0].name,
+            format!("@builtin:OwnedStore<{}>", scalar.name())
+        );
+        for result in pod_both(&module, &plan, &limits) {
+            result.unwrap();
+        }
+        let (module, plan) = mutable_window_fixture(plain_window_fixture(scalar, false, true));
+        for result in pod_both(&module, &plan, &limits) {
+            result.unwrap();
+        }
+    }
+    for forbidden in [
+        Type::Unit,
+        Type::Tuple(vec![Type::I32]),
+        Type::Array {
+            element: Box::new(Type::I32),
+            length: 1,
+        },
+        Type::ForeignHandle,
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        },
+    ] {
+        assert!(!direct_scalar(&forbidden));
+        assert!(
+            check_pod_element(
+                &forbidden,
+                &TargetProfile::host_llvm(),
+                None,
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+    }
+    let (mut module, plan) = pod_fixture(Type::U64);
+    module.resources[0].name = definition_name(&Type::Usize);
+    for result in pod_both(&module, &plan, &limits) {
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn scalar934_raw_wire_checks_complete_mutable_result_and_unused_producer() {
+    let limits = Limits::default();
+    let (module, plan) = mutable_window_fixture(plain_window_fixture(Type::I32, false, true));
+    for wrong in [
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        },
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I64),
+        },
+    ] {
+        let mut malformed = module.clone();
+        malformed.functions[0].values[4] = wrong;
+        for result in pod_both(&malformed, &plan, &limits) {
+            assert!(result.is_err());
+        }
+    }
+    let mut malformed = module.clone();
+    let function = &mut malformed.functions[0];
+    let extra = ValueId(function.values.len() as u32);
+    function.values.push(Type::I32);
+    function.blocks[0].instructions.insert(
+        5,
+        Instruction {
+            result: Some(extra),
+            kind: InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(2),
+                index: ValueId(3),
+            },
+            span: function.span,
+        },
+    );
+    let mut plan = plan;
+    plan.functions[0].holds.push(ValueHold {
+        value: extra,
+        roots: vec![],
+    });
+    for result in pod_both(&malformed, &plan, &limits) {
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn scalar934_actual_whole_store_window_rejects_same_root_and_forged_hold() {
+    let limits = Limits::default();
+    for (distinct, read_first, accept) in [
+        (false, false, false),
+        (false, true, true),
+        (true, false, true),
+    ] {
+        let (module, plan) =
+            mutable_window_fixture(plain_window_fixture(Type::I32, distinct, read_first));
+        for result in pod_both(&module, &plan, &limits) {
+            if accept {
+                result.unwrap();
+            } else {
+                assert_eq!(result.unwrap_err()[0].code, "E-BORROW-CONFLICT");
+            }
+        }
+    }
+    let (module, mut plan) = mutable_window_fixture(plain_window_fixture(Type::I32, true, false));
+    plan.functions[0].holds[4].roots = vec![HoldRoot::Local(LocalId(1))];
+    for result in pod_both(&module, &plan, &limits) {
+        assert_eq!(result.unwrap_err()[0].code, "E-VERIFY-HOLD");
+    }
+    for second_mutable in [false, true] {
+        let (mut module, mut plan) =
+            mutable_window_fixture(plain_window_fixture(Type::I32, false, false));
+        let function = &mut module.functions[0];
+        function.values[5] = Type::Address {
+            mutable: second_mutable,
+            inner: Box::new(Type::I32),
+        };
+        let index = ValueId(function.values.len() as u32);
+        function.values.push(Type::I64);
+        let instructions = &mut function.blocks[0].instructions;
+        let second = instructions
+            .iter()
+            .position(|instruction| {
+                matches!(instruction.kind, InstructionKind::OwnedStoreReserve { .. })
+            })
+            .unwrap();
+        instructions.insert(
+            second,
+            Instruction {
+                result: Some(index),
+                kind: InstructionKind::Constant(Constant::I64(1)),
+                span: function.span,
+            },
+        );
+        instructions[second + 1].kind = if second_mutable {
+            InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(2),
+                index,
+            }
+        } else {
+            InstructionKind::OwnedStoreBorrow {
+                store: ValueId(2),
+                index,
+            }
+        };
+        plan.functions[0].holds[5].roots = vec![HoldRoot::Local(LocalId(0))];
+        plan.functions[0].holds.push(ValueHold {
+            value: index,
+            roots: vec![],
+        });
+        for result in pod_both(&module, &plan, &limits) {
+            assert_eq!(result.unwrap_err()[0].code, "E-BORROW-CONFLICT");
+        }
+    }
+}
+
+#[test]
+fn scalar934_raw_wire_exact_fresh_request_budget() {
+    let (module, plan) = mutable_window_fixture(plain_window_fixture(Type::I32, false, true));
+    let limits = Limits::default();
+    for wire in [false, true] {
+        let check = |n| {
+            let selected = Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            };
+            let mut plan = plan.clone();
+            plan.module_fingerprint = module.fingerprint();
+            if wire {
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                verify_module_bytes(&bytes, &module.target, &selected)
+            } else {
+                verify_module(module.clone(), plan, &module.target, &selected)
+            }
+        };
+        let (mut lo, mut hi) = (0, limits.max_analysis_steps);
+        check(hi).unwrap();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if check(mid).is_ok() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        check(lo).unwrap();
+        assert_eq!(
+            check(lo - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        check(lo).unwrap();
+        println!("G9.3.4.3 scalar request wire={wire} N={lo}");
+    }
+}
+
+#[test]
+fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
+    let limits = Limits::default();
+    let (module, _) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    for owner in [
+        Type::Package {
+            name: "ScalarBag934".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Tuple(vec![store.clone()]),
+        Type::Enum {
+            name: "ScalarEnum934".into(),
+            variants: vec![("Own".into(), vec![store.clone()])],
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(store),
+        },
+    ] {
+        let (mut malformed, plan) = pod_fixture(Type::I32);
+        let span = malformed.functions[0].span;
+        malformed.functions[0].locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "unused_owner".into(),
+            ty: owner,
+            mutable: false,
+            span,
+        });
+        for result in pod_both(&malformed, &plan, &limits) {
+            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+        }
     }
 }
 
