@@ -179,6 +179,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
             .saturating_add(s.captures.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
+        value.option_variants.work(b)?;
         target_work(&value.held.targets, b)?;
         fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
@@ -211,7 +212,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     f.returned_variants.work(b)?;
-    if !f.none_values.is_empty() { fee(b, f.none_values.len())?; }
+    if !f.none_values.is_empty() {
+        fee(b, f.none_values.len())?;
+    }
 
     fee(
         b,
@@ -806,8 +809,15 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         return Ok(());
     };
-    for ty in f.parameters.iter().map(|p| &f.locals[p.0 as usize].ty).chain(std::iter::once(&f.return_type)) {
-        if option_address::candidate(ty) { fee(b, 96)?; }
+    for ty in f
+        .parameters
+        .iter()
+        .map(|p| &f.locals[p.0 as usize].ty)
+        .chain(std::iter::once(&f.return_type))
+    {
+        if option_address::candidate(ty) {
+            fee(b, 96)?;
+        }
     }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
@@ -1831,7 +1841,9 @@ fn transfer(
             state.locals.remove(local);
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
-        _ if option_transfer.is_some() => { out = option_transfer.unwrap(); }
+        _ if option_transfer.is_some() => {
+            out = option_transfer.unwrap();
+        }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in resources::uses(&i.kind) {
@@ -2677,10 +2689,16 @@ pub(super) fn derive(
                 if let Some((_, life)) = carrier(ty) {
                     if option_address::candidate(ty) {
                         fee(b, 96)?;
-                        if !option_address::signature(ty) { return Err(failure("Option activity has no exact shape")); }
+                        if !option_address::signature(ty) {
+                            return Err(failure("Option activity has no exact shape"));
+                        }
                         let mask = value.option_variants.mask();
-                        if mask == 0 { grounded = false; }
-                        if mask == 1 { continue; }
+                        if mask == 0 {
+                            grounded = false;
+                        }
+                        if mask == 1 {
+                            continue;
+                        }
                     }
                     fee(b, life.slots.len())?;
                     for slot in &life.slots {
@@ -2742,7 +2760,8 @@ pub(super) fn derive(
             fee(b, 1)?;
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
-            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32)) {
+            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32))
+            {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
                 ));
@@ -2973,7 +2992,7 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
-            if pure_copy::operation(&i.kind) {
+            if pure_copy::operation(&i.kind) && option_address::types(module, f, i, b)?.is_none() {
                 pure_copy::types(f, i, b)?;
             }
             match &i.kind {

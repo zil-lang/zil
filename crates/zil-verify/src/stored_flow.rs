@@ -648,7 +648,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
                 }
-                if pure_copy::operation(&i.kind) {
+                if pure_copy::operation(&i.kind)
+                    && option_address::types(module, f, i, b)?.is_none()
+                {
                     pure_copy::types(f, i, b)?;
                 }
             }
@@ -1250,7 +1252,9 @@ fn seed(
         let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
         if option_address::candidate(ty) {
             b.spend(96)?;
-            if option_address::signature(ty) { p.option_variants = option_address::Variants::parameter(position as u32, b)?; }
+            if option_address::signature(ty) {
+                p.option_variants = option_address::Variants::parameter(position as u32, b)?;
+            }
         }
         if fixed_environment(module, ty) {
             seed_environment(
@@ -1597,7 +1601,9 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
-            out.option_variants = summaries[function.0 as usize].returned_variants.substitute(arguments, values, b)?;
+            out.option_variants = summaries[function.0 as usize]
+                .returned_variants
+                .substitute(arguments, values, b)?;
             for (path, sources) in &summaries[function.0 as usize].result {
                 let mut p = Permission::default();
                 for source in sources {
@@ -1616,7 +1622,9 @@ fn step(
                 }
             }
         }
-        _ if option_transfer.is_some() => { out = option_transfer.unwrap(); }
+        _ if option_transfer.is_some() => {
+            out = option_transfer.unwrap();
+        }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in instruction_operands(&i.kind) {
@@ -2386,10 +2394,16 @@ fn summarize(
         if let Some((_, shape)) = qualified(ty) {
             if option_address::candidate(ty) {
                 b.spend(96)?;
-                if !option_address::signature(ty) { return Err(err("Option activity has no exact shape")); }
+                if !option_address::signature(ty) {
+                    return Err(err("Option activity has no exact shape"));
+                }
                 let mask = p.option_variants.mask();
-                if mask == 0 { summary.complete = false; }
-                if mask == 1 { continue; }
+                if mask == 0 {
+                    summary.complete = false;
+                }
+                if mask == 1 {
+                    continue;
+                }
             }
             for row in &shape.slots {
                 if leaf(p, &row.path, b)?.is_none_or(|p| p.sources.is_empty()) {
@@ -2432,7 +2446,9 @@ fn summarize(
         b.spend(1)?;
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
-            summary.returned_variants.join(&payload.option_variants, b)?;
+            summary
+                .returned_variants
+                .join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Address { .. }) {
                 result_row(&mut summary, &[], &payload.address.sources, b)?;
             }
