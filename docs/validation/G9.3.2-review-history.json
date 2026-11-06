@@ -43,7 +43,9 @@
     "production_source": "e3082d5985e1f7254ee1da5fc4fe568048741c5c",
     "result": "AcceptFiniteSlice",
     "coverage": "Independent prepaid RPO and tagged-local invalidation index; complete actual Content state and invalidation timing retained, no Analyze proof reused.",
-    "validation": "Read-only code review; author state/diagnostic comparisons and full root checks are separate"
+    "validation": "Read-only code review; author state/diagnostic comparisons and full root checks are separate",
+    "delivery_source": "a2c38f749a23bc6f29a71491cd0c4616040b6bc0",
+    "final_rebind": "Reviewer read final cfg(test) state/guard/invalidations and receipt-only delta; production unchanged from e3082d598. No remaining code-review blocker."
   },
   "machine_stack_repair": {
     "reviewer": "pod_stack_advice (astra high, nonauthor; difficult CFG/snapshot safety only)",
