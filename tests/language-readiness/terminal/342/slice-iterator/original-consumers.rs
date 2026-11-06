@@ -73,6 +73,13 @@ fn g3_4_1_slice_iter_original_source_native_result_42() {
 
 #[test]
 fn g3_4_1_slice_iter_actual_target_invalidation_is_rejected() {
+    let baseline = compile_source(&source(ORIGINAL), &CompileOptions::default());
+    assert_eq!(
+        baseline.status,
+        ResultCategory::Success,
+        "original source must be accepted before testing target invalidation: {}",
+        baseline.to_json()
+    );
     let invalid = ORIGINAL
         .replace("let values:[i64;3]", "var values:[i64;3]")
         .replace("    match first{", "    values[0]=99;\n    match first{");
