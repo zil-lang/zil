@@ -55,6 +55,7 @@ fn g931_real_source_native_utf8_exact_bytes_and_explicit_allocation() {
             for (name, text, entry) in [
                 ("literal", LITERAL, Some("result".into())),
                 ("owned", OWNED, None),
+                ("capacity", include_str!("capacity-invalid.zil"), None),
             ] {
                 let input = temp
                     .0
@@ -83,11 +84,18 @@ fn g931_real_source_native_utf8_exact_bytes_and_explicit_allocation() {
                 let output = Command::new(&report.artifacts["executable"])
                     .output()
                     .unwrap();
-                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(
+                    output.status.code(),
+                    Some(if name == "capacity" { 1 } else { 0 }),
+                    "{output:?}"
+                );
                 let audit = String::from_utf8(output.stderr).unwrap();
                 assert!(audit.contains("\"live\":0"), "{audit}");
                 if name == "literal" {
                     assert_eq!(output.stdout, format!("{expected}\n").as_bytes());
+                    assert!(audit.contains("\"alloc_calls\":0"), "{audit}");
+                } else if name == "capacity" {
+                    assert!(output.stdout.is_empty());
                     assert!(audit.contains("\"alloc_calls\":0"), "{audit}");
                 } else {
                     assert!(output.stdout.is_empty());
@@ -117,8 +125,9 @@ fn g931_two_module_static_returns_publish_explicit_verified_origin() {
     let entry = temp.0.join("main.zil");
     fs::write(&library, include_str!("static_library.zil")).unwrap();
     fs::write(&entry,"import labels\nfn result()->i64{let text=labels.forward(labels.title());if labels.empty().len()!=0{return -1}return i64(text[0])*1000+text.len()}").unwrap();
+    let mut session = CompilationSession::default();
     for backend in backends() {
-        let report = CompilationSession::default().compile_path(
+        let report = session.compile_path(
             &entry,
             &CompileOptions {
                 stop_after: Stage::Build,
@@ -159,9 +168,9 @@ fn g931_two_module_static_returns_publish_explicit_verified_origin() {
         assert_eq!(output.stdout, b"230010\n");
     }
     // Changing an export body to a local address cannot acquire static origin
-    // from its unchanged signature or a previous session's published interface.
+    // from its unchanged signature or this warm session's previously published interface.
     fs::write(&library,"pub fn title()->&[u8]{let local=[65u8];return &local[..]}pub fn forward(value:&[u8])->&[u8]{return value}pub fn empty()->&[u8]{return \"\"}").unwrap();
-    let denied = CompilationSession::default().compile_path(&entry, &CompileOptions::default());
+    let denied = session.compile_path(&entry, &CompileOptions::default());
     assert_eq!(
         denied.status,
         ResultCategory::SafeReject,
@@ -205,4 +214,35 @@ fn g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type() {
     assert_eq!(ct.phase, Phase::Ct, "{}", ct.to_json());
     assert_eq!(ct.diagnostics[0].code, "E-CT-FORBIDDEN");
     assert!(!ct.artifacts.contains_key("llvm"));
+}
+
+#[test]
+fn g931_source_byte_budget_exact_and_fresh_retry() {
+    let input = source("fn result()->&[u8]{return \"按钮🙂\"}");
+    let boundary = input.text.len();
+    for n in [boundary, boundary - 1, boundary] {
+        let report = compile_source(
+            &input,
+            &CompileOptions {
+                stop_after: Stage::Types,
+                limits: zil_base::Limits {
+                    max_source_bytes: n,
+                    ..zil_base::Limits::default()
+                },
+                ..CompileOptions::default()
+            },
+        );
+        let expected = if n == boundary {
+            ResultCategory::Success
+        } else {
+            ResultCategory::ResourceLimit
+        };
+        assert_eq!(
+            report.status,
+            expected,
+            "N={boundary}, n={n}: {}",
+            report.to_json()
+        );
+    }
+    println!("UTF8 actual Source byte budget N={boundary}; N-1 ResourceLimit; fresh N accepted");
 }
