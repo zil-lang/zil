@@ -56,9 +56,7 @@ fn safety_reject(
     cursor: &str,
     consumer: &str,
     other: &str,
-    phase: Phase,
-    code: &str,
-    message: &str,
+    (phase, code, message): (Phase, &str, &str),
 ) {
     // A rejected mutation is meaningful only after the unmodified Source succeeds.
     canonical_success();
@@ -157,9 +155,11 @@ fn g241_live_result_blocks_overlapping_next_and_parent_overwrite() {
         CURSOR,
         CONSUMER,
         OTHER,
-        Phase::Analyze,
-        "E-ANALYZE-IR",
-        "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        (
+            Phase::Analyze,
+            "E-ANALYZE-IR",
+            "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        ),
     );
     let overwrite = "import api;import cursor;fn main()->i32{var c=cursor.make(20,22);let first=c.next();c=cursor.make(1,2);match first{Option.Some(v)=>{return *v},Option.None()=>{return 0}}}";
     safety_reject(
@@ -168,9 +168,11 @@ fn g241_live_result_blocks_overlapping_next_and_parent_overwrite() {
         CURSOR,
         CONSUMER,
         OTHER,
-        Phase::Analyze,
-        "E-ANALYZE-IR",
-        "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        (
+            Phase::Analyze,
+            "E-ANALYZE-IR",
+            "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        ),
     );
 }
 
@@ -214,9 +216,11 @@ fn g241_impl_return_must_use_receiver_root_even_when_unused() {
         &local,
         CONSUMER,
         OTHER,
-        Phase::Expand,
-        "E-GENERIC-ARGUMENT",
-        "retained reference has no actual declared source class",
+        (
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            "retained reference has no actual declared source class",
+        ),
     );
     let bad = "import api;struct Pair{left:i32;right:i32}impl api.LendingIterator for Pair{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{let local=42;return Option::<&'p i32>.Some(&local)}}fn main(){}";
     let report = source_report(bad, API, CURSOR, CONSUMER, OTHER);
