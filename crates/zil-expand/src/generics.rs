@@ -1073,7 +1073,7 @@ impl<'a> Engine<'a> {
                 None => self.runtime_call_anchors(&item)?,
             };
             let source_life_provider = origin.is_some_and(|origin| origin.provider)
-                && matches!(&item.kind, ItemKind::Function(function) if lifetimes::only_life(function));
+                && matches!(&item.kind, ItemKind::Function(function) if super::lifetimes::only_life(function));
             let previous = std::mem::replace(&mut self.current_member_calls, member_calls);
             let processed = self.with_origin(origin, |engine| engine.item(&mut item));
             self.current_member_calls = previous;
