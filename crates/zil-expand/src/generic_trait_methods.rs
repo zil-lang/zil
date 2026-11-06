@@ -1116,12 +1116,16 @@ impl Engine<'_> {
                 },
             );
         }
-        callee.kind = ExprKind::TypeApply {
-            callee: Box::new(Expr {
-                span: callee.span,
-                kind: ExprKind::Name(provider),
-            }),
-            arguments: args,
+        callee.kind = if args.is_empty() {
+            ExprKind::Name(provider)
+        } else {
+            ExprKind::TypeApply {
+                callee: Box::new(Expr {
+                    span: callee.span,
+                    kind: ExprKind::Name(provider),
+                }),
+                arguments: args,
+            }
         };
         Ok(())
     }

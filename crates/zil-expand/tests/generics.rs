@@ -50,6 +50,14 @@ fn unused_lending_trait_cannot_claim_copy_for_its_referent() {
 }
 
 #[test]
+fn unused_symbolic_associated_option_constructor_keeps_its_bound() {
+    let text = "trait L{type Item:Copy;}fn wrap<I:L>(item:I.Item)->Option<I.Item>{return Option::<I.Item>.Some(item)}fn main(){}";
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-option-symbolic.zil", text);
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{errors:?}"));
+}
+
+#[test]
 fn lending_trait_relation_work_has_exact_request_boundary() {
     let text = "struct Reader{value:i32}trait Read{fn get<life a,life b>(self:&'a Self,other:&'b i32)->&'a i32;}impl Read for Reader{fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return &self.value}}fn main(){}";
     let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-budget.zil", text);
