@@ -1228,6 +1228,44 @@ impl<'a> Engine<'a> {
         let classes = produced.classes;
         self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
+            // Caller pattern elaboration needs the family and payload layout,
+            // not the callee's lexical life name. This private layout hint
+            // grants no relation: the actual qualified type and its complete
+            // catalog/signature remain independent kernel inputs.
+            if template == options::TEMPLATE
+                && matches!(
+                    qualified_actuals.get(&0).map(|actual| &actual.ty),
+                    Some(zil_ir::Type::Address { mutable: false, .. })
+                )
+            {
+                for argument in arguments.iter() {
+                    if let GenericArg::Type(ty) = argument {
+                        self.budget.ty(ty)?;
+                    }
+                }
+                self.budget.text(template, span)?;
+                self.budget.text(&generated, span)?;
+                let mut hint = arguments.to_vec();
+                if let [
+                    GenericArg::Type(TypeRef {
+                        kind: TypeKind::Reference { lifetime, .. },
+                        ..
+                    }),
+                ] = hint.as_mut_slice()
+                {
+                    *lifetime = None;
+                }
+                self.instance_types.insert(
+                    generated.clone(),
+                    TypeRef {
+                        span,
+                        kind: TypeKind::Named {
+                            path: vec![template.to_owned()],
+                            args: hint,
+                        },
+                    },
+                );
+            }
             match &mut instance.kind {
                 ItemKind::Aggregate(physical) => physical.generics.clear(),
                 ItemKind::Enum(physical) => physical.generics.clear(),
