@@ -8,6 +8,9 @@ use zil_ir::*;
 
 #[derive(Default)]
 pub(crate) struct Products {
+    /// Names emitted from actual trait member origins by the generic normalizer.
+    /// A generated spelling alone does not establish provider provenance.
+    pub(crate) method_providers: BTreeSet<String>,
     pub(crate) runtime_instances: Vec<crate::runtime_ct::RuntimeInstance>,
     pub(crate) closure_contexts: closure_context::Ledger,
     pub(crate) callable_contexts: callable_context::Ledger,

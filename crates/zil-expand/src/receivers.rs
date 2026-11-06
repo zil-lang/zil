@@ -151,12 +151,19 @@ impl Expander<'_> {
                     Vec::new()
                 }
             };
+        // The normalizer records actual lifted member origins. A retained
+        // concrete trait premise is allowed only on its life-only provider;
+        // the premise has already been checked in the provider definition.
+        let life_method_provider = f.name.starts_with("$generic_method_")
+            && self
+                .method_providers
+                .is_some_and(|providers| providers.contains(&f.name));
         if (callable_parameters.is_empty()
             && state_parameters.is_empty()
             && type_parameters.is_empty()
             && !f.generics.is_empty()
             && !lifetimes::only_life(f))
-            || !f.where_clause.is_empty()
+            || (!f.where_clause.is_empty() && !life_method_provider)
         {
             self.unsupported("generic function specialization", f.span);
         }

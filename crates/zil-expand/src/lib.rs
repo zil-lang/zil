@@ -315,6 +315,7 @@ fn expand_with_map_limits_target_impl(
         &products.member_patterns,
         &products.dynamic,
         &products.storage,
+        &products.method_providers,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
@@ -378,6 +379,7 @@ pub fn expand_program_module_with_limits_target(
         &products.member_patterns,
         &products.dynamic,
         &products.storage,
+        &products.method_providers,
     )?;
     if products.metered() {
         debit_trait_lowering(&expanded, &mut lower_limits, 1)?;
@@ -656,6 +658,7 @@ fn expand_program_with_limits_target_impl(
                 &products.member_patterns,
                 &products.dynamic,
                 &products.storage,
+                &products.method_providers,
             ),
             (&remaining, &remaining),
             Some(&defaults),
@@ -824,6 +827,7 @@ fn expand_inner(
     member_patterns: &BTreeMap<String, s::TypeRef>,
     dynamic_catalog: &generics::dynamic::Catalog,
     storage_catalog: &stored_types::Catalog,
+    method_providers: &BTreeSet<String>,
 ) -> CompileResult<ExpandedModule> {
     let declarations = declaration_index(std::iter::once(module));
     let legacy_limits = Limits::default();
@@ -846,6 +850,7 @@ fn expand_inner(
             member_patterns,
             dynamic_catalog,
             storage_catalog,
+            method_providers,
         ),
         (lowering_limits, owner_limits),
         None,
@@ -865,6 +870,7 @@ type ProjectLowering<'a> = (
     &'a BTreeMap<String, s::TypeRef>,
     &'a generics::dynamic::Catalog,
     &'a stored_types::Catalog,
+    &'a BTreeSet<String>,
 );
 fn declaration_index<'a>(modules: impl IntoIterator<Item = &'a s::Module>) -> Declarations<'a> {
     let mut declarations = BTreeMap::new();
@@ -895,6 +901,7 @@ fn expand_inner_project(
         member_patterns,
         dynamic_catalog,
         storage_catalog,
+        method_providers,
     ) = project;
     let mut e = Expander::new(
         module.id,
@@ -917,6 +924,7 @@ fn expand_inner_project(
     e.member_patterns = Some(member_patterns);
     e.dynamic_catalog = Some(dynamic_catalog);
     e.storage_catalog = Some(storage_catalog);
+    e.method_providers = Some(method_providers);
     e.collect_resource_drops(module);
     e.collect_static_traits(
         module,
@@ -1005,6 +1013,7 @@ struct Expander<'a> {
     member_patterns: Option<&'a BTreeMap<String, s::TypeRef>>,
     dynamic_catalog: Option<&'a generics::dynamic::Catalog>,
     storage_catalog: Option<&'a stored_types::Catalog>,
+    method_providers: Option<&'a BTreeSet<String>>,
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
@@ -1061,6 +1070,7 @@ impl<'a> Expander<'a> {
             member_patterns: None,
             dynamic_catalog: None,
             storage_catalog: None,
+            method_providers: None,
             dyn_method_emissions: Vec::new(),
             closure_context_emissions: Vec::new(),
             callable_context_emissions: Vec::new(),
