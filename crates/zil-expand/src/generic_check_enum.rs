@@ -627,12 +627,14 @@ impl Check<'_, '_, '_> {
             return Ok(None);
         }
         let actual = self.alias_result_copy(value.span)?;
-        Ok((!actual.is_empty()).then_some(actual))
+        // An empty set is an unknown borrowed payload, not proof that Some
+        // carries no reference. Binding that payload must fail closed.
+        Ok(Some(actual))
     }
     fn begin_option_payload(&mut self, pattern: &Pattern, sources: Option<&[usize]>) -> R<()> {
         if let Some(sources) = sources
             && matches!(&pattern.kind, PatternKind::Constructor { path, arguments }
-                if path.as_slice() == ["Option", "Some"]
+                if path.last().is_some_and(|name| name == "Some")
                     && matches!(arguments.as_slice(), [Pattern { kind: PatternKind::Name(_), .. }]))
         {
             self.alias_option_payload_begin(sources, pattern.span)?;
