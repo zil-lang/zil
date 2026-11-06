@@ -752,6 +752,15 @@ pub(crate) fn rewrite_calls(
     substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    rewrite_calls_materialized(item, symbolic, substitutions, substitutions, budget)
+}
+pub(crate) fn rewrite_calls_materialized(
+    item: &mut Item,
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    host_actuals: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     let mut resolved = BTreeMap::new();
     let mut static_hosts = BTreeSet::new();
     let mut static_direct = BTreeSet::new();
@@ -791,7 +800,7 @@ pub(crate) fn rewrite_calls(
         &resolved,
         &static_hosts,
         &static_direct,
-        substitutions,
+        host_actuals,
         budget,
     )
 }
