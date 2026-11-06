@@ -433,6 +433,18 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { .. })
 }
 
+/// Builder sees only Resolver output whose complete nominal inventory was
+/// authenticated. This enables value-pattern lowering of the sealed sum, not
+/// an ordinary Copy classification or a target root.
+pub(super) fn option_address_value(
+    ty: &Type,
+    left: &mut usize,
+    limits: &Limits,
+    span: Span,
+) -> R<bool> {
+    option_address::shape(ty, left, limits.max_call_depth, span)
+}
+
 /// Narrow value-only qualification for an actual nested stored field. This
 /// never enables an Address/Desc, owning leaf, or generic Copy classification.
 pub(super) fn pure_value(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
