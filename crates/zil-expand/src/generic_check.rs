@@ -194,7 +194,11 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             .unwrap_or_else(|| unit(function.span)),
         budget,
     };
-    if super::super::lifetimes::copy_life(function) || check.class_scope.active {
+    if (function.name.starts_with("$generic_method_")
+        && super::super::lifetimes::only_life(function))
+        || super::super::lifetimes::copy_life(function)
+        || check.class_scope.active
+    {
         let mut remaining = check.budget.remaining_limits();
         let life =
             super::super::lifetimes::contract(function, None, &mut remaining.max_analysis_steps)?
