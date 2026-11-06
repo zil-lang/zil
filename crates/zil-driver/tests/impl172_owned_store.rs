@@ -218,7 +218,6 @@ fn source_guards_reject_missing_context_and_capture() {
   (format!("{PACKAGE} fn main()->i32{{let s=store_new();return 0}}"),ResultCategory::SafeReject,"store_new requires"),
   (format!("{PACKAGE} fn main()->i32{{let s=empty();let f=()=>i32(store_len(s));return f()}}"),ResultCategory::Unsupported,"Store capture requires"),
   ("resource Z{} package Empty{manages z:Z} fn main()->i32{let s:Store<Empty>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
-  ("fn main()->i32{let s:Store<i32>=store_new();return 0}".into(),ResultCategory::Unsupported,"nonzero complete direct-Managed"),
  ] {
   let result=check(&source);assert_eq!(result.status,category,"{}",result.to_json());
   let code=if category==ResultCategory::SafeReject {"E-OWNED-STORE-TYPE"} else {"E-UNSUPPORTED"};
@@ -965,4 +964,16 @@ fn raw_wire_store_is_not_byte_storage_and_pop_result_keeps_cleanup_debt() {
         "E-VERIFY-RESOURCE",
         "outstanding",
     );
+}
+
+#[test]
+fn g934_original_scalar_store_source_is_supported() {
+    let report = check("fn main()->i32{let s:Store<i32>=store_new();return 0}");
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }

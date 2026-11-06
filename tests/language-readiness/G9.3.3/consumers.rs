@@ -2,6 +2,15 @@
 use super::*;
 
 pub(super) fn native_all_backends(label: &str, source: &str, expected: &[u8], imported: bool) {
+    native_entry_all_backends(label, source, expected, imported, None);
+}
+pub(super) fn native_entry_all_backends(
+    label: &str,
+    source: &str,
+    expected: &[u8],
+    imported: bool,
+    entry: Option<&str>,
+) {
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
         backends.push(NativeBackend::LlvmApi);
@@ -14,6 +23,7 @@ pub(super) fn native_all_backends(label: &str, source: &str, expected: &[u8], im
             let exe = dir.join("program");
             let options = CompileOptions {
                 backend,
+                entry: entry.map(str::to_owned),
                 stop_after: Stage::Build,
                 optimization,
                 output: Some(exe.clone()),
@@ -140,12 +150,13 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
 
 #[test]
 fn g933_source_derived_raw_wire_actual_receiver_conflict() {
+    source_derived_receiver_conflict(
+        "struct Cell{value:i32}fn main()->i32{let first:Store<Cell>=store_new();let second:Store<Cell>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,Cell{value:20});store_push(second,Cell{value:22});let a=store_at_mut(first,0);let b=store_at_mut(second,0);b.value=23;return a.value+b.value}",
+    );
+}
+pub(super) fn source_derived_receiver_conflict(text: &str) {
     use std::collections::BTreeSet;
 
-    // The source is accepted before any raw mutation. Both windows remain
-    // live through the final expression, and the right-hand field write is
-    // deliberately simple so its address lineage is explicit in TypedIR.
-    let text = "struct Cell{value:i32}fn main()->i32{let first:Store<Cell>=store_new();let second:Store<Cell>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,Cell{value:20});store_push(second,Cell{value:22});let a=store_at_mut(first,0);let b=store_at_mut(second,0);b.value=23;return a.value+b.value}";
     let (mut module, mut plan) = candidate(text);
     let mut changed_borrow = None;
     for (function_index, function) in module.functions.iter_mut().enumerate() {

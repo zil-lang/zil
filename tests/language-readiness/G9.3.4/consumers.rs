@@ -7,7 +7,7 @@ fn g934_all_scalar_values_mutate_and_roundtrip_full_error_payloads() {
         ("u8", "u8(41)", "u8(42)"),
         ("u16", "u16(40000)", "u16(40001)"),
         ("i32", "41", "42"),
-        ("i64", "-41i64", "-42i64"),
+        ("i64", "i64(-41)", "i64(-42)"),
         ("u64", "18446744073709551613u64", "18446744073709551614u64"),
         ("usize", "2147483648usize", "2147483649usize"),
         ("f32", "1.25f32", "2.5f32"),
@@ -48,4 +48,22 @@ fn g934_scalar_windows_retain_actual_parent() {
             r.to_json()
         );
     }
+}
+
+#[test]
+fn g934_unsigned_value_above_signed_range_reaches_actual_stdout() {
+    let text = "fn result()->u64{let values:Store<u64>=store_new();if !store_reserve(values,1){return 0u64}store_push(values,18446744073709551613u64);let view=store_at_mut(values,0);*view+=1u64;match store_pop(values){.ok(value)=>{return value},.err(_)=>{return 0u64}}}";
+    super::g933_consumers::native_entry_all_backends(
+        "scalar-full-u64",
+        text,
+        b"18446744073709551614\n",
+        false,
+        Some("result"),
+    );
+}
+#[test]
+fn g934_scalar_source_derived_raw_wire_parent_conflict() {
+    super::g933_consumers::source_derived_receiver_conflict(
+        "fn main()->u64{let first:Store<u64>=store_new();let second:Store<u64>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,20u64);store_push(second,22u64);let a=store_at_mut(first,0);let b=store_at_mut(second,0);*b=23u64;return *a+*b}",
+    );
 }
