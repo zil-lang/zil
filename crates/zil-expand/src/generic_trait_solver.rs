@@ -796,6 +796,60 @@ fn overlap_terms(
 }
 
 impl<'a> Index<'a> {
+    /// Select a static trait declaration for an unused generic body's type
+    /// host. The origin is the declaration's lexical owner, not a generated
+    /// provider name. Concrete selection still requires a committed impl;
+    /// recipe selection still proves every declared premise.
+    pub(super) fn definition_static_method(
+        &self,
+        actual: &TypeRef,
+        name: &str,
+        budget: &mut Budget<'_>,
+        span: Span,
+    ) -> R<Option<(Function, Option<origins::Origin>)>> {
+        let concrete = if let Some(host) = plain(actual) {
+            self.concrete_method(host, name, budget, span)?
+        } else {
+            None
+        };
+        if let Some((target, signature)) = concrete {
+            if signature.params.first().is_some_and(|p| p.name == "self") {
+                return Err(error(span, "receiver method requires a value host"));
+            }
+            for (key, host) in &self.implementations {
+                budget.node(span, 0)?;
+                budget.text(host, span)?;
+                if plain(actual) != Some(*host) {
+                    continue;
+                }
+                let reference = self.actual_reference(key, budget, span)?;
+                let (owner, declaration) = self.declaration_item(&reference);
+                for member in &declaration.members {
+                    budget.node(member.span, 0)?;
+                    let ItemKind::Function(method) = &member.kind else {
+                        continue;
+                    };
+                    budget.text(&method.name, member.span)?;
+                    let candidate =
+                        trait_instances::method_name(&reference, &method.name, budget, span)?;
+                    budget.text(&target, span)?;
+                    if candidate == target {
+                        return Ok(Some((signature, self.origin(owner, budget)?)));
+                    }
+                }
+            }
+            return Err(error(span, "selected static trait declaration origin absent"));
+        }
+        let Some((_, signature, witness)) = self.recipe_method(actual, name, budget, span)? else {
+            return Ok(None);
+        };
+        if signature.params.first().is_some_and(|p| p.name == "self") {
+            return Err(error(span, "receiver method requires a value host"));
+        }
+        let (owner, _) = self.declaration_item(&witness.reference);
+        Ok(Some((signature, self.origin(owner, budget)?)))
+    }
+
     pub(crate) fn recipe_method(
         &self,
         actual: &TypeRef,
