@@ -251,6 +251,9 @@ pub(super) fn prepare(
             let substitutions = BTreeMap::from([("Self".into(), implementation.target.clone())]);
             budget.substituted_item(member, &substitutions)?;
             let mut lifted = member.clone();
+            // A public factory may return a private nominal, but it cannot
+            // make that nominal's inherent members externally callable.
+            lifted.public = host_item.public && member.public;
             substitute_item(&mut lifted, &substitutions)?;
             let ItemKind::Function(lifted_function) = &mut lifted.kind else {
                 unreachable!()
@@ -283,7 +286,7 @@ pub(super) fn prepare(
                 arguments,
                 receiver: borrow,
                 module: origin.declaration.module,
-                public: member.public,
+                public: host_item.public && member.public,
                 scoped: implementation
                     .generics
                     .iter()
