@@ -1319,7 +1319,12 @@ fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
         span,
     };
     let original = f.blocks[0].instructions.clone();
-    let mut instructions = original[..2].to_vec();
+    let mut instructions = vec![
+        op(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(None, InstructionKind::StorageLive(LocalId(0))),
+        op(None, InstructionKind::StorageLive(LocalId(1))),
+    ];
+    instructions.extend_from_slice(&original[..2]);
     instructions.extend([
         op(
             Some(2),
@@ -1362,11 +1367,21 @@ fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
         ),
     ]);
     instructions.extend_from_slice(&original[2..]);
+    instructions.extend([
+        op(None, InstructionKind::StorageDead(LocalId(1))),
+        op(None, InstructionKind::StorageDead(LocalId(0))),
+        op(
+            None,
+            InstructionKind::ScopeExit {
+                scope: ScopeId(0),
+                kind: CleanupExitKind::Return,
+            },
+        ),
+    ]);
     f.blocks[0].instructions = instructions;
     let mut holds = vec![vec![]; f.values.len()];
     holds[2] = vec![HoldRoot::Local(LocalId(0))];
-    let mut plan = pod_plan(&m, holds);
-    plan.functions[0].blocks[0].initialized_out = vec![LocalId(1)];
+    let plan = pod_plan(&m, holds);
     (m, plan)
 }
 
