@@ -303,6 +303,7 @@ pub(super) fn prepare(
 impl Engine<'_> {
     fn prepare_inherent_signature(&mut self, name: &str, span: Span) -> R<()> {
         self.budget.text(name, span)?;
+        self.stored_lookup_fee(self.products.storage.functions.len(), name.len(), span)?;
         if self.products.storage.functions.contains_key(name) {
             return Ok(());
         }
@@ -487,6 +488,13 @@ impl Engine<'_> {
         let mut types = Vec::new();
         for (_, formal) in &method.arguments {
             self.budget.text(formal, expression.span)?;
+            self.budget.identity_work(
+                source_arguments
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(formal.len().saturating_add(1)),
+                expression.span,
+            )?;
             let actual = source_arguments.get(formal).ok_or_else(|| {
                 error(
                     expression.span,
@@ -514,7 +522,15 @@ impl Engine<'_> {
                     )),
                 })
                 .collect::<R<Vec<_>>>()?;
-            let concrete = self.instantiate(&template, actuals, expression.span)?;
+            // A life-only member is an ordinary retained function, not a
+            // monomorphization template. Its full source scope survives in
+            // the pending header exactly as for other ordinary life helpers.
+            let concrete = if actuals.is_empty() && !self.templates.contains_key(&template) {
+                self.budget.text(&template, expression.span)?;
+                template.clone()
+            } else {
+                self.instantiate(&template, actuals, expression.span)?
+            };
             self.prepare_inherent_signature(&concrete, expression.span)?;
             Some(concrete)
         } else {

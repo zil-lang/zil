@@ -147,3 +147,69 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
         }
     }
 }
+
+#[test]
+fn generic_inherent_visibility_uses_the_declaring_module() {
+    for public in [true, false] {
+        let declaration = format!(
+            "pub struct Box<T:Copy>{{pub value:T}} impl<T:Copy> Box<T>{{{}fn get(self:&Self)->T{{return self.value}}}}",
+            if public { "pub " } else { "" }
+        );
+        let sources = [
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                "import data\nfn result()->i32{let value=data.Box::<i32>{value:42};return value.get()}",
+            ),
+            SourceUnit::new(FileId(1), ModuleId(1), "data.zil", declaration),
+        ];
+        let syntax = sources
+            .iter()
+            .map(|source| zil_syntax::parse(source).into_result().unwrap())
+            .collect::<Vec<_>>();
+        let imports = [
+            vec![zil_ir::CoreImport {
+                alias: "data".into(),
+                module: ModuleId(1),
+                span: syntax[0].span,
+            }],
+            vec![],
+        ];
+        let aliases = std::collections::BTreeMap::from([(vec!["data".into()], ModuleId(1))]);
+        let result = zil_expand::expand_program_with_limits_target_context(
+            &sources,
+            &syntax.iter().collect::<Vec<_>>(),
+            &imports,
+            &Limits::default(),
+            &zil_base::TargetProfile::default(),
+            zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &aliases,
+                declarations: zil_expand::source_context::DeclarationPlacement::Original,
+            },
+        );
+        if public {
+            result.unwrap_or_else(|errors| panic!("{errors:#?}"));
+        } else {
+            let errors = result.unwrap_err();
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.phase == Phase::Expand && error.message.contains("private")),
+                "{errors:#?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn life_only_inherent_member_keeps_the_ordinary_retained_function_path() {
+    let source = "struct Cursor<life s>{slice:&'s[i64]} impl<life s> Cursor<'s>{fn len(self:&Self)->i64{return self.slice.len()}} fn make<life s>(p:&'s[i64])->Cursor<'s>{return Cursor::<'s>{slice:p}} fn result()->i64{let a:[i64;1]=[42];let c=make(&a[..]);return c.len()}";
+    let core = expand(source).unwrap_or_else(|errors| panic!("{errors:#?}"));
+    assert!(
+        core.core.unsupported.is_empty(),
+        "{:?}",
+        core.core.unsupported
+    );
+}
