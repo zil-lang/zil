@@ -62,7 +62,7 @@ fn g241_std_iter_resolves_real_trait_and_generic_consumer() {
                 report
                     .source_files
                     .values()
-                    .any(|p| p.replace('\\', "/").ends_with("std/iter.zil")),
+                    .any(|p| p == "<std.iter>"),
                 "{}",
                 report.to_json()
             );
