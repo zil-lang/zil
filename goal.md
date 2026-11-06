@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** G3.4.1（共享借入迭代）与 G9.3.1（普通 UTF8 文本入口）已由 PR48 合入。下一优先 G9.3.2 通用动态 POD 集合，再按真实库 API 补 trait/关联项、dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 仍坚持 GPUI/GPU 方向。实现与独审采用 sol high，不把功能通过当作 Rust 成本优势。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G9.3.2 普通 POD 动态集合与原大值 O0 修复已由 [PR49 验收][e-pr49] 合入；G3.4.1 共享借入迭代、G9.3.1 普通 UTF8 入口已交付。下一批 G2.4.1 补 trait 逐调用 lending iterator，复用已有关联 Item 和 Option 共享结果，再推进 dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 保持 GPUI/GPU 方向。实现与常规独审采用 sol high，疑难问题才交 Astra。
 
 ## G1 · 基础类型与模式
 
@@ -42,7 +42,16 @@
 | G2.1 | 有限const、supertrait、泛型trait/impl、关联类型/常量、默认体及泛型接收者方法 | 已合入 | — | — | [已合入证据][e37]；一般约束方程另列。 |
 | G2.2 | 混合life/F helper、独立Invocation关系与未用声明检查，贯通两核及原生 | 已合入 | — | — | [本批验收][e41]；混合 life/F helper、独立 Invocation 与未用声明检查已通过共同验收。 |
 | G2.3 | 一般关联投影、类型/Self依赖的常量表达式、约束蕴含和循环诊断 | 部分实现 | P1 | 待派 | G2.3.1 有限 Self 依赖常量已由 PR39 [合入][e39]；一般投影、泛型及 Drop 组合仍缺。 |
-| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 按需依赖 G2.3、G3.3、G3.4；保留定义期义务检查。 |
+| G2.4 | 更一般life/lending、符号泛型方法和静态关联函数；一般/blanket/primitive/enum impl及更广supertrait实参组合 | 部分实现 | P1 | 待派 | 下一批 G2.4.1 先接普通 trait 的逐调用 lending iterator；其余依赖 G2.3、G3.4，保留定义期义务。 |
+
+<details>
+<summary>G2.4 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 待执行 | P0 | 待派 · sol high | 已定位 trait scope 的 life 拒绝；先更新具名合同，再接 std.iter、跨模块 helper、两个 provider 与活借用反例。复用 G3.4.1 的 Option 共享地址路径；GAT、impl life 和一般可变 holder 另列。 |
+
+</details>
 
 ## G3 · 借用、拥有与生命周期
 
@@ -197,7 +206,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。动态 POD 集合见 G9.3.2；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。G9.3.2 已交付普通 POD Record 动态集合；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
 | G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P2 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
 | G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P2 | 待派 | 后续 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
 | G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P2 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
@@ -208,17 +217,17 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
-| G9.3.2 | 普通 POD 动态集合与真实借入视图 | 进行中 | P0 | root 集成 / sol high 并行 | [冻结合同](https://github.com/zil-lang/zil/blob/148014641f9244d5814373e5adaacd4a013676fe/changes/G9.3.2-pod-store.md)：普通 struct 的 std.store、reserve/push/pop/shared view，含大 Copy 协议；四路源码已备份并通过独审；原大元素 O0/O2、复杂协议和 API 共同 25 项通过，当前重跑整仓验收。 |
+| G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 
 <details>
 <summary>G9.3.2 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.2.1 | 普通 POD 与 StoreElement 模板、Source/Types 接入 | 实现待验 | P0 | pod_source · sol high | 已推源码 2fd24558a、独审通过；真实 std.store 首轮通过，待共同全量验收。 |
-| G9.3.2.2 | Analyze 独立准入及实际 Store 借用窗口 | 实现待验 | P0 | pod_kernels · sol high | 独审通过；完整资格、实际根及预算内收敛已测，待整仓验收。 |
-| G9.3.2.3 | Verify 独立准入及候选复核 | 实现待验 | P0 | pod_verify · sol high | 独审通过；raw/Wire、实际失效与独立预算优化已测，待整仓验收。 |
-| G9.3.2.4 | LLVM 完整 Copy 协议与大元素内存路径 | 实现待验 | P0 | pod_machine · sol high | 大值协议、一次释放及默认栈 O0/O2 通过；栈槽复用经 Astra 疑难独审，待整仓验收。 |
+| G9.3.2.1 | 普通 POD 与 StoreElement 模板、Source/Types 接入 | 已合入 | — | — | [PR49 验收][e-pr49]：Source/Types 与实际 std.store 入口、完整元素资格和未用定义反例通过。 |
+| G9.3.2.2 | Analyze 独立准入及实际 Store 借用窗口 | 已合入 | — | — | [PR49 验收][e-pr49]：Analyze 独立准入、实际共享窗口及预算内收敛通过；旧 Package 费用保持。 |
+| G9.3.2.3 | Verify 独立准入及候选复核 | 已合入 | — | — | [PR49 验收][e-pr49]：Verify 独立准入、raw/Wire/真实失效与预付索引通过。 |
+| G9.3.2.4 | LLVM 完整 Copy 协议与大元素内存路径 | 已合入 | — | — | [PR49 验收][e-pr49]：完整 Copy 协议、一次释放及原大值默认栈 O0/O2通过；保守栈槽复用已独审。 |
 
 </details>
 
@@ -274,7 +283,7 @@
 
 </details>
 
-[design]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/_zil_design.md
+[design]: https://github.com/zil-lang/zil/blob/80c197b724c6cab538fbec7bf7fa526aaa877c5f/_zil_design.md
 [gates]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
@@ -307,3 +316,5 @@
 [zui-audit]: https://github.com/zil-lang/zil/blob/c63001c8ec43909d2c41ca314c32e465f531711f/docs/ZUI-READINESS-20261106.md
 
 [e-pr48]: https://github.com/zil-lang/zil/blob/4550ec4083706f67771229a5213f19d885402e57/docs/validation/G10.1.12-common-acceptance.json
+
+[e-pr49]: https://github.com/zil-lang/zil/blob/80c197b724c6cab538fbec7bf7fa526aaa877c5f/docs/validation/G9.3.2-common-acceptance.json
