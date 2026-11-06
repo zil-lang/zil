@@ -22,6 +22,7 @@ pub(super) fn classify(
     traits: &trait_bounds::Index<'_>,
     budget: &mut Budget<'_>,
 ) -> R<Option<Host>> {
+    let original = object;
     let mut depth = 0;
     loop {
         if let ExprKind::Group(inner) = &object.kind {
@@ -69,7 +70,7 @@ pub(super) fn classify(
         }));
     }
     if nominals.contains_key(name) {
-        return trait_bounds::constants::host_expression(object, nominals, |_| true, budget)
+        return trait_bounds::constants::host_expression(original, nominals, |_| true, budget)
             .map(|host| host.map(Host::Nominal));
     }
     Ok(None)

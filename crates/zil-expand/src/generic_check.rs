@@ -2799,6 +2799,7 @@ impl Check<'_, '_, '_> {
                         reference,
                         member: name.to_owned(),
                         generic: !method.generics.is_empty(),
+                        static_host: static_method,
                     },
                 );
         }
@@ -4236,11 +4237,7 @@ impl Check<'_, '_, '_> {
             {
                 return Ok(Some(result));
             }
-            if let Some(static_host::Host::Symbolic {
-                ty,
-                reference,
-                method,
-            }) = static_host::classify(
+            if let Some(host) = static_host::classify(
                 object,
                 name,
                 |host| state.locals.contains_key(host),
@@ -4250,21 +4247,49 @@ impl Check<'_, '_, '_> {
                 self.traits,
                 self.budget,
             )? {
-                return self
-                    .bound_method(
-                        object,
-                        &ty,
-                        name,
-                        trait_methods::Arguments {
-                            site: method_callee,
-                            values: arguments,
-                            explicit: method_explicit,
+                match host {
+                    static_host::Host::Symbolic {
+                        ty,
+                        reference,
+                        method,
+                    } => {
+                        return self
+                            .bound_method(
+                                object,
+                                &ty,
+                                name,
+                                trait_methods::Arguments {
+                                    site: method_callee,
+                                    values: arguments,
+                                    explicit: method_explicit,
+                                    expected,
+                                },
+                                state,
+                                Some((method, reference)),
+                            )
+                            .map(Some);
+                    }
+                    static_host::Host::Nominal(actual) => {
+                        let (method, origin) = self
+                            .traits
+                            .definition_static_method(&actual, name, self.budget, e.span)?
+                            .ok_or_else(|| {
+                                error(e.span, "type host has no unique static trait method")
+                            })?;
+                        self.check_static_target(&method, e, arguments)?;
+                        let (variables, mut found) = self.prepare_static_arguments(
+                            &method,
+                            e,
+                            state,
                             expected,
-                        },
-                        state,
-                        Some((method, reference)),
-                    )
-                    .map(Some);
+                            method_explicit,
+                        )?;
+                        self.check_static_arguments(&method, e, state, &variables, &mut found)?;
+                        return self
+                            .finish_static_call(&method, e, &variables, &found, origin)
+                            .map(Some);
+                    }
+                }
             }
             let ty = self.expr(object, state, None, true)?;
             if name == "len"
@@ -4711,7 +4736,8 @@ impl Check<'_, '_, '_> {
         let (variables, mut found) =
             self.prepare_static_arguments(function, e, state, expected, explicit)?;
         self.check_static_arguments(function, e, state, &variables, &mut found)?;
-        self.finish_static_call(function, e, &variables, &found)
+        let origin = self.traits.function_origin(function, self.budget)?;
+        self.finish_static_call(function, e, &variables, &found, origin)
     }
 
     #[inline(never)]
@@ -4932,6 +4958,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         variables: &BTreeSet<String>,
         found: &BTreeMap<String, TypeRef>,
+        origin: Option<origins::Origin>,
     ) -> R<TypeRef> {
         if variables.iter().any(|name| !found.contains_key(name)) {
             return Err(error(e.span, "unconstrained nested generic argument"));
@@ -5024,7 +5051,6 @@ impl Check<'_, '_, '_> {
                 role_check::same(result, &expected, e.span, self.class_scope, self.budget)?;
             }
         }
-        let origin = self.traits.function_origin(function, self.budget)?;
         self.budget.with_origin(origin, |budget| {
             self.traits.check_arguments_scoped(
                 &function.generics,

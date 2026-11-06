@@ -65,6 +65,7 @@ pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
     pub generic: bool,
+    pub static_host: bool,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -738,6 +739,7 @@ pub(crate) fn resolve_generic_calls(
                 reference,
                 member: target.member.clone(),
                 generic: true,
+                static_host: target.static_host,
             },
         );
     }
@@ -751,6 +753,7 @@ pub(crate) fn rewrite_calls(
     budget: &mut Budget<'_>,
 ) -> R<()> {
     let mut resolved = BTreeMap::new();
+    let mut static_hosts = BTreeSet::new();
     for (ordinal, target) in symbolic {
         budget.node(item.span, 0)?;
         let mut reference = Reference {
@@ -773,12 +776,18 @@ pub(crate) fn rewrite_calls(
             item.span,
         )?;
         resolved.insert(*ordinal, name);
+        if target.static_host {
+            budget.node(item.span, 0)?;
+            static_hosts.insert(*ordinal);
+        }
     }
-    rewrite_resolved_calls(item, &resolved, budget)
+    rewrite_resolved_calls(item, &resolved, &static_hosts, substitutions, budget)
 }
 fn rewrite_resolved_calls(
     item: &mut Item,
     calls: &BTreeMap<usize, String>,
+    static_hosts: &BTreeSet<usize>,
+    substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
     use super::super::ct_selection::Visitor;
@@ -794,6 +803,8 @@ fn rewrite_resolved_calls(
     };
     struct Prepay<'a, 'b, 'l> {
         calls: &'a BTreeMap<usize, String>,
+        static_hosts: &'a BTreeSet<usize>,
+        substitutions: &'a BTreeMap<String, TypeRef>,
         ids: &'a BTreeMap<usize, usize>,
         budget: &'b mut Budget<'l>,
     }
@@ -813,11 +824,26 @@ fn rewrite_resolved_calls(
             {
                 self.text(target, e.span)?;
             }
+            if let ExprKind::Member { object, .. } = &e.kind
+                && let Some(ordinal) = self.ids.get(&(e as *const Expr as usize))
+                && self.static_hosts.contains(ordinal)
+                && let Some(name) = static_host_name(object)
+                && let Some(actual) = self.substitutions.get(name)
+            {
+                self.budget.ty(actual).map_err(|e| vec![e])?;
+                self.budget.node(object.span, depth + 1).map_err(|e| vec![e])?;
+                if !matches!(&grouped(actual).kind, TypeKind::Named { path, .. } if path.len() == 1)
+                {
+                    return Err(vec![error(object.span, "static trait host is not a nominal type")]);
+                }
+            }
             super::super::ct_selection::walk_expression(self, e, depth)
         }
     }
     Prepay {
         calls,
+        static_hosts,
+        substitutions,
         ids: &ids,
         budget,
     }
@@ -825,6 +851,8 @@ fn rewrite_resolved_calls(
     .map_err(|mut e| e.remove(0))?;
     let visitor = CallRewrite {
         calls,
+        static_hosts,
+        substitutions,
         ids: &ids,
         receiver: None,
     };
@@ -837,8 +865,40 @@ fn rewrite_resolved_calls(
     }
     Ok(())
 }
+fn static_host_name(mut object: &Expr) -> Option<&str> {
+    while let ExprKind::Group(inner) = &object.kind {
+        object = inner;
+    }
+    if let ExprKind::Name(name) = &object.kind {
+        Some(name)
+    } else {
+        None
+    }
+}
+fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
+    let TypeKind::Named { path, args } = &grouped(actual).kind else {
+        unreachable!("prepaid static host type")
+    };
+    let callee = Expr {
+        span,
+        kind: ExprKind::Name(path[0].clone()),
+    };
+    if args.is_empty() {
+        callee
+    } else {
+        Expr {
+            span,
+            kind: ExprKind::TypeApply {
+                callee: Box::new(callee),
+                arguments: args.clone(),
+            },
+        }
+    }
+}
 struct CallRewrite<'a> {
     calls: &'a BTreeMap<usize, String>,
+    static_hosts: &'a BTreeSet<usize>,
+    substitutions: &'a BTreeMap<String, TypeRef>,
     ids: &'a BTreeMap<usize, usize>,
     receiver: Option<&'a str>,
 }
@@ -865,6 +925,8 @@ pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) 
     let empty = BTreeMap::new();
     let visitor = CallRewrite {
         calls: &empty,
+        static_hosts: &BTreeSet::new(),
+        substitutions: &BTreeMap::new(),
         ids: &BTreeMap::new(),
         receiver: Some(NAME),
     };
@@ -967,6 +1029,14 @@ impl CallRewrite<'_> {
             && let Some(target) = self.calls.get(ordinal)
         {
             name.clone_from(target);
+        }
+        if let ExprKind::Member { object, .. } = &mut e.kind
+            && let Some(ordinal) = self.ids.get(&site)
+            && self.static_hosts.contains(ordinal)
+            && let Some(name) = static_host_name(object)
+            && let Some(actual) = self.substitutions.get(name)
+        {
+            **object = static_host_expression(actual, object.span);
         }
 
         match &mut e.kind {
