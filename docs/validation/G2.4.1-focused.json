@@ -1,0 +1,128 @@
+{
+  "source": "b79f86b76273caedd8cc44056b51f9e6fdc5c524",
+  "checks": [
+    {
+      "name": "consumers",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl162_trait_bounds",
+        "g241",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "bc015bc8cbaf4d5b1fb0acb018060b023ad163b1e4f362143423bbbec731b4ef",
+      "results": [
+        [
+          "14",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    {
+      "name": "analyze-budget",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cross_function_borrows",
+        "g2_4_1",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "ae9fef516b003f4aa49b9ede09a7ed0682a5c52da8a403004a4c4a298ecba5f2",
+      "results": [
+        [
+          "3",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    {
+      "name": "verify",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "impl185_lending_schema",
+        "trait_lending",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "f455cc0caa2179c3968c77a5e126c98d71cc8780f6252025a2390cf5c8ff67fc",
+      "results": [
+        [
+          "1",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    {
+      "name": "expand",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--test",
+        "generics",
+        "lending_trait",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "9aa7a3e1f3309fda5eae690e961d585ad28ff24a358c9ce93e8fffcde6d903a0",
+      "results": [
+        [
+          "3",
+          "0",
+          "0"
+        ]
+      ]
+    },
+    {
+      "name": "consumers-llvm-api",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--features",
+        "llvm-api",
+        "--test",
+        "impl162_trait_bounds",
+        "g241",
+        "--",
+        "--nocapture"
+      ],
+      "exit_code": 0,
+      "log_sha256": "a810b8d136c810464f4efcea4f6ef7e451aa57c1580e18acfcc934192988a8be",
+      "results": [
+        [
+          "14",
+          "0",
+          "0"
+        ]
+      ]
+    }
+  ],
+  "coverage_note": "Explicit llvm-api run exercises both Clang and LLVM API, each O0/O2, for original five-module Source and actual embedded std.iter. Default focused run exercises Clang only. Test counts across feature repeats are not additive."
+}

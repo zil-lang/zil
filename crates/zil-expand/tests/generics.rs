@@ -9,9 +9,9 @@ use zil_ir::Type;
 fn lending_trait_method_alpha_renaming_preserves_input_result_relation() {
     let prefix = "struct Reader{value:i32}trait Read{fn get<life a,life b>(self:&'a Self,other:&'b i32)->&'a i32;}impl Read for Reader{";
     let suffix = "}fn main(){}";
-    for body in
-        ["fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return &self.value}"]
     {
+        let body =
+            "fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return &self.value}";
         let text = format!("{prefix}{body}{suffix}");
         let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-alpha.zil", text);
         let parsed = zil_syntax::parse(&source).into_result().unwrap();

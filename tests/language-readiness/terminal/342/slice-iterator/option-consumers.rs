@@ -184,8 +184,9 @@ fn g3_4_1_option_wrong_actual_source_is_rejected_after_types() {
     let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
     assert!(
         errors.iter().any(|d| d.phase == Phase::Expand
-            && d.code == "E-UNSUPPORTED"
-            && d.message == "retained reference class needs its actual source class"),
+            && d.category == zil_base::ResultCategory::SafeReject
+            && d.code == "E-GENERIC-ARGUMENT"
+            && d.message == "retained reference has no actual declared source class"),
         "{errors:?}"
     );
 

@@ -822,13 +822,13 @@ pub(super) fn align(
                 ));
             }
         }
-        if let (Some(source), Some(target)) = (&actual.return_type, &required.return_type) {
-            if !same_life_relation(source, target, &actual_lives, &required_lives, budget, 0)? {
-                return Err(error(
-                    source.span,
-                    "impl method result life relation differs from trait declaration",
-                ));
-            }
+        if let (Some(source), Some(target)) = (&actual.return_type, &required.return_type)
+            && !same_life_relation(source, target, &actual_lives, &required_lives, budget, 0)?
+        {
+            return Err(error(
+                source.span,
+                "impl method result life relation differs from trait declaration",
+            ));
         }
     }
     for (source, target) in actual.generics.iter_mut().zip(&required.generics) {

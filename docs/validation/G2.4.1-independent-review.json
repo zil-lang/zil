@@ -1,0 +1,46 @@
+{
+  "reviewer": "independent non-implementation sol-high agent",
+  "root_sha": "b79f86b76273caedd8cc44056b51f9e6fdc5c524",
+  "integration_inputs": {
+    "trait_provider_tip": "d6f86d640",
+    "life_types_slice_tip": "49822d51c (phase-record commit containing prior semantic commits)",
+    "life_types_final_semantic_commits": ["5c75cb02a", "afd1469e5", "319b0ab46", "47255c2f8", "f1e94df91"],
+    "stdlib_callable_bound": "2df19f7c1"
+  },
+  "status": "CodeReviewPassPendingCommonAcceptance",
+  "code_review": [
+    "Method-local lifetime signatures compare complete input/result relations by binder ordinal; implementation body keeps its own binder spelling. Unmodeled nested lifetime constructors reject explicitly.",
+    "Unused lifted life-only providers enter definition-time checking only from an actual trait member origin. A generated spelling alone grants no provenance; provider registry and retained relation checks are metered.",
+    "Source return roots come from actual receiver address, nominal field and array projection, not expected result class. A retained local address without a source class SafeRejects.",
+    "Selected generic calls carry only actual held arguments permitted by the declared result-life input relation. Option Some(Name) binds those loans through match, if-let and while-let; None and wildcard do not invent a root; Option container storage remains distinct from payload referent.",
+    "The initial nested Some(ref slot) alias-overwrite risk is closed by afd1469e5: actual sealed Option reference payload patterns explicitly return Unsupported before binding. No nested-reference permission was added.",
+    "Core Option's unresolved nonempty Named pointee is deferred only for authenticated compiler Option identity. Mandatory resolved inventory repeats structural Copy and exact physical payload proof; foreign Option index and constructor admission use actual nominal inventory, not generated-name prefixes as authority.",
+    "Real std.iter callable FnMut bounds use the existing callable-aware function-bound path in 2df19f7c1; other item bound handling is unchanged.",
+    "New map lookups and scans have explicit work charges. The selected-method transient Vec is prepaid by Budget::node before each push; no new public budget or ABI limit was introduced."
+  ],
+  "observed_before_final_root_rebuild": [
+    "At 0b4c07b13, focused consumers passed 11/11, including canonical Clang O0/O2 native output 42 and real std.iter; LLVM API execution is conditional on the Cargo feature and is not established by that default-feature log. Subsequent tests changed, so the count is not final-head evidence.",
+    "Source-derived Verify control passed raw and Wire rejection after forging a second actual receiver while the first Option remains live.",
+    "Analyze source-derived local Option payload mutation rejected; corrected relation/source selector later passed 2/2 in child focused run.",
+    "Canonical direct Expand work N=324346 and Types work N=103620 each passed at N, ResourceLimit at N-1, and repeated equal output at N in child focused run. Existing stored Types boundary N=733/N-1 passed."
+  ],
+  "explicit_boundaries_and_limits": [
+    "Resource receiver head addresses remain Unsupported; the attempted resource parent-move pair has no legal baseline and supplies no movement-safety evidence.",
+    "Nested Option Some(ref slot) remains Unsupported. Rewrapped symbolic Option payload and while-let over a held outer Option have separate existing Unsupported boundaries; their rejection is not claimed as loan-safety evidence.",
+    "Copy-only associated Item does not grant arithmetic; unsupported generic arithmetic is a capability boundary.",
+    "Full common acceptance, current-root focused test count, full gate results, Rust cost comparison and native Windows remain unverified in this review record."
+  ],
+  "final_root_rebuild": {
+    "source_sha": "b79f86b76273caedd8cc44056b51f9e6fdc5c524",
+    "controlled_rebuild": true,
+    "results_file": "/workspace/.zil-env/G2.4.1-final-focused/results.json",
+    "default_feature_results": [
+      "consumers 14/14 passed, including canonical Clang O0/O2 stdout 42 and real embedded std.iter",
+      "Analyze plus direct Expand/Types budget controls 3/3 passed; Expand N=324346 and Types N=103620, each N-1 ResourceLimit and repeated N equality",
+      "source-derived raw and Wire Verify receiver mutation 1/1 passed",
+      "trait Expand alpha, non-Copy and exact work controls 3/3 passed"
+    ],
+    "llvm_api_feature": "cargo test --locked -p zil-driver --features llvm-api --test impl162_trait_bounds g241 -- --nocapture passed 14/14 on clean b79 root (log /workspace/.zil-env/G2.4.1-final-focused/consumers-llvm-api.log); canonical native test covers LLVM API O0/O2 with builder object reports, no fallback, exit 0 and stdout 42",
+    "common_acceptance": "pending formal full gates"
+  }
+}

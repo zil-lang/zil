@@ -56,9 +56,7 @@ fn safety_reject(
     cursor: &str,
     consumer: &str,
     other: &str,
-    phase: Phase,
-    code: &str,
-    message: &str,
+    (phase, code, message): (Phase, &str, &str),
 ) {
     // A rejected mutation is meaningful only after the unmodified Source succeeds.
     canonical_success();
@@ -157,9 +155,11 @@ fn g241_live_result_blocks_overlapping_next_and_parent_overwrite() {
         CURSOR,
         CONSUMER,
         OTHER,
-        Phase::Analyze,
-        "E-ANALYZE-IR",
-        "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        (
+            Phase::Analyze,
+            "E-ANALYZE-IR",
+            "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        ),
     );
     let overwrite = "import api;import cursor;fn main()->i32{var c=cursor.make(20,22);let first=c.next();c=cursor.make(1,2);match first{Option.Some(v)=>{return *v},Option.None()=>{return 0}}}";
     safety_reject(
@@ -168,9 +168,11 @@ fn g241_live_result_blocks_overlapping_next_and_parent_overwrite() {
         CURSOR,
         CONSUMER,
         OTHER,
-        Phase::Analyze,
-        "E-ANALYZE-IR",
-        "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        (
+            Phase::Analyze,
+            "E-ANALYZE-IR",
+            "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+        ),
     );
 }
 
@@ -214,9 +216,11 @@ fn g241_impl_return_must_use_receiver_root_even_when_unused() {
         &local,
         CONSUMER,
         OTHER,
-        Phase::Expand,
-        "E-GENERIC-ARGUMENT",
-        "retained reference has no actual declared source class",
+        (
+            Phase::Expand,
+            "E-GENERIC-ARGUMENT",
+            "retained reference has no actual declared source class",
+        ),
     );
     let bad = "import api;struct Pair{left:i32;right:i32}impl api.LendingIterator for Pair{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{let local=42;return Option::<&'p i32>.Some(&local)}}fn main(){}";
     let report = source_report(bad, API, CURSOR, CONSUMER, OTHER);
@@ -384,9 +388,6 @@ fn g241_unused_generic_option_patterns_preserve_the_receiver_loan() {
     }
 }
 
-// Replace only g241_nested_option_reference_pattern_remains_explicitly_unsupported
-// in tests/language-readiness/G2.4.1/consumers.rs after the focused window.
-// This uses the module's existing MAIN/API/CURSOR/CONSUMER/OTHER and source_report.
 #[test]
 fn g241_nested_option_reference_patterns_remain_explicitly_unsupported() {
     canonical_success();
@@ -416,11 +417,6 @@ fn g241_nested_option_reference_patterns_remain_explicitly_unsupported() {
             "if let held alias",
             "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();if let Option.Some(value)=held{return load(value)}return fallback}",
             "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();if let Option.Some(ref slot)=held{return load(*slot)}return fallback}",
-        ),
-        (
-            "while let held alias",
-            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(value)=held{return load(value)}return fallback}",
-            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(ref slot)=held{return load(*slot)}return fallback}",
         ),
     ];
     for (name, ordinary, nested) in cases {
@@ -455,6 +451,104 @@ fn g241_nested_option_reference_patterns_remain_explicitly_unsupported() {
             report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
                 && d.message
                     == "nested Option reference payload pattern requires its borrowing consumer"),
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn g241_while_let_held_alias_has_an_existing_generic_loop_boundary() {
+    canonical_success();
+    let load = "fn load<T:Copy>(p:&T)->T{return *p}";
+    for body in [
+        "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(value)=held{return load(value)}return fallback}",
+        "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(ref slot)=held{return load(*slot)}return fallback}",
+    ] {
+        let report = source_report(
+            MAIN,
+            API,
+            CURSOR,
+            &format!("{CONSUMER}\n{load}\n{body}"),
+            OTHER,
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+                && d.message
+                    == "generic loop must preserve outer carrier and non-Copy consumption state"),
+            "{}",
+            report.to_json()
+        );
+    }
+    // This loop boundary prevents the nested-ref case from proving its own guard.
+}
+
+#[test]
+fn g241_unused_generic_option_join_retains_the_possible_receiver_loan() {
+    canonical_success();
+    let load = "fn load<T:Copy>(p:&T)->T{return *p}";
+    let legal = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item,flag:bool)->I.Item{var held=Option::<&I.Item>.None();if flag{held=cursor.next();} match held{Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}";
+    let invalid = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item,flag:bool)->I.Item{var held=Option::<&I.Item>.None();if flag{held=cursor.next();}cursor.next(); match held{Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}";
+    let good = source_report(
+        MAIN,
+        API,
+        CURSOR,
+        &format!("{CONSUMER}\n{load}\n{legal}"),
+        OTHER,
+    );
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    let bad = source_report(
+        MAIN,
+        API,
+        CURSOR,
+        &format!("{CONSUMER}\n{load}\n{invalid}"),
+        OTHER,
+    );
+    assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());
+    assert_eq!(bad.phase, Phase::Expand, "{}", bad.to_json());
+    assert!(
+        bad.diagnostics
+            .iter()
+            .any(|d| d.code == "E-GENERIC-ARGUMENT"
+                && d.message == "State alias outlives a moved or replaced field"),
+        "{}",
+        bad.to_json()
+    );
+}
+
+#[test]
+fn g241_generic_option_rewrap_reports_explicit_symbolic_source_boundary() {
+    canonical_success();
+    let load = "fn load<T:Copy>(p:&T)->T{return *p}";
+    let legal = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(value)=>{let wrapped=Option::<&I.Item>.Some(value); match wrapped{Option.Some(inner)=>{return load(inner)},Option.None()=>{return fallback}}},Option.None()=>{return fallback}}}";
+    let invalid = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(value)=>{let wrapped=Option::<&I.Item>.Some(value);cursor.next(); match wrapped{Option.Some(inner)=>{return load(inner)},Option.None()=>{return fallback}}},Option.None()=>{return fallback}}}";
+    // Even the version without a second next is outside the current symbolic
+    // source profile. The invalid version's rejection is not safety evidence.
+    for (name, body) in [("no second next", legal), ("second next", invalid)] {
+        let report = source_report(
+            MAIN,
+            API,
+            CURSOR,
+            &format!("{CONSUMER}\n{load}\n{body}"),
+            OTHER,
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+                && d.message == "Option payload has no actual symbolic source"),
             "{name}: {}",
             report.to_json()
         );
