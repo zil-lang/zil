@@ -638,6 +638,18 @@
       "independence": "Types/Analyze/Verify independently validate complete POD element, actual operands and parent loan; candidate holds do not grant a root",
       "machine": "Initialized-prefix bounds before address, real Copy field updates and large readback, allocation failure preserves modified contents and single release",
       "boundary": "No contiguous slice, owning-element widening, escaping return, capture or default limit increase"
+    },
+    "scalar_store_G9_3_4": {
+      "authority": "_zil_design.md §8.2.5",
+      "state": "ContractToImplement",
+      "extends": [
+        "pod_store_G9_3_2",
+        "pod_store_mutable_G9_3_3"
+      ],
+      "elements": "Bool/U8/U16/I32/I64/U64/Usize/F32/F64 exact scalar identity and target nonzero stride; no extra family",
+      "representation": "Existing canonical OwnedStore and opcodes/Wire43, complete Copy value/error protocols and exact independent machine plan",
+      "responsibility": "Whole-Store actual parent windows, initialized-prefix bounds and structural conflicts; capacity failure preserves modified contents, single allocation release",
+      "accounting": "Prepay all new paths, preserve unaffected owning/Record requests and limits"
     }
   },
   "schemas": [
