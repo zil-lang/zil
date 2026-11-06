@@ -1,6 +1,9 @@
 //! Source-derived raw and Wire controls for independent trait lending Verify.
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
-use zil_ir::{CandidatePlan, InstructionKind, TypedModule, ValueId};
+use zil_ir::{
+    CandidatePlan, FunctionId, InstructionKind, StorageBase, StorageBinder, Type, TypedModule,
+    ValueId,
+};
 
 fn source() -> String {
     // Keep the declaration and provider identical to the project consumer.
@@ -62,7 +65,7 @@ fn actual_receiver_is_checked_while_the_first_option_is_live() {
         .position(|f| f.name == "main")
         .unwrap();
     let functions = &module.functions;
-    let calls: Vec<(usize, usize, ValueId)> = module.functions[main]
+    let calls: Vec<(usize, usize, FunctionId, ValueId)> = module.functions[main]
         .blocks
         .iter()
         .enumerate()
@@ -79,10 +82,35 @@ fn actual_receiver_is_checked_while_the_first_option_is_live() {
                         return None;
                     };
                     let callee = &functions[function.0 as usize];
-                    (arguments.len() == 1
-                        && callee.storage_life.is_some()
-                        && callee.name.contains("next"))
-                    .then_some((block, index, arguments[0]))
+                    let complete_relation = callee.storage_life.as_ref().is_some_and(|life| {
+                        life.fixed_binder_count == 0
+                            && life.invocation_binder_count == 1
+                            && life.bindings.len() == 1
+                            && life.bindings[0].position.base == StorageBase::Parameter(0)
+                            && life.bindings[0].position.path.is_empty()
+                            && life.bindings[0].binder == StorageBinder::Invocation(0)
+                            && life.classes.len() == 1
+                            && life.classes[0].position.base == StorageBase::Result
+                            && life.classes[0].position.path.is_empty()
+                            && life.classes[0].position.class == 0
+                            && life.classes[0].binder == StorageBinder::Invocation(0)
+                    });
+                    let mutable_receiver = callee.parameters.len() == 1
+                        && matches!(
+                            callee.locals[callee.parameters[0].0 as usize].ty,
+                            Type::Address { mutable: true, .. }
+                        );
+                    let option_result = matches!(&callee.return_type,
+                        Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), Type::Enum { variants, .. }
+                            if variants.len() == 2
+                                && variants[0].0 == "None"
+                                && variants[0].1.is_empty()
+                                && variants[1].0 == "Some"
+                                && matches!(variants[1].1.as_slice(),
+                                    [Type::Address { mutable: false, .. }])));
+                    (arguments.len() == 1 && mutable_receiver && option_result && complete_relation)
+                        .then_some((block, index, *function, arguments[0]))
                 })
         })
         .collect();
@@ -108,12 +136,25 @@ fn actual_receiver_is_checked_while_the_first_option_is_live() {
             })
             .collect::<Vec<_>>()
     );
-    let (block, instruction, _) = calls[1];
+    assert_eq!(
+        calls[0].2, calls[1].2,
+        "both Source calls must target one provider instance"
+    );
+    let text = source();
+    for (call, marker) in calls.iter().zip(["first.next()", "second.next()"]) {
+        let span = module.functions[main].blocks[call.0].instructions[call.1].span;
+        assert_eq!(
+            span.start,
+            text.find(marker).unwrap(),
+            "call must arise from actual Source site {marker}: {span:?}"
+        );
+    }
+    let (block, instruction, _, _) = calls[1];
     let InstructionKind::Call { arguments, .. } =
         &mut module.functions[main].blocks[block].instructions[instruction].kind
     else {
         unreachable!()
     };
-    arguments[0] = calls[0].2;
+    arguments[0] = calls[0].3;
     verify_raw_and_wire_reject(module, plan, "live incompatible loan");
 }
