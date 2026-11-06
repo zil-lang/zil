@@ -1070,7 +1070,10 @@ impl Engine<'_> {
             args.extend(explicit.iter().cloned());
         }
         self.budget.node(expression.span, depth)?;
-        let receiver = signature.params.first().filter(|parameter| parameter.name == "self");
+        let receiver = signature
+            .params
+            .first()
+            .filter(|parameter| parameter.name == "self");
         if receiver.is_none() && !qualified {
             return Err(error(
                 expression.span,
