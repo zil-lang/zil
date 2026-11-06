@@ -2,13 +2,17 @@
   "task": "G3.4.1",
   "reviewer": "general_text_impl",
   "role": "Independent consumer review; not an Option implementation author",
-  "reviewed_commit": "a4cf8ebfce1722622698b012719c39e85d98fdf6",
+  "reviewed_commit": "34cdeef1a8b5b542f36eee46039f10ef1a6545cb",
   "consumer_commits": [
     "2515e7fb2",
     "97a7057fc",
-    "a4cf8ebfc"
+    "a4cf8ebfc",
+    "f2ed64b81",
+    "69e4932e5",
+    "f1d75dd0e",
+    "34cdeef1a"
   ],
-  "status": "ChangesRequested",
+  "status": "BaseFindingsClosed_PatternExtensionPending",
   "scope": {
     "included": [
       "crates/zil-types/src/stored.rs",
@@ -37,22 +41,22 @@
     "No independent heavy build or full suite executed in this review"
   ],
   "source_sha256": {
-    "crates/zil-types/src/stored.rs": "935675ab6f6d2af5c73aaaf2c6834b0c1f83e7554ba5ff09b6173bbe148d1e5d",
-    "crates/zil-types/src/stored/nominal.rs": "84f1377d9740a6249ba36c8df9eee60a983956f0079d16832ce85d046526fe94",
+    "crates/zil-types/src/stored.rs": "60f005399387a7ca7fce1fac1c8645512a6e9c8e54ea0c2478d28a95c41d971b",
+    "crates/zil-types/src/stored/nominal.rs": "c0af8b437ebf506238f590f175a5b8076248dffda5f3b258eba5079c4bceb8af",
     "crates/zil-types/src/stored/option_address.rs": "b3388598c1b5b18b6cab78fdd2996fe4c3fde748edd14c0d21177bb61b9c3cf5",
     "crates/zil-types/src/aggregates.rs": "11edf85e50b97c673ccdfd0b472ddd0f8f25a995f6afc967e8b94948659bec5d",
-    "crates/zil-analyze/src/stored_flow.rs": "53df6450230cb62e5a2a83dc587093ca80045f0a348587ff9a03988a83180b53",
-    "crates/zil-analyze/src/stored_flow/nominal.rs": "03ce0aed97bbdd8f14705b10640475d9bfc86853c3fa40e5f5308ef148ad08ac",
-    "crates/zil-analyze/src/stored_flow/option_address.rs": "a23193aa88fb163a506a3437c44b295907d131f37c462c88041baf322fa5eeae",
-    "crates/zil-verify/src/stored_flow.rs": "c222e7343282dfb5680fa6dacc6c2d02488664897e1ce2f84513328f0d97db70",
-    "crates/zil-verify/src/stored_flow/nominal.rs": "32ba6e401a117f2efcabf588c951a1ab403cf131144d9e00750647a068cab316",
-    "crates/zil-verify/src/stored_flow/option_address.rs": "995753e89bbcb254a28c9ad464b536a02c27dc765922391af70ce424682b9bf5"
+    "crates/zil-analyze/src/stored_flow.rs": "962a87d0c3541f5898992a3512981b2a070f6f8a7368cafe025bbd6c6f3852a8",
+    "crates/zil-analyze/src/stored_flow/nominal.rs": "398e6f320d542df60fc5b5ac28828744391fac1458c470dff15c87fa430e401c",
+    "crates/zil-analyze/src/stored_flow/option_address.rs": "515e43830f35a603bf456f56186294803e5bf59a4944f6a7af23e0e20a954435",
+    "crates/zil-verify/src/stored_flow.rs": "f0e83971f72c03c64f07d83338bc25606345e3a4c2fe297f8ca9fcea880a4c5c",
+    "crates/zil-verify/src/stored_flow/nominal.rs": "a527aada3f289f51cf63a1aeb8310ae3e9516d6b1b0539202cfdc46992bc7c5e",
+    "crates/zil-verify/src/stored_flow/option_address.rs": "57635cfa0aaf242d293b720d5e7f59aa441bc20501b6eed93269ba66bfd1416f"
   },
   "findings": [
     {
       "id": "G3.4.1-Option-None-completeness",
       "severity": "high",
-      "status": "OpenAtReviewedCommit",
+      "status": "ClosedAt34cdeef1a",
       "kind": "Valid source rejection and incomplete intended consumer",
       "locations": [
         "crates/zil-analyze/src/stored_flow.rs:2640",
@@ -68,12 +72,20 @@
         "Keep individual ungrounded Some/address/unknown-producer SSA values incomplete even when a surrounding join also contains None",
         "Add real None-only and None/Some Source positives plus raw/Wire and ungrounded Some/invalidated-source negatives"
       ],
-      "execution_level": "Static proof from exact code; author/root composition reproduction pending"
+      "execution_level": "Static proof from exact code; author/root composition reproduction pending",
+      "resolution": {
+        "commits": [
+          "69e4932e5",
+          "f1d75dd0e",
+          "34cdeef1a"
+        ],
+        "review": "Each private value carries constructed variant bits plus symbolic Option-parameter dependencies. Zero remains producer bottom. Actual parameter substitution preserves id(None); genuine mask1 None may omit inactive physical slot permission. Mask2/3 requires the actual Some sources. All Address SSA and Option SSA completeness checks remain. Copy/CFG and fixed-point summaries retain both variant dependencies and permission sets. Call publishes physical slots only when actual substituted variants may contain Some, preventing transient empty slots from persisting on a proven None. Analyze and Verify reconstruct these facts privately from executable data."
+      }
     },
     {
       "id": "G3.4.1-Sealed-declaration-repeat-fee",
       "severity": "medium",
-      "status": "AuthorResponseRequested",
+      "status": "ClosedAt34cdeef1a",
       "kind": "Current-request work-accounting concern, not a demonstrated memory-safety bypass",
       "locations": [
         "crates/zil-types/src/stored/nominal.rs:60",
@@ -84,7 +96,10 @@
       "required_resolution": [
         "Provide an exact per-call accounting argument or add the small sealed-identity comparison debit on the new compiler-only path",
         "Keep long-name/deep-type rejection controls and N/N-1/fresh measurements on actual current requests"
-      ]
+      ],
+      "resolution": {
+        "review": "Compiler nominal walks now prepay 96 units before each bounded canonical identity comparison, plus explicit traversal of full actual Type and physical storage before equality. Signature/activity dispatch prepays its fixed comparison. Variant inputs work is included in Analyze state_work and Verify payload_work; joins/copies/summaries prepay vector growth and comparisons. These fees are restricted to new Option paths; ordinary noncompiler/empty-slot paths retain early exits."
+      }
     }
   ],
   "confirmed_properties": [
@@ -137,5 +152,57 @@
     "Review None joined with unresolved/ungrounded producer, None joined with Some, copied Some invalidated source, and actual original SliceIter loop",
     "Record any id(None) or general Option-parameter precision boundary explicitly rather than treating it as tested composition"
   ],
-  "acceptance": "No consumer acceptance is recommended for a4cf8ebfc until the genuine None completion defect is closed; root owns integration and full gates."
+  "acceptance": "The two original findings are closed in exact base consumer 34cdeef1a. No new blocking safety issue found in that base by static review and the inspected 9/0 author module log. Added value-pattern source ae40fb6b7 remains pending its actual functional matrix and review of any required dead-edge proof; no whole G3.4.1 or original SliceIter acceptance is inferred.",
+  "initial_review": {
+    "source_commit": "a4cf8ebfce1722622698b012719c39e85d98fdf6",
+    "status": "ChangesRequested",
+    "record_commit": "e879b04975385607d65b158edcda8222bff00d27",
+    "findings": [
+      "G3.4.1-Option-None-completeness",
+      "G3.4.1-Sealed-declaration-repeat-fee"
+    ]
+  },
+  "observed_author_execution": {
+    "role": "Reviewed existing root/life log; this reviewer did not execute or author these tests",
+    "path": "/tmp/G3.4.1-combined-all-second.log",
+    "sha256": "c9b0c3fd01e988669975b1962ce04021bb6129623d1653e34b0456ca36dc1486",
+    "reported_combination": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+    "source_correspondence": "git diff -w 34cdeef1a 53d38b0c4 is empty for the dedicated Option and nominal consumer files",
+    "tests_total": 13,
+    "passed": 10,
+    "failed": 3,
+    "option_module_passed": 9,
+    "option_module_failed": 0,
+    "separate_lexical_life_passed": 1,
+    "preserved_failures": "3 original SliceIter cases stopped at Types E-RECEIVER-RESERVED-NAME, not consumer/native acceptance",
+    "covered": [
+      "genuine None/mixed variants and id(None)",
+      "None through CFG and forwarding",
+      "constructorless recursive Option joined with None remains rejected",
+      "Some of recursively ungrounded Address remains rejected",
+      "source-derived metadata22/pointee6/Core12/wrong-source controls",
+      "raw and Wire consumers"
+    ],
+    "not_claimed": [
+      "Independent reviewer execution",
+      "Original SliceIter pass",
+      "Full-gate acceptance",
+      "New value-pattern extension execution"
+    ]
+  },
+  "pattern_extension": {
+    "source_commit": "ae40fb6b78de1b01a938c51e70ceb06d5f12bba3",
+    "status": "StaticBoundaryReviewed_ExecutionAndDeadBranchProofPending",
+    "scope": [
+      "crates/zil-types/src/enums.rs conditional_pattern",
+      "crates/zil-types/src/enums.rs enum_match",
+      "crates/zil-types/src/stored.rs option_address_value"
+    ],
+    "source_sha256": {
+      "crates/zil-types/src/enums.rs": "ab1c0c76a21b0bb62d4d6635b5cb58169a34aacf78481fd60c5f0b7615c10b0c",
+      "crates/zil-types/src/stored.rs": "936b786628835b79a625046e313d8dd4819d48c3f521eec3f2c397bbab0ff370"
+    },
+    "review": "Both new value-pattern entry points ask the existing exact Option shape checker on Resolver output. They do not change pure_value, ordinary Copy classification, mutable payload admission or provenance. Pattern lowering emits actual VariantTag, equality branch and Some ReadVariant; permission still comes from the actual Option payload.",
+    "open_requirement": "Run the added Some/mixed/None helper-to-match matrix. Known None leaves a structurally reachable Some arm whose extracted Address is ungrounded; any narrow reachability/completion correction must derive the edge from actual checked tag/CFG evidence. It must preserve all potentially executable ungrounded Address/Some checks. No new reachability patch has been reviewed or approved in this record."
+  }
 }
