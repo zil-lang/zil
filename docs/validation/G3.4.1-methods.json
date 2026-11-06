@@ -1,0 +1,223 @@
+{
+  "task": "G3.4.1",
+  "slice": "generic inherent methods",
+  "scope": "Source-to-Core methods delivery; not full SliceIter/lending or machine acceptance",
+  "implementation_author": "general_priority_review",
+  "implementation_commit": "a4f25e1e75d3a86a25452b9010092672b1734e48",
+  "baseline": "c63001c8e",
+  "spec_hash": "e235b19010325a125338f764f9e75b8ab6dd612f75ea4915e4761edd4a7e0b7a",
+  "normative_hash": "e938daf9f797c6790549c578e25d474d6eafeba20bf50ee51b282fbaa653f80b",
+  "integration_run": {
+    "executor": "root/general_life_impl coordinated run",
+    "source_commit": "8894af608a6693a47d27f9f95fc6ee8ea3ad1905",
+    "target": "existing generics integration test target; no new Cargo test target",
+    "passed": 22,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "raw_log": "/workspace/.zil-env/G10.1.12-generics-3.log",
+    "raw_log_sha256": "496c78cfddd4df6c6a48882ef0145de015295198165112e9014b775d13245ffd",
+    "identical_methods_source_files": [
+      {
+        "path": "crates/zil-expand/src/generic_inherent.rs",
+        "sha256": "9e1e65fc3455c75115cebb21fbb9d5f2c50aff7ef704ca9a1b022b49f374ccfb"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_budget.rs",
+        "sha256": "bec77f362c0eee44344b287ee1d3aaa50cd96a4a9384be6cb7406fc866874f46"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_check.rs",
+        "sha256": "fd907ee37b598b314395c397d3923a70cf5591d5db1fdd7daafc4951b869ba16"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_source_life.rs",
+        "sha256": "5905fd5a31bf648a0df8a632e4f0504055ce34c45dc397d48ca2bdc580ab7747"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_expr_call.rs",
+        "sha256": "0f4ef8b7cb23e861feeb47ef48a06c5258fe46fdfa6531e1624745d153055504"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_constant_plan.rs",
+        "sha256": "38d8cc1286a284b8692818bd65e7cb48f28a95e9dd0dfbbb1da4262c3c883ccf"
+      },
+      {
+        "path": "crates/zil-expand/src/generics.rs",
+        "sha256": "5b69e0db59c2908eb317a342e3cb2488011acc1aa293c5968fbfdeb3bcccf61c"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_record_enum.rs",
+        "sha256": "0939f723680bae12546473b52cccca7c35855f34fc33749578f7a56f44dbbf40"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_trait_defaults.rs",
+        "sha256": "87a92657d8392d52a59b9efe23d7e5400ef2c9d386e6daa8d9ffa0930530a742"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_trait_instances.rs",
+        "sha256": "04404c23dbb0bfd35272245b6cec78ad1e9fbe1381ab269f585a1c7f3e4aaf58"
+      },
+      {
+        "path": "crates/zil-expand/test-support/generic_inherent.rs",
+        "sha256": "2b68e5a2d9ce3807a92728dc69f2e429830cdacb3a01f50c26a463bf325570b8"
+      },
+      {
+        "path": "crates/zil-expand/tests/generics.rs",
+        "sha256": "f0eca2ba6acb93199889100d4b36c476fbc4c1a68cd259d6a202bb090b5fed89"
+      }
+    ],
+    "combined_dependencies": "Option/stored producer and lexical-life dependency changes coexist in shared files; this receipt reuses the actual combined run, not an asserted whole-crate equality",
+    "replay_command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-G1.3.5.2 CARGO_PROFILE_DEV_STRIP=symbols cargo test --offline --locked -p zil-expand --test generics -j1 -- --nocapture",
+    "source_changed_during_run": false
+  },
+  "request_boundaries": {
+    "new_ordinary_inherent_source": {
+      "work": 1431,
+      "nodes": 484,
+      "checks": [
+        "default",
+        "N success",
+        "N-1 ResourceLimit",
+        "fresh syntax N success",
+        "fresh syntax N-1 ResourceLimit"
+      ],
+      "fixed_regression_assertion": {
+        "work": 1431,
+        "nodes": 484
+      }
+    },
+    "unchanged_old_controls": {
+      "generic_error_union_contexts": [
+        [
+          1276,
+          496
+        ],
+        [
+          1206,
+          456
+        ],
+        [
+          1813,
+          638
+        ]
+      ],
+      "generic_enum_error": [
+        [
+          978,
+          412
+        ]
+      ],
+      "concrete_resource_preparation": [
+        [
+          510,
+          279
+        ],
+        [
+          977,
+          530
+        ],
+        [
+          974,
+          531
+        ]
+      ]
+    },
+    "default_limits_changed": false
+  },
+  "no_link_validation": {
+    "source_commit": "a4f25e1e75d3a86a25452b9010092672b1734e48",
+    "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-G3.4.1-methods CARGO_PROFILE_DEV_STRIP=symbols cargo clippy --offline --locked -p zil-expand --all-targets -j1 -- -D warnings",
+    "exit_code": 0
+  },
+  "preserved_failure": {
+    "source_commit": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+    "passed": 21,
+    "failed": 1,
+    "failing_case": "generic_inherent_visibility_uses_the_declaring_module",
+    "observed": "private cross-module source call was accepted; unwrap_err received Ok",
+    "root_cause": "generic inherent feature was detected after project flattening, so a replacement single-module origin ledger lost actual module ownership",
+    "repair": "generic_budget existing Impl preflight records source-identity demand before modules normalization captures the real original ledger",
+    "raw_log": "/tmp/G3.4.1-combined-generics.log",
+    "raw_log_sha256": "418b532a450b3cc6549885d5b31017c23a2c0b4b03bc5566d671cc2413ec918d",
+    "additional_reviewer_boundary": "Private nominal through public factory + public method was added as another source visibility counterexample; final run requires both nominal and member public for cross-module access, including lifted helper export."
+  },
+  "limitations": [
+    "Original slice_iter.zil complete Verify/raw/Wire/native is a separate combined G3.4.1 result; its bytes were not changed here.",
+    "Const, impl where, own generic methods, specialization, implicit receiver/default remain Unsupported.",
+    "No public schema changes in this methods slice.",
+    "Non-author Source review and product acceptance belong to root; this author receipt is not independent acceptance.",
+    "Mixed ordinary Type/life binders retain the existing single Copy-T profile; life-only methods use ordinary retained functions."
+  ],
+  "rust_goals": {
+    "safety": "actual method identity/bounds, lexical classes, private ownership and actual receiver contracts checked for the finite Source-to-Core cases; full lending soundness not claimed",
+    "runtime_memory": "ordinary static functions and explicit reborrows; same-semantics Rust runtime/RSS/p95 not measured",
+    "expression_maintenance": "ordinary inherent APIs with real generic/life receivers gained repeatable Source-to-Core coverage; full framework evolution cost not measured",
+    "compile": "old exact request limits preserved, new necessary work prepaid; Rust compile-cost comparison not measured",
+    "breakthrough": "finite semantic-feature increment only; no relative Rust product breakthrough or four-goal conjunction claimed"
+  },
+  "previous_pass_before_private_nominal_factory_guard": {
+    "executor": "root/general_life_impl coordinated run",
+    "source_commit": "b0839a97b26a21b76cdb1e25d26675002d8f0400",
+    "command": "CARGO_TARGET_DIR=/workspace/.zil-env/target-G1.3.5.2 CARGO_PROFILE_DEV_STRIP=symbols cargo test --offline --locked -p zil-expand --test generics -j1 -- --nocapture",
+    "target": "existing generics integration test target; no new Cargo test target",
+    "passed": 22,
+    "failed": 0,
+    "ignored": 0,
+    "filtered": 0,
+    "raw_log": "/workspace/.zil-env/G10.1.12-generics-2.log",
+    "raw_log_sha256": "1e7043819cfd15b45a0e4e5158d2f33e8b1f9ae65560fc7fbea2a429f699536c",
+    "identical_methods_source_files": [
+      {
+        "path": "crates/zil-expand/src/generic_inherent.rs",
+        "sha256": "78dae2ee22c16fc20003ac2069aa75884023f965385045b9cbe21896b1934959"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_budget.rs",
+        "sha256": "bec77f362c0eee44344b287ee1d3aaa50cd96a4a9384be6cb7406fc866874f46"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_check.rs",
+        "sha256": "fd907ee37b598b314395c397d3923a70cf5591d5db1fdd7daafc4951b869ba16"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_source_life.rs",
+        "sha256": "5905fd5a31bf648a0df8a632e4f0504055ce34c45dc397d48ca2bdc580ab7747"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_expr_call.rs",
+        "sha256": "0f4ef8b7cb23e861feeb47ef48a06c5258fe46fdfa6531e1624745d153055504"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_constant_plan.rs",
+        "sha256": "38d8cc1286a284b8692818bd65e7cb48f28a95e9dd0dfbbb1da4262c3c883ccf"
+      },
+      {
+        "path": "crates/zil-expand/src/generics.rs",
+        "sha256": "5b69e0db59c2908eb317a342e3cb2488011acc1aa293c5968fbfdeb3bcccf61c"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_record_enum.rs",
+        "sha256": "0939f723680bae12546473b52cccca7c35855f34fc33749578f7a56f44dbbf40"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_trait_defaults.rs",
+        "sha256": "87a92657d8392d52a59b9efe23d7e5400ef2c9d386e6daa8d9ffa0930530a742"
+      },
+      {
+        "path": "crates/zil-expand/src/generic_trait_instances.rs",
+        "sha256": "04404c23dbb0bfd35272245b6cec78ad1e9fbe1381ab269f585a1c7f3e4aaf58"
+      },
+      {
+        "path": "crates/zil-expand/test-support/generic_inherent.rs",
+        "sha256": "5305c43976a1e7a3dc37991a05f33eaf50a459e247a8f04d4ac2c98627e07857"
+      },
+      {
+        "path": "crates/zil-expand/tests/generics.rs",
+        "sha256": "f0eca2ba6acb93199889100d4b36c476fbc4c1a68cd259d6a202bb090b5fed89"
+      }
+    ],
+    "combined_dependencies": "Option/stored producer and lexical-life dependency changes coexist in shared files; this receipt reuses the actual combined run, not an asserted whole-crate equality",
+    "identical_methods_source_commit": "46c5a02dfb095ef8cfcf2aaedc08284ca67e4b34"
+  }
+}
