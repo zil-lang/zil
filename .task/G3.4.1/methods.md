@@ -15,3 +15,5 @@ Goal G3.4.1；父合同 `_zil_design.md` §18.1/V10 与原 `tests/language-readi
 此片只证明有限Source→Core方法组合。原SliceIter字节不改，完整Option返回/两核/raw/Wire/原生与失效由G3.4.1合流验收。Const/where/方法自身泛型/特化/隐式receiver继续Unsupported。Rust四目标：有可重放semantic-feature增量，实际安全仍由后续独立核消费；同语义运行/RSS/p95、编译和维护成本未测，产品净突破及四目标合取不升级。
 
 最终补核：root source reviewer指出private nominal的pub method不能因pub factory返回而泄漏，Method跨模块资格与lifted helper导出共同要求host与member公开；same-module保持。实现a4f与根8894组合运行期间源码未变，完整existing generics再次22/0，N1431/484固定断言已真实执行。前一b083的22/0与更早db1e的21/1分别保留，不叠加测试数量。
+
+独审后续：04610d6b7修未使用Option reference-TypeArgument来源类误接受；944a22dca修原例Types对lift后普通函数self参数的正确保留名拒绝。前者在真实源码上先复现错return被接受，后者复用既有AST降名和bind_local禁令，不新增pattern walker、不放宽Types。两片完整existing generics实际23/0（不与前22/0相加），新必要receiver降名预算1675/547已固定N/N−1/fresh；之前1431/484保留为降名前历史输入费用。所有其他旧控制原N、默认限额保持。实际反例/命令/日志SHA及当前有限边界见 [后续收据](../../docs/validation/G3.4.1-methods-followup.json)。原SliceIter字节不改，后继外层可变carrier与两核/机器由父任务继续合流；Rust未测产品目标不升级。
