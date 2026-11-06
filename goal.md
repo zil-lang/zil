@@ -53,6 +53,15 @@
 | G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 进行中 | P0 | static_traits · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
 
 <details>
+<summary>G2.4.2 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G2.4.2.1 | 符号类型宿主、定义期义务与词法值优先 | 进行中 | P0 | static_check · sol high | 与静态 provider 选择共享明确私有接口。 |
+
+</details>
+
+<details>
 <summary>G2.4.1 · 子任务</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
@@ -232,6 +241,17 @@
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 进行中 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
+
+<details>
+<summary>G9.3.3 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 进行中 | P0 | store_types · sol high | 保留实际类型/范围与大 Copy 协议。 |
+| G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 进行中 | P0 | store_analyze · sol high | 保留 whole-Store 排他与旧费用。 |
+| G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 进行中 | P0 | store_verify · sol high | 不以 Analyze 证明作为权限。 |
+
+</details>
 
 <details>
 <summary>G9.3.2 · 子任务</summary>
