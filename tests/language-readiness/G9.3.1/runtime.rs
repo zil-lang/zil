@@ -9,6 +9,29 @@ use zil_driver::{
 const LITERAL: &str = include_str!("literal.zil");
 const OWNED: &str = include_str!("owned.zil");
 
+fn record(report: &zil_driver::CompileReport, label: &str) {
+    let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") else {
+        return;
+    };
+    let root = std::path::PathBuf::from(root);
+    fs::create_dir_all(&root).unwrap();
+    let artifacts = report
+        .artifacts
+        .iter()
+        .filter_map(|(name, path)| {
+            let bytes = fs::read(path).ok()?;
+            Some(format!(
+                "{{\"name\":{},\"sha256\":{},\"bytes\":{}}}",
+                zil_base::json_string(name),
+                zil_base::json_string(&zil_base::Fingerprint::of(&bytes).to_hex()),
+                bytes.len()
+            ))
+        })
+        .collect::<Vec<_>>()
+        .join(",");
+    fs::write(root.join(format!("{label}.json")),format!("{{\"input_fingerprint\":{},\"status\":{},\"verification_runs\":{},\"artifacts\":[{}]}}\n",zil_base::json_string(&report.input_fingerprint.to_hex()),zil_base::json_string(&format!("{:?}",report.status)),report.verification_runs,artifacts)).unwrap();
+}
+
 fn checksum(bytes: &[u8]) -> i64 {
     bytes
         .iter()
@@ -79,6 +102,7 @@ fn g931_real_source_native_utf8_exact_bytes_and_explicit_allocation() {
                     "{}",
                     report.to_json()
                 );
+                record(&report, &format!("{name}-{backend:?}-{optimization:?}"));
                 assert!(report.verification_runs > 0);
                 assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
                 let output = Command::new(&report.artifacts["executable"])
@@ -143,6 +167,7 @@ fn g931_two_module_static_returns_publish_explicit_verified_origin() {
             "{}",
             report.to_json()
         );
+        record(&report, &format!("two-module-{backend:?}"));
         assert_eq!(report.source_files.len(), 2);
         let origins = report
             .scalar_interfaces
