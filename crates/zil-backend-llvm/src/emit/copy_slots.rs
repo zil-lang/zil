@@ -27,6 +27,7 @@ fn operands(
     i: &InstructionKind,
     work: &mut usize,
     span: Span,
+    lookup_cost: usize,
     mut visit: impl FnMut(ValueId),
 ) -> CompileResult<bool> {
     use InstructionKind as I;
@@ -37,13 +38,27 @@ fn operands(
         | I::MakeVariant {
             fields: arguments, ..
         } => {
-            pay(work, arguments.len().saturating_add(1), span)?;
+            pay(
+                work,
+                arguments
+                    .len()
+                    .saturating_add(1)
+                    .saturating_mul(lookup_cost),
+                span,
+            )?;
             for value in arguments {
                 visit(*value);
             }
         }
         I::CallIndirect { callee, arguments } => {
-            pay(work, arguments.len().saturating_add(2), span)?;
+            pay(
+                work,
+                arguments
+                    .len()
+                    .saturating_add(2)
+                    .saturating_mul(lookup_cost),
+                span,
+            )?;
             visit(*callee);
             for value in arguments {
                 visit(*value);
@@ -257,11 +272,20 @@ pub(super) fn coalesce(
         .map(|id| (*id, None::<(usize, usize)>))
         .collect::<BTreeMap<_, _>>();
     let mut point = 0usize;
+    // A BTreeMap query can compare at most every retained interval key.
+    // Charge a conservative bound per access, including repeated operands;
+    // one-off graph/interval setup fees cannot cover an unbounded use count.
+    let lookup_cost = count.saturating_mul(2).saturating_add(4);
     for index in order {
         let block = &function.blocks[index];
         pay(
             work,
-            block.instructions.len().saturating_mul(8).saturating_add(8),
+            block
+                .instructions
+                .len()
+                .saturating_mul(4)
+                .saturating_add(2)
+                .saturating_mul(lookup_cost),
             function.span,
         )?;
         for instruction in &block.instructions {
@@ -275,14 +299,20 @@ pub(super) fn coalesce(
                 *interval = Some((point, point));
             }
             let mut valid = true;
-            let supported = operands(&instruction.kind, work, instruction.span, |id| {
-                if let Some(interval) = intervals.get_mut(&id) {
-                    match interval {
-                        Some((_, end)) => *end = point,
-                        None => valid = false,
+            let supported = operands(
+                &instruction.kind,
+                work,
+                instruction.span,
+                lookup_cost,
+                |id| {
+                    if let Some(interval) = intervals.get_mut(&id) {
+                        match interval {
+                            Some((_, end)) => *end = point,
+                            None => valid = false,
+                        }
                     }
-                }
-            })?;
+                },
+            )?;
             if !supported || !valid {
                 return Ok(());
             }
@@ -555,6 +585,54 @@ mod tests {
             coalesce(&f, &mut p, &mut work).unwrap();
             assert!(p.values().all(|s| s.storage.is_none()));
         }
+    }
+
+    #[test]
+    fn g932_pool_prepays_each_repeated_operand_lookup() {
+        let mut costs = Vec::new();
+        for repeats in [1, 8192] {
+            let f = function(
+                vec![block(
+                    0,
+                    vec![
+                        instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                        instruction(
+                            Some(1),
+                            InstructionKind::Call {
+                                function: FunctionId(1),
+                                arguments: vec![ValueId(0); repeats],
+                            },
+                        ),
+                    ],
+                    Terminator::Return(Some(ValueId(1))),
+                )],
+                vec![big(8192), big(8192)],
+            );
+            let original = snapshots(&f.values);
+            let mut planned = original.clone();
+            let mut remaining = usize::MAX;
+            coalesce(&f, &mut planned, &mut remaining).unwrap();
+            let cost = usize::MAX - remaining;
+            costs.push(cost);
+            assert_ne!(
+                planned[&ValueId(0)].storage.unwrap().owner,
+                planned[&ValueId(1)].storage.unwrap().owner
+            );
+            for _ in 0..2 {
+                let mut fresh = original.clone();
+                let mut exact = cost;
+                coalesce(&f, &mut fresh, &mut exact).unwrap();
+                assert_eq!(exact, 0);
+            }
+            let mut fresh = original;
+            let mut short = cost - 1;
+            assert_eq!(
+                coalesce(&f, &mut fresh, &mut short).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+            assert!(fresh.values().all(|s| s.storage.is_none()));
+        }
+        assert_eq!(costs[1] - costs[0], (8192 - 1) * (2 * 2 + 4));
     }
 
     #[test]
