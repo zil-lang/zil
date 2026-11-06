@@ -6,6 +6,29 @@ mod tests;
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
 
+fn scalar_name(element: &Type) -> Option<&'static str> {
+    Some(match element {
+        Type::Bool => "bool",
+        Type::U8 => "u8",
+        Type::U16 => "u16",
+        Type::I32 => "i32",
+        Type::I64 => "i64",
+        Type::U64 => "u64",
+        Type::Usize => "usize",
+        Type::F32 => "f32",
+        Type::F64 => "f64",
+        _ => return None,
+    })
+}
+
+pub(super) fn direct_scalar(element: &Type) -> bool {
+    scalar_name(element).is_some()
+}
+
+fn plain_element(element: &Type) -> bool {
+    matches!(element, Type::Record { .. }) || direct_scalar(element)
+}
+
 /// This is a separate admission from Copy and from the owning Package family.
 /// Raw type shape bounds precede this recursive walk. Even a zero-length array
 /// must qualify its actual child, and field identities are checked at each node.
@@ -16,9 +39,9 @@ pub(super) fn check_pod_element(
     budget: &mut Budget,
 ) -> Check<()> {
     target(profile, span)?;
-    if !matches!(element, Type::Record { .. }) {
+    if !plain_element(element) {
         return Err(unsupported(
-            "POD Store elements require an ordinary Record",
+            "POD Store elements require an ordinary Record or supported scalar",
             span,
         ));
     }
@@ -122,7 +145,11 @@ fn pod_type_work(ty: &Type, budget: &mut Budget) -> Check<()> {
 }
 
 fn pod_name_work(element: &Type, budget: &mut Budget) -> Check<()> {
-    let Type::Record { name, .. } = element else {
+    let name = if let Type::Record { name, .. } = element {
+        name.as_str()
+    } else if let Some(name) = scalar_name(element) {
+        name
+    } else {
         return Ok(());
     };
     budget.spend(PREFIX.len().saturating_add(name.len()).saturating_add(1))
@@ -184,7 +211,7 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 }
 
 pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
-    if matches!(element(ty), Some(Type::Record { .. })) {
+    if element(ty).is_some_and(plain_element) {
         return Err(unsupported(
             "POD Store ownership is not admitted in owning aggregate fields",
             span,
@@ -443,7 +470,7 @@ fn check_element_admission(
     product_container: bool,
     budget: &mut Budget,
 ) -> Check<()> {
-    if matches!(element, Type::Record { .. }) {
+    if plain_element(element) {
         return check_pod_element(element, &module.target, span, budget);
     }
     resources::charge_payload(element, budget)?;
@@ -800,8 +827,9 @@ fn layout(
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
-    let (Type::Package { name, .. } | Type::Record { name, .. }) = element else {
-        unreachable!("checked Store element")
+    let name = match element {
+        Type::Package { name, .. } | Type::Record { name, .. } => name.as_str(),
+        scalar => scalar_name(scalar).expect("checked Store scalar element"),
     };
     format!("{PREFIX}{name}>")
 }
@@ -860,7 +888,7 @@ pub(super) fn check_carrier(
             .len()
             .saturating_mul(name.len().saturating_add(1)),
     )?;
-    if matches!(element, Type::Record { .. }) {
+    if plain_element(element) {
         for resource in &module.resources {
             // Charge both actual trees before comparing full nominal types.
             pod_type_work(element, budget)?;
@@ -885,7 +913,7 @@ pub(super) fn check_instruction(
     let bad = |message| reject("E-VERIFY-OWNED-STORE", span, message);
     if let InstructionKind::OwnedStoreNew { element } = &instruction.kind {
         check_store_element(module, element, span, budget)?;
-        if matches!(element, Type::Record { .. }) {
+        if plain_element(element) {
             pod_type_work(element, budget)?;
             if let Some(result) = instruction.result {
                 pod_type_work(value_type(function, result, span)?, budget)?;
@@ -913,7 +941,7 @@ pub(super) fn check_instruction(
     }
     check_carrier(module, carrier, span, budget)?;
     let element = element(carrier).expect("checked Store carrier");
-    if matches!(element, Type::Record { .. }) {
+    if plain_element(element) {
         pod_type_work(element, budget)?;
         if let Some(result) = instruction.result {
             pod_type_work(value_type(function, result, span)?, budget)?;
@@ -936,7 +964,7 @@ pub(super) fn check_instruction(
             if matches!(
                 instruction.kind,
                 InstructionKind::OwnedStoreBorrowMut { .. }
-            ) && !matches!(element, Type::Record { .. })
+            ) && !plain_element(element)
                 && packages::has_children(element)
             {
                 return Err(unsupported(
