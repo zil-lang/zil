@@ -782,3 +782,65 @@ fn payload_context_still_rejects_actual_result_and_error_side_mismatches() {
         eprintln!("popped_helper_reject_{label}={errors:?}");
     }
 }
+
+const POD_STORE_SOURCE: &str = r#"
+struct Point { x:f32; y:f64 }
+struct Vertex { point:Point; flags:(bool,u16); lanes:[u64;2]; empty:[void;0] }
+fn empty<T:StoreElement>()->Store<T> contract{result(create)} { return store_new() }
+fn reserve<T:StoreElement>(items:Store<T>,count:i64)->bool { return store_reserve(items,count) }
+fn push<T:StoreElement>(items:Store<T>,value:T)->T!void { return store_push(items,value) }
+fn pop<T:StoreElement>(items:Store<T>)->void!T { return store_pop(items) }
+fn run()->void!i32 {
+    let items:Store<Vertex>=empty()
+    reserve(items,2)
+    push(items,Vertex{point:Point{x:1.0,y:2.0},flags:(true,3),lanes:[7,8],empty:[]})
+    let value=pop(items)?
+    return i32(value.lanes[0])-7
+}
+"#;
+
+#[test]
+fn pod_store_element_uses_real_generic_wrappers_and_complete_nominal_types() {
+    let core = expand(POD_STORE_SOURCE);
+    assert_header(function(&core, "push"));
+    assert_header(function(&core, "pop"));
+    // Unbound templates retain an opaque T; no Copy or ownership capability
+    // is inferred from this successful concrete numeric Record consumer.
+    assert_eq!(
+        function(&core, "push").parameters[1].ty,
+        Type::Named("T".into())
+    );
+    eprintln!("pod_store_expand_n={}", boundary(POD_STORE_SOURCE));
+}
+
+#[test]
+fn pod_store_element_checks_all_nested_fields_and_unused_templates() {
+    for field in [
+        "void",
+        "[void;0]",
+        "c_handle",
+        "void!i32",
+        "E",
+        "[E;0]",
+        "fn()->i32",
+    ] {
+        let text = format!(
+            "enum E{{A}} struct Bad{{field:{field}}} fn unused<T:StoreElement>(x:T)->T{{return x}} fn run(){{let s:Store<Bad>=store_new()}} "
+        );
+        let unit = source(&text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Expand),
+            "{field}: {errors:?}"
+        );
+    }
+    for text in [
+        "fn bad<T:StoreElement>(x:T)->(T,T){return (x,x)}",
+        "fn bad<T:Copy>(x:Store<T>)->i64{return store_len(x)}",
+    ] {
+        let unit = source(text);
+        let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+        assert!(zil_expand::expand(&unit, &syntax).is_err(), "{text}");
+    }
+}

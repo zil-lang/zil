@@ -890,6 +890,16 @@ impl Resolver<'_> {
         {
             return Ok(true);
         }
+        dynamic_store::charge_pod(ty, &self.generic_limits, span, &mut |cost| {
+            self.remaining = self.remaining.checked_sub(cost).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "POD Store element budget exceeded",
+                    Some(span),
+                )
+            })?;
+            Ok(())
+        })?;
         if dynamic_store::supported_element(ty) {
             return Ok(true);
         }
@@ -1311,7 +1321,7 @@ impl Resolver<'_> {
                 if !self.store_element_shape(&element, depth, span)? {
                     return Err(unsupported(
                         span,
-                        "Store elements require nonzero complete direct-Managed Packages",
+                        "Store elements require nonzero finite POD Records or supported owning Packages",
                     ));
                 }
                 Type::OwnedStore {

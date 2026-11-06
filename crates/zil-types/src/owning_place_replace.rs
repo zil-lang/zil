@@ -103,7 +103,16 @@ fn whole_sum_endpoint(ty: &Type, state: &mut closures::State, span: Span) -> R<b
             {
                 owns = true
             }
-            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { element } if dynamic_store::supported_element(element)) => {
+            Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }) => {
+                let Type::OwnedStore { element } = payload.as_ref() else {
+                    unreachable!()
+                };
+                if matches!(element.as_ref(), Type::Record { .. }) {
+                    state.snapshot_type(element, 4, 0, span)?;
+                }
+                if !dynamic_store::supported_element(element) {
+                    return Ok(false);
+                }
                 owns = true
             }
             Type::Tuple(fields) => {
