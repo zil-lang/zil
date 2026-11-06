@@ -979,7 +979,13 @@ fn pod932_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
         },
         span,
     };
-    assert!(super::super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).is_err());
+    assert_eq!(
+        super::super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).unwrap(),
+        Some(Type::Address {
+            mutable: true,
+            inner: Box::new(ty.clone()),
+        })
+    );
     f.locals[0].ty = ty.clone();
     let ordinary = Instruction {
         result: Some(ValueId(2)),
@@ -1206,6 +1212,194 @@ fn pod_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, Candida
     f.blocks[0].instructions = instructions;
     let plan = pod_plan(&m, std::mem::take(&mut holds));
     (m, plan)
+}
+
+fn pod_mut_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, CandidatePlan) {
+    let (mut module, plan) = pod_window_fixture(distinct, read_first);
+    let function = &mut module.functions[0];
+    let Type::Address { mutable, .. } = &mut function.values[4] else {
+        unreachable!("shared Store window fixture has an address result")
+    };
+    *mutable = true;
+    let borrow = function.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|instruction| matches!(instruction.kind, InstructionKind::OwnedStoreBorrow { .. }))
+        .expect("shared Store window fixture borrows one element");
+    let InstructionKind::OwnedStoreBorrow { store, index } = borrow.kind else {
+        unreachable!()
+    };
+    borrow.kind = InstructionKind::OwnedStoreBorrowMut { store, index };
+    (module, plan)
+}
+
+#[test]
+fn pod933_mutable_window_keeps_actual_whole_store_root_until_last_use() {
+    let limits = Limits::default();
+    for (distinct, read_first, accept) in [
+        (false, false, false),
+        (false, true, true),
+        (true, false, true),
+    ] {
+        let (module, plan) = pod_mut_window_fixture(distinct, read_first);
+        for result in pod_both(&module, &plan, &limits) {
+            if accept {
+                result.unwrap();
+            } else {
+                assert_eq!(result.unwrap_err()[0].code, "E-BORROW-CONFLICT");
+            }
+        }
+    }
+    let (module, mut plan) = pod_mut_window_fixture(true, false);
+    plan.functions[0].holds[4].roots = vec![HoldRoot::Local(LocalId(1))];
+    for result in pod_both(&module, &plan, &limits) {
+        assert_eq!(result.unwrap_err()[0].code, "E-VERIFY-HOLD");
+    }
+}
+
+#[test]
+fn pod933_mutable_window_requires_exact_complete_result_even_when_unused() {
+    let limits = Limits::default();
+    let (module, plan) = pod_mut_window_fixture(false, true);
+    for wrong in [
+        Type::Address {
+            mutable: false,
+            inner: Box::new(pod(vec![("n", Type::I64)])),
+        },
+        Type::Address {
+            mutable: true,
+            inner: Box::new(pod(vec![("n", Type::U64)])),
+        },
+    ] {
+        let mut malformed = module.clone();
+        malformed.functions[0].values[4] = wrong;
+        for result in pod_both(&malformed, &plan, &limits) {
+            assert!(result.is_err());
+        }
+    }
+    let mut malformed = module.clone();
+    let function = &mut malformed.functions[0];
+    let extra = ValueId(function.values.len() as u32);
+    function.values.push(Type::I32);
+    let span = function.span;
+    function.blocks[0].instructions.insert(
+        5,
+        Instruction {
+            result: Some(extra),
+            kind: InstructionKind::OwnedStoreBorrowMut {
+                store: ValueId(2),
+                index: ValueId(3),
+            },
+            span,
+        },
+    );
+    let mut plan = plan;
+    plan.functions[0].holds.push(ValueHold {
+        value: extra,
+        roots: vec![],
+    });
+    for result in pod_both(&malformed, &plan, &limits) {
+        assert!(result.is_err());
+    }
+}
+
+#[test]
+fn pod933_mutable_window_conflicts_with_every_same_store_index_and_view_mode() {
+    let limits = Limits::default();
+    for second_mutable in [false, true] {
+        for read_first in [false, true] {
+            let (mut module, mut plan) = pod_mut_window_fixture(false, read_first);
+            let function = &mut module.functions[0];
+            let Type::Address { inner, .. } = &function.values[4] else {
+                unreachable!()
+            };
+            function.values[5] = Type::Address {
+                mutable: second_mutable,
+                inner: inner.clone(),
+            };
+            let other_index = ValueId(function.values.len() as u32);
+            function.values.push(Type::I64);
+            let instructions = &mut function.blocks[0].instructions;
+            let second = instructions
+                .iter()
+                .position(|instruction| {
+                    matches!(instruction.kind, InstructionKind::OwnedStoreReserve { .. })
+                })
+                .expect("fixture reserves the Store");
+            instructions.insert(
+                second,
+                Instruction {
+                    result: Some(other_index),
+                    kind: InstructionKind::Constant(Constant::I64(1)),
+                    span: function.span,
+                },
+            );
+            instructions[second + 1].kind = if second_mutable {
+                InstructionKind::OwnedStoreBorrowMut {
+                    store: ValueId(2),
+                    index: other_index,
+                }
+            } else {
+                InstructionKind::OwnedStoreBorrow {
+                    store: ValueId(2),
+                    index: other_index,
+                }
+            };
+            plan.functions[0].holds[5].roots = vec![HoldRoot::Local(LocalId(0))];
+            plan.functions[0].holds.push(ValueHold {
+                value: other_index,
+                roots: vec![],
+            });
+            for result in pod_both(&module, &plan, &limits) {
+                if read_first {
+                    result.unwrap();
+                } else {
+                    assert_eq!(result.unwrap_err()[0].code, "E-BORROW-CONFLICT");
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn pod933_mutable_raw_and_wire_requests_have_exact_fresh_work_boundaries() {
+    let (module, plan) = pod_mut_window_fixture(false, true);
+    let limits = Limits::default();
+    for wire in [false, true] {
+        let check = |n| {
+            let selected = Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            };
+            if wire {
+                let mut plan = plan.clone();
+                plan.module_fingerprint = module.fingerprint();
+                let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                verify_module_bytes(&bytes, &module.target, &selected)
+            } else {
+                let mut plan = plan.clone();
+                plan.module_fingerprint = module.fingerprint();
+                verify_module(module.clone(), plan, &module.target, &selected)
+            }
+        };
+        let (mut lo, mut hi) = (0, limits.max_analysis_steps);
+        check(hi).unwrap();
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            if check(mid).is_ok() {
+                hi = mid;
+            } else {
+                lo = mid + 1;
+            }
+        }
+        check(lo).unwrap();
+        assert_eq!(
+            check(lo - 1).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        check(lo).unwrap();
+        println!("G9.3.3.3 mutable request wire={wire} N={lo}");
+    }
 }
 
 #[test]

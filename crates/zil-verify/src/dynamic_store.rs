@@ -936,7 +936,8 @@ pub(super) fn check_instruction(
             if matches!(
                 instruction.kind,
                 InstructionKind::OwnedStoreBorrowMut { .. }
-            ) && !matches!(element, Type::Record { .. }) && packages::has_children(element)
+            ) && !matches!(element, Type::Record { .. })
+                && packages::has_children(element)
             {
                 return Err(unsupported(
                     "Product Store elements currently expose only shared windows",
