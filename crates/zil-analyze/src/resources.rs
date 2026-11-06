@@ -3,7 +3,9 @@
 //! and explicit sets of possible lifecycle states, independently of Verify.
 use super::*;
 use std::cell::RefCell;
+use std::cmp::Reverse;
 use std::collections::BTreeMap;
+use std::collections::BinaryHeap;
 pub(super) fn head_address(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Managed(payload) if matches!(payload.as_ref(),Type::ByteBuffer|Type::OwnedStore{..}|Type::AsyncRegistration{..}) || matches!(payload.as_ref(),Type::Record{..}) && payload.is_copy_value()))
 }
@@ -730,6 +732,35 @@ fn next(block: &BasicBlock) -> Vec<usize> {
         } => vec![then_block.0 as usize, else_block.0 as usize],
         _ => vec![],
     }
+}
+
+// A forward join should wait for earlier forward predecessors whenever the
+// actual CFG permits it. This changes scheduling, never the transfer or join.
+fn pod_resource_ranks(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Vec<usize>> {
+    let count = f.blocks.len();
+    budget.product(count, 6, 1, "POD resource CFG order storage")?;
+    let mut seen = vec![false; count];
+    let mut ranks = vec![0; count];
+    let mut postorder = Vec::new();
+    let mut pending = vec![(f.entry.0 as usize, false)];
+    while let Some((block, leaving)) = pending.pop() {
+        budget.spend(1, "POD resource CFG order visit")?;
+        if leaving {
+            postorder.push(block);
+        } else if !seen[block] {
+            seen[block] = true;
+            pending.push((block, true));
+            budget.spend(2, "POD resource CFG order successors")?;
+            for successor in next(&f.blocks[block]).into_iter().rev() {
+                pending.push((successor, false));
+            }
+        }
+    }
+    budget.spend(postorder.len(), "POD resource CFG order ranks")?;
+    for (rank, block) in postorder.into_iter().rev().enumerate() {
+        ranks[block] = rank;
+    }
+    Ok(ranks)
 }
 fn afters(
     f: &TypedFunction,
@@ -3258,6 +3289,17 @@ fn analyze_function_program(
     let mut input: Vec<Option<State>> = vec![None; f.blocks.len()];
     input[f.entry.0 as usize] = Some(initial);
     let mut stack = vec![f.entry.0 as usize];
+    let ranks = if budget.pod_stores {
+        pod_resource_ranks(f, budget)?
+    } else {
+        Vec::new()
+    };
+    let mut frontier = BinaryHeap::new();
+    if !ranks.is_empty() {
+        budget.lookup(f.blocks.len(), "POD resource frontier insertion")?;
+        frontier.push(Reverse((ranks[f.entry.0 as usize], f.entry.0 as usize)));
+        stack.clear();
+    }
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
     let mut views = BTreeMap::new();
@@ -3282,7 +3324,14 @@ fn analyze_function_program(
         replacements,
     };
     let mut effect = Effect::default();
-    while let Some(b) = stack.pop() {
+    loop {
+        let b = if ranks.is_empty() {
+            stack.pop()
+        } else {
+            budget.lookup(f.blocks.len(), "POD resource frontier removal")?;
+            frontier.pop().map(|Reverse((_, block))| block)
+        };
+        let Some(b) = b else { break };
         queued[b] = false;
         let mut state = clone_state(input[b].as_ref().unwrap(), budget)?;
         flow.run(b, &mut state, &mut effect, false, budget)?;
@@ -3305,7 +3354,12 @@ fn analyze_function_program(
                 true
             };
             if changed && !queued[successor] {
-                stack.push(successor);
+                if ranks.is_empty() {
+                    stack.push(successor);
+                } else {
+                    budget.lookup(f.blocks.len(), "POD resource frontier insertion")?;
+                    frontier.push(Reverse((ranks[successor], successor)));
+                }
                 queued[successor] = true;
             }
         }
