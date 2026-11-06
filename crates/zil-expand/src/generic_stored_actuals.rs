@@ -28,6 +28,9 @@ impl Engine<'_> {
     pub(super) fn qualified_actual_syntax(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
         self.budget.node(ty.span, depth)?;
         match &ty.kind {
+            TypeKind::Reference {
+                lifetime: Some(_), ..
+            } => Ok(true),
             TypeKind::Named { path, args } => {
                 if path.len() == 1 {
                     for instance in &self.products.storage.instances {
@@ -87,6 +90,29 @@ impl Engine<'_> {
         }
         if let TypeKind::Group(inner) = &mut ty.kind {
             return self.qualified_type_actual(inner, depth + 1);
+        }
+        if let TypeKind::Reference {
+            lifetime: Some(name),
+            mutable,
+            inner,
+        } = &mut ty.kind
+        {
+            let class = self.source_life(name, ty.span)?;
+            self.closed_stored_actual(inner, depth + 1)?;
+            self.ty(inner, depth + 1)?;
+            self.closed_stored_actual(inner, depth + 1)?;
+            self.budget.text(name, ty.span)?;
+            self.budget.ty(inner)?;
+            self.budget
+                .lineage_bytes(std::mem::size_of::<LexicalLife>(), ty.span)?;
+            return Ok(Some(stored_types::QualifiedActual {
+                name: name.clone(),
+                ty: zil_ir::Type::Address {
+                    mutable: *mutable,
+                    inner: Box::new(super::super::type_ref(inner)),
+                },
+                classes: vec![class],
+            }));
         }
         let TypeKind::Named { path, args } = &mut ty.kind else {
             return Err(unsupported(

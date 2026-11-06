@@ -2,6 +2,111 @@
 //! These private facts describe lexical type meaning, never loans or authority.
 use super::*;
 
+pub(super) fn qualified_nominal(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    budget.node(ty.span, 0)?;
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return Ok(false);
+    };
+    let [name] = path.as_slice() else {
+        return Ok(false);
+    };
+    budget.text(name, ty.span)?;
+    let Some(item) = nominals.get(name) else {
+        return Ok(false);
+    };
+    let formals = match &item.kind {
+        ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct => &a.generics,
+        ItemKind::Enum(e) => &e.generics,
+        _ => return Ok(false),
+    };
+    if formals.len() != args.len() {
+        return Ok(false);
+    }
+    let mut qualified = false;
+    for (formal, actual) in formals.iter().zip(args) {
+        budget.node(formal.span, 0)?;
+        qualified |= matches!(
+            (&formal.kind, actual),
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_))
+        );
+    }
+    Ok(qualified)
+}
+
+/// A mixed ordinary helper may compare qualified nominal source classes only
+/// when its written signature actually contains that nominal application.
+/// The nominal catalog and lexical life checker remain separate proof inputs.
+pub(super) fn qualified_signature(
+    function: &Function,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    if !budget.has_stored_lifetimes() || !super::super::lifetimes::copy_life(function) {
+        return Ok(false);
+    }
+    struct Qualified<'a, 'b, 'l> {
+        nominals: &'a BTreeMap<String, &'a Item>,
+        budget: &'b mut Budget<'l>,
+        inside_nominal: bool,
+        found: bool,
+    }
+    impl crate::ct_selection::Visitor for Qualified<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            let old = self.inside_nominal;
+            if let TypeKind::Named { path, args } = &ty.kind
+                && let [name] = path.as_slice()
+                && !args.is_empty()
+            {
+                self.budget.text(name, ty.span).map_err(|e| vec![e])?;
+                self.inside_nominal |= self.nominals.contains_key(name);
+                if self.inside_nominal {
+                    for argument in args {
+                        self.budget.node(ty.span, depth).map_err(|e| vec![e])?;
+                        self.found |= matches!(argument, GenericArg::Lifetime(_));
+                    }
+                }
+            }
+            self.found |= self.inside_nominal
+                && matches!(
+                    ty.kind,
+                    TypeKind::Reference {
+                        lifetime: Some(_),
+                        ..
+                    }
+                );
+            let result = crate::ct_selection::walk_type(self, ty, depth);
+            self.inside_nominal = old;
+            result
+        }
+    }
+    use crate::ct_selection::Visitor;
+    let mut visit = Qualified {
+        nominals,
+        budget,
+        inside_nominal: false,
+        found: false,
+    };
+    for ty in function
+        .params
+        .iter()
+        .map(|p| &p.ty)
+        .chain(function.return_type.iter())
+    {
+        visit.ty(ty, 0).map_err(|mut errors| errors.remove(0))?;
+    }
+    Ok(visit.found)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Binder(usize, usize); // actual declaration in this walk, original full ordinal
 #[derive(Clone, PartialEq, Eq)]
@@ -40,10 +145,31 @@ struct Check<'a, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Fact {
+    fn has_retained_class(&self) -> bool {
+        match self {
+            Self::Address(life, inner) => {
+                life.as_ref().is_some_and(|life| life.has_retained_class())
+                    || inner.has_retained_class()
+            }
+            Self::Named(_, fields) | Self::Tuple(fields) => {
+                fields.iter().any(Self::has_retained_class)
+            }
+            Self::List(inner) => inner.has_retained_class(),
+            Self::Function(parameters, result) => {
+                parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
+            }
+            Self::Class(_) => true,
+            Self::Unknown | Self::Parameter(_) => false,
+        }
+    }
     fn has_class(&self) -> bool {
         match self {
             Self::Class(_) => true,
-            Self::Named(_, fs) | Self::Tuple(fs) => fs.iter().any(Self::has_class),
+            // Generic actuals are stored type positions: a direct Address
+            // contributes its own declared class there, unlike an ordinary
+            // outer function borrow whose upper is checked by its own lane.
+            Self::Named(_, fs) => fs.iter().any(Self::has_retained_class),
+            Self::Tuple(fs) => fs.iter().any(Self::has_class),
             Self::Address(_, inner) | Self::List(inner) => inner.has_class(),
             Self::Function(params, result) => {
                 params.iter().any(Self::has_class) || result.has_class()
@@ -277,7 +403,7 @@ impl Check<'_, '_, '_> {
                         _ => Fact::Unknown,
                     });
                 }
-                let qualified = actuals.iter().any(Fact::has_class);
+                let qualified = actuals.iter().any(Fact::has_retained_class);
                 Fact::Named(self.head(path, ty.span, qualified)?, actuals)
             }
             TypeKind::Reference {
@@ -337,6 +463,15 @@ impl Check<'_, '_, '_> {
         Ok(Head::Plain(path.to_vec()))
     }
     fn compatible(&mut self, expected: &Fact, actual: &Fact, span: Span) -> R<()> {
+        self.compatible_position(expected, actual, span, false)
+    }
+    fn compatible_position(
+        &mut self,
+        expected: &Fact,
+        actual: &Fact,
+        span: Span,
+        retained: bool,
+    ) -> R<()> {
         self.fact(span, |this| {
         // Pay both the structural comparison and the class-presence queries.
         this.work(expected, span)?;
@@ -359,7 +494,7 @@ impl Check<'_, '_, '_> {
                 }
                 if a == b && xs.len() == ys.len() {
                     for (x, y) in xs.iter().zip(ys) {
-                        this.compatible(x, y, span)?;
+                        this.compatible_position(x, y, span, true)?;
                     }
                 }
             }
@@ -368,29 +503,36 @@ impl Check<'_, '_, '_> {
                     return Err(error(span, "source enum class annotation differs from actual declaration"));
                 }
                 if a == b && xs.len() == ys.len() {
-                    for (x, y) in xs.iter().zip(ys) { this.compatible(x, y, span)?; }
+                    for (x, y) in xs.iter().zip(ys) { this.compatible_position(x, y, span, true)?; }
                 }
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
-                if !expected.has_class() && a == b && xs.len() == ys.len() => {}
+                if !expected.has_class() && a == b && xs.len() == ys.len() => {
+                    for (x,y) in xs.iter().zip(ys) { this.compatible_position(x,y,span,true)?; }
+                }
             (Fact::Tuple(xs), Fact::Tuple(ys)) if xs.len() == ys.len() => {
                 for (x, y) in xs.iter().zip(ys) {
-                    this.compatible(x, y, span)?;
+                    this.compatible_position(x, y, span, retained)?;
                 }
             }
             (Fact::Function(xs, x), Fact::Function(ys, y)) if xs.len() == ys.len() => {
                 for (x, y) in xs.iter().zip(ys) {
-                    this.compatible(x, y, span)?;
+                    this.compatible_position(x, y, span, retained)?;
                 }
-                this.compatible(x, y, span)?;
+                this.compatible_position(x, y, span, retained)?;
             }
             // Ordinary outer borrow compatibility remains the existing lifetime
             // and kernel consumer's responsibility. Pointee classes are invariant.
-            (Fact::Address(_, x), Fact::Address(_, y)) | (Fact::List(x), Fact::List(y)) => {
-                this.compatible(x, y, span)?
+            (Fact::Address(expected_life, x), Fact::Address(actual_life, y)) => {
+                if retained && let Some(expected_life) = expected_life {
+                    let actual_life = actual_life.as_ref().ok_or_else(|| unsupported(span, "retained reference class needs its actual source class"))?;
+                    this.compatible_position(expected_life, actual_life, span, true)?;
+                }
+                this.compatible_position(x, y, span, retained)?;
             }
+            (Fact::List(x), Fact::List(y)) => { this.compatible_position(x,y,span,retained)?; }
             (Fact::Class(a), Fact::Class(b)) if a == b => {}
-            (x, _) if x.has_class() => {
+            (x, _) if if retained { x.has_retained_class() } else { x.has_class() } => {
                 return Err(unsupported(
                     span,
                     "ambient source annotation requires its actual declaration and class substitution",
@@ -583,8 +725,19 @@ impl Check<'_, '_, '_> {
                 let declaration = self.enums.get(*index).copied().ok_or_else(|| {
                     unsupported(p.span, "source enum pattern declaration is absent")
                 })?;
+                // The scrutinee already selected this actual declaration.
+                // Align only the reserved source Option spelling with its
+                // compiler-only template, as the later enum pattern lane does.
+                // This alias selects no declaration and grants no class/root.
+                let source_builtin = if let Some(name) = path.first() {
+                    self.budget.text(name, p.span)?;
+                    self.budget.text(&declaration.name, p.span)?;
+                    name == "Option" && declaration.name == options::TEMPLATE
+                } else {
+                    false
+                };
                 if path.len() != 2
-                    || path[0] != declaration.name
+                    || (path[0] != declaration.name && !source_builtin)
                     || actuals.len() != declaration.generics.len()
                 {
                     return Err(unsupported(
@@ -802,7 +955,7 @@ impl Check<'_, '_, '_> {
                                     _ => Fact::Unknown,
                                 });
                             }
-                            let qualified = args.iter().any(Fact::has_class);
+                            let qualified = args.iter().any(Fact::has_retained_class);
                             Fact::Named(
                                 self.head(std::slice::from_ref(name), e.span, qualified)?,
                                 args,
@@ -1060,6 +1213,18 @@ impl Check<'_, '_, '_> {
                         } = &operand.kind
                         {
                             self.expr(parent, scope, env, None, depth + 1)?
+                        } else if let ExprKind::Index { object, .. } = &operand.kind {
+                            // Borrowing a slice element keeps the declared class
+                            // of the actual slice address; this is source type
+                            // meaning, not a permission or a fresh target root.
+                            let parent = self.expr(object, scope, env, None, depth + 1)?;
+                            match parent {
+                                Fact::Address(life, inner) => match *inner {
+                                    Fact::List(element) => Fact::Address(life, element),
+                                    _ => Fact::Address(None, Box::new(source)),
+                                },
+                                _ => Fact::Address(None, Box::new(source)),
+                            }
                         } else {
                             Fact::Address(None, Box::new(source))
                         }
@@ -1302,7 +1467,7 @@ impl Check<'_, '_, '_> {
                     let formal = self.ty(&field.ty, &definition, depth + 1)?;
                     if !map.is_empty() {
                         let expected = self.substitute(&formal, &map, span)?;
-                        self.compatible(&expected, actual, span)?;
+                        self.compatible_position(&expected, actual, span, true)?;
                     } else {
                         self.infer(&formal, actual, &mut map, span, true)?;
                     }

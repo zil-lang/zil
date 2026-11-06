@@ -3549,6 +3549,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 self.literal_types.insert(index, variable);
                 Ok(Term::Scalar(variable))
             }
+            CoreExprKind::String(_) => self.known_term(&utf8_literals::ty(), span),
             CoreExprKind::Bool(_) => Ok(Term::Scalar(self.fresh(BOOL, false, span)?)),
             CoreExprKind::Unit => Ok(Term::Scalar(self.fresh(UNIT, false, span)?)),
             CoreExprKind::Name(name) => {

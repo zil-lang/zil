@@ -5,6 +5,7 @@ use super::*;
 mod pure_copy;
 
 mod nominal;
+pub(super) mod option_address;
 mod retained;
 
 type Path = Vec<PlaceProjection>;
@@ -21,6 +22,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Payload {
+    option_variants: option_address::Variants,
     address: Permission,
     // For a concrete Fixed environment only, a private Field(capture) prefix
     // retains its actual outer address and pointee leaves. It grants no public
@@ -44,6 +46,8 @@ struct Summary {
     result: Vec<(Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
+    returned_variants: option_address::Variants,
+    none_values: Vec<ValueId>,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -81,6 +85,7 @@ fn permission_work(p: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(p.loans.len())
 }
 fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
+    p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
@@ -178,6 +183,7 @@ fn add_leaf(
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
+    changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
         changed |= add_leaf(to, path, p, b)?;
     }
@@ -309,6 +315,9 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         return Ok(false);
     };
     type_work(ty, limits, b)?;
+    if option_address::shape(ty, limits, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
@@ -594,7 +603,8 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
-                        InstructionKind::Constant(_)
+                        InstructionKind::StaticUtf8 { .. }
+                            | InstructionKind::Constant(_)
                             | InstructionKind::Load(_)
                             | InstructionKind::Store { .. }
                             | InstructionKind::StorageLive(_)
@@ -640,7 +650,9 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                 if super::stored_callables::instruction(module, f, i) {
                     super::stored_callables::types(module, f, i, b)?;
                 }
-                if pure_copy::operation(&i.kind) {
+                if pure_copy::operation(&i.kind)
+                    && option_address::types(module, f, i, b)?.is_none()
+                {
                     pure_copy::types(f, i, b)?;
                 }
             }
@@ -1080,6 +1092,17 @@ fn access(
             "access has no independently grounded target permission",
         ));
     }
+    if b.static_utf8 {
+        b.spend(p.sources.len())?;
+    }
+    if b.static_utf8
+        && write
+        && p.sources
+            .iter()
+            .any(|source| source.base == HoldRoot::Static)
+    {
+        return Err(err("program-static text cannot authorize mutation"));
+    }
     let delegated = ancestry(&p.loans, loans, b)?;
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
@@ -1240,6 +1263,12 @@ fn seed(
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
         let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        if option_address::candidate(ty) {
+            b.spend(96)?;
+            if option_address::signature(ty) {
+                p.option_variants = option_address::Variants::parameter(position as u32, b)?;
+            }
+        }
         if fixed_environment(module, ty) {
             seed_environment(
                 module,
@@ -1279,6 +1308,9 @@ fn select(
             return Err(err("stored leaf base crosses a target or inline boundary"));
         }
         let p = match source.base {
+            HoldRoot::Static => {
+                return Err(err("static text cannot supply nested carrier permissions"));
+            }
             HoldRoot::Local(l) => state.locals.get(l.0 as usize),
             HoldRoot::Parameter(p) => state.external.get(p as usize),
             HoldRoot::Capture(p) => state.captures.get(p as usize),
@@ -1297,6 +1329,16 @@ fn instantiate(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
+    if source.base == HoldRoot::Static {
+        if !source.leaf.is_empty() || !source.inline.is_empty() {
+            return Err(err("static text summary contains a nested projection"));
+        }
+        b.spend(1)?;
+        return Ok(Permission {
+            sources: vec![source.clone()],
+            loans: Vec::new(),
+        });
+    }
     let HoldRoot::Parameter(position) = source.base else {
         return Err(err("callee returned activation or capture storage"));
     };
@@ -1338,7 +1380,16 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
+    let option_transfer = option_address::transfer(module, f, i, values, b)?;
     match &i.kind {
+        InstructionKind::StaticUtf8 { .. } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Static,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
         InstructionKind::Load(l) => {
             out = copy_payload(
                 state
@@ -1584,6 +1635,9 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+            out.option_variants = summaries[function.0 as usize]
+                .returned_variants
+                .substitute(arguments, values, b)?;
             for (path, sources) in &summaries[function.0 as usize].result {
                 let mut p = Permission::default();
                 for source in sources {
@@ -1595,10 +1649,15 @@ fn step(
                 }
                 if path.is_empty() {
                     out.address = p;
-                } else {
+                } else if !option_address::candidate(&callee.return_type)
+                    || out.option_variants.mask() & 2 != 0
+                {
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
+        }
+        _ if option_transfer.is_some() => {
+            out = option_transfer.unwrap();
         }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
@@ -1656,6 +1715,20 @@ fn step(
                 "instruction lacks an independent stored target transfer",
                 Some(i.span),
             ));
+        }
+    }
+    if let Some(id) = i.result
+        && b.static_utf8
+        && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
+    {
+        b.spend(out.address.sources.len())?;
+        if out
+            .address
+            .sources
+            .iter()
+            .any(|source| source.base == HoldRoot::Static)
+        {
+            return Err(err("static text became a mutable address"));
         }
     }
     if let Some(id) = i.result
@@ -2320,6 +2393,10 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    if !s.none_values.is_empty() {
+        b.spend(s.none_values.len())?;
+    }
+    s.returned_variants.work(b)?;
     b.spend(s.result.len().saturating_add(s.apart.len()))?;
     for (path, row) in &s.result {
         b.spend(path.len())?;
@@ -2354,18 +2431,42 @@ fn summarize(
     f: &TypedFunction,
     g: &FunctionGraph,
     solution: &Solution,
+    inactive: Option<&[ValueId]>,
     b: &mut Budget,
 ) -> Check<Summary> {
     let mut summary = Summary {
         complete: true,
         ..Summary::default()
     };
-    for (ty, p) in f.values.iter().zip(&solution.values) {
+    for (id, (ty, p)) in f.values.iter().zip(&solution.values).enumerate() {
         b.spend(1)?;
+        if p.option_variants.mask() == 1 {
+            b.spend(2)?;
+            summary.none_values.push(ValueId(id as u32));
+        }
+        if let Some(dead) = inactive {
+            b.spend(dead.len().saturating_add(1))?;
+            if dead.contains(&ValueId(id as u32)) {
+                continue;
+            }
+        }
         if matches!(ty, Type::Address { .. }) && p.address.sources.is_empty() {
             summary.complete = false;
         }
         if let Some((_, shape)) = qualified(ty) {
+            if option_address::candidate(ty) {
+                b.spend(96)?;
+                if !option_address::signature(ty) {
+                    return Err(err("Option activity has no exact shape"));
+                }
+                let mask = p.option_variants.mask();
+                if mask == 0 {
+                    summary.complete = false;
+                }
+                if mask == 1 {
+                    continue;
+                }
+            }
             for row in &shape.slots {
                 if leaf(p, &row.path, b)?.is_none_or(|p| p.sources.is_empty()) {
                     summary.complete = false;
@@ -2407,6 +2508,9 @@ fn summarize(
         b.spend(1)?;
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
+            summary
+                .returned_variants
+                .join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Address { .. }) {
                 result_row(&mut summary, &[], &payload.address.sources, b)?;
             }
@@ -2492,8 +2596,18 @@ pub(super) fn check(
             }
         }
     }
-    b.spend(module.functions.len().saturating_mul(2))?;
     super::stored_callables::roles(module, graphs, b)?;
+    solve_check(module, graphs, plan, None, b)
+}
+fn solve_check(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    plan: &CandidatePlan,
+    inactive: Option<&[Vec<ValueId>]>,
+    b: &mut Budget,
+) -> Check<()> {
+    b.spend(module.functions.len().saturating_mul(2))?;
+    let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
     loop {
@@ -2503,7 +2617,15 @@ pub(super) fn check(
         for index in (0..module.functions.len()).rev() {
             let f = &module.functions[index];
             let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
-            let mut summary = summarize(module, f, &graphs[index], &solution, b)?;
+            let mut summary = summarize(
+                module,
+                f,
+                &graphs[index],
+                &solution,
+                inactive.map(|rows| rows[index].as_slice()),
+                b,
+            )?;
+            observed_none |= !summary.none_values.is_empty();
             if summary.complete {
                 windows(
                     module,
@@ -2529,6 +2651,12 @@ pub(super) fn check(
         if !changed {
             break;
         }
+    }
+    if inactive.is_none()
+        && observed_none
+        && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
+    {
+        return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), b);
     }
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
         if !s.complete {
@@ -2579,6 +2707,12 @@ pub(super) fn check(
             }
             for source in sources {
                 if lender.is_some() {
+                    continue;
+                }
+                if source.base == HoldRoot::Static {
+                    if !source.leaf.is_empty() || !source.inline.is_empty() {
+                        return Err(err("static result has a nested permission projection"));
+                    }
                     continue;
                 }
                 let HoldRoot::Parameter(position) = source.base else {

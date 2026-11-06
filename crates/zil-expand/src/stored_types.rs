@@ -651,6 +651,34 @@ struct Shape<'a, 'l> {
 }
 
 impl Shape<'_, '_> {
+    fn address_argument(
+        &mut self,
+        actual: &QualifiedActual,
+        ordinal: usize,
+        span: Span,
+    ) -> R<bool> {
+        if !matches!(actual.ty, Type::Address { .. }) {
+            return Ok(false);
+        }
+        let [lexical] = actual.classes.as_slice() else {
+            return Err(invalid(
+                span,
+                "address Type actual requires its one source class",
+            ));
+        };
+        let binder = self.class(*lexical, span)?;
+        spend(self.budget, span, 2)?;
+        self.retained.push(StorageRetainedBinding {
+            path: vec![LifeTypeProjection::TypeArgument(
+                u32::try_from(ordinal)
+                    .map_err(|_| invalid(span, "Type actual ordinal overflow"))?,
+            )],
+            class: 0,
+            binder,
+        });
+        Ok(true)
+    }
+
     fn qualified_child(
         &mut self,
         actual: &QualifiedActual,
@@ -659,6 +687,27 @@ impl Shape<'_, '_> {
         span: Span,
         depth: usize,
     ) -> R<Type> {
+        if let Type::Address { mutable, .. } = &actual.ty {
+            let [lexical] = actual.classes.as_slice() else {
+                return Err(invalid(
+                    span,
+                    "address Type actual requires its one source class",
+                ));
+            };
+            let binder = self.class(*lexical, span)?;
+            spend(self.budget, span, path.len().saturating_add(1))?;
+            self.slots.push(StorageLifeSlot {
+                path: path.to_vec(),
+                binder,
+                mode: if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                },
+            });
+            pay_type(&actual.ty, self.budget, span, depth + 1)?;
+            return Ok(actual.ty.clone());
+        }
         let Type::BorrowedStorage { life, .. } = &actual.ty else {
             return Err(invalid(span, "qualified child lacks storage relation"));
         };
@@ -795,9 +844,26 @@ impl Shape<'_, '_> {
                 physical = inner;
             }
             self.budget.text(&actual.name, source.span)?;
-            if !matches!(&physical.kind, s::TypeKind::Named {path, args}
-                if path.len() == 1 && path[0] == actual.name && args.is_empty())
-            {
+            let matches_actual = if matches!(actual.ty, Type::Address { .. }) {
+                self.budget.ty(physical)?;
+                match &physical.kind {
+                    s::TypeKind::Reference {
+                        lifetime: Some(name),
+                        mutable,
+                        inner,
+                    } if name == &actual.name => {
+                        Type::Address {
+                            mutable: *mutable,
+                            inner: Box::new(type_ref(inner)),
+                        } == actual.ty
+                    }
+                    _ => false,
+                }
+            } else {
+                matches!(&physical.kind, s::TypeKind::Named {path, args}
+                    if path.len() == 1 && path[0] == actual.name && args.is_empty())
+            };
+            if !matches_actual {
                 return Err(invalid(
                     source.span,
                     "physical field differs from its original Type formal substitution",
@@ -1061,6 +1127,9 @@ pub(super) fn instantiate_joint_with_fields(
         if ty != &actual.ty {
             return Err(invalid(span, "qualified Type actual metadata differs"));
         }
+        if shape.address_argument(actual, *ordinal, span)? {
+            continue;
+        }
         let Type::BorrowedStorage { life, .. } = ty else {
             return Err(invalid(
                 span,
@@ -1235,6 +1304,9 @@ pub(super) fn instantiate_enum_joint(
         if ty != &actual.ty {
             return Err(invalid(span, "qualified enum Type actual metadata differs"));
         }
+        if shape.address_argument(actual, *ordinal, span)? {
+            continue;
+        }
         let Type::BorrowedStorage { life, .. } = ty else {
             return Err(invalid(
                 span,
@@ -1392,6 +1464,113 @@ pub(super) fn instantiate_enum_joint(
 mod source_tests {
     use super::*;
     use zil_base::{FileId, ModuleId};
+
+    #[test]
+    fn g3_4_1_original_slice_iterator_reaches_complete_core() {
+        let core = expand_text(include_str!(
+            "../../../tests/language-readiness/terminal/342/slice_iter.zil"
+        ))
+        .unwrap();
+        assert!(
+            core.functions
+                .iter()
+                .any(|function| function.name == "result")
+        );
+        assert!(
+            core.life_declarations
+                .iter()
+                .any(|declaration| declaration.id.compiler)
+        );
+    }
+
+    #[test]
+    fn g3_4_1_option_result_flows_through_a_real_parameter() {
+        expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.None();}fn id<life s>(value:Option<&'s i64>)->Option<&'s i64>{return value;}fn forward<life s>(slice:&'s [i64])->Option<&'s i64>{let value=next(slice);return id(value);}fn main(){}")
+            .unwrap();
+    }
+
+    #[test]
+    fn g3_4_1_grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint() {
+        let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<(&'s i64)>{return Option::<(&'s i64)>.Some(&slice[0]);}fn result()->i64{let values:[i64;1]=[42];let value=next(&values[..]);match value{Option.Some(n)=>{return *n},Option.None()=>{return 0}}}").unwrap();
+        let instance = core
+            .life_instances
+            .iter()
+            .find(|instance| instance.declaration.compiler)
+            .unwrap();
+        assert_eq!(
+            instance.arguments,
+            vec![LifeNominalActual::Type(Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I64),
+            })]
+        );
+        let Type::BorrowedStorage { life, .. } = &instance.ty else {
+            panic!("{instance:?}")
+        };
+        assert_eq!(life.retained.len(), 1);
+        assert_eq!(life.slots.len(), 1);
+        assert!(
+            core.functions
+                .iter()
+                .any(|function| function.name == "result")
+        );
+    }
+
+    #[test]
+    fn option_reference_actual_keeps_real_source_class_and_variant_slot() {
+        let core = expand_text("fn next<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn main(){}").unwrap();
+        let declaration = core
+            .life_declarations
+            .iter()
+            .find(|declaration| declaration.id.compiler)
+            .expect("sealed Option declaration");
+        assert_eq!(declaration.id.module, ModuleId(u32::MAX));
+        assert_eq!(declaration.identity.package, "@zil.builtin");
+        let instance = core
+            .life_instances
+            .iter()
+            .find(|instance| instance.declaration == declaration.id)
+            .unwrap();
+        assert_eq!(
+            instance.arguments,
+            vec![LifeNominalActual::Type(Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I64),
+            })]
+        );
+        let Type::BorrowedStorage { life, .. } = &instance.ty else {
+            panic!("{instance:?}")
+        };
+        assert_eq!(life.binder_count, 1);
+        assert_eq!(
+            life.retained,
+            vec![StorageRetainedBinding {
+                path: vec![LifeTypeProjection::TypeArgument(0)],
+                class: 0,
+                binder: 0,
+            }]
+        );
+        assert_eq!(
+            life.slots,
+            vec![StorageLifeSlot {
+                path: vec![PlaceProjection::Variant(zil_ir::VariantProjection {
+                    variant: 1,
+                    index: 0
+                })],
+                binder: 0,
+                mode: StoredBorrowMode::SharedAddress,
+            }]
+        );
+        assert!(life.nominal_arguments.is_empty());
+        assert!(
+            core.functions
+                .iter()
+                .find(|f| f.name == "next")
+                .unwrap()
+                .storage_life
+                .is_some()
+        );
+    }
 
     #[test]
     fn nested_type_actual_keeps_callers_distinct_life_from_outer_formal() {

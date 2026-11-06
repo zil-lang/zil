@@ -78,7 +78,7 @@ fn async_registration42_raw_operations_preserve_every_field_without_admission() 
             assert!(identities.insert(encoded));
         }
         let mut bad = writer.output;
-        bad[5] = 139;
+        bad[5] = 140;
         assert_eq!(
             Reader::new(&bad, &limits)
                 .unwrap()
@@ -175,7 +175,7 @@ fn async_registration42_complete_environment_is_bounded_noncopy_raw_data() {
         decode_module_candidate(&bytes, &limits).unwrap(),
         (module, plan)
     );
-    for version in [40u32, 41, 43] {
+    for version in [40u32, 41, 42, 44] {
         let mut bad = bytes.clone();
         bad[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
@@ -1422,4 +1422,59 @@ fn strong_compare_exchange_transport_preserves_both_orders_and_all_operands() {
         }
     }
     assert_eq!(identities.len(), 100);
+}
+
+#[test]
+fn static_utf8_43_wire_fingerprint_bounds_and_untrusted_bytes() {
+    let limits = Limits::default();
+    let mut identities = std::collections::BTreeSet::new();
+    for bytes in [
+        vec![],
+        "按钮🙂".as_bytes().to_vec(),
+        b"a\0b".to_vec(),
+        vec![0xff],
+    ] {
+        let instruction = Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::StaticUtf8 { bytes },
+            span: Span::default(),
+        };
+        let mut writer = Writer::new(&limits);
+        writer.instruction(&instruction).unwrap();
+        assert_eq!(writer.output[5], 139);
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.instruction().unwrap(), instruction);
+        reader.finish().unwrap();
+        for end in 0..writer.output.len() {
+            assert!(
+                Reader::new(&writer.output[..end], &limits)
+                    .and_then(|mut r| r.instruction())
+                    .is_err()
+            );
+        }
+        let mut fingerprint = vec![];
+        crate::encode_instruction(&mut fingerprint, &instruction.kind);
+        assert!(identities.insert(fingerprint));
+        let mut forged = writer.output.clone();
+        forged[6..10].copy_from_slice(&u32::MAX.to_le_bytes());
+        assert_eq!(
+            Reader::new(&forged, &limits)
+                .unwrap()
+                .instruction()
+                .unwrap_err()
+                .category,
+            ResultCategory::ResourceLimit
+        );
+        let tiny = Limits {
+            max_source_bytes: 0,
+            ..limits.clone()
+        };
+        assert_eq!(
+            Writer::new(&tiny)
+                .instruction(&instruction)
+                .unwrap_err()
+                .category,
+            ResultCategory::ResourceLimit
+        );
+    }
 }

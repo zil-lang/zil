@@ -584,6 +584,29 @@
       "accounting": "Prepay scanning, source traversal, comparisons, copying, substitutions, failure and capacity growth from the same remaining request budget; preserve old closed paths",
       "acceptance": "Actual Source producers/consumers, joint graph-and-witness and call-actual swaps, raw/Wire version and graph controls, N/N-1/fresh, cache identity, full native observations; transport/schema presence is not parent completion",
       "enclosing_scope": "CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>; authentic lexical host edge with independent Definition/Instantiated own actuals, bounded acyclic parent graph and full contextual identity; free scopes None"
+    },
+    "runtime_utf8_G9_3_1": {
+      "authority": "_zil_design.md §15.1",
+      "state": "ContractToImplement",
+      "schema_version": 43,
+      "wire_version": 43,
+      "instruction": "StaticUtf8 { bytes: Vec<u8> }, opcode139; exact immutable Address<Slice<U8>>",
+      "origin": "HoldRoot::Static, root tag3 without ID; independently reconstructed from actual validated instruction, never inferred from empty parameter roots",
+      "abi": "Private constant UTF8 bytes and existing pointer/length slice; empty backing valid and length zero; embedded NUL retained; no terminator/allocation/owner",
+      "identity": "Typed/Type/LifeInventory domains V43; older envelopes rejected; CT schema unchanged",
+      "export": "FunctionResultOrigins.static_storage explicitly accompanies parameters; public contract hash domain7; true body-derived origins only",
+      "consumers": "Source/Core decoder, Types, independent Analyze/Verify including stored flow, Lower, LLVM text/API/CGU and cache; CT runtime instruction rejection",
+      "accounting": "Prepay actual new scans/copies/comparisons/storage from remaining current request; unchanged default budgets",
+      "scope": "Ordinary immutable byte-slice literals and explicit std.string construction; not full text/formatting/grapheme library or Rust cost acceptance"
+    },
+    "shared_option_address_G3_4_1": {
+      "authority": "_zil_design.md §15.2",
+      "state": "ContractToImplement",
+      "representation": "Existing Address Type actual and ordinary Enum; no additional wire fields",
+      "identity": "Exact compiler builtin {module:u32::MAX,declaration:0,compiler:true}; @zil.builtin/[option]/[enum,Option]/[]; parameters=[Type]",
+      "relation": "Exactly one shared Address actual, binder_count1, TypeArgument(0) class0->binder0, SharedAddress Variant(1,0)->binder0, no nominal_arguments; None()/Some(actual)",
+      "independence": "Types/Analyze/Verify separately authenticate full declaration, shape, actual and complete relation; runtime targets reconstructed from real active payload and calls",
+      "boundary": "Mutable or ordinary user nominal direct Address actuals remain unsupported pending complete formal occurrence metadata; names and same-shaped types do not authorize"
     }
   },
   "schemas": [

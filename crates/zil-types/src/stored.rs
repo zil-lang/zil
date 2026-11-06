@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod option_address;
 mod retained;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -109,7 +110,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
     let mut declarations = BTreeMap::new();
     for (index, declaration) in core.life_declarations.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
-        if declaration.id.compiler {
+        if declaration.id.compiler && !option_address::declaration(declaration) {
             return Err(unsupported(
                 span,
                 "stored compiler nominal requires its authentic builtin declaration",
@@ -432,6 +433,18 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { .. })
 }
 
+/// Builder sees only Resolver output whose complete nominal inventory was
+/// authenticated. This enables value-pattern lowering of the sealed sum, not
+/// an ordinary Copy classification or a target root.
+pub(super) fn option_address_value(
+    ty: &Type,
+    left: &mut usize,
+    limits: &Limits,
+    span: Span,
+) -> R<bool> {
+    option_address::shape(ty, left, limits.max_call_depth, span)
+}
+
 /// Narrow value-only qualification for an actual nested stored field. This
 /// never enables an Address/Desc, owning leaf, or generic Copy classification.
 pub(super) fn pure_value(ty: &Type, left: &mut usize, limits: &Limits, span: Span) -> R<bool> {
@@ -484,6 +497,16 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
     Ok(true)
 }
 
+pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    instance.declaration.compiler
+        && instance.declaration.module.0 == u32::MAX
+        && instance.declaration.declaration.0 == 0
+        && matches!(instance.arguments.as_slice(), [LifeNominalActual::Type(actual)] if actual == ty)
+        // Inventory already authenticated this exact actual and its complete
+        // finite pointee. shared_address is a different dispatch: &carrier.
+        && matches!(ty, Type::Address { mutable: false, .. })
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }
@@ -498,6 +521,9 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
+    if option_address::shape(ty, left, depth_limit, span)? {
+        return Ok(());
+    }
     if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
         || (!life.retained.is_empty() && !life.slots.is_empty())
         || (matches!(storage.as_ref(), Type::Enum { .. })

@@ -697,6 +697,19 @@ impl FunctionEmitter<'_> {
                     align: (physical_layout(ty)?.align) as u32,
                 },
             ))),
+            Type::Address {
+                mutable: false,
+                inner,
+            } if inner.is_copy_value() => {
+                self.event(m::Event::Instruction(m::Inst::new(
+                    None,
+                    m::Op::Store {
+                        arg: m::Arg::new(llvm_type(ty)?, m::val(source)),
+                        ptr: m::val(address),
+                        align: physical_layout(ty)?.align,
+                    },
+                )));
+            }
             Type::Managed(payload) => self.store_payload(payload, source, address)?,
             Type::ByteBuffer | Type::OwnedStore { .. } => {
                 let llvm = llvm_type(ty)?;

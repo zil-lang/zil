@@ -694,6 +694,12 @@ impl<'a, 'c> Builder<'a, 'c> {
     pub(super) fn conditional_pattern(&mut self, pattern: &CorePattern, ty: &Type) -> R<bool> {
         if !ty.is_copy_value()
             && !stored::pure_value(ty, &mut self.match_work_left, self.limits, pattern.span)?
+            && !stored::option_address_value(
+                ty,
+                &mut self.match_work_left,
+                self.limits,
+                pattern.span,
+            )?
         {
             return Err(unsupported(
                 pattern.span,
@@ -858,6 +864,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
         if !ty.is_copy_value()
             && !stored::pure_value(&ty, &mut self.match_work_left, self.limits, span)?
+            && !stored::option_address_value(&ty, &mut self.match_work_left, self.limits, span)?
         {
             return Err(unsupported(span, "match requires a finite Copy value"));
         }

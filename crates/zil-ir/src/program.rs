@@ -57,6 +57,9 @@ pub struct FunctionResultOrigins {
     pub name: String,
     /// Input parameter positions whose targets may be returned; scalar results are empty.
     pub parameters: Vec<u32>,
+    /// Independently verified program-static read-only storage may be returned.
+    /// An empty parameter set alone never implies this fact.
+    pub static_storage: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]

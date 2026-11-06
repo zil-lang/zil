@@ -36,6 +36,8 @@ mod retained;
 mod scoped_thread;
 mod scopes;
 mod signature_life;
+#[cfg(test)]
+mod static_utf8_tests;
 mod stored_borrows;
 mod stored_callables;
 mod stored_flow;

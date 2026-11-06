@@ -1,0 +1,148 @@
+{
+  "task_id": "G9.3.1",
+  "reviewer": "/root/general_text_kernels",
+  "implementation_author": "/root/general_text_backend",
+  "implementation_commit": "9fd21a5b9951c82aa18fa949620f3b3a33967410",
+  "verdict": "Pass",
+  "binding": "Exact",
+  "scope": "Independent static review of Lower/CT/LLVM backend slice and five focused reused-binary checks only",
+  "excluded_scope": [
+    "Analyze/Verify changes authored by this reviewer in e20fc0728/208f374d2",
+    "Public schema and Types/driver producer",
+    "Source-to-native acceptance and product gates"
+  ],
+  "reviewed_paths": [
+    {
+      "path": "crates/zil-lower/src/lib.rs",
+      "sha256": "d2f7d77df9b3f2b8c85c14c1d9e8a9be18de4024d252f4ff37bef90def142402"
+    },
+    {
+      "path": "crates/zil-lower/src/owned_sums.rs",
+      "sha256": "c8f4e0ead36cd752cb6a76235bde9c6b292f41f29852f15fc31b1991c5a3618a"
+    },
+    {
+      "path": "crates/zil-ct/src/program.rs",
+      "sha256": "605319fd72f074e124346527dd86ca336cb96cc004a22efab690cc5e810f6002"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit.rs",
+      "sha256": "169ee538dd0fa24caf0136527bebdaa609ff0a76ba442c933663f5fdeffccd8e"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/large_copy_abi.rs",
+      "sha256": "d0a34c45a3a63134cfa89ace446202ee67996f5a3044d3ff1a445d82460fc8ac"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/static_utf8.rs",
+      "sha256": "6ea34037b8fb007e565310175aa83c7f530865e3fd15d1b295cc0d8d27e183c6"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/emit/stored_borrows.rs",
+      "sha256": "d4f7a3f05da2666e8a422f9e53d1b19589e6b10e6cb27bbee84415d7f6c2f542"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/machine_cgu.rs",
+      "sha256": "72faf961ddb5c2738d889cf99a75d88decd2ebbf70e711202ccb4c3747cb8805"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/object_cache.rs",
+      "sha256": "882e32f299990da82b8f7d7105844230af43627fa6c9e51ba8a0756e9e2fd92a"
+    },
+    {
+      "path": "crates/zil-backend-llvm/src/tests.rs",
+      "sha256": "9209027bd73d76b4e2bc216da21d9a779ac07860b9975b09b0578cd476903cc5"
+    }
+  ],
+  "findings": [],
+  "checks": [
+    {
+      "area": "raw LIR binding",
+      "result": "Pass",
+      "evidence": "same_functions exhaustively destructures and compares every TypedFunction field, block identity/terminator/instruction count, result/span and complete kind. Equal-length static payload byte comparison is prepaid before derived Eq. Length/kind mismatch short-circuits. Aliased immutable verified slices skip redundant comparison without manufacturing capability."
+    },
+    {
+      "area": "current request budgets",
+      "result": "Pass",
+      "evidence": "Owned Lower clone charges each bytes.len()+1 before instruction.clone; borrowed lowering avoids byte clones. The remaining codegen ledger flows through raw binding into copy_aggregates/large_copy_abi; the existing instruction inventory prepays 16*n+64 for each static payload before globals/events are materialized. Tests cover exact N, N-1 and repeated fresh budgets, aliased binding and unaffected scalar controls."
+    },
+    {
+      "area": "exact bytes and empty backing",
+      "result": "Pass",
+      "evidence": "Global is private constant unnamed_addr [bytes.len() x i8], alignment1, Val::Bytes(exact bytes), without terminator. StaticUtf8 constructs the existing {ptr,i64} value from the real global symbol and byte count. Empty data remains a [0 x i8] defined global symbol and a zero length, not a null special case. Structured LLVM validation and raw emitter assertions cover empty/NUL/Unicode; native empty storage is left to combined acceptance."
+    },
+    {
+      "area": "LLVM API and textual consumer",
+      "result": "Pass",
+      "evidence": "Both use the common structured machine Global/Val::Bytes. Existing model text escapes every non-printable byte; native builder LLVMConstStringInContext uses exact length and DontNullTerminate=1. The existing machine validator matches Val::Bytes length to the exact i8 array type, including zero."
+    },
+    {
+      "area": "CGU and cache identity",
+      "result": "Pass",
+      "evidence": "Existing symbol references cause private globals and all users to co-locate once. Added test checks two users, independent unit, one exact private definition and per-unit machine validation. Existing full machine key changes under same-length byte/NUL mutations, empty length, constant qualification and linkage changes; a key remains input identity rather than verification authority."
+    },
+    {
+      "area": "CT runtime storage boundary",
+      "result": "Pass",
+      "evidence": "Pure CT verifier excludes runtime address types/StaticUtf8 through its existing whitelist. VM now additionally rejects StaticUtf8 with Phase::Ct E-CT-FORBIDDEN instead of creating runtime storage."
+    },
+    {
+      "area": "original failures and test repairs",
+      "result": "Pass",
+      "evidence": "023239497 first defined function selector picked a runtime helper. 78a3a8e3 selected actual zil.fn.0 but still inspected only its prologue block. 9fd21a5b scans the full actual source-function CFG and retains both pointer-global and exact-length assertions. git diff confirms both repair commits touch tests only; production implementation and budget code remain identical."
+    }
+  ],
+  "execution": {
+    "build_mode": "No Cargo build/link started by reviewer; root requested static review while native work owned the heavy window",
+    "provenance": "Reused author-built binaries named in the committed backend receipt bound to exact source9fd21a5b; recorded hashes were unchanged before/after reviewer execution. This is not an independent clean rebuild.",
+    "runs": [
+      {
+        "command": [
+          "/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3fac71dfa082faed",
+          "static_utf8",
+          "--nocapture"
+        ],
+        "binary_sha256": "ac9a98f6b057a555b47694cf2be98cd2b4a5b1df7eb31b1ce424e33ac28bfde5",
+        "binary_unchanged": true,
+        "exit_code": 0,
+        "stdout": "\nrunning 4 tests\ntest object_cache::tests::static_utf8_cache_key_binds_exact_bytes_length_and_immutable_storage ... ok\ntest machine_cgu::tests::static_utf8_private_exact_data_stays_with_its_users_once ... ok\ntest tests::static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets ... ok\ntest tests::static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.00s\n\n",
+        "stderr": ""
+      },
+      {
+        "command": [
+          "/workspace/.zil-env/target/debug/deps/zil_lower-0ccbfc38df9d3f79",
+          "owned_static_utf8_clone",
+          "--nocapture"
+        ],
+        "binary_sha256": "b7b0812e84961b738f8d8a7b3cb7c515b230cb3281216b1263035c738b7a62a7",
+        "binary_unchanged": true,
+        "exit_code": 0,
+        "stdout": "\nrunning 1 test\ntest tests::owned_static_utf8_clone_prepays_exact_bytes_without_charging_old_clones ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s\n\n",
+        "stderr": ""
+      }
+    ],
+    "passed": 5,
+    "failed": 0
+  },
+  "author_evidence_commit": "3f99d18b03c68c26b18d73c249d8db9191f5f652",
+  "retained_evidence": [
+    {
+      "path": "docs/validation/G9.3.1-backend-initial-fail.json",
+      "sha256": "e070bc8090c8bd100edc7474e0dcff6fd497e8efe6fb9c665ddd73f9660d6758"
+    },
+    {
+      "path": "docs/validation/G9.3.1-backend-cfg-assert-fail.json",
+      "sha256": "01be5ec4a05e0d359fd6221b53335ffc7e26317afffd585c24dae3645c23107e"
+    },
+    {
+      "path": "docs/validation/G9.3.1-backend.json",
+      "sha256": "712a10c6a7f02dfae4fb42ea407e89bd6c0cd4a76582bf5a81fc8f9e505e6308"
+    }
+  ],
+  "limitations": [
+    "No fresh reviewer Cargo build, formal full-suite run, native object/link/run, platform comparison or performance measurement was performed",
+    "Combined source/native O0/O2, exported static returns, explicit String allocation/failure and actual zero-length global behavior remain root acceptance work",
+    "No review of this reviewer own Analyze/Verify implementation is claimed",
+    "No Rust four-goal or product competitiveness completion is claimed"
+  ],
+  "followup_native_reference": null
+}

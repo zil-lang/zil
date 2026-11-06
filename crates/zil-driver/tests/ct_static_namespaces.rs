@@ -35,6 +35,32 @@ fn g4462_host_member_nearest_life_shadow() {
     ));
 }
 #[test]
+fn g3_4_1_life_duplicates_still_reject_within_the_current_declaration() {
+    for text in [
+        "struct Host<life s>{fn make<life s,life s>()->i32{return 42}}fn main()->i32{return 0}",
+        "struct Host<life s,life s>{n:i32}fn main()->i32{return 0}",
+        "fn duplicate<life s,life s>()->i32{return 0}fn main()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.code == "E-LIFE-DECLARATION"
+                    && diagnostic.message == "duplicate life binder"
+            }),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+#[test]
 fn g4462_generated_host_member_distinct_lives() {
     assert_source(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"

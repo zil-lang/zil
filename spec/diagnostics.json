@@ -1081,6 +1081,15 @@
       ]
     },
     {
+      "code": "E-UTF8-LITERAL",
+      "phases": [
+        "types"
+      ],
+      "requirements": [
+        "ZIL-SYNTAX"
+      ]
+    },
+    {
       "code": "E-VERIFY-ADDRESS",
       "phases": [
         "verify"

@@ -11,7 +11,7 @@ pub(super) fn publish(
     interfaces: &mut [ScalarInterface],
 ) -> CompileResult<()> {
     for interface in interfaces {
-        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-6\0".to_vec();
+        let mut bytes = b"ZIL-VERIFIED-CALL-CONTRACT-7\0".to_vec();
         bytes.extend_from_slice(&interface.signature_fingerprint.0);
         let mut results = Vec::with_capacity(interface.exports.len());
         let mut callables = Vec::new();
@@ -65,15 +65,20 @@ pub(super) fn publish(
                 bytes.push(0);
             }
             let parameters = verified.result_origins(export.function).ok_or_else(fail)?;
+            let static_storage = verified
+                .result_has_static_origin(export.function)
+                .ok_or_else(fail)?;
             bytes.extend_from_slice(&(export.name.len() as u64).to_le_bytes());
             bytes.extend_from_slice(export.name.as_bytes());
             bytes.extend_from_slice(&(parameters.len() as u64).to_le_bytes());
             for parameter in &parameters {
                 bytes.extend_from_slice(&parameter.to_le_bytes());
             }
+            bytes.push(u8::from(static_storage));
             results.push(FunctionResultOrigins {
                 name: export.name.clone(),
                 parameters,
+                static_storage,
             });
         }
         interface.result_origins = Some(results);

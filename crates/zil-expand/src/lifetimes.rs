@@ -12,6 +12,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         impl_scope: bool,
         mutable_life: bool,
         stored_fields: bool,
+        direct_type_argument: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -42,18 +43,30 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         }
         fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
             let old_binders = std::mem::take(&mut self.binders);
+            // Methods are lexically inside the nominal/impl life binders.
+            // A fresh module item still starts with the restored empty scope.
+            for name in &old_binders {
+                self.budget.text(name, item.span).map_err(|e| vec![e])?;
+                self.binders.push(name.clone());
+            }
+            // Parent names are visible, but this declaration may shadow them.
+            // Duplicate formals belong to this item's own lexical frame only.
+            let inherited_len = self.binders.len();
             let old_headers = std::mem::take(&mut self.headers);
             let old_trait = self.trait_scope;
             let old_impl = self.impl_scope;
             let old_mutable_life = self.mutable_life;
             let old_stored_fields = self.stored_fields;
+            let old_type_argument = self.direct_type_argument;
             self.stored_fields = false;
+            self.direct_type_argument = false;
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
             let nominal_generics = match &item.kind {
                 s::ItemKind::Aggregate(aggregate) => Some(aggregate.generics.as_slice()),
                 s::ItemKind::Enum(declaration) => Some(declaration.generics.as_slice()),
+                s::ItemKind::Impl(declaration) => Some(declaration.generics.as_slice()),
                 _ => None,
             };
             if let Some(nominal_generics) = nominal_generics {
@@ -73,7 +86,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                                 .text(&parameter.name, parameter.span)
                                 .map_err(|e| vec![e])?;
                         }
-                        if self.binders.contains(&parameter.name) {
+                        if self.binders[inherited_len..].contains(&parameter.name) {
                             return Err(vec![failure(parameter.span, "duplicate life binder")]);
                         }
                         self.binders.push(parameter.name.clone());
@@ -84,8 +97,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
-                self.mutable_life =
-                    only_life(f) || !self.impl_scope && (copy_life(f) || callable_life(f));
+                self.mutable_life = !self.binders.is_empty()
+                    || only_life(f)
+                    || !self.impl_scope && (copy_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -93,7 +107,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                         for _ in 0..self.binders.len() {
                             self.budget.text(&p.name, p.span).map_err(|e| vec![e])?;
                         }
-                        if self.binders.contains(&p.name) {
+                        if self.binders[inherited_len..].contains(&p.name) {
                             return Err(vec![failure(p.span, "duplicate life binder")]);
                         }
                         self.binders.push(p.name.clone());
@@ -125,6 +139,14 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.impl_scope = old_impl;
             self.mutable_life = old_mutable_life;
             self.stored_fields = old_stored_fields;
+            self.direct_type_argument = old_type_argument;
+            result
+        }
+        fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
+            let old_type_argument = self.direct_type_argument;
+            self.direct_type_argument = matches!(expression.kind, s::ExprKind::TypeApply { .. });
+            let result = ct_selection::walk_expression(self, expression, depth);
+            self.direct_type_argument = old_type_argument;
             result
         }
         fn ty(&mut self, ty: &s::TypeRef, depth: usize) -> CompileResult<()> {
@@ -136,7 +158,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 let old_binders = std::mem::take(&mut self.binders);
                 let old_headers = std::mem::take(&mut self.headers);
                 let old_mutable_life = self.mutable_life;
+                let old_type_argument = self.direct_type_argument;
                 self.mutable_life = true;
+                self.direct_type_argument = false;
                 let mut inner = ty;
                 let mut rank = depth;
                 while let s::TypeKind::ForLifetime {
@@ -188,6 +212,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.binders = old_binders;
                 self.headers = old_headers;
                 self.mutable_life = old_mutable_life;
+                self.direct_type_argument = old_type_argument;
                 return result;
             }
             if let s::TypeKind::Reference {
@@ -202,11 +227,17 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if !self.binders.contains(name) {
                     return Err(vec![failure(ty.span, "undeclared life name")]);
                 }
+                if !self.headers.contains(&std::ptr::from_ref(ty)) {
+                    self.budget.note_stored_lifetimes();
+                    self.budget.note_source_identity();
+                }
                 for _ in 0..self.headers.len() {
                     self.budget.text("h", ty.span).map_err(|e| vec![e])?;
                 }
                 if (*mutable && !self.mutable_life)
-                    || (!self.stored_fields && !self.headers.contains(&std::ptr::from_ref(ty)))
+                    || (!self.stored_fields
+                        && !self.headers.contains(&std::ptr::from_ref(ty))
+                        && !(!*mutable && self.direct_type_argument))
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
@@ -215,7 +246,15 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                     )]);
                 }
             }
-            ct_selection::walk_type(self, ty, depth)
+            let old_type_argument = self.direct_type_argument;
+            self.direct_type_argument = match ty.kind {
+                s::TypeKind::Named { .. } => true,
+                s::TypeKind::Group(_) => old_type_argument,
+                _ => false,
+            };
+            let result = ct_selection::walk_type(self, ty, depth);
+            self.direct_type_argument = old_type_argument;
+            result
         }
     }
     let mut walk = Walk {
@@ -226,6 +265,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         impl_scope: false,
         mutable_life: false,
         stored_fields: false,
+        direct_type_argument: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;

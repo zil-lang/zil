@@ -212,7 +212,9 @@ impl<'a> Engine<'a> {
                     substitutions: &self.nominal_source_actuals,
                 }
                 .ty(&mut source);
-                if self.qualified_actual_syntax(&source, depth + 1)? {
+                if matches!(source.kind, TypeKind::Named { .. })
+                    && self.qualified_actual_syntax(&source, depth + 1)?
+                {
                     let (
                         TypeKind::Named {
                             path: source_name,
@@ -853,37 +855,42 @@ impl<'a> Engine<'a> {
         let origin = self
             .template_origin(item)?
             .ok_or_else(|| error(span, "stored nominal source provenance is absent"))?;
-        let origins = self
-            .origins
-            .ok_or_else(|| error(span, "stored nominal source inventory is absent"))?;
-        for _ in &origins.identities {
-            self.budget.node(span, depth)?;
-        }
-        let identity = origins.identities.get(&origin.declaration).ok_or_else(|| {
-            error(
-                span,
-                "stored nominal original declaration identity is absent",
-            )
-        })?;
-        self.budget.text(&identity.identity.package, span)?;
-        for part in identity
-            .identity
-            .module_path
-            .iter()
-            .chain(&identity.identity.declaration_path)
-        {
-            self.budget.text(part, span)?;
-            self.budget.node(span, depth)?;
-        }
-        for _ in &identity.identity.generation_path {
-            self.budget.node(span, depth)?;
-        }
-        let declaration_id = LifeDeclarationId {
-            module: origin.declaration.module,
-            declaration: identity.declaration,
-            compiler: origin.declaration.compiler,
+        let (declaration_id, stable_identity) = if template == options::TEMPLATE {
+            options::storage_identity(item, origin, &mut self.budget)?
+        } else {
+            let origins = self
+                .origins
+                .ok_or_else(|| error(span, "stored nominal source inventory is absent"))?;
+            for _ in &origins.identities {
+                self.budget.node(span, depth)?;
+            }
+            let identity = origins.identities.get(&origin.declaration).ok_or_else(|| {
+                error(
+                    span,
+                    "stored nominal original declaration identity is absent",
+                )
+            })?;
+            self.budget.text(&identity.identity.package, span)?;
+            for part in identity
+                .identity
+                .module_path
+                .iter()
+                .chain(&identity.identity.declaration_path)
+            {
+                self.budget.text(part, span)?;
+                self.budget.node(span, depth)?;
+            }
+            for _ in &identity.identity.generation_path {
+                self.budget.node(span, depth)?;
+            }
+            let declaration_id = LifeDeclarationId {
+                module: origin.declaration.module,
+                declaration: identity.declaration,
+                compiler: origin.declaration.compiler,
+            };
+            let stable_identity = identity.identity.clone();
+            (declaration_id, stable_identity)
         };
-        let stable_identity = identity.identity.clone();
         let mut substitution = BTreeMap::new();
         let mut lives = Vec::new();
         let mut actuals = Vec::new();
@@ -926,6 +933,20 @@ impl<'a> Engine<'a> {
                     self.capture_actual_type(&mut source, &mut captured_lives, depth + 1)?;
                     source_actuals.insert(formal.name.clone(), source);
                     if let Some(actual) = self.qualified_type_actual(ty, depth + 1)? {
+                        if matches!(actual.ty, zil_ir::Type::Address { mutable: true, .. }) {
+                            return Err(unsupported(
+                                ty.span,
+                                "mutable address Type actual needs its affine consumer",
+                            ));
+                        }
+                        if matches!(actual.ty, zil_ir::Type::Address { .. })
+                            && template != options::TEMPLATE
+                        {
+                            return Err(unsupported(
+                                ty.span,
+                                "address Type actual needs an independently authenticated formal occurrence",
+                            ));
+                        }
                         let class_key =
                             self.joint_class_key(&actual.classes, &mut local_classes, span)?;
                         let physical_key = type_key(ty, &mut self.budget)?;
@@ -1205,7 +1226,70 @@ impl<'a> Engine<'a> {
             _ => unreachable!(),
         };
         let classes = produced.classes;
+        self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
+            if let ItemKind::Aggregate(physical) = &instance.kind {
+                self.stored_lookup_fee(self.stored_record_fields.len(), generated.len(), span)?;
+                self.budget.text(&generated, span)?;
+                self.budget.lineage_bytes(
+                    std::mem::size_of::<(String, Vec<(String, TypeRef)>)>().saturating_add(
+                        physical
+                            .fields
+                            .len()
+                            .saturating_mul(std::mem::size_of::<(String, TypeRef)>()),
+                    ),
+                    span,
+                )?;
+                let mut fields = Vec::new();
+                for field in &physical.fields {
+                    self.budget.text(&field.name, field.span)?;
+                    self.budget.ty(&field.ty)?;
+                    fields.push((field.name.clone(), field.ty.clone()));
+                }
+                self.stored_record_fields.insert(generated.clone(), fields);
+            }
+            // Caller pattern elaboration needs the family and payload layout,
+            // not the callee's lexical life name. This private layout hint
+            // grants no relation: the actual qualified type and its complete
+            // catalog/signature remain independent kernel inputs.
+            if template == options::TEMPLATE
+                && matches!(
+                    qualified_actuals.get(&0).map(|actual| &actual.ty),
+                    Some(zil_ir::Type::Address { mutable: false, .. })
+                )
+            {
+                for argument in arguments.iter() {
+                    if let GenericArg::Type(ty) = argument {
+                        self.budget.ty(ty)?;
+                    }
+                }
+                self.budget.text(template, span)?;
+                self.budget.text(&generated, span)?;
+                let mut hint = arguments.to_vec();
+                if let [GenericArg::Type(ty)] = hint.as_mut_slice() {
+                    let mut ty = ty;
+                    loop {
+                        match &mut ty.kind {
+                            TypeKind::Group(inner) => ty = inner,
+                            TypeKind::Reference { lifetime, .. } => {
+                                *lifetime = None;
+                                break;
+                            }
+                            _ => break,
+                        }
+                    }
+                }
+                self.instance_types.insert(
+                    generated.clone(),
+                    TypeRef {
+                        span,
+                        kind: TypeKind::Named {
+                            path: vec![template.to_owned()],
+                            args: hint,
+                        },
+                    },
+                );
+            }
             match &mut instance.kind {
                 ItemKind::Aggregate(physical) => physical.generics.clear(),
                 ItemKind::Enum(physical) => physical.generics.clear(),
@@ -1228,7 +1312,7 @@ impl<'a> Engine<'a> {
         Ok((generated, classes))
     }
 
-    fn closed_stored_actual(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
+    pub(super) fn closed_stored_actual(&mut self, ty: &TypeRef, depth: usize) -> R<()> {
         self.budget.node(ty.span, depth)?;
         match &ty.kind {
             TypeKind::Reference { .. } => {

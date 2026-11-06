@@ -1,0 +1,147 @@
+{
+  "status": "TargetedRepairPass_PendingCommonAcceptance",
+  "task": "G10.1.12",
+  "executor": "root",
+  "production_fix": "c55fcb908286daade67820f7fad503d8afd79646",
+  "fixture_correction": "94e4bf7b1aa7bb564aa384ccb70d78c1c08f52e6",
+  "initial_preflight": {
+    "source": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+    "rows": [
+      {
+        "name": "shadow-native",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "aggregates",
+          "--features",
+          "llvm-api",
+          "g4453_host_member_nearest_life_shadow_source_native",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 18.76,
+        "passed": 1,
+        "failed": 0,
+        "log_sha256": "c73fdbf55f44f16a1526516c301310d3a3e416fd2ff70486112273f598dcb74e"
+      },
+      {
+        "name": "cross-borrows",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "cross_function_borrows",
+          "--features",
+          "llvm-api",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 9.63,
+        "passed": 105,
+        "failed": 0,
+        "log_sha256": "b85beaaa0e2536ed9be0973106eed507bd8c024dc5ea2ae742e85bf99f58baa9"
+      },
+      {
+        "name": "ct-namespaces",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-driver",
+          "--test",
+          "ct_static_namespaces",
+          "--features",
+          "llvm-api",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 101,
+        "seconds": 0.66,
+        "passed": 11,
+        "failed": 1,
+        "log_sha256": "6a1e232d9fea21e4dbe0a39024c4f3602f292c201a3827abe12dc6cb1ec95e0c"
+      },
+      {
+        "name": "source-core",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-expand",
+          "--lib",
+          "g3_4_1",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 11.29,
+        "passed": 3,
+        "failed": 0,
+        "log_sha256": "8b8d87eaa507b9e5628fdb698ebdfbdf646301543f2430637140ddee09c7a24c"
+      },
+      {
+        "name": "generics",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-expand",
+          "--test",
+          "generics",
+          "-j2",
+          "--",
+          "--nocapture"
+        ],
+        "exit_code": 0,
+        "seconds": 0.54,
+        "passed": 24,
+        "failed": 0,
+        "log_sha256": "82fc897a25f4705528c387d64ad34b554d95c24354504390584eaef746d921ad"
+      }
+    ]
+  },
+  "corrected_namespace_run": {
+    "source": "d6b791dbb6ea54bd277a4a79bfaef73e3940efb2",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "-p",
+      "zil-driver",
+      "--test",
+      "ct_static_namespaces",
+      "--features",
+      "llvm-api",
+      "-j2",
+      "--",
+      "--nocapture"
+    ],
+    "exit_code": 0,
+    "passed": 12,
+    "failed": 0,
+    "log_sha256": "14d268f576afac1a993e06b3063fd63a9d4ebcbf63ec6e208ac449122d26f834"
+  },
+  "interpretation": "All five established full-run failures are repaired without changing their source/oracles. The first new duplicate fixture had an unrelated CT call-arity error; corrected unused declarations reach exact Expand duplicate-binder rejection. Original fixture failure is retained, not counted as a safety proof. SourceCore, generics, cross-borrow and original native results remain separately listed; counts are not added to formal full totals.",
+  "configuration": {
+    "target": "/workspace/.zil-env/target-G1.3.5.2",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0"
+  }
+}

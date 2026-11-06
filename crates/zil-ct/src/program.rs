@@ -269,6 +269,14 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                 peak_live_slots = peak_live_slots.max(peak);
             }
             let value = match &instruction.kind {
+                InstructionKind::StaticUtf8 { .. } => {
+                    return Err(vec![Diagnostic::error(
+                        Phase::Ct,
+                        "E-CT-FORBIDDEN",
+                        Some(instruction.span),
+                        "runtime static UTF8 storage is forbidden during compile-time execution",
+                    )]);
+                }
                 InstructionKind::Constant(value) => Some(CompileTimeValue::Scalar(value.clone())),
                 InstructionKind::ConvertInteger { value, target } => {
                     Some(CompileTimeValue::Scalar(super::convert_integer_target(

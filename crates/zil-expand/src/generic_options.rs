@@ -6,6 +6,87 @@ pub(super) const TEMPLATE: &str = "$builtinOption340";
 pub(super) const TASK_POLL: &str = "$stdTaskPoll343";
 pub(super) const TASK_CREATE_ERROR: &str = "$stdTaskCreateError343";
 pub(super) const TASK_POLL_STATE: &str = "$stdTaskPollState343";
+
+pub(super) fn storage_identity(
+    item: &Item,
+    origin: origins::Origin,
+    budget: &mut Budget<'_>,
+) -> R<(zil_ir::LifeDeclarationId, zil_ir::LifeDeclarationIdentity)> {
+    budget.item(item)?;
+    let ItemKind::Enum(declaration) = &item.kind else {
+        return Err(error(
+            item.span,
+            "builtin Option storage declaration is not an enum",
+        ));
+    };
+    let [formal] = declaration.generics.as_slice() else {
+        return Err(error(
+            item.span,
+            "builtin Option storage declaration has wrong arity",
+        ));
+    };
+    let [none, some] = declaration.variants.as_slice() else {
+        return Err(error(
+            item.span,
+            "builtin Option storage declaration has wrong variants",
+        ));
+    };
+    let VariantFields::Tuple(fields) = &some.fields else {
+        return Err(error(
+            item.span,
+            "builtin Option Some payload is not a tuple",
+        ));
+    };
+    let [payload] = fields.as_slice() else {
+        return Err(error(
+            item.span,
+            "builtin Option Some payload has wrong arity",
+        ));
+    };
+    if !origin.compiler
+        || !origin.declaration.compiler
+        || origin.declaration.ordinal != 0
+        || origin.member.is_some()
+        || item.public
+        || !item.attributes.is_empty()
+        || declaration.name != TEMPLATE
+        || formal.name != "T"
+        || !matches!(&formal.kind, GenericParamKind::Type(bounds) if bounds.is_empty())
+        || none.name != "None"
+        || !matches!(none.fields, VariantFields::Unit)
+        || !none.attributes.is_empty()
+        || some.name != "Some"
+        || !some.attributes.is_empty()
+        || payload.manages
+        || !matches!(&payload.ty.kind, TypeKind::Named {path,args} if path.as_slice()==["T"] && args.is_empty())
+    {
+        return Err(error(
+            item.span,
+            "builtin Option storage declaration is not authentic",
+        ));
+    }
+    budget.identity_work(64, item.span)?;
+    budget.lineage_bytes(
+        std::mem::size_of::<zil_ir::LifeDeclarationIdentity>()
+            .saturating_add(3usize.saturating_mul(std::mem::size_of::<String>()))
+            .saturating_add(64),
+        item.span,
+    )?;
+    Ok((
+        zil_ir::LifeDeclarationId {
+            module: zil_base::ModuleId(u32::MAX),
+            declaration: zil_base::NodeId(0),
+            compiler: true,
+        },
+        zil_ir::LifeDeclarationIdentity {
+            package: "@zil.builtin".into(),
+            module_path: vec!["option".into()],
+            declaration_path: vec!["enum".into(), "Option".into()],
+            generation_path: Vec::new(),
+        },
+    ))
+}
+
 fn task_declaration(name: &str) -> Option<&'static str> {
     match name {
         "Poll" => Some(TASK_POLL),

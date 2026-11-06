@@ -75,12 +75,13 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     let mut parameter_names = BTreeSet::new();
     let variables = type_parameters(function).map(|p| p.name.clone()).collect();
     let callable = callable::template(function, budget)?;
+    let nominal_classes = source_life::qualified_signature(function, nominals, budget)?;
     let class_scope = role_check::Scope::new(
         source_definition.unwrap_or(function),
         // A computed CT nominal retains its original definition's full life
         // ordinals. Compare those symbolic classes locally; they never become
         // an ordinary monomorphization cache key or a runtime permission.
-        callable.is_some() || ct_types.is_some(),
+        callable.is_some() || ct_types.is_some() || nominal_classes,
         budget,
     )?;
     let owned_factory = callable.as_ref().is_some_and(|bounds| bounds.owned_factory);
@@ -216,12 +217,22 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                     } => element,
                     _ => inner,
                 };
-                copy::require(
+                // A borrowed nominal carrier may be affine because its fields
+                // retain addresses. Borrowing its actual storage does not copy
+                // that carrier. Field operations still prove their own modes.
+                if nominal_classes
+                    && source_life::qualified_nominal(pointee, check.nominals, check.budget)?
+                {
+                    continue;
+                }
+                copy::require_registered_scoped(
                     pointee,
                     check.nominals,
+                    None,
                     &check.bounds,
                     &check.variables,
                     check.budget,
+                    nominal_classes.then_some(check.source_definition),
                 )?;
             }
         }
@@ -1524,12 +1535,12 @@ impl Check<'_, '_, '_> {
         }))
     }
     fn bind_local(&mut self, state: &mut State, name: String, ty: TypeRef) -> R<()> {
-        if self.definition_bound_context && name == "self" {
+        if name == "self" {
             return Err(Diagnostic::error(
                 Phase::Expand,
                 "E-RECEIVER-RESERVED-NAME",
                 Some(ty.span),
-                "self is reserved for the default method receiver and cannot be rebound",
+                "self is reserved for the method receiver and cannot be rebound",
             ));
         }
         if super::super::primitive_name(&name) {

@@ -31,6 +31,9 @@ mod terminal342_higher_rank;
 #[path = "../../../tests/language-readiness/terminal/342/stored_physical.rs"]
 mod terminal342_stored_physical;
 
+#[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
+mod utf8_literals_g931;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {
@@ -1392,3 +1395,56 @@ fn contract_identity_tracks_return_origin_changes_only_after_verify() {
     assert_eq!(before.2[0].parameters, [0]);
     assert_eq!(after.2[0].parameters, [1]);
 }
+
+#[test]
+fn g3_4_1_option_borrowed_source_keeps_lexical_life_in_core() {
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/342/slice-iterator/option-borrowed.zil"
+    );
+    let report = compile_source(
+        &source(text),
+        &CompileOptions {
+            stop_after: Stage::Core,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    for invalid in [
+        text.replace("Option<&'s i64>", "Option<&'missing i64>"),
+        text.replace("Option::<&'s i64>", "Option::<&'missing i64>"),
+    ] {
+        let rejected = compile_source(
+            &source(&invalid),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            rejected.status,
+            ResultCategory::SafeReject,
+            "{}",
+            rejected.to_json()
+        );
+        assert!(
+            rejected
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.phase == Phase::Expand
+                    && diagnostic.message == "undeclared life name"),
+            "{}",
+            rejected.to_json()
+        );
+    }
+}
+
+#[path = "../../../tests/language-readiness/terminal/342/slice-iterator/option-consumers.rs"]
+mod g3_4_1_option_consumers;
+
+#[path = "../../../tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs"]
+mod g3_4_1_original_consumers;

@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+pub(super) mod option_address;
 mod retained;
 use std::collections::BTreeMap;
 pub(super) mod owned;
@@ -27,6 +28,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Value {
+    option_variants: option_address::Variants,
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
@@ -55,6 +57,8 @@ pub(super) struct Facts {
     pub returned: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
+    returned_variants: option_address::Variants,
+    none_values: BTreeSet<ValueId>,
 }
 
 fn failure(text: &str) -> Vec<Diagnostic> {
@@ -117,6 +121,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
     if let Some(complete) = from.creation_complete {
         let joined = Some(to.creation_complete.unwrap_or(false) || complete);
@@ -174,6 +179,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
             .saturating_add(s.captures.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
+        value.option_variants.work(b)?;
         target_work(&value.held.targets, b)?;
         fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
@@ -205,6 +211,11 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    f.returned_variants.work(b)?;
+    if !f.none_values.is_empty() {
+        fee(b, f.none_values.len())?;
+    }
+
     fee(
         b,
         f.values
@@ -798,6 +809,16 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         return Ok(());
     };
+    for ty in f
+        .parameters
+        .iter()
+        .map(|p| &f.locals[p.0 as usize].ty)
+        .chain(std::iter::once(&f.return_type))
+    {
+        if option_address::candidate(ty) {
+            fee(b, 96)?;
+        }
+    }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
     if f.reference_return_bound.is_some() || f.foreign.is_some() {
@@ -948,7 +969,7 @@ fn returns(
             )?;
             if sources.iter().any(|s| {
                 !s.stored.is_empty()
-                    || !matches!(s.base,HoldRoot::Parameter(p)if bound.binary_search(&p).is_ok())
+                    || (s.base != HoldRoot::Static && !matches!(s.base,HoldRoot::Parameter(p)if bound.binary_search(&p).is_ok()))
             }) {
                 return Err(failure(
                     "actual returned target exceeds the existing direct reference upper",
@@ -960,6 +981,14 @@ fn returns(
         }
         let upper = binding(f, StorageBase::Result, path, b)?;
         for source in sources {
+            if source.base == HoldRoot::Static {
+                if !source.stored.is_empty() || !source.place.is_empty() {
+                    return Err(failure(
+                        "static UTF8 result cannot retain nested projections",
+                    ));
+                }
+                continue;
+            }
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
             };
@@ -980,6 +1009,9 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     fee(b, life.slots.len().saturating_add(1))?;
+    if option_address::shape(ty, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
@@ -1330,6 +1362,12 @@ fn seed(
             loans,
             b,
         )?;
+        if option_address::candidate(&f.locals[local.0 as usize].ty) {
+            fee(b, 96)?;
+            if option_address::signature(&f.locals[local.0 as usize].ty) {
+                value.option_variants = option_address::Variants::parameter(index as u32, b)?;
+            }
+        }
         seed_environment(
             module,
             &f.locals[local.0 as usize].ty,
@@ -1377,6 +1415,9 @@ fn select(
             return Err(failure("stored target is not an inline carrier address"));
         }
         let slots = match root.base {
+            HoldRoot::Static => {
+                return Err(failure("static UTF8 cannot grant nested carrier slots"));
+            }
             HoldRoot::Local(local) => {
                 ordered(b, state.locals.len(), 0)?;
                 let Some(value) = state.locals.get(&local) else {
@@ -1417,6 +1458,18 @@ fn substitute(
     state: &State,
     b: &mut Budget,
 ) -> CompileResult<Permission> {
+    if source.base == HoldRoot::Static {
+        if !source.stored.is_empty() || !source.place.is_empty() {
+            return Err(failure(
+                "static UTF8 summary cannot carry nested projections",
+            ));
+        }
+        fee(b, 1)?;
+        return Ok(Permission {
+            targets: Targets::from([source.clone()]),
+            loans: Loans::new(),
+        });
+    }
     let HoldRoot::Parameter(index) = source.base else {
         return Err(failure(
             "callee result retains activation-local or captured storage",
@@ -1493,7 +1546,16 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
+    let option_transfer = option_address::transfer(module, f, i, values, b)?;
     match &i.kind {
+        InstructionKind::StaticUtf8 { .. } => {
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                base: HoldRoot::Static,
+                stored: Vec::new(),
+                place: Vec::new(),
+            });
+        }
         InstructionKind::Load(local) => {
             ordered(b, state.locals.len(), 0)?;
             out = snapshot(
@@ -1654,6 +1716,7 @@ fn transfer(
             let summary = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| failure("callee stored summary absent"))?;
+            out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -1665,7 +1728,9 @@ fn transfer(
                 }
                 if path.is_empty() {
                     out.pointer = permission;
-                } else {
+                } else if !option_address::candidate(&callee.return_type)
+                    || out.option_variants.mask() & 2 != 0
+                {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
                     out.slots.insert(path.clone(), permission);
@@ -1807,6 +1872,9 @@ fn transfer(
             state.locals.remove(local);
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
+        _ if option_transfer.is_some() => {
+            out = option_transfer.unwrap();
+        }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in resources::uses(&i.kind) {
@@ -1867,6 +1935,20 @@ fn transfer(
                 "instruction has no common stored-target transfer yet",
                 Some(i.span),
             )]);
+        }
+    }
+    if let Some(result) = i.result
+        && b.static_utf8
+        && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
+    {
+        fee(b, out.pointer.targets.len())?;
+        if out
+            .pointer
+            .targets
+            .iter()
+            .any(|t| t.base == HoldRoot::Static)
+        {
+            return Err(failure("static UTF8 cannot produce a mutable address"));
         }
     }
     if let Some(result) = i.result
@@ -2039,6 +2121,18 @@ fn use_permission(
 ) -> CompileResult<()> {
     if permission.targets.is_empty() {
         return Err(failure("address access has no actual target permission"));
+    }
+    if b.static_utf8 {
+        fee(b, permission.targets.len())?;
+    }
+    if b.static_utf8
+        && write
+        && permission
+            .targets
+            .iter()
+            .any(|t| t.base == HoldRoot::Static)
+    {
+        return Err(failure("program-static UTF8 has no mutable authority"));
     }
     let ignore = ancestry(&permission.loans, loans, b)?;
     for id in active {
@@ -2509,6 +2603,15 @@ pub(super) fn derive(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Facts>> {
+    derive_cfg(module, graphs, None, b)
+}
+fn derive_cfg(
+    module: &TypedModule,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    inactive: Option<&[BTreeSet<ValueId>]>,
+    b: &mut Budget,
+) -> CompileResult<Vec<Facts>> {
+    let mut observed_none = false;
     fee(b, module.functions.len())?;
     let mut summaries = vec![Facts::default(); module.functions.len()];
     loop {
@@ -2585,8 +2688,15 @@ pub(super) fn derive(
                 returned: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
+                returned_variants: option_address::Variants::default(),
+                none_values: BTreeSet::new(),
             };
-            for value in &values {
+            for (id, value) in values.iter().enumerate() {
+                if value.option_variants.none() {
+                    observed_none = true;
+                    fee(b, actual.none_values.len().saturating_add(1))?;
+                    actual.none_values.insert(ValueId(id as u32));
+                }
                 let root = roots(value, b)?;
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
@@ -2595,6 +2705,7 @@ pub(super) fn derive(
                 fee(b, 1)?;
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    actual.returned_variants.join(&value.option_variants, b)?;
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;
@@ -2609,7 +2720,7 @@ pub(super) fn derive(
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
-                            if !matches!(target.base, HoldRoot::Parameter(_))
+                            if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
                                 && !(matches!(target.base, HoldRoot::Capture(_))
                                     && f.environment
                                         .and_then(|id| module.closures.get(id.0 as usize))
@@ -2634,8 +2745,14 @@ pub(super) fn derive(
                 }
             }
             let mut grounded = true;
-            for (ty, value) in f.values.iter().zip(&values) {
+            for (id, (ty, value)) in f.values.iter().zip(&values).enumerate() {
                 fee(b, 1)?;
+                if let Some(rows) = inactive {
+                    ordered(b, rows[index].len(), 0)?;
+                    if rows[index].contains(&ValueId(id as u32)) {
+                        continue;
+                    }
+                }
                 if value.creation_complete == Some(false) {
                     grounded = false;
                 }
@@ -2643,6 +2760,19 @@ pub(super) fn derive(
                     grounded = false;
                 }
                 if let Some((_, life)) = carrier(ty) {
+                    if option_address::candidate(ty) {
+                        fee(b, 96)?;
+                        if !option_address::signature(ty) {
+                            return Err(failure("Option activity has no exact shape"));
+                        }
+                        let mask = value.option_variants.mask();
+                        if mask == 0 {
+                            grounded = false;
+                        }
+                        if mask == 1 {
+                            continue;
+                        }
+                    }
                     fee(b, life.slots.len())?;
                     for slot in &life.slots {
                         ordered(b, value.slots.len(), slot.path.len())?;
@@ -2692,18 +2822,33 @@ pub(super) fn derive(
             break;
         }
     }
-    for (f, facts) in module.functions.iter().zip(&summaries) {
+    // Freeze only the original, fully converged graph facts. A second solve
+    // receives no authority to trim another edge from its narrowed summaries.
+    if inactive.is_none()
+        && observed_none
+        && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
+    {
+        return derive_cfg(module, &proof.graphs, Some(&proof.inactive), b);
+    }
+    for (index, (f, facts)) in module.functions.iter().zip(&summaries).enumerate() {
         if !facts.complete {
             return Err(failure(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
         returns(module, f, facts, b)?;
-        for (ty, roots) in f.values.iter().zip(&facts.values) {
+        for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
             fee(b, 1)?;
+            if let Some(rows) = inactive {
+                ordered(b, rows[index].len(), 0)?;
+                if rows[index].contains(&ValueId(id as u32)) {
+                    continue;
+                }
+            }
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
-            if needs_target && roots.is_empty() {
+            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32))
+            {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
                 ));
@@ -2866,7 +3011,8 @@ fn actual_instructions(
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
-                    InstructionKind::Constant(_)
+                    InstructionKind::StaticUtf8 { .. }
+                        | InstructionKind::Constant(_)
                         | InstructionKind::Load(_)
                         | InstructionKind::Store { .. }
                         | InstructionKind::StorageLive(_)
@@ -2934,7 +3080,7 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
-            if pure_copy::operation(&i.kind) {
+            if pure_copy::operation(&i.kind) && option_address::types(module, f, i, b)?.is_none() {
                 pure_copy::types(f, i, b)?;
             }
             match &i.kind {

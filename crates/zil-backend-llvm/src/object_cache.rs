@@ -679,6 +679,34 @@ mod tests {
         }
     }
     #[test]
+    fn static_utf8_cache_key_binds_exact_bytes_length_and_immutable_storage() {
+        let namespace = Fingerprint::of(b"static-utf8-current-tools");
+        let mut original = sample();
+        original.items.push(zil_llvm_api::model::Item::Global(
+            crate::emit::static_utf8::global(zil_ir::FunctionId(0), zil_ir::ValueId(0), b"A\0Z"),
+        ));
+        let key = key_matching_unbuffered(namespace, &original);
+        let changes: [fn(&mut zil_llvm_api::model::Global); 5] = [
+            |global| global.initializer = Some(Val::Bytes(b"B\0Z".to_vec())),
+            |global| global.initializer = Some(Val::Bytes(b"A\x01Z".to_vec())),
+            |global| {
+                global.ty = Ty::array(0, Ty::Int(8));
+                global.initializer = Some(Val::Bytes(vec![]));
+            },
+            |global| global.constant = false,
+            |global| global.linkage = Linkage::Internal,
+        ];
+        for change in changes {
+            let mut edited = original.clone();
+            let Item::Global(global) = edited.items.last_mut().unwrap() else {
+                unreachable!()
+            };
+            change(global);
+            assert_ne!(key, key_matching_unbuffered(namespace, &edited));
+        }
+    }
+
+    #[test]
     fn key_binds_all_machine_changes_but_not_authorization_comment() {
         let a = sample();
         let ns = Fingerprint::of(b"compiler-and-target");

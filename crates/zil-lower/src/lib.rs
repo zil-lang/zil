@@ -23,12 +23,35 @@ mod owned_sums;
 /// }
 /// ```
 pub fn lower(verified: &VerifiedModule) -> CompileResult<LirModule> {
-    lower_view(verified).map(|view| view.to_owned())
+    let (view, mut budget) = lower_view_with_budget(verified)?;
+    // Clone through the existing instruction walk, paying new variable-length
+    // byte payloads before allocating them. Borrowed lowering has no such copy.
+    let functions = view
+        .functions
+        .iter()
+        .map(|function| clone_function(function, &mut budget))
+        .collect::<CompileResult<_>>()?;
+    Ok(LirModule {
+        schema_version: view.schema_version,
+        module_id: view.module_id,
+        verified_fingerprint: view.verified_fingerprint,
+        target: view.target.clone(),
+        functions,
+        closures: view.closures.to_vec(),
+        resources: view.resources.to_vec(),
+        layouts: view.layouts.into_owned(),
+    })
 }
 
 /// Run the same lowering admission checks, borrowing immutable verified CFG
 /// storage. The returned public raw view must be rebound by the backend.
 pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
+    lower_view_with_budget(verified).map(|(view, _)| view)
+}
+
+fn lower_view_with_budget(
+    verified: &VerifiedModule,
+) -> CompileResult<(LirView<'_>, owned_sums::Budget<'_>)> {
     let module = verified.module();
     let target = &module.target;
     if !module.dyn_declarations.is_empty()
@@ -308,15 +331,83 @@ pub fn lower_view(verified: &VerifiedModule) -> CompileResult<LirView<'_>> {
             }
         }
     }
-    Ok(LirView {
-        resources: &module.resources,
-        schema_version: SCHEMA_VERSION,
-        module_id: module.module_id,
-        verified_fingerprint: verified.fingerprint(),
-        target,
-        functions: &module.functions,
-        closures: &module.closures,
-        layouts: std::borrow::Cow::Owned(scalar_layouts()),
+    Ok((
+        LirView {
+            resources: &module.resources,
+            schema_version: SCHEMA_VERSION,
+            module_id: module.module_id,
+            verified_fingerprint: verified.fingerprint(),
+            target,
+            functions: &module.functions,
+            closures: &module.closures,
+            layouts: std::borrow::Cow::Owned(scalar_layouts()),
+        },
+        sum_budget,
+    ))
+}
+
+fn clone_function(
+    function: &TypedFunction,
+    budget: &mut owned_sums::Budget<'_>,
+) -> CompileResult<TypedFunction> {
+    // Exhaustive destructuring makes new retained fields explicit consumers.
+    let TypedFunction {
+        storage_life,
+        call_kind,
+        reference_return_bound,
+        callable_return_contract,
+        callable_contract,
+        id,
+        name,
+        foreign,
+        environment,
+        parameters,
+        return_type,
+        result_mode,
+        locals,
+        values,
+        blocks,
+        entry,
+        span,
+    } = function;
+    let blocks = blocks
+        .iter()
+        .map(|block| {
+            let instructions = block
+                .instructions
+                .iter()
+                .map(|instruction| {
+                    if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
+                        budget.static_bytes(bytes.len())?;
+                    }
+                    Ok(instruction.clone())
+                })
+                .collect::<CompileResult<_>>()?;
+            Ok(zil_ir::BasicBlock {
+                id: block.id,
+                instructions,
+                terminator: block.terminator.clone(),
+            })
+        })
+        .collect::<CompileResult<_>>()?;
+    Ok(TypedFunction {
+        storage_life: storage_life.clone(),
+        call_kind: *call_kind,
+        reference_return_bound: reference_return_bound.clone(),
+        callable_return_contract: callable_return_contract.clone(),
+        callable_contract: callable_contract.clone(),
+        id: *id,
+        name: name.clone(),
+        foreign: foreign.clone(),
+        environment: *environment,
+        parameters: parameters.clone(),
+        return_type: return_type.clone(),
+        result_mode: *result_mode,
+        locals: locals.clone(),
+        values: values.clone(),
+        blocks,
+        entry: *entry,
+        span: *span,
     })
 }
 
@@ -654,6 +745,54 @@ mod tests {
             }],
         });
         verify_module(module, plan, &target, &Limits::default()).unwrap()
+    }
+
+    #[test]
+    fn owned_static_utf8_clone_prepays_exact_bytes_without_charging_old_clones() {
+        // Component-level retained-IR copy check; source/native acceptance is
+        // covered in the existing driver target by the parent implementation.
+        let original = checked(TargetProfile::host_llvm());
+        let scalar = &original.module().functions[0];
+        let zero = zil_base::Limits {
+            max_analysis_steps: 0,
+            ..zil_base::Limits::default()
+        };
+        assert_eq!(
+            clone_function(scalar, &mut owned_sums::Budget::new(&zero)).unwrap(),
+            *scalar
+        );
+        for bytes in [b"".as_slice(), b"A\0Z".as_slice(), "é中😀".as_bytes()] {
+            let mut function = scalar.clone();
+            function.values[0] = Type::Address {
+                mutable: false,
+                inner: Box::new(Type::Slice {
+                    element: Box::new(Type::U8),
+                }),
+            };
+            function.return_type = function.values[0].clone();
+            function.blocks[0].instructions[0].kind = InstructionKind::StaticUtf8 {
+                bytes: bytes.to_vec(),
+            };
+            let needed = bytes.len() + 1;
+            for _ in 0..2 {
+                let exact = zil_base::Limits {
+                    max_analysis_steps: needed,
+                    ..zil_base::Limits::default()
+                };
+                assert_eq!(
+                    clone_function(&function, &mut owned_sums::Budget::new(&exact)).unwrap(),
+                    function
+                );
+                let short = zil_base::Limits {
+                    max_analysis_steps: needed - 1,
+                    ..zil_base::Limits::default()
+                };
+                let errors =
+                    clone_function(&function, &mut owned_sums::Budget::new(&short)).unwrap_err();
+                assert!(errors.iter().all(|error| error.phase == Phase::Lower
+                    && error.category == zil_base::ResultCategory::ResourceLimit));
+            }
+        }
     }
 
     #[test]

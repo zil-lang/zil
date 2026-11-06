@@ -1,0 +1,127 @@
+{
+  "status": "Fail",
+  "date": "2026-11-06 Asia/Shanghai",
+  "task": "G10.1.12",
+  "executor": "root",
+  "default": {
+    "profiles": {
+      "CARGO_PROFILE_DEV_STRIP": "symbols",
+      "CARGO_PROFILE_TEST_STRIP": "symbols",
+      "CARGO_PROFILE_DEV_DEBUG": "0",
+      "CARGO_PROFILE_TEST_DEBUG": "0",
+      "CARGO_BUILD_JOBS": "2"
+    },
+    "source": "de9a2809d7cebfc03f50d00cdbb0d8e03a191973",
+    "source_after": "de9a2809d7cebfc03f50d00cdbb0d8e03a191973",
+    "worktree_after": "",
+    "command": [
+      "cargo",
+      "test",
+      "--locked",
+      "--workspace",
+      "--no-fail-fast"
+    ],
+    "exit_code": 101,
+    "status": "Fail",
+    "elapsed_seconds": 483.4,
+    "groups": 423,
+    "passed": 5065,
+    "failed": 5,
+    "ignored": 0,
+    "log_sha256": "286b4935bd6e19beac5f3d3698514d5e7c299736b34df01e9165f33b2cbb3061",
+    "failures": [
+      "test g4453_host_member_nearest_life_shadow_source_native ... FAILED",
+      "error: test failed, to rerun pass `-p zil-driver --test aggregates`",
+      "test explicit_life_definitions_reject_wrong_binders_and_unsupported_positions ... FAILED",
+      "test mutable337::mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses ... FAILED",
+      "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`",
+      "test g4462_host_member_nearest_life_shadow ... FAILED",
+      "test g4462_type_const_life_shadow_keeps_member_owner ... FAILED",
+      "error: test failed, to rerun pass `-p zil-driver --test ct_static_namespaces`",
+      "error: 3 targets failed:"
+    ],
+    "reclaimed_cache_files": 409,
+    "reclaimed_cache_bytes": 17206315856
+  },
+  "pipeline": {
+    "source": "de9a2809d7cebfc03f50d00cdbb0d8e03a191973",
+    "stages": [
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "seconds": 5.65,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 43.86,
+        "log_sha256": "4def5fa10aacd6c0245f8467a3cc1f8cef93df8ab8052b88170488ad094027af"
+      },
+      {
+        "name": "default-runner",
+        "command": [
+          "python3",
+          "/workspace/.zil-env/G10.1.12/formal-final.py",
+          "/workspace/.zil-env/G10.1.12-final-run",
+          "default"
+        ],
+        "exit_code": 101,
+        "seconds": 483.5,
+        "log_sha256": "f2a4d2d684c06ce5a554e2ddb0ec862060454bf81bce40d3df2a98935b915cb2"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "tests": [
+        "g4453_host_member_nearest_life_shadow_source_native",
+        "g4462_host_member_nearest_life_shadow",
+        "g4462_type_const_life_shadow_keeps_member_owner"
+      ],
+      "observed": "Expand E-LIFE-DECLARATION duplicate life binder for established legal nearest member shadow.",
+      "disposition": "Production regression; original source and success oracle retained."
+    },
+    {
+      "tests": [
+        "explicit_life_definitions_reject_wrong_binders_and_unsupported_positions",
+        "mutable337::mutable_life_source_origins_exclusive_windows_and_cleanup_reject_near_misses"
+      ],
+      "observed": "Types SafeReject E-TYPE-MISMATCH instead of established Expand Unsupported for direct local explicit-life annotation.",
+      "disposition": "Restore position validation; do not mechanically change expected diagnostics."
+    }
+  ],
+  "not_run": [
+    "reference workspace",
+    "reference clippy",
+    "text-reference",
+    "release build",
+    "consumer209",
+    "final engineering"
+  ],
+  "remote_runs": {
+    "cancelled_known_failing_candidate": [
+      42205410739,
+      42205410747
+    ],
+    "reason": "Avoid continued runner consumption after actual local full regression. These runs had started real steps; prior billing-startup failure is not current readiness evidence."
+  },
+  "artifacts": "Full log and compact result hashes retained; completed generated native output and test executables reclaimed after processes exited. No source/reset/clean performed."
+}

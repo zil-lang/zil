@@ -37,7 +37,10 @@ fn walk(
         .iter()
         .find(|d| d.id == instance.declaration)
         .ok_or_else(|| failure("nominal metadata declaration is absent"))?;
-    if decl.id.compiler
+    if decl.id.compiler {
+        fee(b, 96)?;
+    }
+    if (decl.id.compiler && !option_address::declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
             (LifeNominalKind::Record, Type::Record { .. })
@@ -56,6 +59,27 @@ fn walk(
             .len()
             .saturating_add(life.nominal_arguments.len()),
     )?;
+    if decl.id.compiler {
+        for actual in &instance.arguments {
+            if let LifeNominalActual::Type(ty) = actual {
+                shape_work(ty, limits, b)?;
+                b.type_work(ty, true, "builtin Option actual equality")?;
+            }
+        }
+        shape_work(storage, limits, b)?;
+        b.type_work(storage, true, "builtin Option physical equality")?;
+        if !option_address::shape(&instance.ty, b)?
+            || !matches!((instance.arguments.as_slice(), storage.as_ref()),
+                ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
+                if actual == &variants[1].1[0])
+        {
+            return Err(failure(
+                "builtin Option actual, source-class map or physical payload differs",
+            ));
+        }
+        active.pop();
+        return Ok(Vec::new());
+    }
     physical_instances(module, storage, limits, b)?;
     let mut expected = Vec::new();
     // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.

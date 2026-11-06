@@ -3592,6 +3592,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 Ok(LocalType::Scalar(variable))
             }
+            CoreExprKind::String(_) => self.known(&utf8_literals::ty(), span),
             CoreExprKind::Bool(_) => Ok(LocalType::Scalar(self.graph.fresh(BOOL, false))),
             CoreExprKind::Unit => Ok(LocalType::Scalar(self.graph.fresh(UNIT, false))),
             CoreExprKind::Name(name) => {

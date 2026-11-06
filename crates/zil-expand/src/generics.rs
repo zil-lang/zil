@@ -87,6 +87,8 @@ mod copy;
 mod enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
+#[path = "generic_inherent.rs"]
+mod inherent;
 #[path = "generic_options.rs"]
 mod options;
 #[path = "generic_origins.rs"]
@@ -215,12 +217,19 @@ fn specialize_products_prepared<'a>(
     let mut has_associated = false;
     let mut has_generic_methods = false;
     let mut has_impl_recipes = false;
+    let mut has_inherent = false;
     let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
+        if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_none() && !i.generics.is_empty())
+        {
+            has_impl_recipes = true;
+            has_inherent = true;
+            names_budget.note_source_identity();
+        }
         if let ItemKind::Trait(declaration) = &item.kind {
             let (defaults, associated, methods) =
                 trait_defaults::features_with_methods(declaration, &mut names_budget)
@@ -329,7 +338,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
-            (has_associated, has_generic_methods),
+            (has_associated, has_generic_methods, has_inherent),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -349,7 +358,7 @@ fn specialize_products_prepared<'a>(
                     &aliased.pattern_types,
                     budget,
                     products,
-                    (has_associated, has_generic_methods),
+                    (has_associated, has_generic_methods, has_inherent),
                     runtime_ct,
                 )
             }
@@ -359,7 +368,7 @@ fn specialize_products_prepared<'a>(
                 &BTreeMap::new(),
                 budget,
                 products,
-                (has_associated, has_generic_methods),
+                (has_associated, has_generic_methods, has_inherent),
                 runtime_ct,
             ),
         }
@@ -397,7 +406,7 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
-            (has_associated, has_generic_methods),
+            (has_associated, has_generic_methods, has_inherent),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -423,7 +432,7 @@ fn specialize_products_prepared<'a>(
         &BTreeMap::new(),
         names_budget,
         products,
-        (has_associated, has_generic_methods),
+        (has_associated, has_generic_methods, has_inherent),
         runtime_ct,
     )
     .map(Cow::Owned)
@@ -436,12 +445,19 @@ fn specialize_with_budget<'a>(
     pattern_types: &'a BTreeMap<String, TypeRef>,
     mut budget: Budget<'a>,
     products: &mut products::Products,
-    type_features: (bool, bool),
+    type_features: (bool, bool, bool),
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
-    let (has_associated, has_generic_methods) = type_features;
-    source_life::validate(module, &mut budget)?;
+    let (has_associated, has_generic_methods, has_inherent) = type_features;
     let mut origins = products.origins.take();
+    let inherent = inherent::prepare(module, has_inherent, origins.as_mut(), &mut budget)?;
+    let module = inherent
+        .as_ref()
+        .map_or(module, |prepared| &prepared.module);
+    let inherent_methods = inherent
+        .as_ref()
+        .map_or(&[][..], |prepared| prepared.methods.as_slice());
+    source_life::validate(module, &mut budget)?;
     let methods =
         trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
     let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
@@ -460,12 +476,19 @@ fn specialize_with_budget<'a>(
         limits,
         pattern_types,
         origins.as_ref(),
+        inherent_methods,
         budget,
         runtime_ct,
     )?;
     engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
+    }
+    if !inherent_methods.is_empty() {
+        return Err(unsupported(
+            module.span,
+            "generic inherent binder collides with a nominal declaration",
+        ));
     }
     // Generated aggregates no longer carry the original generic declaration.
     // Protect actual nominal identities in the original, still-scoped AST,
@@ -476,6 +499,7 @@ fn specialize_with_budget<'a>(
         limits,
         pattern_types,
         origins.as_ref(),
+        inherent_methods,
         engine.budget,
         runtime_ct,
     )?;
@@ -490,6 +514,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    inherent_methods: &'a [inherent::Method],
+    inherent_instances: BTreeMap<String, (String, BTreeMap<String, TypeRef>)>,
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     runtime_calls: BTreeMap<usize, u32>,
     runtime_call: Option<u32>,
@@ -503,6 +529,9 @@ struct Engine<'a> {
     nominal_captured_lives: Vec<(String, crate::stored_types::LexicalLife)>,
     next_nominal_capture: usize,
     nominal_source_actuals: BTreeMap<String, TypeRef>,
+    // Concrete source field layouts for stored physical records. Hints only;
+    // storage classes and actual permissions live in the independent catalog.
+    stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
@@ -593,11 +622,14 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
         origins: Option<&'a origins::Origins>,
+        inherent_methods: &'a [inherent::Method],
         mut budget: Budget<'a>,
         runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            inherent_methods,
+            inherent_instances: BTreeMap::new(),
             runtime_ct,
             runtime_calls: BTreeMap::new(),
             runtime_call: None,
@@ -611,6 +643,7 @@ impl<'a> Engine<'a> {
             nominal_captured_lives: Vec::new(),
             next_nominal_capture: 0,
             nominal_source_actuals: BTreeMap::new(),
+            stored_record_fields: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
@@ -2173,6 +2206,19 @@ impl<'a> Engine<'a> {
                 self.budget.ty(inner)?;
                 Ok(Some(*inner.clone()))
             }
+            ExprKind::Unary {
+                op: op @ (UnaryOp::Borrow | UnaryOp::BorrowMut),
+                operand,
+            } => Ok(self
+                .value_hint(operand, env, depth + 1, default_integer)?
+                .map(|inner| TypeRef {
+                    span: e.span,
+                    kind: TypeKind::Reference {
+                        mutable: *op == UnaryOp::BorrowMut,
+                        lifetime: None,
+                        inner: Box::new(inner),
+                    },
+                })),
             ExprKind::Unary { operand, .. } => {
                 self.value_hint(operand, env, depth + 1, default_integer)
             }
@@ -2258,7 +2304,7 @@ impl<'a> Engine<'a> {
                             ..
                         }) = self.nominals.get(&path.join("."))
                         else {
-                            return Ok(None);
+                            return self.stored_record_field_hint(&original, member);
                         };
                         for field in &decl.fields {
                             self.budget.text(&field.name, e.span)?;
@@ -2268,6 +2314,19 @@ impl<'a> Engine<'a> {
                         };
                         if decl.generics.len() != args.len() {
                             return Ok(None);
+                        }
+                        if decl
+                            .generics
+                            .iter()
+                            .any(|parameter| matches!(parameter.kind, GenericParamKind::Lifetime))
+                        {
+                            return enums::source_field_actuals(
+                                &decl.generics,
+                                args,
+                                &field.ty,
+                                &mut self.budget,
+                            )
+                            .map(Some);
                         }
                         let mut found = BTreeMap::new();
                         for (parameter, argument) in decl.generics.iter().zip(args) {
@@ -2560,6 +2619,32 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        if !self.stored_nominals {
+            return self.signature_result_inner(name);
+        }
+        // A callee's retained source result belongs to its own life binders,
+        // even when a caller with no life binder first requests its instance.
+        // This supplies source type meaning only; call permissions come from
+        // the actual stored signature and independently checked receiver.
+        let mut scope = Vec::new();
+        if let Some(function) = self.signatures.get(name) {
+            for parameter in &function.generics {
+                self.budget.node(parameter.span, 0)?;
+                if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    scope.push(parameter.name.clone());
+                }
+            }
+        }
+        if scope.is_empty() {
+            return self.signature_result_inner(name);
+        }
+        let previous = std::mem::replace(&mut self.life_scope, scope);
+        let result = self.signature_result_inner(name);
+        self.life_scope = previous;
+        result
+    }
+    fn signature_result_inner(&mut self, name: &str) -> R<Option<TypeRef>> {
         let callable = self
             .signatures
             .get(name)

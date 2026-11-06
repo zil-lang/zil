@@ -1,0 +1,793 @@
+{
+  "scope": "Finite G3.4.1 original-source acceptance passed on exact integration revision; all historical incremental failures retained. Formal workspace gates and final integration approval are root-owned and are not claimed by this receipt.",
+  "original_source": "tests/language-readiness/terminal/342/slice_iter.zil",
+  "original_source_sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+  "workdir": "/workspace/zil-G10.1.12",
+  "environment": {
+    "source": "/workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "runs": [
+    {
+      "case": "option-first",
+      "source_revision": "b7a7256782bddd564bd69394240379ee1af61b14",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_option_ -j1 -- --nocapture",
+      "log_sha256": "38b37e4e9c5c71f1bb2dbf3b753d3e4a66d613a216fb2d5d660d75091a560ccf",
+      "test_summary": "test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.00s",
+      "log_tail": [
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_core_metadata_is_authenticated_before_types_resolve",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "",
+        "test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "option-second",
+      "source_revision": "e5a22d2a787a99dad26980e3bab15134e20f6e47",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_option_ -j1 -- --nocapture",
+      "log_sha256": "b9bd7e1f46e9080bf20f127992059799c5a02cad2f097f551482e0d70c5a7d16",
+      "test_summary": "test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.01s",
+      "log_tail": [
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "",
+        "test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "option-producer-unit",
+      "source_revision": "69ac53b44c09e8f2fb414dbdee1a7536ae942561",
+      "command": "cargo test -p zil-expand --lib option_reference_actual_keeps_real_source_class_and_variant_slot -j1 -- --nocapture",
+      "log_sha256": "8e1aebbc5d84ed266b70768e1c235fe7bbc1702d581a9f59cf9453b9efc3da71",
+      "test_summary": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.00s",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 13.14s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 1 test",
+        "test stored_types::source_tests::option_reference_actual_keeps_real_source_class_and_variant_slot ... ok",
+        "",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.00s",
+        ""
+      ]
+    },
+    {
+      "case": "generics-first",
+      "source_revision": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+      "command": "cargo test -p zil-expand --test generics -j1 -- --nocapture",
+      "log_sha256": "418b532a450b3cc6549885d5b31017c23a2c0b4b03bc5566d671cc2413ec918d",
+      "test_summary": "test result: FAILED. 21 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+      "log_tail": [
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    generic_inherent::generic_inherent_visibility_uses_the_declaring_module",
+        "",
+        "test result: FAILED. 21 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+        "",
+        "error: test failed, to rerun pass `-p zil-expand --test generics`"
+      ]
+    },
+    {
+      "case": "original-first",
+      "source_revision": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_slice_iter -j1 -- --nocapture",
+      "log_sha256": "dfd3965b6b6cadc318965fe2836ec68e9afd75b8bf76bb4e99de0139884d14c9",
+      "test_summary": "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 94 filtered out; finished in 0.00s",
+      "log_tail": [
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 94 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "places-no-link",
+      "source_revision": "0540f663eb200b2765489e3e4ae69abb35e6b61f",
+      "command": "cargo check -p zil-expand --all-targets -j1",
+      "log_sha256": "8605a9476357d50121c4f57487e3fb5316cb8361d75feacddbd3b754cfa5ac1f",
+      "test_summary": null,
+      "log_tail": [
+        "    Checking zil-base v0.1.0 (/workspace/zil-G10.1.12/crates/zil-base)",
+        "    Checking zil-syntax v0.1.0 (/workspace/zil-G10.1.12/crates/zil-syntax)",
+        "    Checking zil-ir v0.1.0 (/workspace/zil-G10.1.12/crates/zil-ir)",
+        "    Checking zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `dev` profile [unoptimized] target(s) in 14.12s"
+      ]
+    },
+    {
+      "case": "all-consumers-first",
+      "source_revision": "25fd0771a269d561b55a7bc78e68df134e2d9aba",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j1 -- --nocapture",
+      "log_sha256": "cbb9c67e7db968d7f4ee281dcd8b92ae6b7fa8993c093e406ea36d6731d329f8",
+      "test_summary": "test result: FAILED. 2 passed; 10 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.01s",
+      "log_tail": [
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_actual_none_and_mixed_variants_forward_without_invented_targets",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_none_cannot_hide_recursive_ungrounded_some_input",
+        "    g3_4_1_option_consumers::g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 2 passed; 10 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "complete-core-first",
+      "source_revision": "2053dc718500e6ff971aed632b9d139e0789c85b",
+      "command": "cargo test -p zil-expand --lib g3_4_1_ -j1 -- --nocapture",
+      "log_sha256": "ffcd91ab443331fc509a19daa09af31bb3ced6c19c557d0616e483b549aa181c",
+      "test_summary": "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+      "log_tail": [
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... FAILED",
+        "",
+        "thread 'stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core' (31545) panicked at crates/zil-expand/src/stored_types.rs:1473:10:",
+        "called `Result::unwrap()` on an `Err` value: [Diagnostic { phase: Expand, category: SafeReject, code: \"E-GENERIC-ARGUMENT\", message: \"stored enum payload type cannot be inferred\", span: Some(Span { file: FileId(0), start: 400, end: 418 }), notes: [] }]",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter",
+        "    stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core",
+        "",
+        "test result: FAILED. 0 passed; 2 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-expand --lib`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "complete-core-second",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-expand --lib g3_4_1_ -j1 -- --nocapture",
+      "log_sha256": "cb642157a799e8fd41928b4b0cf6bd5a1974abc4235200d1196839db7bba6c81",
+      "test_summary": "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 11.77s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 2 tests",
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... ok",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... ok",
+        "",
+        "test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "generics-after-source-hints",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-expand --test generics -j1 -- --nocapture",
+      "log_sha256": "d08b8ea0662059bdb2f56c6afea4219e13d79d33bea21dcbe468b35484687886",
+      "test_summary": "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+      "log_tail": [
+        "inherent budget work=true N=1431",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=496",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=true N=974",
+        "inherent budget work=false N=484",
+        "test generic_inherent::inherent_specialization_preserves_exact_request_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1206",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=false N=531",
+        "test concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=456",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      }
+    },
+    {
+      "case": "all-consumers-second-diagnostic",
+      "source_revision": "53d38b0c44cd601cd5e60566f65b6c2ee131d5ce",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j1 -- --nocapture",
+      "log_sha256": "c9b0c3fd01e988669975b1962ce04021bb6129623d1653e34b0456ca36dc1486",
+      "test_summary": "test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.03s",
+      "log_tail": [
+        "  left: SafeReject",
+        " right: Success",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 10 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.03s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "diagnostic_only": true,
+      "working_tree_difference": "temporary eprintln actual HELPER Typed instructions in source_permissions positive test; exact lines removed after run; source tree restored clean; no production edits"
+    },
+    {
+      "case": "original-after-receiver",
+      "source_revision": "7ec0f03d4aa0a5487d049690f99522882386435d",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_slice_iter -j1 -- --nocapture",
+      "log_sha256": "7ee1a41d5b1adb8ec647a4e77a15b4208fe50eb110499664cd7bbdb4810df9bc",
+      "test_summary": "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+      "log_tail": [
+        "  left: Unsupported",
+        " right: SafeReject",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected ... FAILED",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "clean_source": true,
+      "actual_frontier": {
+        "phase": "Types",
+        "category": "Unsupported",
+        "message": "resource/address parameter mode",
+        "span": [
+          208,
+          222
+        ]
+      },
+      "cargo_exit_code": 101
+    },
+    {
+      "case": "original-after-borrowmut-mode",
+      "source_revision": "e824a9e2c5948669562d06354a4b7c3b9a7ba9a4",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_slice_iter -j1 -- --nocapture",
+      "executor": "author",
+      "clean_source": true,
+      "cargo_exit_code": 101,
+      "log_sha256": "899bac8e03c780c45f4856d7327f3955accb58e96c07009d67cfc1f50c9adc66",
+      "test_summary": "test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+      "log_tail": [
+        "",
+        "thread 'g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42' (42939) panicked at crates/zil-driver/tests/../../../tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs:63:13:",
+        "assertion `left == right` failed: {\"status\":\"SafeReject\",\"phase\":\"analyze\",\"diagnostics\":[{\"phase\":\"analyze\",\"category\":\"SafeReject\",\"code\":\"E-ANALYZE-IR\",\"message\":\"stored target proof: address producer's actual mode/payload differs from claimed type\",\"span\":null,\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8\",\"seconds\":0.009920304,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"disabled\",\"query_events\":[{\"phase\":\"parse\",\"disposition\":\"executed\"},{\"phase\":\"expand\",\"disposition\":\"executed\"},{\"phase\":\"ct\",\"disposition\":\"executed\"},{\"phase\":\"types\",\"disposition\":\"executed\"},{\"phase\":\"analyze\",\"disposition\":\"executed\"}],\"verification_runs\":0,\"source_files\":{\"0\":\"shared.zil\"},\"scalar_interfaces\":[]}",
+        "  left: SafeReject",
+        " right: Success",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire ... FAILED",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 1 passed; 2 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "interpretation": "The one phase-only negative pass was not an established invalidation proof: the original positive failed at the same unrelated producer mode mismatch. The subsequent witness guard and final clean run supersede it."
+    },
+    {
+      "case": "all-consumers-third",
+      "source_revision": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j1 -- --nocapture",
+      "executor": "author",
+      "clean_source": true,
+      "cargo_exit_code": 101,
+      "log_sha256": "485fe9db491fdb851660d91df997f1106af91d1f9928a31e46d676254810a1ba",
+      "test_summary": "test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.12s",
+      "log_tail": [
+        "",
+        "thread 'g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42' (45034) panicked at crates/zil-driver/tests/../../../tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs:106:13:",
+        "assertion `left == right` failed: {\"status\":\"Unsupported\",\"phase\":\"codegen\",\"diagnostics\":[{\"phase\":\"codegen\",\"category\":\"Unsupported\",\"code\":\"E-UNSUPPORTED\",\"message\":\"LLVM representation for BorrowedStorage { storage: Enum { name: \\\"@module0:$stored_$builtinOption340_3\\\", variants: [(\\\"None\\\", []), (\\\"Some\\\", [Address { mutable: false, inner: I64 }])] }, life: StorageLifeShape { binder_count: 1, slots: [StorageLifeSlot { path: [Variant(VariantProjection { variant: 1, index: 0 })], binder: 0, mode: SharedAddress }], retained: [StorageRetainedBinding { path: [TypeArgument(0)], class: 0, binder: 0 }], nominal_arguments: [] } }\",\"span\":{\"file\":0,\"start\":429,\"end\":1045},\"notes\":[]}],\"artifacts\":{},\"input_fingerprint\":\"48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8\",\"seconds\":0.036295873,\"cache_hit\":false,\"commands\":[],\"native_codegen\":null,\"disk_cache\":\"disabled\",\"query_events\":[{\"phase\":\"parse\",\"disposition\":\"executed\"},{\"phase\":\"expand\",\"disposition\":\"executed\"},{\"phase\":\"ct\",\"disposition\":\"executed\"},{\"phase\":\"types\",\"disposition\":\"executed\"},{\"phase\":\"analyze\",\"disposition\":\"executed\"},{\"phase\":\"verify\",\"disposition\":\"executed\"},{\"phase\":\"lower\",\"disposition\":\"executed\"}],\"verification_runs\":1,\"source_files\":{\"0\":\"shared.zil\"},\"scalar_interfaces\":[]}",
+        "  left: Unsupported",
+        " right: Success",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_none_to_some_backedge_keeps_the_runtime_some_arm",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "",
+        "test result: FAILED. 14 passed; 3 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.12s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "interpretation": "Original raw/Wire and original-positive-witnessed write invalidation passed; native stopped at Codegen; two other failures were Source-stage controls. Historical failure retained."
+    },
+    {
+      "case": "backend-thin-enum-layout-final",
+      "source_revision": "e56b00060a8e4f9c5fdfb2a4e3e87f4170eed9e6",
+      "command": "cargo test -p zil-backend-llvm --lib g3_4_1 -j1 -- --nocapture",
+      "executor": "root; author read exact log",
+      "clean_source": true,
+      "cargo_exit_code": 0,
+      "log_sha256": "1a29da81e2c715b2b3c9d23b711a1a6080e37335b2d6e8dae439ac400fe5bf10",
+      "test_summary": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.00s",
+      "log_tail": [
+        "   Compiling zil-llvm-api v0.1.0 (/workspace/zil-G10.1.12/crates/zil-llvm-api)",
+        "   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-G10.1.12/crates/zil-backend-llvm)",
+        "    Finished `test` profile [unoptimized] target(s) in 9.76s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/zil_backend_llvm-0aab30b22bb1b9f5)",
+        "",
+        "running 1 test",
+        "test emit::stored_borrows::tests::g3_4_1_borrowed_enum_representation_is_a_thin_pointer_slice_only ... ok",
+        "",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 159 filtered out; finished in 0.00s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "all-consumers-final",
+      "source_revision": "b029abf78b0629ff126946a3153030b9e047e407",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1 -j2 -- --nocapture",
+      "executor": "root; author read exact log",
+      "clean_source": true,
+      "cargo_exit_code": 0,
+      "log_sha256": "6a9fafa72d827b9ebd8ed1799ce9fcd01556e1bf56794840063affaa846887e4",
+      "test_summary": "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.37s",
+      "log_tail": [
+        "test g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_actual_none_and_mixed_variants_forward_without_invented_targets ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_cannot_hide_recursive_ungrounded_some_input ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_join_forwarding_does_not_retain_transient_empty_leaves ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_to_some_backedge_keeps_the_runtime_some_arm ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_known_and_runtime_variants_match_without_invented_targets ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_pattern_projects_only_the_actual_some_payload ... ok",
+        "test g3_4_1_option_consumers::g3_4_1_option_none_match_dead_edge_requires_the_real_tag_comparison ... ok",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected ... ok",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire ... ok",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... ok",
+        "",
+        "test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 88 filtered out; finished in 0.37s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-shadow-native",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "--features",
+        "llvm-api",
+        "g4453_host_member_nearest_life_shadow_source_native",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "log_sha256": "c73fdbf55f44f16a1526516c301310d3a3e416fd2ff70486112273f598dcb74e",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "   Compiling zil-driver v0.1.0 (/workspace/zil-G10.1.12/crates/zil-driver)",
+        "    Finished `test` profile [unoptimized] target(s) in 18.50s",
+        "     Running tests/aggregates.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-15ad514610e20cf2)",
+        "",
+        "running 1 test",
+        "test g4453_host_member_nearest_life_shadow_source_native ... ok",
+        "",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.19s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-cross-borrows",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cross_function_borrows",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 105,
+      "failed": 0,
+      "log_sha256": "b85beaaa0e2536ed9be0973106eed507bd8c024dc5ea2ae742e85bf99f58baa9",
+      "log_tail": [
+        "test type_life_symbolic_alias_and_module_work_share_exact_fresh_expand_budget ... ok",
+        "test utf8_literals_g931::g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type ... ok",
+        "test type_life_unused_templates_check_symbolic_copy_and_actual_return_roots ... ok",
+        "UTF8 actual Source byte budget N=39; N-1 ResourceLimit; fresh N accepted",
+        "test utf8_literals_g931::g931_source_byte_budget_exact_and_fresh_retry ... ok",
+        "test terminal342_stored_physical::terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load ... ok",
+        "test utf8_literals_g931::g931_two_module_static_returns_publish_explicit_verified_origin ... ok",
+        "test type_life_instances_keep_binders_dense_maps_and_native_copy_types ... ok",
+        "test utf8_literals_g931::g931_real_source_native_utf8_exact_bytes_and_explicit_allocation ... ok",
+        "",
+        "test result: ok. 105 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.84s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-ct-namespaces",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "ct_static_namespaces",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 101,
+      "passed": 11,
+      "failed": 1,
+      "log_sha256": "6a1e232d9fea21e4dbe0a39024c4f3602f292c201a3827abe12dc6cb1ec95e0c",
+      "log_tail": [
+        "test g4462_unexecuted_host_call_has_no_successful_namespace_use ... ok",
+        "test g4462_type_const_life_shadow_keeps_member_owner ... ok",
+        "test g4462_real_ct_use_cannot_hide_unused_bad_sibling ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_life_duplicates_still_reject_within_the_current_declaration",
+        "",
+        "test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test ct_static_namespaces`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-source-core",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "g3_4_1",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "log_sha256": "8b8d87eaa507b9e5628fdb698ebdfbdf646301543f2430637140ddee09c7a24c",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 11.21s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 3 tests",
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... ok",
+        "test stored_types::source_tests::g3_4_1_grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint ... ok",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... ok",
+        "",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-generics",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--test",
+        "generics",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 24,
+      "failed": 0,
+      "log_sha256": "82fc897a25f4705528c387d64ad34b554d95c24354504390584eaef746d921ad",
+      "log_tail": [
+        "test generic_inherent::inherent_specialization_preserves_exact_request_boundaries ... ok",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=true N=974",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1206",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=false N=531",
+        "test concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=456",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-ct-namespaces-corrected",
+      "source_revision": "d6b791dbb6ea54bd277a4a79bfaef73e3940efb2",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "ct_static_namespaces",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 12,
+      "failed": 0,
+      "log_sha256": "14d268f576afac1a993e06b3063fd63a9d4ebcbf63ec6e208ac449122d26f834",
+      "log_tail": [
+        "test g4462_generated_host_member_distinct_lives ... ok",
+        "test g4462_failed_whole_request_does_not_publish_completed_host_calls ... ok",
+        "test g4462_plain_and_unrelated_ct_keep_runtime_methods_gate ... ok",
+        "test g4462_real_ct_use_does_not_authorize_runtime_nominal_instances ... ok",
+        "test g4462_successful_unit_call_uses_its_exact_instruction ... ok",
+        "test g4462_real_ct_use_cannot_hide_unused_bad_sibling ... ok",
+        "test g4462_host_member_nearest_life_shadow ... ok",
+        "test g4462_unexecuted_host_call_has_no_successful_namespace_use ... ok",
+        "test g4462_type_const_life_shadow_keeps_member_owner ... ok",
+        "",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    }
+  ],
+  "final_acceptance": {
+    "producer_delivery_revision": "04c4c5122f197de1c3f9bd836badc6e907d9ca3d",
+    "integrated_execution_revision": "b029abf78b0629ff126946a3153030b9e047e407",
+    "source_unchanged": true,
+    "source_byte_sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+    "test_result": {
+      "passed": 17,
+      "failed": 0,
+      "log": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+      "executor": "root; author inspected log and frozen test implementation, did not independently rerun root final execution"
+    },
+    "actual_original_path": [
+      "Parse",
+      "Expand complete Core",
+      "CT preparation",
+      "Types complete Typed",
+      "Analyze raw",
+      "Verify raw",
+      "Wire encode/decode",
+      "Analyze decoded",
+      "Verify decoded",
+      "Verify bytes",
+      "Lower",
+      "native Codegen",
+      "native execution"
+    ],
+    "native": {
+      "entry": "result",
+      "feature": "llvm-api",
+      "matrix": [
+        {
+          "backend": "Clang",
+          "optimization": "O0",
+          "exit_code": 0,
+          "stdout": "42\n",
+          "stderr": ""
+        },
+        {
+          "backend": "Clang",
+          "optimization": "O2",
+          "exit_code": 0,
+          "stdout": "42\n",
+          "stderr": ""
+        },
+        {
+          "backend": "LlvmApi",
+          "optimization": "O0",
+          "exit_code": 0,
+          "stdout": "42\n",
+          "stderr": ""
+        },
+        {
+          "backend": "LlvmApi",
+          "optimization": "O2",
+          "exit_code": 0,
+          "stdout": "42\n",
+          "stderr": ""
+        }
+      ],
+      "witness": "tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs::g3_4_1_slice_iter_original_source_native_result_42; parent execute requires successful process exit, complete stdout bytes and empty stderr",
+      "note": "42 is the printed result; it is not the process exit code."
+    },
+    "safety_witnesses": [
+      "exact original accepted before derived values[0] write must SafeReject in Analyze/Verify",
+      "actual original self.index mutable-base scalar field address identified in Typed; changing only its result mode rejects in independent raw/Wire kernels",
+      "nearest metadata, coherent pointee, actual local target, constructorless recursive and ungrounded Some controls retained",
+      "Some, runtime mixed, known None matching and None-to-Some loop preserve real sources; forged tag/edge conditions reject"
+    ],
+    "machine_slice": {
+      "qualified_type_retained": true,
+      "new_layout": false,
+      "representation": "existing i32 tag with aligned maximum inline payload; current shared thin pointer payload gives LLVM {i32,[1 x i64]}, alignment8, size16 on the existing 64-bit backend",
+      "thin_only": true,
+      "fat_slice_address": "Unsupported in this backend slice; never represented as one pointer",
+      "mutable_payload_address": "Unsupported",
+      "native_pointee_tested": "i64",
+      "verified_capability_and_full_lir_binding_required": true,
+      "pure_copy_or_source_permission_expanded": false,
+      "implicit_heap_box_rc_lock_or_global_table_added": false,
+      "schema_wire_or_public_calling_abi_changed": false
+    },
+    "limits": {
+      "default_limits_increased": false,
+      "new_test_target_added": false,
+      "historical_request_budget_controls": "existing generics22/22 passed after source inference correction; final broader gates remain root-owned"
+    },
+    "rust_four_goals": {
+      "expression": "unchanged real generic borrowed SliceIter source reaches its complete consumer and native result",
+      "safety_and_memory": "independent raw/Wire target proofs and nearest counterexamples exercised; implementation adds no implicit owning wrapper or allocation",
+      "runtime": "Clang and LLVM API O0/O2 behavior verified; comparative Rust performance not measured",
+      "compile_and_maintenance": "existing targets and default limits retained; actual work is charged; compile-cost and maintenance parity not claimed",
+      "concrete_breakthrough": "original borrowed iterator with generic inherent next and Option<&T> now reaches verified native execution without rewriting the source"
+    },
+    "remaining_boundaries": [
+      "sealed builtin Option shared-Address source/consumer profile remains finite; ordinary custom nominal Address actual formal-occurrence support is not generalized",
+      "machine support here excludes fat Slice Address payloads and mutable Address payloads",
+      "formal root fullgate and independent final review receipts are separate from this author execution record"
+    ]
+  },
+  "post_fullgate_lifetime_repair": {
+    "status": "targeted repair passed; second formal root run remains separately owned and pending",
+    "initial_formal_result_reported_by_root": {
+      "passed": 5065,
+      "failed": 5,
+      "interpretation": "three old nearest-life-shadow cases rejected inherited parent names as duplicate own formals; two old explicit local-reference position cases moved from Expand Unsupported to Types SafeReject. These are retained as actual regressions, not overwritten by the original 17-case acceptance."
+    },
+    "production_fix": "c55fcb908286daade67820f7fad503d8afd79646",
+    "fixture_correction": "94e4bf7b1aa7bb564aa384ccb70d78c1c08f52e6",
+    "root_receipt": "docs/validation/G10.1.12-lifetime-repair.json",
+    "root_receipt_sha256": "5856cd74b1ae3b22d232eab3f3f241fa9efb220cde8443e8b17edc53f98c4e41",
+    "changes": [
+      "duplicate-life checks compare only current declaration formals while retaining inherited visible names",
+      "restore nominal-field-only stored_fields frame; preserve ordinary header and independent HRTB support",
+      "admit shared direct or Grouped references only at actual Named Type/TypeApply Type arguments; clear context for other constructors and expressions",
+      "no AST parameter renaming, Definition owner, full ordinal, schema, Wire, ABI or permission changes"
+    ],
+    "fees": "existing clone and comparison charges preserved, including conservative inherited-name bounds; same traversal/node/text sequence, no AST rescan or whitelist allocation; default limits unchanged",
+    "preflight": {
+      "original_shadow_native": "1/0",
+      "complete_cross_borrows_including_original_iterator": "105/0",
+      "source_core_including_grouped_actual": "3/0",
+      "existing_generics_and_exact_budget_controls": "24/0",
+      "ct_namespaces_corrected": "12/0"
+    },
+    "failed_new_fixture_retained": {
+      "source": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "passed": 11,
+      "failed": 1,
+      "cause": "the first new duplicate fixture changed formal arity but retained an old CT call arity; actual earlier CT E-CT-SOURCE failure was preserved",
+      "correction": "use unused host/member/free duplicate declarations with no CT call; retain exact Expand SafeReject E-LIFE-DECLARATION duplicate life binder and verification_runs0 assertions"
+    },
+    "formal_second_run_source": "76e109506360bda160e195d2f0b26150a9e483c3",
+    "formal_second_run_result": "pending; no formal totals inferred from targeted tests",
+    "author_execution": "no new linked execution by author; root exact logs reused with verified hashes; author isolated no-link Expand all-target strict Clippy passed"
+  }
+}
