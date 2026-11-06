@@ -1,0 +1,467 @@
+{
+  "task_id": "G3.4.1",
+  "reviewer": "/root/general_text_kernels",
+  "verdict": "Pass",
+  "binding": "Exact",
+  "baseline": "c63001c8ec43909d2c41ca314c32e465f531711f",
+  "scope": "Independent static review of the G3.4.1 Source/Expand generic inherent methods and Option producer write set, plus explicitly assigned Types outer-carrier gate and scalar field-mode corrections; independently read root execution evidence. This is a finite slice verdict.",
+  "excluded_scope": [
+    "Reviewer own G9.3.1 StaticUtf8 Analyze/Verify kernel changes",
+    "General Types/Analyze/Verify Option consumer implementation, apart from reading unchanged actual permission checks to assess these two Types corrections",
+    "Lower/LLVM Option backend, native completion and whole-task/product-goal acceptance"
+  ],
+  "reviewed_paths": [
+    {
+      "path": "crates/zil-expand/src/generic_budget.rs",
+      "sha256": "bec77f362c0eee44344b287ee1d3aaa50cd96a4a9384be6cb7406fc866874f46",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_check.rs",
+      "sha256": "93005311e3e4b05d4f43ddfe7977c7273b1025c4008b9755204c0c547d7ca1fa",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_constant_plan.rs",
+      "sha256": "38d8cc1286a284b8692818bd65e7cb48f28a95e9dd0dfbbb1da4262c3c883ccf",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_enum.rs",
+      "sha256": "ef00dab3e4f863c73734d704018ba9d1ac74ee343978d9cf6a4e058e6c0dd1a3",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_expr_call.rs",
+      "sha256": "0f4ef8b7cb23e861feeb47ef48a06c5258fe46fdfa6531e1624745d153055504",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_inherent.rs",
+      "sha256": "ef57d8d768ded346565cbdbd680fb337af060c2a16d9a8e94f044a89a84f8bbe",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_options.rs",
+      "sha256": "60e8b5aad4aa4226b7c4ce0b08dfe6531d38eb0edf204f2446bb0d17200857d8",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_places.rs",
+      "sha256": "55e3862d65c2b3e6190fbce8609ac8d8cf0c038374d90db5d9fee10fe39ae486",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_record_enum.rs",
+      "sha256": "0939f723680bae12546473b52cccca7c35855f34fc33749578f7a56f44dbbf40",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_source_life.rs",
+      "sha256": "405a3188495a5953a947c9df1c3a54f8d50ecd02a9ecbc59d0469becc5f9c779",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_stored_actuals.rs",
+      "sha256": "ba247be73fed7b0139d72f009e9d16ad8ce75e5745d6a67697c0a10f5bcb3ab5",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_stored_nominal.rs",
+      "sha256": "354f82695ee2cc3863bddf1a04e65569cff7657ff84fa6a202beea431b93b8d0",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_trait_defaults.rs",
+      "sha256": "87a92657d8392d52a59b9efe23d7e5400ef2c9d386e6daa8d9ffa0930530a742",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generic_trait_instances.rs",
+      "sha256": "04404c23dbb0bfd35272245b6cec78ad1e9fbe1381ab269f585a1c7f3e4aaf58",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/generics.rs",
+      "sha256": "3fe5b6068bb051c11cd35eb208fcd185154dea4d02e12ad3e61adfca10de98f5",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/lifetimes.rs",
+      "sha256": "0d1dd4f7da175e8b8dd55963a90b2b0bbca075e286150a83a7db0feae35f5861",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/src/stored_types.rs",
+      "sha256": "de60416f95f112fe9425fff9fbb0dc041313e2ea21d0c9139db136aada5f32af",
+      "review_scope": "G3.4.1 changed Source/Expand hunks and relevant existing call/budget/identity context"
+    },
+    {
+      "path": "crates/zil-expand/test-support/generic_inherent.rs",
+      "sha256": "3d62e5c0e4e3e8e4e37d5f483631f57b9cc8c2f576d5cf27a8035c96b2fedbe5",
+      "review_scope": "Relevant regressions/original source"
+    },
+    {
+      "path": "crates/zil-expand/tests/generics.rs",
+      "sha256": "f0eca2ba6acb93199889100d4b36c476fbc4c1a68cd259d6a202bb090b5fed89",
+      "review_scope": "Relevant regressions/original source"
+    },
+    {
+      "path": "crates/zil-types/src/lib.rs",
+      "sha256": "d4caf4f2a564966777afca3484eb59c168f539b6c672db855902edec981fda2e",
+      "review_scope": "Only assigned e824 signature gate / 73aae scalar field mode and necessary existing context"
+    },
+    {
+      "path": "crates/zil-types/src/aggregates.rs",
+      "sha256": "bdfa1ac946e342b080e8c4394a4c44273d5dae41835ef42e91138a191edac8a4",
+      "review_scope": "Only assigned e824 signature gate / 73aae scalar field mode and necessary existing context"
+    },
+    {
+      "path": "tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs",
+      "sha256": "e64d278801292fa4afcacc6ef5617bd21869f46d873a7d676a02724c3438084d",
+      "review_scope": "Relevant regressions/original source"
+    },
+    {
+      "path": "tests/language-readiness/terminal/342/slice_iter.zil",
+      "sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+      "review_scope": "Relevant regressions/original source"
+    },
+    {
+      "path": "changes/G3.4.1-generic-inherent.md",
+      "sha256": "df1b5363ba7675c266fd57330b96a8e04eb8c93227f345cfe925fc49460c8733",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "changes/G3.4.1-slice-iterator.md",
+      "sha256": "04c6e35161e3f632b9d05f62003da2121aba2c52250c1b36dc5e3eec2ceb13c2",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "changes/G3.4.1-reference-class.md",
+      "sha256": "4206d973412787ddafff603a06543dbc3779773ac6c8ce41239974929eeb822d",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "changes/G3.4.1-inherent-receiver.md",
+      "sha256": "a5e22abf8b233cd46350a9bc44a6bd4ad2b5913a781d3f0c41f48288f48574cb",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "changes/G3.4.1-carrier-parameter-mode.md",
+      "sha256": "0f0bacd7d6424827bbed27b8d1e632b4c5f723375137ade30d6c0c4376e0319f",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "changes/G3.4.1-option-source-pattern.md",
+      "sha256": "e05d05ca912506557f9826d54aa704437ba44e18b501f2e01c223289c13da9be",
+      "review_scope": "Reviewed finite proposal/contract relevant to assigned source and two narrow Types changes"
+    },
+    {
+      "path": "tests/language-readiness/terminal/342/slice-iterator/option-consumers.rs",
+      "sha256": "42a579221a3403fc681ce38eed5160e1115f87bee73e74f858189c04bed3fda1",
+      "review_scope": "Wrong-local-source and None-to-Some loop fixture hunks only: real positive witness, early Source rejection and downstream actual-target mutation; not the general consumer production implementation"
+    }
+  ],
+  "checks": [
+    {
+      "area": "full original binders and declaration identity",
+      "result": "Pass",
+      "evidence": "Methods retain the full original impl type/life vector and complete target bijection. Source facts identify a binder by actual declaration walk owner and original full ordinal. Two-life reorder does not collapse into filtered local ordinal; generated helper spelling is only dispatch. Actual declaration/member origins survive lifting."
+    },
+    {
+      "area": "unused definition checking",
+      "result": "Pass",
+      "evidence": "Lifted methods enter ordinary generic validation even when unused. The retained-reference class correction checks TypeArgument and explicit Some payload classes before unused templates are removed. Ordinary outer-borrow upper handling is unchanged. Wrong return, annotation, Some and unused Pair method are covered."
+    },
+    {
+      "area": "actual visibility",
+      "result": "Pass",
+      "evidence": "The existing original preflight records source identity before project flattening upon visiting generic inherent Impl. Method owner comes from actual module/declaration ledger. Both dispatch visibility and lifted helper public status require host_item.public and member.public. Same-module private calls remain legal; cross-module private method and private nominal via factory reject."
+    },
+    {
+      "area": "actual receiver and affine carrier",
+      "result": "Pass",
+      "evidence": "Only explicit receiver parameter zero Self, shared Self or mutable Self is lowered. Call construction moves the actual object once and emits the ordinary borrow/reborrow operation matching the declared receiver. Qualified borrowed-pointee checking does not make the owning carrier Copy. The AST receiver binding rename preserves mode/type and does not rename field labels or authorize by prefix."
+    },
+    {
+      "area": "callee and caller life domains",
+      "result": "Pass",
+      "evidence": "Early retained headers and signature_result use the callee own genuine life scope and restore caller scope. Life-only methods retain the ordinary concrete function path instead of selecting a nonexistent monomorphization template. Private layout hints do not import a callee lifetime label into caller scope."
+    },
+    {
+      "area": "sealed Option producer",
+      "result": "Pass",
+      "evidence": "The producer authenticates actual compiler-origin enum shape before emitting fixed builtin identity MAX/0/compiler and @zil.builtin/[option]/[enum,Option]/[]. One immutable Address TypeArgument retains class0 to binder0 and actual Some Variant(1,0) shared slot. Mutable reference and other nominal direct-address actuals remain outside this profile. Consumer catalog authentication is independently reviewed elsewhere."
+    },
+    {
+      "area": "physical hints and grouped references",
+      "result": "Pass",
+      "evidence": "Complete actual field substitution handles all formal/actual Type and Life positions and binds declaration life before substituting Type. The private exact-instance field map stores only already-produced physical field layouts, never root/class permission. Both call parameter and result hints restore the same Option source layout. Group unwrap clears only private hint reference lifetime, leaving real actuals/catalog intact."
+    },
+    {
+      "area": "prepaid work and memory",
+      "result": "Pass",
+      "evidence": "The new inherent path is disabled without the feature flag discovered in the existing inventory. Original AST, substitutions, receiver rename, generated names, field-map key/value objects, type trees, and lineage bytes are paid before clone or allocation. Class-presence scans have prepaid structural work. Origin capture is added in the existing Impl walk, without an added old-input scan. New required method boundary changed from 1431/484 to 1675/547 due actual receiver rename; old controls remain recorded separately."
+    },
+    {
+      "area": "outer exclusive carrier gate e824a9e2c",
+      "result": "Pass",
+      "evidence": "Only the existing BorrowMut plus Address mutable true branch now admits the existing private shared_address classifier, after actual Core/resolved inventory and embedded-qualified-type resolver checks. It does not turn shared Address into exclusive, mark carrier Copy, or admit Option mutable payloads. Independent load consumers still require actual exclusive carrier and mutable actual leaf for mutable reborrow."
+    },
+    {
+      "area": "actual scalar field mode 73aae50c8",
+      "result": "Pass",
+      "evidence": "projection_base returns the actual address expression unchanged or requests a shared address for a value base. aggregate_member now copies that actual Address.mutable into scalar AddressField; ReadAddress only reads. The earlier shared Address leaf branch still uses CopyShared LoadStoredBorrow and is unchanged. No kernel producer check was weakened. A result-mode-only counterfeit derived from real self.index rejects in raw and decoded Wire; genuine original source passes first."
+    },
+    {
+      "area": "strict Option source pattern mapping",
+      "result": "Pass",
+      "evidence": "38c4cf247 first uses the actual Head::Enum index selected from the scrutinee fact. Only the reserved source Option spelling maps to that selected compiler-only TEMPLATE. It does not select a new declaration or grant a class/root. Full actual arity, actual variant and payload class checks remain. Compared text is prepaid in the existing pattern consumer; no extra module scan/walker/schema change. The new existing-generics positive uses the exact original source backedge. The real cross-stage loop passes in the final root17/0 run. 104a4a333 changes only the test mirror by removing an unreachable trailing return; the actual backedge and Some arm remain."
+    },
+    {
+      "area": "source-negative and independent downstream counterexample evidence",
+      "result": "Pass",
+      "evidence": "The wrong local-reference source now rejects earlier in Expand with exact E-UNSUPPORTED retained-reference-source message. A separate accepted good source with a real local array/slice supplies valid Core and candidate; only the actual Some index base is changed from parameter slice to local_slice before Types. Values/locals/block/instruction shape stays equal. Raw and decoded Analyze reject exact activation-local return provenance; raw/Wire Verify reject the actual incompatible live-loan cleanup window. This avoids claiming that an early Source rejection alone tested the downstream kernels."
+    }
+  ],
+  "findings": [
+    {
+      "finding": "Unused field/method collision and life-only dispatch false rejection",
+      "status": "Resolved",
+      "fixes": [
+        "8af451da6ce15e331f122fca00488d009878b9ad",
+        "04006ed8a1b524dfb876e80e4f1e1b6791391d8a"
+      ]
+    },
+    {
+      "finding": "Real cross-module private method accepted because late single-module ledger lost original owner",
+      "status": "Resolved",
+      "fixes": [
+        "46c5a02dfb095ef8cfcf2aaedc08284ca67e4b34"
+      ],
+      "failure_log": "/tmp/G3.4.1-combined-generics.log"
+    },
+    {
+      "finding": "Public method of private host could be called through a public factory result",
+      "status": "Resolved",
+      "fixes": [
+        "a4f25e1e75d3a86a25452b9010092672b1734e48"
+      ]
+    },
+    {
+      "finding": "Original compound field place and payload hints mishandled full lifetime actuals and physical record lookup",
+      "status": "Resolved",
+      "fixes": [
+        "8d8bf47a906777626a0d37fc6d538b0f44a9ceb9",
+        "192ada3cc20f95907343478375165dda6182520e",
+        "34ee067cc4ea8dded1bff78df2934844cea993ef",
+        "b71e86aeed930c821e0b5b4382bcb33d6d53a46e",
+        "70a65d2cfa719921449bddf8d9198dc18274f021"
+      ]
+    },
+    {
+      "finding": "Grouped reference private Option hint retained callee lifetime label",
+      "status": "Resolved",
+      "fixes": [
+        "08234cea87883074ebec1fe99229c89658876697"
+      ],
+      "execution_log": "/workspace/.zil-env/G10.1.12-source-core-final-preflight.log"
+    },
+    {
+      "finding": "Unused generic Option reference TypeArgument could return a different declared source class",
+      "status": "Resolved",
+      "fixes": [
+        "04610d6b79845d070f889cf1090a8349c393f772"
+      ],
+      "failure_log": "/workspace/.zil-env/G3.4.1-methods-unused-before.log"
+    },
+    {
+      "finding": "Lifted real receiver self was rejected as ordinary free-function reserved binding",
+      "status": "Resolved",
+      "fixes": [
+        "944a22dca3dfee211e11b8a66be86d3ae8da30b7"
+      ]
+    },
+    {
+      "finding": "Outer exclusive qualified carrier signature was rejected and scalar field producer claimed shared result despite actual mutable base",
+      "status": "Resolved",
+      "fixes": [
+        "e824a9e2c5948669562d06354a4b7c3b9a7ba9a4",
+        "73aae50c81f77cffa6552e260fbd0e1ebe08a6a2"
+      ],
+      "execution_log": "/tmp/G3.4.1-combined-all-third.log"
+    },
+    {
+      "finding": "Strict qualified Option pattern bind compares source Option with internal sealed template name and rejects legitimate None to Some loop",
+      "status": "Resolved",
+      "candidate_observed": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+      "failure_log": "/tmp/G3.4.1-combined-all-third.log",
+      "fixes": [
+        "38c4cf24747583292a757bb96231fa03877760d1"
+      ],
+      "execution_log": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+      "test_mirror_commit": "104a4a3338f36154ee64007a9ac0bf5e5f7802f4"
+    },
+    {
+      "finding": "Earlier local-source rejection moved from Analyze to Expand, while the old test still unwrapped Typed; a generic phase-only rejection would not prove the downstream APIs",
+      "status": "Resolved",
+      "fixes": [
+        "4e9bde82824bc6173fb70fb7d8c19243067e9f18",
+        "d74fdf895d55fc25b55dd4564b12c49f91794115"
+      ],
+      "evidence": "Preserved exact early Source diagnostic and a separate genuine-positive-Core actual-target mutation with exact distinct downstream rejection gates; final17/0."
+    }
+  ],
+  "execution": {
+    "reviewer_builds_or_link_runs": 0,
+    "reviewer_test_runs": 0,
+    "provenance": "No reviewer Cargo build, test executable or native execution was started for this review. Root/author existing logs are read and hashed; they are not described as reviewer fresh-build evidence. Parent owns heavy window.",
+    "retained_logs": [
+      {
+        "path": "/workspace/.zil-env/G10.1.12-generics-2.log",
+        "source_commit": "b0839a97b26a21b76cdb1e25d26675002d8f0400",
+        "observation": "22/0; actual cross-module private method rejection after origin-ledger fix",
+        "sha256": "1e7043819cfd15b45a0e4e5158d2f33e8b1f9ae65560fc7fbea2a429f699536c"
+      },
+      {
+        "path": "/workspace/.zil-env/G10.1.12-generics-3.log",
+        "source_commit": "8894af608a6693a47d27f9f95fc6ee8ea3ad1905",
+        "observation": "22/0; private nominal through public factory cannot expose public method",
+        "sha256": "496c78cfddd4df6c6a48882ef0145de015295198165112e9014b775d13245ffd"
+      },
+      {
+        "path": "/workspace/.zil-env/G3.4.1-methods-followup-generics.log",
+        "source_commit": "944a22dca3dfee211e11b8a66be86d3ae8da30b7",
+        "observation": "Author 23/0; unused retained-class negatives, receiver lowering, new 1675/547 boundary plus preserved old boundaries",
+        "sha256": "194ae8fb469515314fc8958a7885badcd3bb8e5c97240af8be65012ad15e62ff"
+      },
+      {
+        "path": "/workspace/.zil-env/G10.1.12-source-core-final-preflight.log",
+        "source_commit": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+        "observation": "Root 3/0; unchanged original complete Core, actual forwarding and grouped reference hint",
+        "sha256": "ab700c503fe9ac740f07b8f2207ac464bff8fc815030856146c641aa3e0160dc"
+      },
+      {
+        "path": "/tmp/G3.4.1-combined-all-third.log",
+        "source_commit": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+        "observation": "Root 14/3; original raw/Wire, mode-only counterfeit and baseline-accepted target invalidation pass; real Source loop alias, earlier source rejection test and Codegen frontier fail",
+        "sha256": "485fe9db491fdb851660d91df997f1106af91d1f9928a31e46d676254810a1ba"
+      },
+      {
+        "path": "/workspace/.zil-env/G3.4.1-methods-unused-before.log",
+        "source_commit": "670589fd99e2236a5aa4bb1b8f1eb37a17fcbe92",
+        "observation": "Actual unused wrong-class return accepted before fix; preserve failure",
+        "sha256": "6629754dfd098684020be9508788246cc4cb63e15207df5e58aba1fb538f9de9"
+      },
+      {
+        "path": "/tmp/G3.4.1-combined-generics.log",
+        "source_commit": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+        "observation": "21/1; actual cross-module private method accepted before source-origin ledger fix",
+        "sha256": "418b532a450b3cc6549885d5b31017c23a2c0b4b03bc5566d671cc2413ec918d"
+      },
+      {
+        "path": "/tmp/G3.4.1-source-core-first.log",
+        "source_commit": "2053dc718500e6ff971aed632b9d139e0789c85b",
+        "observation": "0/2; actual original field hint and Option forwarding failures before physical-field map and symmetric hint fix",
+        "sha256": "ffcd91ab443331fc509a19daa09af31bb3ced6c19c557d0616e483b549aa181c"
+      },
+      {
+        "path": "/tmp/G3.4.1-original-first-combined.log",
+        "source_commit": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+        "observation": "0/3; original constant generic place failure",
+        "sha256": "dfd3965b6b6cadc318965fe2836ec68e9afd75b8bf76bb4e99de0139884d14c9"
+      },
+      {
+        "path": "/tmp/G3.4.1-original-after-borrowmut-mode.log",
+        "source_commit": null,
+        "observation": "Original accepted Types then failed actual Analyze field producer mode comparison; invalidation count was not acceptance until baseline precondition added",
+        "sha256": "899bac8e03c780c45f4856d7327f3955accb58e96c07009d67cfc1f50c9adc66"
+      },
+      {
+        "path": "/workspace/.zil-env/G10.1.12-generics-final-preflight.log",
+        "source_commit": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+        "observation": "Root clean combined23/0 with retained source-class correction and real receiver rename; includes old exact boundaries and new1675/547 controls",
+        "sha256": "84e004b4ffc6bb1c9ac04f736a14e869a0efa79efcec37f5a67834d936fa32be"
+      },
+      {
+        "path": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+        "source_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+        "observation": "Root clean17/0, including real source backedge, early wrong-source diagnostic, actual-target raw/Wire counterexample, unchanged original raw/Wire and mode-only forgery, accepted-baseline target invalidation, and original native result42 in Clang/LLVM API O0/O2",
+        "sha256": "6a9fafa72d827b9ebd8ed1799ce9fcd01556e1bf56794840063affaa846887e4"
+      }
+    ],
+    "final_root_run": {
+      "source_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+      "test_target": "zil-driver existing cross_function_borrows",
+      "filter": "g3_4_1",
+      "passed": 17,
+      "failed": 0,
+      "ignored": 0,
+      "filtered": 88,
+      "log": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+      "raw_log_sha256": "6a9fafa72d827b9ebd8ed1799ce9fcd01556e1bf56794840063affaa846887e4",
+      "binary": "/workspace/.zil-env/target-G1.3.5.2/debug/deps/cross_function_borrows-aea7de94db12f456",
+      "binary_sha256_at_review": "9a36e42f3f56b6be5e9b688280caee8564b0cfccf0b079f64ce8a8e5035e611b",
+      "executed_by": "/root; not rerun by reviewer",
+      "native_observation": "Actual original source fixture loops over Clang and LlvmApi and O0/O2, asserting compile Success and executable stdout42 for each. The exact logged test binary has llvm-api enabled. Four finite observations are not a backend soundness review.",
+      "feature_record": {
+        "path": "/workspace/.zil-env/target-G1.3.5.2/debug/.fingerprint/zil-driver-aea7de94db12f456/test-integration-test-cross_function_borrows.json",
+        "sha256": "83d61808e959b90dd8c37e133171d2fc282252b721a55976cae05dcf53ebf199",
+        "features": [
+          "default",
+          "llvm-api"
+        ]
+      }
+    },
+    "source_preflight": {
+      "source_commit": "45867de3f2fa52c9836834c5cdf3f192242ee94a",
+      "complete_core_lib_cases": {
+        "passed": 3,
+        "failed": 0,
+        "cases": [
+          "unchanged original SliceIter complete Core",
+          "real Option forwarding through parameter",
+          "grouped-reference helper/caller preserving real catalog while erasing only private hint label"
+        ]
+      },
+      "existing_generics": {
+        "passed": 23,
+        "failed": 0,
+        "coverage": [
+          "ordinary bounds and genuine receiver modes",
+          "unused symbolic definitions and retained class negatives",
+          "two-life reorder and wrong-source controls",
+          "life-only method path",
+          "actual cross-module and private-host visibility",
+          "old exact budget boundaries and required new1675work/547nodes N/N-1/fresh"
+        ]
+      },
+      "delta_to_final": "Only Source production change is reviewed38c4 source pattern spelling mapping; its actual complete loop passes in final cross-stage17. Generic test mirror104a adds corresponding case, but no separately executed24-case generics result is claimed."
+    }
+  },
+  "limitations": [
+    "Pass covers only the assigned Source/Expand write set and two narrow Types corrections; no independent review of this reviewer own StaticUtf8 Analyze/Verify changes is claimed.",
+    "General Types/Analyze/Verify Option consumer and Lower/LLVM production correctness require their own independent reviews. Their final test outcomes are supporting source-integration observations only.",
+    "The root performed the3/23 source preflight and final17-case run; the reviewer read code/logs and feature metadata but performed no Cargo build, test executable run or native execution for this review.",
+    "The new24th generics mirror was statically reviewed; the reported full generics run is23/0 before the13-line pattern mapping. The same final loop source is exercised successfully in the17-case cross-stage run.",
+    "Historical failed runs, including14/3 with source-pattern false rejection, earlier source-negative test and Codegen frontier, remain explicitly retained and are not relabeled as successful runs.",
+    "Finite support remains limited: no method-own generics, const/where/specialized inherent impls or full lending trait claim. No performance/RSS comparison, four-Rust-goal parity, full formal suite or whole product-goal completion is claimed."
+  ],
+  "implementation_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+  "source_production_commit": "38c4cf24747583292a757bb96231fa03877760d1",
+  "source_test_mirror_commit": "104a4a3338f36154ee64007a9ac0bf5e5f7802f4",
+  "assigned_types_commits": [
+    "e824a9e2c5948669562d06354a4b7c3b9a7ba9a4",
+    "73aae50c81f77cffa6552e260fbd0e1ebe08a6a2"
+  ],
+  "authors": [
+    "/root/general_priority_review: generic inherent methods, retained source classes and receiver normalization",
+    "/root/general_life_impl: Option source producer, lexical life, field hints and scalar field-mode fix",
+    "/root: outer exclusive carrier signature gate"
+  ],
+  "original_source": {
+    "path": "tests/language-readiness/terminal/342/slice_iter.zil",
+    "sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+    "unchanged_from_baseline": true
+  }
+}
