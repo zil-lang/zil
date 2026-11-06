@@ -49,7 +49,19 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 待执行 | P0 | 待派 · sol high | 已定位 trait scope 的 life 拒绝；先更新具名合同，再接 std.iter、跨模块 helper、两个 provider 与活借用反例。复用 G3.4.1 的 Option 共享地址路径；GAT、impl life 和一般可变 holder 另列。 |
+| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 进行中 | P0 | root 集成 / sol high 并行 | [实施合同](https://github.com/zil-lang/zil/blob/56e197646/changes/G2.4.1-trait-lending-iterator.md)已冻结；四路并行接声明/实例化、life/Types、Analyze、Verify，另有独立消费者与复核。先复用现有表示，保持真实借用来源及定义期义务。 |
+
+<details>
+<summary>G2.4.1 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G2.4.1.1 | trait 方法声明、impl binder 对齐与关联 Item 实例化 | 进行中 | P0 | lending_trait · sol high | 完整身份、alpha改名与未用定义义务；不擦除life放行。 |
+| G2.4.1.2 | life/Types 关系与 Option 结果合同 | 进行中 | P0 | lending_life_types · sol high | 优先复用 StorageLifeContract，保留实际参数来源上界。 |
+| G2.4.1.3 | Analyze 实际接收者、调用窗口与返回来源 | 进行中 | P0 | lending_analyze · sol high | 从真实成功Source核现有消费者，必要修复及来源反例。 |
+| G2.4.1.4 | Verify 独立来源/父loan与 raw/Wire 复核 | 进行中 | P0 | lending_verify · sol high | 独立核真实根，不共享Analyze求证；活结果阻止相交推进。 |
+
+</details>
 
 </details>
 
