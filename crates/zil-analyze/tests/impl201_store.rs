@@ -860,6 +860,20 @@ fn pod_window() -> TypedModule {
     raw
 }
 
+fn pod_mutable_window() -> TypedModule {
+    let mut raw = pod_window();
+    let f = &mut raw.functions[0];
+    f.values[2] = Type::Address {
+        mutable: true,
+        inner: Box::new(pod_element()),
+    };
+    f.blocks[0].instructions[3].kind = InstructionKind::OwnedStoreBorrowMut {
+        store: ValueId(0),
+        index: ValueId(1),
+    };
+    raw
+}
+
 #[test]
 fn pod_store_windows_keep_actual_roots_last_use_and_structural_conflicts() {
     let baseline = pod_window();
@@ -945,7 +959,10 @@ fn pod_store_rejects_forged_mutable_windows_and_protocol_types() {
             0 => {
                 f.values[2] = Type::Address {
                     mutable: true,
-                    inner: Box::new(pod_element()),
+                    inner: Box::new(Type::Record {
+                        name: "Point".into(),
+                        fields: vec![("n".into(), Type::I64)],
+                    }),
                 };
                 f.blocks[0].instructions[3].kind = InstructionKind::OwnedStoreBorrowMut {
                     store: ValueId(0),
@@ -966,6 +983,262 @@ fn pod_store_rejects_forged_mutable_windows_and_protocol_types() {
         assert!(analyze(&raw, &Limits::default()).is_err(), "kind={kind}");
     }
     accepted(&baseline);
+    let mut wrong_index = pod_mutable_window();
+    wrong_index.functions[0].values[1] = Type::I32;
+    rejected(
+        &wrong_index,
+        ResultCategory::SafeReject,
+        "exact complete operands and result",
+    );
+    let mut wrong_result = pod_mutable_window();
+    wrong_result.functions[0].values[2] = Type::Address {
+        mutable: false,
+        inner: Box::new(pod_element()),
+    };
+    rejected(
+        &wrong_result,
+        ResultCategory::SafeReject,
+        "exact complete operands and result",
+    );
+    accepted(&pod_mutable_window());
+}
+
+#[test]
+fn pod_mutable_field_write_keeps_the_actual_store_parent() {
+    let mut raw = pod_mutable_window();
+    let f = &mut raw.functions[0];
+    f.values.extend([
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I32),
+        },
+        Type::I32,
+    ]);
+    f.blocks[0].instructions.splice(
+        4..4,
+        [
+            ins(
+                Some(ValueId(5)),
+                InstructionKind::AddressField {
+                    address: ValueId(2),
+                    index: 0,
+                },
+            ),
+            ins(
+                Some(ValueId(6)),
+                InstructionKind::Constant(Constant::I32(42)),
+            ),
+            ins(
+                None,
+                InstructionKind::WriteAddress {
+                    address: ValueId(5),
+                    value: ValueId(6),
+                },
+            ),
+        ],
+    );
+    let plan = accepted(&raw);
+    for value in [2, 5] {
+        assert_eq!(
+            plan.functions[0].holds[value].roots,
+            vec![HoldRoot::Local(LocalId(0))]
+        );
+    }
+    let required = minimum(&raw);
+    println!("G9.3.3 Analyze mutable field N={required}; N-1 ResourceLimit; fresh identical");
+}
+
+#[test]
+fn pod_mutable_window_conflicts_with_every_same_store_index() {
+    for mutable in [false, true] {
+        let mut raw = pod_mutable_window();
+        let f = &mut raw.functions[0];
+        f.values.extend([
+            Type::I64,
+            Type::Address {
+                mutable,
+                inner: Box::new(pod_element()),
+            },
+        ]);
+        let second = ins(
+            Some(ValueId(6)),
+            if mutable {
+                InstructionKind::OwnedStoreBorrowMut {
+                    store: ValueId(0),
+                    index: ValueId(5),
+                }
+            } else {
+                InstructionKind::OwnedStoreBorrow {
+                    store: ValueId(0),
+                    index: ValueId(5),
+                }
+            },
+        );
+        f.blocks[0].instructions.insert(
+            4,
+            ins(
+                Some(ValueId(5)),
+                InstructionKind::Constant(Constant::I64(1)),
+            ),
+        );
+        f.blocks[0].instructions.insert(5, second.clone());
+        rejected(
+            &raw,
+            ResultCategory::SafeReject,
+            "actual borrowed resource access conflicts",
+        );
+        // The first result has its last use before the next borrow.
+        let f = &mut raw.functions[0];
+        f.blocks[0].instructions.remove(5);
+        f.blocks[0].instructions.insert(6, second);
+        accepted(&raw);
+    }
+}
+
+#[test]
+fn pod_mutable_window_allows_a_distinct_actual_store() {
+    let mut raw = pod_mutable_window();
+    let f = &mut raw.functions[0];
+    f.parameters.push(LocalId(1));
+    f.locals.push(local(1, f.locals[0].ty.clone()));
+    f.values.push(f.values[0].clone());
+    f.blocks[0].instructions.insert(
+        4,
+        ins(
+            Some(ValueId(5)),
+            InstructionKind::DescribeLocal { local: LocalId(1) },
+        ),
+    );
+    f.blocks[0].instructions[6].kind = InstructionKind::OwnedStoreReserve {
+        store: ValueId(5),
+        capacity: ValueId(1),
+    };
+    let reserve = f.blocks[0].instructions.remove(6);
+    f.blocks[0].instructions.insert(5, reserve);
+    f.blocks[0].instructions.splice(
+        7..7,
+        [
+            ins(None, InstructionKind::DropManaged { local: LocalId(1) }),
+            ins(None, InstructionKind::StorageDead(LocalId(1))),
+        ],
+    );
+    accepted(&raw);
+}
+
+#[test]
+fn pod_mutable_window_blocks_structural_changes_until_last_use() {
+    for kind in 0..3 {
+        let mut raw = pod_mutable_window();
+        let f = &mut raw.functions[0];
+        match kind {
+            0 => {}
+            1 => {
+                f.values[4] = Type::ErrorUnion {
+                    error: Box::new(Type::Unit),
+                    result: Box::new(pod_element()),
+                };
+                f.blocks[0].instructions[5].kind =
+                    InstructionKind::OwnedStorePop { store: ValueId(0) };
+            }
+            2 => {
+                f.values.push(pod_element());
+                f.blocks[0].instructions.insert(
+                    4,
+                    ins(
+                        Some(ValueId(5)),
+                        InstructionKind::ReadAddress {
+                            address: ValueId(2),
+                        },
+                    ),
+                );
+                f.values[4] = Type::ErrorUnion {
+                    error: Box::new(pod_element()),
+                    result: Box::new(Type::Unit),
+                };
+                f.blocks[0].instructions[6].kind = InstructionKind::OwnedStorePush {
+                    store: ValueId(0),
+                    value: ValueId(5),
+                };
+            }
+            _ => unreachable!(),
+        }
+        accepted(&raw);
+        let f = &mut raw.functions[0];
+        let position = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| {
+                matches!(
+                    instruction.kind,
+                    InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                )
+            })
+            .unwrap();
+        let mutation = f.blocks[0].instructions.remove(position);
+        let final_read = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|instruction| instruction.result == Some(ValueId(3)))
+            .unwrap();
+        f.blocks[0].instructions.insert(final_read, mutation);
+        rejected(&raw, ResultCategory::SafeReject, "window");
+    }
+}
+
+#[test]
+fn pod_mutable_helper_reborrow_ends_at_the_call_last_use() {
+    let mut raw = pod_mutable_window();
+    let address = raw.functions[0].values[2].clone();
+    let mut helper = function(1);
+    helper.parameters.push(LocalId(0));
+    helper.locals.push(local(0, address.clone()));
+    helper.values = vec![
+        address,
+        Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I32),
+        },
+        Type::I32,
+    ];
+    helper.blocks[0].instructions = vec![
+        ins(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
+        ins(
+            Some(ValueId(1)),
+            InstructionKind::AddressField {
+                address: ValueId(0),
+                index: 0,
+            },
+        ),
+        ins(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I32(42)),
+        ),
+        ins(
+            None,
+            InstructionKind::WriteAddress {
+                address: ValueId(1),
+                value: ValueId(2),
+            },
+        ),
+    ];
+    let f = &mut raw.functions[0];
+    f.blocks[0].instructions.insert(
+        5,
+        ins(
+            None,
+            InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![ValueId(2)],
+            },
+        ),
+    );
+    raw.functions.push(helper);
+    accepted(&raw);
+    let f = &mut raw.functions[0];
+    f.blocks[0].instructions.swap(5, 6);
+    rejected(&raw, ResultCategory::SafeReject, "window");
 }
 
 #[test]

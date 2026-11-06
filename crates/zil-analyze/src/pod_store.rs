@@ -228,8 +228,9 @@ pub(super) fn instruction(
             value(function, *index)? == &Type::I64
                 && matches!(result, Type::Address { mutable: false, inner } if inner.as_ref() == element)
         }
-        InstructionKind::OwnedStoreBorrowMut { .. } => {
-            return Err(unsupported("POD Store elements expose only shared windows"));
+        InstructionKind::OwnedStoreBorrowMut { index, .. } => {
+            value(function, *index)? == &Type::I64
+                && matches!(result, Type::Address { mutable: true, inner } if inner.as_ref() == element)
         }
         _ => unreachable!("Store instruction dispatch"),
     };
