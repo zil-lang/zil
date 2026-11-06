@@ -53,17 +53,14 @@ pub(super) fn classify(
         }
         budget.text(name, object.span)?;
         if !args.is_empty() {
-            return Err(error(object.span, "type parameter host does not take type arguments"));
+            return Err(error(
+                object.span,
+                "type parameter host does not take type arguments",
+            ));
         }
         let method = traits.method(bounds, name, member, budget, object.span)?;
-        let reference = traits.method_reference(
-            bounds,
-            name,
-            member,
-            &method.name,
-            budget,
-            object.span,
-        )?;
+        let reference =
+            traits.method_reference(bounds, name, member, &method.name, budget, object.span)?;
         let ty = named(name, object.span);
         return Ok(Some(Host::Symbolic {
             ty,
@@ -72,13 +69,8 @@ pub(super) fn classify(
         }));
     }
     if nominals.contains_key(name) {
-        return trait_bounds::constants::host_expression(
-            object,
-            nominals,
-            |_| true,
-            budget,
-        )
-        .map(|host| host.map(Host::Nominal));
+        return trait_bounds::constants::host_expression(object, nominals, |_| true, budget)
+            .map(|host| host.map(Host::Nominal));
     }
     Ok(None)
 }

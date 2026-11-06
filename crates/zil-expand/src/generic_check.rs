@@ -2894,43 +2894,43 @@ impl Check<'_, '_, '_> {
         if let Some(receiver) = receiver {
             let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
             match &group(&expected).kind {
-            TypeKind::Reference { mutable, .. } => {
-                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
-                    let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
+                TypeKind::Reference { mutable, .. } => {
+                    if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                        let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
+                        role_check::same(
+                            &actual,
+                            &expected,
+                            object.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
+                    } else {
+                        let (place, writable) = self.place(object, state)?;
+                        if *mutable && !writable {
+                            return Err(error(
+                                object.span,
+                                "mutable trait receiver requires a writable place",
+                            ));
+                        }
+                        role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
+                    }
+                }
+                _ => {
+                    if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                        return Err(error(
+                            object.span,
+                            "cannot move an unknown non-Copy trait receiver through a reference",
+                        ));
+                    }
+                    let consumed = self.expr(object, state, Some(&expected), false)?;
                     role_check::same(
-                        &actual,
+                        &consumed,
                         &expected,
                         object.span,
                         self.class_scope,
                         self.budget,
                     )?;
-                } else {
-                    let (place, writable) = self.place(object, state)?;
-                    if *mutable && !writable {
-                        return Err(error(
-                            object.span,
-                            "mutable trait receiver requires a writable place",
-                        ));
-                    }
-                    role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
                 }
-            }
-            _ => {
-                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
-                    return Err(error(
-                        object.span,
-                        "cannot move an unknown non-Copy trait receiver through a reference",
-                    ));
-                }
-                let consumed = self.expr(object, state, Some(&expected), false)?;
-                role_check::same(
-                    &consumed,
-                    &expected,
-                    object.span,
-                    self.class_scope,
-                    self.budget,
-                )?;
-            }
             }
         }
         for (index, (argument, parameter)) in arguments
