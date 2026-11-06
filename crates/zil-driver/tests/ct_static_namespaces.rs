@@ -36,15 +36,12 @@ fn g4462_host_member_nearest_life_shadow() {
 }
 #[test]
 fn g3_4_1_life_duplicates_still_reject_within_the_current_declaration() {
-    let original = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
-    );
     for text in [
-        original.replace("fn make<life s>", "fn make<life s,life s>"),
-        original.replace("Host<life s>", "Host<life s,life s>"),
-        "fn duplicate<life s,life s>()->i32{return 0}fn main()->i32{return 0}".into(),
+        "struct Host<life s>{fn make<life s,life s>()->i32{return 42}}fn main()->i32{return 0}",
+        "struct Host<life s,life s>{n:i32}fn main()->i32{return 0}",
+        "fn duplicate<life s,life s>()->i32{return 0}fn main()->i32{return 0}",
     ] {
-        let report = compile_source(&source(&text), &CompileOptions::default());
+        let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,
