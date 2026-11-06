@@ -2,6 +2,7 @@ mod arrays;
 mod byte_buffer;
 mod constant_divisors;
 mod copy_aggregates;
+mod copy_slots;
 mod drop_plan;
 mod dynamic_store;
 mod enums;
@@ -333,7 +334,11 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         blocks: None,
     }));
     text.append(byte_buffer::runtime(lir)?);
-    text.append(dynamic_store::runtime(lir, &closures)?);
+    text.append(dynamic_store::runtime(
+        lir,
+        &closures,
+        &copy_plans.store_protocols,
+    )?);
     text.append(scoped_thread::runtime(lir)?);
     text.append(tasks::runtime(
         lir,

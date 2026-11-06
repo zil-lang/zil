@@ -12,6 +12,7 @@ pub(crate) mod arrays;
 mod product;
 pub(super) mod public_roles;
 mod replacements;
+pub(super) mod schedule;
 pub(crate) mod task_frames;
 
 const EMPTY: u8 = 1;
@@ -2508,7 +2509,8 @@ fn run_function_data(
     budget.spend(f.blocks.len().saturating_mul(2))?;
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(initial);
-    let mut pending = VecDeque::from([f.entry.0 as usize]);
+    let mut pending =
+        schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
     let transfer = Transfer {
@@ -2520,7 +2522,7 @@ fn run_function_data(
         sum_rows,
         replacements,
     };
-    while let Some(b) = pending.pop_front() {
+    while let Some(b) = pending.pop(budget)? {
         queued[b] = false;
         let mut output = clone_state(inputs[b].as_ref().expect("queued resource state"), budget)?;
         transfer.block(b, &mut output, false, &mut written, budget)?;
@@ -2534,10 +2536,17 @@ fn run_function_data(
             };
             if changed && !queued[next] {
                 queued[next] = true;
-                pending.push_back(next);
+                pending.push(next, budget)?;
             }
         }
     }
+    #[cfg(test)]
+    TEST_RESOURCE_INPUTS.with(|capture| {
+        let mut capture = capture.borrow_mut();
+        if capture.is_some() {
+            *capture = Some(inputs.clone());
+        }
+    });
     for (b, input) in inputs.into_iter().enumerate() {
         if let Some(mut state) = input {
             transfer.block(b, &mut state, validate, &mut written, budget)?;
@@ -2732,6 +2741,7 @@ fn infer_effects_full_scan(
 #[cfg(test)]
 thread_local! {
     static TEST_EFFECT_SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static TEST_RESOURCE_INPUTS: std::cell::RefCell<Option<Vec<Option<State>>>> = const { std::cell::RefCell::new(None) };
 }
 
 pub(super) fn check_module(

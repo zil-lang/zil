@@ -4,7 +4,9 @@
 use super::*;
 fn shape(ty: &Type) -> Option<bool> {
     match ty {
-        Type::Managed(_) => resources::supported(ty).then_some(true),
+        Type::Managed(_) => (resources::supported(ty)
+            && !matches!(dynamic_store::element(ty), Some(Type::Record { .. })))
+        .then_some(true),
         Type::Tuple(fields) => {
             let mut owns = false;
             for field in fields {
@@ -43,7 +45,10 @@ fn shape(ty: &Type) -> Option<bool> {
         Type::ErrorUnion { error, result } => {
             // The older direct Managed-success profile retains its Copy-error rule.
             if matches!(result.as_ref(), Type::Managed(_)) {
-                return (error.is_copy_value() && resources::supported(result)).then_some(true);
+                return (error.is_copy_value()
+                    && resources::supported(result)
+                    && !matches!(dynamic_store::element(result), Some(Type::Record { .. })))
+                .then_some(true);
             }
             if !matches!(error.as_ref(), Type::Package { .. } | Type::Enum { .. })
                 && !error.is_copy_value()

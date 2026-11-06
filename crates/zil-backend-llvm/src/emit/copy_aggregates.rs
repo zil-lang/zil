@@ -10,6 +10,7 @@ pub(super) struct Slot {
     pub(super) ty: m::Ty,
     pub(super) bytes: u64,
     pub(super) align: u32,
+    pub(super) storage: Option<super::copy_slots::Storage>,
     work: usize,
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
@@ -21,7 +22,14 @@ pub(super) fn plan(
 ) -> CompileResult<super::large_copy_abi::Plans> {
     let mut work = remaining_work;
     let mut plans = BTreeMap::new();
+    let store_protocols = dynamic_store::plan(lir.resources, limits, &mut work)?;
     for function in lir.functions {
+        dynamic_store::reserve_operations(
+            function,
+            lir.resources.len(),
+            &store_protocols,
+            &mut work,
+        )?;
         let mut values = Plan::new();
         for (index, ty) in function.values.iter().enumerate() {
             if !matches!(
@@ -57,6 +65,7 @@ pub(super) fn plan(
                         ty: machine,
                         bytes,
                         align,
+                        storage: None,
                         work: before - work,
                     },
                 );
@@ -109,11 +118,19 @@ pub(super) fn plan(
                     }
                 }
             }
+            if !store_protocols.is_empty() {
+                super::copy_slots::coalesce(function, &mut values, &mut work)?;
+            }
             plans.insert(function.id, values);
         }
     }
     let abi = super::large_copy_abi::plan(lir, limits, &mut work)?;
-    if !plans.is_empty() || abi.functions.values().any(|s| s.large()) {
+    if !plans.is_empty()
+        || abi.functions.values().any(|s| s.large())
+        || store_protocols
+            .values()
+            .any(dynamic_store::Protocols::large)
+    {
         work = work.checked_sub(256).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
@@ -127,6 +144,7 @@ pub(super) fn plan(
         values: plans,
         functions: abi.functions,
         indirect: abi.indirect,
+        store_protocols,
     })
 }
 
@@ -337,11 +355,12 @@ pub(super) fn classify(
         ty: machine,
         bytes,
         align,
+        storage: None,
         work: before - *work,
     }))
 }
 
-fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
+pub(super) fn layout(ty: &m::Ty) -> CompileResult<(u64, u32)> {
     let overflow = || {
         vec![Diagnostic::limit(
             Phase::Codegen,
@@ -499,18 +518,40 @@ pub(super) fn canonical_payload_work(ty: &Type) -> usize {
 impl FunctionEmitter<'_> {
     pub(super) fn copy_allocations(&mut self) {
         for (id, slot) in self.copy_values {
-            self.text.push(m::Event::Instruction(m::Inst::new(
-                Some(format!("copy.value.{}", id.0)),
-                m::Op::Alloca {
-                    ty: slot.ty.clone(),
-                    align: slot.align,
-                },
-            )));
+            if let Some(storage) = slot.storage {
+                if storage.owner == *id {
+                    self.text.push(m::Event::Instruction(m::Inst::new(
+                        Some(format!("copy.slot.{}", storage.owner.0)),
+                        m::Op::Alloca {
+                            ty: m::Ty::array(storage.bytes, m::Ty::Int(8)),
+                            align: storage.align,
+                        },
+                    )));
+                }
+                self.text.push(m::Event::Instruction(m::Inst::new(
+                    Some(format!("copy.value.{}", id.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("copy.slot.{}", storage.owner.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), 0)],
+                    },
+                )));
+            } else {
+                self.text.push(m::Event::Instruction(m::Inst::new(
+                    Some(format!("copy.value.{}", id.0)),
+                    m::Op::Alloca {
+                        ty: slot.ty.clone(),
+                        align: slot.align,
+                    },
+                )));
+            }
         }
     }
+
     pub(super) fn copy_bytes(&mut self, destination: m::Val, source: m::Val, bytes: u64) {
-        // One end is always a private, independently allocated value snapshot.
-        // Source addresses cannot name it; these ranges cannot overlap.
+        // One end is always a private value snapshot. Source addresses cannot
+        // name it; closed live intervals keep simultaneous snapshots distinct
+        // even when dead values share an underlying physical stack slot.
         self.text.push(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Call {

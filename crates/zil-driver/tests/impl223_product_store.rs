@@ -668,3 +668,6 @@ fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
         r.to_json()
     );
 }
+
+#[path = "../../../tests/language-readiness/G9.3.2/consumers.rs"]
+mod pod_collections;

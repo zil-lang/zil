@@ -202,7 +202,19 @@ pub(super) fn concrete_element(
         }
         return Ok(());
     }
-    let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package)?;
+    let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package, true)?;
+    // Reuse the already paid nominal lookup; legacy Package fees stay exact.
+    // Only the disjoint concrete Record family enters the additional walk.
+    if aggregate.kind == AggregateKind::Struct {
+        let (size, _) = shape.pod(ty, &mut BTreeSet::new(), 0)?;
+        if size == 0 {
+            return Err(error(
+                ty.span,
+                "POD Store elements require nonzero inline layout",
+            ));
+        }
+        return Ok(());
+    }
     // aggregate already charged the complete application before this bounded
     // syntactic classification. F grants neither Copy nor StoreElement: only
     // its direct occurrences in the existing owning State family are admitted.
@@ -298,7 +310,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         // A recursive by-value application eventually reaches the same depth
         // bound as the source type resolver; no unbounded host recursion.
         self.budget.node(ty.span, depth)?;
-        let (aggregate, substitutions) = self.aggregate(ty, AggregateKind::Package)?;
+        let (aggregate, substitutions) = self.aggregate(ty, AggregateKind::Package, false)?;
         let (mut owns, mut storage) = (false, false);
         for field in &aggregate.fields {
             self.budget.node(field.span, depth)?;
@@ -337,6 +349,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
         &mut self,
         ty: &TypeRef,
         kind: AggregateKind,
+        allow_pod: bool,
     ) -> R<(&'n Aggregate, BTreeMap<String, TypeRef>)> {
         self.budget.ty(ty)?;
         let TypeKind::Named { path, args } = &grouped(ty).kind else {
@@ -355,7 +368,9 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 "StoreElement requires a complete nominal Package or declared resource",
             ));
         };
-        if aggregate.kind != kind || aggregate.generics.len() != args.len() {
+        if (aggregate.kind != kind && !(allow_pod && aggregate.kind == AggregateKind::Struct))
+            || aggregate.generics.len() != args.len()
+        {
             return Err(error(
                 ty.span,
                 "StoreElement requires the declared Package/resource category and type arguments",
@@ -377,7 +392,7 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             self.budget.ty(ty)?;
             return Ok(true);
         }
-        let (aggregate, substitutions) = self.aggregate(ty, AggregateKind::Resource)?;
+        let (aggregate, substitutions) = self.aggregate(ty, AggregateKind::Resource, false)?;
         let mut storage = false;
         for field in &aggregate.fields {
             if field.manages {
@@ -390,6 +405,91 @@ impl<'n> Shape<'_, '_, 'n, '_> {
             storage |= self.copy(&ty)?;
         }
         Ok(storage)
+    }
+
+    /// Definition-time POD shape and x64 layout. Both supported Store targets
+    /// have 64-bit usize; the independent kernels recheck the actual target.
+    fn pod(&mut self, ty: &TypeRef, active: &mut BTreeSet<String>, depth: usize) -> R<(u64, u64)> {
+        self.budget.node(ty.span, depth)?;
+        self.budget.ty(ty)?;
+        let invalid = || {
+            error(
+                ty.span,
+                "POD Store fields require finite numeric Records, tuples or arrays",
+            )
+        };
+        let bounded = |n: Option<u64>| {
+            n.filter(|n| *n <= i64::MAX as u64)
+                .ok_or_else(|| error(ty.span, "POD Store layout exceeds target address range"))
+        };
+        let align = |n: u64, a: u64| bounded(n.checked_add(a - 1)).map(|n| n / a * a);
+        let fields =
+            |this: &mut Self, fields: &[TypeRef], active: &mut BTreeSet<String>| -> R<(u64, u64)> {
+                let (mut size, mut maximum) = (0u64, 1u64);
+                for field in fields {
+                    let (bytes, alignment) = this.pod(field, active, depth + 1)?;
+                    size = bounded(align(size, alignment)?.checked_add(bytes))?;
+                    maximum = maximum.max(alignment);
+                }
+                Ok((align(size, maximum)?, maximum))
+            };
+        match &grouped(ty).kind {
+            TypeKind::Tuple(ts) => fields(self, ts, active),
+            TypeKind::Array {
+                element,
+                length: Some(length),
+            } => {
+                let count = array_length(length)?;
+                let (size, alignment) = self.pod(element, active, depth + 1)?;
+                Ok((bounded(size.checked_mul(u64::from(count)))?, alignment))
+            }
+            TypeKind::Named { path, args } => {
+                if args.is_empty() && path.len() == 1 {
+                    match path[0].as_str() {
+                        "void" => return Ok((0, 1)),
+                        "bool" | "u8" => return Ok((1, 1)),
+                        "u16" => return Ok((2, 2)),
+                        "i32" | "f32" => return Ok((4, 4)),
+                        "i64" | "u64" | "usize" | "f64" => return Ok((8, 8)),
+                        _ => {}
+                    }
+                }
+                let key = type_key(ty, self.budget)?;
+                // The ordered set comparison reads the complete key. Reserve
+                // that work and the key copy before insertion.
+                self.budget.identity_work(
+                    key.len()
+                        .saturating_add(1)
+                        .saturating_mul(active.len().saturating_add(2)),
+                    ty.span,
+                )?;
+                if !active.insert(key.clone()) {
+                    return Err(error(ty.span, "recursive POD Store element layout"));
+                }
+                let (aggregate, substitutions) =
+                    self.aggregate(ty, AggregateKind::Struct, false)?;
+                let (mut size, mut maximum) = (0u64, 1u64);
+                for field in &aggregate.fields {
+                    self.budget.node(field.span, depth + 1)?;
+                    if field.manages {
+                        return Err(invalid());
+                    }
+                    let actual = self.substitute(&field.ty, &substitutions)?;
+                    let (bytes, alignment) = self.pod(&actual, active, depth + 1)?;
+                    size = bounded(align(size, alignment)?.checked_add(bytes))?;
+                    maximum = maximum.max(alignment);
+                }
+                self.budget.identity_work(
+                    key.len()
+                        .saturating_add(1)
+                        .saturating_mul(active.len().saturating_add(1)),
+                    ty.span,
+                )?;
+                active.remove(&key);
+                Ok((align(size, maximum)?, maximum))
+            }
+            _ => Err(invalid()),
+        }
     }
 
     fn copy(&mut self, ty: &TypeRef) -> R<bool> {

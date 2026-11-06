@@ -600,3 +600,31 @@ are correctness and expressibility results. Same-semantics Rust runtime/RSS,
 compile speed and framework-maintenance comparisons and a product-level net
 breakthrough remain unmeasured. Nested or owning fields, generic/generated host
 contexts and life-bearing Type construction are still separate requirements.
+
+G9.3.2 adds ordinary nonzero numeric Record elements to the sealed StoreElement
+family and the actual std.store API. Source clients reserve explicit capacity,
+push/pop complete Copy values and borrow an element without fabricating owning
+fields. Types and the two independent kernels check complete nominal layout,
+canonical Store identity, real borrow roots and unused metadata. Allocation
+failure retains existing contents; full-capacity push retains the incoming value.
+POD elements have no destructor debt and releasing the Store frees its allocation
+once. The admitted profile retains explicit ownership and introduces no hidden
+box, RC, lock or runtime allocation beyond the existing Store operations.
+
+Actual large-element consumers exposed two implementation costs: redundant
+fixed-point/tag processing exhausted the request budget, and permanent private
+Copy snapshots overflowed the default stack at O0. The new profile uses prepaid
+independent scheduling/tag-state work reductions and conservative acyclic
+snapshot-slot reuse. Closed lifetimes keep same-instruction inputs and outputs
+separate; cycles or unknown operations fall back to distinct slots. Source local
+storage and public ABI remain unchanged. The same 262144-byte source runs under
+the existing Linux 8 MiB stack at O0 and O2; compact acceptance records bind the final
+compiler and checks rather than extrapolating from temporary LLVM diagnostics.
+
+These are expressibility, safety and concrete compiler robustness gains. They
+are not measurements of superiority to Rust: same-semantics runtime/RSS,
+compilation and framework-maintenance comparisons remain unmeasured. Scalar,
+Enum and arbitrary owning dynamic elements, contiguous/mutable POD Store views,
+new owning-container/capture compositions and general lending still require
+their own completion work. The existing product gates and native-Windows
+verification requirements have not been relaxed.

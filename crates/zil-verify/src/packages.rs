@@ -226,6 +226,7 @@ pub(super) fn check_product_type(
                     "package fields must have unique nonempty names",
                 ));
             }
+            dynamic_store::check_owner_field(field, span)?;
             match field {
                 Type::Package { .. } => {
                     owns = true;
@@ -375,6 +376,7 @@ fn check_package_type(
                 "package fields must have unique nonempty names",
             ));
         }
+        dynamic_store::check_owner_field(field, span)?;
         if dynamic_store::is_carrier(field) && (!matches!(field, Type::Managed(_)) || !array_fields)
         {
             return Err(unsupported(

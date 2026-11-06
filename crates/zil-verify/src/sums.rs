@@ -81,9 +81,16 @@ pub(super) fn check_type_for(
     budget: &mut Budget,
 ) -> Check<()> {
     resources::charge_payload(ty, budget)?;
+    let owning_container = matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
+    );
     let mut pending = vec![ty];
     while let Some(ty) = pending.pop() {
         resources::charge_payload(ty, budget)?;
+        if owning_container {
+            dynamic_store::check_owner_field(ty, span)?;
+        }
         if ty.is_copy_value() {
             check_type(ty, span)?;
             continue;
@@ -1039,6 +1046,10 @@ struct Flow<'a> {
     summaries: &'a [Content],
     partial: bool,
     place_meta: Option<partial_places::Meta>,
+    // This follows Content's own construction, not Copy permission. Records,
+    // arrays and Managed endpoints carry Copy/Leaf content; Tuple/Package
+    // children and every Enum/ErrorUnion can retain a Sum route or tag.
+    tagged_locals: Option<Vec<usize>>,
     address_replacement_tags: bool,
     replacements: Option<&'a replacements::Context<'a>>,
 }
@@ -1342,10 +1353,20 @@ impl Flow<'_> {
             if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial) {
                 meta.step(p, instruction, budget)?;
                 if partial_places::invalidates(&instruction.kind) {
-                    for (local, content) in state.locals.iter_mut().enumerate() {
-                        content.cost(budget)?;
-                        Arc::make_mut(content)
-                            .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                    if let Some(locals) = &self.tagged_locals {
+                        budget.spend(locals.len())?;
+                        for &local in locals {
+                            let content = &mut state.locals[local];
+                            content.cost(budget)?;
+                            Arc::make_mut(content)
+                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                        }
+                    } else {
+                        for (local, content) in state.locals.iter_mut().enumerate() {
+                            content.cost(budget)?;
+                            Arc::make_mut(content)
+                                .forget_copy_tags(&self.f.locals[local].ty, budget)?;
+                        }
                     }
                 }
             }
@@ -1899,6 +1920,39 @@ fn run_with_replacements(
     if partial {
         state.partial = Some(partial_places::State::default());
     }
+    let tagged_locals = if budget.pod_stores && partial {
+        // Scan and index slots are prepaid before allocation. Each queued
+        // child is paid before growth, including nested owning Products.
+        budget.spend(f.locals.len().saturating_mul(2).saturating_add(1))?;
+        let mut tagged = Vec::with_capacity(f.locals.len());
+        for (local, declaration) in f.locals.iter().enumerate() {
+            budget.spend(1)?;
+            let mut pending = vec![&declaration.ty];
+            while let Some(ty) = pending.pop() {
+                budget.spend(1)?;
+                match ty {
+                    Type::Enum { .. } | Type::ErrorUnion { .. } => {
+                        tagged.push(local);
+                        break;
+                    }
+                    Type::Tuple(fields) => {
+                        budget.spend(fields.len())?;
+                        pending.extend(fields);
+                    }
+                    Type::Package { fields, .. } => {
+                        budget.spend(fields.len())?;
+                        pending.extend(fields.iter().map(|(_, field)| field));
+                    }
+                    // Exactly the terminal forms in this kernel's Content
+                    // constructor: Copy or Leaf, with no tag/route state.
+                    _ => {}
+                }
+            }
+        }
+        Some(tagged)
+    } else {
+        None
+    };
     let flow = Flow {
         f,
         module,
@@ -1908,6 +1962,7 @@ fn run_with_replacements(
         partial,
         replacements,
         address_replacement_tags,
+        tagged_locals,
         place_meta: if partial {
             Some(partial_places::Meta::new(f, budget)?)
         } else {
@@ -1916,10 +1971,11 @@ fn run_with_replacements(
     };
     let mut inputs = vec![None; f.blocks.len()];
     inputs[f.entry.0 as usize] = Some(state);
-    let mut pending = VecDeque::from([f.entry.0 as usize]);
+    let mut pending =
+        resources::schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
-    while let Some(block) = pending.pop_front() {
+    while let Some(block) = pending.pop(budget)? {
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
         flow.block(block, &mut output, false, false, budget)?;
@@ -1934,10 +1990,17 @@ fn run_with_replacements(
             };
             if changed && !queued[next] {
                 queued[next] = true;
-                pending.push_back(next);
+                pending.push(next, budget)?;
             }
         }
     }
+    #[cfg(test)]
+    TEST_SUM_INPUTS.with(|capture| {
+        let mut capture = capture.borrow_mut();
+        if capture.is_some() {
+            *capture = Some(inputs.clone());
+        }
+    });
     let mut result = content(&f.return_type, None, &mut Vec::new(), true, budget)?;
     let mut rows = vec![Vec::new(); f.blocks.len()];
     for (block, input) in inputs.into_iter().enumerate() {
@@ -1949,6 +2012,88 @@ fn run_with_replacements(
         }
     }
     Ok((result, rows))
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_SUM_INPUTS: std::cell::RefCell<Option<Vec<Option<State>>>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(super) fn test_schedule_equivalence(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    limits: &Limits,
+) -> bool {
+    let solve = |ranked| {
+        TEST_SUM_INPUTS.with(|capture| *capture.borrow_mut() = Some(Vec::new()));
+        let mut budget = Budget::new(limits);
+        budget.pod_stores = ranked;
+        let found = run(module, f, graph, &[Content::Copy], true, &mut budget);
+        let inputs = TEST_SUM_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
+        (found, inputs)
+    };
+    let (old_result, old_inputs) = solve(false);
+    let (new_result, new_inputs) = solve(true);
+    let accepted = old_result.is_ok();
+    assert!(
+        old_inputs == new_inputs,
+        "complete Sum block-input states differ"
+    );
+    match (old_result, new_result) {
+        (Ok((left, left_rows)), Ok((right, right_rows))) => {
+            assert!(left == right, "Sum return content differs");
+            let rows = |rows: Vec<Vec<Bridge>>| {
+                rows.into_iter()
+                    .map(|row| {
+                        row.into_iter()
+                            .map(|bridge| (bridge.result, bridge.package, bridge.unpack))
+                            .collect::<Vec<_>>()
+                    })
+                    .collect::<Vec<_>>()
+            };
+            assert_eq!(rows(left_rows), rows(right_rows), "Sum bridge rows differ");
+        }
+        (Err(left), Err(right)) => assert_eq!(left, right, "Sum diagnostics differ"),
+        _ => panic!("Sum acceptance differs"),
+    }
+    accepted
+}
+
+#[cfg(test)]
+pub(super) fn test_tagged_invalidation_budget(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+) {
+    let limits = Limits::default();
+    let solve = |steps| {
+        let selected = Limits {
+            max_analysis_steps: steps,
+            ..limits.clone()
+        };
+        let mut budget = Budget::new(&selected);
+        budget.pod_stores = true;
+        run(module, f, graph, &[Content::Copy], true, &mut budget)
+    };
+    let (mut low, mut high) = (0usize, limits.max_analysis_steps);
+    assert!(solve(high).is_ok());
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if solve(mid).is_ok() {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    assert!(solve(low).is_ok());
+    assert_eq!(
+        solve(low - 1).err().unwrap().category,
+        zil_base::ResultCategory::ResourceLimit
+    );
+    assert!(solve(low).is_ok());
+    println!("G9.3.2.3 partial Sum indexed invalidation N={low}; N-1 ResourceLimit; fresh N pass");
 }
 
 pub(super) fn check_module(

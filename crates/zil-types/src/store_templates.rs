@@ -136,6 +136,9 @@ pub(super) fn intern(
     limits: &Limits,
     span: Span,
 ) -> R<u32> {
+    if matches!(actual, Type::Record { .. }) {
+        state.snapshot_type(actual, 4, 0, span)?;
+    }
     let work = inference::type_snapshot_work(actual, span, limits)?;
     state.snapshot(work, span)?;
     if !dynamic_store::supported_element(actual) {

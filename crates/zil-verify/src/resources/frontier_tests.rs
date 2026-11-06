@@ -429,3 +429,308 @@ fn public_helper_contract_cuts_the_private_effect_dependency() {
     .unwrap();
     assert!(rows[1].is_empty());
 }
+
+fn cfg_fixture(cycle: bool) -> (TypedModule, FunctionGraph) {
+    let mut module = fixture(&[vec![]], &[0]);
+    let f = &mut module.functions[0];
+    f.locals.push(LocalDecl {
+        id: LocalId(2),
+        name: "joined".into(),
+        ty: desc(),
+        mutable: true,
+        span: span(),
+    });
+    f.values.extend([desc(), Type::Bool]);
+    let mut entry = f.blocks[0].instructions[..3].to_vec();
+    entry.push(instruction(
+        Some(4),
+        InstructionKind::Constant(Constant::Bool(true)),
+    ));
+    let store = |value| {
+        instruction(
+            None,
+            InstructionKind::Store {
+                local: LocalId(2),
+                value: ValueId(value),
+            },
+        )
+    };
+    let join = vec![
+        instruction(Some(3), InstructionKind::Load(LocalId(2))),
+        instruction(
+            None,
+            InstructionKind::WriteDesc {
+                desc: ValueId(3),
+                index: 0,
+                value: ValueId(2),
+            },
+        ),
+    ];
+    let edges = if cycle {
+        vec![
+            vec![1, 2],
+            vec![3],
+            vec![5],
+            vec![4, 6],
+            vec![3],
+            vec![3],
+            vec![],
+        ]
+    } else {
+        vec![
+            vec![1, 2],
+            vec![3],
+            vec![4],
+            vec![],
+            vec![5],
+            vec![3],
+            vec![],
+        ]
+    };
+    f.blocks = edges
+        .iter()
+        .enumerate()
+        .map(|(id, successors)| BasicBlock {
+            id: BlockId(id as u32),
+            instructions: match id {
+                0 => entry.clone(),
+                1 => vec![store(0)],
+                3 => join.clone(),
+                4 if cycle => vec![store(1)],
+                5 => vec![store(1)],
+                _ => vec![],
+            },
+            terminator: match successors.as_slice() {
+                [] => Terminator::Return(Some(ValueId(2))),
+                [next] => Terminator::Jump(BlockId(*next as u32)),
+                [left, right] => Terminator::Branch {
+                    condition: ValueId(4),
+                    then_block: BlockId(*left as u32),
+                    else_block: BlockId(*right as u32),
+                },
+                _ => unreachable!(),
+            },
+        })
+        .collect();
+    let mut predecessors = vec![vec![]; edges.len()];
+    for (block, successors) in edges.iter().enumerate() {
+        for &next in successors {
+            predecessors[next].push(block);
+        }
+    }
+    let graph = FunctionGraph {
+        successors: edges,
+        predecessors,
+        reachable: vec![true, true, true, true, true, true, cycle],
+        role_data_uses: Vec::new(),
+        package_views: packages::CaptureViews::default(),
+    };
+    (module, graph)
+}
+
+#[test]
+fn pod_cfg_priority_preserves_complete_resource_and_sum_fixed_points() {
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    for cycle in [false, true] {
+        let (module, graph) = cfg_fixture(cycle);
+        let solve = |ranked, module: &TypedModule| {
+            TEST_RESOURCE_INPUTS.with(|capture| *capture.borrow_mut() = Some(Vec::new()));
+            let mut budget = Budget::new(&limits);
+            budget.pod_stores = ranked;
+            let found = run_function(
+                module,
+                &module.functions[0],
+                &graph,
+                &[BTreeSet::new()],
+                true,
+                &mut budget,
+            );
+            let inputs = TEST_RESOURCE_INPUTS.with(|capture| capture.borrow_mut().take().unwrap());
+            (found, inputs)
+        };
+        let reference = solve(false, &module);
+        let priority = solve(true, &module);
+        assert_eq!(
+            reference, priority,
+            "complete states/writes/diagnostics differ: cycle={cycle}"
+        );
+        assert_eq!(
+            reference.0.unwrap(),
+            BTreeSet::from([Root::Parameter(0), Root::Parameter(1)])
+        );
+        sums::test_schedule_equivalence(&module, &module.functions[0], &graph, &limits);
+        // A nearest invalid resource protocol must keep its final rejection,
+        // including after a backedge joins additional real source roots.
+        let mut bad = module;
+        bad.functions[0].locals.push(LocalDecl {
+            id: LocalId(3),
+            name: "never_initialized".into(),
+            ty: Type::Managed(Box::new(payload())),
+            mutable: true,
+            span: span(),
+        });
+        bad.functions[0].parameters.push(LocalId(3));
+        let reference = solve(false, &bad);
+        let priority = solve(true, &bad);
+        assert!(reference.0.is_err());
+        assert_eq!(reference, priority);
+    }
+}
+
+#[test]
+fn pod_cfg_priority_retains_copy_sum_guards_and_invalidation() {
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    for case in 0..6 {
+        let choice = if case < 3 {
+            Type::Enum {
+                name: "Choice932".into(),
+                variants: vec![("A".into(), vec![Type::I32]), ("B".into(), vec![Type::I32])],
+            }
+        } else {
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(Type::I32),
+            }
+        };
+        let (root, tag_path) = match case % 3 {
+            0 => (choice, vec![]),
+            1 => (Type::Tuple(vec![choice]), vec![PlaceProjection::Field(0)]),
+            _ => (
+                Type::Package {
+                    name: "TaggedProduct932".into(),
+                    fields: vec![
+                        ("owner".into(), Type::Managed(Box::new(payload()))),
+                        ("choice".into(), choice),
+                    ],
+                },
+                vec![PlaceProjection::Field(1)],
+            ),
+        };
+        let mut payload_path = tag_path.clone();
+        payload_path.push(if case < 3 {
+            PlaceProjection::Variant(VariantProjection {
+                variant: 0,
+                index: 0,
+            })
+        } else {
+            PlaceProjection::ErrorArm(false)
+        });
+        for invalidation in [false, true] {
+            let mut module = fixture(&[vec![]], &[0]);
+            let f = &mut module.functions[0];
+            f.parameters = vec![LocalId(0)];
+            f.locals = vec![
+                root.clone(),
+                Type::I32,
+                payload(),
+                Type::Array {
+                    element: Box::new(Type::I64),
+                    length: 16,
+                },
+                Type::Managed(Box::new(payload())),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(id, ty)| LocalDecl {
+                id: LocalId(id as u32),
+                name: format!("l{id}"),
+                ty,
+                mutable: true,
+                span: span(),
+            })
+            .collect();
+            f.values = vec![
+                Type::I32,
+                Type::I32,
+                Type::Bool,
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+            ];
+            let invalidate = || {
+                instruction(
+                    None,
+                    InstructionKind::Store {
+                        local: LocalId(1),
+                        value: ValueId(1),
+                    },
+                )
+            };
+            let mut guarded = vec![];
+            if invalidation {
+                guarded.push(invalidate());
+            }
+            guarded.push(instruction(
+                Some(3),
+                InstructionKind::BorrowPlaceLocal {
+                    local: LocalId(0),
+                    path: payload_path.clone(),
+                    mutable: false,
+                },
+            ));
+            f.blocks = vec![
+                BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![
+                        instruction(Some(1), InstructionKind::Constant(Constant::I32(0))),
+                        // Exercise the indexed invalidation before a fresh guard.
+                        // Its changed route/tag Content then reaches successor inputs.
+                        invalidate(),
+                        instruction(
+                            Some(0),
+                            InstructionKind::PlaceTagLocal {
+                                local: LocalId(0),
+                                path: tag_path.clone(),
+                            },
+                        ),
+                        instruction(
+                            Some(2),
+                            InstructionKind::Binary {
+                                op: BinaryOp::Equal,
+                                left: ValueId(0),
+                                right: ValueId(1),
+                            },
+                        ),
+                    ],
+                    terminator: Terminator::Branch {
+                        condition: ValueId(2),
+                        then_block: BlockId(1),
+                        else_block: BlockId(2),
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(1),
+                    instructions: guarded,
+                    terminator: Terminator::Return(Some(ValueId(1))),
+                },
+                BasicBlock {
+                    id: BlockId(2),
+                    instructions: vec![],
+                    terminator: Terminator::Return(Some(ValueId(1))),
+                },
+            ];
+            let graph = FunctionGraph {
+                successors: vec![vec![1, 2], vec![], vec![]],
+                predecessors: vec![vec![], vec![0], vec![0]],
+                reachable: vec![true; 3],
+                role_data_uses: Vec::new(),
+                package_views: packages::CaptureViews::default(),
+            };
+            assert_eq!(
+                sums::test_schedule_equivalence(&module, &module.functions[0], &graph, &limits),
+                !invalidation,
+                "case={case}"
+            );
+            if case == 0 && !invalidation {
+                sums::test_tagged_invalidation_budget(&module, &module.functions[0], &graph);
+            }
+        }
+    }
+}

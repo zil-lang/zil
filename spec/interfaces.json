@@ -607,6 +607,18 @@
       "relation": "Exactly one shared Address actual, binder_count1, TypeArgument(0) class0->binder0, SharedAddress Variant(1,0)->binder0, no nominal_arguments; None()/Some(actual)",
       "independence": "Types/Analyze/Verify separately authenticate full declaration, shape, actual and complete relation; runtime targets reconstructed from real active payload and calls",
       "boundary": "Mutable or ordinary user nominal direct Address actuals remain unsupported pending complete formal occurrence metadata; names and same-shaped types do not authorize"
+    },
+    "pod_store_G9_3_2": {
+      "authority": "_zil_design.md §8.2.5",
+      "state": "ContractToImplement",
+      "representation": "Existing full OwnedStore Record element, canonical resource identity and opcodes80–88; schema/Wire43 unchanged",
+      "admission": "Finite nonzero Record of Unit/Bool/U8/U16/I32/I64/U64/Usize/F32/F64/Record/Tuple/Array only; complete target layout and identities independently checked including unused definitions",
+      "generic": "StoreElement is old owned Package union new POD Record; no implied Copy/ownership/capture authority",
+      "views": "Existing shared per-element store_at windows; POD BorrowMut rejected; actual-root structural invalidation and last-use rules retained",
+      "machine": "Complete Copy ErrorUnion payloads; capacity/failure preservation; large protocol memory snapshots with private helpers; no public ABI/default limit changes",
+      "accounting": "New work prepaid in current request; unaffected owned profiles retain exact fees",
+      "acceptance": "Actual Source std.store, raw/Wire negatives, full native O0/O2 values and allocation-failure cleanup, independent review and formal integration",
+      "layout": "Nonzero bounded actual stored stride; aggregate Unit and empty Record/Tuple are empty structs size0/align1; closure capture Unit placeholder is distinct; existing ABI unchanged"
     }
   },
   "schemas": [
