@@ -1,0 +1,34 @@
+{
+  "scope": "Independent code review of the finite ordinary POD Store slice; not formal integration/native acceptance",
+  "source_types": {
+    "reviewer": "pod_review (sol high, nonauthor)",
+    "production_source": "2fd24558a1b8c71ae5efe4d7f56bbaed9706d8d6",
+    "result": "AcceptFiniteSlice",
+    "resolved": [
+      "charge_pod must borrow current remaining budget before traversal",
+      "POD canonical registration must debit current request",
+      "POD Store head must not inherit owning-container admission"
+    ],
+    "validation": "Read-only code/diff review and diff check; no reviewer Cargo execution"
+  },
+  "verify": {
+    "reviewer": "pod_consumers (sol high, nonauthor of production)",
+    "delivery_source": "406e691140d131d2c991eda60cc98fad2eb8985e",
+    "production_source": "ec4196ac16afd3afebfaaa12fd6de00584dfd897",
+    "result": "AcceptFiniteSlice",
+    "resolved": [
+      "Independent Package/Product/Tuple/Enum/owned ErrorUnion gates for the new Store family"
+    ],
+    "validation": "Read-only complete admission and consumer review; author tests are separate"
+  },
+  "machine_initial": {
+    "reviewer": "pod_review (sol high, nonauthor)",
+    "production_source": "80f35897f477e920fa022ee14296d2a4068c2b8d",
+    "result": "InitialCodeReviewAcceptedButNativeStackFailureStillOpen",
+    "resolved": [
+      "Prepay scans of plans, blocks and every instruction in POD modules"
+    ],
+    "native_failure": "Actual 262144-byte source SIGSEGV at O0; ~14.96 MB caller frame; snapshot lifecycle repair and re-review required"
+  },
+  "corrected_assumption": "An initial reviewer/author claim conflated aggregate Unit with closure capture Unit. Actual aggregate_field_type(Unit) is empty struct size0/align1. Ordinary correcting commit e91a07a0d retains the erroneous prior commit for history; machine unit failures preserved. Elements4080/4088 have push and pop protocols4088/4096 respectively."
+}
