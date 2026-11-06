@@ -59,7 +59,9 @@ fn walk(
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
                 if actual == &variants[1].1[0])
         {
-            return Err(err("builtin Option actual, source-class map or physical payload differs"));
+            return Err(err(
+                "builtin Option actual, source-class map or physical payload differs",
+            ));
         }
         active.pop();
         return Ok(Vec::new());

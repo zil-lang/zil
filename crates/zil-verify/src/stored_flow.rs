@@ -1638,7 +1638,9 @@ fn step(
                 }
             }
         }
-        _ if option_transfer.is_some() => { out = option_transfer.unwrap(); }
+        _ if option_transfer.is_some() => {
+            out = option_transfer.unwrap();
+        }
         _ if pure_copy::operation(&i.kind) => {
             pure_copy::types(f, i, b)?;
             for input in instruction_operands(&i.kind) {
