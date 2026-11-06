@@ -84,38 +84,61 @@ pub(super) fn reserve_operations(
     plans: &BTreeMap<usize, Protocols>,
     work: &mut usize,
 ) -> CompileResult<()> {
-    let Some(shape) = plans.values().map(|p| p.shape_work).max() else {
+    if plans.is_empty() {
         return Ok(());
-    };
-    for instruction in function.blocks.iter().flat_map(|b| &b.instructions) {
-        let store = match &instruction.kind {
-            InstructionKind::OwnedStoreReserve { store, .. }
-            | InstructionKind::OwnedStorePush { store, .. }
-            | InstructionKind::OwnedStorePop { store }
-            | InstructionKind::OwnedStoreLen { store }
-            | InstructionKind::OwnedStoreCapacity { store }
-            | InstructionKind::OwnedStoreBorrow { store, .. }
-            | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
-            _ => continue,
-        };
-        if !matches!(&function.values[store.0 as usize], Type::Desc(payload)
-            if matches!(payload.as_ref(), Type::OwnedStore { element }
-                if matches!(element.as_ref(), Type::Record { .. })))
-        {
-            continue;
-        }
-        let cost = resources
-            .saturating_add(1)
-            .saturating_mul(shape)
-            .saturating_mul(32)
-            .saturating_add(128);
+    }
+    let pay_scan = |work: &mut usize, cost: usize| -> CompileResult<()> {
         *work = work.checked_sub(cost).ok_or_else(|| {
             vec![Diagnostic::limit(
                 Phase::Codegen,
-                "POD Store instruction emission budget exceeded",
-                Some(instruction.span),
+                "POD Store operation scan budget exceeded",
+                Some(function.span),
             )]
         })?;
+        Ok(())
+    };
+    // Prepay the complete plan scan and each block visit before examining
+    // metadata, including scalar/legacy instructions that need no POD helper.
+    pay_scan(
+        work,
+        plans
+            .len()
+            .saturating_add(function.blocks.len())
+            .saturating_add(1),
+    )?;
+    let shape = plans.values().map(|p| p.shape_work).max().unwrap();
+    for block in &function.blocks {
+        pay_scan(work, block.instructions.len())?;
+        for instruction in &block.instructions {
+            let store = match &instruction.kind {
+                InstructionKind::OwnedStoreReserve { store, .. }
+                | InstructionKind::OwnedStorePush { store, .. }
+                | InstructionKind::OwnedStorePop { store }
+                | InstructionKind::OwnedStoreLen { store }
+                | InstructionKind::OwnedStoreCapacity { store }
+                | InstructionKind::OwnedStoreBorrow { store, .. }
+                | InstructionKind::OwnedStoreBorrowMut { store, .. } => store,
+                _ => continue,
+            };
+            if !matches!(&function.values[store.0 as usize], Type::Desc(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { element }
+                if matches!(element.as_ref(), Type::Record { .. })))
+            {
+                continue;
+            }
+            let cost = resources
+                .saturating_add(1)
+                .saturating_mul(shape)
+                .saturating_mul(32)
+                .saturating_add(128);
+            *work = work.checked_sub(cost).ok_or_else(|| {
+                vec![Diagnostic::limit(
+                    Phase::Codegen,
+                    "POD Store instruction emission budget exceeded",
+                    Some(instruction.span),
+                )]
+            })?;
+        }
     }
     Ok(())
 }
@@ -1471,6 +1494,71 @@ mod pod_tests {
         let mut zero = 0;
         assert!(plan(&[old], &limits, &mut zero).unwrap().is_empty());
         assert_eq!(zero, 0);
+    }
+
+    #[test]
+    fn g932_unused_pod_still_prepays_long_scalar_scans() {
+        use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
+        let span = Span::new(zil_base::FileId(0), 0, 1);
+        let scalar = |count: usize| TypedFunction {
+            storage_life: None,
+            call_kind: CallKind::Direct,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            id: FunctionId(0),
+            name: "scalar_control".into(),
+            foreign: None,
+            environment: None,
+            parameters: vec![],
+            return_type: Type::Unit,
+            result_mode: PassingMode::Infer,
+            locals: vec![],
+            values: vec![Type::Bool; count],
+            entry: BlockId(0),
+            span,
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                terminator: Terminator::Return(None),
+                instructions: (0..count)
+                    .map(|i| Instruction {
+                        result: Some(ValueId(i as u32)),
+                        kind: InstructionKind::Constant(Constant::Bool(false)),
+                        span,
+                    })
+                    .collect(),
+            }],
+        };
+        let mut available = usize::MAX;
+        let plans = plan(&[resource(1)], &Limits::default(), &mut available).unwrap();
+        let mut previous = 0;
+        for count in [0, 1, 10000] {
+            let function = scalar(count);
+            let mut zero = 0;
+            assert_eq!(
+                reserve_operations(&function, 1, &plans, &mut zero).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+            let mut available = usize::MAX;
+            reserve_operations(&function, 1, &plans, &mut available).unwrap();
+            let cost = usize::MAX - available;
+            assert_eq!(cost, count + 3);
+            assert!(cost > previous);
+            previous = cost;
+            for _ in 0..2 {
+                let mut exact = cost;
+                reserve_operations(&function, 1, &plans, &mut exact).unwrap();
+                assert_eq!(exact, 0);
+            }
+            let mut short = cost - 1;
+            assert_eq!(
+                reserve_operations(&function, 1, &plans, &mut short).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+            let mut zero = 0;
+            reserve_operations(&function, 1, &BTreeMap::new(), &mut zero).unwrap();
+            assert_eq!(zero, 0);
+        }
     }
 
     #[test]
