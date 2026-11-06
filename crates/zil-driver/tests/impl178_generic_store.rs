@@ -683,10 +683,24 @@ fn actual_generic_calls_do_not_merge_distinct_nominal_elements() {
 }
 
 #[test]
-fn g934_original_scalar_generic_store_source_is_supported() {
+fn g934_original_scalar_gate_reaches_existing_invalid_package_boundary() {
+    // Preserve the entire historical negative fixture: its OnlyCopy Package
+    // is independently invalid. Scalar eligibility no longer masks that error.
     let source = format!(
         "{MODEL}{HELPERS}struct V{{n:i32}}package OnlyCopy{{n:i32}}resource Z{{}}package Zero{{manages z:Z}}package Nested{{manages items:Store<Item>}}fn main(){{let s:Store<i32>=empty();}}"
     );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g934_generic_scalar_helpers_without_invalid_unused_declarations() {
+    let source = format!("{MODEL}{HELPERS}fn main(){{let s:Store<i32>=empty();}}");
     let report = check(&[("main", &source)]);
     assert_eq!(
         report.status,
@@ -694,4 +708,5 @@ fn g934_original_scalar_generic_store_source_is_supported() {
         "{}",
         report.to_json()
     );
+    assert_eq!(report.verification_runs, 1);
 }
