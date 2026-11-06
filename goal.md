@@ -10,6 +10,8 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
+**下一启动批次：GPUI 方向的 ZUI。** 并行准备 G10.3.1（GPU 接口/完成合同）、G9.5.1（真实 GPU 场景/呈现）、G5.2.1（共享 dyn 派发）、G9.3.1（文本入口），由 G9.6.2 合流；常规实施/独审采用 sol high。ZUI 不采用 GDI，也不以 CPU 软件栅格代替 GPU 交付；只为实际开工任务建分支。
+
 ## G1 · 基础类型与模式
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
@@ -49,7 +51,7 @@
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 已合入 | — | — | [PR46 验收][e-pr46] 本表 Fixed/Invocation、闭包 helper、循环及多 role 组合已闭合；普通闭包 Value 的 give 按规范拒绝，一般 lending 继续见 G3.4。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | 依赖 G3.3、G1.3；需实际 loan/root 证明。含 qualified 值的数组已接通局部/SSA 地址；`Address<Array<qualified>>` 作为 Source 函数参数仍待实现。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、借入 Iterator 和 Source 地址数组参数。原 SliceIter 首个失败在 Expand，见 G3.4.1。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -74,6 +76,15 @@
 | G3.3.9.1 | 新闭包组合与历史验收共同收口 | 已合入 | — | — | [PR46 验收][e-pr46] 新组合与历史正反例、精确预算共同通过；真实重复消费和错误身份仍拒绝，默认额度未上调。 |
 
 </details>
+
+</details>
+
+<details>
+<summary>G3.4 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 待排期 | P1 | 待派 | 后续批次；先修已复现的 Expand life 作用域失败，再核完整两核/raw/Wire/原生与失效反例，不以消除首个诊断当完成。 |
 
 </details>
 
@@ -138,9 +149,18 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
-| G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有前端；实际消费者待接。 |
-| G5.2 | 异构调用、静态vtable、关联项与有限泛型method slot的真实派发 | 部分实现 | P1 | 待派 | 依赖 G5.1、G2.3、G2.4；两核与机器派发待闭合。 |
+| G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有源码/Core 声明与 provider 目录；当前 Types 仍拒绝未接通的动态消费者，不能当作已有机器派发。 |
+| G5.2 | 异构调用、静态vtable、关联项与有限泛型method slot的真实派发 | 部分实现 | P1 | 待派 | 首批 G5.2.1 先接单共享接收者、固定方法槽和两个 provider；关联项、泛型槽与拥有擦除存储仍按各自合同后续扩展。 |
 | G5.3 | 显式拥有/共同借入存储及管理route，移动/销毁/失败路径完整 | 部分实现 | P1 | 待派 | 依赖 G3.4、G1.3、G5.2。 |
+
+<details>
+<summary>G5.2 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 待执行 | P1 | 待派 | 首批并行；贯通真实接收者/入口身份、两核和机器结果，保留错 provider/slot 反例；不先开放拥有擦除存储。 |
+
+</details>
 
 ## G6 · 状态协议
 
@@ -177,10 +197,38 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | 按具体 API 接 G3.4、G5.3；普通集合不普遍依赖 dyn。 |
-| G9.4 | 真实平台窗口、事件循环及OS IME服务 | 待排期 | P2 | 待派 | 依赖 G7.3、G7.4 及平台接口；窗口和 IME 可拆分。 |
-| G9.5 | 字体/文本布局、渲染呈现及输入到绘制的真实闭环 | 待排期 | P2 | 待派 | 与 G9.4 协调；需实际字体、呈现和输入链路。 |
-| G9.6 | 真实ZUI应用集成、资源失败/关闭及维护场景 | 待排期 | P2 | 待派 | 依赖 G9.3、G9.4、G9.5 及必要语言能力。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | 首批 G9.3.1 补普通 UTF8 文本入口；借入迭代见 G3.4.1。动态 POD 场景容器、grapheme/格式化等另补，现有 StoreElement 不等于 Vec<Vertex>。 |
+| G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P1 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
+| G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P1 | 待派 | 首批 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
+| G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P1 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
+
+<details>
+<summary>G9.3 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 待执行 | P1 | 待派 | 首批并行；parse/Core 已可用，Types 消费者缺失。先明确静态表示/借入/编码及显式分配合同，再补源码/机器与预算边界。 |
+
+</details>
+
+<details>
+<summary>G9.5 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G9.5.1 | 窗口/事件、固定 POD scene、GPU draw/present 与 resize/关闭 | 待执行 | P1 | 待派 | 首批并行；依 G10.3.1 冻结平台接口，必须真实 GPU 首帧及输入后的帧变化。现有 ui_raster 仅普通库/参考，不作 ZUI 渲染；文字/atlas 后续接续。 |
+
+</details>
+
+<details>
+<summary>G9.6 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G9.6.1 | ZUI 当前语法/语言缺口核对与 GPUI 首批应用合同 | 已合入 | — | — | [PR47 核查报告][zui-audit]；26 项 Source 观察及 3 项既有 UI 内核原生复跑，GPU ABI 仅形状 Verify，未执行 GPU。已明确不采用 GDI/CPU raster 替代路线；语言补片尚待实施。 |
+| G9.6.2 | GPUI 式 GPU 首片应用的输入、状态、场景与关闭合流 | 待执行 | P1 | root · 集成 | 接 G9.5.1；真实设备/呈现和失败关闭须实跑，静态首帧可先于开放组件；后续文字/IME/实体删除与异步责任仍须补齐。 |
+
+</details>
 
 ## G10 · 可靠性、规范与产品验证
 
@@ -195,6 +243,15 @@
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
 
 <details>
+<summary>G10.3 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G10.3.1 | GPU 平台 ABI 路线、实际消费者与 CPU/GPU 完成合同 | 待执行 | P1 | 待派 | 首批并行；已有 out-handle/固定 POD 签名通过 Verify。先具名 changes/独审并接真实 native adapter；若选纯 ZIL COM 再补外部方法/指针能力，不全面放宽 c_handle。 |
+
+</details>
+
+<details>
 <summary>G10.1 · 当前联合验收</summary>
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
@@ -203,8 +260,8 @@
 
 </details>
 
-[design]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/_zil_design.md
-[gates]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/validation/product-gates.json
+[design]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/_zil_design.md
+[gates]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/validation/product-gates.json
 [c39]: https://github.com/zil-lang/zil/tree/c15b77847502d02acc83474bf7f9a8789186a3ac
 [c40]: https://github.com/zil-lang/zil/tree/7dfc6846194643e5295a7704a0b8ce99fa5176e4
 [e37]: https://github.com/zil-lang/zil/blob/4bc1d77b5ec3bccb5b789fd813e85386f03ae13f/docs/validation/terminal-root37-integration-20261104.json
@@ -232,3 +289,5 @@
 [e-pr45]: https://github.com/zil-lang/zil/blob/fd261b22c8a05c5cd1e7bc9cc05d91eeb0f12c95/docs/validation/G4.4.5.1-common-acceptance.json
 
 [e-pr46]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/docs/validation/G10.1.11-common-acceptance.json
+
+[zui-audit]: https://github.com/zil-lang/zil/blob/c63001c8ec43909d2c41ca314c32e465f531711f/docs/ZUI-READINESS-20261106.md
