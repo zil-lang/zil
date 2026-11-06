@@ -49,7 +49,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 实现待验 | P0 | root 集成 / sol high 并行 | [源码](https://github.com/zil-lang/zil/tree/task/G2.4.1)已推送；原始五模块及 std.iter 两后端 O0/O2 输出42通过，独立来源反例已通过。正在补齐边界和共同全量验收；资源移动/lending owning 容器不在已通过范围。 |
+| G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 实现待验 | P0 | root 集成 / sol high 并行 | [源码](https://github.com/zil-lang/zil/tree/task/G2.4.1)已推送；原始五模块及 std.iter 两后端 O0/O2 输出42通过，独立来源反例已通过。首轮全量5140通过/6失败：已定位新检查误伤旧固定life与Option参数转发，正在修复；资源移动/lending owning 容器未交付。 |
 
 <details>
 <summary>G2.4.1 · 子任务</summary>
