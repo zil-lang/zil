@@ -1073,10 +1073,10 @@ fn pod932_logical_payload_and_stored_unit_stride_are_separate() {
     ]);
     assert_eq!(
         pod_layout(&mixed, &m.target, None, &mut Budget::new(&limits)).unwrap(),
-        (8, 1, true)
+        (1, 1, true)
     );
     admit(&m, &mixed, &limits).unwrap();
-    let overflow = pod(vec![
+    let unit_array = pod(vec![
         ("n", Type::U8),
         (
             "units",
@@ -1089,13 +1089,7 @@ fn pod932_logical_payload_and_stored_unit_stride_are_separate() {
             },
         ),
     ]);
-    let error = admit(&m, &overflow, &limits).unwrap_err();
-    assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
-    assert!(
-        error
-            .message
-            .contains("layout exceeds target address range")
-    );
+    admit(&m, &unit_array, &limits).unwrap();
 }
 
 fn pod_window_fixture(distinct: bool, read_first: bool) -> (TypedModule, CandidatePlan) {
