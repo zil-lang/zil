@@ -1290,3 +1290,85 @@ mod trait_request_ledger {
         );
     }
 }
+
+#[cfg(test)]
+mod static_trait_request {
+    use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+
+    const CONCRETE: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn main()->i32{return Cell.make::<i32>(3).n-7}";
+    const SYMBOLIC: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn build<F:Factory>()->F{return F.make::<i32>(3)}fn main()->i32{return build::<Cell>().n-7}";
+    const MULTI: &str = "trait Measure<Tag:Copy>{fn score<A:Copy,B:Copy>(a:A,b:B,tag:Tag)->i32;}struct Cell{n:i32}impl Measure<i32> for Cell{fn score<X:Copy,Y:Copy>(a:X,b:Y,tag:i32)->i32{return tag+1}}fn run<H:Measure<i32>>(x:i32)->i32{return H.score::<i32,bool>(3,true,x)}fn main()->i32{return run::<Cell>(7)-8}";
+
+    fn expand(text: &str, work: usize) -> zil_base::CompileResult<crate::ExpandedModule> {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "static242.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        crate::expand_with_map_limits(
+            &source,
+            &syntax,
+            &Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+        )
+    }
+
+    #[test]
+    fn static_type_hosts_have_exact_request_work_and_fresh_results() {
+        for (label, text) in [
+            ("concrete", CONCRETE),
+            ("symbolic", SYMBOLIC),
+            ("multi", MULTI),
+        ] {
+            let mut low = 0usize;
+            let mut high = Limits::default().max_analysis_steps;
+            let expected = format!("{:?}", expand(text, high).unwrap().core);
+            while low + 1 < high {
+                let middle = low + (high - low) / 2;
+                match expand(text, middle) {
+                    Ok(_) => high = middle,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit) =>
+                    {
+                        low = middle
+                    }
+                    Err(errors) => panic!("{label} unexpected diagnostic at {middle}: {errors:?}"),
+                }
+            }
+            assert!(high > 0, "{label} must consume request work");
+            let rejected = expand(text, high - 1).unwrap_err();
+            assert!(!rejected.is_empty());
+            assert!(
+                rejected
+                    .iter()
+                    .all(|e| e.category == ResultCategory::ResourceLimit),
+                "{label}: {rejected:?}"
+            );
+            assert_eq!(
+                format!("{:?}", expand(text, high).unwrap().core),
+                expected,
+                "{label} exact result"
+            );
+            assert_eq!(
+                format!("{:?}", expand(text, high).unwrap().core),
+                expected,
+                "{label} fresh result"
+            );
+            println!(
+                "G2.4.2 {label} exact request work N={high}; N-1 ResourceLimit; fresh result equal"
+            );
+        }
+    }
+
+    #[test]
+    fn static_type_host_does_not_override_value_shadow_or_unused_body_check() {
+        let shadow = SYMBOLIC.replace(
+            "return F.make::<i32>(3)",
+            "let F=Cell{n:1};return F.make::<i32>(3)",
+        );
+        assert!(expand(&shadow, Limits::default().max_analysis_steps).is_err());
+        let unused = CONCRETE.replace("return Cell{n:7}", "return value+1");
+        assert!(expand(&unused, Limits::default().max_analysis_steps).is_err());
+    }
+}
