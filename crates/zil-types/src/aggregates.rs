@@ -1020,7 +1020,11 @@ impl Resolver<'_> {
                     let ty = self.ty(field, depth + 1, declaration.span)?;
                     let copy = ty.is_copy_value()
                         || stored_instance
-                            .is_some_and(|instance| stored::option_address_payload(instance, &ty))
+                            // The instance still contains its Core actual here;
+                            // `ty` has already expanded imported nominal names.
+                            // Compare the actual declaration field first, then
+                            // resolved_inventory checks the complete layout.
+                            .is_some_and(|instance| stored::option_address_payload(instance, field))
                         || (stored_instance.is_some()
                             && stored::pure_inline(
                                 &ty,
