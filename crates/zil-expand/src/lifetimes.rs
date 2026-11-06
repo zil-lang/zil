@@ -215,6 +215,10 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if !self.binders.contains(name) {
                     return Err(vec![failure(ty.span, "undeclared life name")]);
                 }
+                if !self.headers.contains(&std::ptr::from_ref(ty)) {
+                    self.budget.note_stored_lifetimes();
+                    self.budget.note_source_identity();
+                }
                 for _ in 0..self.headers.len() {
                     self.budget.text("h", ty.span).map_err(|e| vec![e])?;
                 }
