@@ -13,7 +13,13 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
         && d.parameters == [LifeParameterKind::Type]
 }
 
-pub(super) fn shape(ty: &Type, left: &mut usize, depth: usize, span: Span) -> R<bool> {
+pub(super) fn shape(
+    ty: &Type,
+    left: &mut usize,
+    depth: usize,
+    span: Span,
+    unresolved_named: bool,
+) -> R<bool> {
     let Type::BorrowedStorage { storage, life } = ty else {
         return Ok(false);
     };
@@ -44,7 +50,16 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth: usize, span: Span) -> R<
         Type::Slice { element } => element.as_ref(),
         other => other,
     };
-    if !closed_copy(pointee, left, 0, depth, span)? {
+    // Core inventory runs before nominal resolution. Only its authentic
+    // compiler Option entry may defer a named pointee to resolved_inventory,
+    // which repeats this proof on the actual structural type.
+    let closed = if unresolved_named && matches!(pointee, Type::Named(name) if !name.is_empty()) {
+        fee(left, 1, span)?;
+        true
+    } else {
+        closed_copy(pointee, left, 0, depth, span)?
+    };
+    if !closed {
         return Ok(false);
     }
     Ok(life.binder_count == 1

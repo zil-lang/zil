@@ -442,7 +442,7 @@ pub(super) fn option_address_value(
     limits: &Limits,
     span: Span,
 ) -> R<bool> {
-    option_address::shape(ty, left, limits.max_call_depth, span)
+    option_address::shape(ty, left, limits.max_call_depth, span, false)
 }
 
 /// Narrow value-only qualification for an actual nested stored field. This
@@ -521,7 +521,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
-    if option_address::shape(ty, left, depth_limit, span)? {
+    if option_address::shape(ty, left, depth_limit, span, false)? {
         return Ok(());
     }
     if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })

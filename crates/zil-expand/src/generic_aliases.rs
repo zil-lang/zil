@@ -580,6 +580,24 @@ impl Check<'_, '_, '_> {
                 let Some(local) = state.locals.get(name) else {
                     return Ok(Vec::new());
                 };
+                // A local Option value has its own physical slot. Its tracked
+                // child loans describe the possible Some payload referent,
+                // and must not turn `&option` into a borrow of that referent.
+                if matches!(&group(&local.ty).kind, TypeKind::Named { path, args }
+                    if path.as_slice() == [super::super::options::TEMPLATE]
+                        && matches!(args.as_slice(), [GenericArg::Type(payload)]
+                            if matches!(group(payload).kind, TypeKind::Reference { mutable: false, .. })))
+                {
+                    self.alias_fee(1, expression.span)?;
+                    return Ok(vec![Origin {
+                        position: Position {
+                            owner: local.id,
+                            field: None,
+                            route: None,
+                        },
+                        parents: Vec::new(),
+                    }]);
+                }
                 if let Some(aliases) = &state.aliases {
                     self.alias_fee(tree_work(aliases.locals.len()), expression.span)?;
                     if let Some(loans) = aliases.locals.get(&local.id) {
