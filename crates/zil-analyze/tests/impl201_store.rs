@@ -600,3 +600,482 @@ fn callback_store_work_has_exact_replayable_bounds_and_capture_width_cost() {
         "each Store occurrence must pay actual capture work"
     );
 }
+
+fn pod_element() -> Type {
+    Type::Record {
+        name: "Point".into(),
+        fields: vec![("n".into(), Type::I32)],
+    }
+}
+
+fn pod_fixture(element: Type) -> TypedModule {
+    let mut raw = fixture(element, 0);
+    raw.resources[0].name = "@builtin:OwnedStore<Point>".into();
+    raw
+}
+
+#[test]
+fn pod_store_admits_complete_numeric_trees_without_element_debts() {
+    let mut element = pod_element();
+    let Type::Record { fields, .. } = &mut element else {
+        unreachable!()
+    };
+    fields.push((
+        "all".into(),
+        Type::Tuple(vec![
+            Type::Unit,
+            Type::Bool,
+            Type::U8,
+            Type::U16,
+            Type::I32,
+            Type::I64,
+            Type::U64,
+            Type::Usize,
+            Type::F32,
+            Type::F64,
+            Type::Record {
+                name: "Empty".into(),
+                fields: vec![],
+            },
+            Type::Array {
+                element: Box::new(Type::U16),
+                length: 3,
+            },
+        ]),
+    ));
+    accepted(&pod_fixture(element));
+    let raw = pod_fixture(pod_element());
+    let required = minimum(&raw);
+    println!("G9.3.2 POD Store Analyze N={required}; N-1 ResourceLimit; fresh identical");
+}
+
+#[test]
+fn pod_store_rebuilds_unused_definitions_full_identity_and_all_leaves() {
+    let baseline = pod_fixture(pod_element());
+    for kind in 0..4 {
+        let mut raw = baseline.clone();
+        // Remove every function: sealed but unused definitions still qualify.
+        raw.functions.clear();
+        match kind {
+            0 => raw.resources[0].name = "wrong".into(),
+            1 => raw.resources.push(raw.resources[0].clone()),
+            2 => raw.resources[0].teardown = Some(FunctionId(0)),
+            3 => {
+                raw.functions = baseline.functions.clone();
+                let Type::OwnedStore { element } = &mut raw.resources[0].payload else {
+                    unreachable!()
+                };
+                let Type::Record { fields, .. } = element.as_mut() else {
+                    unreachable!()
+                };
+                fields[0].1 = Type::I64;
+            }
+            _ => unreachable!(),
+        }
+        assert!(analyze(&raw, &Limits::default()).is_err(), "kind={kind}");
+    }
+    for forbidden in [
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        },
+        Type::Desc(Box::new(Type::ByteBuffer)),
+        Type::Managed(Box::new(Type::ByteBuffer)),
+        Type::ForeignHandle,
+        Type::CWideString,
+        Type::Closure(ClosureId(0)),
+        Type::FunctionPointer {
+            parameters: vec![],
+            result: Box::new(Type::I32),
+        },
+        Type::Enum {
+            name: "E".into(),
+            variants: vec![("A".into(), vec![])],
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(Type::I32),
+        },
+        Type::OwnedStore {
+            element: Box::new(pod_element()),
+        },
+    ] {
+        let mut element = pod_element();
+        let Type::Record { fields, .. } = &mut element else {
+            unreachable!()
+        };
+        fields.push((
+            "hidden".into(),
+            Type::Array {
+                element: Box::new(forbidden),
+                length: 0,
+            },
+        ));
+        let mut raw = pod_fixture(element);
+        raw.functions.clear();
+        assert!(analyze(&raw, &Limits::default()).is_err(), "{raw:#?}");
+    }
+    for fields in [
+        vec![],
+        vec![("zero".into(), Type::Unit)],
+        vec![("".into(), Type::I32)],
+        vec![("n".into(), Type::I32), ("n".into(), Type::I64)],
+    ] {
+        let mut raw = pod_fixture(Type::Record {
+            name: "Point".into(),
+            fields,
+        });
+        raw.functions.clear();
+        assert!(analyze(&raw, &Limits::default()).is_err(), "{raw:#?}");
+    }
+    accepted(&baseline);
+}
+
+#[test]
+fn pod_store_does_not_qualify_an_unused_owning_resource_head() {
+    let mut raw = pod_fixture(pod_element());
+    let hidden = Type::Record {
+        name: "Hidden".into(),
+        fields: vec![(
+            "items".into(),
+            Type::Managed(Box::new(raw.resources[0].payload.clone())),
+        )],
+    };
+    raw.resources.push(ResourceDefinition {
+        name: "Hidden".into(),
+        payload: hidden,
+        teardown: None,
+    });
+    rejected(
+        &raw,
+        ResultCategory::Unsupported,
+        "does not grant user resource-head qualification",
+    );
+}
+
+fn pod_window() -> TypedModule {
+    let element = pod_element();
+    let mut raw = pod_fixture(element.clone());
+    let f = &mut raw.functions[0];
+    f.values = vec![
+        Type::Desc(Box::new(Type::OwnedStore {
+            element: Box::new(element.clone()),
+        })),
+        Type::I64,
+        Type::Address {
+            mutable: false,
+            inner: Box::new(element.clone()),
+        },
+        element,
+        Type::Bool,
+    ];
+    f.blocks[0].instructions.splice(
+        1..1,
+        [
+            ins(
+                Some(ValueId(0)),
+                InstructionKind::DescribeLocal { local: LocalId(0) },
+            ),
+            ins(
+                Some(ValueId(1)),
+                InstructionKind::Constant(Constant::I64(0)),
+            ),
+            ins(
+                Some(ValueId(2)),
+                InstructionKind::OwnedStoreBorrow {
+                    store: ValueId(0),
+                    index: ValueId(1),
+                },
+            ),
+            ins(
+                Some(ValueId(3)),
+                InstructionKind::ReadAddress {
+                    address: ValueId(2),
+                },
+            ),
+            ins(
+                Some(ValueId(4)),
+                InstructionKind::OwnedStoreReserve {
+                    store: ValueId(0),
+                    capacity: ValueId(1),
+                },
+            ),
+        ],
+    );
+    raw
+}
+
+#[test]
+fn pod_store_windows_keep_actual_roots_last_use_and_structural_conflicts() {
+    let baseline = pod_window();
+    let plan = accepted(&baseline);
+    assert_eq!(
+        plan.functions[0].holds[2].roots,
+        vec![HoldRoot::Local(LocalId(0))]
+    );
+    let required = minimum(&baseline);
+    println!("G9.3.2 POD view Analyze N={required}; N-1 ResourceLimit; fresh identical");
+    for kind in 0..3 {
+        let mut raw = baseline.clone();
+        let f = &mut raw.functions[0];
+        let write = &mut f.blocks[0].instructions[5];
+        match kind {
+            0 => {}
+            1 => {
+                f.values[4] = Type::ErrorUnion {
+                    error: Box::new(Type::Unit),
+                    result: Box::new(pod_element()),
+                };
+                write.kind = InstructionKind::OwnedStorePop { store: ValueId(0) };
+            }
+            2 => {
+                // Push a separate Copy snapshot while the original view lives.
+                f.values.push(pod_element());
+                f.blocks[0].instructions.insert(
+                    4,
+                    ins(
+                        Some(ValueId(5)),
+                        InstructionKind::ReadAddress {
+                            address: ValueId(2),
+                        },
+                    ),
+                );
+                f.values[4] = Type::ErrorUnion {
+                    error: Box::new(pod_element()),
+                    result: Box::new(Type::Unit),
+                };
+                f.blocks[0].instructions[6].kind = InstructionKind::OwnedStorePush {
+                    store: ValueId(0),
+                    value: ValueId(5),
+                };
+            }
+            _ => unreachable!(),
+        }
+        accepted(&raw);
+        let f = &mut raw.functions[0];
+        // Move structural mutation immediately before the final view read.
+        let position = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| {
+                matches!(
+                    i.kind,
+                    InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePop { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                )
+            })
+            .unwrap();
+        let mutation = f.blocks[0].instructions.remove(position);
+        let before = f.blocks[0]
+            .instructions
+            .iter()
+            .position(|i| i.result == Some(ValueId(3)))
+            .unwrap();
+        f.blocks[0].instructions.insert(before, mutation);
+        assert!(
+            analyze(&raw, &Limits::default()).is_err(),
+            "kind={kind}: {raw:#?}"
+        );
+    }
+}
+
+#[test]
+fn pod_store_rejects_forged_mutable_windows_and_protocol_types() {
+    let baseline = pod_window();
+    for kind in 0..5 {
+        let mut raw = baseline.clone();
+        let f = &mut raw.functions[0];
+        match kind {
+            0 => {
+                f.values[2] = Type::Address {
+                    mutable: true,
+                    inner: Box::new(pod_element()),
+                };
+                f.blocks[0].instructions[3].kind = InstructionKind::OwnedStoreBorrowMut {
+                    store: ValueId(0),
+                    index: ValueId(1),
+                };
+            }
+            1 => f.values[1] = Type::I32,
+            2 => {
+                f.values[2] = Type::Address {
+                    mutable: true,
+                    inner: Box::new(pod_element()),
+                }
+            }
+            3 => f.values[4] = Type::I64,
+            4 => f.blocks[0].instructions[5].result = None,
+            _ => unreachable!(),
+        }
+        assert!(analyze(&raw, &Limits::default()).is_err(), "kind={kind}");
+    }
+    accepted(&baseline);
+}
+
+#[test]
+fn pod_store_checks_zero_byte_unit_numeric_overflow_and_constructor_metadata() {
+    for leaf in [Type::Unit, Type::U64] {
+        let mut huge = leaf.clone();
+        for _ in 0..4 {
+            huge = Type::Array {
+                element: Box::new(huge),
+                length: 65536,
+            };
+        }
+        let mut element = pod_element();
+        let Type::Record { fields, .. } = &mut element else {
+            unreachable!()
+        };
+        fields.push(("padding".into(), huge));
+        let mut raw = pod_fixture(element);
+        raw.functions.clear();
+        if leaf == Type::Unit {
+            accepted(&raw);
+        } else {
+            rejected(
+                &raw,
+                ResultCategory::ResourceLimit,
+                "layout exceeds the target address range",
+            );
+        }
+    }
+
+    let mut raw = pod_fixture(pod_element());
+    let f = &mut raw.functions[0];
+    f.values.push(f.locals[0].ty.clone());
+    // Only the instruction metadata claims this invalid Point; all value and
+    // resource table occurrences remain the original valid Point definition.
+    f.blocks[0].instructions.insert(
+        1,
+        ins(
+            Some(ValueId(0)),
+            InstructionKind::OwnedStoreNew {
+                element: Type::Record {
+                    name: "Point".into(),
+                    fields: vec![("n".into(), Type::I64)],
+                },
+            },
+        ),
+    );
+    rejected(
+        &raw,
+        ResultCategory::SafeReject,
+        "exact canonical definition",
+    );
+}
+
+#[test]
+fn pod_store_distinct_owners_do_not_merge_window_roots() {
+    let mut raw = pod_window();
+    let f = &mut raw.functions[0];
+    f.parameters.push(LocalId(1));
+    f.locals.push(local(1, f.locals[0].ty.clone()));
+    f.values.push(f.values[0].clone());
+    f.blocks[0].instructions.insert(
+        4,
+        ins(
+            Some(ValueId(5)),
+            InstructionKind::DescribeLocal { local: LocalId(1) },
+        ),
+    );
+    f.blocks[0].instructions[6].kind = InstructionKind::OwnedStoreReserve {
+        store: ValueId(5),
+        capacity: ValueId(1),
+    };
+    let mutation = f.blocks[0].instructions.remove(6);
+    f.blocks[0].instructions.insert(5, mutation);
+    f.blocks[0].instructions.splice(
+        7..7,
+        [
+            ins(None, InstructionKind::DropManaged { local: LocalId(1) }),
+            ins(None, InstructionKind::StorageDead(LocalId(1))),
+        ],
+    );
+    accepted(&raw);
+}
+
+#[test]
+fn pod_store_helper_distinct_roots_and_conservative_same_call_limit() {
+    let mut raw = pod_window();
+    let address = raw.functions[0].values[2].clone();
+    let desc = raw.functions[0].values[0].clone();
+    let mut helper = function(1);
+    helper.parameters = vec![LocalId(0), LocalId(1)];
+    helper.locals = vec![local(0, address.clone()), local(1, desc.clone())];
+    helper.values = vec![address, desc, Type::I64, Type::Bool, pod_element()];
+    helper.blocks[0].instructions = vec![
+        ins(Some(ValueId(0)), InstructionKind::Load(LocalId(0))),
+        ins(Some(ValueId(1)), InstructionKind::Load(LocalId(1))),
+        ins(
+            Some(ValueId(2)),
+            InstructionKind::Constant(Constant::I64(0)),
+        ),
+        ins(
+            Some(ValueId(4)),
+            InstructionKind::ReadAddress {
+                address: ValueId(0),
+            },
+        ),
+        ins(
+            Some(ValueId(3)),
+            InstructionKind::OwnedStoreReserve {
+                store: ValueId(1),
+                capacity: ValueId(2),
+            },
+        ),
+    ];
+    let f = &mut raw.functions[0];
+    f.blocks[0].instructions.drain(4..6);
+    f.blocks[0].instructions.insert(
+        4,
+        ins(
+            None,
+            InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![ValueId(2), ValueId(0)],
+            },
+        ),
+    );
+    raw.functions.push(helper);
+    // Keep the original nearest conservative rejection: this callee reads the
+    // view before reserve, but the existing summary covers its complete call.
+    rejected(
+        &raw,
+        ResultCategory::SafeReject,
+        "actual borrowed resource access conflicts",
+    );
+    let f = &mut raw.functions[0];
+    f.parameters.push(LocalId(1));
+    f.locals.push(local(1, f.locals[0].ty.clone()));
+    f.values.push(f.values[0].clone());
+    f.blocks[0].instructions.insert(
+        4,
+        ins(
+            Some(ValueId(5)),
+            InstructionKind::DescribeLocal { local: LocalId(1) },
+        ),
+    );
+    f.blocks[0].instructions[5].kind = InstructionKind::Call {
+        function: FunctionId(1),
+        arguments: vec![ValueId(2), ValueId(5)],
+    };
+    f.blocks[0].instructions.splice(
+        6..6,
+        [
+            ins(None, InstructionKind::DropManaged { local: LocalId(1) }),
+            ins(None, InstructionKind::StorageDead(LocalId(1))),
+        ],
+    );
+    accepted(&raw);
+    raw.functions[1].blocks[0].instructions.swap(3, 4);
+    accepted(&raw);
+    raw.functions[0].blocks[0].instructions[5].kind = InstructionKind::Call {
+        function: FunctionId(1),
+        arguments: vec![ValueId(2), ValueId(0)],
+    };
+    assert!(
+        analyze(&raw, &Limits::default()).is_err(),
+        "same Store helper must reject a live read after mutation"
+    );
+}

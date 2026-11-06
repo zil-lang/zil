@@ -598,6 +598,7 @@ pub(super) fn preflight(
     // noncallback Store paths receive no new traversal or logical charge.
     let mut callback_store_elements = Vec::new();
     let mut product_store_elements = Vec::new();
+    let mut pod_store_elements = Vec::new();
     let mut owned_store_capture_roots = Vec::new();
     for (ty, store_element, capture_owner, resource_head) in module
         .functions
@@ -641,6 +642,12 @@ pub(super) fn preflight(
                 )
         }))
     {
+        if let Some(element) = store_element
+            && !matches!(element, Type::Package { .. })
+        {
+            budget.spend(1, "POD Store instruction admission entry")?;
+            pod_store_elements.push(element);
+        }
         if let Some(element) = store_element
             && super::resources::product::nested(element)
         {
@@ -798,6 +805,17 @@ pub(super) fn preflight(
                     ));
                 }
                 Type::OwnedStore { element } => {
+                    if !matches!(element.as_ref(), Type::Package { .. }) {
+                        if resource_head && depth != 0 {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "POD Store admission does not grant user resource-head qualification",
+                                None,
+                            )]);
+                        }
+                        budget.spend(1, "POD Store type admission entry")?;
+                        pod_store_elements.push(element.as_ref());
+                    }
                     if super::resources::product::nested(element) {
                         budget.spend(1, "Product Store type admission entry")?;
                         product_store_elements.push(element);
@@ -962,6 +980,12 @@ pub(super) fn preflight(
     // A Store element is a value, not an owning user-resource header.
     for element in product_store_elements {
         super::dynamic_store::product_carrier(module, element, budget)?;
+    }
+    for element in pod_store_elements {
+        super::pod_store::carrier(module, element, budget)?;
+        // POD addresses use the existing actual-head/element loan machinery.
+        // This private presence flag activates work; it grants no permission.
+        budget.head_descriptions = true;
     }
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
@@ -1678,6 +1702,16 @@ pub(super) fn preflight(
                                 "static UTF8 requires exactly an immutable byte slice result",
                             ));
                         }
+                    }
+                    InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStorePop { .. }
+                    | InstructionKind::OwnedStoreLen { .. }
+                    | InstructionKind::OwnedStoreCapacity { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::OwnedStoreBorrowMut { .. } => {
+                        super::pod_store::instruction(function, instruction, budget)?;
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {
                         budget.input(units.len(), "static UTF-16 units")?;
