@@ -280,7 +280,7 @@ fn unused_option_reference_actuals_keep_their_declared_source_classes() {
 
 #[test]
 fn option_source_pattern_uses_its_actual_builtin_declaration_on_a_backedge() {
-    let source = "fn spin<life s>(slice:&'s [i64])->i64{var item:Option<&'s i64> = Option::<&'s i64>.None();while true{match item{Option.None()=>{item=Option::<&'s i64>.Some(&slice[0]);continue},Option.Some(value)=>{return *value}}}return 0;}fn main(){}";
+    let source = "fn spin<life s>(slice:&'s [i64])->i64{var item:Option<&'s i64> = Option::<&'s i64>.None();while true{match item{Option.None()=>{item=Option::<&'s i64>.Some(&slice[0]);continue},Option.Some(value)=>{return *value}}}}fn main(){}";
     let core = expand(source).unwrap_or_else(|errors| panic!("{errors:#?}"));
     assert!(
         core.core.unsupported.is_empty(),
