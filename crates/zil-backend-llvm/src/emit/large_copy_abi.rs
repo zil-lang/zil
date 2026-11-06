@@ -21,10 +21,16 @@ pub(super) struct Plans {
     pub(super) values: BTreeMap<FunctionId, copy_aggregates::Plan>,
     pub(super) functions: BTreeMap<FunctionId, Signature>,
     pub(super) indirect: BTreeMap<(FunctionId, ValueId), Signature>,
+    pub(super) store_protocols: BTreeMap<usize, dynamic_store::Protocols>,
 }
 impl Plans {
     pub(super) fn needs_helpers(&self) -> bool {
-        !self.values.is_empty() || self.functions.values().any(Signature::large)
+        !self.values.is_empty()
+            || self.functions.values().any(Signature::large)
+            || self
+                .store_protocols
+                .values()
+                .any(dynamic_store::Protocols::large)
     }
 }
 // A data pointer to Big keeps its old ABI. A pointer (or any carrier) to

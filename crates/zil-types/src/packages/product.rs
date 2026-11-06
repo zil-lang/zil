@@ -32,7 +32,8 @@ fn shape(ty: &Type, stores: bool) -> bool {
             !name.is_empty()
                 && (field.is_copy_value()
                     || matches!(field, Type::Managed(payload)
-                        if (stores && dynamic_store::is_carrier(field))
+                        if (stores && dynamic_store::is_carrier(field)
+                            && !matches!(dynamic_store::element(field), Some(Type::Record { .. })))
                             || **payload == Type::ByteBuffer
                             || (matches!(payload.as_ref(), Type::Record { .. })
                                 && payload.is_copy_value()))

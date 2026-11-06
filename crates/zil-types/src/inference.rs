@@ -2523,6 +2523,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             Term::Scalar(variable) => {
                 let ty = self.graph.injection_type(*variable, span)?;
                 validate_type(&ty, 0, span, self.budget)?;
+                dynamic_store::charge_pod(&ty, self.budget.limits, span, &mut self.budget.work)?;
                 if !(self.graph.is_store_parameter(&ty)
                     || dynamic_store::supported_element(&ty)
                     || dynamic_store::callback_element(
@@ -4493,6 +4494,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 ));
             };
             validate_type(actual, 0, callee.span, self.budget)?;
+            dynamic_store::charge_pod(
+                actual,
+                self.budget.limits,
+                callee.span,
+                &mut self.budget.work,
+            )?;
             if !(self.graph.is_store_parameter(actual)
                 || dynamic_store::supported_element(actual)
                 || dynamic_store::callback_element(

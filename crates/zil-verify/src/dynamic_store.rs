@@ -6,6 +6,169 @@ mod tests;
 
 pub(super) const PREFIX: &str = "@builtin:OwnedStore<";
 
+/// This is a separate admission from Copy and from the owning Package family.
+/// Raw type shape bounds precede this recursive walk. Even a zero-length array
+/// must qualify its actual child, and field identities are checked at each node.
+pub(super) fn check_pod_element(
+    element: &Type,
+    profile: &TargetProfile,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<()> {
+    target(profile, span)?;
+    if !matches!(element, Type::Record { .. }) {
+        return Err(unsupported(
+            "POD Store elements require an ordinary Record",
+            span,
+        ));
+    }
+    let (bytes, _, payload) = pod_layout(element, profile, span, budget)?;
+    if bytes == 0 || !payload {
+        return Err(unsupported(
+            "POD Store requires nonzero actual element stride",
+            span,
+        ));
+    }
+    Ok(())
+}
+
+fn pod_layout(
+    ty: &Type,
+    profile: &TargetProfile,
+    span: Option<Span>,
+    budget: &mut Budget,
+) -> Check<(u64, u64, bool)> {
+    budget.spend(1)?;
+    let mut fields_layout = |fields: &[Type]| -> Check<(u64, u64, bool)> {
+        budget.spend(fields.len())?;
+        let (mut bytes, mut maximum, mut payload) = (0u64, 1u64, false);
+        for field in fields {
+            let (size, align, child_payload) = pod_layout(field, profile, span, budget)?;
+            payload |= child_payload;
+            bytes = bounded(align_to(bytes, align)?.checked_add(size))?;
+            maximum = maximum.max(align);
+        }
+        Ok((align_to(bytes, maximum)?, maximum, payload))
+    };
+    Ok(match ty {
+        // Aggregate fields use the existing empty Unit struct (capture flags
+        // have a different representation and do not define this layout).
+        Type::Unit => (0, 1, false),
+        Type::Bool | Type::U8 => (1, 1, true),
+        Type::U16 => (2, 2, true),
+        Type::I32 | Type::F32 => (4, 4, true),
+        Type::I64 | Type::U64 | Type::F64 => (8, 8, true),
+        Type::Usize => {
+            let width = u64::from(profile.pointer_width / 8);
+            (width, width, true)
+        }
+        Type::Tuple(fields) => fields_layout(fields)?,
+        Type::Array { element, length } => {
+            let (size, align, payload) = pod_layout(element, profile, span, budget)?;
+            (
+                bounded(size.checked_mul(u64::from(*length)))?,
+                align,
+                payload && *length > 0,
+            )
+        }
+        Type::Record { name, fields } => {
+            budget.spend(name.len().saturating_add(fields.len()))?;
+            if name.is_empty() {
+                return Err(reject(
+                    "E-VERIFY-AGGREGATE",
+                    span,
+                    "empty POD record identity",
+                ));
+            }
+            let (mut bytes, mut maximum, mut payload) = (0u64, 1u64, false);
+            // Prepay all name comparisons and set entries before insertion.
+            for (name, _) in fields {
+                budget.spend(
+                    name.len()
+                        .saturating_add(1)
+                        .saturating_mul(fields.len().saturating_add(1)),
+                )?;
+            }
+            let mut names = BTreeSet::new();
+            for (name, field) in fields {
+                if name.is_empty() || !names.insert(name) {
+                    return Err(reject(
+                        "E-VERIFY-AGGREGATE",
+                        span,
+                        "POD record fields require unique nonempty identities",
+                    ));
+                }
+                let (size, align, child_payload) = pod_layout(field, profile, span, budget)?;
+                payload |= child_payload;
+                bytes = bounded(align_to(bytes, align)?.checked_add(size))?;
+                maximum = maximum.max(align);
+            }
+            (align_to(bytes, maximum)?, maximum, payload)
+        }
+        _ => {
+            return Err(unsupported(
+                "POD Store field tree contains a forbidden type",
+                span,
+            ));
+        }
+    })
+}
+
+// POD copies and comparisons have their own prepaid request cost. Calling
+// this only on the new family preserves the historical Package fees.
+fn pod_type_work(ty: &Type, budget: &mut Budget) -> Check<()> {
+    budget.spend(1)?;
+    resources::charge_payload(ty, budget)
+}
+
+fn pod_name_work(element: &Type, budget: &mut Budget) -> Check<()> {
+    let Type::Record { name, .. } = element else {
+        return Ok(());
+    };
+    budget.spend(PREFIX.len().saturating_add(name.len()).saturating_add(1))
+}
+
+/// Ordinary Copy instructions also transport Store protocols. Prepay their
+/// actual operand/result and source-local type copies, before dispatch clones
+/// or compares anything. The module inventory enabling this is independently
+/// derived from complete raw types, never from a producer permission bit.
+pub(super) fn instruction_type_work(
+    module: &TypedModule,
+    function: &TypedFunction,
+    instruction: &Instruction,
+    budget: &mut Budget,
+) -> Check<()> {
+    let span = Some(instruction.span);
+    if let Some(result) = instruction.result {
+        pod_type_work(value_type(function, result, span)?, budget)?;
+    }
+    for value in instruction_operands(&instruction.kind) {
+        pod_type_work(value_type(function, value, span)?, budget)?;
+    }
+    match instruction.kind {
+        InstructionKind::Load(local)
+        | InstructionKind::TakeLocal { local }
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::DescribeLocal { local }
+        | InstructionKind::Store { local, .. } => {
+            pod_type_work(local_type(function, local, span)?, budget)?;
+        }
+        InstructionKind::Call {
+            function: callee, ..
+        } => {
+            if let Some(callee) = module.functions.get(callee.0 as usize) {
+                pod_type_work(&callee.return_type, budget)?;
+                for parameter in &callee.parameters {
+                    pod_type_work(local_type(callee, *parameter, span)?, budget)?;
+                }
+            }
+        }
+        _ => {}
+    }
+    Ok(())
+}
+
 pub(super) fn element(ty: &Type) -> Option<&Type> {
     let (Type::Managed(payload) | Type::Desc(payload)) = ty else {
         return None;
@@ -18,6 +181,16 @@ pub(super) fn element(ty: &Type) -> Option<&Type> {
 
 pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
+}
+
+pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
+    if matches!(element(ty), Some(Type::Record { .. })) {
+        return Err(unsupported(
+            "POD Store ownership is not admitted in owning aggregate fields",
+            span,
+        ));
+    }
+    Ok(())
 }
 
 fn check_capture_leaf_tree(element: &Type, budget: &mut Budget) -> Check<()> {
@@ -270,6 +443,9 @@ fn check_element_admission(
     product_container: bool,
     budget: &mut Budget,
 ) -> Check<()> {
+    if matches!(element, Type::Record { .. }) {
+        return check_pod_element(element, &module.target, span, budget);
+    }
     resources::charge_payload(element, budget)?;
     if packages::has_children(element) {
         if !product_container {
@@ -567,8 +743,11 @@ fn layout(
         Type::Unit => (0, 1),
         Type::Bool | Type::U8 => (1, 1),
         Type::U16 => (2, 2),
-        Type::I32 => (4, 4),
+        Type::I32 | Type::F32 => (4, 4),
         Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::F64
         | Type::ForeignHandle
         | Type::CWideString
         | Type::FunctionPointer { .. }
@@ -621,7 +800,7 @@ fn layout(
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
-    let Type::Package { name, .. } = element else {
+    let (Type::Package { name, .. } | Type::Record { name, .. }) = element else {
         unreachable!("checked Store element")
     };
     format!("{PREFIX}{name}>")
@@ -647,6 +826,7 @@ pub(super) fn check_definition(
         ));
     };
     check_element_with_limits(module, element, None, Some(limits), budget)?;
+    pod_name_work(element, budget)?;
     if definition.name != definition_name(element) || definition.teardown.is_some() {
         return Err(reject(
             "E-VERIFY-OWNED-STORE",
@@ -672,6 +852,7 @@ pub(super) fn check_carrier(
         ));
     };
     check_store_element(module, element, span, budget)?;
+    pod_name_work(element, budget)?;
     let name = definition_name(element);
     budget.spend(
         module
@@ -679,6 +860,13 @@ pub(super) fn check_carrier(
             .len()
             .saturating_mul(name.len().saturating_add(1)),
     )?;
+    if matches!(element, Type::Record { .. }) {
+        for resource in &module.resources {
+            // Charge both actual trees before comparing full nominal types.
+            pod_type_work(element, budget)?;
+            pod_type_work(&resource.payload, budget)?;
+        }
+    }
     if !module.resources.iter().any(|r| r.name == name && r.teardown.is_none()
         && matches!(&r.payload, Type::OwnedStore { element: actual } if actual.as_ref() == element)) {
         return Err(reject("E-VERIFY-OWNED-STORE", span, "Store carrier lacks its canonical sealed definition"));
@@ -697,6 +885,12 @@ pub(super) fn check_instruction(
     let bad = |message| reject("E-VERIFY-OWNED-STORE", span, message);
     if let InstructionKind::OwnedStoreNew { element } = &instruction.kind {
         check_store_element(module, element, span, budget)?;
+        if matches!(element, Type::Record { .. }) {
+            pod_type_work(element, budget)?;
+            if let Some(result) = instruction.result {
+                pod_type_work(value_type(function, result, span)?, budget)?;
+            }
+        }
         let ty = Type::Managed(Box::new(Type::OwnedStore {
             element: Box::new(element.clone()),
         }));
@@ -719,6 +913,18 @@ pub(super) fn check_instruction(
     }
     check_carrier(module, carrier, span, budget)?;
     let element = element(carrier).expect("checked Store carrier");
+    if matches!(element, Type::Record { .. }) {
+        pod_type_work(element, budget)?;
+        if let Some(result) = instruction.result {
+            pod_type_work(value_type(function, result, span)?, budget)?;
+        }
+        if matches!(instruction.kind, InstructionKind::OwnedStorePush { .. }) {
+            pod_type_work(
+                value_type(function, extra.expect("push value"), span)?,
+                budget,
+            )?;
+        }
+    }
     let result = match instruction.kind {
         InstructionKind::OwnedStoreReserve { .. } => {
             if value_type(function, extra.expect("reserve capacity"), span)? != &Type::I64 {
@@ -730,7 +936,7 @@ pub(super) fn check_instruction(
             if matches!(
                 instruction.kind,
                 InstructionKind::OwnedStoreBorrowMut { .. }
-            ) && packages::has_children(element)
+            ) && (matches!(element, Type::Record { .. }) || packages::has_children(element))
             {
                 return Err(unsupported(
                     "Product Store elements currently expose only shared windows",

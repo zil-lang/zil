@@ -839,6 +839,12 @@ impl Resolver<'_> {
     }
     fn field_type(&mut self, field: &CoreField, depth: usize) -> R<Type> {
         let resolved = self.ty(&field.ty, depth, field.span)?;
+        if matches!(dynamic_store::element(&resolved), Some(Type::Record { .. })) {
+            return Err(unsupported(
+                field.span,
+                "POD Store ownership in aggregate fields is not implemented",
+            ));
+        }
         if dynamic_store::is_carrier(&resolved) && !field.manages {
             return Err(unsupported(
                 field.span,
@@ -890,6 +896,7 @@ impl Resolver<'_> {
         {
             return Ok(true);
         }
+        dynamic_store::charge_pod(ty, &self.generic_limits, span, &mut self.remaining)?;
         if dynamic_store::supported_element(ty) {
             return Ok(true);
         }
@@ -1311,7 +1318,7 @@ impl Resolver<'_> {
                 if !self.store_element_shape(&element, depth, span)? {
                     return Err(unsupported(
                         span,
-                        "Store elements require nonzero complete direct-Managed Packages",
+                        "Store elements require nonzero finite POD Records or supported owning Packages",
                     ));
                 }
                 Type::OwnedStore {

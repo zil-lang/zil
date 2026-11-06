@@ -321,6 +321,7 @@ struct Budget {
     remaining: usize,
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
+    pod_stores: bool,
     sums: bool,
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
@@ -353,6 +354,7 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
+            pod_stores: false,
             sums: false,
             tasks: false,
             task_origin_roots: false,
@@ -1057,6 +1059,7 @@ fn check_type_shape(
     let mut pending = Vec::new();
     let mut options = Vec::new();
     let mut anonymous = Vec::new();
+    let mut pod_stores = Vec::new();
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
@@ -1115,6 +1118,18 @@ fn check_type_shape(
             }
             | Type::OwnedStore { element } => {
                 budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
+                if matches!(ty, Type::OwnedStore { .. })
+                    && matches!(element.as_ref(), Type::Record { .. })
+                {
+                    if context & (4 | 64 | 1 | 2) != 0 {
+                        return Err(unsupported(
+                            "POD Store ownership is not admitted inside owning aggregate fields",
+                            None,
+                        ));
+                    }
+                    budget.spend(1)?;
+                    pod_stores.push(element.as_ref());
+                }
                 pending.push((element, depth + 1, context));
             }
             Type::Slice { element } => {
@@ -1216,6 +1231,13 @@ fn check_type_shape(
             }
             _ => {}
         }
+    }
+    // Unused local/SSA/signature/definition types receive the same independent
+    // POD qualification, after the whole raw tree has passed the depth bound.
+    for element in pod_stores {
+        dynamic_store::check_pod_element(element, target, None, budget)?;
+        budget.pod_stores = true;
+        budget.head_descriptions = true;
     }
     // Fingerprint only after the complete raw type tree has been bounded.
     // This independently checks the sealed family key and payload shape.
@@ -1954,6 +1976,9 @@ fn check_instruction(
     budget: &mut Budget,
 ) -> Check<()> {
     let span = Some(instruction.span);
+    if budget.pod_stores {
+        dynamic_store::instruction_type_work(module, function, instruction, budget)?;
+    }
     if budget.stored_borrows {
         stored_flow::instruction_work(function, instruction, budget)?;
     }

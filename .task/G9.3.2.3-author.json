@@ -1,0 +1,58 @@
+{
+  "task": "G9.3.2.3",
+  "role": "implementation author; not independent review",
+  "base": "f655674982642c9f395a7593755c791f6c591242",
+  "production_commit": "ec4196ac16afd3afebfaaa12fd6de00584dfd897",
+  "test_source_binding": "Final fixture and receipt are committed together; production unchanged after the recorded production commit.",
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "target": "/workspace/.zil-env/target-G9.3.2-verify",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "jobs": 1
+  },
+  "focused_command": "cargo test --locked -p zil-verify --lib dynamic_store::tests -j1 -- --nocapture",
+  "focused_result": {
+    "passed": 28,
+    "failed": 0,
+    "filtered": 388
+  },
+  "other_checks": [
+    "cargo fmt -p zil-verify -- --check",
+    "cargo check --locked -p zil-verify --tests -j1",
+    "git diff --check"
+  ],
+  "exact_budgets": {
+    "pod_qualification": 33,
+    "complete_raw_request": 2495,
+    "complete_wire_request": 2495,
+    "legacy_two_callback_package": 223,
+    "legacy_captured_store_package": 1042,
+    "controls": "N pass; N-1 ResourceLimit; fresh N pass"
+  },
+  "coverage": [
+    "complete numeric Record/Tuple/Array layout and field identities",
+    "aggregate Unit=0, nonzero logical payload, zero/overflow layout",
+    "forbidden nested leaves including zero-length arrays",
+    "unused resource/local/SSA and full nominal canonical identity",
+    "complete Copy push/pop protocols and repeated Copy input without element debt",
+    "unique Store head release",
+    "actual shared Store window conflicts, caller last use and distinct roots",
+    "POD mutable Store view rejection and ordinary mutable Record address positive",
+    "Package/Product/Tuple/Enum/ownedErrorUnion and capture scope exclusion with old Store<Package> positive controls"
+  ],
+  "prior_failure": {
+    "passed": 27,
+    "failed": 1,
+    "cause": "New hand-built Copy protocol fixture lacked the existing root ScopeEnter requirement.",
+    "repair": "Added ScopeEnter, StorageLive/Dead and ScopeExit markers; production unchanged."
+  },
+  "retained_limits": [
+    "POD BorrowMut excluded",
+    "No new capture, owning Product/Sum or owner-array Store<POD> permission",
+    "Same helper call receiving both a shared element window and its may-written Store remains conservative; ordered general life/effect summaries are outside scope",
+    "Source/native integration, formal full tests and exact-commit independent review are root-owned"
+  ],
+  "rust_goals": "Independent raw safety and collection expressibility advance without implicit box/RC/locks or higher default limits. Rust runtime/RSS, compile and maintenance cost parity and product net advantage remain unmeasured."
+}

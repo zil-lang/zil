@@ -7,8 +7,8 @@
       "title": "正式最小流水线、公共接口与验收入口",
       "status": "Doing",
       "task_revision": 11,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
       "blocked_by": [],
       "requirements": [
@@ -166,8 +166,8 @@
       "title": "完整固定语法、无损树与表面归一化",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -316,8 +316,8 @@
       "title": "名字、类型、接收者、闭包形状与 trait",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -492,8 +492,8 @@
       "title": "已核编译期执行、属性和生成调度",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -626,8 +626,8 @@
       "title": "数据库、模块驱动、CLI/IDE与native脚本",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -773,8 +773,8 @@
       "title": "独立核验器与已核访问能力",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "B0"
@@ -911,8 +911,8 @@
       "title": "来源、顺序别名、管理路由与准确责任",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "T02",
@@ -1051,8 +1051,8 @@
       "title": "LLVM主路径、布局和最小内存运行原语",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "T05"
@@ -1186,8 +1186,8 @@
       "title": "完整CFG、闭包、析构及图容器",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "W1"
@@ -1380,8 +1380,8 @@
       "title": "挂起帧、取消、同步与真实完成根",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1521,8 +1521,8 @@
       "title": "两模块资源管理源码贯通",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "T01",
@@ -1655,8 +1655,8 @@
       "title": "语法、闭包和图演进端到端",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "W1",
@@ -1788,8 +1788,8 @@
       "title": "真实系统I/O、取消与外部回调贯通",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "T09",
@@ -1909,8 +1909,8 @@
       "title": "同语义产品对照与发布验收",
       "status": "Planned",
       "task_revision": 10,
-      "spec_hash": "5f5cce9faf7ca80c87d5091efffb8eaff70c9c9ca5d7b42f8f12a426b2a7cbaf",
-      "normative_hash": "52282ac36d5a775d9c8df5aa26b80e8645b2392892d91e54a14b21ccf5298ecf",
+      "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+      "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
       "base_revision": null,
       "blocked_by": [
         "W2",

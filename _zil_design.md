@@ -537,7 +537,7 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 
 #### 8.2.5 普通 POD 动态集合元素（G9.3.2）
 
-StoreElement在既有拥有Package族之外，接受完整有限且总布局非零的普通Record。递归字段只含Unit、Bool、U8/U16/I32/I64/U64/Usize/F32/F64、Record、Tuple、Array；按真实目标布局核大小、对齐、溢出及i64::MAX界限。嵌套零大小字段合法，但零长数组也须检查所有叶类型；总零大小、Enum/ErrorUnion、Address/Desc/Managed、callable/function/foreign/handle、OwnedStore/BorrowedStorage叶均不因Copy而放行。字段身份、顺序与完整名义类型不得擦除。
+StoreElement在既有拥有Package族之外，接受完整有限且总布局非零的普通Record。递归字段只含Unit、Bool、U8/U16/I32/I64/U64/Usize/F32/F64、Record、Tuple、Array；按真实目标布局核大小、对齐、溢出及i64::MAX界限。嵌套零大小字段合法，但零长数组也须检查所有叶类型。既有LLVM聚合内部Unit字段、Tuple成员及Array元素为空结构（size0/align1），空Record/Tuple同为零大小；独立布局保留原padding及这些规则，不能混用闭包捕获的Unit占位表示，也不改变旧ABI。总零大小、Enum/ErrorUnion、Address/Desc/Managed、callable/function/foreign/handle、OwnedStore/BorrowedStorage叶均不因Copy而放行。字段身份、顺序与完整名义类型不得擦除。
 
 普通std.store的T:StoreElement模板据此实例化；该bound本身不授予Copy、字段访问、拥有、give/create或capture权限。具体POD及外层既有push/pop错误协议沿普通Copy值规则；Store头仍是真实唯一管理资源，普通参数仍为Desc。复用完整OwnedStore类型、canonical资源名与opcode80–88；schema/Wire43及公开ABI不变。Types、Analyze、Verify各自核完整类型、未用定义和实际指令，不能由名字或生产者标记授予资格。
 

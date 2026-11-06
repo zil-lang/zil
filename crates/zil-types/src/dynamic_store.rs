@@ -86,6 +86,54 @@ pub(super) fn supported_element(ty: &Type) -> bool {
     legacy_element(ty)
         || callback_element(ty, |ty| matches!(ty, Type::Closure(_)))
         || product_element(ty)
+        || pod_element(ty)
+}
+
+/// This private predicate is called only after a complete type snapshot has
+/// bounded the input and reserved its traversal. It grants no capture profile.
+pub(super) fn pod_element(ty: &Type) -> bool {
+    fn bounded(n: Option<u64>) -> Option<u64> {
+        n.filter(|n| *n <= i64::MAX as u64)
+    }
+    fn align(n: u64, a: u64) -> Option<u64> {
+        bounded(n.checked_add(a - 1)).map(|n| n / a * a)
+    }
+    fn fields<'a>(ts: impl IntoIterator<Item = &'a Type>) -> Option<(u64, u64)> {
+        let (mut size, mut maximum) = (0u64, 1u64);
+        for t in ts {
+            let (bytes, alignment) = layout(t)?;
+            size = bounded(align(size, alignment)?.checked_add(bytes))?;
+            maximum = maximum.max(alignment);
+        }
+        Some((align(size, maximum)?, maximum))
+    }
+    fn layout(ty: &Type) -> Option<(u64, u64)> {
+        Some(match ty {
+            Type::Unit => (0, 1),
+            Type::Bool | Type::U8 => (1, 1),
+            Type::U16 => (2, 2),
+            Type::I32 | Type::F32 => (4, 4),
+            Type::I64 | Type::U64 | Type::Usize | Type::F64 => (8, 8),
+            Type::Record { fields: ts, .. } => fields(ts.iter().map(|(_, t)| t))?,
+            Type::Tuple(ts) => fields(ts)?,
+            Type::Array { element, length } => {
+                // Validate the element even when no runtime item is present.
+                let (size, alignment) = layout(element)?;
+                (bounded(size.checked_mul(u64::from(*length)))?, alignment)
+            }
+            _ => return None,
+        })
+    }
+    matches!(ty, Type::Record { .. }) && layout(ty).is_some_and(|(size, _)| size > 0)
+}
+
+/// Extra work is exclusive to the new Record family. Legacy Package receipts
+/// keep their exact charges. Call before the private POD predicate or new copy.
+pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
+    if matches!(ty, Type::Record { .. }) {
+        inference::charge_type_snapshot(ty, span, limits, remaining, 4)?;
+    }
+    Ok(())
 }
 
 /// Container qualification is explicit. Owning captures add their own complete
@@ -381,7 +429,7 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
-    let Type::Package { name, .. } = element else {
+    let (Type::Package { name, .. } | Type::Record { name, .. }) = element else {
         unreachable!("checked Store element")
     };
     format!("@builtin:OwnedStore<{name}>")
@@ -393,6 +441,7 @@ pub(super) fn add_definitions(
     closures: &[ClosureDefinition],
     bound_elements: &[(Type, Span)],
     limits: &Limits,
+    remaining: &mut usize,
 ) -> R<()> {
     let mut work = limits.max_analysis_steps;
     let exhausted = || {
@@ -420,15 +469,19 @@ pub(super) fn add_definitions(
             let mut pending = vec![ty];
             while let Some(ty) = pending.pop() {
                 if let Some(element) = element(ty) {
+                    charge_pod(element, limits, function.span, remaining)?;
                     let cost = inference::type_snapshot_work(element, function.span, limits)?;
                     work = work
                         .checked_sub(cost.saturating_add(2))
                         .ok_or_else(exhausted)?;
-                    if !legacy_element(element) && !product_element(element) {
+                    if !legacy_element(element)
+                        && !product_element(element)
+                        && !pod_element(element)
+                    {
                         if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                             return Err(unsupported(
                                 function.span,
-                                "Store elements require finite direct-Managed Packages with at most two self-contained callbacks",
+                                "Store elements require finite POD Records or supported owning Packages",
                             ));
                         }
                         check_callback_captures(
@@ -439,8 +492,25 @@ pub(super) fn add_definitions(
                             function.span,
                         )?;
                     }
+                    if matches!(element, Type::Record { .. }) {
+                        // Cover the canonical name copy and ordered-map key
+                        // comparisons before constructing or looking up it.
+                        *remaining = remaining
+                            .checked_sub(cost.saturating_mul(found.len().saturating_add(2)))
+                            .ok_or_else(exhausted)?;
+                    }
                     let name = definition_name(element);
                     if let Some(old) = found.get(&name) {
+                        if matches!(element, Type::Record { .. }) {
+                            inference::charge_type_snapshot(
+                                old,
+                                function.span,
+                                limits,
+                                remaining,
+                                1,
+                            )?;
+                            *remaining = remaining.checked_sub(cost).ok_or_else(exhausted)?;
+                        }
                         if old != element {
                             return Err(error(
                                 "E-OWNED-STORE-TYPE",
@@ -482,24 +552,34 @@ pub(super) fn add_definitions(
     // constraint even when its body only transfers T and never makes a Store.
     // Reuse the same canonical definition, with no value or ownership event.
     for (element, span) in bound_elements {
+        charge_pod(element, limits, *span, remaining)?;
         let cost = inference::type_snapshot_work(element, *span, limits)?;
         work = work
             .checked_sub(cost.saturating_mul(2).saturating_add(2))
             .ok_or_else(exhausted)?;
-        if !legacy_element(element) && !product_element(element) {
+        if !legacy_element(element) && !product_element(element) && !pod_element(element) {
             if !callback_element(element, |ty| matches!(ty, Type::Closure(_))) {
                 return Err(unsupported(
                     *span,
-                    "StoreElement bindings require finite direct-Managed Packages with at most two self-contained callbacks",
+                    "StoreElement bindings require finite POD Records or supported owning Packages",
                 ));
             }
             check_callback_captures(element, closures, &mut work, limits, *span)?;
+        }
+        if matches!(element, Type::Record { .. }) {
+            *remaining = remaining
+                .checked_sub(cost.saturating_mul(found.len().saturating_add(2)))
+                .ok_or_else(exhausted)?;
         }
         let name = definition_name(element);
         work = work
             .checked_sub(found.len().saturating_mul(name.len().saturating_add(1)))
             .ok_or_else(exhausted)?;
         if let Some(old) = found.get(&name) {
+            if matches!(element, Type::Record { .. }) {
+                inference::charge_type_snapshot(old, *span, limits, remaining, 1)?;
+                *remaining = remaining.checked_sub(cost).ok_or_else(exhausted)?;
+            }
             let old_cost = inference::type_snapshot_work(old, *span, limits)?;
             work = work
                 .checked_sub(cost.saturating_add(old_cost))
@@ -552,12 +632,15 @@ impl Builder<'_, '_> {
         }
         let (kind, ty) = if name == "store_new" {
             let element = expected.and_then(element).ok_or_else(|| error("E-OWNED-STORE-TYPE", span, "store_new requires a concrete Store<Package> annotation or owning result context"))?;
+            if matches!(element, Type::Record { .. }) {
+                self.closures.snapshot_type(element, 4, 0, span)?;
+            }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
             self.closures.snapshot(work.saturating_mul(4), span)?;
             if !supported_element(element) {
                 return Err(unsupported(
                     span,
-                    "Store elements require nonzero complete direct-Managed Packages",
+                    "Store elements require nonzero finite POD Records or supported owning Packages",
                 ));
             }
             (
@@ -578,13 +661,16 @@ impl Builder<'_, '_> {
                     "Store primitive requires its real resource description",
                 )
             })?;
+            if matches!(element, Type::Record { .. }) {
+                self.closures.snapshot_type(element, 4, 0, span)?;
+            }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
             self.closures.snapshot(work.saturating_mul(4), span)?;
             let element = element.clone();
             if !supported_element(&element) {
                 return Err(unsupported(
                     span,
-                    "Store elements require nonzero complete direct-Managed Packages",
+                    "Store elements require nonzero finite POD Records or supported owning Packages",
                 ));
             }
             let kind = match name {
@@ -599,6 +685,12 @@ impl Builder<'_, '_> {
                     InstructionKind::OwnedStorePush { store, value }
                 }
                 "store_at" | "store_at_mut" => {
+                    if name == "store_at_mut" && matches!(element, Type::Record { .. }) {
+                        return Err(unsupported(
+                            span,
+                            "POD Store elements expose only shared windows",
+                        ));
+                    }
                     if name == "store_at_mut" && packages::product::nested(&element) {
                         return Err(unsupported(
                             span,
@@ -628,5 +720,147 @@ impl Builder<'_, '_> {
         }
         let value = self.value(kind, ty.clone(), span)?;
         Ok((value, ty))
+    }
+}
+
+#[cfg(test)]
+mod pod_tests {
+    use super::*;
+
+    fn record(field: Type) -> Type {
+        Type::Record {
+            name: "Vertex".into(),
+            fields: vec![("value".into(), field)],
+        }
+    }
+
+    #[test]
+    fn pod_store_requires_complete_nonzero_numeric_records() {
+        let numeric = record(Type::Tuple(vec![
+            Type::F32,
+            Type::F64,
+            Type::U64,
+            Type::Usize,
+            Type::Array {
+                element: Box::new(Type::Unit),
+                length: 0,
+            },
+        ]));
+        assert!(pod_element(&numeric));
+        assert!(supported_element(&numeric));
+        assert_eq!(definition_name(&numeric), "@builtin:OwnedStore<Vertex>");
+        for field in [
+            Type::Unit,
+            Type::ForeignHandle,
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(Type::I32),
+            },
+            Type::Array {
+                element: Box::new(Type::ForeignHandle),
+                length: 0,
+            },
+            Type::Array {
+                element: Box::new(Type::Array {
+                    element: Box::new(Type::U64),
+                    length: u32::MAX,
+                }),
+                length: u32::MAX,
+            },
+        ] {
+            assert!(!pod_element(&record(field)));
+        }
+        assert!(!pod_element(&Type::I32));
+        assert!(!pod_element(&Type::Tuple(vec![Type::I32])));
+    }
+
+    #[test]
+    fn pod_qualification_work_has_exact_failure_and_fresh_retry() {
+        let ty = record(Type::Array {
+            element: Box::new(Type::F32),
+            length: 5,
+        });
+        let limits = Limits::default();
+        let span = Span::new(zil_base::FileId(0), 0, 1);
+        let mut remaining = limits.max_analysis_steps;
+        charge_pod(&ty, &limits, span, &mut remaining).unwrap();
+        let cost = limits.max_analysis_steps - remaining;
+        assert!(cost > 0);
+        for allowance in [cost, cost - 1, cost] {
+            let mut remaining = allowance;
+            let result = charge_pod(&ty, &limits, span, &mut remaining);
+            assert_eq!(result.is_ok(), allowance == cost);
+        }
+    }
+    #[test]
+    fn pod_definition_registration_borrows_current_request_work() {
+        let ty = record(Type::Tuple(vec![Type::F32, Type::U64]));
+        let limits = Limits::default();
+        let span = Span::new(zil_base::FileId(0), 0, 1);
+        let bound = [(ty.clone(), span)];
+        let mut remaining = limits.max_analysis_steps;
+        let mut definitions = Vec::new();
+        add_definitions(&[], &mut definitions, &[], &bound, &limits, &mut remaining).unwrap();
+        let cost = limits.max_analysis_steps - remaining;
+        assert!(cost > 0);
+        assert_eq!(
+            definitions[0].payload,
+            Type::OwnedStore {
+                element: Box::new(ty)
+            }
+        );
+        for allowance in [cost, cost - 1, cost] {
+            let mut remaining = allowance;
+            let mut definitions = Vec::new();
+            let result =
+                add_definitions(&[], &mut definitions, &[], &bound, &limits, &mut remaining);
+            assert_eq!(result.is_ok(), allowance == cost);
+            if let Err(d) = result {
+                assert_eq!(d.category, zil_base::ResultCategory::ResourceLimit);
+            }
+        }
+    }
+    #[test]
+    fn pod_store_does_not_inherit_package_or_sum_ownership() {
+        let head = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(record(Type::F32)),
+        }));
+        let bag = Type::Package {
+            name: "Bag".into(),
+            fields: vec![("items".into(), head.clone())],
+        };
+        assert!(!packages::supported(&bag));
+        assert!(!packages::product::owned_supported(&bag));
+        assert!(!owned_shapes::value(&bag));
+        assert!(!owned_shapes::sum(&Type::Tuple(vec![head.clone()])));
+        assert!(resources::supported(&head));
+        let created = Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(head.clone()),
+        };
+        assert!(!errors::supported(&created));
+        let hidden_bag = Type::Package {
+            name: "Hidden".into(),
+            fields: vec![("items".into(), created)],
+        };
+        assert!(!owned_shapes::value(&hidden_bag));
+        let owned = Type::Package {
+            name: "Owned".into(),
+            fields: vec![("bytes".into(), Type::Managed(Box::new(Type::ByteBuffer)))],
+        };
+        let old_head = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(owned),
+        }));
+        let old_bag = Type::Package {
+            name: "OldBag".into(),
+            fields: vec![("items".into(), old_head)],
+        };
+        assert!(packages::supported(&old_bag));
+        assert!(packages::product::owned_supported(&old_bag));
+        assert!(owned_shapes::value(&old_bag));
     }
 }
