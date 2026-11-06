@@ -2381,7 +2381,7 @@ impl<'a> Builder<'a, '_> {
             stored::shared_value(ty) || stored::shared_address(ty)
         }) {
             let (storage, address_ty) = self.projection_base(object, false)?;
-            let Type::Address { inner, .. } = &address_ty else {
+            let Type::Address { mutable, inner } = &address_ty else {
                 unreachable!()
             };
             self.closures.snapshot_type(inner, 2, 2, e.span)?;
@@ -2416,7 +2416,7 @@ impl<'a> Builder<'a, '_> {
                     index,
                 },
                 Type::Address {
-                    mutable: false,
+                    mutable: *mutable,
                     inner: Box::new(ty.clone()),
                 },
                 e.span,
