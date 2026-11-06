@@ -208,7 +208,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
-| G9.3.2 | 普通 POD 动态集合与真实借入视图 | 进行中 | P0 | root 集成 / sol high 并行 | [冻结合同](https://github.com/zil-lang/zil/blob/f655674982642c9f395a7593755c791f6c591242/changes/G9.3.2-pod-store.md)：普通 struct 的 std.store、reserve/push/pop/shared view，含大 Copy 协议；四路源码已备份；Source/类型与初版安全核已独审，真实大元素 O0 栈帧和综合用例分析收敛正在修，尚未验收。 |
+| G9.3.2 | 普通 POD 动态集合与真实借入视图 | 进行中 | P0 | root 集成 / sol high 并行 | [冻结合同](https://github.com/zil-lang/zil/blob/148014641f9244d5814373e5adaacd4a013676fe/changes/G9.3.2-pod-store.md)：普通 struct 的 std.store、reserve/push/pop/shared view，含大 Copy 协议；四路源码已备份并通过独审；原大元素 O0/O2、复杂协议和 API 共同 25 项通过，当前重跑整仓验收。 |
 
 <details>
 <summary>G9.3.2 · 子任务</summary>
@@ -216,9 +216,9 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G9.3.2.1 | 普通 POD 与 StoreElement 模板、Source/Types 接入 | 实现待验 | P0 | pod_source · sol high | 已推源码 2fd24558a、独审通过；真实 std.store 首轮通过，待共同全量验收。 |
-| G9.3.2.2 | Analyze 独立准入及实际 Store 借用窗口 | 进行中 | P0 | pod_kernels · sol high | 未用定义、完整身份与布局、预付预算；保留旧路径。 |
-| G9.3.2.3 | Verify 独立准入及候选复核 | 进行中 | P0 | pod_verify · sol high | 独立作者实现，不复用 Analyze 求证；raw/Wire 反例。 |
-| G9.3.2.4 | LLVM 完整 Copy 协议与大元素内存路径 | 进行中 | P0 | pod_machine · sol high | push/pop 完整协议阈值、失败保留及一次释放；O0/O2 验收待集成。 |
+| G9.3.2.2 | Analyze 独立准入及实际 Store 借用窗口 | 实现待验 | P0 | pod_kernels · sol high | 独审通过；完整资格、实际根及预算内收敛已测，待整仓验收。 |
+| G9.3.2.3 | Verify 独立准入及候选复核 | 实现待验 | P0 | pod_verify · sol high | 独审通过；raw/Wire、实际失效与独立预算优化已测，待整仓验收。 |
+| G9.3.2.4 | LLVM 完整 Copy 协议与大元素内存路径 | 实现待验 | P0 | pod_machine · sol high | 大值协议、一次释放及默认栈 O0/O2 通过；栈槽复用经 Astra 疑难独审，待整仓验收。 |
 
 </details>
 
