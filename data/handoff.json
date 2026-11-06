@@ -1,8 +1,110 @@
 {
   "schema_version": 2,
-  "scope": "Current handoff record integrity; historical availability is separate. Not language correctness, review quality or full task acceptance.",
+  "scope": "Main-tree engineering and delivery record integrity; historical availability is separate. Does not read the live goal board or check all development branches; not language correctness, review quality or full task acceptance.",
   "status": "CurrentPass",
   "snapshot_only": true,
+  "live_plan": {
+    "branch": "goal",
+    "path": "goal.md",
+    "refresh_command": "git fetch origin refs/heads/goal:refs/remotes/origin/goal",
+    "read_command": "git show refs/remotes/origin/goal:goal.md"
+  },
+  "live_plan_checked": false,
+  "development_branches_checked": false,
+  "goal_implementation_notes": {
+    "scope": "Canonical Goal ID filenames only; note contents, review and acceptance are not validated.",
+    "validated": false,
+    "paths": [
+      ".task/G1.3.1.md",
+      ".task/G1.3.2.md",
+      ".task/G1.3.3.md",
+      ".task/G1.3.4.1.md",
+      ".task/G1.3.4.md",
+      ".task/G1.3.5.1.md",
+      ".task/G1.3.5.2.md",
+      ".task/G1.3.5.md",
+      ".task/G1.3.6.1.md",
+      ".task/G1.3.6.md",
+      ".task/G1.3.7.1.md",
+      ".task/G1.3.7.2.md",
+      ".task/G1.3.7.3.md",
+      ".task/G1.3.7.md",
+      ".task/G1.3.8.1.md",
+      ".task/G1.3.8.2.md",
+      ".task/G1.3.8.3.md",
+      ".task/G1.3.8.md",
+      ".task/G1.3.9.md",
+      ".task/G1.3.md",
+      ".task/G10.1.1.md",
+      ".task/G10.1.10.md",
+      ".task/G10.1.11.md",
+      ".task/G10.1.12.md",
+      ".task/G10.1.2.md",
+      ".task/G10.1.3.md",
+      ".task/G10.1.4.md",
+      ".task/G10.1.5.md",
+      ".task/G10.1.6.md",
+      ".task/G10.1.7.md",
+      ".task/G10.1.8.md",
+      ".task/G10.1.9.md",
+      ".task/G10.1.md",
+      ".task/G2.3.1.md",
+      ".task/G2.3.2.md",
+      ".task/G3.3.1.md",
+      ".task/G3.3.10.md",
+      ".task/G3.3.2.1.md",
+      ".task/G3.3.2.2.md",
+      ".task/G3.3.2.3.md",
+      ".task/G3.3.2.4.md",
+      ".task/G3.3.2.5.md",
+      ".task/G3.3.2.6.md",
+      ".task/G3.3.2.md",
+      ".task/G3.3.3.1.md",
+      ".task/G3.3.3.md",
+      ".task/G3.3.4.md",
+      ".task/G3.3.5.md",
+      ".task/G3.3.6.1.md",
+      ".task/G3.3.6.2.md",
+      ".task/G3.3.6.md",
+      ".task/G3.3.7.1.md",
+      ".task/G3.3.7.md",
+      ".task/G3.3.8.1.md",
+      ".task/G3.3.8.md",
+      ".task/G3.3.9.1.md",
+      ".task/G3.3.9.md",
+      ".task/G3.3.md",
+      ".task/G3.4.1.md",
+      ".task/G4.4.1.md",
+      ".task/G4.4.2.1.md",
+      ".task/G4.4.2.md",
+      ".task/G4.4.3.md",
+      ".task/G4.4.4.md",
+      ".task/G4.4.5.1.md",
+      ".task/G4.4.5.2.md",
+      ".task/G4.4.5.3.md",
+      ".task/G4.4.5.4.md",
+      ".task/G4.4.5.md",
+      ".task/G4.4.6.1.md",
+      ".task/G4.4.6.2.md",
+      ".task/G4.4.6.3.md",
+      ".task/G4.4.6.md",
+      ".task/G4.4.7.2.md",
+      ".task/G4.4.7.md",
+      ".task/G4.4.md",
+      ".task/G8.3.md",
+      ".task/G8.4.1.1.md",
+      ".task/G8.4.1.2.md",
+      ".task/G8.4.1.3.md",
+      ".task/G8.4.1.md",
+      ".task/G8.4.2.1.md",
+      ".task/G8.4.2.2.md",
+      ".task/G8.4.2.md",
+      ".task/G8.6.1.1.md",
+      ".task/G8.6.1.md",
+      ".task/G9.3.1.md",
+      ".task/G9.6.1.md"
+    ]
+  },
   "current_gate": {
     "status": "CurrentPass",
     "error_count": 0
@@ -23,280 +125,516 @@
   "authority": {
     "method": "git-main-worktree",
     "task_root": ".task",
+    "task_scope": "Main-tree engineering and delivery records only; live planning authority is goal:goal.md.",
     "verified": true,
     "branch": "main",
     "current_is_main": true,
-    "origin_main_tracking_head": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
+    "origin_main_tracking_head": "4550ec4083706f67771229a5213f19d885402e57",
     "remote_observation": "Local tracking ref only; no network or remote merge claim."
   },
-  "current_head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
-  "main_head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
-  "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-  "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d",
+  "current_head": "4550ec4083706f67771229a5213f19d885402e57",
+  "main_head": "4550ec4083706f67771229a5213f19d885402e57",
+  "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+  "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "8eab01ef02c3ec29cfbd84034bf78159f72f4e3c",
+      "head": "4550ec4083706f67771229a5213f19d885402e57",
       "is_main": true
     },
     {
-      "branch": "refs/heads/313",
-      "head": "2ef488be92647f4ec7c6f1a6195a6ba551f676b1",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/314",
-      "head": "d53b846af0e8075224697d4d600b8459362f0d6a",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/315",
-      "head": "c479b1d1ef0f03f0f6c8b96433d9c5f633a25d3b",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/316",
-      "head": "165d802f24334a9cb0c0e817cb9ba14ab12a05b0",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/317",
-      "head": "260839fd786af6cea1dafec0c42b78fc165c51b7",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/320",
-      "head": "4b42752fee6a4b900f027781a8906bdfec078842",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/321",
-      "head": "5d854592ebcd77b283fa43deb43fbe3cdd0bbd83",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/322",
-      "head": "88cbd7ca85e00eb5e99a523212e373c273ac35f2",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/323",
-      "head": "c183ce4ff09c444fd6e9b47a51a1c7f742457876",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/324",
-      "head": "5825cd582ac6b419d185b59486c7b7fc79f1bedb",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/325",
-      "head": "147c49819abb1a2afaf7e2458bdcd52c62c64269",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/326",
+      "branch": null,
       "head": "8f6ae9abbabd0100c26b434b37ce1aa7f3697cfe",
       "is_main": false
     },
     {
-      "branch": "refs/heads/327",
-      "head": "4485360a1bd1ff5e2c68a3b95728952e9900d6ea",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/328",
-      "head": "0c297f7fae81143cc33083cee03e8fb2f6c2bf66",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/329",
-      "head": "009cc29d3175d5e5af14d09df493e39c11e11736",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/330",
-      "head": "ff2aefae514a7f44369da545e73ca229a16002df",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/331",
-      "head": "0ecb774253de1824cf3688d852e6759b9b1bc727",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/332",
+      "branch": null,
       "head": "9d0294e4acc944b2963247c20621cb3eb088ad03",
       "is_main": false
     },
     {
-      "branch": "refs/heads/333",
-      "head": "fc9353c0e5917af6d204167ead6457aa04104ba7",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/334",
-      "head": "ce9a176da228d4946be6a1815f98ce60e22b727b",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/335",
-      "head": "437992b1eb6035afff40d386170f9c4a11ddc2c7",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/336",
-      "head": "06ab8c3724ed70d8d7af1a07660d5b519b500f57",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/337",
-      "head": "97fb6e7686a01a1715a639d494c45048773fc6e1",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/338",
-      "head": "9dca59eee9212382f2ebbe581e5d56c2cf050a63",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/339",
-      "head": "7423b4946e3787aa2a60764b473cde8307919bb7",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/340",
-      "head": "27985ddf5d75e51caa57e7b0f2ce0d7b1499bba9",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/341",
-      "head": "e5b3e9ae6fb637a72322f3c019a8463296bd93d6",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/342",
-      "head": "b377f8e9fbc91d6a3e795a63ea157e099c739887",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/342-capturefix",
-      "head": "c0927947690b1e6d56e3baa4e5f44691f3d74c79",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/343",
-      "head": "bcb5204e5f66ad7fcbb5ac7c03adfa630ed410ae",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/344",
-      "head": "6853a5b27f55a5e371448e45e623bd893e93a37d",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/344-typefix",
-      "head": "61685b04219bf0db5208bd7749b3a1440a8a8a83",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/345",
-      "head": "b7b0f25f12de8e11db7614fa0e359de7c3e103ce",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/budget-migration-by324",
-      "head": "32d7ffcb132f428b60fce0a6ca749ca12b5c2730",
+      "branch": null,
+      "head": "5e3e0495d9ad1267c84cfaea135e5f49e98ae5b2",
       "is_main": false
     },
     {
       "branch": null,
-      "head": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
+      "head": "aedda0e79d6d06de4fca3a9bdbbb539a4b72e2f0",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/batch336-astra",
-      "head": "26efd33107227a5b9c6c2a89d95cd2a915cc2e05",
+      "branch": null,
+      "head": "dc8ade8e701e72d1fe784a02e95ceb2cff29c1c9",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/terminal",
-      "head": "ea56df0f9b652b71a6c09d71d71d90db62228356",
+      "branch": null,
+      "head": "3f2543770f1616253e89ffb976b5baf283e72e3c",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/318",
-      "head": "ab4eccd14cbbe77d650ac465fc270f5f745a583c",
+      "branch": null,
+      "head": "c0927947690b1e6d56e3baa4e5f44691f3d74c79",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/319",
-      "head": "2c3da1661e6c6e2588b38bf30b8e0964d3a2b598",
+      "branch": null,
+      "head": "9e6698b27a08c8edb1990b2def5c1ed8a74c6180",
       "is_main": false
     },
     {
-      "branch": "refs/heads/review/322",
+      "branch": null,
+      "head": "731180f986d0df7b5c1f0d2d956fa6f4ef60cd8b",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "37fd067b6d2ada95961b7dc37b587a5317c7ea86",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "e9dd199c82f9f914fed7fe518cab46d2163d629d",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "61685b04219bf0db5208bd7749b3a1440a8a8a83",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "251809a418584a12a3ec4751767891625048e8ad",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "095e273376526a9f18ca5c9a7bbc39548bfbd927",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "ec60ab812686c20678b2c520cdbbbd07d3ec4cb1",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "d214fb5ff9e682ee5f81de988b711fbacf5c16f4",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "d49001092b6b98f04bfaf2185f67fe20d36862fe",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "32c6ae456891917366752058fbc69d4f5ee9e97a",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "4dc87401d6b9dbd8d77a74e4d7b40bd8c3ec8fe9",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "d66ea6f612f81544677867f22edd8737024b2c8b",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "088a028ad77dba6b0af312e7cba27e75d0e8c97e",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "d4e454e20dbfdd734a99e65a8eed10f9a860904e",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "6fb14e208527ec8a6a113f48e1a90adfdde2f1c4",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "9ef368b32a658b7d5f7cd6d69ea8267ecfabf2b1",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "ba2af02c54f1ab24bb4725990a32bbd8ad3d38d5",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "fc760502e39529d1222cdac39fda1147882fca37",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "a0f1b584e751658e7abb9f1a2eac3ec3ea965e61",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "7744ffe6ba1f5c523f3a4d1452f796ce91e5bf85",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "5c6af597731a903b6b520cf8ffc4fb96dd38baa7",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "5151444ffc21ae152eb48f5a50530a9ede21fc9b",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G10.1.12",
+      "head": "7ed91bc822cc6aed93d0a02f757d99875ebbb91a",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "a8d2ed706f8d052604d8bee2a103dfcd6785e4b3",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "365235ae94785e63daedbdd48cbcbc0fbd5c436c",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "b3043d1cc3333486a49fcfef35b70940821e3629",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "23484fdef72b146a0b4b797ee84422e6d57bdd20",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "52768815def26d96a442b337554e8d930ec69860",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "af8ec2d14f260768b862edb394091685fa6c5c2f",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "43709807e7f1f6a3f7fbfac9da0d378e6bf4179e",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "99504410956234b4d93b6cd220f28ea9dcb5f8a4",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "8d2bc5734d019d66048bef2e49be8371aefd1b1e",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "3654fd4b08d67a8fa5f10f42736cde0bd8146cec",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "aad071a3fe43bc281f234b6e483aba234ebf7891",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G3.4.1",
+      "head": "1eb5cecb674dd2cf8a3a739b8e7972904fe48eac",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G3.4.1-consumers",
+      "head": "c295fc41398539b24f8d44259a4bae0c428d3ff5",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G3.4.1-methods",
+      "head": "104a4a3338f36154ee64007a9ac0bf5e5f7802f4",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "05976f0480449034870b7c077e0a5d066a078fdf",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "05976f0480449034870b7c077e0a5d066a078fdf",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "c1acf063edc8b559535e488d29d8606ee009c7a8",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "f8e1eb94520af457247e8c2b34a6338431f76e00",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "100854f5f45d84b9c047ededfa605feea48089f1",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "78c8db3c010454b1085981a19f4268ffdbb9deb2",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "26c17568c52e9984b1951f8a68acec7b33067870",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "a207ce8ee5b837455ad5cd35898941d0a77ba276",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "3becb53c26626dbed7d5ddb1ad67ae458e3b7394",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "0530c39972fb7206b53141d16998263e1901008a",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "7cca60517a61a54bd312f9c05553304ed1c0921f",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "8bcdd8d511127b72ce6f814f535068432cdbe8c4",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "07b9e359bbeed89968f73f595b48c8c7d51c8ee3",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "8d1ba558d92a957a02986702d175b06f1e0393f0",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "991bb4f553f9e2ef033cd2baa06a2deade4ec6ba",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "fe15a401f5cfd23c51e4be5149308aeaaabd5cb8",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "67180ef2d70f4e3d2fe895cc7000873e8f4a7404",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "33d179d5023c80285fe50b563fc06ea08634bcd3",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "f73da2d3826eec4d43d72d01b79c33033d277e27",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "a88e17df08a9c6b2fe7237939c20b7391bf28e49",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "960614875a50b7fc99d561e99ec14488e710afa3",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "5bccd3cd2de833d51d7031a96ce6a0c3c33adecd",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "01d47eee6797d755e35938fc9769fc3733424944",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "1d609cc24e5b46f884bad63e53aacbb6636f2b37",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "2b3495700b8696fa275694a81e12193d9330846a",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "20d40f57580265788915f48f35ba567fe286b301",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "3a3b7649d40b5f12eca6882d94fe0d5654732e94",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "43881a0965c490a7086bf12199b9e9247c3df99f",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "c61802e6e5b9d968b913ee86ac99f61a0e6aeda5",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "53ae712520f83c58d6b31959e61a60f47fc48339",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "5b207389c70f8e2a2eb540667d2422675b238864",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "c3a1b606171124a37511a96466cb60bd75c6fcb1",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "57e5e8b430af91a0f237dfbe144a177ce41c03a0",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "a516dcbbc68608269f51ba1adc5dba598891faae",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.1",
+      "head": "ea713a48004e5c3c3de2f940ec3dbec3ebadb89e",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.1-backend",
+      "head": "afb2650380f2583ab47cefc4e1013b73cfbcdacc",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.1-kernels",
+      "head": "899c2ba640e154fb40e8f22f15302f1510c3290f",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "2bb0b026a57b61127db2a56687dd59056ec20097",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "9087959cd2018acbc1c888f4de129740ba41e3a0",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/goal",
+      "head": "5549719cc5611a86f5bd32c3a12879282d7c8c08",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "54e618a07c99126203d44d28b6f03a302e65c266",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "301a60cf5b1c9b6391966384412d972835be5c8c",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "d3d5c39bd5e73214ed63f8aac2e0f34f45f34431",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "449852818ee8d2199b63bd5e1c05da403728d9dc",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "bfd84b224a4b5089a7b8bd1c1503be5b80505faf",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "6be80252cd836900fb6d9d5067fcf4e188836730",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "ac8aaf94483ef889801252032cf313d2baeb4cc1",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "0760d243874d17f651cc4877193c7ffb98978266",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "be1084c9fe2ddcab7c9215522347fa218717be17",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "fe790f94f10b08025ecb041b6c4c503a59949f93",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "5ec284ae5257fae4dfc64142d866d58a4147c57d",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "1512f5ced96ddb676f1f719fc9c1dd2a4734f6c2",
+      "is_main": false
+    },
+    {
+      "branch": null,
+      "head": "0b35ea60996babf37b8b6cbc5ed8b19b1ae28b83",
+      "is_main": false
+    },
+    {
+      "branch": null,
       "head": "62aaedea97cd389172f0fe2d2d21344d4ad82160",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review324-by325",
-      "head": "7582f91e4a7f9a387231508b3871ee8b1e0ecd57",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review325-final-by323",
-      "head": "e1a0e44f4fcf884be6abecd263c73e6f158e0f38",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review328-by324",
-      "head": "24e5c1f86364bc12624fa1fe7ba0f7d04eecc0fa",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review329-by330",
-      "head": "23653bb687740b86b1f1b8b0b8d82e39cfaecfd6",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review329-astra",
-      "head": "edddbaadb976405fff520ea126926319945e5d10",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review/330",
-      "head": "76064979bf97fd78566420acf766349b7caa55aa",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review330-by333",
-      "head": "460985a3ac2b1a06978c05a83d4cdb2e616407e8",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review/332",
-      "head": "5da59617996d66906b6406b2e219c514f988a148",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review333-by332",
-      "head": "bcd2e403ac4f86a0220b74f5dff69e3be434f074",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review335-astra",
-      "head": "9b24f98d4ff2924e6c37581cc8a47755a722bc8b",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review/336-338",
-      "head": "3eb471be9a9ef68eca2d8efb1aaeb77656e90a54",
-      "is_main": false
-    },
-    {
-      "branch": "refs/heads/review/339-provenance",
-      "head": "b9177c458bb2ebebfc3a08ae5486b35df19a5c90",
       "is_main": false
     }
   ],
@@ -365,14 +703,14 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
-      "record_sha256": "01ba03e72b96cb7e7aec471bc255161265c5b0509a24857aa02b9ef0a1e8b0ea",
+      "record_sha256": "79ada38223e585e0970cdd2160c4694125a0592ff72405e6f02158529ffd8ce7",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": []
     },
@@ -381,14 +719,14 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "5cd38796c7b7ca3deb24073871b5bfe839ae145a34ab633be8edfec32c944ddb",
+      "record_sha256": "807b4ef5fd6b0af208fb4cdd9a99ed206127bffca554abfd0ede8c31f39d2150",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "B0"
@@ -399,14 +737,14 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "280af32beb9c73547435e6699fb20d29f88a42e43aa19e539ce26b27f556a04d",
+      "record_sha256": "6fbf2b42f93e1e69a0701d5d87726ef3fe2e3971cb96f4cdf615f77cfa87dc45",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "B0"
@@ -417,14 +755,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "d7bb1b2b858d791bad6de8ca7179dc7e5de0e005742cd18b159cb82b02f19b8e",
+      "record_sha256": "dd1059d23adf3f0cb285f0e7ec4963e982e2ee092cbc79461f2dfc17eb1bf5f6",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "T01",
@@ -437,14 +775,14 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "f79da4a1ae8f08f1d7432f7236442177da43a32f4e04120ceba8b126c69bd5a1",
+      "record_sha256": "80786ff987800079e8b7cd6df98647529f45f5d49d3a6c0518488c27b1483fb2",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "B0"
@@ -455,14 +793,14 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "743bc64d38bce21e319b48278ae62403ac08cd184494110e498c04f249863915",
+      "record_sha256": "6c569b288329ff8538b5598f165959ca72690078f3a13f5c9974951e414fbb6a",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "B0"
@@ -473,14 +811,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "8deee3b4163edb281139a12b9db27b350451ce20f2b48fe9c052af1b03dbd8f9",
+      "record_sha256": "58fbe26e57d6224e5d000a058ec7bd9561849376ca900b376fae19734a794ddd",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "T02",
@@ -492,14 +830,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "8ba9c8c810967db53eab019763c69a3c9527ac1336535d260760f85b56a53ca9",
+      "record_sha256": "48c746663fee011ebf55a943963da58cb242c932c0cfbe260484cf7bcba0eb1a",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "T05"
@@ -510,14 +848,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "337d7b747a8e712e9e43d7e497568b7fef425a21fd56a4220cb2de4b3d2ad379",
+      "record_sha256": "5663066302f4dea7c467279076e1982cf676fff141a60abb8864aea007c2228b",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "W1"
@@ -528,14 +866,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "7ea1535c22d0d5acf0752ae551b08438053c6fcc4f4533706100735d701fbbf2",
+      "record_sha256": "f115b8273e3e0b4d192160708c1e34354d10a0cfd29bd35c2e4f6b9f787e2b87",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "W1",
@@ -547,14 +885,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "50c16dbfae24ec59b7f33de129d6f4a9731d85cb90de1998692291d22eb3c598",
+      "record_sha256": "945757eccf0210813392d5f72f66380ce624de3fb9bb506488d73e748e9d19a6",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "T01",
@@ -570,14 +908,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "281d9cec2fda4bbea76b6850322c98186b26a714f00f9bc7991e71e802e37508",
+      "record_sha256": "6809ab284e6be3522e951277412e45ca7a015979ef4bb90b925c66d065e20baf",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "W1",
@@ -590,14 +928,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "d1b09e3a750615964ee1ff354c8502d7c8457693d45ef8bfa810ebe9625e4064",
+      "record_sha256": "235ca70308f0997154e17aedb40ff16371a64be801a268290461a161149a624e",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "T09",
@@ -609,14 +947,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "e865a98e2b1de2ac5e47833be8a3c2910124400901b3a6c5625cbea222601483",
+      "record_sha256": "64080a0f9a54951c19687fa29974f6b1e20799a36bfac825c386b9850f2c0ddd",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
+        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
       },
       "blocked_by": [
         "W2",
@@ -3000,14 +3338,14 @@
       "path": ".task/impl/181.md",
       "status": "施工",
       "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
-      "record_sha256": "bcc645f176cb3c1148186a13260486e72c81f1e13a6ed3e2f9a1143b270d6c1e",
+      "record_sha256": "4ac1f1fc7b1b742550946fb057b0e86cc9900037a3ecf7319374bf5409c7f8ed",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6105,14 +6443,14 @@
       "path": ".task/impl/340.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "174895ecd5409775496c37281d0abb0f48976e5778e5e8dc8d70e345b11d8221",
+      "record_sha256": "8265764f9fcdd889ac039ee3c1861e569f57db10a68448d766918863e8de9fc3",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6143,14 +6481,14 @@
       "path": ".task/impl/341.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "29e9a3746389972184d72630d24ca1341c779f7b3f308453d2b18627e6d527d8",
+      "record_sha256": "ec02ae9e79e6f5077ee68b13a5bc366a0857e145beaab91a5382b2c4fb898f82",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6174,14 +6512,14 @@
       "path": ".task/impl/342.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "f23904be1139d88ba4bd734fd8311591b779c717a058a0ca0e2ba432d271693c",
+      "record_sha256": "cf2427b04b26fe57d2f983c5362bdd1d3e3739f286053720f6c03c944c1dd2b2",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6200,7 +6538,9 @@
         "tests/language-readiness/mutable337/regressions.rs",
         "crates/zil-types/src/borrowed_fp.rs",
         "crates/zil-types/src/expressions.rs",
-        "crates/zil-types/src/lib.rs"
+        "crates/zil-types/src/lib.rs",
+        "crates/zil-lower/src/**",
+        "crates/zil-backend-llvm/src/**"
       ],
       "implementation_author": "/root/life342",
       "implementation_commit": null,
@@ -6211,14 +6551,14 @@
       "path": ".task/impl/343.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "4b28396fe4e5f347948ec920036b42c3d880e876565b7b12d72bf36f4f0f3d9f",
+      "record_sha256": "5185ddc9378862b57a9e9d61c62774a6235d19bd494fbe94cc2e0bcb0a3d7101",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6232,7 +6572,8 @@
         "changes/343-terminal.md",
         "tests/language-readiness/terminal/343/**",
         "docs/validation/terminal-343.json",
-        "crates/zil-llvm-api/src/**"
+        "crates/zil-llvm-api/src/**",
+        "crates/zil-llvm-api/**"
       ],
       "implementation_author": "/root/runtime343",
       "implementation_commit": null,
@@ -6243,14 +6584,14 @@
       "path": ".task/impl/344.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "bed90b4589c5eeead5fbab31d9e4096dffe2fbb8b98b425766819d23244ea560",
+      "record_sha256": "0e0ec0db508490532f61432273457f317d753a62af0f3ef8664fcb8335c36d1d",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6276,14 +6617,14 @@
       "path": ".task/impl/345.md",
       "status": "施工",
       "baseline": "bcc5714f2def7a61048bf43b214f0ec2e2aed56f",
-      "record_sha256": "9c52820963f0a1c2a5eaff450d647cdb8d11625c197d3cee24e52ceab6dce248",
+      "record_sha256": "a7d6d5dbbfebd8079310abeb1c87c058f3588144e57012191adc98f0d8536066",
       "committed": true,
       "evidence": [],
       "specification": {
-        "source": "current",
-        "revision": null,
-        "spec_hash": "00af6b579256b45454ada310352cc652e96b7af52b73e47e8f2afba510b9785a",
-        "normative_hash": "e52e15402a6ee8bd3104a40385f233521394fa4b2f1de74f0a4509e6929d1b0d"
+        "source": "specification_revision",
+        "revision": "83bdab1878e3d33d1cfa79cc1e0e3a83624938dd",
+        "spec_hash": "e98534f2973f2c2a96bf85c7924b11e963bdf87de7e179dc6747045772dbee2a",
+        "normative_hash": "beb8746a1010000605f10007396bf29370e86c0fc88cb18560d89f33f4777ea8"
       },
       "parent_task": "B0",
       "write_set": [
@@ -6303,49 +6644,54 @@
       "integration_commit": null
     }
   ],
-  "next": [
-    {
-      "id": "181",
-      "status": "施工",
-      "authoritative_task": ".task/impl/181.md"
-    },
-    {
-      "id": "340",
-      "status": "施工",
-      "authoritative_task": ".task/impl/340.md"
-    },
-    {
-      "id": "341",
-      "status": "施工",
-      "authoritative_task": ".task/impl/341.md"
-    },
-    {
-      "id": "342",
-      "status": "施工",
-      "authoritative_task": ".task/impl/342.md"
-    },
-    {
-      "id": "343",
-      "status": "施工",
-      "authoritative_task": ".task/impl/343.md"
-    },
-    {
-      "id": "344",
-      "status": "施工",
-      "authoritative_task": ".task/impl/344.md"
-    },
-    {
-      "id": "345",
-      "status": "施工",
-      "authoritative_task": ".task/impl/345.md"
-    }
-  ],
+  "next": [],
+  "recorded_open_slices": {
+    "scope": "Open states recorded in main-tree engineering history; not live assignments.",
+    "records": [
+      {
+        "id": "181",
+        "status": "施工",
+        "record_path": ".task/impl/181.md"
+      },
+      {
+        "id": "340",
+        "status": "施工",
+        "record_path": ".task/impl/340.md"
+      },
+      {
+        "id": "341",
+        "status": "施工",
+        "record_path": ".task/impl/341.md"
+      },
+      {
+        "id": "342",
+        "status": "施工",
+        "record_path": ".task/impl/342.md"
+      },
+      {
+        "id": "343",
+        "status": "施工",
+        "record_path": ".task/impl/343.md"
+      },
+      {
+        "id": "344",
+        "status": "施工",
+        "record_path": ".task/impl/344.md"
+      },
+      {
+        "id": "345",
+        "status": "施工",
+        "record_path": ".task/impl/345.md"
+      }
+    ]
+  },
   "commands": {
     "cold_start": "node tools/handoff.mjs --check",
     "legacy_audit": "node tools/handoff.mjs --check --legacy-audit",
     "restore": "git clone --branch main HISTORY_BUNDLE_PATH zil-checkout",
     "restore_hint": "Use the actual PACKAGE.json companion path. Cleanup-deleted objects/evidence remain unavailable.",
-    "plan": "python3 tools/check-plan.py --self-test",
+    "plan": "git show refs/remotes/origin/goal:goal.md",
+    "engineering_contract": "python3 tools/check-plan.py --self-test",
     "draft": "python3 tools/validate-draft.py"
   },
   "warnings": [],
