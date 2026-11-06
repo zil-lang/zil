@@ -2540,6 +2540,13 @@ fn run_function_data(
             }
         }
     }
+    #[cfg(test)]
+    TEST_RESOURCE_INPUTS.with(|capture| {
+        let mut capture = capture.borrow_mut();
+        if capture.is_some() {
+            *capture = Some(inputs.clone());
+        }
+    });
     for (b, input) in inputs.into_iter().enumerate() {
         if let Some(mut state) = input {
             transfer.block(b, &mut state, validate, &mut written, budget)?;
@@ -2734,6 +2741,7 @@ fn infer_effects_full_scan(
 #[cfg(test)]
 thread_local! {
     static TEST_EFFECT_SOLVES: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    static TEST_RESOURCE_INPUTS: std::cell::RefCell<Option<Vec<Option<State>>>> = const { std::cell::RefCell::new(None) };
 }
 
 pub(super) fn check_module(
