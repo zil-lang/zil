@@ -1121,9 +1121,9 @@ fn check_type_shape(
                 if matches!(ty, Type::OwnedStore { .. })
                     && matches!(element.as_ref(), Type::Record { .. })
                 {
-                    if context & 4 != 0 {
+                    if context & (4 | 64 | 1 | 2) != 0 {
                         return Err(unsupported(
-                            "POD Store ownership is not admitted inside Package or Product fields",
+                            "POD Store ownership is not admitted inside owning aggregate fields",
                             None,
                         ));
                     }

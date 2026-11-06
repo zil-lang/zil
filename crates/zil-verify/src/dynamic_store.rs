@@ -186,7 +186,7 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
 pub(super) fn check_owner_field(ty: &Type, span: Option<Span>) -> Check<()> {
     if matches!(element(ty), Some(Type::Record { .. })) {
         return Err(unsupported(
-            "POD Store ownership is not admitted in Package or Product fields",
+            "POD Store ownership is not admitted in owning aggregate fields",
             span,
         ));
     }

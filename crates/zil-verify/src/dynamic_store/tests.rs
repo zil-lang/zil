@@ -1471,3 +1471,46 @@ fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership()
         .is_err()
     );
 }
+
+#[test]
+fn pod932_new_head_family_does_not_inherit_owning_sum_containers() {
+    let limits = Limits::default();
+    let (old_store, old_resource) = captured_leaf_store();
+    let wrap = |store: Type| {
+        [
+            Type::Tuple(vec![store.clone()]),
+            Type::Enum {
+                name: "HeadEnum932".into(),
+                variants: vec![("Own".into(), vec![store.clone()])],
+            },
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(store),
+            },
+        ]
+    };
+    let mut old_module = module(vec![]);
+    old_module.resources.push(old_resource);
+    for old_container in wrap(old_store) {
+        sums::check_type_for(&old_module, &old_container, None, &mut Budget::new(&limits)).unwrap();
+    }
+    let (m, _) = pod_fixture(pod(vec![("n", Type::I64)]));
+    let store = m.functions[0].locals[0].ty.clone();
+    resources::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
+    sums::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
+    for container in wrap(store) {
+        assert!(sums::check_type_for(&m, &container, None, &mut Budget::new(&limits)).is_err());
+        let (mut candidate, plan) = pod_fixture(pod(vec![("n", Type::I64)]));
+        let span = candidate.functions[0].span;
+        candidate.functions[0].locals.push(LocalDecl {
+            id: LocalId(1),
+            name: "unused_sum".into(),
+            ty: container,
+            mutable: false,
+            span,
+        });
+        for result in pod_both(&candidate, &plan, &limits) {
+            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+        }
+    }
+}

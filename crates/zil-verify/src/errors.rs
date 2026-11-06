@@ -41,6 +41,7 @@ pub(super) fn check_type_for(
         return dynamic_store::check_store_element(module, payload, span, budget);
     }
     if matches!(result.as_ref(), Type::Managed(_)) {
+        dynamic_store::check_owner_field(result, span)?;
         // Only the success arm is opened, with a finite Copy error. Check the
         // nominal/sealed resource table independently of the source resolver.
         resources::charge_payload(error, budget)?;
