@@ -51,8 +51,9 @@ fn pod_layout(
         Ok((align_to(bytes, maximum)?, maximum, payload))
     };
     Ok(match ty {
-        // The existing stored aggregate ABI represents Unit fields as i8.
-        Type::Unit => (1, 1, false),
+        // Aggregate fields use the existing empty Unit struct (capture flags
+        // have a different representation and do not define this layout).
+        Type::Unit => (0, 1, false),
         Type::Bool | Type::U8 => (1, 1, true),
         Type::U16 => (2, 2, true),
         Type::I32 | Type::F32 => (4, 4, true),
