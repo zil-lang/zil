@@ -842,7 +842,7 @@ mod pod_tests {
             error: Box::new(Type::Unit),
             result: Box::new(head.clone()),
         };
-        assert!(errors::supported(&created));
+        assert!(!errors::supported(&created));
         let hidden_bag = Type::Package {
             name: "Hidden".into(),
             fields: vec![("items".into(), created)],
