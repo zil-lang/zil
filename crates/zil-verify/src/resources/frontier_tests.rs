@@ -572,13 +572,165 @@ fn pod_cfg_priority_preserves_complete_resource_and_sum_fixed_points() {
             mutable: true,
             span: span(),
         });
-        bad.functions[0].blocks[3].instructions.insert(
-            0,
-            instruction(None, InstructionKind::DropManaged { local: LocalId(3) }),
-        );
+        bad.functions[0].parameters.push(LocalId(3));
         let reference = solve(false, &bad);
         let priority = solve(true, &bad);
         assert!(reference.0.is_err());
         assert_eq!(reference, priority);
+    }
+}
+
+#[test]
+fn pod_cfg_priority_retains_copy_sum_guards_and_invalidation() {
+    let limits = Limits {
+        max_analysis_steps: 100_000_000,
+        ..Limits::default()
+    };
+    for case in 0..6 {
+        let choice = if case < 3 {
+            Type::Enum {
+                name: "Choice932".into(),
+                variants: vec![("A".into(), vec![Type::I32]), ("B".into(), vec![Type::I32])],
+            }
+        } else {
+            Type::ErrorUnion {
+                error: Box::new(Type::Unit),
+                result: Box::new(Type::I32),
+            }
+        };
+        let (root, tag_path) = match case % 3 {
+            0 => (choice, vec![]),
+            1 => (Type::Tuple(vec![choice]), vec![PlaceProjection::Field(0)]),
+            _ => (
+                Type::Package {
+                    name: "TaggedProduct932".into(),
+                    fields: vec![
+                        ("owner".into(), Type::Managed(Box::new(payload()))),
+                        ("choice".into(), choice),
+                    ],
+                },
+                vec![PlaceProjection::Field(1)],
+            ),
+        };
+        let mut payload_path = tag_path.clone();
+        payload_path.push(if case < 3 {
+            PlaceProjection::Variant(VariantProjection {
+                variant: 0,
+                index: 0,
+            })
+        } else {
+            PlaceProjection::ErrorArm(false)
+        });
+        for invalidation in [false, true] {
+            let mut module = fixture(&[vec![]], &[0]);
+            let f = &mut module.functions[0];
+            f.parameters = vec![LocalId(0)];
+            f.locals = vec![
+                root.clone(),
+                Type::I32,
+                payload(),
+                Type::Array {
+                    element: Box::new(Type::I64),
+                    length: 16,
+                },
+                Type::Managed(Box::new(payload())),
+            ]
+            .into_iter()
+            .enumerate()
+            .map(|(id, ty)| LocalDecl {
+                id: LocalId(id as u32),
+                name: format!("l{id}"),
+                ty,
+                mutable: true,
+                span: span(),
+            })
+            .collect();
+            f.values = vec![
+                Type::I32,
+                Type::I32,
+                Type::Bool,
+                Type::Address {
+                    mutable: false,
+                    inner: Box::new(Type::I32),
+                },
+            ];
+            let invalidate = || {
+                instruction(
+                    None,
+                    InstructionKind::Store {
+                        local: LocalId(1),
+                        value: ValueId(1),
+                    },
+                )
+            };
+            let mut guarded = vec![];
+            if invalidation {
+                guarded.push(invalidate());
+            }
+            guarded.push(instruction(
+                Some(3),
+                InstructionKind::BorrowPlaceLocal {
+                    local: LocalId(0),
+                    path: payload_path.clone(),
+                    mutable: false,
+                },
+            ));
+            f.blocks = vec![
+                BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![
+                        instruction(Some(1), InstructionKind::Constant(Constant::I32(0))),
+                        // Exercise the indexed invalidation before a fresh guard.
+                        // Its changed route/tag Content then reaches successor inputs.
+                        invalidate(),
+                        instruction(
+                            Some(0),
+                            InstructionKind::PlaceTagLocal {
+                                local: LocalId(0),
+                                path: tag_path.clone(),
+                            },
+                        ),
+                        instruction(
+                            Some(2),
+                            InstructionKind::Binary {
+                                op: BinaryOp::Equal,
+                                left: ValueId(0),
+                                right: ValueId(1),
+                            },
+                        ),
+                    ],
+                    terminator: Terminator::Branch {
+                        condition: ValueId(2),
+                        then_block: BlockId(1),
+                        else_block: BlockId(2),
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(1),
+                    instructions: guarded,
+                    terminator: Terminator::Return(Some(ValueId(1))),
+                },
+                BasicBlock {
+                    id: BlockId(2),
+                    instructions: vec![],
+                    terminator: Terminator::Return(Some(ValueId(1))),
+                },
+            ];
+            let graph = FunctionGraph {
+                successors: vec![vec![1, 2], vec![], vec![]],
+                predecessors: vec![vec![], vec![0], vec![0]],
+                reachable: vec![true; 3],
+                role_data_uses: Vec::new(),
+                package_views: packages::CaptureViews::default(),
+            };
+            assert_eq!(
+                sums::test_schedule_equivalence(&module, &module.functions[0], &graph, &limits),
+                !invalidation,
+                "case={case}"
+            );
+            if case == 0 && !invalidation {
+                sums::test_tagged_invalidation_budget(&module, &module.functions[0], &graph);
+            }
+        }
     }
 }

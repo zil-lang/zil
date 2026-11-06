@@ -2025,7 +2025,7 @@ pub(super) fn test_schedule_equivalence(
     f: &TypedFunction,
     graph: &FunctionGraph,
     limits: &Limits,
-) {
+) -> bool {
     let solve = |ranked| {
         TEST_SUM_INPUTS.with(|capture| *capture.borrow_mut() = Some(Vec::new()));
         let mut budget = Budget::new(limits);
@@ -2036,6 +2036,7 @@ pub(super) fn test_schedule_equivalence(
     };
     let (old_result, old_inputs) = solve(false);
     let (new_result, new_inputs) = solve(true);
+    let accepted = old_result.is_ok();
     assert!(
         old_inputs == new_inputs,
         "complete Sum block-input states differ"
@@ -2057,6 +2058,42 @@ pub(super) fn test_schedule_equivalence(
         (Err(left), Err(right)) => assert_eq!(left, right, "Sum diagnostics differ"),
         _ => panic!("Sum acceptance differs"),
     }
+    accepted
+}
+
+#[cfg(test)]
+pub(super) fn test_tagged_invalidation_budget(
+    module: &TypedModule,
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+) {
+    let limits = Limits::default();
+    let solve = |steps| {
+        let selected = Limits {
+            max_analysis_steps: steps,
+            ..limits.clone()
+        };
+        let mut budget = Budget::new(&selected);
+        budget.pod_stores = true;
+        run(module, f, graph, &[Content::Copy], true, &mut budget)
+    };
+    let (mut low, mut high) = (0usize, limits.max_analysis_steps);
+    assert!(solve(high).is_ok());
+    while low < high {
+        let mid = low + (high - low) / 2;
+        if solve(mid).is_ok() {
+            high = mid;
+        } else {
+            low = mid + 1;
+        }
+    }
+    assert!(solve(low).is_ok());
+    assert_eq!(
+        solve(low - 1).err().unwrap().category,
+        zil_base::ResultCategory::ResourceLimit
+    );
+    assert!(solve(low).is_ok());
+    println!("G9.3.2.3 partial Sum indexed invalidation N={low}; N-1 ResourceLimit; fresh N pass");
 }
 
 pub(super) fn check_module(
