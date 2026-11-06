@@ -57,5 +57,11 @@
       "Per-access worst-case interval-map comparisons prepaid"
     ],
     "validation": "Read-only exact-commit review. Root original Source at predecessor752ec passed O0/O2 unchanged 8MiB stack; final production replay required in common acceptance."
+  },
+  "final_integration": {
+    "tested_source": "148014641f9244d5814373e5adaacd4a013676fe",
+    "acceptance_record": "docs/validation/G9.3.2-common-acceptance.json",
+    "result": "AcceptedFiniteSlice",
+    "closure": "Exact reviewed production changes are ancestors of the tested source. The final diagnostic-only repair preserves the legacy required substring without changing rejection semantics or tests. Default/reference full runs replay the original large O0/O2 Source and all new machine tests. Historical failed reviews/runs above remain historical, not current blockers."
   }
 }
