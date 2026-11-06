@@ -1672,6 +1672,36 @@ fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
 }
 
 #[test]
+fn scalar934_unused_owned_closure_capture_cannot_gain_store_permission() {
+    let limits = Limits::default();
+    let (mut module, plan) = pod_fixture(Type::I32);
+    let store = module.functions[0].locals[0].ty.clone();
+    let error =
+        check_owned_capture(&module, &store, Some(&limits), &mut Budget::new(&limits)).unwrap_err();
+    assert!(
+        error.message.contains("finite leaf Package element"),
+        "{error:?}"
+    );
+    module.closures.push(ClosureDefinition {
+        storage_life: None,
+        id: ClosureId(0),
+        function: FunctionId(0),
+        kind: CallableKind::FnOnce,
+        captures: vec![store],
+        parameters: vec![],
+        result: Type::I32,
+        lending_captures: vec![],
+    });
+    for result in pod_both(&module, &plan, &limits) {
+        let errors = result.unwrap_err();
+        assert!(
+            errors[0].message.contains("finite leaf Package element"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn pod932_actual_shared_window_blocks_mutation_and_tracks_last_use_and_roots() {
     let limits = Limits::default();
     for (distinct, read_first, accept) in [
