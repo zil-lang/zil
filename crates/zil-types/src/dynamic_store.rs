@@ -640,7 +640,7 @@ impl Builder<'_, '_> {
             if !supported_element(element) {
                 return Err(unsupported(
                     span,
-                    "Store elements require nonzero finite POD Records or supported owning Packages",
+                    "Store elements require nonzero complete direct-Managed Packages or finite POD Records",
                 ));
             }
             (
@@ -670,7 +670,7 @@ impl Builder<'_, '_> {
             if !supported_element(&element) {
                 return Err(unsupported(
                     span,
-                    "Store elements require nonzero finite POD Records or supported owning Packages",
+                    "Store elements require nonzero complete direct-Managed Packages or finite POD Records",
                 ));
             }
             let kind = match name {

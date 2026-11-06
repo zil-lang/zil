@@ -1318,7 +1318,7 @@ impl Resolver<'_> {
                 if !self.store_element_shape(&element, depth, span)? {
                     return Err(unsupported(
                         span,
-                        "Store elements require nonzero finite POD Records or supported owning Packages",
+                        "Store elements require nonzero complete direct-Managed Packages or finite POD Records",
                     ));
                 }
                 Type::OwnedStore {
