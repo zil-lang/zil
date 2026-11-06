@@ -22,6 +22,7 @@ fn ordinary_generic_inherent_methods_use_the_nominal_receiver() {
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.value}} fn result()->i32{let x=Box::<i32>{value:42};return x.get()}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn replace(self:&mut Self,value:T)->T{let old=self.value;self.value=value;return old}} fn result()->i32{var x=Box::<i32>{value:42};return x.replace(7)}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.value}} fn result()->i32{let x=Box::<i32>{value:42};let y=Box::<bool>{value:true};if y.get(){return x.get()};return 0}",
+        "struct Box<T:Copy>{self:T} impl<T:Copy> Box<T>{fn get(self:&Self)->T{return self.self}} fn result()->i32{let x=Box::<i32>{self:42};return x.get()}",
     ] {
         let core = expand(source).unwrap_or_else(|errors| panic!("{source}\n{errors:#?}"));
         assert!(
@@ -35,6 +36,20 @@ fn ordinary_generic_inherent_methods_use_the_nominal_receiver() {
                 .iter()
                 .any(|f| f.name.contains("inherent"))
         );
+        for function in core
+            .core
+            .functions
+            .iter()
+            .filter(|function| function.name.contains("inherent"))
+        {
+            assert!(
+                function
+                    .parameters
+                    .iter()
+                    .all(|parameter| parameter.name != "self"),
+                "reserved source receiver survived into an ordinary Core function"
+            );
+        }
     }
 }
 
@@ -44,12 +59,24 @@ fn unused_inherent_methods_check_symbolic_bounds_and_receiver_fields() {
         "struct Box<T>{value:T} impl<T> Box<T>{fn bad(self:&Self)->T{return self.value+1}} fn main()->i32{return 0}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn bad(self:&Self)->i32{return self.value.missing}} fn main()->i32{return 0}",
         "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn bad(self:&Self)->T{self.value=self.value;return self.value}} fn main()->i32{return 0}",
+        "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn bad(self:&Self)->T{let self=self;return self.value}} fn main()->i32{return 0}",
+        "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn bad(self:&Self)->i32{let f=(self:i32)->i32=>self;return 0}} fn main()->i32{return 0}",
+        "struct Box<T:Copy>{value:T} impl<T:Copy> Box<T>{fn bad(self:&Self)->T{let (self,other)=(1,2);return self.value}} fn main()->i32{return 0}",
     ] {
         let errors = expand(source).unwrap_err();
         assert!(
             errors.iter().any(|e| e.phase == Phase::Expand),
             "{errors:#?}"
         );
+        if source.contains("let self") || source.contains("let (self") {
+            assert!(
+                errors
+                    .iter()
+                    .any(|error| error.message.contains("self")
+                        && error.message.contains("reserved")),
+                "{source}\n{errors:#?}"
+            );
+        }
     }
 }
 
@@ -116,8 +143,9 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
             zil_expand::expand_with_map_limits(&source, &ast, limits)
         });
         eprintln!("inherent budget work={work} N={amount}");
-        // Measured in the combined b0839a97 Source-to-Core run.
-        assert_eq!(amount, if work { 1431 } else { 484 });
+        // Actual AST receiver lowering is prepaid; the 1431/484 pre-lowering
+        // observation remains in the historical author receipt.
+        assert_eq!(amount, if work { 1675 } else { 547 });
 
         let mut limits = Limits::default();
         if work {
