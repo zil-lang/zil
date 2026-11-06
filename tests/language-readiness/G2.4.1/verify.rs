@@ -78,8 +78,11 @@ fn actual_receiver_is_checked_while_the_first_option_is_live() {
                     else {
                         return None;
                     };
-                    (arguments.len() == 1 && functions[function.0 as usize].name.ends_with("next"))
-                        .then_some((block, index, arguments[0]))
+                    let callee = &functions[function.0 as usize];
+                    (arguments.len() == 1
+                        && callee.storage_life.is_some()
+                        && callee.name.contains("next"))
+                    .then_some((block, index, arguments[0]))
                 })
         })
         .collect();
