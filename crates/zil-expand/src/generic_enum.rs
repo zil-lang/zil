@@ -873,7 +873,21 @@ impl Engine<'_> {
                     return Err(unsupported(span, "const enum type argument"));
                 };
                 self.budget.ty(ty)?;
-                found.insert(p.name.clone(), self.original_type(ty)?);
+                let mut actual = self.original_type(ty)?;
+                // A symbolic generic consumer may spell I.Item explicitly
+                // while its concrete return context has already selected the
+                // nominal impl equation. Resolve the actual projection by
+                // that impl before comparing the two complete enum actuals.
+                if self.traits.has_associated && trait_bounds::associated::parts(&actual).is_some()
+                {
+                    actual = self.traits.normalize_associated(
+                        &actual,
+                        &trait_bounds::Bounds::new(),
+                        &BTreeSet::new(),
+                        &mut self.budget,
+                    )?;
+                }
+                found.insert(p.name.clone(), actual);
             }
         }
         let expected = expected.map(|ty| self.original_type(ty)).transpose()?;

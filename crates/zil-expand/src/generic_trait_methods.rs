@@ -639,7 +639,6 @@ fn same_life_relation(
                 && same_life_relation(ai, bi, actual_lives, required_lives, budget, depth + 1)?)
         }
         (TypeKind::Named { args: a, .. }, TypeKind::Named { args: b, .. })
-        | (TypeKind::Dyn { args: a, .. }, TypeKind::Dyn { args: b, .. })
             if a.len() == b.len() =>
         {
             for (a, b) in a.iter().zip(b) {
@@ -694,7 +693,20 @@ fn same_life_relation(
             }
             Ok(true)
         }
-        // Other shapes carry no supported method-local life in this profile.
+        (TypeKind::Function { .. }, _)
+        | (TypeKind::ForeignFunction { .. }, _)
+        | (TypeKind::Error { .. }, _)
+        | (TypeKind::Union(_), _)
+        | (TypeKind::Impl(_), _)
+        | (TypeKind::Dyn { .. }, _)
+        | (TypeKind::ForLifetime { .. }, _)
+        | (TypeKind::MetaEval(_), _)
+        | (TypeKind::MetaSplice(_), _)
+        | (TypeKind::MetaBlock(_), _) => Err(unsupported(
+            actual.span,
+            "method-local life in this type constructor needs a scoped relation check",
+        )),
+        // Scalar and other leaf positions carry no method-local life.
         _ => Ok(true),
     }
 }
