@@ -618,7 +618,7 @@ independent scheduling/tag-state work reductions and conservative acyclic
 snapshot-slot reuse. Closed lifetimes keep same-instruction inputs and outputs
 separate; cycles or unknown operations fall back to distinct slots. Source local
 storage and public ABI remain unchanged. The same 262144-byte source runs under
-the existing 8 MiB stack at O0 and O2; compact acceptance records bind the final
+the existing Linux 8 MiB stack at O0 and O2; compact acceptance records bind the final
 compiler and checks rather than extrapolating from temporary LLVM diagnostics.
 
 These are expressibility, safety and concrete compiler robustness gains. They
