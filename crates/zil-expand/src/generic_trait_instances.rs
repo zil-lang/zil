@@ -411,9 +411,22 @@ pub(crate) fn validate_declaration(
                     ));
                 }
             };
-            if matches!(&grouped(referent).kind, TypeKind::Named { path, args }
-                if path.as_slice() == ["Self", "Item"] && args.is_empty())
+            let direct_item = matches!(&grouped(referent).kind, TypeKind::Named { path, args }
+                if path.as_slice() == ["Self", "Item"] && args.is_empty());
+            let projected_item = if let Some((member_name, host, application)) =
+                trait_bounds::associated::parts(referent)
             {
+                budget.text(member_name, referent.span)?;
+                budget.ty(host)?;
+                budget.ty(application)?;
+                budget.text(&declaration.name, referent.span)?;
+                member_name == "Item"
+                    && trait_bounds::plain(host) == Some("Self")
+                    && trait_bounds::plain(application) == Some(declaration.name.as_str())
+            } else {
+                false
+            };
+            if direct_item || projected_item {
                 let mut copy_item = false;
                 for candidate in &declaration.members {
                     budget.node(candidate.span, 0)?;
