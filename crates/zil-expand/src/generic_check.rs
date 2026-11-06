@@ -2725,6 +2725,7 @@ impl Check<'_, '_, '_> {
         name: &str,
         arguments: trait_methods::Arguments<'_>,
         state: &mut State,
+        static_method: Option<(Function, trait_instances::Reference)>,
     ) -> R<TypeRef> {
         let trait_methods::Arguments {
             site,
@@ -2751,22 +2752,33 @@ impl Check<'_, '_, '_> {
             }
             &subject_key
         };
-        let method = self
-            .traits
-            .method(&self.bounds, variable, name, self.budget, object.span)?;
+        let (method, selected_reference) = if let Some((method, reference)) = static_method {
+            (Cow::Owned(method), Some(reference))
+        } else {
+            (
+                self.traits
+                    .method(&self.bounds, variable, name, self.budget, object.span)?,
+                None,
+            )
+        };
+        let static_method = selected_reference.is_some();
         let mut method_origin = self.budget.context.origin;
-        if method.name != name || !method.generics.is_empty() {
+        if static_method || method.name != name || !method.generics.is_empty() {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
-            let reference = self.traits.method_reference(
-                &self.bounds,
-                variable,
-                name,
-                &method.name,
-                self.budget,
-                object.span,
-            )?;
+            let reference = if let Some(reference) = selected_reference {
+                reference
+            } else {
+                self.traits.method_reference(
+                    &self.bounds,
+                    variable,
+                    name,
+                    &method.name,
+                    self.budget,
+                    object.span,
+                )?
+            };
             let (owner, _) = self.traits.declaration_item(&reference);
             method_origin = self.traits.origin(owner, self.budget)?;
             self.budget.text(name, object.span)?;
@@ -2790,19 +2802,24 @@ impl Check<'_, '_, '_> {
                     },
                 );
         }
-        let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
+        let receiver = method.params.first().filter(|p| p.name == "self");
+        if static_method && receiver.is_some() {
+            return Err(error(object.span, "receiver method requires a value host"));
+        }
+        if !static_method && receiver.is_none() {
             return Err(error(
                 object.span,
                 "static trait method requires a type-qualified call",
             ));
-        };
-        if receiver.give || method.params.iter().any(|p| p.give) {
+        }
+        if method.params.iter().any(|p| p.give) {
             return Err(unsupported(
                 object.span,
                 "trait-bound resource passing modes require their category solver",
             ));
         }
-        if arguments.len() + 1 != method.params.len() {
+        let receiver_offset = usize::from(!static_method);
+        if arguments.len() + receiver_offset != method.params.len() {
             return Err(error(
                 object.span,
                 "trait-bound method argument count differs",
@@ -2874,8 +2891,9 @@ impl Check<'_, '_, '_> {
                 )?;
             }
         }
-        let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
-        match &group(&expected).kind {
+        if let Some(receiver) = receiver {
+            let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
+            match &group(&expected).kind {
             TypeKind::Reference { mutable, .. } => {
                 if matches!(group(actual).kind, TypeKind::Reference { .. }) {
                     let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
@@ -2913,8 +2931,12 @@ impl Check<'_, '_, '_> {
                     self.budget,
                 )?;
             }
+            }
         }
-        for (index, (argument, parameter)) in arguments.iter().zip(&method.params[1..]).enumerate()
+        for (index, (argument, parameter)) in arguments
+            .iter()
+            .zip(&method.params[receiver_offset..])
+            .enumerate()
         {
             if argument.spread {
                 return Err(unsupported(
@@ -2958,7 +2980,7 @@ impl Check<'_, '_, '_> {
                 state,
                 &expected,
                 (!dependent(&expected, &variables)).then_some(&expected),
-                index + 1,
+                index + receiver_offset,
             )?;
             if variables.is_empty() {
                 role_check::same(
@@ -2981,7 +3003,12 @@ impl Check<'_, '_, '_> {
             if !reference_parameter
                 && let TypeKind::Reference { mutable, .. } = &group(&actual).kind
             {
-                self.alias_hold_result(state, *mutable, argument.span, Some(index + 1))?;
+                self.alias_hold_result(
+                    state,
+                    *mutable,
+                    argument.span,
+                    Some(index + receiver_offset),
+                )?;
             }
         }
         for parameter in consts::parameters(&method) {
@@ -4209,6 +4236,36 @@ impl Check<'_, '_, '_> {
             {
                 return Ok(Some(result));
             }
+            if let Some(static_host::Host::Symbolic {
+                ty,
+                reference,
+                method,
+            }) = static_host::classify(
+                object,
+                name,
+                |host| state.locals.contains_key(host),
+                self.nominals,
+                &self.variables,
+                &self.bounds,
+                self.traits,
+                self.budget,
+            )? {
+                return self
+                    .bound_method(
+                        object,
+                        &ty,
+                        name,
+                        trait_methods::Arguments {
+                            site: method_callee,
+                            values: arguments,
+                            explicit: method_explicit,
+                            expected,
+                        },
+                        state,
+                        Some((method, reference)),
+                    )
+                    .map(Some);
+            }
             let ty = self.expr(object, state, None, true)?;
             if name == "len"
                 && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
@@ -4229,6 +4286,7 @@ impl Check<'_, '_, '_> {
                     expected,
                 },
                 state,
+                None,
             ))
             .map(Some);
         }
