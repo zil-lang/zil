@@ -13,6 +13,16 @@ impl<'a> Budget<'a> {
             work: 0,
         }
     }
+    pub(super) fn static_bytes(&mut self, count: usize) -> CompileResult<()> {
+        self.work = self
+            .work
+            .checked_add(count.saturating_add(1))
+            .ok_or_else(limit)?;
+        if self.work > self.limits.max_analysis_steps {
+            return Err(limit());
+        }
+        Ok(())
+    }
     fn pay(&mut self, ty: &Type, depth: usize) -> CompileResult<()> {
         self.nodes = self.nodes.checked_add(1).ok_or_else(limit)?;
         let names = match ty {

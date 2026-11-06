@@ -381,6 +381,7 @@ pub(super) fn reserve_binding(
                     InstructionKind::LoadStoredBorrow { path, .. }
                     | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
+                    InstructionKind::StaticUtf8 { bytes } => bytes.len(),
                     InstructionKind::Constant(_)
                     | InstructionKind::Load(_)
                     | InstructionKind::Store { .. }
@@ -1053,7 +1054,7 @@ mod tests {
         let run = |n, raw: &LirModule| -> CompileResult<usize> {
             let mut left = n;
             reserve_binding(verified.module(), verified.limits(), &mut left)?;
-            bind_lir(&verified, &raw.as_view(), EntryPoint::None)?;
+            bind_lir(&verified, &raw.as_view(), EntryPoint::None, &mut left)?;
             Ok(left)
         };
         assert_eq!(run(needed, &lir).unwrap(), 0);
