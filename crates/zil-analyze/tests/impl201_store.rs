@@ -754,8 +754,9 @@ fn pod_store_does_not_qualify_an_unused_owning_resource_head() {
 }
 
 #[test]
-fn pod_store_does_not_qualify_unused_flat_or_recursive_owning_products() {
+fn pod_store_does_not_qualify_unused_owning_aggregate_fields_or_payloads() {
     let baseline = pod_fixture(pod_element());
+    let store = Type::Managed(Box::new(baseline.resources[0].payload.clone()));
     let bag = Type::Package {
         name: "Bag".into(),
         fields: vec![(
@@ -769,13 +770,26 @@ fn pod_store_does_not_qualify_unused_flat_or_recursive_owning_products() {
             name: "Outer".into(),
             fields: vec![("bag".into(), bag), ("tag".into(), Type::I32)],
         },
+        Type::Tuple(vec![store.clone()]),
+        Type::Enum {
+            name: "Owner".into(),
+            variants: vec![("Item".into(), vec![store.clone()])],
+        },
+        Type::ErrorUnion {
+            error: Box::new(Type::Unit),
+            result: Box::new(store.clone()),
+        },
+        Type::ErrorUnion {
+            error: Box::new(store),
+            result: Box::new(Type::Unit),
+        },
     ] {
         let mut raw = baseline.clone();
         raw.functions[0].locals.push(local(1, owner));
         rejected(
             &raw,
             ResultCategory::Unsupported,
-            "does not grant owning Product field qualification",
+            "does not grant owning aggregate field or payload qualification",
         );
     }
     // Preserve the old flat Product field family with an owned Package element.
