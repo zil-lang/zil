@@ -1535,12 +1535,12 @@ impl Check<'_, '_, '_> {
         }))
     }
     fn bind_local(&mut self, state: &mut State, name: String, ty: TypeRef) -> R<()> {
-        if self.definition_bound_context && name == "self" {
+        if name == "self" {
             return Err(Diagnostic::error(
                 Phase::Expand,
                 "E-RECEIVER-RESERVED-NAME",
                 Some(ty.span),
-                "self is reserved for the default method receiver and cannot be rebound",
+                "self is reserved for the method receiver and cannot be rebound",
             ));
         }
         if super::super::primitive_name(&name) {

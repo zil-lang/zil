@@ -269,6 +269,12 @@ pub(super) fn prepare(
             }
             lifted_function.generics = implementation.generics.clone();
             lifted_function.name.clone_from(&template);
+            // The lifted item is now an ordinary free function. Preserve the
+            // actual receiver at parameter zero, but lower its reserved source
+            // binding with the existing prepaid AST receiver renamer. Local
+            // binding patterns are untouched and still reject source `self`
+            // rebinding; member labels and literal contents are not renamed.
+            trait_instances::rename_default_receiver(&mut lifted, budget)?;
             let mut arguments = Vec::new();
             for parameter in &implementation.generics {
                 if let Some(formal) = ordinary.get(&parameter.name) {
