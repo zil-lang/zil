@@ -2,7 +2,7 @@
   "task": "G9.3.2.3",
   "role": "implementation author; not independent review",
   "base": "f655674982642c9f395a7593755c791f6c591242",
-  "production_commit": "ec4196ac16afd3afebfaaa12fd6de00584dfd897",
+  "production_commit": "e3082d5985e1f7254ee1da5fc4fe568048741c5c",
   "test_source_binding": "Final fixture and receipt are committed together; production unchanged after the recorded production commit.",
   "environment": {
     "setup": "source /workspace/.zil-env/env.sh",
@@ -14,9 +14,10 @@
   },
   "focused_command": "cargo test --locked -p zil-verify --lib dynamic_store::tests -j1 -- --nocapture",
   "focused_result": {
-    "passed": 28,
-    "failed": 0,
-    "filtered": 388
+    "store_passed": 28,
+    "store_failed": 0,
+    "frontier_passed": 10,
+    "frontier_failed": 0
   },
   "other_checks": [
     "cargo fmt -p zil-verify -- --check",
@@ -25,11 +26,13 @@
   ],
   "exact_budgets": {
     "pod_qualification": 33,
-    "complete_raw_request": 2495,
-    "complete_wire_request": 2495,
+    "complete_raw_request": 2533,
+    "complete_wire_request": 2533,
     "legacy_two_callback_package": 223,
     "legacy_captured_store_package": 1042,
-    "controls": "N pass; N-1 ResourceLimit; fresh N pass"
+    "controls": "N pass; N-1 ResourceLimit; fresh N pass",
+    "partial_sum_indexed_invalidation_component": 529,
+    "complete_request_fixture": "pod_window_fixture(false, true); full raw/Wire public requests"
   },
   "coverage": [
     "complete numeric Record/Tuple/Array layout and field identities",
@@ -54,5 +57,40 @@
     "Same helper call receiving both a shared element window and its may-written Store remains conservative; ordered general life/effect summaries are outside scope",
     "Source/native integration, formal full tests and exact-commit independent review are root-owned"
   ],
-  "rust_goals": "Independent raw safety and collection expressibility advance without implicit box/RC/locks or higher default limits. Rust runtime/RSS, compile and maintenance cost parity and product net advantage remain unmeasured."
+  "rust_goals": "Independent raw safety and collection expressibility advance without implicit box/RC/locks or higher default limits. Rust runtime/RSS, compile and maintenance cost parity and product net advantage remain unmeasured.",
+  "reopened_budget_repair": {
+    "authority": [
+      "18448cbb913f6c1bcef33b6592f9a92cbd744010",
+      "bf165dd65"
+    ],
+    "analyze_dependency_merge": "9391bd636273df8cb76372296363479e2065a34a",
+    "implementation": "Verify-owned paid CFG reverse-postorder priority worklist for resource/Sum fixed points; paid local index based on actual Content tag/route representation at unchanged invalidation points. Existing transfer/merge/edge/final checks retained; no Analyze proof imports.",
+    "original_source_fingerprint": "3666b922c37d1f4c5e93d490c97abaf2deec2a2ee3d297b461d1bc7b336c1e58",
+    "source_failure_before_repair": "Verify ResourceLimit. RPO alone was insufficient; Sum final validation consumed 3445083 steps for run4080 and 3598627 for run4088 before exhaustion in run4096.",
+    "source_result_after_repair": "Original source, trace removed: 1/1 focused driver test passed, Clang O0/O2 both stdout ABC newline and exit 0; default limits unchanged.",
+    "source_command": "cargo test --locked -p zil-driver --test impl223_product_store pod_collections::g932_4080 -j2 -- --nocapture --test-threads=1",
+    "frontier_command": "cargo test --locked -p zil-verify --lib resources::frontier_tests -j2 -- --nocapture",
+    "cache": "/workspace/.zil-env/target-G1.3.5.2; source env; incremental=0; dev/test strip=symbols",
+    "full_state_crosschecks": "Identical bounded CFGs: full resource/Sum block inputs, complete returned Content, bridges and diagnostics across legacy FIFO/all-local forgetting versus RPO/indexed forgetting. Includes forward joins/backedges and real undischarged incoming Managed debt.",
+    "invalidation_crosschecks": "partial=true; actual guarded Enum/ErrorUnion parameters, each direct/recursive Tuple/Package wrapper; mixed Record/Array/Managed Copy/Leaf endpoints. A real pre-guard invalidating Store propagates changed routes to successor inputs; a second Store after the guard rejects stale selection in both implementations.",
+    "temporary_trace_removed": true,
+    "limits_raised": false,
+    "formal_full_run_by_author": false,
+    "source_reports": [
+      {
+        "report": "/workspace/.zil-env/G9.3.2-verify-budget/product-store223-g932-protocol-thresholds-265868-0/compile.json",
+        "fingerprint": "3666b922c37d1f4c5e93d490c97abaf2deec2a2ee3d297b461d1bc7b336c1e58",
+        "status": "Success",
+        "exit": "Some(0)",
+        "stdout": "ABC\n"
+      },
+      {
+        "report": "/workspace/.zil-env/G9.3.2-verify-budget/product-store223-g932-protocol-thresholds-265868-1/compile.json",
+        "fingerprint": "3666b922c37d1f4c5e93d490c97abaf2deec2a2ee3d297b461d1bc7b336c1e58",
+        "status": "Success",
+        "exit": "Some(0)",
+        "stdout": "ABC\n"
+      }
+    ]
+  }
 }
