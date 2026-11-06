@@ -265,7 +265,19 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                                     local = true;
                                 }
                             }
-                            if !local {
+                            // The new direct-input rule belongs to a method's
+                            // invocation life. An ordinary function may instead
+                            // forward a retained Option parameter with its
+                            // already declared source class.
+                            check.budget.node(payload.span, 0)?;
+                            let receiver = function.params.first().is_some_and(|parameter| {
+                                parameter.name == "self"
+                                    && matches!(
+                                        group(&parameter.ty).kind,
+                                        TypeKind::Reference { .. }
+                                    )
+                            });
+                            if !local || !receiver {
                                 None
                             } else {
                                 let mut found = None;
