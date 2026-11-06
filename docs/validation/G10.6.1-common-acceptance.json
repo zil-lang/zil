@@ -556,5 +556,75 @@
     "Store standalone Array/Tuple/Enum, Unit/zero stride, arbitrary owning/capturing families and different-index disjointness are not admitted.",
     "Full Unicode/formatting/collections, GPU/GPUI ZUI and native Windows execution remain separate tasks.",
     "B0, full ZIL1.4 and same-semantics Rust runtime/RSS, compile/maintenance comparisons and product-level net superiority are not established."
-  ]
+  ],
+  "delivery_checks": {
+    "kind": "Integrator post-document checks",
+    "delivery_parent": "e0ab5a3f2dd53a35ebf11d83521932fe30069ed1",
+    "tested_source": "a8c7953e7f4f5932f838284390e55f1f8884bdbc",
+    "code_test_example_spec_delta": [],
+    "identical_git_objects": {
+      "crates": "e05672cbd65f433a8a86f2dc67d6e3cf2116c313",
+      "tests": "a1d271c9208fe36274723a8a2bf065c78b8aae8f",
+      "examples": "52ad19645334ed2b215e0d09ce885b41cb75b26a",
+      "lib": "45dde5682f67b9443b47ceb37cd89e7318c69a77",
+      "spec": "37632e33a15fb04760e7bf35c38785694c861d1a",
+      "changes": "afcb5ae5ba9127833c70d9ec9781a5b39a259960",
+      "Cargo.toml": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+      "Cargo.lock": "9899ecc9c85cd62cbc60b22167dc7bd0b6ae78a3",
+      "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+      "_zil_design.md": "2a8350e700ccaa845fb936fb4aaeea127f941032",
+      "validation/product-gates.json": "14d352d66503ba948a55b673ccb913ffb3e5842e"
+    },
+    "historical_migration_preserved_except_current_acceptance": true,
+    "post_checks": [
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "2537c66387d2d78f83df6f67f441d2dea797103307e06959bdf9d5fcc1a424cf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "9a20f973a5dac3dde4d88947437c5acd9ca5a55c1f9e9f45d36f5baa22789c75"
+      },
+      {
+        "name": "handoff-tests",
+        "command": [
+          "node",
+          "--test",
+          "tests/handoff.test.mjs"
+        ],
+        "exit_code": 0,
+        "log_sha256": "c5f8758bd6a876c92ef0941a94d68d2972dfe46abb2505b08f21c09b52443b58",
+        "passed": 35,
+        "failed": 0
+      }
+    ],
+    "normal_original_branch_merges": [
+      {
+        "branch": "task/G2.4.2.1",
+        "tip": "edfdadd9fd8d4579269511ac2886f1b581eade2f",
+        "merge_commit": "06190db54f60549e7dc5a139b3a85f694c6c6194"
+      },
+      {
+        "branch": "task/G9.3.3.3",
+        "tip": "46d99e8f20d8ef36ce1ae940f4ce1831286e50f0",
+        "merge_commit": "2bea4f8cfd5c54f8d109a182195d001ba218b606"
+      },
+      {
+        "branch": "task/G9.3.4.3",
+        "tip": "74b8c270560f3d28e4404c38142e142894e5e826",
+        "merge_commit": "e0ab5a3f2dd53a35ebf11d83521932fe30069ed1"
+      }
+    ]
+  }
 }
