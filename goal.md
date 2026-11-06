@@ -241,6 +241,7 @@
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 进行中 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
+| G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 进行中 | P0 | sol high 三核并行 | 初稿审计确认此前必须包装 Record；同批补直接标量、完整值协议和所有实际窗口，保留旧失败证据。 |
 
 <details>
 <summary>G9.3.3 · 子任务</summary>
@@ -250,6 +251,17 @@
 | G9.3.3.1 | Types 完整元素准入及 LLVM 实际写入 | 进行中 | P0 | store_types · sol high | 保留实际类型/范围与大 Copy 协议。 |
 | G9.3.3.2 | Analyze 实际根、父loan和结构修改互斥 | 进行中 | P0 | store_analyze · sol high | 保留 whole-Store 排他与旧费用。 |
 | G9.3.3.3 | Verify 独立准入、实际窗口和 raw/Wire | 进行中 | P0 | store_verify · sol high | 不以 Analyze 证明作为权限。 |
+
+</details>
+
+<details>
+<summary>G9.3.4 · 子任务</summary>
+
+| 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
+| --- | --- | --- | --- | --- | --- |
+| G9.3.4.1 | Source/Types 完整标量准入与 LLVM 计划 | 进行中 | P0 | store_types · sol high | 复用既有协议，保留 owning 排除。 |
+| G9.3.4.2 | Analyze 标量载体与实际窗口 | 进行中 | P0 | store_analyze · sol high | 独立完整类型与实际根。 |
+| G9.3.4.3 | Verify 标量协议与 raw/Wire | 进行中 | P0 | store_verify · sol high | 独立完整类型、原父loan与计费。 |
 
 </details>
 
