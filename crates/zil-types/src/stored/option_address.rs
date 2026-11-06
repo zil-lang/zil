@@ -14,13 +14,16 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
 }
 
 pub(super) fn shape(ty: &Type, left: &mut usize, depth: usize, span: Span) -> R<bool> {
-    fee(left, 8, span)?;
     let Type::BorrowedStorage { storage, life } = ty else {
         return Ok(false);
     };
     let Type::Enum { name, variants } = storage.as_ref() else {
         return Ok(false);
     };
+    if life.slots.is_empty() {
+        return Ok(false);
+    }
+    fee(left, 8, span)?;
     if name.is_empty()
         || variants.len() != 2
         || variants[0].0 != "None"

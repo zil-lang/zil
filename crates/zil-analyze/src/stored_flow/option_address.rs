@@ -14,13 +14,16 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
 }
 
 pub(super) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
-    fee(b, 8)?;
     let Some((storage, life)) = carrier(ty) else {
         return Ok(false);
     };
     let Type::Enum { name, variants } = storage else {
         return Ok(false);
     };
+    if life.slots.is_empty() {
+        return Ok(false);
+    }
+    fee(b, 8)?;
     let [(none, empty), (some, fields)] = variants.as_slice() else {
         return Ok(false);
     };
@@ -38,7 +41,11 @@ pub(super) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         return Ok(false);
     };
     b.type_work(inner, true, "Option actual shared pointee")?;
-    if !inner.is_address_pointee() {
+    let pointee = match inner.as_ref() {
+        Type::Slice { element } => element.as_ref(),
+        other => other,
+    };
+    if !closed_pointee(pointee, b, 0)? {
         return Ok(false);
     }
     let [slot] = life.slots.as_slice() else {
@@ -157,4 +164,60 @@ pub(super) fn transfer(
         _ => unreachable!(),
     }
     Ok(Some(out))
+}
+
+// The sealed profile matches Types' finite ordinary data domain, including
+// inactive payloads. General is_address_pointee also admits dyn and code values.
+fn closed_pointee(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+    fee(b, 1)?;
+    if depth > b.partial_depth {
+        return Err(failure("Option pointee exceeds actual depth limit"));
+    }
+    Ok(match ty {
+        Type::Unit
+        | Type::Bool
+        | Type::I32
+        | Type::I64
+        | Type::U64
+        | Type::Usize
+        | Type::U8
+        | Type::U16
+        | Type::F32
+        | Type::F64 => true,
+        Type::Tuple(fields) => {
+            for child in fields {
+                if !closed_pointee(child, b, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            true
+        }
+        Type::Record { name, fields } => {
+            fee(b, name.len())?;
+            for (name, child) in fields {
+                fee(b, name.len())?;
+                if !closed_pointee(child, b, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            true
+        }
+        Type::Enum { name, variants } => {
+            fee(b, name.len())?;
+            for (name, fields) in variants {
+                fee(b, name.len())?;
+                for child in fields {
+                    if !closed_pointee(child, b, depth + 1)? {
+                        return Ok(false);
+                    }
+                }
+            }
+            true
+        }
+        Type::Array { element, .. } => closed_pointee(element, b, depth + 1)?,
+        Type::ErrorUnion { error, result } => {
+            closed_pointee(error, b, depth + 1)? & closed_pointee(result, b, depth + 1)?
+        }
+        _ => false,
+    })
 }

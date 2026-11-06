@@ -14,13 +14,16 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
 }
 
 pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
-    b.spend(8)?;
     let Some((storage, life)) = qualified(ty) else {
         return Ok(false);
     };
     let Type::Enum { name, variants } = storage else {
         return Ok(false);
     };
+    if life.slots.is_empty() {
+        return Ok(false);
+    }
+    b.spend(8)?;
     if name.is_empty() || variants.len() != 2 {
         return Ok(false);
     }
@@ -37,7 +40,11 @@ pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
             inner,
         } => {
             type_work(inner, limits, b)?;
-            if !inner.is_address_pointee() {
+            let pointee = match inner.as_ref() {
+                Type::Slice { element } => element.as_ref(),
+                other => other,
+            };
+            if !closed_pointee(pointee, limits, b)? {
                 return Ok(false);
             }
         }
@@ -143,4 +150,58 @@ pub(super) fn transfer(
         _ => unreachable!(),
     }
     Ok(Some(out))
+}
+
+// Iteratively reconstruct exactly the ordinary data domain. Code, dyn, owning,
+// nested address and qualified classes are not borrowed through this profile.
+fn closed_pointee(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
+    b.spend(1)?;
+    let mut todo = vec![(ty, 0usize)];
+    while let Some((ty, depth)) = todo.pop() {
+        b.spend(1)?;
+        if depth > limits.max_call_depth {
+            return Err(err("Option pointee exceeds actual depth limit"));
+        }
+        match ty {
+            Type::Unit
+            | Type::Bool
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::U8
+            | Type::U16
+            | Type::F32
+            | Type::F64 => {}
+            Type::Tuple(fields) => {
+                b.spend(fields.len())?;
+                todo.extend(fields.iter().map(|t| (t, depth + 1)));
+            }
+            Type::Record { name, fields } => {
+                b.spend(name.len().saturating_add(fields.len()))?;
+                for (name, child) in fields {
+                    b.spend(name.len())?;
+                    todo.push((child, depth + 1));
+                }
+            }
+            Type::Enum { name, variants } => {
+                b.spend(name.len())?;
+                for (name, fields) in variants {
+                    b.spend(name.len().saturating_add(fields.len()))?;
+                    todo.extend(fields.iter().map(|t| (t, depth + 1)));
+                }
+            }
+            Type::Array { element, .. } => {
+                b.spend(1)?;
+                todo.push((element, depth + 1));
+            }
+            Type::ErrorUnion { error, result } => {
+                b.spend(2)?;
+                todo.push((error, depth + 1));
+                todo.push((result, depth + 1));
+            }
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
 }
