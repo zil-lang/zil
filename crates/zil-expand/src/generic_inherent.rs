@@ -9,6 +9,9 @@ pub(super) struct Method {
     // Impl ordinary binder -> actual nominal declaration binder.
     arguments: Vec<(String, String)>,
     receiver: Option<UnaryOp>,
+    module: zil_base::ModuleId,
+    public: bool,
+    scoped: bool,
 }
 pub(super) struct Prepared {
     pub(super) module: Module,
@@ -187,6 +190,17 @@ pub(super) fn prepare(
                     "generic inherent method requires a body",
                 ));
             }
+            for field in &aggregate.fields {
+                budget.node(field.span, 0)?;
+                budget.text(&field.name, field.span)?;
+                budget.text(&function.name, member.span)?;
+                if field.name == function.name {
+                    return Err(error(
+                        member.span,
+                        "inherent field and method names must be distinct",
+                    ));
+                }
+            }
             for previous in &methods {
                 budget.text(&previous.host, member.span)?;
                 budget.text(host, member.span)?;
@@ -268,6 +282,12 @@ pub(super) fn prepare(
                 template,
                 arguments,
                 receiver: borrow,
+                module: origin.declaration.module,
+                public: member.public,
+                scoped: implementation
+                    .generics
+                    .iter()
+                    .any(|p| matches!(p.kind, GenericParamKind::Lifetime)),
             });
             prepared.items.push(lifted);
             output_origins.push(origin.member(member_index, member.span)?);
@@ -281,6 +301,60 @@ pub(super) fn prepare(
 }
 
 impl Engine<'_> {
+    fn prepare_inherent_signature(&mut self, name: &str, span: Span) -> R<()> {
+        self.budget.text(name, span)?;
+        if self.products.storage.functions.contains_key(name) {
+            return Ok(());
+        }
+        let mut selected = None;
+        for (index, pending) in self.pending.iter().enumerate() {
+            self.budget.node(pending.item.span, 0)?;
+            if let ItemKind::Function(function) = &pending.item.kind {
+                self.budget.text(&function.name, span)?;
+                self.budget.text(name, span)?;
+                if function.name == name {
+                    selected = Some(index);
+                    break;
+                }
+            }
+        }
+        let index =
+            selected.ok_or_else(|| error(span, "inherent concrete function header absent"))?;
+        let origin = self.pending[index].origin;
+        let ItemKind::Function(source) = &self.pending[index].item.kind else {
+            unreachable!()
+        };
+        self.budget.function_snapshot(source)?;
+        let mut function = source.clone();
+        let mut scope = Vec::new();
+        for parameter in &function.generics {
+            self.budget.node(parameter.span, 0)?;
+            if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                self.budget.text(&parameter.name, parameter.span)?;
+                scope.push(parameter.name.clone());
+            }
+        }
+        let previous_scope = std::mem::replace(&mut self.life_scope, scope);
+        let previous_result = self.source_enum_return.take();
+        let prepared = self.with_origin(origin, |engine| engine.stored_signature(&mut function));
+        let source_result = self.source_enum_return.take();
+        self.source_enum_return = previous_result;
+        self.life_scope = previous_scope;
+        if !prepared? {
+            return Err(error(
+                span,
+                "inherent retained receiver requires its actual storage contract",
+            ));
+        }
+        self.budget.function_snapshot(&function)?;
+        self.budget.text(name, span)?;
+        self.signatures
+            .insert(name.into(), Cow::Owned(function.clone()));
+        self.pending[index].item.kind = ItemKind::Function(function);
+        self.pending[index].source_enum_return = source_result;
+        Ok(())
+    }
+
     pub(super) fn record_inherent_instance(
         &mut self,
         generated: &str,
@@ -402,6 +476,14 @@ impl Engine<'_> {
         let Some(method) = selected else {
             return Ok(());
         };
+        if !method.public
+            && self.current_origin.map(|origin| origin.declaration.module) != Some(method.module)
+        {
+            return Err(error(
+                expression.span,
+                "generic inherent method is private to its declaring module",
+            ));
+        }
         let mut types = Vec::new();
         for (_, formal) in &method.arguments {
             self.budget.text(formal, expression.span)?;
@@ -417,6 +499,27 @@ impl Engine<'_> {
         self.budget.text(&method.template, expression.span)?;
         let template = method.template.clone();
         let borrow = method.receiver;
+        let scoped = method.scoped;
+        let concrete = if scoped {
+            let actuals = types
+                .iter()
+                .map(|argument| match argument {
+                    GenericArg::Type(ty) => {
+                        self.budget.ty(ty)?;
+                        Ok(ty.clone())
+                    }
+                    _ => Err(error(
+                        expression.span,
+                        "inherent ordinary type argument kind differs",
+                    )),
+                })
+                .collect::<R<Vec<_>>>()?;
+            let concrete = self.instantiate(&template, actuals, expression.span)?;
+            self.prepare_inherent_signature(&concrete, expression.span)?;
+            Some(concrete)
+        } else {
+            None
+        };
         let ExprKind::Call { callee, arguments } = &mut expression.kind else {
             unreachable!()
         };
@@ -451,12 +554,16 @@ impl Engine<'_> {
                 value: *value,
             },
         );
-        callee.kind = ExprKind::TypeApply {
-            callee: Box::new(Expr {
-                span: callee.span,
-                kind: ExprKind::Name(template),
-            }),
-            arguments: types,
+        callee.kind = if let Some(concrete) = concrete {
+            ExprKind::Name(concrete)
+        } else {
+            ExprKind::TypeApply {
+                callee: Box::new(Expr {
+                    span: callee.span,
+                    kind: ExprKind::Name(template),
+                }),
+                arguments: types,
+            }
         };
         Ok(())
     }
