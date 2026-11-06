@@ -138,7 +138,7 @@ pub(super) fn pod_element(ty: &Type) -> bool {
     inline_element(ty) && layout(ty).is_some_and(|(size, _)| size > 0)
 }
 
-/// Extra work is exclusive to the new Record family. Legacy Package receipts
+/// Extra work is exclusive to the inline Record/scalar family. Legacy Package receipts
 /// keep their exact charges. Call before the private POD predicate or new copy.
 pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
     if inline_element(ty) {
@@ -789,8 +789,38 @@ mod pod_tests {
         ] {
             assert!(!pod_element(&record(field)));
         }
-        assert!(!pod_element(&Type::I32));
+        assert!(pod_element(&Type::I32));
         assert!(!pod_element(&Type::Tuple(vec![Type::I32])));
+    }
+
+    #[test]
+    fn scalar_store_keeps_exact_identity_and_owning_boundary() {
+        for (element, name) in [
+            (Type::Bool, "bool"),
+            (Type::U8, "u8"),
+            (Type::U16, "u16"),
+            (Type::I32, "i32"),
+            (Type::I64, "i64"),
+            (Type::U64, "u64"),
+            (Type::Usize, "usize"),
+            (Type::F32, "f32"),
+            (Type::F64, "f64"),
+        ] {
+            assert!(supported_element(&element));
+            assert_eq!(definition_name(&element), format!("@builtin:OwnedStore<{name}>"));
+            let head = Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(element.clone()),
+            }));
+            assert!(resources::supported(&head));
+            assert!(!owned_shapes::value(&Type::Package {
+                name: "Outer".into(),
+                fields: vec![("items".into(), head)],
+            }));
+        }
+        assert_ne!(definition_name(&Type::U64), definition_name(&Type::Usize));
+        for forbidden in [Type::Unit, Type::Tuple(vec![Type::I32]), Type::ForeignHandle] {
+            assert!(!supported_element(&forbidden));
+        }
     }
 
     #[test]

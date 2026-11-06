@@ -1466,6 +1466,26 @@ mod pod_tests {
     }
 
     #[test]
+    fn g934_scalar_protocols_have_exact_nonzero_stride() {
+        for (element, stride) in [
+            (Type::Bool, 1), (Type::U8, 1), (Type::U16, 2),
+            (Type::I32, 4), (Type::I64, 8), (Type::U64, 8),
+            (Type::Usize, 8), (Type::F32, 4), (Type::F64, 8),
+        ] {
+            let resources = [ResourceDefinition {
+                name: format!("@builtin:OwnedStore<{}>", element.name()),
+                payload: Type::OwnedStore { element: Box::new(element) },
+                teardown: None,
+            }];
+            let mut remaining = usize::MAX;
+            let plans = plan(&resources, &Limits::default(), &mut remaining).unwrap();
+            assert_eq!(plans[&0].stride, stride);
+            assert!(plans[&0].push.is_none());
+            assert!(plans[&0].pop.is_none());
+        }
+    }
+
+    #[test]
     fn g932_protocol_plan_has_exact_budget_and_retains_package_cost() {
         let resources = [resource(510), resource(32768)];
         let limits = Limits::default();
