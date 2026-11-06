@@ -1232,10 +1232,12 @@ impl<'a> Engine<'a> {
                 self.stored_lookup_fee(self.stored_record_fields.len(), generated.len(), span)?;
                 self.budget.text(&generated, span)?;
                 self.budget.lineage_bytes(
-                    physical
-                        .fields
-                        .len()
-                        .saturating_mul(std::mem::size_of::<(String, TypeRef)>()),
+                    std::mem::size_of::<(String, Vec<(String, TypeRef)>)>().saturating_add(
+                        physical
+                            .fields
+                            .len()
+                            .saturating_mul(std::mem::size_of::<(String, TypeRef)>()),
+                    ),
                     span,
                 )?;
                 let mut fields = Vec::new();
