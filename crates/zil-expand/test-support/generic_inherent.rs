@@ -86,8 +86,7 @@ fn two_life_receiver_with_reordered_impl_binders_keeps_source_positions() {
     );
 }
 
-#[path = "budget_boundary.rs"]
-mod budget_boundary;
+use super::budget_boundary;
 
 #[test]
 fn inherent_specialization_preserves_exact_request_boundaries() {
