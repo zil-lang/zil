@@ -387,10 +387,10 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
 }
 
 /// This spelling is created only by the method lift; source identifiers cannot
-/// contain `$`. It selects the existing Copy/life profile while retaining the
-/// provider's nominal trait obligation for definition-time checking.
+/// contain `$`. It selects the existing life or Copy/life profile while
+/// retaining the provider's nominal trait obligation for definition-time checking.
 fn lending_provider_life(function: &s::Function) -> bool {
-    function.name.starts_with("$generic_method_") && copy_life(function)
+    function.name.starts_with("$generic_method_") && (only_life(function) || copy_life(function))
 }
 
 /// Ordinary helper lifetime formals stay in the function's rigid source
