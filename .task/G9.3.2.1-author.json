@@ -103,7 +103,6 @@
     "Enum/ErrorUnion/foreign handle/function rejected as POD leaves",
     "concrete wrapper full type preservation",
     "opaque StoreElement does not grant Copy",
-    "POD Store mutable primitive view rejected",
     "POD head remains ordinary resource",
     "new Package/Product/owned-sum ownership excluded; old owned-Package Store composition retained"
   ],
@@ -122,5 +121,8 @@
     "expression_evolution": "Real std.store-shaped generic wrappers use the existing Store surface; not a maintenance superiority claim.",
     "compile_cost": "No comparative measurement.",
     "reproducible_breakthrough": "Not established by this slice."
-  }
+  },
+  "implemented_gates_not_executed_in_author_focused_tests": [
+    "Source/Types rejects POD store_at_mut; root owns actual primitive/window controls."
+  ]
 }
