@@ -163,7 +163,7 @@ impl Check<'_, '_, '_> {
                                 // written in the field. Mutable qualification
                                 // still comes from the real projected base.
                                 return Ok((
-                                    enums::source_field_actuals(
+                                    super::super::enums::source_field_actuals(
                                         &aggregate.generics,
                                         args,
                                         &field.ty,
