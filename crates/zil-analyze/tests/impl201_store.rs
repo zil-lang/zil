@@ -1134,3 +1134,86 @@ fn pod_store_helper_distinct_roots_and_conservative_same_call_limit() {
         "same Store helper must reject a live read after mutation"
     );
 }
+
+#[test]
+fn pod_cfg_order_matches_legacy_transfer_on_diamonds_and_backedges() {
+    for looping in [false, true] {
+        for invalid in [false, true] {
+            let mut legacy = fixture(element(0), 0);
+            let f = &mut legacy.functions[0];
+            let desc = match &f.locals[0].ty {
+                Type::Managed(payload) => Type::Desc(payload.clone()),
+                _ => unreachable!(),
+            };
+            let cleanup = f.blocks[0].instructions[1..].to_vec();
+            f.values = vec![Type::Bool, desc];
+            f.blocks = vec![
+                BasicBlock {
+                    id: BlockId(0),
+                    instructions: vec![
+                        ins(None, InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+                        ins(
+                            Some(ValueId(0)),
+                            InstructionKind::Constant(Constant::Bool(true)),
+                        ),
+                    ],
+                    terminator: Terminator::Branch {
+                        condition: ValueId(0),
+                        then_block: BlockId(1),
+                        else_block: BlockId(2),
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(1),
+                    instructions: if invalid {
+                        vec![ins(
+                            None,
+                            InstructionKind::DropManaged { local: LocalId(0) },
+                        )]
+                    } else {
+                        vec![]
+                    },
+                    terminator: if looping {
+                        Terminator::Branch {
+                            condition: ValueId(0),
+                            then_block: BlockId(1),
+                            else_block: BlockId(3),
+                        }
+                    } else {
+                        Terminator::Jump(BlockId(3))
+                    },
+                },
+                BasicBlock {
+                    id: BlockId(2),
+                    instructions: vec![],
+                    terminator: Terminator::Jump(BlockId(3)),
+                },
+                BasicBlock {
+                    id: BlockId(3),
+                    instructions: std::iter::once(ins(
+                        Some(ValueId(1)),
+                        InstructionKind::DescribeLocal { local: LocalId(0) },
+                    ))
+                    .chain(cleanup)
+                    .collect(),
+                    terminator: Terminator::Return(None),
+                },
+            ];
+            let mut ordered = legacy.clone();
+            // An unused, fully checked POD definition selects the new private
+            // scheduling lane while all executable IR stays byte-identical.
+            ordered
+                .resources
+                .push(pod_fixture(pod_element()).resources.remove(0));
+            let a = analyze(&legacy, &Limits::default());
+            let b = analyze(&ordered, &Limits::default());
+            if invalid {
+                let a = a.expect_err("legacy rejects moved/cleaned incoming responsibility");
+                let b = b.expect_err("ordered rejects the same incoming responsibility");
+                assert_eq!(a[0].category, b[0].category, "loop={looping}");
+            } else {
+                assert_eq!(a.unwrap().functions, b.unwrap().functions, "loop={looping}");
+            }
+        }
+    }
+}
