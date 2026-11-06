@@ -1,8 +1,8 @@
 //! Independent Source consumers for the G2.4.1 lending trait profile.
-use super::{project, NEXT};
+use super::{NEXT, project};
 use std::{fs, path::PathBuf, process::Command, sync::atomic::Ordering};
 use zil_base::{Phase, ResultCategory};
-use zil_driver::{compile_project, CompileOptions, NativeBackend, Optimization, Stage};
+use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_project};
 
 const MAIN: &str = include_str!("project/main.zil");
 const API: &str = include_str!("project/api.zil");
@@ -129,10 +129,12 @@ fn g241_cross_module_source_and_all_native_modes() {
             assert!(codegen.fallback.is_none(), "{}", report.to_json());
             if backend == NativeBackend::LlvmApi {
                 assert!(!codegen.object_reports.is_empty());
-                assert!(codegen
-                    .object_reports
-                    .iter()
-                    .all(|x| x.contains("\"input_kind\":\"builder\"")));
+                assert!(
+                    codegen
+                        .object_reports
+                        .iter()
+                        .all(|x| x.contains("\"input_kind\":\"builder\""))
+                );
             }
             let output = Command::new(&executable).output().unwrap();
             fs::write(dir.join("stdout"), &output.stdout).unwrap();
@@ -268,7 +270,9 @@ fn g241_resource_head_lending_remains_explicitly_unsupported() {
     // A shared resource receiver with associated Item also lacks a supported
     // resource trait impl, so no resource transfer pair proves a move window here.
     let provider = "trait Lend{type Item:Copy;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}resource Cursor{values:[i32;2];index:usize}impl Lend for Cursor{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{if self.index>=2usize{return Option::<&'p i32>.None()}let i=self.index;self.index+=1usize;return Option::<&'p i32>.Some(&self.values[i])}}fn consume(give c:Cursor)->i32{return c.values[0]}";
-    let legal = format!("{provider}fn main()->i32{{var c=Cursor{{values:[20,22],index:0usize}};let held=c.next();var seen=0;match held{{Option.Some(v)=>{{seen=*v}},Option.None()=>{{return 0}}}}return seen+consume(give c)}}");
+    let legal = format!(
+        "{provider}fn main()->i32{{var c=Cursor{{values:[20,22],index:0usize}};let held=c.next();var seen=0;match held{{Option.Some(v)=>{{seen=*v}},Option.None()=>{{return 0}}}}return seen+consume(give c)}}"
+    );
     let report = super::check(&legal);
     assert_eq!(
         report.status,
@@ -290,7 +294,9 @@ fn g241_resource_head_lending_remains_explicitly_unsupported() {
 #[test]
 fn g241_copy_item_arithmetic_requires_an_additional_declared_bound() {
     // This is an explicit generic capability boundary, not a loan-safety result.
-    let consumer = format!("{CONSUMER}\npub fn invalid_arithmetic<I:api.LendingIterator>(x:I.Item)->I.Item{{return x+1}}");
+    let consumer = format!(
+        "{CONSUMER}\npub fn invalid_arithmetic<I:api.LendingIterator>(x:I.Item)->I.Item{{return x+1}}"
+    );
     canonical_success();
     let report = source_report(MAIN, API, CURSOR, &consumer, OTHER);
     assert_eq!(
@@ -358,39 +364,99 @@ fn g241_unused_generic_option_patterns_preserve_the_receiver_loan() {
         );
     }
     for (name, body) in [
-        ("if let wildcard", "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(_)=cursor.next(){cursor.next();}return fallback}"),
-        ("match wildcard", "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(_)=>{cursor.next();},Option.None()=>{}}return fallback}"),
+        (
+            "if let wildcard",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(_)=cursor.next(){cursor.next();}return fallback}",
+        ),
+        (
+            "match wildcard",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(_)=>{cursor.next();},Option.None()=>{}}return fallback}",
+        ),
     ] {
         let text = format!("{CONSUMER}\n{body}");
         let report = source_report(MAIN, API, CURSOR, &text, OTHER);
-        assert_eq!(report.status, ResultCategory::Success, "{name}: {}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
     }
 }
 
+// Replace only g241_nested_option_reference_pattern_remains_explicitly_unsupported
+// in tests/language-readiness/G2.4.1/consumers.rs after the focused window.
+// This uses the module's existing MAIN/API/CURSOR/CONSUMER/OTHER and source_report.
 #[test]
-fn g241_nested_option_reference_pattern_remains_explicitly_unsupported() {
+fn g241_nested_option_reference_patterns_remain_explicitly_unsupported() {
     canonical_success();
     let load = "fn load<T:Copy>(p:&T)->T{return *p}";
-    let ordinary = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}";
-    let good_source = format!("{CONSUMER}\n{load}\n{ordinary}");
-    let good = source_report(MAIN, API, CURSOR, &good_source, OTHER);
-    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
-    let nested = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(ref slot)=>{return load(*slot)},Option.None()=>{return fallback}}}";
-    let nested_source = format!("{CONSUMER}\n{load}\n{nested}");
-    let report = source_report(MAIN, API, CURSOR, &nested_source, OTHER);
-    assert_eq!(
-        report.status,
-        ResultCategory::Unsupported,
-        "{}",
-        report.to_json()
-    );
-    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
-    assert!(
-        report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
-            && d.message.contains(
-                "nested Option reference payload pattern requires its borrowing consumer"
-            )),
-        "{}",
-        report.to_json()
-    );
+    let cases = [
+        (
+            "match direct",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(ref slot)=>{return load(*slot)},Option.None()=>{return fallback}}}",
+        ),
+        (
+            "if let direct",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(value)=cursor.next(){return load(value)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(ref slot)=cursor.next(){return load(*slot)}return fallback}",
+        ),
+        (
+            "while let direct",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{while let Option.Some(value)=cursor.next(){return load(value)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{while let Option.Some(ref slot)=cursor.next(){return load(*slot)}return fallback}",
+        ),
+        (
+            "match held alias",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(ref slot)=>{return load(*slot)},Option.None()=>{return fallback}}}",
+        ),
+        (
+            "if let held alias",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();if let Option.Some(value)=held{return load(value)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();if let Option.Some(ref slot)=held{return load(*slot)}return fallback}",
+        ),
+        (
+            "while let held alias",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(value)=held{return load(value)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();while let Option.Some(ref slot)=held{return load(*slot)}return fallback}",
+        ),
+    ];
+    for (name, ordinary, nested) in cases {
+        let good = source_report(
+            MAIN,
+            API,
+            CURSOR,
+            &format!("{CONSUMER}\n{load}\n{ordinary}"),
+            OTHER,
+        );
+        assert_eq!(
+            good.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            good.to_json()
+        );
+        let report = source_report(
+            MAIN,
+            API,
+            CURSOR,
+            &format!("{CONSUMER}\n{load}\n{nested}"),
+            OTHER,
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{name}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+                && d.message
+                    == "nested Option reference payload pattern requires its borrowing consumer"),
+            "{name}: {}",
+            report.to_json()
+        );
+    }
 }

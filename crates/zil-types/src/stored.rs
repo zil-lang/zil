@@ -379,7 +379,11 @@ pub(super) fn project_option_enum(
 ) -> R<bool> {
     let mut candidate = false;
     for instance in &core.life_instances {
-        fee(left, declaration.name.len().saturating_add(1), declaration.span)?;
+        fee(
+            left,
+            declaration.name.len().saturating_add(1),
+            declaration.span,
+        )?;
         if instance.declaration.compiler
             && matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Enum { name, .. } if name == &declaration.name))
