@@ -890,16 +890,7 @@ impl Resolver<'_> {
         {
             return Ok(true);
         }
-        dynamic_store::charge_pod(ty, &self.generic_limits, span, &mut |cost| {
-            self.remaining = self.remaining.checked_sub(cost).ok_or_else(|| {
-                Diagnostic::limit(
-                    Phase::Types,
-                    "POD Store element budget exceeded",
-                    Some(span),
-                )
-            })?;
-            Ok(())
-        })?;
+        dynamic_store::charge_pod(ty, &self.generic_limits, span, &mut self.remaining)?;
         if dynamic_store::supported_element(ty) {
             return Ok(true);
         }
