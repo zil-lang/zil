@@ -1093,10 +1093,15 @@ impl<'a> Engine<'a> {
                 }
                 // Stored Option headers erase only their source life formals
                 // after recording the complete relation in the catalog.
-                if function.generics.is_empty()
-                    && !self.products.storage.functions.contains_key(&function.name)
-                {
-                    return Err(error(item.span, "method provider lost its life relation"));
+                if function.generics.is_empty() {
+                    self.stored_lookup_fee(
+                        self.products.storage.functions.len(),
+                        function.name.len(),
+                        item.span,
+                    )?;
+                    if !self.products.storage.functions.contains_key(&function.name) {
+                        return Err(error(item.span, "method provider lost its life relation"));
+                    }
                 }
                 self.budget.text(&function.name, item.span)?;
                 self.budget.identity_work(

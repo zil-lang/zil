@@ -154,10 +154,34 @@ impl Expander<'_> {
         // The normalizer records actual lifted member origins. A retained
         // concrete trait premise is allowed only on its life-only provider;
         // the premise has already been checked in the provider definition.
-        let life_method_provider = f.name.starts_with("$generic_method_")
-            && self
-                .method_providers
-                .is_some_and(|providers| providers.contains(&f.name));
+        let life_method_provider = if f.name.starts_with("$generic_method_") {
+            if let Some(providers) = self.method_providers {
+                let work = f
+                    .name
+                    .len()
+                    .saturating_add("$generic_method_".len())
+                    .saturating_mul(
+                        providers
+                            .len()
+                            .checked_ilog2()
+                            .map_or(1, |n| n as usize + 2),
+                    );
+                let Some(left) = self.callable_work.checked_sub(work) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "method provider lowering lookup exceeded budget",
+                        Some(f.span),
+                    ));
+                    return;
+                };
+                self.callable_work = left;
+                providers.contains(&f.name)
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         if (callable_parameters.is_empty()
             && state_parameters.is_empty()
             && type_parameters.is_empty()
