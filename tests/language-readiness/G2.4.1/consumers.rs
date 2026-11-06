@@ -106,6 +106,7 @@ fn g241_cross_module_source_and_all_native_modes() {
                 backend,
                 optimization,
                 stop_after: Stage::Build,
+                entry: Some("main".into()),
                 output: Some(executable.clone()),
                 emit_dir: Some(dir.join("phases")),
                 ..CompileOptions::default()
@@ -136,8 +137,8 @@ fn g241_cross_module_source_and_all_native_modes() {
             fs::write(dir.join("stdout"), &output.stdout).unwrap();
             fs::write(dir.join("stderr"), &output.stderr).unwrap();
             // main checks 20 + 22, both exhausted states, and the nominal Token provider.
-            assert_eq!(output.status.code(), Some(42), "{output:?}");
-            assert!(output.stdout.is_empty(), "{output:?}");
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"42\n", "{output:?}");
             assert!(output.stderr.is_empty(), "{output:?}");
             fs::remove_dir_all(dir).unwrap();
         }

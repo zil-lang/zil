@@ -30,3 +30,18 @@ pub fn find<T:Copy,F:FnMut(T)->bool>(values:&[T],predicate:&mut F)->T? {
     while index<values.len(){let value=values[index];if predicate(value){return Option.Some(value)};index+=1}
     return Option.None
 }
+
+// Each next result borrows this invocation of the receiver until its last use.
+pub trait LendingIterator {
+    type Item:Copy;
+    fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;
+}
+
+// Copy the yielded item before releasing the receiver loan.
+
+pub fn next_copy<I:LendingIterator>(cursor:&mut I)->Option<I.Item>{
+    match cursor.next(){
+        Option.Some(value)=>{return Option::<I.Item>.Some(*value)},
+        Option.None()=>{return Option::<I.Item>.None()}
+    }
+}

@@ -3162,3 +3162,6 @@ fn trait_bound_scans_obey_actual_work_budget() {
     .unwrap_err();
     assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
 }
+
+#[path = "../../../tests/language-readiness/G2.4.1/stdlib.rs"]
+mod g241_stdlib;
