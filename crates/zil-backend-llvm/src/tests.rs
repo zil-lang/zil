@@ -294,7 +294,13 @@ fn static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitt
                     _ => None,
                 })
                 .unwrap();
-            let instructions = &body.blocks.as_ref().unwrap()[0].instructions;
+            let instructions = body
+                .blocks
+                .as_ref()
+                .unwrap()
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .collect::<Vec<_>>();
             assert!(instructions.iter().any(|instruction| matches!(&instruction.op,
                 Op::Insert { index: 0, field, .. } if field.value == Val::Global(global.name.clone()))));
             assert!(instructions.iter().any(|instruction| matches!(&instruction.op,
