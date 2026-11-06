@@ -13,15 +13,24 @@ fn spend(count: usize, remaining: &mut usize) -> CompileResult<()> {
     Ok(())
 }
 
-pub(super) fn reserve_emission(count: usize, remaining: &mut usize) -> CompileResult<()> {
+pub(crate) fn reserve_emission(count: usize, remaining: &mut usize) -> CompileResult<()> {
     spend(count.saturating_mul(16).saturating_add(64), remaining)
+}
+
+#[cfg(test)]
+pub(crate) fn planned_remaining(
+    lir: &LirView<'_>,
+    limits: &zil_base::Limits,
+    remaining: usize,
+) -> CompileResult<usize> {
+    copy_aggregates::plan(lir, limits, remaining).map(|plan| plan.remaining_work)
 }
 
 fn symbol(function: FunctionId, value: ValueId) -> String {
     format!("zil.utf8.{}.{}", function.0, value.0)
 }
 
-pub(super) fn global(function: FunctionId, value: ValueId, bytes: &[u8]) -> m::Global {
+pub(crate) fn global(function: FunctionId, value: ValueId, bytes: &[u8]) -> m::Global {
     m::Global {
         name: symbol(function, value),
         linkage: m::Linkage::Private,
@@ -65,7 +74,7 @@ impl FunctionEmitter<'_> {
 /// Preserve exact raw-LIR binding without another inventory scan. The original
 /// structural equality traversal now prepays byte comparisons where they occur.
 /// Aliased immutable views require neither comparison nor byte-copy payment.
-pub(super) fn same_functions(
+pub(crate) fn same_functions(
     left: &[TypedFunction],
     right: &[TypedFunction],
     remaining: &mut usize,
