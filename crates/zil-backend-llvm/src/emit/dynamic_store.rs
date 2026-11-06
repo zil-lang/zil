@@ -3,6 +3,22 @@
 use super::*;
 use zil_base::Limits;
 
+fn inline_protocol_element(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Record { .. }
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+    )
+}
+
 /// Private representation plans, built only after exact verified-LIR binding.
 /// Classify each complete protocol rather than assuming the element size.
 pub(super) struct Protocols {
@@ -27,7 +43,7 @@ pub(super) fn plan(
         let Type::OwnedStore { element } = &resource.payload else {
             continue;
         };
-        if !matches!(element.as_ref(), Type::Record { .. }) {
+        if !inline_protocol_element(element) {
             continue;
         }
         // Reserve complete nominal metadata before cloning either protocol.
@@ -122,7 +138,7 @@ pub(super) fn reserve_operations(
             };
             if !matches!(&function.values[store.0 as usize], Type::Desc(payload)
             if matches!(payload.as_ref(), Type::OwnedStore { element }
-                if matches!(element.as_ref(), Type::Record { .. })))
+                if inline_protocol_element(element)))
             {
                 continue;
             }
@@ -1457,6 +1473,34 @@ mod pod_tests {
             assert_eq!(p.stride, u64::from(words) * 8);
             assert_eq!(p.push.as_ref().map(|s| s.bytes), expected_push, "{words}");
             assert_eq!(p.pop.as_ref().map(|s| s.bytes), expected_pop, "{words}");
+        }
+    }
+
+    #[test]
+    fn g934_scalar_protocols_have_exact_nonzero_stride() {
+        for (element, stride) in [
+            (Type::Bool, 1),
+            (Type::U8, 1),
+            (Type::U16, 2),
+            (Type::I32, 4),
+            (Type::I64, 8),
+            (Type::U64, 8),
+            (Type::Usize, 8),
+            (Type::F32, 4),
+            (Type::F64, 8),
+        ] {
+            let resources = [ResourceDefinition {
+                name: format!("@builtin:OwnedStore<{}>", element.name()),
+                payload: Type::OwnedStore {
+                    element: Box::new(element),
+                },
+                teardown: None,
+            }];
+            let mut remaining = usize::MAX;
+            let plans = plan(&resources, &Limits::default(), &mut remaining).unwrap();
+            assert_eq!(plans[&0].stride, stride);
+            assert!(plans[&0].push.is_none());
+            assert!(plans[&0].pop.is_none());
         }
     }
 

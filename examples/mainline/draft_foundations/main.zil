@@ -1,0 +1,1 @@
+import std.store;import model;import usecase;import operations;fn main()->i32{let rows:Store<model.Row>=store.new();if !store.reserve(rows,1){return -1}match store.push(rows,usecase.make::<model.Row>(40)){.ok(())=>{},.err(_)=>{return -2}}let view=store_at_mut(rows,0);operations.bump(view);return view.value}

@@ -89,6 +89,27 @@ pub(super) fn supported_element(ty: &Type) -> bool {
         || pod_element(ty)
 }
 
+pub(super) fn scalar_element(ty: &Type) -> bool {
+    matches!(
+        ty,
+        Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64
+    )
+}
+
+/// Shape selector for existing owning-composition exclusions. Qualification
+/// still requires the complete element and actual carrier checks below.
+pub(super) fn inline_element(ty: &Type) -> bool {
+    matches!(ty, Type::Record { .. }) || scalar_element(ty)
+}
+
 /// This private predicate is called only after a complete type snapshot has
 /// bounded the input and reserved its traversal. It grants no capture profile.
 pub(super) fn pod_element(ty: &Type) -> bool {
@@ -124,13 +145,13 @@ pub(super) fn pod_element(ty: &Type) -> bool {
             _ => return None,
         })
     }
-    matches!(ty, Type::Record { .. }) && layout(ty).is_some_and(|(size, _)| size > 0)
+    inline_element(ty) && layout(ty).is_some_and(|(size, _)| size > 0)
 }
 
-/// Extra work is exclusive to the new Record family. Legacy Package receipts
+/// Extra work is exclusive to the inline Record/scalar family. Legacy Package receipts
 /// keep their exact charges. Call before the private POD predicate or new copy.
 pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
-    if matches!(ty, Type::Record { .. }) {
+    if inline_element(ty) {
         inference::charge_type_snapshot(ty, span, limits, remaining, 4)?;
     }
     Ok(())
@@ -429,8 +450,18 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
-    let (Type::Package { name, .. } | Type::Record { name, .. }) = element else {
-        unreachable!("checked Store element")
+    let name = match element {
+        Type::Package { name, .. } | Type::Record { name, .. } => name.as_str(),
+        Type::Bool => "bool",
+        Type::U8 => "u8",
+        Type::U16 => "u16",
+        Type::I32 => "i32",
+        Type::I64 => "i64",
+        Type::U64 => "u64",
+        Type::Usize => "usize",
+        Type::F32 => "f32",
+        Type::F64 => "f64",
+        _ => unreachable!("checked Store element"),
     };
     format!("@builtin:OwnedStore<{name}>")
 }
@@ -492,7 +523,7 @@ pub(super) fn add_definitions(
                             function.span,
                         )?;
                     }
-                    if matches!(element, Type::Record { .. }) {
+                    if inline_element(element) {
                         // Cover the canonical name copy and ordered-map key
                         // comparisons before constructing or looking up it.
                         *remaining = remaining
@@ -501,7 +532,7 @@ pub(super) fn add_definitions(
                     }
                     let name = definition_name(element);
                     if let Some(old) = found.get(&name) {
-                        if matches!(element, Type::Record { .. }) {
+                        if inline_element(element) {
                             inference::charge_type_snapshot(
                                 old,
                                 function.span,
@@ -566,7 +597,7 @@ pub(super) fn add_definitions(
             }
             check_callback_captures(element, closures, &mut work, limits, *span)?;
         }
-        if matches!(element, Type::Record { .. }) {
+        if inline_element(element) {
             *remaining = remaining
                 .checked_sub(cost.saturating_mul(found.len().saturating_add(2)))
                 .ok_or_else(exhausted)?;
@@ -576,7 +607,7 @@ pub(super) fn add_definitions(
             .checked_sub(found.len().saturating_mul(name.len().saturating_add(1)))
             .ok_or_else(exhausted)?;
         if let Some(old) = found.get(&name) {
-            if matches!(element, Type::Record { .. }) {
+            if inline_element(element) {
                 inference::charge_type_snapshot(old, *span, limits, remaining, 1)?;
                 *remaining = remaining.checked_sub(cost).ok_or_else(exhausted)?;
             }
@@ -632,7 +663,7 @@ impl Builder<'_, '_> {
         }
         let (kind, ty) = if name == "store_new" {
             let element = expected.and_then(element).ok_or_else(|| error("E-OWNED-STORE-TYPE", span, "store_new requires a concrete Store<Package> annotation or owning result context"))?;
-            if matches!(element, Type::Record { .. }) {
+            if inline_element(element) {
                 self.closures.snapshot_type(element, 4, 0, span)?;
             }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
@@ -661,7 +692,7 @@ impl Builder<'_, '_> {
                     "Store primitive requires its real resource description",
                 )
             })?;
-            if matches!(element, Type::Record { .. }) {
+            if inline_element(element) {
                 self.closures.snapshot_type(element, 4, 0, span)?;
             }
             let work = inference::type_snapshot_work(element, span, self.limits)?;
@@ -685,12 +716,6 @@ impl Builder<'_, '_> {
                     InstructionKind::OwnedStorePush { store, value }
                 }
                 "store_at" | "store_at_mut" => {
-                    if name == "store_at_mut" && matches!(element, Type::Record { .. }) {
-                        return Err(unsupported(
-                            span,
-                            "POD Store elements expose only shared windows",
-                        ));
-                    }
                     if name == "store_at_mut" && packages::product::nested(&element) {
                         return Err(unsupported(
                             span,
@@ -774,8 +799,45 @@ mod pod_tests {
         ] {
             assert!(!pod_element(&record(field)));
         }
-        assert!(!pod_element(&Type::I32));
+        assert!(pod_element(&Type::I32));
         assert!(!pod_element(&Type::Tuple(vec![Type::I32])));
+    }
+
+    #[test]
+    fn scalar_store_keeps_exact_identity_and_owning_boundary() {
+        for (element, name) in [
+            (Type::Bool, "bool"),
+            (Type::U8, "u8"),
+            (Type::U16, "u16"),
+            (Type::I32, "i32"),
+            (Type::I64, "i64"),
+            (Type::U64, "u64"),
+            (Type::Usize, "usize"),
+            (Type::F32, "f32"),
+            (Type::F64, "f64"),
+        ] {
+            assert!(supported_element(&element));
+            assert_eq!(
+                definition_name(&element),
+                format!("@builtin:OwnedStore<{name}>")
+            );
+            let head = Type::Managed(Box::new(Type::OwnedStore {
+                element: Box::new(element.clone()),
+            }));
+            assert!(resources::supported(&head));
+            assert!(!owned_shapes::value(&Type::Package {
+                name: "Outer".into(),
+                fields: vec![("items".into(), head)],
+            }));
+        }
+        assert_ne!(definition_name(&Type::U64), definition_name(&Type::Usize));
+        for forbidden in [
+            Type::Unit,
+            Type::Tuple(vec![Type::I32]),
+            Type::ForeignHandle,
+        ] {
+            assert!(!supported_element(&forbidden));
+        }
     }
 
     #[test]

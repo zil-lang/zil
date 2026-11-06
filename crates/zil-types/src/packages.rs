@@ -36,7 +36,7 @@ pub(super) fn supported(ty: &Type) -> bool {
                 || matches!(t, Type::Closure(_))
                 || (matches!(t, Type::Managed(_))
                     && resources::supported(t)
-                    && !matches!(dynamic_store::element(t), Some(Type::Record { .. })))
+                    && !dynamic_store::element(t).is_some_and(dynamic_store::inline_element))
         })
 }
 

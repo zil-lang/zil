@@ -202,6 +202,25 @@ pub(super) fn concrete_element(
         }
         return Ok(());
     }
+    if let TypeKind::Named { path, args } = &grouped(ty).kind
+        && args.is_empty()
+        && path.len() == 1
+        && matches!(
+            path[0].as_str(),
+            "bool" | "u8" | "u16" | "i32" | "i64" | "u64" | "usize" | "f32" | "f64"
+        )
+    {
+        // The paid POD layout walk also authenticates the written primitive.
+        // No symbolic T or same-sized nominal acquires StoreElement here.
+        let (size, _) = shape.pod(ty, &mut BTreeSet::new(), 0)?;
+        if size == 0 {
+            return Err(error(
+                ty.span,
+                "Store elements require nonzero inline layout",
+            ));
+        }
+        return Ok(());
+    }
     let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Package, true)?;
     // Reuse the already paid nominal lookup; legacy Package fees stay exact.
     // Only the disjoint concrete Record family enters the additional walk.

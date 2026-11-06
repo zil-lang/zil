@@ -65,6 +65,7 @@ pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
     pub generic: bool,
+    pub static_host: bool,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -738,6 +739,7 @@ pub(crate) fn resolve_generic_calls(
                 reference,
                 member: target.member.clone(),
                 generic: true,
+                static_host: target.static_host,
             },
         );
     }
@@ -750,7 +752,18 @@ pub(crate) fn rewrite_calls(
     substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    rewrite_calls_materialized(item, symbolic, substitutions, substitutions, budget)
+}
+pub(crate) fn rewrite_calls_materialized(
+    item: &mut Item,
+    symbolic: &CallTargets,
+    substitutions: &BTreeMap<String, TypeRef>,
+    host_actuals: &BTreeMap<String, TypeRef>,
+    budget: &mut Budget<'_>,
+) -> R<()> {
     let mut resolved = BTreeMap::new();
+    let mut static_hosts = BTreeSet::new();
+    let mut static_direct = BTreeSet::new();
     for (ordinal, target) in symbolic {
         budget.node(item.span, 0)?;
         let mut reference = Reference {
@@ -773,12 +786,30 @@ pub(crate) fn rewrite_calls(
             item.span,
         )?;
         resolved.insert(*ordinal, name);
+        if target.static_host {
+            budget.node(item.span, 0)?;
+            static_hosts.insert(*ordinal);
+            if !target.generic {
+                budget.node(item.span, 0)?;
+                static_direct.insert(*ordinal);
+            }
+        }
     }
-    rewrite_resolved_calls(item, &resolved, budget)
+    rewrite_resolved_calls(
+        item,
+        &resolved,
+        &static_hosts,
+        &static_direct,
+        host_actuals,
+        budget,
+    )
 }
 fn rewrite_resolved_calls(
     item: &mut Item,
     calls: &BTreeMap<usize, String>,
+    static_hosts: &BTreeSet<usize>,
+    static_direct: &BTreeSet<usize>,
+    substitutions: &BTreeMap<String, TypeRef>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
     use super::super::ct_selection::Visitor;
@@ -794,6 +825,9 @@ fn rewrite_resolved_calls(
     };
     struct Prepay<'a, 'b, 'l> {
         calls: &'a BTreeMap<usize, String>,
+        static_hosts: &'a BTreeSet<usize>,
+        static_direct: &'a BTreeSet<usize>,
+        substitutions: &'a BTreeMap<String, TypeRef>,
         ids: &'a BTreeMap<usize, usize>,
         budget: &'b mut Budget<'l>,
     }
@@ -813,11 +847,43 @@ fn rewrite_resolved_calls(
             {
                 self.text(target, e.span)?;
             }
+            if let ExprKind::Member { object, .. } = &e.kind
+                && let Some(ordinal) = self.ids.get(&(e as *const Expr as usize))
+                && self.static_hosts.contains(ordinal)
+                && let Some(name) = static_host_name(object)
+                && let Some(actual) = self.substitutions.get(name)
+            {
+                self.budget.ty(actual).map_err(|e| vec![e])?;
+                self.budget
+                    .node(object.span, depth + 1)
+                    .map_err(|e| vec![e])?;
+                if !matches!(&grouped(actual).kind, TypeKind::Named { path, .. } if path.len() == 1)
+                {
+                    return Err(vec![error(
+                        object.span,
+                        "static trait host is not a nominal type",
+                    )]);
+                }
+            }
+            if let ExprKind::Member { object, .. } = &e.kind
+                && let Some(ordinal) = self.ids.get(&(e as *const Expr as usize))
+                && self.static_direct.contains(ordinal)
+                && let Some(host) = static_host_label(object, self.substitutions)
+                && let Some(target) = self.calls.get(ordinal)
+            {
+                self.budget.node(e.span, depth).map_err(|e| vec![e])?;
+                self.text(host, e.span)?;
+                self.text(".", e.span)?;
+                self.text(target, e.span)?;
+            }
             super::super::ct_selection::walk_expression(self, e, depth)
         }
     }
     Prepay {
         calls,
+        static_hosts,
+        static_direct,
+        substitutions,
         ids: &ids,
         budget,
     }
@@ -825,6 +891,9 @@ fn rewrite_resolved_calls(
     .map_err(|mut e| e.remove(0))?;
     let visitor = CallRewrite {
         calls,
+        static_hosts,
+        static_direct,
+        substitutions,
         ids: &ids,
         receiver: None,
     };
@@ -837,8 +906,56 @@ fn rewrite_resolved_calls(
     }
     Ok(())
 }
+fn static_host_name(mut object: &Expr) -> Option<&str> {
+    while let ExprKind::Group(inner) = &object.kind {
+        object = inner;
+    }
+    if let ExprKind::Name(name) = &object.kind {
+        Some(name)
+    } else {
+        None
+    }
+}
+fn static_host_label<'a>(
+    object: &'a Expr,
+    substitutions: &'a BTreeMap<String, TypeRef>,
+) -> Option<&'a str> {
+    let name = static_host_name(object)?;
+    if let Some(actual) = substitutions.get(name) {
+        if let TypeKind::Named { path, .. } = &grouped(actual).kind
+            && path.len() == 1
+        {
+            return Some(path[0].as_str());
+        }
+        return None;
+    }
+    Some(name)
+}
+fn static_host_expression(actual: &TypeRef, span: Span) -> Expr {
+    let TypeKind::Named { path, args } = &grouped(actual).kind else {
+        unreachable!("prepaid static host type")
+    };
+    let callee = Expr {
+        span,
+        kind: ExprKind::Name(path[0].clone()),
+    };
+    if args.is_empty() {
+        callee
+    } else {
+        Expr {
+            span,
+            kind: ExprKind::TypeApply {
+                callee: Box::new(callee),
+                arguments: args.clone(),
+            },
+        }
+    }
+}
 struct CallRewrite<'a> {
     calls: &'a BTreeMap<usize, String>,
+    static_hosts: &'a BTreeSet<usize>,
+    static_direct: &'a BTreeSet<usize>,
+    substitutions: &'a BTreeMap<String, TypeRef>,
     ids: &'a BTreeMap<usize, usize>,
     receiver: Option<&'a str>,
 }
@@ -865,6 +982,9 @@ pub(crate) fn rename_default_receiver(item: &mut Item, budget: &mut Budget<'_>) 
     let empty = BTreeMap::new();
     let visitor = CallRewrite {
         calls: &empty,
+        static_hosts: &BTreeSet::new(),
+        static_direct: &BTreeSet::new(),
+        substitutions: &BTreeMap::new(),
         ids: &BTreeMap::new(),
         receiver: Some(NAME),
     };
@@ -954,6 +1074,15 @@ impl CallRewrite<'_> {
     }
     fn expr(&self, e: &mut Expr) {
         let site = e as *const Expr as usize;
+        if let ExprKind::Member { object, .. } = &e.kind
+            && let Some(ordinal) = self.ids.get(&site)
+            && self.static_direct.contains(ordinal)
+            && let Some(host) = static_host_label(object, self.substitutions)
+            && let Some(target) = self.calls.get(ordinal)
+        {
+            e.kind = ExprKind::Name(format!("{host}.{target}"));
+            return;
+        }
         let method = match &mut e.kind {
             ExprKind::Member {
                 member: MemberName::Name(name) | MemberName::Constrained { name, .. },
@@ -967,6 +1096,14 @@ impl CallRewrite<'_> {
             && let Some(target) = self.calls.get(ordinal)
         {
             name.clone_from(target);
+        }
+        if let ExprKind::Member { object, .. } = &mut e.kind
+            && let Some(ordinal) = self.ids.get(&site)
+            && self.static_hosts.contains(ordinal)
+            && let Some(name) = static_host_name(object)
+            && let Some(actual) = self.substitutions.get(name)
+        {
+            **object = static_host_expression(actual, object.span);
         }
 
         match &mut e.kind {
@@ -1213,5 +1350,89 @@ mod trait_request_ledger {
         println!(
             "323 project ledger specialization work={work}, nodes={nodes}; both exhausted balances reject downstream expansion"
         );
+    }
+}
+
+#[cfg(test)]
+mod static_trait_request {
+    use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
+
+    const CONCRETE: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn main()->i32{return Cell.make::<i32>(3).n-7}";
+    const SYMBOLIC: &str = "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn build<F:Factory>()->F{return F.make::<i32>(3)}fn main()->i32{return build::<Cell>().n-7}";
+    const MULTI: &str = "trait Measure<Tag:Copy>{fn score<A:Copy,B:Copy>(a:A,b:B,tag:Tag)->i32;}struct Cell{n:i32}impl Measure<i32> for Cell{fn score<X:Copy,Y:Copy>(a:X,b:Y,tag:i32)->i32{return tag+1}}fn run<H:Measure<i32>>(x:i32)->i32{return H.score::<i32,bool>(3,true,x)}fn main()->i32{return run::<Cell>(7)-8}";
+    const ZERO: &str = "trait Construct<T:Copy>{fn make(value:T)->Self;}struct Cell<T:Copy>{n:T}impl<T:Copy> Construct<T> for Cell<T>{fn make(value:T)->Self{return Cell::<T>{n:value}}}fn build<H:Construct<i32>>(v:i32)->H{return H.make(v)}fn main()->i32{let row=build::<Cell<i32>>(42);return row.n-42}";
+
+    fn expand(text: &str, work: usize) -> zil_base::CompileResult<crate::ExpandedModule> {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "static242.zil", text);
+        let syntax = zil_syntax::parse(&source).into_result().unwrap();
+        crate::expand_with_map_limits(
+            &source,
+            &syntax,
+            &Limits {
+                max_analysis_steps: work,
+                ..Limits::default()
+            },
+        )
+    }
+
+    #[test]
+    fn static_type_hosts_have_exact_request_work_and_fresh_results() {
+        for (label, text) in [
+            ("concrete", CONCRETE),
+            ("symbolic", SYMBOLIC),
+            ("multi", MULTI),
+            ("zero", ZERO),
+        ] {
+            let mut low = 0usize;
+            let mut high = Limits::default().max_analysis_steps;
+            let expected = format!("{:?}", expand(text, high).unwrap().core);
+            while low + 1 < high {
+                let middle = low + (high - low) / 2;
+                match expand(text, middle) {
+                    Ok(_) => high = middle,
+                    Err(errors)
+                        if errors
+                            .iter()
+                            .all(|e| e.category == ResultCategory::ResourceLimit) =>
+                    {
+                        low = middle
+                    }
+                    Err(errors) => panic!("{label} unexpected diagnostic at {middle}: {errors:?}"),
+                }
+            }
+            assert!(high > 0, "{label} must consume request work");
+            let rejected = expand(text, high - 1).unwrap_err();
+            assert!(!rejected.is_empty());
+            assert!(
+                rejected
+                    .iter()
+                    .all(|e| e.category == ResultCategory::ResourceLimit),
+                "{label}: {rejected:?}"
+            );
+            assert_eq!(
+                format!("{:?}", expand(text, high).unwrap().core),
+                expected,
+                "{label} exact result"
+            );
+            assert_eq!(
+                format!("{:?}", expand(text, high).unwrap().core),
+                expected,
+                "{label} fresh result"
+            );
+            println!(
+                "G2.4.2 {label} exact request work N={high}; N-1 ResourceLimit; fresh result equal"
+            );
+        }
+    }
+
+    #[test]
+    fn static_type_host_does_not_override_value_shadow_or_unused_body_check() {
+        let shadow = SYMBOLIC.replace(
+            "return F.make::<i32>(3)",
+            "let F=Cell{n:1};return F.make::<i32>(3)",
+        );
+        assert!(expand(&shadow, Limits::default().max_analysis_steps).is_err());
+        let unused = CONCRETE.replace("return Cell{n:7}", "return value+1");
+        assert!(expand(&unused, Limits::default().max_analysis_steps).is_err());
     }
 }

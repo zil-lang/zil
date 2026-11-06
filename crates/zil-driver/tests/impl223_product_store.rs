@@ -451,7 +451,7 @@ fn raw_and_wire_rebuild_unused_product_storage_and_leaf_qualification() {
             [
                 "each Product Package requires a transitive explicit manages leaf",
                 "package fields must have unique nonempty names",
-                "non-Copy type requires another checker",
+                "POD Store ownership is not admitted inside owning aggregate fields",
             ][variant],
         );
     }
@@ -671,3 +671,9 @@ fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
 
 #[path = "../../../tests/language-readiness/G9.3.2/consumers.rs"]
 mod pod_collections;
+
+#[path = "../../../tests/language-readiness/G9.3.3/consumers.rs"]
+mod g933_consumers;
+
+#[path = "../../../tests/language-readiness/G9.3.4/consumers.rs"]
+mod g934_consumers;

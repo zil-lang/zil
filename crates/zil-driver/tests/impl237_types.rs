@@ -130,10 +130,11 @@ fn phantom_arguments_are_complete_nominal_identity_even_without_fields() {
 }
 #[test]
 fn phantom_actual_bound_is_checked_from_raw_metadata() {
+    // i32 is now a valid StoreElement; Unit remains forbidden (zero stride).
     let mut input = core(PHANTOM);
     for a in &mut input.aggregate_applications {
         a.owner = None;
-        a.arguments = vec![CoreAggregateArgument::Concrete(Type::I32)];
+        a.arguments = vec![CoreAggregateArgument::Concrete(Type::Unit)];
     }
     reject(&input);
 }

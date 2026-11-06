@@ -3,7 +3,7 @@ use std::{fs, os::unix::fs::PermissionsExt, path::Path, process::Command};
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
 
-fn allocator_wrapper(dir: &Path) -> std::path::PathBuf {
+pub(crate) fn allocator_wrapper(dir: &Path) -> std::path::PathBuf {
     let clang = std::env::var_os("ZIL_CLANG")
         .map(std::path::PathBuf::from)
         .unwrap_or_else(|| "clang".into());

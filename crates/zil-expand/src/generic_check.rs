@@ -2725,6 +2725,7 @@ impl Check<'_, '_, '_> {
         name: &str,
         arguments: trait_methods::Arguments<'_>,
         state: &mut State,
+        static_method: Option<(Function, trait_instances::Reference)>,
     ) -> R<TypeRef> {
         let trait_methods::Arguments {
             site,
@@ -2751,22 +2752,33 @@ impl Check<'_, '_, '_> {
             }
             &subject_key
         };
-        let method = self
-            .traits
-            .method(&self.bounds, variable, name, self.budget, object.span)?;
+        let (method, selected_reference) = if let Some((method, reference)) = static_method {
+            (Cow::Owned(method), Some(reference))
+        } else {
+            (
+                self.traits
+                    .method(&self.bounds, variable, name, self.budget, object.span)?,
+                None,
+            )
+        };
+        let static_method = selected_reference.is_some();
         let mut method_origin = self.budget.context.origin;
-        if method.name != name || !method.generics.is_empty() {
+        if static_method || method.name != name || !method.generics.is_empty() {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
-            let reference = self.traits.method_reference(
-                &self.bounds,
-                variable,
-                name,
-                &method.name,
-                self.budget,
-                object.span,
-            )?;
+            let reference = if let Some(reference) = selected_reference {
+                reference
+            } else {
+                self.traits.method_reference(
+                    &self.bounds,
+                    variable,
+                    name,
+                    &method.name,
+                    self.budget,
+                    object.span,
+                )?
+            };
             let (owner, _) = self.traits.declaration_item(&reference);
             method_origin = self.traits.origin(owner, self.budget)?;
             self.budget.text(name, object.span)?;
@@ -2787,22 +2799,28 @@ impl Check<'_, '_, '_> {
                         reference,
                         member: name.to_owned(),
                         generic: !method.generics.is_empty(),
+                        static_host: static_method,
                     },
                 );
         }
-        let Some(receiver) = method.params.first().filter(|p| p.name == "self") else {
+        let receiver = method.params.first().filter(|p| p.name == "self");
+        if static_method && receiver.is_some() {
+            return Err(error(object.span, "receiver method requires a value host"));
+        }
+        if !static_method && receiver.is_none() {
             return Err(error(
                 object.span,
                 "static trait method requires a type-qualified call",
             ));
-        };
-        if receiver.give || method.params.iter().any(|p| p.give) {
+        }
+        if method.params.iter().any(|p| p.give) {
             return Err(unsupported(
                 object.span,
                 "trait-bound resource passing modes require their category solver",
             ));
         }
-        if arguments.len() + 1 != method.params.len() {
+        let receiver_offset = usize::from(!static_method);
+        if arguments.len() + receiver_offset != method.params.len() {
             return Err(error(
                 object.span,
                 "trait-bound method argument count differs",
@@ -2874,47 +2892,52 @@ impl Check<'_, '_, '_> {
                 )?;
             }
         }
-        let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
-        match &group(&expected).kind {
-            TypeKind::Reference { mutable, .. } => {
-                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
-                    let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
+        if let Some(receiver) = receiver {
+            let expected = substituted_type(&receiver.ty, &substitutions, self.budget)?;
+            match &group(&expected).kind {
+                TypeKind::Reference { mutable, .. } => {
+                    if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                        let actual = self.argument(object, state, &expected, Some(&expected), 0)?;
+                        role_check::same(
+                            &actual,
+                            &expected,
+                            object.span,
+                            self.class_scope,
+                            self.budget,
+                        )?;
+                    } else {
+                        let (place, writable) = self.place(object, state)?;
+                        if *mutable && !writable {
+                            return Err(error(
+                                object.span,
+                                "mutable trait receiver requires a writable place",
+                            ));
+                        }
+                        role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
+                    }
+                }
+                _ => {
+                    if matches!(group(actual).kind, TypeKind::Reference { .. }) {
+                        return Err(error(
+                            object.span,
+                            "cannot move an unknown non-Copy trait receiver through a reference",
+                        ));
+                    }
+                    let consumed = self.expr(object, state, Some(&expected), false)?;
                     role_check::same(
-                        &actual,
+                        &consumed,
                         &expected,
                         object.span,
                         self.class_scope,
                         self.budget,
                     )?;
-                } else {
-                    let (place, writable) = self.place(object, state)?;
-                    if *mutable && !writable {
-                        return Err(error(
-                            object.span,
-                            "mutable trait receiver requires a writable place",
-                        ));
-                    }
-                    role_check::same(&place, host, object.span, self.class_scope, self.budget)?;
                 }
-            }
-            _ => {
-                if matches!(group(actual).kind, TypeKind::Reference { .. }) {
-                    return Err(error(
-                        object.span,
-                        "cannot move an unknown non-Copy trait receiver through a reference",
-                    ));
-                }
-                let consumed = self.expr(object, state, Some(&expected), false)?;
-                role_check::same(
-                    &consumed,
-                    &expected,
-                    object.span,
-                    self.class_scope,
-                    self.budget,
-                )?;
             }
         }
-        for (index, (argument, parameter)) in arguments.iter().zip(&method.params[1..]).enumerate()
+        for (index, (argument, parameter)) in arguments
+            .iter()
+            .zip(&method.params[receiver_offset..])
+            .enumerate()
         {
             if argument.spread {
                 return Err(unsupported(
@@ -2958,7 +2981,7 @@ impl Check<'_, '_, '_> {
                 state,
                 &expected,
                 (!dependent(&expected, &variables)).then_some(&expected),
-                index + 1,
+                index + receiver_offset,
             )?;
             if variables.is_empty() {
                 role_check::same(
@@ -2981,7 +3004,12 @@ impl Check<'_, '_, '_> {
             if !reference_parameter
                 && let TypeKind::Reference { mutable, .. } = &group(&actual).kind
             {
-                self.alias_hold_result(state, *mutable, argument.span, Some(index + 1))?;
+                self.alias_hold_result(
+                    state,
+                    *mutable,
+                    argument.span,
+                    Some(index + receiver_offset),
+                )?;
             }
         }
         for parameter in consts::parameters(&method) {
@@ -4209,6 +4237,62 @@ impl Check<'_, '_, '_> {
             {
                 return Ok(Some(result));
             }
+            if let Some(host) = static_host::classify(
+                object,
+                name,
+                |host| state.locals.contains_key(host),
+                static_host::Scope {
+                    nominals: self.nominals,
+                    variables: &self.variables,
+                    bounds: &self.bounds,
+                    traits: self.traits,
+                },
+                self.budget,
+            )? {
+                match host {
+                    static_host::Host::Symbolic {
+                        ty,
+                        reference,
+                        method,
+                    } => {
+                        return self
+                            .bound_method(
+                                object,
+                                &ty,
+                                name,
+                                trait_methods::Arguments {
+                                    site: method_callee,
+                                    values: arguments,
+                                    explicit: method_explicit,
+                                    expected,
+                                },
+                                state,
+                                Some((*method, reference)),
+                            )
+                            .map(Some);
+                    }
+                    static_host::Host::Nominal(actual) => {
+                        let (method, origin) = self
+                            .traits
+                            .definition_static_method(&actual, name, self.budget, e.span)?
+                            .ok_or_else(|| {
+                                error(e.span, "type host has no unique static trait method")
+                            })?;
+                        self.check_static_target(&method, e, arguments)?;
+                        let (variables, mut found) = self.prepare_static_arguments(
+                            &method,
+                            e,
+                            state,
+                            expected,
+                            method_explicit,
+                        )?;
+                        self.check_static_arguments(&method, e, state, &variables, &mut found)?;
+                        return self
+                            .finish_static_call(&method, e, &variables, &found, origin)
+                            .map(Some);
+                    }
+                }
+            }
             let ty = self.expr(object, state, None, true)?;
             if name == "len"
                 && matches!(&group(&ty).kind, TypeKind::Reference { inner, .. } if matches!(group(inner).kind, TypeKind::Array { length: None, .. }))
@@ -4229,6 +4313,7 @@ impl Check<'_, '_, '_> {
                     expected,
                 },
                 state,
+                None,
             ))
             .map(Some);
         }
@@ -4653,7 +4738,8 @@ impl Check<'_, '_, '_> {
         let (variables, mut found) =
             self.prepare_static_arguments(function, e, state, expected, explicit)?;
         self.check_static_arguments(function, e, state, &variables, &mut found)?;
-        self.finish_static_call(function, e, &variables, &found)
+        let origin = self.traits.function_origin(function, self.budget)?;
+        self.finish_static_call(function, e, &variables, &found, origin)
     }
 
     #[inline(never)]
@@ -4874,6 +4960,7 @@ impl Check<'_, '_, '_> {
         e: &Expr,
         variables: &BTreeSet<String>,
         found: &BTreeMap<String, TypeRef>,
+        origin: Option<origins::Origin>,
     ) -> R<TypeRef> {
         if variables.iter().any(|name| !found.contains_key(name)) {
             return Err(error(e.span, "unconstrained nested generic argument"));
@@ -4966,7 +5053,6 @@ impl Check<'_, '_, '_> {
                 role_check::same(result, &expected, e.span, self.class_scope, self.budget)?;
             }
         }
-        let origin = self.traits.function_origin(function, self.budget)?;
         self.budget.with_origin(origin, |budget| {
             self.traits.check_arguments_scoped(
                 &function.generics,

@@ -3,7 +3,7 @@
 use super::*;
 
 #[path = "allocation.rs"]
-mod allocation;
+pub(super) mod allocation;
 #[path = "trust_boundary.rs"]
 mod trust_boundary;
 
@@ -92,12 +92,12 @@ fn g932_actual_live_shared_view_blocks_same_root_mutations_with_spare_capacity()
 }
 
 #[test]
-fn g932_pod_store_mutable_view_is_rejected_without_banning_record_mutability() {
+fn g933_original_pod_mutable_source_is_accepted_without_banning_record_mutability() {
     let source = "struct Cell{value:i32}fn main(){let items:Store<Cell>=store_new();store_reserve(items,1);store_push(items,Cell{value:41});let view=store_at_mut(items,0);view.value=42}";
     let report = check("g932-store-mut", source, Stage::Verify);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
@@ -208,4 +208,13 @@ fn g932_262144_byte_record_actual_store_native_o0_reliability() {
     large_record(&mut source, 262144, "u8", 1);
     source.push_str("fn main()->i32{if run262144()!=0{return 1};unsafe{putchar(76);putchar(65);putchar(82);putchar(71);putchar(69);putchar(10)};return 0}");
     native("g932-large-o0-o2", &source, b"LARGE\n", 0);
+}
+
+#[test]
+fn g933_large_mutable_record_readback_preserves_complete_copy() {
+    let mut source = String::from("extern \"C\" fn putchar(x:i32)->i32;\n");
+    arrays(&mut source, 9, "u64");
+    large_record(&mut source, 4096, "u64", 8);
+    source.push_str("fn main()->i32{let items:Store<E4096>=store_new();if !store_reserve(items,1){return 1}store_push(items,make4096(7u64));let view=store_at_mut(items,0);view.part9[0][0][0][0][0][0][0][0][0]=11u64;let snapshot=*view;if snapshot.part9[0][0][0][0][0][0][0][0][0]!=11u64 || snapshot.part9[1][0][0][0][0][0][0][0][0]!=7u64{return 2}match store_pop(items){.ok(value)=>{if value.part9[0][0][0][0][0][0][0][0][0]!=11u64{return 3}},.err(_)=>{return 4}}unsafe{putchar(66);putchar(73);putchar(71);putchar(77);putchar(10)}return 0}");
+    native("g933-large-mut", &source, b"BIGM\n", 0);
 }

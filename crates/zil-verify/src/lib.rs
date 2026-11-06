@@ -1119,9 +1119,16 @@ fn check_type_shape(
             | Type::OwnedStore { element } => {
                 budget.async_registrations |= matches!(ty, Type::AsyncRegistration { .. });
                 if matches!(ty, Type::OwnedStore { .. })
-                    && matches!(element.as_ref(), Type::Record { .. })
+                    && (matches!(element.as_ref(), Type::Record { .. })
+                        || dynamic_store::direct_scalar(element))
                 {
-                    if context & (4 | 64 | 1 | 2) != 0 {
+                    // The scalar extension also excludes an owning Store
+                    // nested in a plain Record or Array. Bit 128 is carried
+                    // during the existing bounded raw-tree walk; old Record
+                    // Store selection and request fees remain unchanged.
+                    if context & (4 | 64 | 1 | 2) != 0
+                        || (dynamic_store::direct_scalar(element) && context & 128 != 0)
+                    {
                         return Err(unsupported(
                             "POD Store ownership is not admitted inside owning aggregate fields",
                             None,
@@ -1138,7 +1145,7 @@ fn check_type_shape(
             }
             Type::Array { element, length } => {
                 budget.spend(*length as usize)?;
-                pending.push((element, depth + 1, context));
+                pending.push((element, depth + 1, context | 128));
             }
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
@@ -1153,7 +1160,7 @@ fn check_type_shape(
                     | if matches!(ty, Type::Package { .. }) {
                         4 | if context & 4 != 0 { 16 } else { 0 }
                     } else {
-                        0
+                        128
                     };
                 for (name, ty) in fields {
                     budget.spend(name.len())?;

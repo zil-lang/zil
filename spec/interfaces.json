@@ -619,6 +619,37 @@
       "accounting": "New work prepaid in current request; unaffected owned profiles retain exact fees",
       "acceptance": "Actual Source std.store, raw/Wire negatives, full native O0/O2 values and allocation-failure cleanup, independent review and formal integration",
       "layout": "Nonzero bounded actual stored stride; aggregate Unit and empty Record/Tuple are empty structs size0/align1; closure capture Unit placeholder is distinct; existing ABI unchanged"
+    },
+    "static_trait_G2_4_2": {
+      "authority": "_zil_design.md §15.4",
+      "state": "ContractToImplement",
+      "representation": "Existing ordinary Function/Call with actual origin-backed provider; no receiver argument, public schema or ABI change",
+      "selection": "Lexical values precede type hosts; symbolic host requires exact declaration bound, concrete host a unique existing impl; nominal materialization and trait semantic reference stay distinct",
+      "modules": "Restore actual emitted method targets through declaration owner and existing import/export checks; inherited receiver methods do not enter static registration",
+      "obligations": "Existing type-only generic, where, ordered argument/result and unused definition checks; no additional Copy/ownership/lifetime permissions",
+      "accounting": "New scans/substitution/keys/clones prepaid; unaffected receiver request fees unchanged"
+    },
+    "pod_store_mutable_G9_3_3": {
+      "authority": "_zil_design.md §8.2.5",
+      "state": "ContractToImplement",
+      "extends": "pod_store_G9_3_2",
+      "representation": "Existing OwnedStoreBorrowMut, exact mutable Address<Record>, actual canonical Store and i64 index; Wire43 unchanged",
+      "windows": "Whole actual Store exclusive until last use including derived fields and helper calls; indices do not imply disjointness; reserve/push/pop/give/drop/head movement conflict even on no-op or failure",
+      "independence": "Types/Analyze/Verify independently validate complete POD element, actual operands and parent loan; candidate holds do not grant a root",
+      "machine": "Initialized-prefix bounds before address, real Copy field updates and large readback, allocation failure preserves modified contents and single release",
+      "boundary": "No contiguous slice, owning-element widening, escaping return, capture or default limit increase"
+    },
+    "scalar_store_G9_3_4": {
+      "authority": "_zil_design.md §8.2.5",
+      "state": "ContractToImplement",
+      "extends": [
+        "pod_store_G9_3_2",
+        "pod_store_mutable_G9_3_3"
+      ],
+      "elements": "Bool/U8/U16/I32/I64/U64/Usize/F32/F64 exact scalar identity and target nonzero stride; no extra family",
+      "representation": "Existing canonical OwnedStore and opcodes/Wire43, complete Copy value/error protocols and exact independent machine plan",
+      "responsibility": "Whole-Store actual parent windows, initialized-prefix bounds and structural conflicts; capacity failure preserves modified contents, single allocation release",
+      "accounting": "Prepay all new paths, preserve unaffected owning/Record requests and limits"
     }
   },
   "schemas": [

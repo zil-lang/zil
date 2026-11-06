@@ -1,5 +1,20 @@
 # 源码、审计与历史交付
 
+## 当前语言初稿与 Git 恢复入口（2026-11-07）
+
+当前源码在远端 `main`，实时任务在独立 `goal:goal.md`，退役分支和阶段源码 WIP 仅归入固定 `archive/source-history`。先按 [语言初稿](LANGUAGE-DRAFT.md) 构建运行；[本批共同验收](validation/G10.6.1-common-acceptance.json) 绑定精确源码、工具链、后端和恢复范围。
+
+```sh
+git clone https://github.com/zil-lang/zil.git
+cd zil
+git fetch origin refs/heads/goal:refs/remotes/origin/goal refs/heads/archive/source-history:refs/remotes/origin/archive/source-history
+git show refs/remotes/origin/goal:goal.md
+node tools/handoff.mjs --check
+```
+
+历史源码通过归档的 manifest 与父提交恢复，不把归档分支合入 main；本地未提交与未跟踪源码仍须先保全。本批另从 GitHub 拉取冻结源码、真实离线 release 构建并运行三个普通程序输入，复用了已准备的固定工具链和 Cargo 缓存；这不等于空机器安装、全 refs 冷恢复或旧交付结果重新验收。下文保持各历史交付的原始范围，旧 Unavailable/Unreviewed 与 legacy Fail 不被当前通过覆盖。
+
+
 ## 2026-10-28：203 标准离线 Git bundle
 
 203以标准完整 main 历史 bundle 和相对已接受202的增量 bundle 交付，附 `zil-offline-bundle-v1` JSON清单及具体离线导入/分支合并命令。新增提交只保留源码、测试、规范、工具、文档和紧凑收据，不放新的执行产物、Cargo缓存或大型运行证据；既有Git历史不改写。用户可继续使用已有本地一键同步脚本读取标准bundle。

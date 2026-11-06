@@ -1,7 +1,7 @@
 //! Project syntax normalization. Hygienic names are not type certificates: the
 //! resulting declarations still enter ordinary shape, type and safety checks.
 use super::*;
-use generics::Budget;
+use generics::{Budget, trait_instances};
 use std::borrow::Cow;
 use zil_base::{FileId, ModuleId};
 use zil_syntax::ast::*;
@@ -488,10 +488,39 @@ fn normalize(
         }
     }
     let mut has_trait_instances = false;
+    let mut static_trait_methods = BTreeMap::<String, BTreeSet<String>>::new();
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
-            let (defaults, associated, methods) =
-                generics::trait_defaults::features_with_methods(t, &mut budget)?;
+            // This is the same paid member walk as features_with_methods.
+            // Record only declarations with no receiver; an impl may omit
+            // `self` while inheriting a receiver from its trait signature.
+            let mut defaults = false;
+            let mut associated = false;
+            let mut methods = false;
+            for member in &t.members {
+                budget.node(member.span, 0)?;
+                associated |= matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_));
+                if let ItemKind::Function(function) = &member.kind {
+                    methods |= !function.generics.is_empty();
+                    defaults |= !matches!(function.body, FunctionBody::Declaration);
+                    if function.generics.is_empty()
+                        && !function.params.first().is_some_and(|p| p.name == "self")
+                    {
+                        budget.text(&t.name, item.span)?;
+                        budget.text(&function.name, member.span)?;
+                        budget.lineage_bytes(
+                            std::mem::size_of::<(String, BTreeSet<String>)>()
+                                .saturating_add(t.name.len())
+                                .saturating_add(function.name.len()),
+                            member.span,
+                        )?;
+                        static_trait_methods
+                            .entry(t.name.clone())
+                            .or_default()
+                            .insert(function.name.clone());
+                    }
+                }
+            }
             has_trait_instances |=
                 defaults || associated || methods || !t.generics.is_empty() || !t.bounds.is_empty();
         }
@@ -548,6 +577,7 @@ fn normalize(
         .collect::<Vec<_>>();
     let mut has_project_trait_impl = false;
     let mut positions = Vec::new();
+    let mut static_impls = Vec::new();
     for (ordinal, item) in specialized.items.iter().enumerate() {
         budget.item(item)?;
         let position = if let Some(origins) = &products.origins {
@@ -590,6 +620,90 @@ fn normalize(
                 f.name.clone(),
                 false,
             ));
+        }
+        if let ItemKind::Impl(implementation) = &item.kind
+            && let Some(trait_name) = implementation
+                .trait_type
+                .as_ref()
+                .and_then(trait_instances::head)
+            && let Some(static_members) = static_trait_methods.get(trait_name)
+            && implementation.members.iter().any(|member| {
+                matches!(&member.kind,
+                ItemKind::Function(method) if method.generics.is_empty()
+                    && static_members.contains(&method.name))
+            })
+        {
+            budget.lineage_bytes(std::mem::size_of::<(&Item, ModuleId)>(), item.span)?;
+            static_impls.push((item, modules[position].id));
+        }
+    }
+    if !static_impls.is_empty() {
+        // These entries describe actual impl members that the static collector
+        // will emit. Restore uses the owner to form an ordinary import; it
+        // does not infer a provider or visibility from the generated spelling.
+        let mut declarations = BTreeMap::new();
+        for item in &specialized.items {
+            budget.node(item.span, 0)?;
+            if let ItemKind::Trait(declaration) = &item.kind {
+                budget.text(&declaration.name, item.span)?;
+                declarations.insert(declaration.name.as_str(), (item, declaration));
+            }
+        }
+        for (item, owner) in static_impls {
+            let ItemKind::Impl(implementation) = &item.kind else {
+                unreachable!()
+            };
+            let application = implementation.trait_type.as_ref().expect("static impl");
+            let Some(trait_name) = trait_instances::head(application) else {
+                continue;
+            };
+            budget.text(trait_name, application.span)?;
+            let Some((trait_item, declaration)) = declarations.get(trait_name).copied() else {
+                continue;
+            };
+            let Some(host) = trait_instances::head(&implementation.target) else {
+                continue;
+            };
+            let reference =
+                trait_instances::arguments(trait_item.span, declaration, application, &mut budget)?;
+            let instanced = !declaration.generics.is_empty()
+                || declaration.members.iter().any(|member| {
+                    matches!(member.kind, ItemKind::TypeAlias(_) | ItemKind::Const(_))
+                });
+            for member in &implementation.members {
+                budget.node(member.span, 0)?;
+                let ItemKind::Function(method) = &member.kind else {
+                    continue;
+                };
+                if !method.generics.is_empty()
+                    || !static_trait_methods
+                        .get(trait_name)
+                        .is_some_and(|names| names.contains(&method.name))
+                {
+                    continue;
+                }
+                let target = if instanced {
+                    trait_instances::method_name(
+                        &reference,
+                        &method.name,
+                        &mut budget,
+                        member.span,
+                    )?
+                } else {
+                    budget.text(&method.name, member.span)?;
+                    method.name.clone()
+                };
+                budget.text(host, member.span)?;
+                budget.text(".", member.span)?;
+                budget.text(&target, member.span)?;
+                budget.lineage_bytes(
+                    std::mem::size_of::<(String, (ModuleId, String, bool))>()
+                        .saturating_add(2 * (host.len() + 1 + target.len())),
+                    member.span,
+                )?;
+                let key = format!("{host}.{target}");
+                functions.entry(key.clone()).or_insert((owner, key, false));
+            }
         }
     }
     let method_owners = if has_project_trait_impl {

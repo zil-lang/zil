@@ -1,0 +1,50 @@
+{
+  "schema_version": 1,
+  "task": "G10.6.1",
+  "reviewer": "final_review",
+  "status": "AcceptedAfterCommonAcceptance",
+  "source": "a8c7953e7f4f5932f838284390e55f1f8884bdbc",
+  "pre_correction_source": "81f9d7ab1088c06a441acaa6ac2013033254691e",
+  "base_contract": "18d481e16db77d38144ca575bb9843b679cd6a7c",
+  "independence": "Read-only non-author review. Did not edit repository or goal and did not run Cargo. Independently inspected the G9.3.3 Source consumer previously authored by the first reviewer.",
+  "verdict": "Independent code review passes for the finite draft profile. The two a8c7953e7 test corrections preserve invalid counterexamples; production source is unchanged from 81f9d7ab1. Exact-source full common gates and scoped remote source recovery passed. This does not accept B0, full language, ZUI or product gates.",
+  "test_corrections": [
+    {
+      "test": "impl174_store_fields::raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature",
+      "finding": "The source-derived State still requires canonical @builtin:OwnedStore<Item>. The mutation changes only its resource payload to OwnedStore<I32>, retaining the Item name, so the full canonical identity is forged. I32 became an admitted scalar; the precise expected result is now SafeReject E-VERIFY-OWNED-STORE with canonical element identity. The missing-definition and wrong-name neighboring counterexamples remain. No forged candidate is accepted."
+    },
+    {
+      "test": "impl237_types::phantom_actual_bound_is_checked_from_raw_metadata",
+      "finding": "The fixture still changes every raw aggregate application to a concrete argument and calls reject on both zil_types::check and check_program. I32 now satisfies StoreElement; Unit is independently excluded by the zero-stride element rule. The assertion still requires a Types SafeReject or Unsupported error for each entry path. Production admission and the test rejection helper are unchanged."
+    }
+  ],
+  "first_review_checked": {
+    "record": "docs/validation/G10.6.1-first-review.json",
+    "record_sha256": "326b4be51b2b9c5d8d070fdf2dd76abb68c36793696cc88d8f06c8845b717c1c",
+    "scope": "Earlier review covers static trait host selection and declaration origin, Types/Analyze/Verify Store admission, independent actual-root and loan checks, scalar identity, LLVM complete element plan and budget preservation. This pass spot-checked the production diff and independently reviewed its G9.3.3 Source consumer; no new production delta exists after that review.",
+    "g933_source_consumer": "The committed consumer compiles direct Store<Cell> writes and a real std.store import through Clang and optional LLVM API at O0/O2; it checks full output, exit code, verification and no backend fallback. Its same-Store shared/mutable and structural-operation negatives keep a live returned view and exact conflict diagnostics. Its source-derived raw/Wire mutation first checks stale Hold rejection, then coherently rebinds only derived address roots and requires independent E-BORROW-CONFLICT. Distinct actual Stores remain a positive. Fault injection checks changed element values and allocator cleanup at both optimization levels. This closes the first reviewer's Source-authorship independence gap at static review level; run receipts remain common acceptance work."
+  },
+  "draft_docs_and_gap_check": {
+    "matrix": "docs/LANGUAGE-DRAFT.md explicitly marks itself unpublished and each new capability awaiting same-source acceptance. It scopes ordinary POD Record and nine direct scalars, whole-Store exclusive windows, type-qualified concrete/symbolic static trait calls, a selected multi-module program, and Source through independent Verify to machine output. README links that preview without claiming B0 or product completion.",
+    "joint_program": "examples/mainline/draft_foundations has five actual modules combining std.store, a public generic Factory, symbolic F.make, mutable helper and error branches; it returns 42 on its intended path. Its execution receipt must be attached to the final support matrix.",
+    "remaining_language_gaps": [
+      "G2.3/G2.4: general associated projection, blanket/primitive/enum impl combinations, resource-host lending and dyn dispatch",
+      "G3.4/G5/G6: long-lived borrowing, erased owning storage, and general state transitions",
+      "G8.4/G8.5/G8.6: general cross-thread cancellation, generic synchronization and borrowed async frame ports",
+      "G9.3: general value containers, full Unicode/formatting and broader iterator combinations"
+    ],
+    "separate_terminal_gates": "G10.4 native Windows, G10.5 same-contract Rust product comparison and breakthrough, and G10.6 B0/full-language/ZUI remain outstanding in goal.md. The preview text states these exclusions."
+  },
+  "evidence_limits": {
+    "first_full": "docs/validation/G10.6.1-first-full.json preserves 81f9d7ab1 as 5188 passed, 2 failed, exit 101; it is not acceptance evidence for a8c7953e7.",
+    "focused_after_correction": "Integrator reported 24 affected-target tests passed on a8c7953e7; this reviewer did not run them or independently bind their focused log. The later exact-source default workspace run includes both corrected tests and passes them.",
+    "default_workspace": "Read-only verified /workspace/.zil-env/G10.6.1-common-run/default-result.json: source/source_after a8c7953e7, clean worktree, cargo test --locked --workspace --no-fail-fast exit 0, 423 groups, 5190 passed, 0 failed. Actual default.log SHA256 7e632acdc61defd9d58cbaa7d6003a6d2a1bcfbc22d45f878bce2e88c9c348aa matches receipt. Log shows impl162 84/0, impl174 14/0, impl223 36/0, impl237 10/0, Analyze impl201 29/0, and relevant Verify/Expand source-derived and budget controls passing. Workspace feature unification enables zil-cli's default llvm-api feature on zil-driver: llvm_api208 runs 11/0, llvm_api_disabled208 runs 0, and impl243 actual_api passes. The G2.4.2/G9.3.3/G9.3.4 consumers conditionally add LLVM API to their Clang/API O0/O2 loops, so this default run covers both backends.",
+    "common_pipeline": "Read-only checked complete.json source a8c7953e7, tree b2df76396b05dc72833d497eeea1b239ef3e623b and status Pass. All 11 pipeline stage exit codes are 0 and each actual stage log SHA256 matches its row. Default workspace 5190/0 and reference 5078/0 each have 423 groups, clean same-source before/after, and actual log SHA256 7e632acdc61defd9d58cbaa7d6003a6d2a1bcfbc22d45f878bce2e88c9c348aa and 32308ae8669259ee75b4444938b1598392d53651acc1cc445f47ffa477de18e7 respectively. Text reference actual log has 10 result groups totaling 70/0. Both strict Clippy, release build, consumer209 and all ten engineering checks exited 0 with matching log hashes. Reference log runs llvm_api208 0 and llvm_api_disabled208 1, confirming the intended disabled-feature mode. The resumed pipeline reused five previously passing stages only after checking identical source, command and log hashes; resume.log records the exact-source reuse and then reference cleanup through COMPLETE. It does not aggregate results across source revisions.",
+    "release_consumer": "Actual consumer209/summary.json status Pass, source_commit a8c7953e7 and CLI SHA256 bf399697466932e7d494d53595a6333a0fa3c52b5b3dc8a8a98eadca728a4c4f matching complete.json. It records 16 builds, 128 observations, 56 injected-failure observations and 145 commands; summary SHA256 d35a7daf295d40dbcb18e5897acea10f9f83cabdf903e52d685dc9b9310c0e7a.",
+    "cold_recovery": "Actual /workspace/.zil-env/G10.6.1-cold/result.json status Pass. Remote clone HEAD a8c7953e7 and tree b2df76396b05dc72833d497eeea1b239ef3e623b match the accepted source; clone is clean. Clone, goal-ref fetch and 175.09-second offline release build each exit 0 with matching actual log hashes. Cold CLI SHA256 matches common release CLI. Joint, stream and invalid stream inputs return exactly '42\\n', '3 0 45\\n', and '4 1 23\\n'; all exit 0 with empty stderr, confirmed against saved stdout/stderr files. This recovery reuses prepared pinned tools and Cargo cache, and does not constitute empty-machine bootstrap or legacy handoff/history revalidation.",
+    "publication": "The final finite-profile document and common receipt may now bind the verified source, toolchain, target, backends and outputs. Preserve the first failed 81f9d7ab1 run separately. This review makes no B0, full-language, ZUI or product claim."
+  },
+  "code_review_blockers": [],
+  "common_acceptance": "Pass",
+  "cold_recovery": "Pass"
+}

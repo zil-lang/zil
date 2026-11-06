@@ -270,7 +270,6 @@ fn main()->void!i32{
 #[test]
 fn element_bound_checks_real_shapes_and_never_grants_copy_or_members() {
     for bad in [
-        "let s:Store<i32>=empty();",
         "let s:Store<R>=empty();",
         "let s:Store<OnlyCopy>=empty();",
         "let s:Store<Zero>=empty();",
@@ -681,4 +680,33 @@ fn actual_generic_calls_do_not_merge_distinct_nominal_elements() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn g934_original_scalar_gate_reaches_existing_invalid_package_boundary() {
+    // Preserve the entire historical negative fixture: its OnlyCopy Package
+    // is independently invalid. Scalar eligibility no longer masks that error.
+    let source = format!(
+        "{MODEL}{HELPERS}struct V{{n:i32}}package OnlyCopy{{n:i32}}resource Z{{}}package Zero{{manages z:Z}}package Nested{{manages items:Store<Item>}}fn main(){{let s:Store<i32>=empty();}}"
+    );
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn g934_generic_scalar_helpers_without_invalid_unused_declarations() {
+    let source = format!("{MODEL}{HELPERS}fn main(){{let s:Store<i32>=empty();}}");
+    let report = check(&[("main", &source)]);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }

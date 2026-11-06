@@ -116,6 +116,8 @@ mod stores;
 #[path = "generic_trait_bounds.rs"]
 mod trait_bounds;
 pub(super) use trait_bounds::dynamic;
+#[path = "generic_trait_static_host.rs"]
+mod static_host;
 #[path = "generic_trait_defaults.rs"]
 pub(super) mod trait_defaults;
 #[path = "generic_trait_impls.rs"]
@@ -1405,6 +1407,34 @@ impl<'a> Engine<'a> {
         // anchors directly; it never recounts calls in materialized output.
         let runtime_calls = self.runtime_call_anchors(&instance)?;
         let mut anchors = None;
+        let static_direct = if let ItemKind::Function(function) = &item.kind {
+            self.trait_calls.get(&function.name).is_some_and(|calls| {
+                calls
+                    .values()
+                    .any(|target| target.static_host && !target.generic)
+            })
+        } else {
+            false
+        };
+        let mut materialized_hosts = BTreeMap::new();
+        if static_direct {
+            // A type binder's nominal actual may itself need specialization
+            // before the ordinary static impl gets its emitted function name.
+            // Only origin-backed static call records enter this path.
+            for (name, actual) in &substitution {
+                if !matches!(&grouped(actual).kind, TypeKind::Named { path, .. } if path.len() == 1)
+                {
+                    continue;
+                }
+                self.budget.text(name, span)?;
+                self.budget.ty(actual)?;
+                self.budget
+                    .lineage_bytes(std::mem::size_of::<(String, TypeRef)>(), span)?;
+                let mut actual = actual.clone();
+                self.ty(&mut actual, 0)?;
+                materialized_hosts.insert(name.clone(), actual);
+            }
+        }
         if let ItemKind::Function(function) = &item.kind
             && let Some(calls) = self.trait_calls.get(&function.name)
         {
@@ -1421,7 +1451,22 @@ impl<'a> Engine<'a> {
                     &mut self.budget,
                 )?);
             }
-            trait_instances::rewrite_calls(&mut instance, calls, &substitution, &mut self.budget)?;
+            if static_direct {
+                trait_instances::rewrite_calls_materialized(
+                    &mut instance,
+                    calls,
+                    &substitution,
+                    &materialized_hosts,
+                    &mut self.budget,
+                )?;
+            } else {
+                trait_instances::rewrite_calls(
+                    &mut instance,
+                    calls,
+                    &substitution,
+                    &mut self.budget,
+                )?;
+            }
         }
         substitute_item(&mut instance, &substitution)?;
         self.runtime_materialize(

@@ -23,7 +23,7 @@ pub(super) fn supported(ty: &Type) -> bool {
             && (result.is_copy_value() || packages::supported(result)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resources::supported(result)
-                && !matches!(dynamic_store::element(result), Some(Type::Record { .. }))))
+                && !dynamic_store::element(result).is_some_and(dynamic_store::inline_element)))
         || dynamic_store::product_protocol(ty)
         || owned_shapes::error_union(ty)
 }
