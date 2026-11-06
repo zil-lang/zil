@@ -255,6 +255,44 @@
       },
       "diagnostic_only": true,
       "working_tree_difference": "temporary eprintln actual HELPER Typed instructions in source_permissions positive test; exact lines removed after run; source tree restored clean; no production edits"
+    },
+    {
+      "case": "original-after-receiver",
+      "source_revision": "7ec0f03d4aa0a5487d049690f99522882386435d",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_slice_iter -j1 -- --nocapture",
+      "log_sha256": "7ee1a41d5b1adb8ec647a4e77a15b4208fe50eb110499664cd7bbdb4810df9bc",
+      "test_summary": "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+      "log_tail": [
+        "  left: Unsupported",
+        " right: SafeReject",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected ... FAILED",
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 100 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target"
+      },
+      "clean_source": true,
+      "actual_frontier": {
+        "phase": "Types",
+        "category": "Unsupported",
+        "message": "resource/address parameter mode",
+        "span": [
+          208,
+          222
+        ]
+      },
+      "cargo_exit_code": 101
     }
   ]
 }
