@@ -384,3 +384,99 @@ fn g3_4_1_option_none_join_forwarding_does_not_retain_transient_empty_leaves() {
         }
     }
 }
+
+#[test]
+fn g3_4_1_option_pattern_projects_only_the_actual_some_payload() {
+    let module = typed(include_str!("option-borrowed.zil"));
+    let plan = accept(&module);
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                zil_ir::InstructionKind::ReadVariant {
+                    variant: 1,
+                    index: 0,
+                    ..
+                }
+            ))
+    );
+    for case in 0..5 {
+        let mut forged = module.clone();
+        let mut changed = false;
+        for f in &mut forged.functions {
+            for block in &mut f.blocks {
+                for i in &mut block.instructions {
+                    match &mut i.kind {
+                        zil_ir::InstructionKind::MakeVariant { variant, fields }
+                            if !changed && *variant == 1 && case < 2 =>
+                        {
+                            if case == 0 {
+                                *variant = 2;
+                            } else {
+                                fields.clear();
+                            }
+                            changed = true;
+                        }
+                        zil_ir::InstructionKind::ReadVariant { variant, index, .. }
+                            if !changed && (case == 2 || case == 3) =>
+                        {
+                            if case == 2 {
+                                *variant = 0;
+                            } else {
+                                *index = 1;
+                            }
+                            changed = true;
+                        }
+                        zil_ir::InstructionKind::VariantTag { .. } if !changed && case == 4 => {
+                            f.values[i.result.unwrap().0 as usize] = Type::I64;
+                            changed = true;
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        assert!(changed, "missing source instruction for mutation {case}");
+        assert!(
+            zil_analyze::analyze(&forged, &Limits::default()).is_err(),
+            "mutation {case}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = forged.fingerprint();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&forged, &claim, &Limits::default()).unwrap();
+        let (decoded, _) =
+            zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+        assert!(
+            zil_analyze::analyze(&decoded, &Limits::default()).is_err(),
+            "wire mutation {case}"
+        );
+        assert!(
+            zil_verify::verify_module(forged.clone(), claim, &forged.target, &Limits::default())
+                .is_err(),
+            "mutation {case}"
+        );
+        assert!(
+            zil_verify::verify_module_bytes(&wire, &forged.target, &Limits::default()).is_err(),
+            "wire mutation {case}"
+        );
+    }
+}
+
+#[test]
+fn g3_4_1_option_known_and_runtime_variants_match_without_invented_targets() {
+    for body in [
+        "return Option::<&'s i64>.Some(&slice[0]);",
+        "if flag{return Option::<&'s i64>.None();}return Option::<&'s i64>.Some(&slice[0]);",
+        "return Option::<&'s i64>.None();",
+    ] {
+        let text = format!(
+            "fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{{{body}}}fn result(flag:bool)->i64{{let values:[i64;1]=[42];let item=next(&values[..],flag);match item{{Option.Some(value)=>{{return *value}},Option.None()=>{{return 0}}}}}}"
+        );
+        accept(&typed(&text));
+    }
+}
