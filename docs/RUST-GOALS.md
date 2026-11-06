@@ -634,3 +634,23 @@ Enum and arbitrary owning dynamic elements, contiguous/mutable POD Store views,
 new owning-container/capture compositions and general lending still require
 their own completion work. The existing product gates and native-Windows
 verification requirements have not been relaxed.
+
+
+G10.6.1 closes three ordinary developer-preview composition gaps: static trait
+associated calls on concrete and symbolic type hosts, mutable POD Store element
+helpers, and nine direct scalar Store element families. Existing static provider
+identity and definition-time bounds remain authoritative; the independent kernels
+reconstruct canonical elements and actual whole-Store borrowing windows. Raw/Wire
+counterexamples, allocation failure and complete-width native values distinguish
+acceptance from unsupported or unsound inputs. Previous scalar-Store exclusions
+listed in the historical G9.3.2 paragraph are superseded only for this finite scope.
+
+The result advances practical expressibility and independent safety checking. It
+adds no implicit runtime box, RC or lock and raises no request budget or stack
+limit. Compiler-internal boxed function metadata is prepaid implementation storage,
+not a language ownership mechanism. Exact old receiver-call budget controls remain
+covered. The checked-in joint ordinary program now runs from a separate remote
+checkout; this is a reproducibility improvement. Runtime/RSS, compilation speed
+and framework-maintenance costs against same-semantics Rust remain unmeasured.
+The concrete expressibility gains are not yet a measured product-level net
+breakthrough; existing product gates and broader language/platform gaps remain.

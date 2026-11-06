@@ -1,17 +1,19 @@
-# ZIL 有限语言初稿预览（待共同验收，发布草案）
+# ZIL 语言初稿开发预览
 
-状态：**候选文案，未发布**。发布前由集成者填入同一精确源码提交、工具链、目标、执行收据和最终支持矩阵；本文件本身不证明测试通过。建议标签为 `ZIL language draft / experimental developer preview`，日期按 Asia/Shanghai，发布范围在验收后冻结。它不是 B0 Done、完整 ZIL-LANG-1.4、ZUI 或 Rust 产品目标达成声明。
+状态：**有限 profile 已验收，实验性开发预览**（2026-11-07，Asia/Shanghai）。实测源码 `a8c7953e7f4f5932f838284390e55f1f8884bdbc`，Rust 1.99.1、LLVM 23.1.4、Linux x86_64；完整结果见[共同验收](validation/G10.6.1-common-acceptance.json)。默认 5190/0、参考 5078/0、文本 70/0，双配置严格 Clippy、原生消费者、10 项工程检查及远端源码恢复构建通过。它不是 B0 Done、完整 ZIL-LANG-1.4、ZUI 或 Rust 产品目标达成声明。
+
+本轮按普通多模块程序的闭环选必备项：已有类型、资源责任、错误传播、文本和借入迭代继续复用已交付实现；补齐阻止普通集合与泛型 API 组合的静态 trait 调用、元素原地修改和直接标量序列，再统一验收构建与恢复入口。更广动态派发、异步与平台支持维持明确缺口，不由预览文案推定完成。
 
 ## 支持矩阵
 
-| 能力簇 | 预览拟支持范围 | 发布前证据 | 边界 |
+| 能力簇 | 预览支持范围 | 已验收证据 | 边界 |
 | --- | --- | --- | --- |
-| 普通集合与文本 | 真实 `std.store` 的有限 POD Record 和九种基础标量集合、容量管理、push/pop、共享与独占元素窗口；现有 UTF-8 字面量/只读入口和显式 String | G9.3.2、G9.3.1 已接受收据；G9.3.3/G9.3.4 待共同验收的源码、raw/Wire、两核、Clang/LLVMAPI O0/O2、分配失败与近邻拒绝 | 可变窗口须保持整 Store 排他，未知不同下标不能推定不交；一般拥有/异构容器、完整 Unicode/格式化另列 |
-| trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主待本轮验收 | G2.4.1 已接受收据；G2.4.2 待具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending、dyn 派发不随本片开放 |
-| 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果待填 | 只晋升该组合实际覆盖的行为；其他 G3.4 长期借用形状按真实阻塞另行实现 |
-| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定本批共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，尚未执行不得记为通过 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
+| 普通集合与文本 | 真实 `std.store` 的有限 POD Record 和九种基础标量集合、容量管理、push/pop、共享与独占元素窗口；现有 UTF-8 字面量/只读入口和显式 String | G9.3.2、G9.3.1 已接受收据；G9.3.3/G9.3.4 同批验收的源码、raw/Wire、两核、Clang/LLVMAPI O0/O2、分配失败与近邻拒绝 | 可变窗口须保持整 Store 排他，未知不同下标不能推定不交；一般拥有/异构容器、完整 Unicode/格式化另列 |
+| trait 与借入迭代 | 现有普通泛型 trait、关联 Item、共享逐调用 lending；类型限定的静态关联函数及符号泛型宿主已通过本轮验收 | G2.4.1 已接受收据；G2.4.2 具体/符号宿主源码、独立两核及机器结果 | 一般关联投影、资源宿主 lending、dyn 派发不随本片开放 |
+| 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果见共同收据 | 只晋升该组合实际覆盖的行为；其他 G3.4 长期借用形状按真实阻塞另行实现 |
+| 交付与质量 | Source→Types→Analyze→独立 Verify→机器产物的有限 profile；CLI 区分 Success、SafeReject、Unsupported、ResourceLimit、InfraError | 源码和摘要绑定本批共同收据；完整默认/参考回归、两后端原生、失败清理及冷恢复分别记录，全部通过，冷恢复边界单独记录 | 零命中、Unsupported、超时、工具失败与旧提交收据均非本次 Pass；正式 B0 和产品门维持原状态 |
 
-## 快速开始（候选）
+## 快速开始
 
 在具备 `rust-toolchain.toml` 指定 Rust、相应 LLVM/clang 与系统链接器的已支持环境中，从仓库根目录运行。LLVM 安装、环境变量和版本检查见 [LLVM 工具链](LLVM-API.md#安装与构建)；先 `cargo fetch --locked` 备妥依赖，再使用离线构建：
 
@@ -24,7 +26,7 @@ mkdir -p out
 printf '10 20 -3\n' | ./out/stream
 ```
 
-该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；最终发布时须在所标源码与环境重新执行。本批组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。候选命令如下，只有同批机器验证通过后才记入最终收据：
+该已存在的普通多模块样例预期输出为 `3 0 45`（含换行），退出 0；本批已在远端重新拉取的同一源码与所标环境执行。本批组合样例在 `examples/mainline/draft_foundations/`，结合实际 std.store、trait 静态工厂、可变 helper 与显式失败处理。开发运行命令如下（本批恢复实跑使用 release CLI）：
 
 ```sh
 ./target/debug/zil run examples/mainline/draft_foundations/main.zil --entry main
@@ -37,4 +39,4 @@ printf '10 20 -3\n' | ./out/stream
 - GPU 首帧、字体、OS IME、完整 ZUI 与原生 Windows 执行不包含在本有限语言预览。目标/后端只按本次收据中真实执行的组合列出；Win64 交叉构建或 Wine 不等于原生 Windows 验证。
 - `validation/product-gates.json` 中零 safe UB、同语义 Rust 运行/内存与编译/维护成本条件、至少一项可重复净突破及发布前提原样有效。目前不得宣称这些产品条件达成。`G10.6` 的 B0、完整语言与 ZUI 终态验收继续独立进行。
 
-本草案依据 `_zil_design.md` §20、`validation/product-gates.json`、`docs/WORKFLOW.md` 与实时 `goal:goal.md`。发布时须记录精确源码和收据，不以文案或标签替代实现和测量。
+本预览依据 `_zil_design.md` §20、`validation/product-gates.json`、`docs/WORKFLOW.md` 与实时 `goal:goal.md`。源码、各门结果及恢复范围绑定共同收据；远端恢复复用已准备的固定工具链和 Cargo 缓存，不代表空机器安装或旧历史重新验收。

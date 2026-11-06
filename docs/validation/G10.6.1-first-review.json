@@ -1,0 +1,130 @@
+{
+  "schema_version": 1,
+  "task": "G10.6.1",
+  "status": "CodeReviewPassPendingCommonAcceptance",
+  "reviewer": "release_audit",
+  "reviewed_tree": "81f9d7ab1088c06a441acaa6ac2013033254691e",
+  "implementation_commit": "81f9d7ab1088c06a441acaa6ac2013033254691e",
+  "frozen_candidate_commit": "81f9d7ab1088c06a441acaa6ac2013033254691e",
+  "base_contract": "18d481e16",
+  "scope": [
+    "G9.3.3 finite ordinary POD Store mutable element windows",
+    "G2.4.2 static trait associated calls on concrete and symbolic type hosts",
+    "joint ordinary language draft consumers",
+    "G9.3.4 nine direct scalar Store elements"
+  ],
+  "verdict": "Static review found no additional permission or budget blocker in committed Types, Analyze, Verify, Expand and LLVM scalar Store integration after 56afcb739. Common acceptance and final frozen-commit evidence remain pending.",
+  "code_review": {
+    "store": [
+      "Types removes only the explicit POD mutable-view Unsupported gate; existing StoreElement/POD element qualification and mutable Address result construction remain.",
+      "Analyze independently checks canonical POD carrier, complete element, real Desc operand, exact i64 index and Address<mutable=true, exact element> result with precharged work.",
+      "Verify independently checks the same machine-visible operand/result shape and canonical resource, and classifies OwnedStoreBorrowMut as a write for the preexisting whole-Store loan/conflict checks. Nested Product mutable views remain unsupported.",
+      "No new opcode, implicit allocation/RC/lock, default budget increase, or distinct-index apart inference was found in the reviewed diff. Existing lowering for OwnedStoreBorrowMut is reused."
+    ],
+    "static_trait": [
+      "Type-host classification gives lexical values priority. Symbolic hosts require a declared trait bound; concrete hosts require committed impl selection and retain declaration origin.",
+      "CallTarget carries the selected declaration reference and static-host bit. Materialization substitutes proven actual hosts and derives the provider name from that reference, not from source spelling alone.",
+      "Method parameter/result/where substitution is precharged; newly materialized static calls precharge host type, target text and node work. The old receiver-call path does not enter the added static-host branch.",
+      "The finite host rewrite remains scoped to supported nominal shapes. The module admission old-budget compatibility issue is pending a production fix and is outside the earlier passing verdict.",
+      "Commit 56afcb739 repairs old receiver-method budget compatibility by cataloguing zero-receiver methods from the trait declaration, rather than treating an impl method that omits explicit self as static. Old N/N-1 fee controls must be bound to the final run receipt."
+    ],
+    "scalar_store": [
+      "Expand admits exactly nine unparameterized primitive scalar names after the existing paid POD shape walk and nonzero inline layout check; Unit, aggregate and symbolic T do not enter this route.",
+      "Types creates distinct canonical OwnedStore identities for each scalar, including u64 versus usize, with new scalar type snapshots charged before cloning or lookup.",
+      "Analyze and Verify independently require the exact canonical sealed resource, complete scalar payload, real Desc operand, i64 index and exact shared/mutable Address result; raw/Wire controls are separate from source acceptance.",
+      "LLVM builds an exact per-element plan with budgeted complete push/pop ErrorUnion shapes and nonzero bounded stride, and rejects any non-Package Store missing such a plan before producing runnable output.",
+      "Existing owning aggregate and closure capture gates exclude scalar Store heads; Verify context walk now also excludes scalar heads nested in plain Record or Array without changing the old Record fee selector."
+    ]
+  },
+  "focused_results_observed": [
+    {
+      "log": "/tmp/zil-draft-bounds-final.log",
+      "result": "impl162_trait_bounds 84 passed, 0 failed",
+      "identity_binding": "verify against frozen candidate"
+    },
+    {
+      "log": "/tmp/zil-draft-store-complete.log",
+      "result": "impl223_product_store 31 passed, 0 failed",
+      "identity_binding": "verify against frozen candidate"
+    },
+    {
+      "log": "/tmp/zil-draft-verify-second.log",
+      "result": "Verify dynamic_store 32 passed, 0 failed",
+      "identity_binding": "verify against frozen candidate"
+    },
+    {
+      "reported_by_integrator": "Analyze POD 25 passed, 0 failed",
+      "identity_binding": "receipt pending"
+    },
+    {
+      "reported_by_integrator": "G9.3.4 nine-scalar Source Clang/LLVM API O0/O2, complete stdout and actual std.store alias passed",
+      "identity_binding": "frozen candidate receipt pending"
+    },
+    {
+      "reported_by_integrator": "Types 57/57, Analyze 29/29, Verify scalar/dynamic Store 37/37",
+      "identity_binding": "frozen candidate receipt pending"
+    },
+    {
+      "reported_by_integrator": "affected driver impl162 84/84, impl172 19/19, impl178 17/17, review195 6/6, impl223 36/36",
+      "identity_binding": "frozen candidate receipt pending"
+    },
+    {
+      "reported_by_integrator": "keep-going Clippy exit 0",
+      "identity_binding": "frozen candidate receipt pending"
+    }
+  ],
+  "preserved_failures": [
+    {
+      "log": "/tmp/zil-draft-store-first.log",
+      "finding": "first Source negative was correctly SafeReject at Analyze but test incorrectly demanded Verify; test oracle corrected without accepting Unsupported"
+    },
+    {
+      "log": "/tmp/zil-draft-store-third.log",
+      "finding": "source-derived raw/Wire conflict test first failed; later correction and final run must be bound to candidate"
+    },
+    {
+      "log": "/tmp/zil-draft-bounds-complete.log",
+      "finding": "82/84 with generic nominal host and joint program failures; final implementation changed and 84/84 focused run followed"
+    },
+    {
+      "log": "all-affected.log (integrator-held)",
+      "finding": "an old oracle initially failed; corrected exact SafeReject classification is reported in store-final.log, both run identities must remain separate"
+    },
+    {
+      "log": "/tmp/zil-draft-scalar-first.log through third",
+      "finding": "initial scalar consumer failures were retained; final full-width payload and syntax fixes require same-candidate success receipt"
+    }
+  ],
+  "before_common_acceptance": [
+    "Correct both stale test expectations or invalid fixtures, preserve the failed 81f9d7ab1 run, freeze a new candidate SHA, and rerun the full common gates. Neither failed test is a Pass.",
+    "Freeze the post closure-test candidate commit and bind all focused runs, old-fee N/N-1/fresh controls, exact inputs, features, target/backend, toolchain and normative hashes to it; rerun affected checks if source changes.",
+    "Run existing required full default/reference/text gates, strict Clippy configurations, release native consumers, engineering gates and handoff/check-plan/cold recovery on the frozen candidate. Retain old failures and corrected runs separately.",
+    "Verify the reported source-derived raw/Wire E-HOLD and E-BORROW neighbors, nine-scalar Clang/LLVM API O0/O2 full outputs, actual std.store alias, large u64 values, and allocation cleanup receipts on that candidate.",
+    "A reviewer other than this agent must accept the G9.3.3 Source consumer this agent authored. Formal B0/full language/ZUI and Rust product gates remain separate."
+  ],
+  "known_code_blockers_before_full_gate": [],
+  "notes": "This review did not edit production code or run Cargo. The reviewer authored part of the G9.3.3 Source consumer; its acceptance requires a different reviewer.",
+  "resolved_findings": [
+    {
+      "commit": "56afcb739",
+      "finding": "Old impl147 measure()->.x receiver could be misclassified as a static trait method and incur extra directory scan; selection now requires exact trait declaration zero-receiver member. Final old-fee run receipt remains to bind."
+    }
+  ],
+  "post_review_diff": "From bf3b4d441 to 81f9d7ab1 only task metadata, docs, driver consumer and Verify tests changed; reviewed production code is unchanged.",
+  "freeze_note": "Integrator reports this candidate clean and pushed; final common gate is running, so status remains CodeReviewPassPendingCommonAcceptance.",
+  "formal_attempt": {
+    "candidate": "81f9d7ab1088c06a441acaa6ac2013033254691e",
+    "pipeline": "/workspace/.zil-env/G10.6.1-common-run/pipeline.json",
+    "state": "RunningWithTwoObservedOldOracleFailures",
+    "failures": [
+      {
+        "test": "impl174_store_fields::raw_wire_reconstruct_sealed_store_definition_even_for_state_only_signature",
+        "cause": "I32 is now an admitted scalar Store element; forged payload still lacks the old Item canonical identity and Verify correctly returns SafeReject E-VERIFY-OWNED-STORE. Test expected former Unsupported."
+      },
+      {
+        "test": "impl237_types::phantom_actual_bound_is_checked_from_raw_metadata",
+        "cause": "Test substitutes Concrete(I32) for T:StoreElement, but I32 is now admitted. Replace with an actually forbidden type and re-execute both Types entry paths."
+      }
+    ]
+  }
+}
