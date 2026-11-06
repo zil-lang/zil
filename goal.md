@@ -10,7 +10,7 @@
 
 父任务汇总完整范围，子任务记录具体交付，父子不重复计数；子项全完成不自动代表父项完成。需要独立派工、复核或验收的补充工作才新增任务编号，沿用父编号加一段；零散修正记在原任务进展中。编号同时用于分支与实施说明，不再另设勾稽编号。
 
-**当前主线：通用语言完整性与 Rust 竞争力优先。** 已启动 G3.4.1（借入迭代/返回组合）和 G9.3.1（普通文本入口）；随后优先补通用动态 POD 集合，再按真实库 API 补 trait/关联项、dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 仍坚持 GPUI/GPU 方向。实现与独审采用 sol high，不把功能通过当作 Rust 成本优势。
+**当前主线：通用语言完整性与 Rust 竞争力优先。** G3.4.1（共享借入迭代）与 G9.3.1（普通 UTF8 文本入口）已由 PR48 合入。下一优先 G9.3.2 通用动态 POD 集合，再按真实库 API 补 trait/关联项、dyn/显式存储及通用异步责任。GPU/GUI 专用 G10.3.1、G9.5.1、G9.6.2 后置；ZUI 仍坚持 GPUI/GPU 方向。实现与独审采用 sol high，不把功能通过当作 Rust 成本优势。
 
 ## G1 · 基础类型与模式
 
@@ -51,7 +51,7 @@
 | G3.1 | 普通/嵌套Product借给可变helper、CopyT+mutable life、有限FP/HRTB和实际来源检查 | 已合入 | — | — | [已合入证据][e37]；一般借用返回见 G3.4。 |
 | G3.2 | shared stored View、qualified静态Code及捕获为空的Fn，每个实际role独立核验 | 已合入 | — | — | [本批验收][e41]；真实静态 Code、空捕获 Fn 与逐 role 检查已通过共同验收。 |
 | **G3.3** | **捕获的外层Fixed上下文、qualified FnMut/FnOnce的真实环境与调用关系** | 已合入 | — | — | [PR46 验收][e-pr46] 本表 Fixed/Invocation、闭包 helper、循环及多 role 组合已闭合；普通闭包 Value 的 give 按规范拒绝，一般 lending 继续见 G3.4。 |
-| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、借入 Iterator 和 Source 地址数组参数。原 SliceIter 已通过两核 raw/Wire 与四配置原生执行；一般 lending 仍未完成，首片验收见 G3.4.1。 |
+| G3.4 | 普通借入字段、存储上界、affine借用、合法lending结果及长期组合 | 部分实现 | P1 | 待派 | shared View/片与短借入 getter 已通；尚缺 mutable holder、借入＋拥有 Package、一般 lending 和 Source 地址数组参数；原 SliceIter 的共享借入迭代首片已由 G3.4.1 交付。 |
 | G3.5 | 一般拥有/借入捕获及责任组合的消费者矩阵 | 待排期 | P1 | 待派 | 依赖 G3.4、G6.1；按真实 API 补齐。 |
 
 <details>
@@ -84,7 +84,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 实现待验 | P0 | sol high · life | 原始源码/两核 raw/Wire/Clang与API O0/O2完整输出42及最近反例已通过；17项定向通过，后继105项借用组合与旧life回归修复已复验。[PR48](https://github.com/zil-lang/zil/pull/48)共同验收中，尚未合入。 |
+| G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 已合入 | — | — | [PR48 验收][e-pr48]：原始源码、两核 raw/Wire、连续 next/失效及四配置原生完整输出42；合法life遮蔽和原位置拒绝回退已修复。机器首片限thin shared Address，一般lending另缺。 |
 
 </details>
 
@@ -197,7 +197,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.1 | 普通字符串/Unicode与事务编辑、Store插入移除、有限回调迭代/Option返回 | 已合入 | — | — | [已合入证据][e37]；完整库见 G9.3。 |
 | G9.2 | 整数布局、RGBA软件合成、IME preedit提交/取消及失败保留的普通库 | 已合入 | — | — | [实现证据][ui] / [独审][ui-review]；不覆盖 OS IME、字体及 GPU。 |
-| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | 首批 G9.3.1 补普通 UTF8 文本入口；借入迭代见 G3.4.1。动态 POD 集合见 G9.3.2；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
+| G9.3 | 完整字符串/集合与一般Iterator/lending组合 | 部分实现 | P1 | 待派 | G9.3.1 与 G3.4.1 已交付普通 UTF8 入口与共享借入迭代首片。动态 POD 集合见 G9.3.2；grapheme/格式化等仍待补，现有 StoreElement 不等于一般值容器。 |
 | G9.4 | 真实平台窗口、事件循环及OS IME服务 | 部分实现 | P2 | 待派 | 已有旧 Win32 首窗/消息实验，本轮 Win64 Verify 通过；统一平台、OS IME 未接。窗口/事件层供 G9.5.1 复用，旧 GDI 不进入 ZUI 渲染路线；原生 Windows 仍待实际执行。 |
 | G9.5 | GPUI 式 GPU 场景/呈现、字体塑形与字形图集 | 待执行 | P2 | 待派 | 后续 G9.5.1 接 GPU 首帧；D3D11/DXGI/可选 DirectComposition 与 DirectWrite 为已核 GPUI Windows 参考。GPU ABI、设备完成、字体/atlas 与真实输入链路仍待实现。 |
 | G9.6 | GPUI 式 ZUI 应用、实体/组件、输入及资源关闭合流 | 待执行 | P2 | 待派 | G9.6.1 核查现状；G9.6.2 接首个 GPU 应用。第一帧不代表开放组件、文字/IME、可访问性、异步与完整 ZUI 已完成。 |
@@ -207,7 +207,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 实现待验 | P0 | sol high · 文本 | 源码、两核、LLVM 后端已提交；Unicode/空串/NUL、跨模块来源及 String 失败清理已有限定原生结果，G10.1.12 负责共同回归与独审后合入。 |
+| G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 待排期 | P0 | 待派 | 紧接文本/迭代批次：以普通 struct 元素的 reserve/push/pop/shared view 为消费者；容量失败保留旧值，活 view 限制结构变更，不虚构拥有字段。 |
 
 </details>
@@ -258,7 +258,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.1.11 | 剩余 P0 的共同验收、回归修复与合入 | 已合入 | — | — | [PR46 验收][e-pr46] 精确源码 `953913782`：默认 **5007/0**、参考 **4895/0**、文本 **70/0**，两配置严格 Clippy、release 消费者与 10 项工程检查全过；远端 main `adbead51` 已核。Actions 因付款/额度未启动，原失败保留。 |
-| G10.1.12 | 通用文本、泛型方法与借入迭代共同验收 | 进行中 | P0 | root · 集成，sol high · 独审 | 冻结源码已推送；首轮默认5065过/5旧life回归失败，原5项修复并独审、定向复验通过。第二轮完整默认/参考、release及工程验收进行中；正式全门通过后合入。 |
+| G10.1.12 | 通用文本、泛型方法与借入迭代共同验收 | 已合入 | — | — | [PR48 验收][e-pr48]：默认5071/0、参考4959/0、文本70/0、双严格检查、release原生及10项工程门通过；首轮5项旧回退已修复且保留失败记录。 |
 
 </details>
 
@@ -293,3 +293,5 @@
 [e-pr46]: https://github.com/zil-lang/zil/blob/adbead51fc8916ac1cb1019702d906a19ebd3e98/docs/validation/G10.1.11-common-acceptance.json
 
 [zui-audit]: https://github.com/zil-lang/zil/blob/c63001c8ec43909d2c41ca314c32e465f531711f/docs/ZUI-READINESS-20261106.md
+
+[e-pr48]: https://github.com/zil-lang/zil/blob/4550ec4083706f67771229a5213f19d885402e57/docs/validation/G10.1.12-common-acceptance.json
