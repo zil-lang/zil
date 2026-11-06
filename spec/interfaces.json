@@ -618,7 +618,7 @@
       "machine": "Complete Copy ErrorUnion payloads; capacity/failure preservation; large protocol memory snapshots with private helpers; no public ABI/default limit changes",
       "accounting": "New work prepaid in current request; unaffected owned profiles retain exact fees",
       "acceptance": "Actual Source std.store, raw/Wire negatives, full native O0/O2 values and allocation-failure cleanup, independent review and formal integration",
-      "layout": "Nonzero logical payload plus independently bounded actual stored stride; aggregate Unit placeholders are i8/align1, empty Record/Tuple size0; existing ABI unchanged"
+      "layout": "Nonzero bounded actual stored stride; aggregate Unit and empty Record/Tuple are empty structs size0/align1; closure capture Unit placeholder is distinct; existing ABI unchanged"
     }
   },
   "schemas": [
