@@ -725,8 +725,19 @@ impl Check<'_, '_, '_> {
                 let declaration = self.enums.get(*index).copied().ok_or_else(|| {
                     unsupported(p.span, "source enum pattern declaration is absent")
                 })?;
+                // The scrutinee already selected this actual declaration.
+                // Align only the reserved source Option spelling with its
+                // compiler-only template, as the later enum pattern lane does.
+                // This alias selects no declaration and grants no class/root.
+                let source_builtin = if let Some(name) = path.first() {
+                    self.budget.text(name, p.span)?;
+                    self.budget.text(&declaration.name, p.span)?;
+                    name == "Option" && declaration.name == options::TEMPLATE
+                } else {
+                    false
+                };
                 if path.len() != 2
-                    || path[0] != declaration.name
+                    || (path[0] != declaration.name && !source_builtin)
                     || actuals.len() != declaration.generics.len()
                 {
                     return Err(unsupported(
