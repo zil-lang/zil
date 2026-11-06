@@ -1,0 +1,1 @@
+package View<life a>{p:&'a i64;manages bytes:ByteBuffer}fn make<life a>(p:&'a i64)->View<'a>{let b=bytes_new();return View::<'a>{p:p,bytes:give b}}fn main()->i32{let n:i64=42;let v=make(&n);return i32(*v.p)}

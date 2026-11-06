@@ -1,0 +1,1 @@
+trait Read{fn value(self:&Self)->&i64;}struct Widget{n:i64}impl Read for Widget{fn value(self:&Self)->&i64{return &self.n}}fn peek<T:Read>(x:&T)->&i64{return x.value()}fn main()->i32{let x=Widget{n:42};return i32(*peek(&x))}
