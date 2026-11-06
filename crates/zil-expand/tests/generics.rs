@@ -1,5 +1,7 @@
 #[path = "../test-support/budget_boundary.rs"]
 mod budget_boundary;
+#[path = "../test-support/generic_inherent.rs"]
+mod generic_inherent;
 use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 

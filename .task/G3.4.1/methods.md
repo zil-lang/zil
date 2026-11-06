@@ -9,3 +9,5 @@ Goal G3.4.1；父合同 `_zil_design.md` §18.1/V10 与原 `tests/language-readi
 规范 spec_hash e235b19010325a125338f764f9e75b8ab6dd612f75ea4915e4761edd4a7e0b7a；normative_hash e938daf9f797c6790549c578e25d474d6eafeba20bf50ee51b282fbaa653f80b。依赖 life 词法提交 e48ca12809b971039dc387ee24b10d6986c50cfd（本枝 cherry-pick 5a0a12e8f）。
 
 方法先 lift 为有完整 impl binder 的原成员普通函数，再进入 generic_source_life 验证；无需取消其 ambient impl 保护。generic_check 的 scoped key 仅对真 nominal class 应用启动，Copy 继续完整检查。限定 Expand generic_inherent 初版3/3；最新source-class钩子 no-link已过，合流SliceIter/机器/预算与独审未完成。
+
+后继：限定测试迁入既有 `--test generics generic_inherent`（支持文件而非新增Cargo测试目标）。首次mixed-life Cursor真源失败保留为Copy holder误要求；窄修仅允许借入真实qualified nominal而不整体Copy，字段权限/源class仍核。预算ordinary-method新边界work1418/nodes483已测N/N−1/fresh，默认不改；后继life正控/两life重排还待窗口重链。
