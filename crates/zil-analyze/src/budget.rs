@@ -18,6 +18,7 @@ pub(super) struct Budget {
     remaining: usize,
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
+    pub(super) pod_stores: bool,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -66,6 +67,7 @@ impl Budget {
         Self {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
+            pod_stores: false,
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -1001,6 +1003,7 @@ pub(super) fn preflight(
         // POD addresses use the existing actual-head/element loan machinery.
         // This private presence flag activates work; it grants no permission.
         budget.head_descriptions = true;
+        budget.pod_stores = true;
     }
     count(0, module.closures.len(), limits.max_functions, "closure")?;
     budget.input(module.closures.len(), "closure table preflight")?;
