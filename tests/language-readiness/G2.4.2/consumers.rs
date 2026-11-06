@@ -70,6 +70,9 @@ fn g242_missing_bounds_and_unused_invalid_method_are_rejected() {
 }
 
 fn native_value(files: &[(&str, &str)]) {
+    native_expected(files, b"0\n");
+}
+fn native_expected(files: &[(&str, &str)], expected: &[u8]) {
     let mut backends = vec![zil_driver::NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
         backends.push(zil_driver::NativeBackend::LlvmApi);
@@ -83,8 +86,11 @@ fn native_value(files: &[(&str, &str)]) {
             ));
             fs::create_dir_all(&dir).unwrap();
             let exe = dir.join("program");
-            let r = compile_project(
-                &project(files),
+            for (name, text) in files {
+                fs::write(dir.join(format!("{name}.zil")), text).unwrap();
+            }
+            let r = zil_driver::compile_path(
+                &dir.join("main.zil"),
                 &CompileOptions {
                     backend,
                     optimization,
@@ -109,7 +115,7 @@ fn native_value(files: &[(&str, &str)]) {
             }
             let run = Command::new(exe).output().unwrap();
             assert_eq!(run.status.code(), Some(0), "{run:?}");
-            assert_eq!(run.stdout, b"0\n", "{run:?}");
+            assert_eq!(run.stdout, expected, "{run:?}");
             assert!(run.stderr.is_empty(), "{run:?}");
             fs::remove_dir_all(dir).unwrap();
         }
@@ -136,4 +142,36 @@ fn g242_copy_bound_does_not_imply_numeric_capability() {
     assert_eq!(r.phase, Phase::Expand);
     assert!(r.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
         && d.message == "operation on an unconstrained type parameter requires a declared bound"));
+}
+
+#[test]
+fn g242_generic_nominal_host_and_zero_method_type_binders() {
+    let text = "trait Construct<T:Copy>{fn make(value:T)->Self;}struct Cell<T:Copy>{n:T}impl<T:Copy> Construct<T> for Cell<T>{fn make(value:T)->Self{return Cell::<T>{n:value}}}fn build<H:Construct<i32>>(v:i32)->H{return H.make(v)}fn main()->i32{let row=build::<Cell<i32>>(42);return row.n-42}";
+    let r = checked(text);
+    assert_eq!(r.status, ResultCategory::Success, "{}", r.to_json());
+    native_value(&[("main", text)]);
+}
+
+#[test]
+fn g1061_joint_factory_real_library_mutation_and_error_cleanup() {
+    let files = [
+        (
+            "main",
+            "import std.store;import model;import usecase;import operations;fn main()->i32{let rows:Store<model.Row>=store.new();if !store.reserve(rows,1){return -1}match store.push(rows,usecase.make::<model.Row>(40)){.ok(())=>{},.err(_)=>{return -2}}let view=store_at_mut(rows,0);operations.bump(view);return view.value}",
+        ),
+        ("api", "pub trait Factory<T:Copy>{fn make(value:T)->Self;}"),
+        (
+            "model",
+            "import api;pub struct Row{pub value:i32}impl api.Factory<i32> for Row{fn make(value:i32)->Self{return Row{value:value}}}",
+        ),
+        (
+            "usecase",
+            "import api;pub fn make<F:api.Factory<i32>>(value:i32)->F{return F.make(value)}",
+        ),
+        (
+            "operations",
+            "import model;pub fn bump(value:&mut model.Row){value.value+=2}",
+        ),
+    ];
+    native_expected(&files, b"42\n");
 }

@@ -140,45 +140,130 @@ fn g933_live_same_root_windows_and_structural_changes_are_rejected() {
 
 #[test]
 fn g933_source_derived_raw_wire_actual_receiver_conflict() {
-    let text = "struct Cell{value:i32}fn main()->i32{let first:Store<Cell>=store_new();let second:Store<Cell>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,Cell{value:20});store_push(second,Cell{value:22});let a=store_at_mut(first,0);let b=store_at_mut(second,0);b.value+=1;return a.value+b.value}";
+    use std::collections::BTreeSet;
+
+    // The source is accepted before any raw mutation. Both windows remain
+    // live through the final expression, and the right-hand field write is
+    // deliberately simple so its address lineage is explicit in TypedIR.
+    let text = "struct Cell{value:i32}fn main()->i32{let first:Store<Cell>=store_new();let second:Store<Cell>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,Cell{value:20});store_push(second,Cell{value:22});let a=store_at_mut(first,0);let b=store_at_mut(second,0);b.value=23;return a.value+b.value}";
     let (mut module, mut plan) = candidate(text);
-    let mut count = 0;
-    for function in &mut module.functions {
+    let mut changed_borrow = None;
+    for (function_index, function) in module.functions.iter_mut().enumerate() {
         let mut first = None;
         for block in &mut function.blocks {
             for instruction in &mut block.instructions {
                 if let I::OwnedStoreBorrowMut { store, .. } = &mut instruction.kind {
-                    if let Some(actual) = first {
-                        *store = actual;
-                        count += 1;
+                    let result = instruction.result.expect("Store borrow has address result");
+                    if let Some((first_result, first_store)) = first {
+                        let old_store = *store;
+                        *store = first_store;
+                        changed_borrow = Some((function_index, first_result, result, old_store));
                     } else {
-                        first = Some(*store);
+                        first = Some((result, *store));
                     }
                 }
             }
         }
     }
-    assert_eq!(count, 1);
+    let (function_index, first_result, second_result, old_store) =
+        changed_borrow.expect("source has two mutable element borrows");
+    let function = &module.functions[function_index];
+    let function_plan = plan
+        .functions
+        .iter()
+        .find(|row| row.function == function.id)
+        .expect("Source plan contains the function");
+    let new_roots = function_plan.holds[first_result.0 as usize].roots.clone();
+    let old_roots = function_plan.holds[second_result.0 as usize].roots.clone();
+    assert_ne!(new_roots, old_roots, "baseline uses distinct actual Stores");
+    assert_eq!(
+        function_plan.holds[old_store.0 as usize].roots, old_roots,
+        "second Store descriptor is the source of the original view"
+    );
+
+    // A forged receiver with the original candidate proves the independent
+    // Hold gate notices stale provenance. Wire and raw use the same re-bound
+    // transport fingerprint, with no producer or verifier proof function.
     let limits = Limits::default();
-    let errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    plan.module_fingerprint = module.fingerprint();
+    let stale_wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for errors in [
+        zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits)
+            .unwrap_err(),
+        zil_verify::verify_module_bytes(&stale_wire, &module.target, &limits).unwrap_err(),
+    ] {
+        assert_eq!(errors[0].code, "E-VERIFY-HOLD", "{errors:?}");
+    }
+
+    // Rebind only results actually derived from the changed second borrow.
+    // Local copies of the address are tracked syntactically; unrelated second
+    // Store descriptions keep their original roots. No index is treated apart.
+    let mut derived = BTreeSet::from([second_result.0]);
+    let mut address_locals = BTreeSet::new();
+    for block in &function.blocks {
+        for instruction in &block.instructions {
+            match &instruction.kind {
+                I::Store { local, value } => {
+                    if derived.contains(&value.0) {
+                        address_locals.insert(local.0);
+                    } else {
+                        address_locals.remove(&local.0);
+                    }
+                }
+                I::Load(local) if address_locals.contains(&local.0) => {
+                    derived.insert(instruction.result.expect("Load has result").0);
+                }
+                I::AddressField { address, .. }
+                | I::ReborrowAddress { address, .. }
+                | I::BorrowPlaceAddress { address, .. }
+                | I::DescribeAddress { address }
+                    if derived.contains(&address.0) =>
+                {
+                    derived.insert(instruction.result.expect("address derivation has result").0);
+                }
+                _ => {}
+            }
+        }
+    }
     assert!(
-        errors
+        derived.len() > 1,
+        "field use must derive from the second view"
+    );
+    let function_plan = plan
+        .functions
+        .iter_mut()
+        .find(|row| row.function == function.id)
+        .expect("Source plan contains the function");
+    for value in derived {
+        if matches!(
+            function.values[value as usize],
+            Type::Address { .. } | Type::Desc(_)
+        ) {
+            let row = &mut function_plan.holds[value as usize];
+            assert_eq!(
+                row.roots, old_roots,
+                "only actual second-view roots are rebound"
+            );
+            row.roots.clone_from(&new_roots);
+        }
+    }
+
+    // Analyze independently rejects the executable alias. Verify now receives
+    // a candidate whose claimed Hold rows match the mutated actual source and
+    // must reach its private live-loan conflict on both raw and Wire paths.
+    let analyze_errors = zil_analyze::analyze(&module, &limits).unwrap_err();
+    assert!(
+        analyze_errors
             .iter()
             .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
-        "{errors:?}"
+        "{analyze_errors:?}"
     );
-    plan.module_fingerprint = module.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
     for errors in [
         zil_verify::verify_module(module.clone(), plan, &module.target, &limits).unwrap_err(),
         zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap_err(),
     ] {
-        assert!(
-            errors.iter().any(|d| d.phase == Phase::Verify
-                && d.category == ResultCategory::SafeReject
-                && (d.message.contains("conflict") || d.message.contains("live"))),
-            "{errors:?}"
-        );
+        assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
     }
 }
 
