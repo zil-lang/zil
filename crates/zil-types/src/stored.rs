@@ -3,6 +3,7 @@
 use super::*;
 
 mod nominal;
+mod option_address;
 mod retained;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -109,7 +110,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
     let mut declarations = BTreeMap::new();
     for (index, declaration) in core.life_declarations.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
-        if declaration.id.compiler {
+        if declaration.id.compiler && !option_address::declaration(declaration) {
             return Err(unsupported(
                 span,
                 "stored compiler nominal requires its authentic builtin declaration",
@@ -484,6 +485,14 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
     Ok(true)
 }
 
+pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    instance.declaration.compiler
+        && instance.declaration.module.0 == u32::MAX
+        && instance.declaration.declaration.0 == 0
+        && matches!(instance.arguments.as_slice(), [LifeNominalActual::Type(actual)] if actual == ty)
+        && shared_address(ty)
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }
@@ -498,6 +507,9 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored instance lacks its qualified type",
         ));
     };
+    if option_address::shape(ty, left, depth_limit, span)? {
+        return Ok(());
+    }
     if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
         || (!life.retained.is_empty() && !life.slots.is_empty())
         || (matches!(storage.as_ref(), Type::Enum { .. })
