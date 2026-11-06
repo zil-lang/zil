@@ -102,6 +102,11 @@
       ".task/G8.6.1.1.md",
       ".task/G8.6.1.md",
       ".task/G9.3.1.md",
+      ".task/G9.3.2.1.md",
+      ".task/G9.3.2.2.md",
+      ".task/G9.3.2.3.md",
+      ".task/G9.3.2.4.md",
+      ".task/G9.3.2.md",
       ".task/G9.6.1.md"
     ]
   },
@@ -129,17 +134,17 @@
     "verified": true,
     "branch": "main",
     "current_is_main": true,
-    "origin_main_tracking_head": "4550ec4083706f67771229a5213f19d885402e57",
+    "origin_main_tracking_head": "9b2d455be9109dce470e39cfa34c689abc9ea1e3",
     "remote_observation": "Local tracking ref only; no network or remote merge claim."
   },
-  "current_head": "4550ec4083706f67771229a5213f19d885402e57",
-  "main_head": "4550ec4083706f67771229a5213f19d885402e57",
-  "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-  "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603",
+  "current_head": "9b2d455be9109dce470e39cfa34c689abc9ea1e3",
+  "main_head": "9b2d455be9109dce470e39cfa34c689abc9ea1e3",
+  "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+  "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f",
   "worktrees": [
     {
       "branch": "refs/heads/main",
-      "head": "4550ec4083706f67771229a5213f19d885402e57",
+      "head": "9b2d455be9109dce470e39cfa34c689abc9ea1e3",
       "is_main": true
     },
     {
@@ -293,7 +298,7 @@
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G10.1.12",
+      "branch": null,
       "head": "7ed91bc822cc6aed93d0a02f757d99875ebbb91a",
       "is_main": false
     },
@@ -353,17 +358,17 @@
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G3.4.1",
+      "branch": null,
       "head": "1eb5cecb674dd2cf8a3a739b8e7972904fe48eac",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G3.4.1-consumers",
+      "branch": null,
       "head": "c295fc41398539b24f8d44259a4bae0c428d3ff5",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G3.4.1-methods",
+      "branch": null,
       "head": "104a4a3338f36154ee64007a9ac0bf5e5f7802f4",
       "is_main": false
     },
@@ -538,18 +543,43 @@
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G9.3.1",
+      "branch": null,
       "head": "ea713a48004e5c3c3de2f940ec3dbec3ebadb89e",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G9.3.1-backend",
+      "branch": null,
       "head": "afb2650380f2583ab47cefc4e1013b73cfbcdacc",
       "is_main": false
     },
     {
-      "branch": "refs/heads/task/G9.3.1-kernels",
+      "branch": null,
       "head": "899c2ba640e154fb40e8f22f15302f1510c3290f",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.2",
+      "head": "80c197b724c6cab538fbec7bf7fa526aaa877c5f",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.2.1",
+      "head": "998260386ff926a5bfb367a72d9ac04b4168dc46",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.2.2",
+      "head": "fb5ae99288cc8478848278621d49d16406e6227d",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.2.3",
+      "head": "a2c38f749a23bc6f29a71491cd0c4616040b6bc0",
+      "is_main": false
+    },
+    {
+      "branch": "refs/heads/task/G9.3.2.4",
+      "head": "ee788ecbb7596dafe4101e66a4405e4dfb16184a",
       "is_main": false
     },
     {
@@ -564,7 +594,7 @@
     },
     {
       "branch": "refs/heads/goal",
-      "head": "5549719cc5611a86f5bd32c3a12879282d7c8c08",
+      "head": "abaa116518f71ebeccfc5c02cc65542eb9c0365f",
       "is_main": false
     },
     {
@@ -703,14 +733,14 @@
       "path": ".task/B0.md",
       "status": "Doing",
       "baseline": "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
-      "record_sha256": "79ada38223e585e0970cdd2160c4694125a0592ff72405e6f02158529ffd8ce7",
+      "record_sha256": "1ededc17341c76f3ff4cf253dca2f44764b8f09bcb82afd10d2637936f714dca",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": []
     },
@@ -719,14 +749,14 @@
       "path": ".task/T01.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "807b4ef5fd6b0af208fb4cdd9a99ed206127bffca554abfd0ede8c31f39d2150",
+      "record_sha256": "0497999ebea4d629390f86a334e158ce7a492749eadbeafa5d0fce747fab3b4e",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "B0"
@@ -737,14 +767,14 @@
       "path": ".task/T02.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "6fbf2b42f93e1e69a0701d5d87726ef3fe2e3971cb96f4cdf615f77cfa87dc45",
+      "record_sha256": "c2ae99ce6e5ff7cebb80c1fe86c7c4425527b22cc027ef2c5296d852a2b8dcb4",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "B0"
@@ -755,14 +785,14 @@
       "path": ".task/T03.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "dd1059d23adf3f0cb285f0e7ec4963e982e2ee092cbc79461f2dfc17eb1bf5f6",
+      "record_sha256": "4ced5b0f31abe98cb3a1037351ea9881d9c102e51f1d4a9a5a66ccbb99bf5ee9",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "T01",
@@ -775,14 +805,14 @@
       "path": ".task/T04.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "80786ff987800079e8b7cd6df98647529f45f5d49d3a6c0518488c27b1483fb2",
+      "record_sha256": "b36bb5a8985a0cad20e1dd192fef72d1cb254604a26d3c871360e71a4dde92ca",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "B0"
@@ -793,14 +823,14 @@
       "path": ".task/T05.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "6c569b288329ff8538b5598f165959ca72690078f3a13f5c9974951e414fbb6a",
+      "record_sha256": "cf67a6360c373cc6392a3a715a911ec8b9a0b0b7821997b7a803a473d9539134",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "B0"
@@ -811,14 +841,14 @@
       "path": ".task/T06.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "58fbe26e57d6224e5d000a058ec7bd9561849376ca900b376fae19734a794ddd",
+      "record_sha256": "785b7a336c59939e8f015c97992e560ea034050ad66f72234946d64c44c8e738",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "T02",
@@ -830,14 +860,14 @@
       "path": ".task/T07.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "48c746663fee011ebf55a943963da58cb242c932c0cfbe260484cf7bcba0eb1a",
+      "record_sha256": "827b0256e208694b2dc1ffdb5061a896d7b026eec86cd4fe01e1df2bb2bab027",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "T05"
@@ -848,14 +878,14 @@
       "path": ".task/T08.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "5663066302f4dea7c467279076e1982cf676fff141a60abb8864aea007c2228b",
+      "record_sha256": "4a791629989d96c79916f6c846a8166e082943ddd7eb63fc24cdd6d9a44cd8f0",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "W1"
@@ -866,14 +896,14 @@
       "path": ".task/T09.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "f115b8273e3e0b4d192160708c1e34354d10a0cfd29bd35c2e4f6b9f787e2b87",
+      "record_sha256": "b86d4f3caa276a76b52dd8946456ecd250bf5a613c9603635d5064a5bb9df0a0",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "W1",
@@ -885,14 +915,14 @@
       "path": ".task/W1.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "945757eccf0210813392d5f72f66380ce624de3fb9bb506488d73e748e9d19a6",
+      "record_sha256": "2fb17a007657a45f248540171e9791f09e56a95793b42bc83594fa2f298c0ac0",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "T01",
@@ -908,14 +938,14 @@
       "path": ".task/W2.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "6809ab284e6be3522e951277412e45ca7a015979ef4bb90b925c66d065e20baf",
+      "record_sha256": "b53e880c1cd580d2dc94ecdd761fccceab5c821a0dddc0d316161db75eaf6daf",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "W1",
@@ -928,14 +958,14 @@
       "path": ".task/W3.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "235ca70308f0997154e17aedb40ff16371a64be801a268290461a161149a624e",
+      "record_sha256": "6732312f1d1d95c5f63a70cd866f8cf0a65e9380c1fa16257c4c3b0e62e25589",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "T09",
@@ -947,14 +977,14 @@
       "path": ".task/W4.md",
       "status": "Planned",
       "baseline": null,
-      "record_sha256": "64080a0f9a54951c19687fa29974f6b1e20799a36bfac825c386b9850f2c0ddd",
+      "record_sha256": "e3c5686139253df45eb2cef56ebee0733559446dc8d671002a1b870e1a98d0f6",
       "committed": true,
       "evidence": [],
       "specification": {
         "source": "current",
         "revision": null,
-        "spec_hash": "5369dbb25316ec62bcc2cf3400aa9136f920073dd9f882ae22d497bdc97ea0d6",
-        "normative_hash": "b16762ff0e75a48554108a6dce592e88364460fa07c8b1706df216ff5a1df603"
+        "spec_hash": "67b687142a4e5d359c4afacb7319c1388a5fec824f33df61b3deaa06b66ac046",
+        "normative_hash": "a3e4fa657fdfe2684fcc4a28e5d4cb1274f4d73af47981c5867fdb0e4871876f"
       },
       "blocked_by": [
         "W2",
