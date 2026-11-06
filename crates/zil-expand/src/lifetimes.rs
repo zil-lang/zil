@@ -53,7 +53,6 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_impl = self.impl_scope;
             let old_mutable_life = self.mutable_life;
             let old_stored_fields = self.stored_fields;
-            self.stored_fields = old_stored_fields;
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
