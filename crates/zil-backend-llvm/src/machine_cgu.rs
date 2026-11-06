@@ -1206,14 +1206,14 @@ mod tests {
             let owner = plan
                 .units
                 .iter()
-                .find(|unit| definitions(unit).contains(&name))
+                .find(|unit| definitions(unit).contains(name.as_str()))
                 .unwrap();
             assert!(definitions(owner).contains("left"));
             assert!(definitions(owner).contains("right"));
             assert_eq!(
                 plan.units
                     .iter()
-                    .filter(|unit| definitions(unit).contains(&name))
+                    .filter(|unit| definitions(unit).contains(name.as_str()))
                     .count(),
                 1
             );
