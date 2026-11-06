@@ -594,7 +594,8 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
-                        InstructionKind::Constant(_)
+                        InstructionKind::StaticUtf8 { .. }
+                            | InstructionKind::Constant(_)
                             | InstructionKind::Load(_)
                             | InstructionKind::Store { .. }
                             | InstructionKind::StorageLive(_)
@@ -1080,6 +1081,17 @@ fn access(
             "access has no independently grounded target permission",
         ));
     }
+    if b.static_utf8 {
+        b.spend(p.sources.len())?;
+    }
+    if b.static_utf8
+        && write
+        && p.sources
+            .iter()
+            .any(|source| source.base == HoldRoot::Static)
+    {
+        return Err(err("program-static text cannot authorize mutation"));
+    }
     let delegated = ancestry(&p.loans, loans, b)?;
     for id in active {
         b.spend(delegated.len().saturating_add(1))?;
@@ -1279,6 +1291,9 @@ fn select(
             return Err(err("stored leaf base crosses a target or inline boundary"));
         }
         let p = match source.base {
+            HoldRoot::Static => {
+                return Err(err("static text cannot supply nested carrier permissions"));
+            }
             HoldRoot::Local(l) => state.locals.get(l.0 as usize),
             HoldRoot::Parameter(p) => state.external.get(p as usize),
             HoldRoot::Capture(p) => state.captures.get(p as usize),
@@ -1297,6 +1312,16 @@ fn instantiate(
     state: &Frame,
     b: &mut Budget,
 ) -> Check<Permission> {
+    if source.base == HoldRoot::Static {
+        if !source.leaf.is_empty() || !source.inline.is_empty() {
+            return Err(err("static text summary contains a nested projection"));
+        }
+        b.spend(1)?;
+        return Ok(Permission {
+            sources: vec![source.clone()],
+            loans: Vec::new(),
+        });
+    }
     let HoldRoot::Parameter(position) = source.base else {
         return Err(err("callee returned activation or capture storage"));
     };
@@ -1339,6 +1364,14 @@ fn step(
             .ok_or_else(|| err("operand outside actual value table"))
     };
     match &i.kind {
+        InstructionKind::StaticUtf8 { .. } => {
+            b.spend(1)?;
+            out.address.sources.push(Source {
+                base: HoldRoot::Static,
+                leaf: Vec::new(),
+                inline: Vec::new(),
+            });
+        }
         InstructionKind::Load(l) => {
             out = copy_payload(
                 state
@@ -1656,6 +1689,20 @@ fn step(
                 "instruction lacks an independent stored target transfer",
                 Some(i.span),
             ));
+        }
+    }
+    if let Some(id) = i.result
+        && b.static_utf8
+        && matches!(vt(f, id)?, Type::Address { mutable: true, .. })
+    {
+        b.spend(out.address.sources.len())?;
+        if out
+            .address
+            .sources
+            .iter()
+            .any(|source| source.base == HoldRoot::Static)
+        {
+            return Err(err("static text became a mutable address"));
         }
     }
     if let Some(id) = i.result
@@ -2579,6 +2626,12 @@ pub(super) fn check(
             }
             for source in sources {
                 if lender.is_some() {
+                    continue;
+                }
+                if source.base == HoldRoot::Static {
+                    if !source.leaf.is_empty() || !source.inline.is_empty() {
+                        return Err(err("static result has a nested permission projection"));
+                    }
                     continue;
                 }
                 let HoldRoot::Parameter(position) = source.base else {

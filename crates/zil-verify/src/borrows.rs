@@ -268,6 +268,7 @@ fn check(
     let max_roots = m
         .checked_add(captures)
         .and_then(|n| n.checked_add(f.parameters.len()))
+        .and_then(|n| n.checked_add(1))
         .ok_or_else(|| limit("Hold root count overflow"))?;
     for (i, claim) in plan.holds.iter().enumerate() {
         if claim.value.0 as usize != i || claim.roots.len() > max_roots {
@@ -665,6 +666,10 @@ fn reconstruct(
                     {
                         for root in &summaries[definition.function.0 as usize] {
                             budget.spend(1)?;
+                            if *root == Root::Static {
+                                roots_join(&mut row, &[Root::Static], budget)?;
+                                continue;
+                            }
                             let Root::Parameter(index) = root else {
                                 return Err(reject(
                                     "E-VERIFY-HOLD",
@@ -683,6 +688,10 @@ fn reconstruct(
                         }
                     } else {
                         match &instruction.kind {
+                            InstructionKind::StaticUtf8 { .. } => {
+                                budget.spend(1)?;
+                                row.push(Root::Static);
+                            }
                             InstructionKind::DescribeLocal { local }
                                 if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner)
                                 if descriptor_origins || matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
@@ -862,6 +871,10 @@ fn reconstruct(
                             } => {
                                 for root in &summaries[function.0 as usize] {
                                     budget.spend(1)?;
+                                    if *root == Root::Static {
+                                        roots_join(&mut row, &[Root::Static], budget)?;
+                                        continue;
+                                    }
                                     let Root::Parameter(index) = root else {
                                         return Err(reject(
                                             "E-VERIFY-HOLD",
@@ -1026,6 +1039,7 @@ fn reconstruct_module(
                         let incoming: Vec<_> = roots
                             .iter()
                             .filter_map(|root| match root.coarse() {
+                                HoldRoot::Static => Some(Root::Static),
                                 HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
                                 HoldRoot::Capture(_) if budget.owning_address_captures => {
                                     Some(*root)
@@ -1246,6 +1260,20 @@ pub(super) fn check_module(
                 }
             }
         }
+        if budget.static_utf8 {
+            for (ty, roots) in function.values.iter().zip(&facts.values) {
+                budget.spend(roots.len().saturating_add(1))?;
+                if matches!(ty, Type::Address { mutable: true, .. })
+                    && roots.iter().any(|root| root.coarse() == HoldRoot::Static)
+                {
+                    return Err(reject(
+                        "E-BORROW-PERMISSION",
+                        Some(function.span),
+                        "program-static text cannot become a mutable address",
+                    ));
+                }
+            }
+        }
         let mut lending_sources = std::collections::BTreeSet::new();
         for (block, reachable) in function.blocks.iter().zip(&graph.reachable) {
             if !reachable {
@@ -1264,7 +1292,7 @@ pub(super) fn check_module(
                 }
                 if let Some(bound) = &function.reference_return_bound {
                     budget.spend(roots.len().saturating_mul(bound.len().saturating_add(1)))?;
-                    if roots.iter().any(|root|!matches!(root.coarse(),HoldRoot::Parameter(index) if bound.binary_search(&index).is_ok())) {
+                    if roots.iter().any(|root| root.coarse() != HoldRoot::Static && !matches!(root.coarse(),HoldRoot::Parameter(index) if bound.binary_search(&index).is_ok())) {
                         return Err(reject("E-VERIFY-LIFE",Some(function.span),"actual return origins exceed the declared life input set"));
                     }
                 }
@@ -1286,7 +1314,7 @@ pub(super) fn check_module(
                     }
                 } else if roots
                     .iter()
-                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(_)))
+                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(_) | HoldRoot::Static))
                 {
                     return Err(reject(
                         "E-BORROW-ESCAPE",
@@ -1642,6 +1670,7 @@ mod frontier_tests {
                             let incoming: Vec<_> = roots
                                 .iter()
                                 .filter_map(|root| match root.coarse() {
+                                    HoldRoot::Static => Some(Root::Static),
                                     HoldRoot::Parameter(index) => Some(Root::Parameter(index)),
                                     _ => None,
                                 })
