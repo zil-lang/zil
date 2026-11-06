@@ -1223,6 +1223,36 @@ impl Check<'_, '_, '_> {
                                     Fact::List(element) => Fact::Address(life, element),
                                     _ => Fact::Address(None, Box::new(source)),
                                 },
+                                Fact::List(_) => {
+                                    // An inline array field of an actual address
+                                    // remains within that address's source class.
+                                    // Resolve the field from the real nominal
+                                    // declaration; a field name or result hint
+                                    // alone cannot supply a class or target.
+                                    let projected = if let ExprKind::Member {
+                                        object: owner,
+                                        member,
+                                    } = &object.kind
+                                    {
+                                        let owner =
+                                            self.expr(owner, scope, env, None, depth + 1)?;
+                                        if let Fact::Address(Some(life), _) = &owner {
+                                            let field =
+                                                self.field(&owner, member, object.span, depth + 1)?;
+                                            if let Fact::List(element) = field {
+                                                Some(Fact::Address(Some(life.clone()), element))
+                                            } else {
+                                                None
+                                            }
+                                        } else {
+                                            None
+                                        }
+                                    } else {
+                                        None
+                                    };
+                                    projected
+                                        .unwrap_or_else(|| Fact::Address(None, Box::new(source)))
+                                }
                                 _ => Fact::Address(None, Box::new(source)),
                             }
                         } else {
