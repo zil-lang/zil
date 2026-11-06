@@ -290,7 +290,7 @@ fn static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitt
                 .items
                 .iter()
                 .find_map(|item| match item {
-                    Item::Function(function) if function.blocks.is_some() => Some(function),
+                    Item::Function(function) if function.name == "zil.fn.0" => Some(function),
                     _ => None,
                 })
                 .unwrap();
