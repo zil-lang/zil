@@ -134,12 +134,14 @@ struct Scope<'a> {
     owner: usize,
     parameters: &'a [GenericParam],
     host: Option<usize>,
+    impl_target: Option<&'a TypeRef>,
 }
 struct Check<'a, 'b, 'l> {
     functions: Vec<&'a Function>,
     records: Vec<&'a Aggregate>,
     enums: Vec<&'a EnumDecl>,
     hosts: Vec<Option<usize>>,
+    impl_targets: Vec<Option<&'a TypeRef>>,
     standalone: Vec<bool>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
@@ -381,6 +383,18 @@ impl Check<'_, '_, '_> {
                     && let Some(f) = self.self_type(scope, ty.span)?
                 {
                     return Ok(f);
+                }
+                if path.as_slice() == ["Self"]
+                    && args.is_empty()
+                    && let Some(target) = scope.impl_target
+                {
+                    self.budget.ty(target)?;
+                    if matches!(&target.kind, TypeKind::Named { path, args }
+                        if path.as_slice() == ["Self"] && args.is_empty())
+                    {
+                        return Err(unsupported(ty.span, "impl Self has no actual target"));
+                    }
+                    return self.ty(target, scope, depth + 1);
                 }
                 if let [name] = path.as_slice()
                     && args.is_empty()
@@ -771,6 +785,7 @@ impl Check<'_, '_, '_> {
                     owner,
                     parameters: &declaration.generics,
                     host: None,
+                    impl_target: None,
                 };
                 let mut map = Substitutions::new();
                 for (ordinal, actual) in actuals.iter().enumerate() {
@@ -810,6 +825,7 @@ impl Check<'_, '_, '_> {
             owner: self.functions.len() + index,
             parameters: &declaration.generics,
             host: None,
+            impl_target: None,
         };
         let mut map = Substitutions::new();
         for (ordinal, actual) in actuals.iter().enumerate() {
@@ -1343,6 +1359,7 @@ impl Check<'_, '_, '_> {
                             owner,
                             parameters: &f.generics,
                             host: self.hosts[owner],
+                            impl_target: self.impl_targets[owner],
                         };
                         let mut map = Substitutions::new();
                         if let Some(args) = explicit {
@@ -1470,6 +1487,7 @@ impl Check<'_, '_, '_> {
                     owner,
                     parameters: &declaration.generics,
                     host: None,
+                    impl_target: None,
                 };
                 let mut map = Substitutions::new();
                 if let Some(explicit) = explicit {
@@ -1671,6 +1689,7 @@ impl Check<'_, '_, '_> {
                     owner,
                     parameters: &function.generics,
                     host: Some(host_index),
+                    impl_target: None,
                 };
                 let Some(result) = &function.return_type else {
                     return Ok(Some(Fact::Unknown));
@@ -1981,12 +2000,14 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         records: Vec<&'a Aggregate>,
         enums: Vec<&'a EnumDecl>,
         hosts: Vec<Option<usize>>,
+        impl_targets: Vec<Option<&'a TypeRef>>,
         standalone: Vec<bool>,
     }
     fn inventory<'a>(
         items: &'a [Item],
         found: &mut Inventory<'a>,
         host: Option<usize>,
+        impl_target: Option<&'a TypeRef>,
         top: bool,
         budget: &mut Budget<'_>,
         depth: usize,
@@ -1998,12 +2019,21 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                     budget.identity_work(3, item.span)?;
                     found.functions.push(f);
                     found.hosts.push(host);
+                    found.impl_targets.push(impl_target);
                     found.standalone.push(top);
                 }
                 ItemKind::Aggregate(a) => {
                     let index = found.records.len();
                     found.records.push(a);
-                    inventory(&a.methods, found, Some(index), false, budget, depth + 1)?;
+                    inventory(
+                        &a.methods,
+                        found,
+                        Some(index),
+                        None,
+                        false,
+                        budget,
+                        depth + 1,
+                    )?;
                 }
                 ItemKind::Enum(e) => {
                     budget.lineage_bytes(std::mem::size_of::<&EnumDecl>(), item.span)?;
@@ -2020,7 +2050,15 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                             "ambient generic impl requires its actual enclosing source context",
                         ));
                     }
-                    inventory(&i.members, found, host, false, budget, depth + 1)?;
+                    inventory(
+                        &i.members,
+                        found,
+                        host,
+                        Some(&i.target),
+                        false,
+                        budget,
+                        depth + 1,
+                    )?;
                 }
                 ItemKind::Trait(t) => {
                     budget.identity_work(t.generics.len(), item.span)?;
@@ -2033,7 +2071,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
                             "ambient trait requires its actual enclosing source context",
                         ));
                     }
-                    inventory(&t.members, found, host, false, budget, depth + 1)?;
+                    inventory(&t.members, found, host, None, false, budget, depth + 1)?;
                 }
                 _ => {}
             }
@@ -2045,14 +2083,16 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         records: Vec::new(),
         enums: Vec::new(),
         hosts: Vec::new(),
+        impl_targets: Vec::new(),
         standalone: Vec::new(),
     };
-    inventory(&module.items, &mut found, None, true, budget, 0)?;
+    inventory(&module.items, &mut found, None, None, true, budget, 0)?;
     let mut check = Check {
         functions: found.functions,
         records: found.records,
         enums: found.enums,
         hosts: found.hosts,
+        impl_targets: found.impl_targets,
         standalone: found.standalone,
         fact_depth: 0,
         budget,
@@ -2081,6 +2121,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             owner,
             parameters: &f.generics,
             host: check.hosts[owner],
+            impl_target: check.impl_targets[owner],
         };
         let mut env = Facts::new();
         for p in &f.params {
