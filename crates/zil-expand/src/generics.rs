@@ -724,7 +724,20 @@ impl<'a> Engine<'a> {
                     .foreign_signatures
                     .insert(&function.name, (abi, function));
             }
-            if !params(item).is_empty() {
+            let lifted_life = if let ItemKind::Function(f) = &item.kind
+                && super::lifetimes::only_life(f)
+                && f.name.as_bytes().first() == Some(&b'$')
+            {
+                engine.budget.text(&f.name, f.span)?;
+                f.name.starts_with("$generic_method_")
+                    && engine
+                        .traits
+                        .origin(item, &mut engine.budget)?
+                        .is_some_and(|origin| origin.provider)
+            } else {
+                false
+            };
+            if !params(item).is_empty() || lifted_life {
                 let key = name(item).expect("template has a name").to_owned();
                 if engine.templates.insert(key, item).is_some() {
                     return Err(error(item.span, "duplicate generic declaration"));
