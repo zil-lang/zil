@@ -50,7 +50,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G2.4.1 | 普通 trait 逐调用 lending iterator：关联 Item、方法 life 与真实接收者来源 | 已合入 | — | — | [PR50 验收][e-pr50]：跨模块关联 Item、方法 life、真实 std.iter、两后端 O0/O2；默认5146/0、参考5034/0。原 SliceIter/Option 转发回归已修复；资源宿主/一般 owning lending 仍缺。 |
-| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 待执行 | P0 | 待派 · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
+| G2.4.2 | 普通 trait 静态关联函数：类型限定调用、符号泛型宿主、既有 type-only 参数与返回组合 | 进行中 | P0 | static_traits · sol high | 实际源码已复现具体宿主“generic method without receiver”和符号宿主“unknown value F”；沿用现有泛型义务与静态调用，不限特定工厂名称。 |
 
 <details>
 <summary>G2.4.1 · 子任务</summary>
@@ -231,7 +231,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.3.1 | 普通 UTF8 文本字面量到只读文本与 String 的入口 | 已合入 | — | — | [PR48 验收][e-pr48]：静态UTF8、显式来源、Unicode/空串/NUL、跨模块返回、显式String分配失败清理及预算闭环；完整Unicode/格式化库另缺。 |
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
-| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 待执行 | P0 | 待派 · sol high | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
+| G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 进行中 | P0 | sol high 并行 / root 集成 | 原 store_at_mut 合法需求仍在 Types 显式拒绝；先保留整 Store 排他窗口、失败清理和两核独验，不推断不同下标互不重叠。 |
 
 <details>
 <summary>G9.3.2 · 子任务</summary>
@@ -276,6 +276,7 @@
 | G10.3 | 大型closure/helper/foreign ABI及浮点/匿名联合责任的一般组合 | 部分实现 | P1 | 待派 | 补齐实际源码及最近反例；大数组修复不能覆盖全部 ABI。 |
 | G10.4 | 原生Windows执行和平台差异验证 | 待执行 | P2 | 待派 | 需要原生 Windows 主机；环境可提前准备。 |
 | G10.5 | 与Rust同语义的安全、运行/内存、编译、维护成本及至少一项可重复净突破 | 待执行 | P2 | root | 固定真实消费者、同语义 Rust 对照和独占计时窗口。 |
+| G10.6.1 | 语言初稿候选：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 进行中 | P0 | root / sol high 并行 | 合并 G2.4.2 与 G9.3.3，查缺后按真实普通程序验收；发布边界由审计记录解释。 |
 | G10.6 | B0、完整语言与ZUI终态验收 | 待执行 | P2 | root | 依赖全部必需语言任务、G9.6、G10.4、G10.5。 |
 
 <details>
