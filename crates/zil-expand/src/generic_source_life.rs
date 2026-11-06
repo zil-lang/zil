@@ -2016,7 +2016,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
             budget.node(item.span, depth)?;
             match &item.kind {
                 ItemKind::Function(f) => {
-                    budget.identity_work(3, item.span)?;
+                    budget.identity_work(4, item.span)?;
                     found.functions.push(f);
                     found.hosts.push(host);
                     found.impl_targets.push(impl_target);
