@@ -31,6 +31,9 @@ mod terminal342_higher_rank;
 #[path = "../../../tests/language-readiness/terminal/342/stored_physical.rs"]
 mod terminal342_stored_physical;
 
+#[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
+mod utf8_literals_g931;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {
