@@ -42,18 +42,25 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         }
         fn item(&mut self, item: &s::Item, depth: usize) -> CompileResult<()> {
             let old_binders = std::mem::take(&mut self.binders);
+            // Methods are lexically inside the nominal/impl life binders.
+            // A fresh module item still starts with the restored empty scope.
+            for name in &old_binders {
+                self.budget.text(name, item.span).map_err(|e| vec![e])?;
+                self.binders.push(name.clone());
+            }
             let old_headers = std::mem::take(&mut self.headers);
             let old_trait = self.trait_scope;
             let old_impl = self.impl_scope;
             let old_mutable_life = self.mutable_life;
             let old_stored_fields = self.stored_fields;
-            self.stored_fields = false;
+            self.stored_fields = old_stored_fields;
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
             let nominal_generics = match &item.kind {
                 s::ItemKind::Aggregate(aggregate) => Some(aggregate.generics.as_slice()),
                 s::ItemKind::Enum(declaration) => Some(declaration.generics.as_slice()),
+                s::ItemKind::Impl(declaration) => Some(declaration.generics.as_slice()),
                 _ => None,
             };
             if let Some(nominal_generics) = nominal_generics {
@@ -84,8 +91,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             if let s::ItemKind::Function(f) | s::ItemKind::Extern { function: f, .. } = &item.kind {
-                self.mutable_life =
-                    only_life(f) || !self.impl_scope && (copy_life(f) || callable_life(f));
+                self.mutable_life = !self.binders.is_empty()
+                    || only_life(f)
+                    || !self.impl_scope && (copy_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -99,6 +107,11 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                         self.binders.push(p.name.clone());
                     }
                 }
+                // A qualified stored result (and its explicit constructor
+                // arguments) may mention the same lexical life as the input.
+                // The storage contract, rather than reference nesting, checks
+                // that this relation is actually supported and preserved.
+                self.stored_fields |= !self.binders.is_empty();
                 if !self.binders.is_empty()
                     && (self.trait_scope
                         || matches!(item.kind, s::ItemKind::Extern { .. })
