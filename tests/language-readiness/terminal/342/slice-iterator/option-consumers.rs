@@ -3,6 +3,7 @@ use super::*;
 use zil_ir::{LifeNominalActual, LifeTypeProjection, PlaceProjection, Type};
 
 const HELPER: &str = include_str!("option-helper.zil");
+type Mutation = (&'static str, fn(&mut TypedModule));
 
 fn shape(module: &mut TypedModule) -> &mut zil_ir::StorageLifeShape {
     let Type::BorrowedStorage { life, .. } = &mut module.life_instances[0].ty else {
@@ -54,7 +55,7 @@ fn g3_4_1_option_source_permissions_survive_raw_and_wire_consumers() {
 fn g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel() {
     let module = typed(HELPER);
     let plan = accept(&module);
-    let mutations: &[(&str, fn(&mut TypedModule))] = &[
+    let mutations: &[Mutation] = &[
         ("compiler flag alone", |m| {
             m.life_declarations[0].identity.package = "spoof".into()
         }),
@@ -247,6 +248,62 @@ fn g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile() {
         assert!(
             zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).is_err(),
             "Wire Verify accepted pointee {pointee:?}"
+        );
+    }
+}
+
+#[test]
+fn g3_4_1_option_core_metadata_is_authenticated_before_types_resolve() {
+    let unit = source(HELPER);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &ast).unwrap();
+    let core = zil_types::infer_source_closures(&core, &Limits::default()).unwrap();
+    let core =
+        zil_ct::evaluate_source_constants(&core, &TargetProfile::default(), &Limits::default())
+            .unwrap();
+    zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();
+    for mutation in 0..12 {
+        let mut forged = core.clone();
+        match mutation {
+            0 => forged.life_declarations[0].identity.package = "user".into(),
+            1 => forged.life_declarations[0].id.module.0 = 0,
+            2 => forged.life_declarations[0].parameters.clear(),
+            3 => forged.life_declarations[0].identity.generation_path.push(0),
+            4 => forged.life_instances[0].arguments[0] = LifeNominalActual::Type(Type::I64),
+            5 => {
+                let LifeNominalActual::Type(Type::Address { mutable, .. }) =
+                    &mut forged.life_instances[0].arguments[0]
+                else {
+                    panic!()
+                };
+                *mutable = true;
+            }
+            _ => {
+                let Type::BorrowedStorage { life, .. } = &mut forged.life_instances[0].ty else {
+                    panic!()
+                };
+                match mutation {
+                    6 => life.retained.clear(),
+                    7 => life.retained[0].class = 1,
+                    8 => life.retained[0].binder = 1,
+                    9 => life.retained[0].path = vec![LifeTypeProjection::TypeArgument(1)],
+                    10 => {
+                        life.slots[0].path =
+                            vec![PlaceProjection::Variant(zil_ir::VariantProjection {
+                                variant: 0,
+                                index: 0,
+                            })]
+                    }
+                    11 => life.slots[0].binder = 1,
+                    _ => unreachable!(),
+                }
+            }
+        }
+        let errors =
+            zil_types::check(&forged, &TargetProfile::default(), &Limits::default()).unwrap_err();
+        assert!(
+            errors.iter().all(|d| d.phase == Phase::Types),
+            "Core mutation {mutation}: {errors:?}"
         );
     }
 }
