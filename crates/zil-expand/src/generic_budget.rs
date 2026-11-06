@@ -702,6 +702,12 @@ impl<'a> Budget<'a> {
                 }
             }
             ItemKind::Impl(i) => {
+                // Capture real project module/declaration origins before the
+                // generic inherent body is flattened or lifted. A later
+                // single-module ledger cannot recover ownership or privacy.
+                if i.trait_type.is_none() && !i.generics.is_empty() {
+                    self.note_source_identity();
+                }
                 self.generics(&i.generics, depth + 1, subs, false)?;
                 self.bounds(&i.where_clause, depth + 1, subs)?;
                 self.ty_at(&i.target, depth + 1, subs)?;
