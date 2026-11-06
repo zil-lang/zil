@@ -106,8 +106,22 @@ pub(super) fn carrier(
             "POD Store requires checked Linux x64 or Win64 LLVM",
         ));
     }
-    let Type::Record { name, .. } = element else {
-        return Err(unsupported("POD Store element requires an ordinary Record"));
+    let name = match element {
+        Type::Record { name, .. } => name.as_str(),
+        Type::Bool => "bool",
+        Type::U8 => "u8",
+        Type::U16 => "u16",
+        Type::I32 => "i32",
+        Type::I64 => "i64",
+        Type::U64 => "u64",
+        Type::Usize => "usize",
+        Type::F32 => "f32",
+        Type::F64 => "f64",
+        _ => {
+            return Err(unsupported(
+                "POD Store element requires an ordinary Record or supported scalar",
+            ));
+        }
     };
     let (size, _) = layout(element, budget)?;
     if size == 0 {
@@ -129,6 +143,20 @@ pub(super) fn carrier(
                 Type::Record { name: actual, .. } | Type::Package { name: actual, .. } => {
                     budget.spend(actual.len().saturating_add(name.len()), WORK)?;
                     actual == name
+                }
+                Type::Bool
+                | Type::U8
+                | Type::U16
+                | Type::I32
+                | Type::I64
+                | Type::U64
+                | Type::Usize
+                | Type::F32
+                | Type::F64
+                    if !matches!(element, Type::Record { .. }) =>
+                {
+                    budget.spend(1, WORK)?;
+                    actual.as_ref() == element
                 }
                 _ => false,
             }
