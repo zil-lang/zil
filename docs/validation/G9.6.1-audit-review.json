@@ -1,0 +1,9 @@
+{
+  "task": "G9.6.1",
+  "reviewer": "sol high / zui_syntax_library_audit; independent reviewer of root report",
+  "verdict": "PassAuditScope",
+  "scope": "Source hashes and observation boundaries; not new language or GPU acceptance",
+  "observed": "26 source hashes match; original syntax probes and all9 GPU result hashes/status/phase/verification_runs match. Three GPU shapes pass Verify, six reject. No GDI/CPU raster substitute or claimed GPU execution. Existing345 positives distinguished from windows/GPU.",
+  "followup": "Added requested align16 unsupported boundary and explicit observed-input versus replay-path distinction; no probe outcome or production code change.",
+  "validation": "No repeated CLI, new test target or Rust build by reviewer."
+}

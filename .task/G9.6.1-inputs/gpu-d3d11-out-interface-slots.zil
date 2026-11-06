@@ -1,0 +1,2 @@
+extern "C" fn D3D11CreateDevice(adapter:c_handle,driver:i32,software:c_handle,flags:i32,levels:&[i32;1],level_count:i32,sdk:i32,device:&mut c_handle,actual:&mut i32,context:&mut c_handle)->i32 contract{provides(noescape(levels),noescape(device),noescape(actual),noescape(context));effects(ffi);};
+fn main()->i32 {let levels=[45056];var device=c_null();var context=c_null();var actual=0;unsafe{return D3D11CreateDevice(c_null(),1,c_null(),32,&levels,1,7,&mut device,&mut actual,&mut context)}}

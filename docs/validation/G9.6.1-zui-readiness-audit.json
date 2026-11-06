@@ -1,0 +1,873 @@
+{
+  "task": "G9.6.1",
+  "scope": "Current ZUI language gap audit; no new language implementation or full-product acceptance",
+  "main": "adbead51fc8916ac1cb1019702d906a19ebd3e98",
+  "goal_read": "82a89db25945c7d33fba2c81f0143bdba0ff33c2",
+  "compiler_tested_source": "95391378209c26d6c53b5e61c480b560dd5904bd",
+  "cli_sha256": "3eba9f7a5cdf9d59866b7ee21901c7f5cea60027bf709af7022b8cc71f8259db",
+  "compiler_identity": "Existing PR46 release CLI; crates/lib/tools/Cargo inputs unchanged between tested source and audited main. Current native UI probes use LLVM API O0; no new Rust build.",
+  "source_probes": [
+    {
+      "source": ".task/G9.6.1-inputs/literal_utf8.zil",
+      "source_sha256": "b2776d4574c454b6f560fa31972a88b5a10c404453ce65a075740c836bd1287f",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate, closure, string or projection typing",
+          "phase": "types",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "200ba60f3e1800a54f1f3843ff7da81042aa56410d2454bc9df816e1d81673b3",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/literal_utf8.zil",
+        "--stop-after",
+        "types",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/syntax-library/literal_utf8.zil",
+      "input_fingerprint": "151fde4e135e9b3fc7ff566d89874958f7120d480d7c9e15e3256a3d37a9ef17"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/bytes_utf8.zil",
+      "source_sha256": "c10257f8e8e62502f13eaa22079a79ab4f1167e92e7d42e24f4eae7187ba11cf",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "b15cb249ccce580f70027e6817dab751badd2c6ad53ad2fbe2303caf362e247e",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/bytes_utf8.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/syntax-library/bytes_utf8.zil",
+      "input_fingerprint": "b6b58b2b2f290e7c2dddebcd04ddb86b3981c42e5ab1ec7690f851835f8950a4"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/event_dispatch.zil",
+      "source_sha256": "eb631b3a0e09f8f1f9ad399cfc7095145bb9605c98754717568d055e415b5fd7",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "cf95d5882b47048132bdcad324d836698d62ff23919748c965fde6e62768959d",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/event_dispatch.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/syntax-library/event_dispatch.zil",
+      "input_fingerprint": "f71028c46dbb7ec4dabc76677db1e1e9790b4fb4430ba67f2721002b6ecdafcd"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/for_slice.zil",
+      "source_sha256": "84d755096dcef00688f67f5f32033a25129e613c3f855344b70634fe1c0730a8",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "for iterable other than an integer range",
+          "phase": "types",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "ba2d805c1a5c74dc9132c886392c33cf6c81a0f9985c6f981700ac96a6dac46e",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/for_slice.zil",
+        "--stop-after",
+        "types",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/syntax-library/for_slice.zil",
+      "input_fingerprint": "faba2f64216b26df4912e3cd04448adad4744df19e4bd9217773d2b9d3f677c4"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/for_range.zil",
+      "source_sha256": "5b4df2d730a3e7cec303ef3d895275b91e66406bd2ee1a532b783b6b0bd4f8ce",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "ff1142921ec08db1596cb626ec1a0e4d6cb8bbc65f914cbf82a5bd8494658e6c",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/for_range.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/syntax-library/for_range.zil",
+      "input_fingerprint": "ae997da48d0523aae772ed54e7f27dac2a4490705726f28df6973ff19782cabc"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/dyn-read-unused.zil",
+      "source_sha256": "4d73c5455f946bd4a3ca1ebd6977c6b40fc706f7bf6325d88cdac4e4fa2499ca",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
+          "phase": "types",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "c062267b59bf3757950342d240897658d813f6e5d35fb879092d09e4bbb78ef0",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/dyn-read-unused.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/dyn-read-unused.zil",
+      "input_fingerprint": "35f4936ab2674dc68e539ff814f00c9875efa3f7d286eddc9e67a8b53eb8f996"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/static-trait.zil",
+      "source_sha256": "508213656bb4b00f2fbcbf98219c32cbe426ace329ec97a9e741546348fbe0b5",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "a26be6372e1d78df30616de078f6777257531c74f0a31e20fc2e044042f86c7f",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/static-trait.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/static-trait.zil",
+      "input_fingerprint": "2c179cba8ebe5ab6a99f10dae2b4da88d734d6f474fa480d234ac9d311e2d5e0"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/mut-stored-init-only.zil",
+      "source_sha256": "10d95f5f4fb24f15f31b61be8c9bb3e72baad89c2a8cc75a7436073de59b02c7",
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
+          "phase": "types",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "4b9394adcd1d4061c1eb128409d53488fca49d4a0e9da1bee634eb3ac63c71b7",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/mut-stored-init-only.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/mut-stored-init-only.zil",
+      "input_fingerprint": "b9f5ea28932fdfca88f1e54295e7d2de8213064cbb6038c1e6b1930263e02949"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/mut-direct-control.zil",
+      "source_sha256": "f6f750a29c324be01fd3c0642776bd8c2120680fb7fe83c332c3de90b4fc7583",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "2c225d6c445ebdf8d81c938be023df15376e442bb7f60e1f25368d26c1798e3a",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/mut-direct-control.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/mut-direct-control.zil",
+      "input_fingerprint": "0c7c7c9b7a1f1316f3218030bc60ef65654826eed17fa85c4fa70d4bd788548d"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/borrow-package-owned.zil",
+      "source_sha256": "b34021702c8c5606a85bc9d5b19155a24cd416163bc6df725ca5d3ce99fabde8",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "stored nominal ownership shape requires its consumer",
+          "phase": "expand",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "ed0d25d83d8602af78cee91740403e5d2f918f0577d83ecafe088d8b8a58441f",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/borrow-package-owned.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/borrow-package-owned.zil",
+      "input_fingerprint": "ec1004c9d27cc7a89781680cbac588fa7bc41a006e3d92681d45eb1a4928c6be"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/owned-package-control.zil",
+      "source_sha256": "bb798737b27b5cf50478fc5043131677dec5e9c198167e3a0fcf55832b2a2794",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "5600214334c625070d8b1ecb6514bc37746a6e8d24aecd3bdeaf5926b67c24fd",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/owned-package-control.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/owned-package-control.zil",
+      "input_fingerprint": "21ece3cf5edd85bc42f9f848185033f9d0f82e14155b32e28dcd2dd9d384294d"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/trait-lending.zil",
+      "source_sha256": "df23c8993647a5a4ff88b509d6159cefeafa329e2502a4188c65a15c65388569",
+      "status": "Unsupported",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "life is supported only by ordinary direct functions and concrete inherent methods",
+          "phase": "expand",
+          "category": "Unsupported"
+        }
+      ],
+      "original_result_sha256": "bbf310a5b01303bacf68c3ba059fefc968b3ccffe45181f7064e56f811dc42a7",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/trait-lending.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/trait-lending.zil",
+      "input_fingerprint": "b6fad2661ab8d01cfb53b45a3e01f4533e0f3f73d8247e26b6df1327a87b7b7c"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/trait-lending-elided.zil",
+      "source_sha256": "4a7b0f06a6a618fb0a459b662f9d644c01b8de036fa948dccddd63ac615f7511",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "25c54068a67ac00ce4d2ebaf17233f2daae9fa99e0d256569584ca6fed21acbe",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/trait-lending-elided.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/trait-lending-elided.zil",
+      "input_fingerprint": "9119d7da1aba1cc2bef0f536f1bec36a99f2d3e55701c1e8f2a173e71ad0f8bb"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/shared-stored.zil",
+      "source_sha256": "1cf229d0e77e4164d8218fd8ab13667fadf4f8e2dd4ab226e65a9dbb78c5b313",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "f7107ecbbbee497c2be8dfe1bdeda27a468b6d949f8fb7d5069f54646cf58e7f",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/shared-stored.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/shared-stored.zil",
+      "input_fingerprint": "38a2da744ffbd5d8651fe14ffd07ec7f822212d7cd6620b2f1caa64887c8e312"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/shared-stored-safety.zil",
+      "source_sha256": "1c90576fa2c118a262afbef2169070603e9d2d3ad3d9dde6ede9487ffd861ed4",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-ANALYZE-IR",
+          "message": "stored target proof: simultaneously live access overlaps an actual stored target/parent loan",
+          "phase": "analyze",
+          "category": "SafeReject"
+        }
+      ],
+      "original_result_sha256": "3ed94b79a0786cd505150dced94c14dd514fbfe4803b39b4a4ae8409f0aeafbe",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/shared-stored-safety.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/shared-stored-safety.zil",
+      "input_fingerprint": "9e484d72716136a3651257ddf4f764bf14a1be95407369d94fbd974f81cefa35"
+    },
+    {
+      "source": ".task/G9.6.1-inputs/stored-slice.zil",
+      "source_sha256": "1e71b309225a352c707d178f260c3203b99bb9cf6ec70a745c474108738bb169",
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "original_result_sha256": "d3e4c6513e8fca7a30a33ec77bd74ab9993da56e7c30b7f5bacd140461c308ac",
+      "replay_command": [
+        "zil",
+        "check",
+        ".task/G9.6.1-inputs/stored-slice.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/borrow-trait/stored-slice.zil",
+      "input_fingerprint": "12b87d40c0769f434ca9482023fe63a6253ae4e0c6c5a6bcbdfbec2a8113888a"
+    },
+    {
+      "source": "tests/language-readiness/terminal/342/slice_iter.zil",
+      "source_sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+      "status": "SafeReject",
+      "phase": "expand",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "code": "E-LIFE-DECLARATION",
+          "message": "undeclared life name",
+          "phase": "expand"
+        }
+      ],
+      "original_result_sha256": "fe26db9c346eaaa9e7d6730d5dbad77c3c57e2c09894e7de6372f87afbedc894",
+      "replay_command": [
+        "zil",
+        "check",
+        "tests/language-readiness/terminal/342/slice_iter.zil",
+        "--stop-after",
+        "core",
+        "--json"
+      ],
+      "observed_input_path": "/workspace/zil/tests/language-readiness/terminal/342/slice_iter.zil",
+      "input_fingerprint": "6fdbea02050cce84e0040734b852c912abd4d3851ffad724a9acdecec4eb4cf2"
+    }
+  ],
+  "platform_probes": [
+    {
+      "case": "ui-layout",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "run",
+        "/workspace/zil/tests/language-readiness/terminal/345/ui_layout.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/.zil-env/zui-audit-20261106/async-platform/ui-layout"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "execution": {
+        "run": {
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "case": "ui-raster",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "run",
+        "/workspace/zil/tests/language-readiness/terminal/345/ui_raster.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/.zil-env/zui-audit-20261106/async-platform/ui-raster"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "execution": {
+        "run": {
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "case": "ui-input",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "run",
+        "/workspace/zil/tests/language-readiness/terminal/345/ui_input.zil",
+        "--json",
+        "--emit-dir",
+        "/workspace/.zil-env/zui-audit-20261106/async-platform/ui-input"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "link",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "execution": {
+        "run": {
+          "exit_code": 0,
+          "signal": null,
+          "stdout": "",
+          "stderr": ""
+        }
+      }
+    },
+    {
+      "case": "async-cancel",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "check",
+        "/workspace/zil/tests/language-readiness/async-registration/queued-cancel.zil",
+        "--json"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "execution": null
+    },
+    {
+      "case": "mutex-owner",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "check",
+        "/workspace/zil/tests/language-readiness/terminal/343/sync-probes/mutex-owned-return.zil",
+        "--json"
+      ],
+      "exit": 1,
+      "status": "SafeReject",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "SafeReject",
+          "code": "E-RESOURCE-TYPE",
+          "message": "resource mode requires a resource nominal type",
+          "span": {
+            "file": 0,
+            "start": 57,
+            "end": 172
+          },
+          "notes": []
+        }
+      ],
+      "execution": null
+    },
+    {
+      "case": "mutex-double-unlock",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "check",
+        "/workspace/zil/tests/language-readiness/terminal/343/sync-probes/mutex-double-unlock-reject.zil",
+        "--json"
+      ],
+      "exit": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "verification_runs": 0,
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "parameter type Unsupported(\"type form is not yet lowered\")",
+          "span": {
+            "file": 0,
+            "start": 64,
+            "end": 83
+          },
+          "notes": []
+        }
+      ],
+      "execution": null
+    },
+    {
+      "case": "win32-first-window",
+      "command": [
+        "/workspace/.zil-env/target-release-G10.1.11/release/zil",
+        "check",
+        "/workspace/zil/examples/mainline/win32/main.zil",
+        "--json",
+        "--target",
+        "win64"
+      ],
+      "exit": 0,
+      "status": "Success",
+      "phase": "verify",
+      "verification_runs": 1,
+      "diagnostics": [],
+      "execution": null
+    }
+  ],
+  "limits": [
+    "Verify success is not a native execution claim",
+    "Only the three named 345 UI programs were newly executed natively; no native Windows/Wine/UI screenshot execution in this audit",
+    "Win64 first-window check reaches Verify only; historical Wine evidence is separately referenced",
+    "No timing, Rust comparison, full language, B0 or complete ZUI acceptance"
+  ],
+  "reviewers": [
+    "sol high: syntax/library",
+    "sol high: borrow/trait",
+    "sol high: async/platform"
+  ],
+  "user_constraint": "ZUI targets GPUI-style GPU rendering; no GDI rendering or CPU-raster-as-ZUI workaround.",
+  "gpu_abi_probes": {
+    "scope": "Synthetic Source signature probes only; no implementations, linking, COM execution or GPU execution. Win64 Verify acceptance does not prove external contract truth.",
+    "cases": [
+      {
+        "case": "bridge-scalar-out",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": [],
+        "source": ".task/G9.6.1-inputs/gpu-bridge-scalar-out.zil",
+        "source_sha256": "1fcae7ee4f6d0e073a7b9cb759953f1e1e56a63f101d12cfb684906058f74d5a",
+        "original_result_sha256": "6ba3abf8671981ad2b1c027e0dd10ffae8006ce3226bb7312820eba2c38f0b20",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-bridge-scalar-out.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/bridge-scalar-out.zil",
+        "input_fingerprint": "81c7fabf1cb1b5ba8e103a71bd5ab2f3db62dcc8444ab5108734c1a0568a44d2"
+      },
+      {
+        "case": "d3d11-out-interface-slots",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": [],
+        "source": ".task/G9.6.1-inputs/gpu-d3d11-out-interface-slots.zil",
+        "source_sha256": "6574e9f46984cd17c3cf36f49e76f058ff8a2508a45f728c923aeed64622dd07",
+        "original_result_sha256": "c5471f1f1ab53e4dfb43d34577ea2babb0ee07c2c56ff41c32280f5116b75e1a",
+        "probe_correction": "Original probe combined noescape arguments; corrected to one noescape(parameter) term per address. Original rejection was probe syntax, not capability evidence.",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-d3d11-out-interface-slots.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/d3d11-out-interface-slots.zil",
+        "input_fingerprint": "93c6db19bac18f908e55c70889abef34d3d25d3bb7eaaaea9a9d96d9b6230457"
+      },
+      {
+        "case": "handle-deref",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-OPERATOR-TYPE",
+            "message": "dereference requires an address",
+            "span": {
+              "file": 0,
+              "start": 45,
+              "end": 47
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-handle-deref.zil",
+        "source_sha256": "9ad845dd956e025b8ac194123ee3a45ea03f465103e4d5883a8a8f5a3702d092",
+        "original_result_sha256": "7e224c33b8219c335900ebeb37e2a2e2a9cf543916362400d5be504fb3add500",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-handle-deref.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/handle-deref.zil",
+        "input_fingerprint": "e306e166b3c97903d45c553aaf1577567fbce5d2c947ec4c62deb7176b44140d"
+      },
+      {
+        "case": "foreign-indirect",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-TYPE-MISMATCH",
+            "message": "called value is not a function pointer or concrete closure",
+            "span": {
+              "file": 0,
+              "start": 82,
+              "end": 95
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-foreign-indirect.zil",
+        "source_sha256": "254039fa2cbf80d2657b27f9d00e13f80fa12c10deb1f66599047b87e37553a4",
+        "original_result_sha256": "a09d2d3bc26f40f0bcb8529e8b57efc85c087dec1c87b4a8295086df317e606d",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-foreign-indirect.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/foreign-indirect.zil",
+        "input_fingerprint": "c8a71d466c51951f90d1aaba82e58c0ac3fad573932f9797fc0274f4065cb0c5"
+      },
+      {
+        "case": "foreign-function-result",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-FFI-DECLARATION",
+            "message": "C ABI results require unit/u8/u16/i32/i64/c_handle; borrowed or static pointer results are forbidden",
+            "span": {
+              "file": 0,
+              "start": 11,
+              "end": 59
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-foreign-function-result.zil",
+        "source_sha256": "f84849b36c626d49fd643d76a8c4ab9c57deaa1d8159d505bf193adc4215e459",
+        "original_result_sha256": "f884b9d2eeb8226546e007a4bd83863e7066ca9d76cd3bc8cb5901113ddd224a",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-foreign-function-result.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/foreign-function-result.zil",
+        "input_fingerprint": "8ee6f8f3e0b89058a95fdb77c4ad78b0683914f7ab21e2e438db1ff4dac43ce5"
+      },
+      {
+        "case": "nested-address",
+        "exit": 1,
+        "status": "SafeReject",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "SafeReject",
+            "code": "E-FFI-DECLARATION",
+            "message": "C borrowed targets require the strict nonempty natural-layout POD profile; mutable payloads cannot contain static strings or callbacks",
+            "span": {
+              "file": 0,
+              "start": 11,
+              "end": 93
+            },
+            "notes": []
+          },
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "parameter type Address { mutable: true, inner: Address { mutable: true, inner: I32 } }",
+            "span": {
+              "file": 0,
+              "start": 19,
+              "end": 37
+            },
+            "notes": []
+          },
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "resource/address parameter mode",
+            "span": {
+              "file": 0,
+              "start": 19,
+              "end": 37
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-nested-address.zil",
+        "source_sha256": "1bf939e74e8f3a35a7e6e39268b6b1ef92fd48e1422173ec35ac4c4b9d036ce3",
+        "original_result_sha256": "2315e4d402466796cac38249b8e080c0d1cbb3f48b2891ed70267c9300e1f43d",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-nested-address.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/nested-address.zil",
+        "input_fingerprint": "0cf6c7c4a620ccc999126fa92c7dae63dc364918fbea1a75164604693e29c7be"
+      },
+      {
+        "case": "pointer-containing-pod",
+        "exit": 3,
+        "status": "Unsupported",
+        "phase": "types",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "types",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "aggregate field requires finite Copy, explicit manages, or an ordinary complete owned child",
+            "span": {
+              "file": 0,
+              "start": 15,
+              "end": 24
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-pointer-containing-pod.zil",
+        "source_sha256": "a9dc9fdab4627ca057f3bde477cdbfe75e3086afe3594aa2ab0a66a9e1e0a666",
+        "original_result_sha256": "65161ecfd88bfb06a185cf512c161642f23f5abda104012bc786c7b494aa9eb4",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-pointer-containing-pod.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/pointer-containing-pod.zil",
+        "input_fingerprint": "ff4f0b01dd636d6fadec621c9b1264d76904d045bfa37c185ecb93022ba217c8"
+      },
+      {
+        "case": "fixed-upload",
+        "exit": 0,
+        "status": "Success",
+        "phase": "verify",
+        "verification_runs": 1,
+        "diagnostics": [],
+        "source": ".task/G9.6.1-inputs/gpu-fixed-upload.zil",
+        "source_sha256": "e99288bfbc8755fd76eb439362621e74cc03fb8f95bd3c25331e89a14a94da1b",
+        "original_result_sha256": "674b0574feca2877a5d6165a518574388e45de1393eb120f50b57ee131793dd2",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-fixed-upload.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/fixed-upload.zil",
+        "input_fingerprint": "78230d333ef4a1dd0d16526827c8a21a8476816e0d216a73033ea8a8747087af"
+      },
+      {
+        "case": "align16",
+        "exit": 3,
+        "status": "Unsupported",
+        "phase": "expand",
+        "verification_runs": 0,
+        "diagnostics": [
+          {
+            "phase": "expand",
+            "category": "Unsupported",
+            "code": "E-UNSUPPORTED",
+            "message": "unexecuted declaration attribute `align`",
+            "span": {
+              "file": 0,
+              "start": 0,
+              "end": 12
+            },
+            "notes": []
+          }
+        ],
+        "source": ".task/G9.6.1-inputs/gpu-align16.zil",
+        "source_sha256": "069be5f31200655128ff0073dfe6209cea8c4019755f3623399f45e8b8b51496",
+        "original_result_sha256": "9b61347a0ba490228fbd94e999cecf228d136689f2765909449e8e679aa554e7",
+        "replay_command": [
+          "zil",
+          "check",
+          ".task/G9.6.1-inputs/gpu-align16.zil",
+          "--target",
+          "win64",
+          "--json"
+        ],
+        "observed_input_path": "/workspace/.zil-env/zui-audit-20261106/async-platform/gpu-ffi-probes/align16.zil",
+        "input_fingerprint": "441a9843fdc136d6f5c63591d7e1ee576fd199e16c18745f303bfdc3ffbaa3cc"
+      }
+    ]
+  },
+  "reference": {
+    "repository": "https://github.com/zed-industries/zed",
+    "commit": "4a6121bb0f10c6e8037b741b7dc0a4cd639ae289",
+    "paths": [
+      "crates/gpui_windows/Cargo.toml",
+      "crates/gpui_windows/src/directx_renderer.rs",
+      "crates/gpui_windows/src/directx_devices.rs",
+      "crates/gpui_windows/src/direct_write.rs",
+      "crates/gpui/src/scene.rs"
+    ],
+    "use": "Read-only architecture reference; external source not executed or treated as ZIL authority"
+  },
+  "replay_note": "Source probes were executed at observed_input_path. Repository copies are byte-identical by source_sha256; replay_command is the portable recipe at the committed copy, not a claim of another execution. Platform command entries retain their original actual paths."
+}
