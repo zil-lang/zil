@@ -392,7 +392,10 @@ fn resolve_indexed(
                         Some(declaration.span),
                     )]
                 })?;
-            if project_symbol(&declaration.name) {
+            if project_symbol(&declaration.name)
+                || stored::project_option_enum(module, declaration, remaining, limits)
+                    .map_err(|e| vec![e])?
+            {
                 if owners
                     .insert(declaration.name.clone(), module.module_id.0)
                     .is_some()
