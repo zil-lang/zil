@@ -1,0 +1,54 @@
+{
+  "task": "G9.3.1",
+  "reviewer": "general_borrow_kernels (independent of the text producer and text kernel authors)",
+  "candidate": "b7a7a44243e46067bc57ddf556952a90fee2777d",
+  "baseline": "c63001c8ec43909d2c41ca314c32e465f531711f",
+  "scope": ["Source spelling to Core", "Types runtime literal production and raw Core spelling", "IR identity and Wire43", "public verified result-origin publication and cache boundary"],
+  "excluded": ["Option consumers authored by this reviewer", "independent text kernel safety review", "backend machine representation review", "formal all-repository acceptance"],
+  "original_candidate_status": "Fail: existing schema-version assertions still require 42 while production schema and Wire versions are 43",
+  "finding": {
+    "id": "G9.3.1-PRODUCER-R1",
+    "severity": "validation blocker",
+    "files": ["crates/zil-ir/src/wire/retained_tests.rs:6", "crates/zil-ir/src/wire/store_tests.rs:155", "crates/zil-ir/tests/impl096_byte_buffer_wire.rs:224"],
+    "evidence": "All six assertions in these three tests expect 42 at the exact candidate. Production SCHEMA_VERSION and WIRE_VERSION both equal 43. These existing tests therefore fail deterministically; this is not reported as a language-safety bypass.",
+    "reported_to": ["root", "general_text_impl"],
+    "integration_fix": "b7a7256782bddd564bd69394240379ee1af61b14",
+    "fix_review": "All six assertions now require 43; the existing loop rejecting every older version and the next unknown version is retained. Static verification performed from exact Git objects. Actual targeted/formal test execution remains integration-owned."
+  },
+  "static_review": [
+    {
+      "area": "Lexer and decoder agreement",
+      "result": "No additional defect found",
+      "evidence": "Compared zil-syntax lexer quoted/escape with zil-types utf8_literals::decode. Both admit n/r/t/0/backslash/single-quote/double-quote escapes; Unicode escapes require 1 through 6 ASCII hex digits and a valid Unicode scalar. Surrogates, overlong hex, missing braces, unknown escapes, unescaped quote and physical CR/LF reject. Direct UTF8 scalars, NUL and combining sequences preserve exact bytes without normalization."
+    },
+    {
+      "area": "Raw Core and source production",
+      "result": "No additional defect found",
+      "evidence": "Ordinary CoreExprKind::String reaches a dedicated runtime producer without matching function names. The producer revalidates spelling rather than trusting lexer provenance; raw Core examples cover missing delimiters, invalid scalar and unsupported escape. Both inference paths and known-type lookup preserve immutable Address<Slice<U8>>. Actual production rejects mutable expected types through existing complete type equality. Unreachable statements remain fail-closed in the existing Builder."
+    },
+    {
+      "area": "Current-request bytes and construction work",
+      "result": "No additional defect found",
+      "evidence": "utf8_literal prepays twice the spelling length before either allocation-free decode pass. The first pass computes exact decoded UTF8 length; length plus six type nodes is charged before Vec::with_capacity, byte filling and two Address/Slice/U8 trees. No output terminator or implicit owner is introduced. Runtime StaticUtf8 is explicitly forbidden in CT evaluation. Existing Source-byte and Types work-boundary tests are present but were not executed by this reviewer."
+    },
+    {
+      "area": "Untrusted Wire and fingerprints",
+      "result": "No production defect found; version-test blocker recorded separately",
+      "evidence": "StaticUtf8 instruction tag139 encodes exact count and bytes in both wire and module fingerprints. Writer count debits node quota and bounds byte growth before extension; Reader count bounds/debits count and checks remaining bytes before take(...).to_vec(). Invalid UTF8 remains transportable untrusted data and requires kernel rejection. Static Hold tag3 carries no raw external ID; roots use minimum record size1 and normal maximum/node bounds. Wire version43 rejects other envelopes; Type/LifeInventory/TypedModule domains all migrate to V43. Retained legacy oracle explicitly rejects the new runtime instruction."
+    },
+    {
+      "area": "Public static origin and contract caches",
+      "result": "No additional defect found",
+      "evidence": "FunctionResultOrigins has explicit static_storage separate from parameters. Publication runs only after obtaining VerifiedModule, validates export/function correspondence, observes actual verified returned HoldRoot::Static and writes the flag to JSON and contract hash domain7. An empty parameter list does not imply static origin; scalar results explicitly return false. Semantic-cache serialization rejects already-published origin/contracts and cache decode initializes them absent; finish_typed verifies raw input before republishing. The warm two-module fixture changes an unchanged-signature literal export to a local address and requires Verify rejection."
+    }
+  ],
+  "commands_performed": [
+    "git diff c63001c8e b7a7a4424 -- relevant Types/IR/Wire/driver files",
+    "git show b7a7a4424:<source and fixture paths> (candidate-bound inspection)",
+    "git grep -n 'V42|WIRE_VERSION.*42|SCHEMA_VERSION.*42' b7a7a4424 -- crates/zil-ir crates/zil-db crates/zil-driver",
+    "Python subprocess git-show exact original/fix objects and extract the six version assertions: original [42,42] for each file; fixed [43,43] for each file"
+  ],
+  "execution_limits": "This review performed read-only, exact-object source checks and the stated deterministic version-assertion probe. No heavy build, new Cargo target, native execution or formal full gate was run. Producer test results are not relabeled as independent execution evidence.",
+  "disposition": "The original candidate is not silently upgraded to Pass. R1 has a reviewed integration fix; no other defect was found in this producer/public-transport scope. Root must bind targeted/formal execution to the corrected integrated source. General static-only closures and stored-carrier composition remain outside the finite text slice, as already recorded in its task contract.",
+  "rust_goals": "Exact Source UTF8 and explicit ownership improve expression. This review does not establish full-language safety, Rust runtime/RSS or compile-cost parity, framework maintenance gains, or a product-level net breakthrough. Existing product gates are unchanged."
+}
