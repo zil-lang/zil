@@ -48,7 +48,7 @@ pub(super) fn substituted(
     Ok(ty)
 }
 
-fn source_field_actuals(
+pub(super) fn source_field_actuals(
     formals: &[GenericParam],
     arguments: &[GenericArg],
     field: &TypeRef,
