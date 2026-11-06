@@ -1,1 +1,1 @@
-fn main()->i32 { let text=#("按钮"); return 0 }
+fn main()->i32 { let text:&[u8]=#("按钮"); return 0 }
