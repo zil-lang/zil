@@ -296,3 +296,89 @@ fn g241_copy_item_does_not_grant_arithmetic() {
         &[Phase::Expand, Phase::Types],
     );
 }
+
+#[test]
+fn g241_unused_generic_option_patterns_preserve_the_receiver_loan() {
+    canonical_success();
+    let load = "fn load<T:Copy>(p:&T)->T{return *p}";
+    let pairs = [
+        (
+            "if let",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(v)=cursor.next(){return load(v)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(v)=cursor.next(){cursor.next();return load(v)}return fallback}",
+        ),
+        (
+            "while let",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{while let Option.Some(v)=cursor.next(){return load(v)}return fallback}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{while let Option.Some(v)=cursor.next(){cursor.next();return load(v)}return fallback}",
+        ),
+        (
+            "held Option then match",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(v)=>{return load(v)},Option.None()=>{return fallback}}}",
+            "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();cursor.next();match held{Option.Some(v)=>{return load(v)},Option.None()=>{return fallback}}}",
+        ),
+    ];
+    for (name, legal, invalid) in pairs {
+        let good_source = format!("{CONSUMER}\n{load}\n{legal}");
+        let good = source_report(MAIN, API, CURSOR, &good_source, OTHER);
+        assert_eq!(
+            good.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            good.to_json()
+        );
+        let bad_source = format!("{CONSUMER}\n{load}\n{invalid}");
+        let bad = source_report(MAIN, API, CURSOR, &bad_source, OTHER);
+        assert_eq!(
+            bad.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            bad.to_json()
+        );
+        assert_eq!(bad.phase, Phase::Expand, "{name}: {}", bad.to_json());
+        assert!(
+            bad.diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT"
+                    && (d.message.contains("loan") || d.message.contains("source"))),
+            "{name}: {}",
+            bad.to_json()
+        );
+    }
+    for (name, body) in [
+        ("if let wildcard", "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{if let Option.Some(_)=cursor.next(){cursor.next();}return fallback}"),
+        ("match wildcard", "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{let held=cursor.next();match held{Option.Some(_)=>{cursor.next();},Option.None()=>{}}return fallback}"),
+    ] {
+        let text = format!("{CONSUMER}\n{body}");
+        let report = source_report(MAIN, API, CURSOR, &text, OTHER);
+        assert_eq!(report.status, ResultCategory::Success, "{name}: {}", report.to_json());
+    }
+}
+
+#[test]
+fn g241_nested_option_reference_pattern_remains_explicitly_unsupported() {
+    canonical_success();
+    let load = "fn load<T:Copy>(p:&T)->T{return *p}";
+    let ordinary = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(value)=>{return load(value)},Option.None()=>{return fallback}}}";
+    let good_source = format!("{CONSUMER}\n{load}\n{ordinary}");
+    let good = source_report(MAIN, API, CURSOR, &good_source, OTHER);
+    assert_eq!(good.status, ResultCategory::Success, "{}", good.to_json());
+    let nested = "fn unused<I:api.LendingIterator>(cursor:&mut I,fallback:I.Item)->I.Item{match cursor.next(){Option.Some(ref slot)=>{return load(*slot)},Option.None()=>{return fallback}}}";
+    let nested_source = format!("{CONSUMER}\n{load}\n{nested}");
+    let report = source_report(MAIN, API, CURSOR, &nested_source, OTHER);
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(
+        report.diagnostics.iter().any(|d| d.code == "E-UNSUPPORTED"
+            && d.message.contains(
+                "nested Option reference payload pattern requires its borrowing consumer"
+            )),
+        "{}",
+        report.to_json()
+    );
+}
