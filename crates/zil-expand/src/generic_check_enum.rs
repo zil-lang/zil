@@ -965,8 +965,19 @@ impl Check<'_, '_, '_> {
                 let TypeKind::Named { path: base, .. } = &group(ty).kind else {
                     return Err(error(p.span, "enum pattern requires declared enum type"));
                 };
+                // Option's source spelling is sealed and rewritten to the
+                // compiler enum in type positions. Pattern paths retain their
+                // source spelling; compare that one exact alias to the actual
+                // inferred enum, then resolve its fields from the real type.
+                let builtin_option = if path.len() == 2 && base.len() == 1 && path[0] == "Option" {
+                    self.budget.text(&path[0], p.span)?;
+                    self.budget.text(&base[0], p.span)?;
+                    base[0] == super::super::options::TEMPLATE
+                } else {
+                    false
+                };
                 if path.len() != base.len() + 1
-                    || (alias.is_none() && path[..path.len() - 1] != base[..])
+                    || (alias.is_none() && !builtin_option && path[..path.len() - 1] != base[..])
                 {
                     return Err(error(p.span, "generic pattern nominal type mismatch"));
                 }

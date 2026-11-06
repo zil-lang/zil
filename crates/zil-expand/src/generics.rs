@@ -783,7 +783,20 @@ impl<'a> Engine<'a> {
                                 true
                             } else {
                                 engine.budget.identity_work(f.generics.len(), f.span)?;
-                                super::lifetimes::copy_life(f)
+                                if super::lifetimes::copy_life(f) {
+                                    true
+                                } else if engine
+                                    .budget
+                                    .context
+                                    .origin
+                                    .is_some_and(|origin| origin.provider)
+                                {
+                                    engine.budget.text(&f.name, f.span)?;
+                                    f.name.starts_with("$generic_method_")
+                                        && super::lifetimes::only_life(f)
+                                } else {
+                                    false
+                                }
                             };
                             allow_source_life = Some(allowed);
                             allowed
