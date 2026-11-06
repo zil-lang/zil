@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "milestone": "G3.4.1",
+  "role": "implementation author; not an independent review or formal gate",
+  "production_tip": "3d667cf4d158bc6ee8e72e964e2efb5848ad2b85",
+  "fixture_tip": "d74fdf895d55fc25b55dd4564b12c49f91794115",
+  "scope": [
+    "Independent Types, Analyze and Verify consumers for the sealed builtin Option with a shared Address actual and a finite ordinary data pointee.",
+    "Retained TypeArgument(0), class 0, binder 0 identifies that direct Address actual; the physical Some payload remains Variant(1,0). It supplies no permission root.",
+    "Some transports its real input address permission. None has no target. Constant variant evidence and actual parameter dependencies are private to each kernel.",
+    "After the original full CFG and global summaries converge, exact None SSA facts may justify a real VariantTag / I32(0 or 1) / Equal / Branch edge removal. Permissions replay once on that fixed private graph. Only newly unreachable definitions lose runtime-origin obligations.",
+    "Ordinary Copy, mutable Address actuals and arbitrary nominal declarations receive no new authority. This Option slice adds no public wire schema or runtime representation."
+  ],
+  "actual_combined_validation": {
+    "root_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+    "log": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+    "target": "existing zil-driver cross_function_borrows, filter g3_4_1",
+    "result": {
+      "passed": 17,
+      "failed": 0,
+      "option_consumer_tests": 13,
+      "lexical_core_tests": 1,
+      "original_slice_iterator_tests": 3
+    },
+    "observed_by_author": "Read the complete final test result and every g3_4_1 test status in the root-owned log.",
+    "positive_controls": [
+      "Actual Some helper through Source, Core, Types and both raw/Wire consumers.",
+      "Actual None, mixed variants, identity forwarding and cross-CFG Store/Load forwarding without target invention.",
+      "Some-only, runtime-mixed and None-only helper results through real pattern VariantTag and ReadVariant operations.",
+      "None-to-Some loop backedge retains the Some projection parameter root after the full fixed point.",
+      "Unchanged original SliceIter through both raw/Wire consumers, actual target invalidation and the native result-42 test."
+    ],
+    "negative_controls": [
+      "12 genuine Core metadata mutations reject in Types; 22 metadata and 6 coherent pointee mutations reject in each raw/Wire consumer.",
+      "5 actual constructor/projection/tag mutations and 5 tag/comparison/branch mutations reject in each raw/Wire consumer.",
+      "None cannot hide an ungrounded recursive address used by Some or a constructorless recursive Option producer.",
+      "Wrong-life Source remains rejected at Expand with its exact code and message. A separately derived valid-Core index-base mutation passes Types with identical value/local types and instruction counts, then fails Analyze raw/Wire at the exact activation-local return check and Verify raw/Wire at the exact local-array cleanup loan window."
+    ]
+  },
+  "iteration_failures_preserved": [
+    "Initial genuine Some failed the Types payload Copy classifier, then the signature dispatch and pure Copy preflight; each received a narrow authenticated consumer fix.",
+    "Actual None required private producer evidence. An initially unresolved call must not publish a persistent empty Some slot.",
+    "The real match matrix passed Some and mixed cases but rejected None-only before frozen-graph replay. Temporarily labelled Typed dumps were removed without committing diagnostic output.",
+    "Definition-time checking subsequently rejected the old wrong-life Source earlier; the consumer negative was rebuilt from valid Source Core rather than weakening that check.",
+    "The loop passed Expand after the producer fix, then rejected a redundant unreachable trailing return. Removing only that statement preserved the actual backedge."
+  ],
+  "verification_boundary": {
+    "implementation_checks": "Independent no-link checks and strict library Clippy during implementation; final fixture passed driver cross_function_borrows Clippy with --no-deps and -D warnings.",
+    "independent_review": "Owned by the separate consumer reviewer; see G3.4.1-consumers-review.json for the exact reviewed code and dynamic scope.",
+    "formal_gates": "Root-owned full freeze and engineering gates; the 17-test preflight is not presented as those gates.",
+    "remaining_boundaries": "Shared finite-data Option profile only. Unsupported permission operations can still conservatively reject during the original full-graph solve before optional refinement."
+  }
+}
