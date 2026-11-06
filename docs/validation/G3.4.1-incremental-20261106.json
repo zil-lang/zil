@@ -1,0 +1,131 @@
+{
+  "scope": "incremental actual execution; historical failures retained; final complete iterator acceptance still pending",
+  "original_source": "tests/language-readiness/terminal/342/slice_iter.zil",
+  "original_source_sha256": "48b0a0bcbe1fdd8bc0007adcdb4719de5ed1cfc5dd4b604f92c61233340652c8",
+  "workdir": "/workspace/zil-G10.1.12",
+  "environment": {
+    "source": "/workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "CARGO_INCREMENTAL": "0"
+  },
+  "runs": [
+    {
+      "case": "option-first",
+      "source_revision": "b7a7256782bddd564bd69394240379ee1af61b14",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_option_ -j1 -- --nocapture",
+      "log_sha256": "38b37e4e9c5c71f1bb2dbf3b753d3e4a66d613a216fb2d5d660d75091a560ccf",
+      "test_summary": "test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.00s",
+      "log_tail": [
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_core_metadata_is_authenticated_before_types_resolve",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "",
+        "test result: FAILED. 1 passed; 5 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "option-second",
+      "source_revision": "e5a22d2a787a99dad26980e3bab15134e20f6e47",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_option_ -j1 -- --nocapture",
+      "log_sha256": "b9bd7e1f46e9080bf20f127992059799c5a02cad2f097f551482e0d70c5a7d16",
+      "test_summary": "test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.01s",
+      "log_tail": [
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_option_consumers::g3_4_1_option_coherent_pointee_forgery_never_expands_the_shared_profile",
+        "    g3_4_1_option_consumers::g3_4_1_option_metadata_nearest_forgery_fails_each_raw_and_wire_kernel",
+        "    g3_4_1_option_consumers::g3_4_1_option_source_permissions_survive_raw_and_wire_consumers",
+        "    g3_4_1_option_consumers::g3_4_1_option_wrong_actual_source_is_rejected_after_types",
+        "",
+        "test result: FAILED. 2 passed; 4 failed; 0 ignored; 0 measured; 91 filtered out; finished in 0.01s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "option-producer-unit",
+      "source_revision": "69ac53b44c09e8f2fb414dbdee1a7536ae942561",
+      "command": "cargo test -p zil-expand --lib option_reference_actual_keeps_real_source_class_and_variant_slot -j1 -- --nocapture",
+      "log_sha256": "8e1aebbc5d84ed266b70768e1c235fe7bbc1702d581a9f59cf9453b9efc3da71",
+      "test_summary": "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.00s",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 13.14s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 1 test",
+        "test stored_types::source_tests::option_reference_actual_keeps_real_source_class_and_variant_slot ... ok",
+        "",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.00s",
+        ""
+      ]
+    },
+    {
+      "case": "generics-first",
+      "source_revision": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+      "command": "cargo test -p zil-expand --test generics -j1 -- --nocapture",
+      "log_sha256": "418b532a450b3cc6549885d5b31017c23a2c0b4b03bc5566d671cc2413ec918d",
+      "test_summary": "test result: FAILED. 21 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+      "log_tail": [
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    generic_inherent::generic_inherent_visibility_uses_the_declaring_module",
+        "",
+        "test result: FAILED. 21 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s",
+        "",
+        "error: test failed, to rerun pass `-p zil-expand --test generics`"
+      ]
+    },
+    {
+      "case": "original-first",
+      "source_revision": "db1e0f7d51a2dfd8b2cb2b114db106bf3dac76e2",
+      "command": "cargo test -p zil-driver --test cross_function_borrows --features llvm-api g3_4_1_slice_iter -j1 -- --nocapture",
+      "log_sha256": "dfd3965b6b6cadc318965fe2836ec68e9afd75b8bf76bb4e99de0139884d14c9",
+      "test_summary": "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 94 filtered out; finished in 0.00s",
+      "log_tail": [
+        "test g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42 ... FAILED",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_actual_target_invalidation_is_rejected",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_native_result_42",
+        "    g3_4_1_original_consumers::g3_4_1_slice_iter_original_source_two_kernels_raw_and_wire",
+        "",
+        "test result: FAILED. 0 passed; 3 failed; 0 ignored; 0 measured; 94 filtered out; finished in 0.00s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test cross_function_borrows`"
+      ]
+    },
+    {
+      "case": "places-no-link",
+      "source_revision": "0540f663eb200b2765489e3e4ae69abb35e6b61f",
+      "command": "cargo check -p zil-expand --all-targets -j1",
+      "log_sha256": "8605a9476357d50121c4f57487e3fb5316cb8361d75feacddbd3b754cfa5ac1f",
+      "test_summary": null,
+      "log_tail": [
+        "    Checking zil-base v0.1.0 (/workspace/zil-G10.1.12/crates/zil-base)",
+        "    Checking zil-syntax v0.1.0 (/workspace/zil-G10.1.12/crates/zil-syntax)",
+        "    Checking zil-ir v0.1.0 (/workspace/zil-G10.1.12/crates/zil-ir)",
+        "    Checking zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `dev` profile [unoptimized] target(s) in 14.12s"
+      ]
+    }
+  ]
+}
