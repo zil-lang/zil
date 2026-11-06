@@ -3,7 +3,7 @@
 use super::*;
 
 mod nominal;
-mod option_address;
+pub(super) mod option_address;
 mod retained;
 use std::collections::BTreeMap;
 pub(super) mod owned;
@@ -28,6 +28,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Value {
+    option_variants: option_address::Variants,
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
@@ -56,6 +57,8 @@ pub(super) struct Facts {
     pub returned: BTreeMap<Path, Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
+    returned_variants: option_address::Variants,
+    none_values: BTreeSet<ValueId>,
 }
 
 fn failure(text: &str) -> Vec<Diagnostic> {
@@ -118,6 +121,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
     if let Some(complete) = from.creation_complete {
         let joined = Some(to.creation_complete.unwrap_or(false) || complete);
@@ -206,6 +210,9 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    f.returned_variants.work(b)?;
+    if !f.none_values.is_empty() { fee(b, f.none_values.len())?; }
+
     fee(
         b,
         f.values
@@ -799,6 +806,9 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
         return Ok(());
     };
+    for ty in f.parameters.iter().map(|p| &f.locals[p.0 as usize].ty).chain(std::iter::once(&f.return_type)) {
+        if option_address::candidate(ty) { fee(b, 96)?; }
+    }
     super::signature_life::charge(c, b)?;
     fee(b, f.parameters.len())?;
     if f.reference_return_bound.is_some() || f.foreign.is_some() {
@@ -1342,6 +1352,12 @@ fn seed(
             loans,
             b,
         )?;
+        if option_address::candidate(&f.locals[local.0 as usize].ty) {
+            fee(b, 96)?;
+            if option_address::signature(&f.locals[local.0 as usize].ty) {
+                value.option_variants = option_address::Variants::parameter(index as u32, b)?;
+            }
+        }
         seed_environment(
             module,
             &f.locals[local.0 as usize].ty,
@@ -1690,6 +1706,7 @@ fn transfer(
             let summary = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| failure("callee stored summary absent"))?;
+            out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
                 for source in sources {
@@ -1701,7 +1718,7 @@ fn transfer(
                 }
                 if path.is_empty() {
                     out.pointer = permission;
-                } else {
+                } else if !out.option_variants.none() {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
                     out.slots.insert(path.clone(), permission);
@@ -2650,8 +2667,14 @@ pub(super) fn derive(
                 returned: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
+                returned_variants: option_address::Variants::default(),
+                none_values: BTreeSet::new(),
             };
-            for value in &values {
+            for (id, value) in values.iter().enumerate() {
+                if value.option_variants.none() {
+                    fee(b, actual.none_values.len().saturating_add(1))?;
+                    actual.none_values.insert(ValueId(id as u32));
+                }
                 let root = roots(value, b)?;
                 fee(b, root.len())?;
                 actual.values.push(root.into_iter().collect());
@@ -2660,6 +2683,7 @@ pub(super) fn derive(
                 fee(b, 1)?;
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    actual.returned_variants.join(&value.option_variants, b)?;
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
                         fee(b, path.len())?;
@@ -2708,6 +2732,13 @@ pub(super) fn derive(
                     grounded = false;
                 }
                 if let Some((_, life)) = carrier(ty) {
+                    if option_address::candidate(ty) {
+                        fee(b, 96)?;
+                        if !option_address::signature(ty) { return Err(failure("Option activity has no exact shape")); }
+                        let mask = value.option_variants.mask();
+                        if mask == 0 { grounded = false; }
+                        if mask == 1 { continue; }
+                    }
                     fee(b, life.slots.len())?;
                     for slot in &life.slots {
                         ordered(b, value.slots.len(), slot.path.len())?;
@@ -2764,11 +2795,11 @@ pub(super) fn derive(
             ));
         }
         returns(module, f, facts, b)?;
-        for (ty, roots) in f.values.iter().zip(&facts.values) {
+        for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
             fee(b, 1)?;
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
-            if needs_target && roots.is_empty() {
+            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32)) {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
                 ));

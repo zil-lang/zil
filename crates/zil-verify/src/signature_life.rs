@@ -255,6 +255,7 @@ fn relation_inner(
                 if (!matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
                     || !life.retained.is_empty())
                     && !pure_nominal_value(actual)
+                    && !super::stored_flow::option_address::signature(actual)
                 {
                     return Err(unsupported(
                         "signature owning/nested carrier consumer is not implemented",

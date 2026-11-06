@@ -60,6 +60,9 @@ fn walk(
                 "nominal metadata declaration is absent",
             )
         })?;
+    if decl.id.compiler {
+        fee(left, 96, span)?;
+    }
     if (decl.id.compiler && !option_address::declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
@@ -83,6 +86,28 @@ fn walk(
         span,
     )?;
     if decl.id.compiler {
+        for actual in &instance.arguments {
+            if let LifeNominalActual::Type(ty) = actual {
+                let work = inference::type_snapshot_work(
+                    ty,
+                    span,
+                    &Limits {
+                        max_analysis_steps: *left,
+                        ..limits.clone()
+                    },
+                )?;
+                fee(left, work, span)?;
+            }
+        }
+        let work = inference::type_snapshot_work(
+            storage,
+            span,
+            &Limits {
+                max_analysis_steps: *left,
+                ..limits.clone()
+            },
+        )?;
+        fee(left, work, span)?;
         if !option_address::shape(&instance.ty, left, limits.max_call_depth, span)?
             || !matches!((instance.arguments.as_slice(), storage.as_ref()),
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })

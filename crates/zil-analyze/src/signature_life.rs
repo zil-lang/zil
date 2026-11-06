@@ -247,6 +247,7 @@ fn relation_inner(
                 if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
                     || !life.retained.is_empty())
                     && !pure_nominal_value(target)
+                    && !super::stored_flow::option_address::signature(target)
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,

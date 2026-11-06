@@ -115,6 +115,9 @@ pub(super) fn transfer(
     let path = &life.slots[0].path;
     match &i.kind {
         InstructionKind::MakeVariant { variant, fields } => {
+            out.option_variants.constructed = 1u8
+                .checked_shl(*variant)
+                .ok_or_else(|| err("Option variant bit is invalid"))?;
             let (_, payload) = variants
                 .get(*variant as usize)
                 .ok_or_else(|| err("Option variant is absent"))?;
@@ -204,4 +207,117 @@ fn closed_pointee(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
         }
     }
     Ok(true)
+}
+
+/// Bottom is no producer evidence; input dependencies conservatively evaluate
+/// to both variants until a call substitutes the actual caller's evidence.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub(super) struct Variants {
+    constructed: u8,
+    inputs: Vec<u32>,
+}
+impl Variants {
+    pub(super) fn mask(&self) -> u8 {
+        self.constructed | if self.inputs.is_empty() { 0 } else { 3 }
+    }
+    pub(super) fn none(&self) -> bool {
+        self.mask() == 1
+    }
+    pub(super) fn work(&self, b: &mut Budget) -> Check<()> {
+        if self.mask() != 0 {
+            let n = self.inputs.len().saturating_add(1);
+            b.spend(n)?;
+        }
+        Ok(())
+    }
+    pub(super) fn join(&mut self, other: &Self, b: &mut Budget) -> Check<bool> {
+        if other.mask() == 0 {
+            return Ok(false);
+        }
+        other.work(b)?;
+        let bits = self.constructed | other.constructed;
+        let mut changed = bits != self.constructed;
+        self.constructed = bits;
+        for input in &other.inputs {
+            let n = self.inputs.len().saturating_add(1);
+            b.spend(n)?;
+            if !self.inputs.contains(input) {
+                self.inputs.push(*input);
+                changed = true;
+            }
+        }
+        if changed {
+            let n = self
+                .inputs
+                .len()
+                .saturating_mul(self.inputs.len())
+                .saturating_add(1);
+            b.spend(n)?;
+            self.inputs.sort_unstable();
+        }
+        Ok(changed)
+    }
+    pub(super) fn parameter(index: u32, b: &mut Budget) -> Check<Self> {
+        let n = 2;
+        b.spend(n)?;
+        Ok(Self {
+            constructed: 0,
+            inputs: vec![index],
+        })
+    }
+    pub(super) fn substitute(
+        &self,
+        arguments: &[ValueId],
+        values: &[Payload],
+        b: &mut Budget,
+    ) -> Check<Self> {
+        self.work(b)?;
+        let mut out = Self {
+            constructed: self.constructed,
+            inputs: Vec::new(),
+        };
+        for input in &self.inputs {
+            let n = 1;
+            b.spend(n)?;
+            let id = arguments
+                .get(*input as usize)
+                .ok_or_else(|| err("Option summary input is absent"))?;
+            let actual = values
+                .get(id.0 as usize)
+                .ok_or_else(|| err("Option summary actual is absent"))?;
+            out.join(&actual.option_variants, b)?;
+        }
+        Ok(out)
+    }
+}
+
+// Signature class traversal is metadata-only dispatch. Full declaration,
+// pointee, slot and map authentication remains in this kernel's inventory.
+// Its bounded comparisons are prepaid by the stored signature caller.
+pub(super) fn candidate(ty: &Type) -> bool {
+    matches!(ty, Type::BorrowedStorage { storage, life } if matches!(storage.as_ref(), Type::Enum { .. }) && !life.slots.is_empty())
+}
+
+pub(crate) fn signature(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return false;
+    };
+    let Type::Enum { variants, .. } = storage.as_ref() else {
+        return false;
+    };
+    if variants.len() != 2
+        || variants[0].0 != "None"
+        || !variants[0].1.is_empty()
+        || variants[1].0 != "Some"
+        || variants[1].1.len() != 1
+        || !matches!(&variants[1].1[0], Type::Address { mutable: false, .. })
+        || life.binder_count != 1
+        || !life.nominal_arguments.is_empty()
+    {
+        return false;
+    }
+    matches!((life.slots.as_slice(), life.retained.as_slice()), ([slot], [map])
+        if slot.binder == 0 && slot.mode == StoredBorrowMode::SharedAddress
+        && matches!(slot.path.as_slice(), [PlaceProjection::Variant(p)] if p.variant == 1 && p.index == 0)
+        && map.class == 0 && map.binder == 0 && map.path == [LifeTypeProjection::TypeArgument(0)])
 }
