@@ -1,4 +1,10 @@
-# ZIL — 语言主线 174–177（2026-10-27）
+# ZIL — 语言初稿开发预览
+
+当前语言主线以 Linux x86_64 的普通多模块程序为交付入口。已有泛型/trait、显式资源与错误责任、UTF-8/String、动态 Store、共享借入迭代；本批补齐普通 POD 元素原地修改和 trait 静态关联函数。使用方式、支持矩阵与尚未支持的组合见[语言初稿](docs/LANGUAGE-DRAFT.md)，精确工程状态见[主线恢复与交付](docs/DELIVERY.md)；实时任务看板在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md)。
+
+构建遵循 `rust-toolchain.toml` 与 LLVM 工具链检查。首次联网执行 `cargo fetch --locked`，之后可 `cargo build --offline --locked -p zil-cli`；CLI 不隐式执行模块，运行完整返回值用 `zil run FILE --entry FUNCTION`。语言初稿是明确 profile 的开发预览，不代表完整语言、B0、原生 Windows、ZUI 或 Rust 同语义成本优势已经验收。
+
+## 历史快照：174–177（2026-10-27）
 
 本轮入口见 [174–177 实施报告](docs/LANGUAGE-177.md)：普通 State 拥有动态 Store、共享读取实际元素、保存并多次调用具体回调环境，以及三者的真实组合。内部 schema/raw Wire 为 **21**；完整 workspace **1620项通过、0失败、0忽略**，Clippy与格式检查通过。新组合完成64次原生执行，其中28次分配失败注入；上一阶段44次消费者也已重跑。完整语言 NotSatisfied、产品 NotRun、B0 Doing。源码包不放执行产物或证据；见 [交付与恢复](docs/DELIVERY.md)和[下一阶段建议](docs/NEXT-LANGUAGE-178.md)。
 
@@ -9,7 +15,7 @@ cargo build --offline --locked -p zil-cli
 python3 tools/language/177/consumer.py --repo . --cli target/debug/zil --out out/language177-new-run
 ```
 
-每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。当前Store机器profile仅支持Linux x64 LLVM，元素窗口只读，callback贷款保守覆盖父local。泛型Store原语、精确独立字段借用、就地元素更新、Win64及外部保留回调关闭仍有明确前置。
+每次使用新的输出目录，消费者运行真实O0/O2及分配失败检查；它不代表完整GUI或产品验收。该历史快照的 Store profile 为共享窗口和保守 callback 贷款；后续已交付范围以顶部链接的当前文档及对应精确源码收据为准。
 
 此前 [170–173报告](docs/LANGUAGE-173.md)、[166–169报告](docs/LANGUAGE-169.md)和以下介绍保留各自历史身份、schema及受测数字，不代表本轮新增运行。
 
