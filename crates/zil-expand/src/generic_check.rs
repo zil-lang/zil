@@ -249,18 +249,53 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                             lifetime: Some(name),
                             ..
                         } => {
-                            let mut found = None;
-                            for (index, binder) in life.binders.iter().enumerate() {
-                                check.budget.node(payload.span, 0)?;
+                            // A life inherited from the enclosing nominal is
+                            // fixed storage, not an invocation result derived
+                            // from this function's outer address parameters.
+                            // SliceIter.next may return its stored slice class
+                            // while self has only an elided short borrow.
+                            let mut local = false;
+                            for parameter in &function.generics {
+                                check.budget.node(parameter.span, 0)?;
                                 check.budget.text(name, payload.span)?;
-                                check.budget.text(binder, payload.span)?;
-                                if binder == name {
-                                    found = Some(index as u32);
+                                check.budget.text(&parameter.name, parameter.span)?;
+                                if parameter.name == *name
+                                    && matches!(parameter.kind, GenericParamKind::Lifetime)
+                                {
+                                    local = true;
                                 }
                             }
-                            Some(found.ok_or_else(|| {
-                                error(payload.span, "Option result uses an undeclared life binder")
-                            })?)
+                            // The new direct-input rule belongs to a method's
+                            // invocation life. An ordinary function may instead
+                            // forward a retained Option parameter with its
+                            // already declared source class.
+                            check.budget.node(payload.span, 0)?;
+                            let receiver = function.params.first().is_some_and(|parameter| {
+                                parameter.name == "self"
+                                    && matches!(
+                                        group(&parameter.ty).kind,
+                                        TypeKind::Reference { .. }
+                                    )
+                            });
+                            if !local || !receiver {
+                                None
+                            } else {
+                                let mut found = None;
+                                for (index, binder) in life.binders.iter().enumerate() {
+                                    check.budget.node(payload.span, 0)?;
+                                    check.budget.text(name, payload.span)?;
+                                    check.budget.text(binder, payload.span)?;
+                                    if binder == name {
+                                        found = Some(index as u32);
+                                    }
+                                }
+                                Some(found.ok_or_else(|| {
+                                    error(
+                                        payload.span,
+                                        "Option result uses an undeclared life binder",
+                                    )
+                                })?)
+                            }
                         }
                         _ => None,
                     },
