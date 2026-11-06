@@ -1,0 +1,126 @@
+{
+  "kind": "author-focused-checks",
+  "goal": "G9.3.2.1",
+  "author": "pod_source",
+  "base": "f655674982642c9f395a7593755c791f6c591242",
+  "implementation_commit": "2fd24558a1b8c71ae5efe4d7f56bbaed9706d8d6",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "cargo": "1.99.1 (5f94df478 2026-08-27)"
+  },
+  "environment": {
+    "setup": "source /workspace/.zil-env/env.sh",
+    "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G9.3.2-source",
+    "CARGO_INCREMENTAL": "0",
+    "CARGO_PROFILE_DEV_STRIP": "symbols",
+    "CARGO_PROFILE_TEST_STRIP": "symbols",
+    "cache_observed": "111M"
+  },
+  "checks": [
+    {
+      "command": "cargo fmt --all",
+      "result": "Pass"
+    },
+    {
+      "command": "git diff --check",
+      "result": "Pass"
+    },
+    {
+      "command": "cargo check --locked -p zil-expand -p zil-types --tests -j1",
+      "result": "Pass",
+      "implementation_commit": "2fd24558a1b8c71ae5efe4d7f56bbaed9706d8d6",
+      "elapsed_seconds": 4.19
+    },
+    {
+      "command": "cargo test --locked -p zil-expand --test impl202_store_templates pod_store -j1 -- --nocapture",
+      "result": "Pass",
+      "production_commit": "b9004cc8387cdae30d0768a39ecf9724dd24ca70",
+      "test_revision_commit": "a922d0a1e1640596f5a030223307e61de3eeb98d",
+      "passed": 2,
+      "failed": 0,
+      "filtered": 17,
+      "elapsed_build_seconds": 0.67,
+      "elapsed_tests_seconds": 0.03,
+      "expand_work_n": 5203,
+      "boundary_controls": [
+        "N",
+        "N-1 ResourceLimit",
+        "fresh N"
+      ]
+    },
+    {
+      "command": "cargo test --locked -p zil-types --lib dynamic_store::pod_tests -j1 -- --nocapture",
+      "result": "Pass",
+      "implementation_commit": "a922d0a1e1640596f5a030223307e61de3eeb98d",
+      "passed": 4,
+      "failed": 0,
+      "filtered": 52,
+      "elapsed_build_seconds": 11.31,
+      "elapsed_tests_seconds": 0.0,
+      "boundary_controls": [
+        "actual remaining qualification N/N-1/fresh",
+        "actual remaining canonical definition registration N/N-1/fresh"
+      ]
+    }
+  ],
+  "preserved_failures": [
+    {
+      "command": "cargo fmt --all",
+      "stage": "shell bootstrap",
+      "exit_code": 127,
+      "reason": "cargo absent from initial PATH; repeated using supplied env.sh"
+    },
+    {
+      "command": "cargo test --locked -p zil-expand --test impl202_store_templates pod_store -j1 -- --nocapture",
+      "implementation_commit": "b9004cc8387cdae30d0768a39ecf9724dd24ca70",
+      "exit_code": 101,
+      "passed": 0,
+      "failed": 2,
+      "reason": [
+        "Test expected retained names push/pop; concrete source correctly used existing eager specializations $generic_push_2/$generic_pop_3.",
+        "Test expected direct store_new<Bad> rejection at Expand; this concrete primitive is checked by Types. Changed negative to an actual empty<Bad> StoreElement-bound instantiation."
+      ],
+      "correction_commit": "a922d0a1e1640596f5a030223307e61de3eeb98d",
+      "production_changed_for_this_failure": false
+    },
+    {
+      "command": "cargo check --locked -p zil-expand -p zil-types --tests -j1",
+      "stage": "scope patch WIP",
+      "exit_code": 101,
+      "reason": "Mismatched closing delimiter in packages.rs shallow gate; corrected before final no-link pass."
+    }
+  ],
+  "review_corrections": {
+    "990093a_budget_blockers": "Replaced fresh-work POD snapshots with charge_type_snapshot over current remaining. Canonical registration debits current closure-state remaining; legacy Package accounting retained.",
+    "Unit_layout": "Temporary uncommitted Unit=1 experiment was removed after root corrected aggregate representation. Final Unit=0 matches original machine aggregate contract.",
+    "final_scope_increment": "2fd24558a rejects owned ErrorUnion success payload Store<Record>; final increment has no-link validation only. Root explicitly owns final combined execution."
+  },
+  "coverage": [
+    "POD nested numeric Record/Tuple/Array",
+    "zero-size rejection",
+    "zero-length array still checks forbidden leaf",
+    "layout overflow",
+    "Enum/ErrorUnion/foreign handle/function rejected as POD leaves",
+    "concrete wrapper full type preservation",
+    "opaque StoreElement does not grant Copy",
+    "POD Store mutable primitive view rejected",
+    "POD head remains ordinary resource",
+    "new Package/Product/owned-sum ownership excluded; old owned-Package Store composition retained"
+  ],
+  "limits": [
+    "No default limits changed",
+    "No public IR/schema changed",
+    "No new Cargo target",
+    "No author full/native/formal gate run",
+    "No author independent review",
+    "shared store_at only; no contiguous slice",
+    "POD BorrowMut/capture/aggregate owner combinations closed"
+  ],
+  "rust_goals": {
+    "safety": "Independent Analyze/Verify/native results are root-owned; Source/Types predicates are not safety authority.",
+    "runtime_memory": "Not measured by this author.",
+    "expression_evolution": "Real std.store-shaped generic wrappers use the existing Store surface; not a maintenance superiority claim.",
+    "compile_cost": "No comparative measurement.",
+    "reproducible_breakthrough": "Not established by this slice."
+  }
+}
