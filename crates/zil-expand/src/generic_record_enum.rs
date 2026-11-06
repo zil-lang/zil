@@ -431,8 +431,8 @@ mod record_enum329_ledger {
             &alias.pattern_types,
             Budget::new(&limits),
             &mut engine,
-            (false, false), // No associated declarations or generic methods in this fixture.
-            None,           // This retained-source control has no runtime CT callback.
+            (false, false, false), // No associated declarations or generic methods in this fixture.
+            None,                  // This retained-source control has no runtime CT callback.
         )
         .unwrap();
         let engine_remaining = engine.allowance.unwrap();

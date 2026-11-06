@@ -2589,6 +2589,32 @@ impl<'a> Engine<'a> {
         Ok(result)
     }
     fn signature_result(&mut self, name: &str) -> R<Option<TypeRef>> {
+        if !self.stored_nominals {
+            return self.signature_result_inner(name);
+        }
+        // A callee's retained source result belongs to its own life binders,
+        // even when a caller with no life binder first requests its instance.
+        // This supplies source type meaning only; call permissions come from
+        // the actual stored signature and independently checked receiver.
+        let mut scope = Vec::new();
+        if let Some(function) = self.signatures.get(name) {
+            for parameter in &function.generics {
+                self.budget.node(parameter.span, 0)?;
+                if matches!(parameter.kind, GenericParamKind::Lifetime) {
+                    self.budget.text(&parameter.name, parameter.span)?;
+                    scope.push(parameter.name.clone());
+                }
+            }
+        }
+        if scope.is_empty() {
+            return self.signature_result_inner(name);
+        }
+        let previous = std::mem::replace(&mut self.life_scope, scope);
+        let result = self.signature_result_inner(name);
+        self.life_scope = previous;
+        result
+    }
+    fn signature_result_inner(&mut self, name: &str) -> R<Option<TypeRef>> {
         let callable = self
             .signatures
             .get(name)
