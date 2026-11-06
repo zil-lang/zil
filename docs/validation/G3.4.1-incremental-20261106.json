@@ -419,6 +419,240 @@
       "environment_overrides": {
         "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
       }
+    },
+    {
+      "case": "fullgate-life-repair-shadow-native",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "aggregates",
+        "--features",
+        "llvm-api",
+        "g4453_host_member_nearest_life_shadow_source_native",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 1,
+      "failed": 0,
+      "log_sha256": "c73fdbf55f44f16a1526516c301310d3a3e416fd2ff70486112273f598dcb74e",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "   Compiling zil-driver v0.1.0 (/workspace/zil-G10.1.12/crates/zil-driver)",
+        "    Finished `test` profile [unoptimized] target(s) in 18.50s",
+        "     Running tests/aggregates.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/aggregates-15ad514610e20cf2)",
+        "",
+        "running 1 test",
+        "test g4453_host_member_nearest_life_shadow_source_native ... ok",
+        "",
+        "test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 295 filtered out; finished in 0.19s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-cross-borrows",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "cross_function_borrows",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 105,
+      "failed": 0,
+      "log_sha256": "b85beaaa0e2536ed9be0973106eed507bd8c024dc5ea2ae742e85bf99f58baa9",
+      "log_tail": [
+        "test type_life_symbolic_alias_and_module_work_share_exact_fresh_expand_budget ... ok",
+        "test utf8_literals_g931::g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type ... ok",
+        "test type_life_unused_templates_check_symbolic_copy_and_actual_return_roots ... ok",
+        "UTF8 actual Source byte budget N=39; N-1 ResourceLimit; fresh N accepted",
+        "test utf8_literals_g931::g931_source_byte_budget_exact_and_fresh_retry ... ok",
+        "test terminal342_stored_physical::terminal342_ordinary_stored_view_source_has_an_inline_pointer_and_native_load ... ok",
+        "test utf8_literals_g931::g931_two_module_static_returns_publish_explicit_verified_origin ... ok",
+        "test type_life_instances_keep_binders_dense_maps_and_native_copy_types ... ok",
+        "test utf8_literals_g931::g931_real_source_native_utf8_exact_bytes_and_explicit_allocation ... ok",
+        "",
+        "test result: ok. 105 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.84s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-ct-namespaces",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "ct_static_namespaces",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 101,
+      "passed": 11,
+      "failed": 1,
+      "log_sha256": "6a1e232d9fea21e4dbe0a39024c4f3602f292c201a3827abe12dc6cb1ec95e0c",
+      "log_tail": [
+        "test g4462_unexecuted_host_call_has_no_successful_namespace_use ... ok",
+        "test g4462_type_const_life_shadow_keeps_member_owner ... ok",
+        "test g4462_real_ct_use_cannot_hide_unused_bad_sibling ... ok",
+        "",
+        "failures:",
+        "",
+        "failures:",
+        "    g3_4_1_life_duplicates_still_reject_within_the_current_declaration",
+        "",
+        "test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        "",
+        "error: test failed, to rerun pass `-p zil-driver --test ct_static_namespaces`"
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-source-core",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--lib",
+        "g3_4_1",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 3,
+      "failed": 0,
+      "log_sha256": "8b8d87eaa507b9e5628fdb698ebdfbdf646301543f2430637140ddee09c7a24c",
+      "log_tail": [
+        "   Compiling zil-expand v0.1.0 (/workspace/zil-G10.1.12/crates/zil-expand)",
+        "    Finished `test` profile [unoptimized] target(s) in 11.21s",
+        "     Running unittests src/lib.rs (/workspace/.zil-env/target-G1.3.5.2/debug/deps/zil_expand-505e149bc60642f0)",
+        "",
+        "running 3 tests",
+        "test stored_types::source_tests::g3_4_1_option_result_flows_through_a_real_parameter ... ok",
+        "test stored_types::source_tests::g3_4_1_grouped_reference_option_keeps_catalog_but_not_callee_label_in_hint ... ok",
+        "test stored_types::source_tests::g3_4_1_original_slice_iterator_reaches_complete_core ... ok",
+        "",
+        "test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.00s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-generics",
+      "source_revision": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-expand",
+        "--test",
+        "generics",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 24,
+      "failed": 0,
+      "log_sha256": "82fc897a25f4705528c387d64ad34b554d95c24354504390584eaef746d921ad",
+      "log_tail": [
+        "test generic_inherent::inherent_specialization_preserves_exact_request_boundaries ... ok",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=true N=974",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1206",
+        "retained Expand concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries work=false N=531",
+        "test concrete_resource_preparation_prepays_work_and_keeps_old_helper_boundaries ... ok",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=456",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=true N=1813",
+        "retained Expand generic_error_union_contexts_have_exact_prepaid_boundaries work=false N=638",
+        "test generic_error_union_contexts_have_exact_prepaid_boundaries ... ok",
+        "",
+        "test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
+    },
+    {
+      "case": "fullgate-life-repair-ct-namespaces-corrected",
+      "source_revision": "d6b791dbb6ea54bd277a4a79bfaef73e3940efb2",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "-p",
+        "zil-driver",
+        "--test",
+        "ct_static_namespaces",
+        "--features",
+        "llvm-api",
+        "-j2",
+        "--",
+        "--nocapture"
+      ],
+      "executor": "root; author read exact log bytes and verified the published log hash",
+      "cargo_exit_code": 0,
+      "passed": 12,
+      "failed": 0,
+      "log_sha256": "14d268f576afac1a993e06b3063fd63a9d4ebcbf63ec6e208ac449122d26f834",
+      "log_tail": [
+        "test g4462_generated_host_member_distinct_lives ... ok",
+        "test g4462_failed_whole_request_does_not_publish_completed_host_calls ... ok",
+        "test g4462_plain_and_unrelated_ct_keep_runtime_methods_gate ... ok",
+        "test g4462_real_ct_use_does_not_authorize_runtime_nominal_instances ... ok",
+        "test g4462_successful_unit_call_uses_its_exact_instruction ... ok",
+        "test g4462_real_ct_use_cannot_hide_unused_bad_sibling ... ok",
+        "test g4462_host_member_nearest_life_shadow ... ok",
+        "test g4462_unexecuted_host_call_has_no_successful_namespace_use ... ok",
+        "test g4462_type_const_life_shadow_keeps_member_owner ... ok",
+        "",
+        "test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s",
+        ""
+      ],
+      "environment_overrides": {
+        "CARGO_TARGET_DIR": "/workspace/.zil-env/target-G1.3.5.2"
+      }
     }
   ],
   "final_acceptance": {
@@ -519,5 +753,41 @@
       "machine support here excludes fat Slice Address payloads and mutable Address payloads",
       "formal root fullgate and independent final review receipts are separate from this author execution record"
     ]
+  },
+  "post_fullgate_lifetime_repair": {
+    "status": "targeted repair passed; second formal root run remains separately owned and pending",
+    "initial_formal_result_reported_by_root": {
+      "passed": 5065,
+      "failed": 5,
+      "interpretation": "three old nearest-life-shadow cases rejected inherited parent names as duplicate own formals; two old explicit local-reference position cases moved from Expand Unsupported to Types SafeReject. These are retained as actual regressions, not overwritten by the original 17-case acceptance."
+    },
+    "production_fix": "c55fcb908286daade67820f7fad503d8afd79646",
+    "fixture_correction": "94e4bf7b1aa7bb564aa384ccb70d78c1c08f52e6",
+    "root_receipt": "docs/validation/G10.1.12-lifetime-repair.json",
+    "root_receipt_sha256": "5856cd74b1ae3b22d232eab3f3f241fa9efb220cde8443e8b17edc53f98c4e41",
+    "changes": [
+      "duplicate-life checks compare only current declaration formals while retaining inherited visible names",
+      "restore nominal-field-only stored_fields frame; preserve ordinary header and independent HRTB support",
+      "admit shared direct or Grouped references only at actual Named Type/TypeApply Type arguments; clear context for other constructors and expressions",
+      "no AST parameter renaming, Definition owner, full ordinal, schema, Wire, ABI or permission changes"
+    ],
+    "fees": "existing clone and comparison charges preserved, including conservative inherited-name bounds; same traversal/node/text sequence, no AST rescan or whitelist allocation; default limits unchanged",
+    "preflight": {
+      "original_shadow_native": "1/0",
+      "complete_cross_borrows_including_original_iterator": "105/0",
+      "source_core_including_grouped_actual": "3/0",
+      "existing_generics_and_exact_budget_controls": "24/0",
+      "ct_namespaces_corrected": "12/0"
+    },
+    "failed_new_fixture_retained": {
+      "source": "c304c8749a5c141e6d343754d909c0bd331a8f80",
+      "passed": 11,
+      "failed": 1,
+      "cause": "the first new duplicate fixture changed formal arity but retained an old CT call arity; actual earlier CT E-CT-SOURCE failure was preserved",
+      "correction": "use unused host/member/free duplicate declarations with no CT call; retain exact Expand SafeReject E-LIFE-DECLARATION duplicate life binder and verification_runs0 assertions"
+    },
+    "formal_second_run_source": "76e109506360bda160e195d2f0b26150a9e483c3",
+    "formal_second_run_result": "pending; no formal totals inferred from targeted tests",
+    "author_execution": "no new linked execution by author; root exact logs reused with verified hashes; author isolated no-link Expand all-target strict Clippy passed"
   }
 }
