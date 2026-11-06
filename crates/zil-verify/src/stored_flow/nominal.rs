@@ -37,6 +37,9 @@ fn walk(
         .iter()
         .find(|d| d.id == instance.declaration)
         .ok_or_else(|| err("nominal metadata declaration is absent"))?;
+    if decl.id.compiler {
+        b.spend(96)?;
+    }
     if (decl.id.compiler && !option_address::declaration(decl))
         || !matches!(
             (decl.kind, storage.as_ref()),
@@ -54,12 +57,20 @@ fn walk(
             .saturating_add(life.nominal_arguments.len()),
     )?;
     if decl.id.compiler {
+        for actual in &instance.arguments {
+            if let LifeNominalActual::Type(ty) = actual {
+                type_work(ty, limits, b)?;
+            }
+        }
+        type_work(storage, limits, b)?;
         if !option_address::shape(&instance.ty, limits, b)?
             || !matches!((instance.arguments.as_slice(), storage.as_ref()),
                 ([LifeNominalActual::Type(actual)], Type::Enum { variants, .. })
                 if actual == &variants[1].1[0])
         {
-            return Err(err("builtin Option actual, source-class map or physical payload differs"));
+            return Err(err(
+                "builtin Option actual, source-class map or physical payload differs",
+            ));
         }
         active.pop();
         return Ok(Vec::new());

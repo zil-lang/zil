@@ -307,3 +307,63 @@ fn g3_4_1_option_core_metadata_is_authenticated_before_types_resolve() {
         );
     }
 }
+
+#[test]
+fn g3_4_1_option_actual_none_and_mixed_variants_forward_without_invented_targets() {
+    for body in [
+        "return Option::<&'s i64>.None();",
+        "if flag{return Option::<&'s i64>.None();}return Option::<&'s i64>.Some(&slice[0]);",
+    ] {
+        let text = format!(
+            "fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{{{body}}}fn id<life s>(value:Option<&'s i64>)->Option<&'s i64>{{return value;}}fn forward<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{{let value=next(slice,flag);return id(value);}}fn main(){{}}"
+        );
+        let module = typed(&text);
+        let plan = accept(&module);
+        if body.starts_with("return") {
+            for f in &module.functions {
+                if f.name == "next" || f.name == "forward" {
+                    for block in &f.blocks {
+                        if let zil_ir::Terminator::Return(Some(value)) = block.terminator {
+                            assert!(
+                                plan.functions[f.id.0 as usize].holds[value.0 as usize]
+                                    .roots
+                                    .is_empty(),
+                                "None has a manufactured target"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+#[test]
+fn g3_4_1_option_none_cannot_hide_recursive_ungrounded_some_input() {
+    let good = "fn seed<life s>(slice:&'s [i64])->&'s i64{return &slice[0];}fn missing<life s>(slice:&'s [i64])->&'s i64{return seed(slice);}fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{if flag{return Option::<&'s i64>.None();}return Option::<&'s i64>.Some(missing(slice));}fn main(){}";
+    let positive = typed(good);
+    let mut plan = accept(&positive);
+    let bad = typed(&good.replace("return seed(slice);", "return missing(slice);"));
+    assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
+    plan.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &plan, &Limits::default()).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+    assert!(zil_analyze::analyze(&decoded, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module(bad.clone(), plan, &bad.target, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).is_err());
+}
+
+#[test]
+fn g3_4_1_option_none_join_does_not_hide_a_constructorless_recursive_producer() {
+    let good = "fn seed<life s>(slice:&'s [i64])->Option<&'s i64>{return Option::<&'s i64>.Some(&slice[0]);}fn missing<life s>(slice:&'s [i64])->Option<&'s i64>{return seed(slice);}fn next<life s>(slice:&'s [i64],flag:bool)->Option<&'s i64>{let mut value:Option<&'s i64>=Option::<&'s i64>.None();if flag{value=missing(slice);}return value;}fn main(){}";
+    let positive = typed(good);
+    let mut plan = accept(&positive);
+    let bad = typed(&good.replace("return seed(slice);", "return missing(slice);"));
+    assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
+    plan.module_fingerprint = bad.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &plan, &Limits::default()).unwrap();
+    let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
+    assert!(zil_analyze::analyze(&decoded, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module(bad.clone(), plan, &bad.target, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire, &bad.target, &Limits::default()).is_err());
+}

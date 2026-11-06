@@ -5,7 +5,7 @@ use super::*;
 mod pure_copy;
 
 mod nominal;
-mod option_address;
+pub(super) mod option_address;
 mod retained;
 
 type Path = Vec<PlaceProjection>;
@@ -22,6 +22,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Payload {
+    option_variants: option_address::Variants,
     address: Permission,
     // For a concrete Fixed environment only, a private Field(capture) prefix
     // retains its actual outer address and pointee leaves. It grants no public
@@ -45,6 +46,7 @@ struct Summary {
     result: Vec<(Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
+    returned_variants: option_address::Variants,
 }
 struct Solution {
     values: Vec<Payload>,
@@ -82,6 +84,7 @@ fn permission_work(p: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(p.loans.len())
 }
 fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
+    p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
@@ -179,6 +182,7 @@ fn add_leaf(
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
+    changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
         changed |= add_leaf(to, path, p, b)?;
     }
@@ -1244,6 +1248,10 @@ fn seed(
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
         let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
+        if option_address::candidate(ty) {
+            b.spend(96)?;
+            if option_address::signature(ty) { p.option_variants = option_address::Variants::parameter(position as u32, b)?; }
+        }
         if fixed_environment(module, ty) {
             seed_environment(
                 module,
@@ -1589,6 +1597,7 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+            out.option_variants = summaries[function.0 as usize].returned_variants.substitute(arguments, values, b)?;
             for (path, sources) in &summaries[function.0 as usize].result {
                 let mut p = Permission::default();
                 for source in sources {
@@ -1600,7 +1609,7 @@ fn step(
                 }
                 if path.is_empty() {
                     out.address = p;
-                } else {
+                } else if !out.option_variants.none() {
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
@@ -2326,6 +2335,7 @@ fn windows(
     Ok(())
 }
 fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
+    s.returned_variants.work(b)?;
     b.spend(s.result.len().saturating_add(s.apart.len()))?;
     for (path, row) in &s.result {
         b.spend(path.len())?;
@@ -2372,6 +2382,13 @@ fn summarize(
             summary.complete = false;
         }
         if let Some((_, shape)) = qualified(ty) {
+            if option_address::candidate(ty) {
+                b.spend(96)?;
+                if !option_address::signature(ty) { return Err(err("Option activity has no exact shape")); }
+                let mask = p.option_variants.mask();
+                if mask == 0 { summary.complete = false; }
+                if mask == 1 { continue; }
+            }
             for row in &shape.slots {
                 if leaf(p, &row.path, b)?.is_none_or(|p| p.sources.is_empty()) {
                     summary.complete = false;
@@ -2413,6 +2430,7 @@ fn summarize(
         b.spend(1)?;
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
+            summary.returned_variants.join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Address { .. }) {
                 result_row(&mut summary, &[], &payload.address.sources, b)?;
             }
