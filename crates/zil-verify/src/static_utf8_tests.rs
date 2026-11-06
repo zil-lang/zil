@@ -274,14 +274,18 @@ fn static_utf8_rejects_mutable_upgrade_without_write() {
 fn static_utf8_byte_limit_and_work_limit_reject_before_fingerprint() {
     let m = module();
     let c = candidate(&m);
-    let mut l = Limits::default();
-    l.max_nodes = 2;
+    let l = Limits {
+        max_nodes: 2,
+        ..Limits::default()
+    };
     assert_eq!(
         check(m.clone(), c.clone(), &l).unwrap_err()[0].category,
         zil_base::ResultCategory::ResourceLimit
     );
-    let mut l = Limits::default();
-    l.max_analysis_steps = 1;
+    let l = Limits {
+        max_analysis_steps: 1,
+        ..Limits::default()
+    };
     assert_eq!(
         check(m.clone(), c.clone(), &l).unwrap_err()[0].category,
         zil_base::ResultCategory::ResourceLimit
