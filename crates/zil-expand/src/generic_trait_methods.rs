@@ -985,10 +985,12 @@ impl Engine<'_> {
                 object,
                 member,
                 |name| env.contains_key(name),
-                &self.nominals,
-                &no_variables,
-                &no_bounds,
-                &self.traits,
+                static_host::Scope {
+                    nominals: &self.nominals,
+                    variables: &no_variables,
+                    bounds: &no_bounds,
+                    traits: &self.traits,
+                },
                 &mut self.budget,
             )? {
                 actual = Some(host);
