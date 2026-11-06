@@ -312,16 +312,37 @@ pub(crate) fn validate_declaration(
             ));
         }
         let mut method_variables = Cow::Borrowed(&variables);
-        let lending = method
-            .generics
-            .iter()
-            .any(|p| matches!(p.kind, GenericParamKind::Lifetime));
+        let mut lending = false;
+        let mut life_only = true;
+        for parameter in &method.generics {
+            budget.node(parameter.span, 0)?;
+            budget.text(&parameter.name, parameter.span)?;
+            lending |= matches!(parameter.kind, GenericParamKind::Lifetime);
+            life_only &= matches!(parameter.kind, GenericParamKind::Lifetime);
+            match &parameter.kind {
+                GenericParamKind::Type(bounds) => {
+                    if matches!(method_variables, Cow::Borrowed(_)) {
+                        for name in &variables {
+                            budget.text(name, member.span)?;
+                        }
+                    }
+                    if !method_variables.to_mut().insert(parameter.name.clone()) {
+                        return Err(error(parameter.span, "duplicate method type binder"));
+                    }
+                    for bound in bounds {
+                        budget.ty(bound)?;
+                    }
+                }
+                GenericParamKind::Const(ty) => {
+                    consts::domain(ty)?;
+                    budget.ty(ty)?;
+                }
+                GenericParamKind::Lifetime => {}
+            }
+        }
         if lending {
             if !declaration.generics.is_empty()
-                || !method
-                    .generics
-                    .iter()
-                    .all(|p| matches!(p.kind, GenericParamKind::Lifetime))
+                || !life_only
                 || !method.where_clause.is_empty()
                 || !matches!(method.body, FunctionBody::Declaration)
             {
@@ -340,6 +361,7 @@ pub(crate) fn validate_declaration(
                         "lending method requires a receiver in parameter zero",
                     )
                 })?;
+            budget.ty(&receiver.ty)?;
             if receiver.give
                 || !matches!(&grouped(&receiver.ty).kind,
                 TypeKind::Reference { inner, .. }
@@ -354,6 +376,7 @@ pub(crate) fn validate_declaration(
                 .return_type
                 .as_ref()
                 .ok_or_else(|| error(member.span, "lending method requires a shared result"))?;
+            budget.ty(result)?;
             let payload = match &grouped(result).kind {
                 TypeKind::Reference { .. } => result,
                 TypeKind::Named { path, args }
@@ -391,40 +414,43 @@ pub(crate) fn validate_declaration(
             if matches!(&grouped(referent).kind, TypeKind::Named { path, args }
                 if path.as_slice() == ["Self", "Item"] && args.is_empty())
             {
-                let copy_item = declaration.members.iter().any(|member| {
-                    matches!(&member.kind, ItemKind::TypeAlias(alias)
-                        if alias.name == "Item" && alias.bounds.iter().any(copy::is_bound))
-                });
+                let mut copy_item = false;
+                for candidate in &declaration.members {
+                    budget.node(candidate.span, 0)?;
+                    if let ItemKind::TypeAlias(alias) = &candidate.kind {
+                        budget.text(&alias.name, candidate.span)?;
+                        if alias.name == "Item" {
+                            for bound in &alias.bounds {
+                                budget.ty(bound)?;
+                                copy_item |= copy::is_bound(bound);
+                            }
+                        }
+                    }
+                }
                 if !copy_item {
                     return Err(error(
                         referent.span,
                         "lending associated Item requires a declared Copy bound",
                     ));
                 }
-            }
-        }
-        for parameter in &method.generics {
-            budget.node(parameter.span, 0)?;
-            budget.text(&parameter.name, parameter.span)?;
-            match &parameter.kind {
-                GenericParamKind::Type(bounds) => {
-                    if matches!(method_variables, Cow::Borrowed(_)) {
-                        for name in &variables {
-                            budget.text(name, member.span)?;
-                        }
-                    }
-                    if !method_variables.to_mut().insert(parameter.name.clone()) {
-                        return Err(error(parameter.span, "duplicate method type binder"));
-                    }
-                    for bound in bounds {
-                        budget.ty(bound)?;
-                    }
+            } else {
+                let mut available = trait_bounds::Bounds::new();
+                let mut self_copy = false;
+                for bound in &declaration.bounds {
+                    budget.ty(bound)?;
+                    self_copy |= copy::is_bound(bound);
                 }
-                GenericParamKind::Const(ty) => {
-                    consts::domain(ty)?;
-                    budget.ty(ty)?;
+                if self_copy {
+                    budget.lineage_bytes(
+                        std::mem::size_of::<(String, Vec<trait_bounds::Bound>)>()
+                            .saturating_add(std::mem::size_of::<trait_bounds::Bound>())
+                            .saturating_add(4),
+                        referent.span,
+                    )?;
+                    budget.text("Self", referent.span)?;
+                    available.insert("Self".into(), vec![trait_bounds::Bound::Copy]);
                 }
-                GenericParamKind::Lifetime => {}
+                copy::require(referent, nominals, &available, &variables, budget)?;
             }
         }
         if !method.generics.is_empty()
