@@ -217,6 +217,14 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                     } => element,
                     _ => inner,
                 };
+                // A borrowed nominal carrier may be affine because its fields
+                // retain addresses. Borrowing its actual storage does not copy
+                // that carrier. Field operations still prove their own modes.
+                if nominal_classes
+                    && source_life::qualified_nominal(pointee, check.nominals, check.budget)?
+                {
+                    continue;
+                }
                 copy::require_registered_scoped(
                     pointee,
                     check.nominals,

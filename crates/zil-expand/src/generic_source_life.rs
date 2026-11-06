@@ -2,6 +2,41 @@
 //! These private facts describe lexical type meaning, never loans or authority.
 use super::*;
 
+pub(super) fn qualified_nominal(
+    ty: &TypeRef,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    budget.node(ty.span, 0)?;
+    let TypeKind::Named { path, args } = &grouped(ty).kind else {
+        return Ok(false);
+    };
+    let [name] = path.as_slice() else {
+        return Ok(false);
+    };
+    budget.text(name, ty.span)?;
+    let Some(item) = nominals.get(name) else {
+        return Ok(false);
+    };
+    let formals = match &item.kind {
+        ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct => &a.generics,
+        ItemKind::Enum(e) => &e.generics,
+        _ => return Ok(false),
+    };
+    if formals.len() != args.len() {
+        return Ok(false);
+    }
+    let mut qualified = false;
+    for (formal, actual) in formals.iter().zip(args) {
+        budget.node(formal.span, 0)?;
+        qualified |= matches!(
+            (&formal.kind, actual),
+            (GenericParamKind::Lifetime, GenericArg::Lifetime(_))
+        );
+    }
+    Ok(qualified)
+}
+
 /// A mixed ordinary helper may compare qualified nominal source classes only
 /// when its written signature actually contains that nominal application.
 /// The nominal catalog and lexical life checker remain separate proof inputs.
