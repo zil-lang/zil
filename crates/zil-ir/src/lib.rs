@@ -387,7 +387,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V42\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V43\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -521,7 +521,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V42\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V43\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -1811,6 +1811,12 @@ pub enum InstructionKind {
     DropManaged {
         local: LocalId,
     },
+    /// Immutable program-static UTF8 bytes, with no terminator or runtime owner.
+    /// The exact result is Address<Slice<U8>> with mutable=false. Raw bytes and
+    /// the claimed result type require independent validation. Runtime only.
+    StaticUtf8 {
+        bytes: Vec<u8>,
+    },
     Constant(Constant),
     /// Preserve the mathematical integer value, trapping when out of range.
     ConvertInteger {
@@ -2321,6 +2327,8 @@ pub enum HoldRoot {
     Capture(u32),
     /// Target of an incoming shared reference, indexed by source parameter order.
     Parameter(u32),
+    /// Immutable program-static storage; only actual checked producers establish it.
+    Static,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockPlan {
@@ -2574,7 +2582,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V42\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V43\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -3517,6 +3525,11 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             for argument in arguments {
                 encode_u32(b, argument.0);
             }
+        }
+        InstructionKind::StaticUtf8 { bytes } => {
+            b.push(139);
+            encode_len(b, bytes.len());
+            b.extend_from_slice(bytes);
         }
         InstructionKind::Constant(c) => {
             b.push(0);

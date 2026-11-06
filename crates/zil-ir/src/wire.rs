@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 42;
+pub const WIRE_VERSION: u32 = 43;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
@@ -1166,6 +1166,11 @@ impl<'a> Writer<'a> {
     fn instruction(&mut self, instruction: &Instruction) -> WireResult<()> {
         self.optional_value(instruction.result)?;
         match &instruction.kind {
+            InstructionKind::StaticUtf8 { bytes } => {
+                self.u8(139)?;
+                self.count(bytes.len(), self.limits.max_source_bytes)?;
+                self.bytes(bytes)?;
+            }
             InstructionKind::OwnedStoreNew { element } => {
                 self.u8(80)?;
                 self.ty(element, 0)?;
@@ -2177,6 +2182,7 @@ impl<'a> Writer<'a> {
                             self.u8(2)?;
                             self.u32(*index)?;
                         }
+                        HoldRoot::Static => self.u8(3)?,
                     }
                 }
             }
@@ -3456,6 +3462,10 @@ impl<'a> Reader<'a> {
     fn instruction(&mut self) -> WireResult<Instruction> {
         let result = self.optional_value()?;
         let kind = match self.u8()? {
+            139 => {
+                let count = self.count(self.limits.max_source_bytes, 1)?;
+                InstructionKind::StaticUtf8 { bytes: self.take(count)?.to_vec() }
+            }
             80 => InstructionKind::OwnedStoreNew {
                 element: self.ty(0)?,
             },
@@ -4288,13 +4298,14 @@ impl<'a> Reader<'a> {
             let mut holds = Vec::with_capacity(count);
             for _ in 0..count {
                 let value = ValueId(self.u32()?);
-                let count = self.count(self.limits.max_nodes, 5)?;
+                let count = self.count(self.limits.max_nodes, 1)?;
                 let mut roots = Vec::with_capacity(count);
                 for _ in 0..count {
                     roots.push(match self.u8()? {
                         0 => HoldRoot::Local(LocalId(self.u32()?)),
                         1 => HoldRoot::Capture(self.u32()?),
                         2 => HoldRoot::Parameter(self.u32()?),
+                        3 => HoldRoot::Static,
                         _ => return Err(malformed("E-WIRE-TAG", "unknown Hold root tag")),
                     });
                 }
