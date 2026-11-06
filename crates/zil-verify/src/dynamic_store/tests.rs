@@ -1638,6 +1638,14 @@ fn scalar934_unused_owning_aggregate_cannot_inherit_new_store_permission() {
             name: "ScalarBag934".into(),
             fields: vec![("items".into(), store.clone())],
         },
+        Type::Record {
+            name: "ScalarRecord934".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Array {
+            element: Box::new(store.clone()),
+            length: 1,
+        },
         Type::Tuple(vec![store.clone()]),
         Type::Enum {
             name: "ScalarEnum934".into(),
