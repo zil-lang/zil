@@ -312,9 +312,13 @@ pub(crate) fn validate_declaration(
             ));
         }
         let mut method_variables = Cow::Borrowed(&variables);
+        let mut lending = false;
+        let mut life_only = true;
         for parameter in &method.generics {
             budget.node(parameter.span, 0)?;
             budget.text(&parameter.name, parameter.span)?;
+            lending |= matches!(parameter.kind, GenericParamKind::Lifetime);
+            life_only &= matches!(parameter.kind, GenericParamKind::Lifetime);
             match &parameter.kind {
                 GenericParamKind::Type(bounds) => {
                     if matches!(method_variables, Cow::Borrowed(_)) {
@@ -334,6 +338,119 @@ pub(crate) fn validate_declaration(
                     budget.ty(ty)?;
                 }
                 GenericParamKind::Lifetime => {}
+            }
+        }
+        if lending {
+            if !declaration.generics.is_empty()
+                || !life_only
+                || !method.where_clause.is_empty()
+                || !matches!(method.body, FunctionBody::Declaration)
+            {
+                return Err(unsupported(
+                    member.span,
+                    "lending trait method requires life-only local binders and an ordinary declaration",
+                ));
+            }
+            let receiver = method
+                .params
+                .first()
+                .filter(|p| p.name == "self")
+                .ok_or_else(|| {
+                    error(
+                        member.span,
+                        "lending method requires a receiver in parameter zero",
+                    )
+                })?;
+            budget.ty(&receiver.ty)?;
+            if receiver.give
+                || !matches!(&grouped(&receiver.ty).kind,
+                TypeKind::Reference { inner, .. }
+                    if matches!(&grouped(inner).kind, TypeKind::Named { path, args } if path.as_slice() == ["Self"] && args.is_empty()))
+            {
+                return Err(unsupported(
+                    receiver.span,
+                    "lending method requires an ordinary borrowed Self receiver",
+                ));
+            }
+            let result = method
+                .return_type
+                .as_ref()
+                .ok_or_else(|| error(member.span, "lending method requires a shared result"))?;
+            budget.ty(result)?;
+            let payload = match &grouped(result).kind {
+                TypeKind::Reference { .. } => result,
+                TypeKind::Named { path, args }
+                    if path.as_slice() == [super::options::TEMPLATE]
+                        || path.as_slice() == ["Option"] =>
+                {
+                    let [GenericArg::Type(payload)] = args.as_slice() else {
+                        return Err(unsupported(
+                            result.span,
+                            "lending Option requires one shared address payload",
+                        ));
+                    };
+                    payload
+                }
+                _ => {
+                    return Err(unsupported(
+                        result.span,
+                        "lending result requires a shared address or Option of one",
+                    ));
+                }
+            };
+            let referent = match &grouped(payload).kind {
+                TypeKind::Reference {
+                    mutable: false,
+                    lifetime: Some(_),
+                    inner,
+                } => inner,
+                _ => {
+                    return Err(unsupported(
+                        payload.span,
+                        "lending result requires an explicitly related shared address",
+                    ));
+                }
+            };
+            if matches!(&grouped(referent).kind, TypeKind::Named { path, args }
+                if path.as_slice() == ["Self", "Item"] && args.is_empty())
+            {
+                let mut copy_item = false;
+                for candidate in &declaration.members {
+                    budget.node(candidate.span, 0)?;
+                    if let ItemKind::TypeAlias(alias) = &candidate.kind {
+                        budget.text(&alias.name, candidate.span)?;
+                        if alias.name == "Item" {
+                            for bound in &alias.bounds {
+                                budget.ty(bound)?;
+                                copy_item |= copy::is_bound(bound);
+                            }
+                        }
+                    }
+                }
+                if !copy_item {
+                    return Err(error(
+                        referent.span,
+                        "lending associated Item requires a declared Copy bound",
+                    ));
+                }
+            } else {
+                let mut available = trait_bounds::Bounds::new();
+                let mut self_copy = false;
+                for bound in &declaration.bounds {
+                    budget.ty(bound)?;
+                    self_copy |= copy::is_bound(bound);
+                }
+                if self_copy {
+                    budget.lineage_bytes(
+                        std::mem::size_of::<(String, Vec<trait_bounds::Bound>)>()
+                            .saturating_add(std::mem::size_of::<trait_bounds::Bound>())
+                            .saturating_add(4),
+                        referent.span,
+                    )?;
+                    budget.text("Self", referent.span)?;
+                    available.insert("Self".into(), vec![trait_bounds::Bound::Copy]);
+                }
+                copy::require(referent, nominals, &available, &variables, budget)?;
             }
         }
         if !method.generics.is_empty()

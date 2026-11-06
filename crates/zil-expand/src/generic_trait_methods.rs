@@ -583,6 +583,122 @@ fn contract_subset(
     }
     Ok(true)
 }
+
+// Type keys intentionally erase reference lifetime spelling. A trait method
+// signature needs a second comparison for the complete input/result relation:
+// binder ordinal zero in an impl has the meaning of ordinal zero in the trait,
+// even when the source names differ.
+fn same_life_relation(
+    actual: &TypeRef,
+    required: &TypeRef,
+    actual_lives: &[&str],
+    required_lives: &[&str],
+    budget: &mut Budget<'_>,
+    depth: usize,
+) -> R<bool> {
+    budget.node(actual.span, depth)?;
+    budget.node(required.span, depth)?;
+    let actual = grouped(actual);
+    let required = grouped(required);
+    match (&actual.kind, &required.kind) {
+        (
+            TypeKind::Reference {
+                lifetime: a,
+                inner: ai,
+                ..
+            },
+            TypeKind::Reference {
+                lifetime: b,
+                inner: bi,
+                ..
+            },
+        ) => {
+            let ordinal = |name: &str, names: &[&str], budget: &mut Budget<'_>, span| -> R<_> {
+                for (index, candidate) in names.iter().enumerate() {
+                    budget.node(span, depth)?;
+                    budget.text(name, span)?;
+                    budget.text(candidate, span)?;
+                    if *candidate == name {
+                        return Ok(Some(index));
+                    }
+                }
+                Err(error(
+                    span,
+                    "method reference uses an undeclared life binder",
+                ))
+            };
+            let a = a
+                .as_ref()
+                .map(|name| ordinal(name, actual_lives, budget, actual.span))
+                .transpose()?;
+            let b = b
+                .as_ref()
+                .map(|name| ordinal(name, required_lives, budget, required.span))
+                .transpose()?;
+            Ok(a == b
+                && same_life_relation(ai, bi, actual_lives, required_lives, budget, depth + 1)?)
+        }
+        (TypeKind::Named { args: a, .. }, TypeKind::Named { args: b, .. })
+        | (TypeKind::Dyn { args: a, .. }, TypeKind::Dyn { args: b, .. })
+            if a.len() == b.len() =>
+        {
+            for (a, b) in a.iter().zip(b) {
+                budget.node(actual.span, depth)?;
+                match (a, b) {
+                    (GenericArg::Type(a), GenericArg::Type(b)) => {
+                        if !same_life_relation(
+                            a,
+                            b,
+                            actual_lives,
+                            required_lives,
+                            budget,
+                            depth + 1,
+                        )? {
+                            return Ok(false);
+                        }
+                    }
+                    (GenericArg::Lifetime(a), GenericArg::Lifetime(b)) => {
+                        let find = |name: &str, names: &[&str], budget: &mut Budget<'_>| -> R<_> {
+                            for (index, candidate) in names.iter().enumerate() {
+                                budget.node(actual.span, depth)?;
+                                budget.text(name, actual.span)?;
+                                budget.text(candidate, actual.span)?;
+                                if *candidate == name {
+                                    return Ok(Some(index));
+                                }
+                            }
+                            Err(error(
+                                actual.span,
+                                "method type argument uses an undeclared life binder",
+                            ))
+                        };
+                        if find(a, actual_lives, budget)? != find(b, required_lives, budget)? {
+                            return Ok(false);
+                        }
+                    }
+                    (GenericArg::Const(_), GenericArg::Const(_)) => {}
+                    _ => return Ok(false),
+                }
+            }
+            Ok(true)
+        }
+        (TypeKind::Optional(a), TypeKind::Optional(b))
+        | (TypeKind::Array { element: a, .. }, TypeKind::Array { element: b, .. }) => {
+            same_life_relation(a, b, actual_lives, required_lives, budget, depth + 1)
+        }
+        (TypeKind::Tuple(a), TypeKind::Tuple(b)) if a.len() == b.len() => {
+            for (a, b) in a.iter().zip(b) {
+                if !same_life_relation(a, b, actual_lives, required_lives, budget, depth + 1)? {
+                    return Ok(false);
+                }
+            }
+            Ok(true)
+        }
+        // Other shapes carry no supported method-local life in this profile.
+        _ => Ok(true),
+    }
+}
+
 pub(super) fn align(
     mut actual: Function,
     required: &Function,
@@ -602,6 +718,7 @@ pub(super) fn align(
         ));
     }
     let mut substitutions = BTreeMap::new();
+    let mut life_count = 0usize;
     for (source, target) in actual.generics.iter().zip(&required.generics) {
         budget.node(source.span, 0)?;
         budget.text(&source.name, source.span)?;
@@ -620,7 +737,9 @@ pub(super) fn align(
                 )?;
                 substitutions.insert(source.name.clone(), value);
             }
-            (GenericParamKind::Lifetime, GenericParamKind::Lifetime) => {}
+            (GenericParamKind::Lifetime, GenericParamKind::Lifetime) => {
+                life_count = life_count.saturating_add(1);
+            }
             _ => {
                 return Err(error(
                     source.span,
@@ -642,9 +761,69 @@ pub(super) fn align(
         unreachable!()
     };
     actual = function;
+    let mut actual_lives = Vec::new();
+    let mut required_lives = Vec::new();
+    if life_count != 0 {
+        budget.lineage_bytes(
+            life_count
+                .saturating_mul(2)
+                .saturating_mul(std::mem::size_of::<&str>()),
+            actual.span,
+        )?;
+        actual_lives.reserve_exact(life_count);
+        required_lives.reserve_exact(life_count);
+        for (source, target) in actual.generics.iter().zip(&required.generics) {
+            budget.node(source.span, 0)?;
+            budget.node(target.span, 0)?;
+            if matches!(source.kind, GenericParamKind::Lifetime) {
+                actual_lives.push(source.name.as_str());
+                required_lives.push(target.name.as_str());
+            }
+        }
+    }
+    if !actual_lives.is_empty() {
+        let implicit_receiver = actual
+            .params
+            .first()
+            .map(|p| p.name != "self")
+            .unwrap_or(false)
+            && required.params.first().is_some_and(|p| p.name == "self");
+        if actual.params.len() + usize::from(implicit_receiver) != required.params.len() {
+            return Err(error(actual.span, "impl method parameter count differs"));
+        }
+        for (source, target) in actual
+            .params
+            .iter()
+            .zip(required.params.iter().skip(usize::from(implicit_receiver)))
+        {
+            if !same_life_relation(
+                &source.ty,
+                &target.ty,
+                &actual_lives,
+                &required_lives,
+                budget,
+                0,
+            )? {
+                return Err(error(
+                    source.span,
+                    "impl method input life relation differs from trait declaration",
+                ));
+            }
+        }
+        if let (Some(source), Some(target)) = (&actual.return_type, &required.return_type) {
+            if !same_life_relation(source, target, &actual_lives, &required_lives, budget, 0)? {
+                return Err(error(
+                    source.span,
+                    "impl method result life relation differs from trait declaration",
+                ));
+            }
+        }
+    }
     for (source, target) in actual.generics.iter_mut().zip(&required.generics) {
         budget.text(&target.name, target.span)?;
-        source.name = target.name.clone();
+        if !matches!(source.kind, GenericParamKind::Lifetime) {
+            source.name = target.name.clone();
+        }
         match (&source.kind, &target.kind) {
             (GenericParamKind::Type(_), GenericParamKind::Type(_)) => {}
             (GenericParamKind::Const(actual), GenericParamKind::Const(required)) => {

@@ -6,6 +6,88 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_ir::Type;
 
 #[test]
+fn lending_trait_method_alpha_renaming_preserves_input_result_relation() {
+    let prefix = "struct Reader{value:i32}trait Read{fn get<life a,life b>(self:&'a Self,other:&'b i32)->&'a i32;}impl Read for Reader{";
+    let suffix = "}fn main(){}";
+    for body in
+        ["fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return &self.value}"]
+    {
+        let text = format!("{prefix}{body}{suffix}");
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-alpha.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        zil_expand::expand(&source, &parsed).unwrap_or_else(|errors| panic!("{errors:?}"));
+    }
+    for body in [
+        "fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'y i32{return other}",
+        "fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return other}",
+    ] {
+        let text = format!("{prefix}{body}{suffix}");
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-reject.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
+fn unused_lending_trait_cannot_claim_copy_for_its_referent() {
+    for text in [
+        "trait L{fn lend<life a>(self:&'a Self)->&'a Self;}fn main(){}",
+        "resource Other{value:i32}trait L{fn lend<life a>(self:&'a Self)->Option<&'a Other>;}fn main(){}",
+        "trait L{type Item;fn lend<life a>(self:&'a Self)->Option<&'a Self.Item>;}fn main(){}",
+    ] {
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-copy.zil", text);
+        let parsed = zil_syntax::parse(&source).into_result().unwrap();
+        let errors = zil_expand::expand(&source, &parsed).unwrap_err();
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Expand),
+            "{text}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn lending_trait_relation_work_has_exact_request_boundary() {
+    let text = "struct Reader{value:i32}trait Read{fn get<life a,life b>(self:&'a Self,other:&'b i32)->&'a i32;}impl Read for Reader{fn get<life x,life y>(self:&'x Reader,other:&'y i32)->&'x i32{return &self.value}}fn main(){}";
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "trait-life-budget.zil", text);
+    let parsed = zil_syntax::parse(&source).into_result().unwrap();
+    let expected = zil_expand::expand_with_map(&source, &parsed).unwrap();
+    for work in [true, false] {
+        let n = budget_boundary::minimum(work, |limits| {
+            zil_expand::expand_with_map_limits(&source, &parsed, limits)
+        });
+        let mut limits = zil_base::Limits::default();
+        if work {
+            limits.max_analysis_steps = n;
+        } else {
+            limits.max_nodes = n;
+        }
+        for syntax in [&parsed, &zil_syntax::parse(&source).into_result().unwrap()] {
+            assert_eq!(
+                zil_expand::expand_with_map_limits(&source, syntax, &limits)
+                    .unwrap()
+                    .core,
+                expected.core
+            );
+        }
+        if work {
+            limits.max_analysis_steps -= 1;
+        } else {
+            limits.max_nodes -= 1;
+        }
+        assert!(
+            zil_expand::expand_with_map_limits(&source, &parsed, &limits)
+                .unwrap_err()
+                .iter()
+                .all(|error| error.category == ResultCategory::ResourceLimit)
+        );
+    }
+}
+
+#[test]
 fn generic_error_union_binding_and_call_contexts_accept_complete_types() {
     for text in [
         include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),

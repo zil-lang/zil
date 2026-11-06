@@ -34,6 +34,9 @@ mod terminal342_stored_physical;
 #[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
 mod utf8_literals_g931;
 
+#[path = "../../../tests/language-readiness/G2.4.1/analyze.rs"]
+mod g241_analyze;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {
