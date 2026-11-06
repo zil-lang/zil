@@ -2,6 +2,7 @@ mod arrays;
 mod byte_buffer;
 mod constant_divisors;
 mod copy_aggregates;
+mod copy_slots;
 mod drop_plan;
 mod dynamic_store;
 mod enums;

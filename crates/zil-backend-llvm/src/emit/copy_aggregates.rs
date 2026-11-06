@@ -10,6 +10,7 @@ pub(super) struct Slot {
     pub(super) ty: m::Ty,
     pub(super) bytes: u64,
     pub(super) align: u32,
+    pub(super) storage: Option<super::copy_slots::Storage>,
     work: usize,
 }
 pub(super) type Plan = BTreeMap<ValueId, Slot>;
@@ -64,6 +65,7 @@ pub(super) fn plan(
                         ty: machine,
                         bytes,
                         align,
+                        storage: None,
                         work: before - work,
                     },
                 );
@@ -115,6 +117,9 @@ pub(super) fn plan(
                         }
                     }
                 }
+            }
+            if !store_protocols.is_empty() {
+                super::copy_slots::coalesce(function, &mut values, &mut work)?;
             }
             plans.insert(function.id, values);
         }
@@ -350,6 +355,7 @@ pub(super) fn classify(
         ty: machine,
         bytes,
         align,
+        storage: None,
         work: before - *work,
     }))
 }
@@ -512,18 +518,40 @@ pub(super) fn canonical_payload_work(ty: &Type) -> usize {
 impl FunctionEmitter<'_> {
     pub(super) fn copy_allocations(&mut self) {
         for (id, slot) in self.copy_values {
-            self.text.push(m::Event::Instruction(m::Inst::new(
-                Some(format!("copy.value.{}", id.0)),
-                m::Op::Alloca {
-                    ty: slot.ty.clone(),
-                    align: slot.align,
-                },
-            )));
+            if let Some(storage) = slot.storage {
+                if storage.owner == *id {
+                    self.text.push(m::Event::Instruction(m::Inst::new(
+                        Some(format!("copy.slot.{}", storage.owner.0)),
+                        m::Op::Alloca {
+                            ty: m::Ty::array(storage.bytes, m::Ty::Int(8)),
+                            align: storage.align,
+                        },
+                    )));
+                }
+                self.text.push(m::Event::Instruction(m::Inst::new(
+                    Some(format!("copy.value.{}", id.0)),
+                    m::Op::Gep {
+                        ty: m::Ty::Int(8),
+                        ptr: m::local(format!("copy.slot.{}", storage.owner.0)),
+                        indices: vec![m::Arg::new(m::Ty::Int(64), 0)],
+                    },
+                )));
+            } else {
+                self.text.push(m::Event::Instruction(m::Inst::new(
+                    Some(format!("copy.value.{}", id.0)),
+                    m::Op::Alloca {
+                        ty: slot.ty.clone(),
+                        align: slot.align,
+                    },
+                )));
+            }
         }
     }
+
     pub(super) fn copy_bytes(&mut self, destination: m::Val, source: m::Val, bytes: u64) {
-        // One end is always a private, independently allocated value snapshot.
-        // Source addresses cannot name it; these ranges cannot overlap.
+        // One end is always a private value snapshot. Source addresses cannot
+        // name it; closed live intervals keep simultaneous snapshots distinct
+        // even when dead values share an underlying physical stack slot.
         self.text.push(m::Event::Instruction(m::Inst::new(
             None,
             m::Op::Call {
