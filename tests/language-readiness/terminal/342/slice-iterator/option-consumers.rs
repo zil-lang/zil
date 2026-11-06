@@ -183,7 +183,9 @@ fn g3_4_1_option_wrong_actual_source_is_rejected_after_types() {
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let errors = zil_expand::expand(&unit, &syntax).unwrap_err();
     assert!(
-        errors.iter().all(|d| d.phase == Phase::Expand),
+        errors.iter().any(|d| d.phase == Phase::Expand
+            && d.code == "E-UNSUPPORTED"
+            && d.message == "retained reference class needs its actual source class"),
         "{errors:?}"
     );
 
@@ -236,32 +238,38 @@ fn g3_4_1_option_wrong_actual_source_is_rejected_after_types() {
         }
     }
     let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
-    assert!(
-        errors.iter().all(|d| d.phase == Phase::Analyze)
-            && errors
-                .iter()
-                .any(|d| d.message.contains("activation-local")),
-        "{errors:?}"
-    );
+    let assert_actual_source = |errors: &[zil_base::Diagnostic]| {
+        assert!(errors.iter().any(|d| d.phase == Phase::Analyze
+            && d.code == "E-ANALYZE-IR"
+            && d.message == "stored target proof: stored return would retain an activation-local target"), "{errors:?}");
+    };
+    assert_actual_source(&errors);
     // Reuse only the valid source candidate, with its raw fingerprint refreshed.
     // Verify must reject from its own actual-body proof.
     claim.module_fingerprint = module.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&module, &claim, &Limits::default()).unwrap();
     let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &Limits::default()).unwrap();
-    assert!(zil_analyze::analyze(&decoded, &Limits::default()).is_err());
+    let errors = zil_analyze::analyze(&decoded, &Limits::default()).unwrap_err();
+    assert_actual_source(&errors);
+    // Verify independently checks execution windows before its final return
+    // summary: the escaping Some loan conflicts with cleanup of its local array.
+    let assert_actual_window = |errors: &[zil_base::Diagnostic]| {
+        assert!(
+            errors.iter().any(|d| d.phase == Phase::Verify
+                && d.category == ResultCategory::SafeReject
+                && d.code == "E-VERIFY-STORED"
+                && d.message
+                    == "stored target proof: actual target intersects a live incompatible loan"),
+            "{errors:?}"
+        );
+    };
     let errors =
         zil_verify::verify_module(module.clone(), claim, &module.target, &Limits::default())
             .expect_err("raw Verify accepted the activation-local Some payload");
-    assert!(
-        errors.iter().any(|d| d.message.contains("activation")),
-        "{errors:?}"
-    );
+    assert_actual_window(&errors);
     let errors = zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default())
         .expect_err("Wire Verify accepted the activation-local Some payload");
-    assert!(
-        errors.iter().any(|d| d.message.contains("activation")),
-        "{errors:?}"
-    );
+    assert_actual_window(&errors);
 }
 
 #[test]
@@ -654,7 +662,7 @@ fn g3_4_1_option_none_match_dead_edge_requires_the_real_tag_comparison() {
 
 #[test]
 fn g3_4_1_option_none_to_some_backedge_keeps_the_runtime_some_arm() {
-    let text = "fn spin<life s>(slice:&'s [i64])->i64{var item:Option<&'s i64> = Option::<&'s i64>.None();while true{match item{Option.None()=>{item=Option::<&'s i64>.Some(&slice[0]);continue},Option.Some(value)=>{return *value}}}return 0;}fn main(){}";
+    let text = "fn spin<life s>(slice:&'s [i64])->i64{var item:Option<&'s i64> = Option::<&'s i64>.None();while true{match item{Option.None()=>{item=Option::<&'s i64>.Some(&slice[0]);continue},Option.Some(value)=>{return *value}}}}fn main(){}";
     let module = typed(text);
     let plan = accept(&module);
     let f = module.functions.iter().find(|f| f.name == "spin").unwrap();
