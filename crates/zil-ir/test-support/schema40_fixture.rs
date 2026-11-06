@@ -1,7 +1,7 @@
 //! Test-only loading of structurally transcoded historical candidate records.
 //! Input40 reproduction: tools/migrate-impl253-wire40.py. Old v32/v34/v37/v40
-//! bytes stay immutable. The40->42 changes append opcode133, async type37,
-//! opcodes134..138 and foreign role tags3..5; existing record layouts are
+//! bytes stay immutable. The40->43 changes append opcode133, async type37,
+//! opcodes134..139, static root tag3 and foreign role tags3..5; existing record layouts are
 //! identical. This adapter decodes the restricted frozen old structure,
 //! updates both schema fields and module identity, then fully re-encodes it.
 //! Neither the old candidate plan nor this adapter grants proof authority.
@@ -47,7 +47,7 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     assert!(FROZEN_SHA256.contains(&zil_base::Fingerprint::of(bytes).to_hex().as_str()));
     assert_eq!(&bytes[..8], b"ZILMODP\0");
     assert_eq!(&bytes[8..12], &40u32.to_le_bytes());
-    const CURRENT_LAYOUT: u32 = 42;
+    const CURRENT_LAYOUT: u32 = 43;
     assert_eq!(zil_ir::wire::WIRE_VERSION, CURRENT_LAYOUT);
     assert_eq!(zil_base::SCHEMA_VERSION, CURRENT_LAYOUT);
     // The production decoder still rejects every old transport envelope. Only
