@@ -224,3 +224,28 @@ fn life_only_inherent_member_keeps_the_ordinary_retained_function_path() {
         core.core.unsupported
     );
 }
+
+#[test]
+fn unused_option_reference_actuals_keep_their_declared_source_classes() {
+    for source in [
+        "fn choose<life a,life b,T:Copy>(x:Option<&'a T>,y:Option<&'b T>)->Option<&'a T>{return x} fn main()->i32{return 0}",
+        "fn choose<life b,T:Copy,life a>(x:Option<&'a T>,y:Option<&'a T>)->Option<&'a T>{return y} fn main()->i32{return 0}",
+    ] {
+        expand(source).unwrap_or_else(|errors| panic!("{source}\n{errors:#?}"));
+    }
+    for source in [
+        "fn bad<life a,life b,T:Copy>(x:Option<&'a T>,y:Option<&'b T>)->Option<&'a T>{return y} fn main()->i32{return 0}",
+        "fn bad<life b,T:Copy,life a>(x:Option<&'a T>,y:Option<&'b T>)->Option<&'a T>{let result:Option<&'a T>=y;return result} fn main()->i32{return 0}",
+        "fn bad<life a,life b,T:Copy>(x:&'a T,y:&'b T)->Option<&'a T>{return Option::<&'a T>.Some(y)} fn main()->i32{return 0}",
+        "struct Pair<life a,life b,T:Copy>{left:&'a T;right:&'b T} impl<life a,life b,T:Copy> Pair<'a,'b,T>{fn bad(self:&Self)->Option<&'a T>{return Option::<&'b T>.Some(self.right)}} fn main()->i32{return 0}",
+    ] {
+        let errors = expand(source)
+            .expect_err("unused body equated distinct declared TypeArgument reference classes");
+        assert!(
+            errors
+                .iter()
+                .any(|error| error.phase == Phase::Expand && error.message.contains("class")),
+            "{source}\n{errors:#?}"
+        );
+    }
+}
