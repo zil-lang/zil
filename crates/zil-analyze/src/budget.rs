@@ -319,7 +319,7 @@ struct SumContext {
     error_products: u8,
     product_sum: bool,
     // Presence only, carried through wrappers during the paid type walk.
-    pod_product: bool,
+    pod_aggregate: bool,
 }
 
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
@@ -699,17 +699,24 @@ pub(super) fn preflight(
             }
             let mut child = context;
             match ty {
-                Type::Enum { .. } => child.in_enum = true,
-                Type::Tuple(_) => child.in_tuple = true,
+                Type::Enum { .. } => {
+                    child.in_enum = true;
+                    child.pod_aggregate = true;
+                }
+                Type::Tuple(_) => {
+                    child.in_tuple = true;
+                    child.pod_aggregate = true;
+                }
                 Type::Package { .. } => {
                     child.in_product = true;
-                    child.pod_product = true;
+                    child.pod_aggregate = true;
                     if context.in_error {
                         child.error_products = context.error_products.saturating_add(1);
                     }
                 }
                 Type::ErrorUnion { .. } => {
                     child.in_error = true;
+                    child.pod_aggregate = true;
                     child.product_sum |= context.in_product;
                 }
                 Type::Managed(_) => {
@@ -734,13 +741,13 @@ pub(super) fn preflight(
                     new_sum |= extension;
                     child = SumContext {
                         blocked: true,
-                        pod_product: context.pod_product,
+                        pod_aggregate: context.pod_aggregate,
                         ..SumContext::default()
                     };
                 }
                 Type::Address { .. } if depth == 0 && sum_address_root => {
                     child = SumContext {
-                        pod_product: context.pod_product,
+                        pod_aggregate: context.pod_aggregate,
                         ..SumContext::default()
                     };
                 }
@@ -754,7 +761,7 @@ pub(super) fn preflight(
                 | Type::ForeignCallback { .. } => {
                     child = SumContext {
                         blocked: true,
-                        pod_product: context.pod_product,
+                        pod_aggregate: context.pod_aggregate,
                         ..SumContext::default()
                     }
                 }
@@ -816,10 +823,10 @@ pub(super) fn preflight(
                 }
                 Type::OwnedStore { element } => {
                     if !matches!(element.as_ref(), Type::Package { .. }) {
-                        if context.pod_product {
+                        if context.pod_aggregate {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
-                                "POD Store admission does not grant owning Product field qualification",
+                                "POD Store admission does not grant owning aggregate field or payload qualification",
                                 None,
                             )]);
                         }
