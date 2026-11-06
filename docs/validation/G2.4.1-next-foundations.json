@@ -1,0 +1,73 @@
+{
+  "compiler_source": "d1ee456eedf23667479de7389e165afc9c5d3d8f",
+  "cli_sha256": "7b69ba22d9124787bae4a7aa7e56d8994645de2b29459c8cbd02cb7a63d0fdb0",
+  "purpose": "Observed next ordinary-language blockers, not implementation or acceptance of these capabilities. Existing type-only generic rules and whole-Store exclusive loans are the proposed starting points; GUI-specific work remains later.",
+  "observations": [
+    {
+      "task": "G2.4.2",
+      "case": "static-factory",
+      "source": "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn main()->i32{return Cell.make::<i32>(3).n-7}",
+      "source_sha256": "8b0de70be6470ded2f8a369dd540989b80fbe86d03937c973a5ad9acce5e9b3e",
+      "status": "Unsupported",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "generic method without receiver",
+          "span": {
+            "file": 0,
+            "start": 157,
+            "end": 176
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "task": "G2.4.2",
+      "case": "symbolic-factory",
+      "source": "trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn build<F:Factory>()->F{return F.make::<i32>(3)}fn main()->i32{return build::<Cell>().n-7}",
+      "source_sha256": "92b14e638ef4bde9b032b40ccd8fdb737225e5dcffabc73a539d1ca1bb9ff7da",
+      "status": "SafeReject",
+      "phase": "expand",
+      "diagnostics": [
+        {
+          "phase": "expand",
+          "category": "SafeReject",
+          "code": "E-GENERIC-ARGUMENT",
+          "message": "unknown value F in generic body",
+          "span": {
+            "file": 0,
+            "start": 167,
+            "end": 168
+          },
+          "notes": []
+        }
+      ]
+    },
+    {
+      "task": "G9.3.3",
+      "case": "mutable-pod-store",
+      "source": "struct Cell{value:i32}fn main()->i32{let items:Store<Cell>=store_new();store_reserve(items,1);store_push(items,Cell{value:41});let view=store_at_mut(items,0);view.value=42;return view.value}",
+      "source_sha256": "0fe617ca585d93234680b61c55e61db846c70b0e63f9f682dc4d3971e0c063db",
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "phase": "types",
+          "category": "Unsupported",
+          "code": "E-UNSUPPORTED",
+          "message": "POD Store elements expose only shared windows",
+          "span": {
+            "file": 0,
+            "start": 136,
+            "end": 157
+          },
+          "notes": []
+        }
+      ]
+    }
+  ]
+}

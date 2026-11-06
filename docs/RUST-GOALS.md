@@ -1,5 +1,11 @@
 # 每轮交付的 Rust 对照
 
+## 2026-11-06：普通 trait 逐调用借入迭代
+
+方法 life、关联 Item 与真实 receiver 来源贯通跨模块和实际 std.iter；未用泛型中的 Option 贷款、条件分支以及独立 raw/Wire 反例均可复跑。首轮误拒旧 SliceIter 与 Option 转发的回归已修复，原源码保留。默认5146/0、参考5034/0、文本70/0、双配置严格检查及 release/工程门通过，详见[共同验收](validation/G2.4.1-common-acceptance.json)。
+
+安全结论限于上述 profile；未增加隐式 Box/RC/锁、ABI 或默认额度。通用库可表达性有实证增量；同语义 Rust 运行/RSS、编译及维护成本未测，四目标合取及产品净优势未建立。资源宿主 lending、一般拥有集合、静态 trait 工厂、dyn/异步与原产品条件仍未完成。
+
 ## 2026-11-06：普通文本与共享借入迭代
 
 UTF8 字面量使用真实静态来源和既有只读切片，显式 String 构造保留失败清理；
