@@ -155,9 +155,7 @@ impl Check<'_, '_, '_> {
                         }
                         let mut substitutions = BTreeMap::new();
                         for (parameter, argument) in aggregate.generics.iter().zip(args) {
-                            if matches!(parameter.kind, GenericParamKind::Lifetime)
-                                && matches!(argument, GenericArg::Lifetime(_))
-                            {
+                            if matches!(parameter.kind, GenericParamKind::Lifetime) {
                                 // Preserve the complete declaration-ordered
                                 // Type/Life substitution, including any life
                                 // written in the field. Mutable qualification
