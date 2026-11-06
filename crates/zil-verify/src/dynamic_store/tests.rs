@@ -980,12 +980,13 @@ fn pod932_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
         span,
     };
     assert_eq!(
-        super::super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).unwrap(),
+        super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).unwrap(),
         Some(Type::Address {
             mutable: true,
             inner: Box::new(ty.clone()),
         })
     );
+    super::super::check_instruction(&m, f, &mutable, &mut Budget::new(&limits)).unwrap();
     f.locals[0].ty = ty.clone();
     let ordinary = Instruction {
         result: Some(ValueId(2)),
