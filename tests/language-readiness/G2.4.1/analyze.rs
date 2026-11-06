@@ -1,12 +1,17 @@
 //! Analyze's source-derived lending controls. Included by the existing driver
 //! borrow test target after the ordinary trait producer is integrated.
 use std::{fs, path::PathBuf};
-use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
+use zil_base::{
+    CompileResult, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile,
+};
 use zil_ir::{
     CoreImport, CoreProgram, InstructionKind, StorageBase, StorageBinder, Type, TypedModule,
 };
 
-fn lending_module(cursor_change: impl FnOnce(String) -> String) -> TypedModule {
+fn lending_core(
+    cursor_change: impl FnOnce(String) -> String,
+    limits: &Limits,
+) -> CompileResult<CoreProgram> {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/language-readiness/G2.4.1/project");
     let names = ["main", "api", "cursor", "consumer", "other"];
@@ -46,23 +51,111 @@ fn lending_module(cursor_change: impl FnOnce(String) -> String) -> TypedModule {
         vec![import("api", 1)],
         vec![import("api", 1)],
     ];
-    let limits = Limits::default();
     let expanded = zil_expand::expand_program_with_limits(
         &sources,
         &syntax.iter().collect::<Vec<_>>(),
         &imports,
-        &limits,
-    )
-    .unwrap();
+        limits,
+    )?;
     let modules = expanded.into_iter().map(|(module, _)| module).collect();
-    let program = CoreProgram {
+    Ok(CoreProgram {
         root: ModuleId(0),
         source_fingerprint: sources[0].fingerprint(),
         modules,
-    };
+    })
+}
+
+fn lending_module(cursor_change: impl FnOnce(String) -> String) -> TypedModule {
+    let limits = Limits::default();
+    let program = lending_core(cursor_change, &limits).unwrap();
     zil_types::check_program(&program, &TargetProfile::host_llvm(), &limits)
         .unwrap()
         .module
+}
+
+#[test]
+fn g2_4_1_source_core_and_types_have_exact_fresh_work_boundaries() {
+    let defaults = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let core = lending_core(|text| text, &defaults).unwrap();
+    let typed = zil_types::check_program(&core, &target, &defaults).unwrap();
+
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..defaults.clone()
+        };
+        match lending_core(|text| text, &limits) {
+            Ok(_) => high = middle,
+            Err(diagnostics)
+                if diagnostics
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = middle + 1
+            }
+            Err(diagnostics) => panic!("Expand boundary: {diagnostics:?}"),
+        }
+    }
+    assert!(low > 1);
+    for (n, success) in [(low, true), (low - 1, false), (low, true)] {
+        let limits = Limits {
+            max_analysis_steps: n,
+            ..defaults.clone()
+        };
+        if success {
+            assert_eq!(lending_core(|text| text, &limits).unwrap(), core);
+        } else {
+            let diagnostics = lending_core(|text| text, &limits).unwrap_err();
+            assert!(
+                diagnostics.iter().any(
+                    |d| d.phase == Phase::Expand && d.category == ResultCategory::ResourceLimit
+                ),
+                "{diagnostics:?}"
+            );
+        }
+    }
+    eprintln!("G2.4.1 source Core Expand work N={low}; N-1 ResourceLimit; fresh equality");
+
+    let (mut low, mut high) = (1, defaults.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let limits = Limits {
+            max_analysis_steps: middle,
+            ..defaults.clone()
+        };
+        match zil_types::check_program(&core, &target, &limits) {
+            Ok(_) => high = middle,
+            Err(diagnostics)
+                if diagnostics
+                    .iter()
+                    .any(|d| d.category == ResultCategory::ResourceLimit) =>
+            {
+                low = middle + 1
+            }
+            Err(diagnostics) => panic!("Types boundary: {diagnostics:?}"),
+        }
+    }
+    assert!(low > 1);
+    for (n, success) in [(low, true), (low - 1, false), (low, true)] {
+        let limits = Limits {
+            max_analysis_steps: n,
+            ..defaults.clone()
+        };
+        if success {
+            assert_eq!(
+                zil_types::check_program(&core, &target, &limits).unwrap(),
+                typed
+            );
+        } else {
+            let diagnostics = zil_types::check_program(&core, &target, &limits).unwrap_err();
+            assert!(diagnostics.iter().any(|d| d.phase == Phase::Types
+                && d.category == ResultCategory::ResourceLimit), "{diagnostics:?}");
+        }
+    }
+    eprintln!("G2.4.1 source Core direct Types work N={low}; N-1 ResourceLimit; fresh equality");
 }
 
 #[test]
