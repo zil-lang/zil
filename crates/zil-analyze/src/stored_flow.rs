@@ -948,7 +948,7 @@ fn returns(
             )?;
             if sources.iter().any(|s| {
                 !s.stored.is_empty()
-                    || !matches!(s.base,HoldRoot::Parameter(p)if bound.binary_search(&p).is_ok())
+                    || (s.base != HoldRoot::Static && !matches!(s.base,HoldRoot::Parameter(p)if bound.binary_search(&p).is_ok()))
             }) {
                 return Err(failure(
                     "actual returned target exceeds the existing direct reference upper",
@@ -960,6 +960,14 @@ fn returns(
         }
         let upper = binding(f, StorageBase::Result, path, b)?;
         for source in sources {
+            if source.base == HoldRoot::Static {
+                if !source.stored.is_empty() || !source.place.is_empty() {
+                    return Err(failure(
+                        "static UTF8 result cannot retain nested projections",
+                    ));
+                }
+                continue;
+            }
             let HoldRoot::Parameter(index) = source.base else {
                 return Err(failure("result retains local/captured target"));
             };
@@ -1377,6 +1385,9 @@ fn select(
             return Err(failure("stored target is not an inline carrier address"));
         }
         let slots = match root.base {
+            HoldRoot::Static => {
+                return Err(failure("static UTF8 cannot grant nested carrier slots"));
+            }
             HoldRoot::Local(local) => {
                 ordered(b, state.locals.len(), 0)?;
                 let Some(value) = state.locals.get(&local) else {
@@ -1417,6 +1428,18 @@ fn substitute(
     state: &State,
     b: &mut Budget,
 ) -> CompileResult<Permission> {
+    if source.base == HoldRoot::Static {
+        if !source.stored.is_empty() || !source.place.is_empty() {
+            return Err(failure(
+                "static UTF8 summary cannot carry nested projections",
+            ));
+        }
+        fee(b, 1)?;
+        return Ok(Permission {
+            targets: Targets::from([source.clone()]),
+            loans: Loans::new(),
+        });
+    }
     let HoldRoot::Parameter(index) = source.base else {
         return Err(failure(
             "callee result retains activation-local or captured storage",
@@ -1494,6 +1517,14 @@ fn transfer(
             .ok_or_else(|| failure("operand is outside actual values"))
     };
     match &i.kind {
+        InstructionKind::StaticUtf8 { .. } => {
+            fee(b, 1)?;
+            out.pointer.targets.insert(Target {
+                base: HoldRoot::Static,
+                stored: Vec::new(),
+                place: Vec::new(),
+            });
+        }
         InstructionKind::Load(local) => {
             ordered(b, state.locals.len(), 0)?;
             out = snapshot(
@@ -1870,6 +1901,20 @@ fn transfer(
         }
     }
     if let Some(result) = i.result
+        && b.static_utf8
+        && matches!(value_type(f, result)?, Type::Address { mutable: true, .. })
+    {
+        fee(b, out.pointer.targets.len())?;
+        if out
+            .pointer
+            .targets
+            .iter()
+            .any(|t| t.base == HoldRoot::Static)
+        {
+            return Err(failure("static UTF8 cannot produce a mutable address"));
+        }
+    }
+    if let Some(result) = i.result
         && matches!(
             i.kind,
             InstructionKind::BorrowLocal { .. }
@@ -2039,6 +2084,18 @@ fn use_permission(
 ) -> CompileResult<()> {
     if permission.targets.is_empty() {
         return Err(failure("address access has no actual target permission"));
+    }
+    if b.static_utf8 {
+        fee(b, permission.targets.len())?;
+    }
+    if b.static_utf8
+        && write
+        && permission
+            .targets
+            .iter()
+            .any(|t| t.base == HoldRoot::Static)
+    {
+        return Err(failure("program-static UTF8 has no mutable authority"));
     }
     let ignore = ancestry(&permission.loans, loans, b)?;
     for id in active {
@@ -2609,7 +2666,7 @@ pub(super) fn derive(
                                     .saturating_mul(row.len().saturating_add(1))
                                     .saturating_add(1),
                             )?;
-                            if !matches!(target.base, HoldRoot::Parameter(_))
+                            if !matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Static)
                                 && !(matches!(target.base, HoldRoot::Capture(_))
                                     && f.environment
                                         .and_then(|id| module.closures.get(id.0 as usize))
@@ -2866,7 +2923,8 @@ fn actual_instructions(
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
-                    InstructionKind::Constant(_)
+                    InstructionKind::StaticUtf8 { .. }
+                        | InstructionKind::Constant(_)
                         | InstructionKind::Load(_)
                         | InstructionKind::Store { .. }
                         | InstructionKind::StorageLive(_)

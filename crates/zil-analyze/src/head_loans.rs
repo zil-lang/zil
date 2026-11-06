@@ -6,6 +6,7 @@ use std::collections::BTreeMap;
 type Loans = BTreeSet<usize>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum LoanRoot {
+    Static,
     Local(LocalId),
     Parameter(u32, Vec<u32>),
     Capture(u32, Vec<u32>),
@@ -13,6 +14,7 @@ enum LoanRoot {
 impl LoanRoot {
     fn from_hold(root: HoldRoot) -> Self {
         match root {
+            HoldRoot::Static => Self::Static,
             HoldRoot::Local(l) => Self::Local(l),
             HoldRoot::Parameter(p) => Self::Parameter(p, vec![]),
             HoldRoot::Capture(c) => Self::Capture(c, vec![]),
@@ -20,7 +22,7 @@ impl LoanRoot {
     }
     fn path(&self) -> &[u32] {
         match self {
-            Self::Local(_) => &[],
+            Self::Static | Self::Local(_) => &[],
             Self::Parameter(_, p) | Self::Capture(_, p) => p,
         }
     }
@@ -254,7 +256,7 @@ fn external(
 ) -> CompileResult<bool> {
     let (module, f) = context;
     let (mut ty, path) = match root {
-        LoanRoot::Local(_) => return Ok(false),
+        LoanRoot::Static | LoanRoot::Local(_) => return Ok(false),
         LoanRoot::Parameter(i, path) => (&f.locals[f.parameters[*i as usize].0 as usize].ty, path),
         LoanRoot::Capture(i, path) => (
             &module.closures[f
@@ -332,8 +334,10 @@ fn actual_root(
                 full,
             )
         }
-        LoanRoot::Local(_) => {
-            return Err(bad("local root cannot enter a head separation contract"));
+        LoanRoot::Static | LoanRoot::Local(_) => {
+            return Err(bad(
+                "local or static root cannot enter a head separation contract",
+            ));
         }
     };
     path_lookup(carrier.len(), path.len(), b)?;

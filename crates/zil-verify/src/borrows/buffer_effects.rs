@@ -26,12 +26,13 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
             module,
             function,
             match origin {
+                HoldRoot::Static => Root::Static,
                 HoldRoot::Local(l) => Root::Local(l),
                 HoldRoot::Parameter(p) => Root::Parameter(p),
                 HoldRoot::Capture(c) => Root::Capture(c),
             },
         ),
-        Root::Local(_) | Root::Field(..) | Root::Projection(..) => false,
+        Root::Static | Root::Local(_) | Root::Field(..) | Root::Projection(..) => false,
     }
 }
 

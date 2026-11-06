@@ -16,6 +16,8 @@ fn exhausted(context: &str) -> Vec<Diagnostic> {
 
 pub(super) struct Budget {
     remaining: usize,
+    // Derived from raw instructions; only avoids work in unaffected modules.
+    pub(super) static_utf8: bool,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -63,6 +65,7 @@ impl Budget {
     pub(super) fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            static_utf8: false,
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -1653,6 +1656,27 @@ pub(super) fn preflight(
                         sum_function = true;
                         if local.0 as usize >= function.locals.len() {
                             return Err(bad("DropEnum local outside table"));
+                        }
+                    }
+                    InstructionKind::StaticUtf8 { bytes } => {
+                        budget.static_utf8 = true;
+                        count(0, bytes.len(), limits.max_nodes, "static UTF8 bytes")?;
+                        // Pay for validation, fingerprinting and owned cache-key copies
+                        // before inspecting any caller-built byte vector.
+                        budget.input(bytes.len(), "static UTF8 bytes")?;
+                        budget.spend(bytes.len(), "static UTF8 validation")?;
+                        if std::str::from_utf8(bytes).is_err() {
+                            return Err(bad("static UTF8 instruction contains invalid UTF8"));
+                        }
+                        let valid = instruction.result
+                            .and_then(|id| function.values.get(id.0 as usize))
+                            .is_some_and(|ty| matches!(ty,
+                                Type::Address { mutable: false, inner }
+                                if matches!(inner.as_ref(), Type::Slice { element } if **element == Type::U8)));
+                        if !valid {
+                            return Err(bad(
+                                "static UTF8 requires exactly an immutable byte slice result",
+                            ));
                         }
                     }
                     InstructionKind::Constant(Constant::WideString(units)) => {

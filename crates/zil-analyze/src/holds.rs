@@ -8,6 +8,7 @@ mod replacement_pins;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 enum Root {
+    Static,
     Local(LocalId),
     Field(LocalId, u32),
     Projection(LocalId, u32, u32),
@@ -38,6 +39,7 @@ impl Root {
     }
     fn retained(self) -> Self {
         match self.position() {
+            Self::Static => Self::Static,
             Self::Local(local) => Self::RetainedLocal(local),
             Self::Field(local, index) => Self::RetainedField(local, index),
             Self::Projection(local, start, end) => Self::RetainedProjection(local, start, end),
@@ -1802,6 +1804,10 @@ fn infer_with_private(
                 {
                     for root in &summaries[definition.function.0 as usize] {
                         budget.spend(1, "invocation callback result substitution")?;
+                        if *root == Root::Static {
+                            found.insert(Root::Static);
+                            continue;
+                        }
                         let Root::Parameter(index) = root else {
                             return Err(bad("invocation result has a non-input summary"));
                         };
@@ -1812,6 +1818,10 @@ fn infer_with_private(
                     }
                 } else {
                     match &instruction.kind {
+                        InstructionKind::StaticUtf8 { .. } => {
+                            budget.spend(1, "actual program-static UTF8 root")?;
+                            found.insert(Root::Static);
+                        }
                         InstructionKind::DescribeLocal { local } if matches!(&f.locals[local.0 as usize].ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. })) =>
                         {
                             found.insert(Root::Local(*local));
@@ -2049,6 +2059,10 @@ fn infer_with_private(
                                 .ok_or_else(|| bad("call refers to an absent function"))?;
                             for root in incoming {
                                 budget.spend(1, "call result Hold substitution")?;
+                                if *root == Root::Static {
+                                    found.insert(Root::Static);
+                                    continue;
+                                }
                                 let Root::Parameter(index) = root else {
                                     return Err(bad("call summary has a non-parameter root"));
                                 };
@@ -2176,12 +2190,28 @@ fn infer_with_private(
         budget.spend(work, "private Product actual provenance copy")?;
         *private = values.clone();
     }
+    if budget.static_utf8 {
+        for (ty, roots) in f.values.iter().zip(&values) {
+            budget.spend(
+                roots.len().saturating_add(1),
+                "static mutable result qualification",
+            )?;
+            if matches!(ty, Type::Address { mutable: true, .. })
+                && roots.iter().any(|root| root.position() == Root::Static)
+            {
+                return Err(bad(
+                    "program-static UTF8 cannot grant mutable address authority",
+                ));
+            }
+        }
+    }
     let mut exported = Vec::with_capacity(values.len());
     for (value, roots) in values.into_iter().enumerate() {
         let mut coarse = BTreeSet::new();
         for root in roots {
             budget.lookup(coarse.len(), "public Hold projection")?;
             coarse.insert(match root {
+                Root::Static => HoldRoot::Static,
                 Root::Local(local)
                 | Root::Field(local, _)
                 | Root::Projection(local, ..)
@@ -3390,8 +3420,14 @@ fn infer_module_inner(
                         .ok_or_else(|| bad("return outside Hold table"))?;
                     for root in &roots.roots {
                         budget.spend(1, "return parameter origin")?;
-                        if let HoldRoot::Parameter(index) = root {
-                            result.insert(Root::Parameter(*index));
+                        match root {
+                            HoldRoot::Static => {
+                                result.insert(Root::Static);
+                            }
+                            HoldRoot::Parameter(index) => {
+                                result.insert(Root::Parameter(*index));
+                            }
+                            _ => {}
                         }
                     }
                     if capture_returns {
