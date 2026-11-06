@@ -1,0 +1,33 @@
+{
+  "task": "G9.3.1",
+  "slice": "backend",
+  "author": "/root/general_text_backend",
+  "source_commit": "78a3a8e3dbbafd369d8649d3262c8d3fc4fa933f",
+  "shared_base": "967e6e74a546acf21f18acd24e91ce8318361344",
+  "kernel_test_dependency": "208f374d2",
+  "schema_version": 43,
+  "profile": "debug/default limits, existing shared target, jobs=1",
+  "scope": "Backend raw TypedIR and structured-machine behavior; Lower copy component budgets. Not source/native acceptance or full suite.",
+  "rustc": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "started_utc": "2026-11-06T09:19:28.003060+00:00",
+  "commands": [
+    {
+      "argv": [
+        "cargo",
+        "test",
+        "-p",
+        "zil-backend-llvm",
+        "--lib",
+        "static_utf8",
+        "-j1"
+      ],
+      "exit_code": 101,
+      "elapsed_seconds": 8.515,
+      "stdout": "\nrunning 4 tests\ntest object_cache::tests::static_utf8_cache_key_binds_exact_bytes_length_and_immutable_storage ... ok\ntest machine_cgu::tests::static_utf8_private_exact_data_stays_with_its_users_once ... ok\ntest tests::static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter ... FAILED\ntest tests::static_utf8_raw_lir_comparison_and_machine_inventory_have_exact_fresh_budgets ... ok\n\nfailures:\n\n---- tests::static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter stdout ----\n\nthread 'tests::static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter' (12411) panicked at crates/zil-backend-llvm/src/tests.rs:298:13:\nassertion failed: instructions.iter().any(|instruction|\n        matches!(&instruction.op, Op::Insert { index: 0, field, .. } if\n            field.value == Val::Global(global.name.clone())))\nnote: run with `RUST_BACKTRACE=1` environment variable to display a backtrace\n\n\nfailures:\n    tests::static_utf8_uses_exact_private_bytes_and_existing_slice_in_every_common_emitter\n\ntest result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 155 filtered out; finished in 0.00s\n\n",
+      "stderr": "   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-G9.3.1-backend/crates/zil-backend-llvm)\n    Finished `test` profile [unoptimized] target(s) in 8.47s\n     Running unittests src/lib.rs (/workspace/.zil-env/target/debug/deps/zil_backend_llvm-3fac71dfa082faed)\nerror: test failed, to rerun pass `-p zil-backend-llvm --lib`\n"
+    }
+  ],
+  "status": "Fail",
+  "finished_utc": "2026-11-06T09:19:36.518819+00:00",
+  "finding": "After selecting zil.fn.0, test still inspected only the prologue block; corrected to inspect every actual CFG block. Production implementation unchanged."
+}
