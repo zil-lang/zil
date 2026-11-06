@@ -1687,7 +1687,9 @@ fn transfer(
                 }
                 if path.is_empty() {
                     out.pointer = permission;
-                } else if !out.option_variants.none() {
+                } else if !option_address::candidate(&callee.return_type)
+                    || out.option_variants.mask() & 2 != 0
+                {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
                     out.slots.insert(path.clone(), permission);

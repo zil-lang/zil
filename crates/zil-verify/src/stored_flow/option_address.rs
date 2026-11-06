@@ -220,9 +220,6 @@ impl Variants {
     pub(super) fn mask(&self) -> u8 {
         self.constructed | if self.inputs.is_empty() { 0 } else { 3 }
     }
-    pub(super) fn none(&self) -> bool {
-        self.mask() == 1
-    }
     pub(super) fn work(&self, b: &mut Budget) -> Check<()> {
         if self.mask() != 0 {
             let n = self.inputs.len().saturating_add(1);

@@ -1609,7 +1609,9 @@ fn step(
                 }
                 if path.is_empty() {
                     out.address = p;
-                } else if !out.option_variants.none() {
+                } else if !option_address::candidate(&callee.return_type)
+                    || out.option_variants.mask() & 2 != 0
+                {
                     add_leaf(&mut out, path, &p, b)?;
                 }
             }
