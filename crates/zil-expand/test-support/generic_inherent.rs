@@ -116,6 +116,8 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
             zil_expand::expand_with_map_limits(&source, &ast, limits)
         });
         eprintln!("inherent budget work={work} N={amount}");
+        // Measured in the combined b0839a97 Source-to-Core run.
+        assert_eq!(amount, if work { 1431 } else { 484 });
 
         let mut limits = Limits::default();
         if work {
@@ -150,9 +152,14 @@ fn inherent_specialization_preserves_exact_request_boundaries() {
 
 #[test]
 fn generic_inherent_visibility_uses_the_declaring_module() {
-    for public in [true, false] {
+    for (owner_public, public, factory) in [
+        (true, true, false),
+        (true, false, false),
+        (false, true, true),
+    ] {
         let declaration = format!(
-            "pub struct Box<T:Copy>{{pub value:T}} impl<T:Copy> Box<T>{{{}fn get(self:&Self)->T{{return self.value}}}}",
+            "{}struct Box<T:Copy>{{pub value:T}} impl<T:Copy> Box<T>{{{}fn get(self:&Self)->T{{return self.value}}}} pub fn make()->Box<i32>{{return Box::<i32>{{value:42}}}}",
+            if owner_public { "pub " } else { "" },
             if public { "pub " } else { "" }
         );
         let sources = [
@@ -160,7 +167,11 @@ fn generic_inherent_visibility_uses_the_declaring_module() {
                 FileId(0),
                 ModuleId(0),
                 "main.zil",
-                "import data\nfn result()->i32{let value=data.Box::<i32>{value:42};return value.get()}",
+                if factory {
+                    "import data\nfn result()->i32{let value=data.make();return value.get()}"
+                } else {
+                    "import data\nfn result()->i32{let value=data.Box::<i32>{value:42};return value.get()}"
+                },
             ),
             SourceUnit::new(FileId(1), ModuleId(1), "data.zil", declaration),
         ];
@@ -189,7 +200,7 @@ fn generic_inherent_visibility_uses_the_declaring_module() {
                 declarations: zil_expand::source_context::DeclarationPlacement::Original,
             },
         );
-        if public {
+        if owner_public && public {
             result.unwrap_or_else(|errors| panic!("{errors:#?}"));
         } else {
             let errors = result.unwrap_err();
