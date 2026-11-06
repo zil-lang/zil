@@ -1,0 +1,409 @@
+{
+  "task": "G9.3.1",
+  "status": "AuthorFocusedPass",
+  "source_commit": "0fc67dd1246b0683a095f7e2516b2dd3d7d701a5",
+  "baseline": "c63001c8ec43909d2c41ca314c32e465f531711f",
+  "schema_version": 43,
+  "wire_version": 43,
+  "spec_hash_at_base": "e235b19010325a125338f764f9e75b8ab6dd612f75ea4915e4761edd4a7e0b7a",
+  "normative_hash_at_base": "e938daf9f797c6790549c578e25d474d6eafeba20bf50ee51b282fbaa653f80b",
+  "contract": "changes/G9.3.1-utf8-literals.md; root accepted public literal/static-origin design; normative publication integration-owned",
+  "toolchain": {
+    "rustc": "1.99.1 (58cf8f9c3 2026-10-13)",
+    "clang": "23.1.4",
+    "llvm_api": "23.1.4"
+  },
+  "profile": {
+    "cargo_jobs": 1,
+    "debug": 0,
+    "strip": "symbols",
+    "incremental": false,
+    "target_dir": "/workspace/.zil-env/target-G9.3.1",
+    "runtime_target": "x86_64-unknown-linux-gnu"
+  },
+  "commands": [
+    {
+      "command": "cargo check -p zil-types -j1",
+      "result": "Pass",
+      "scope": "ordinary literal Types production"
+    },
+    {
+      "command": "cargo test -p zil-types --lib utf8_ -j1 -- --nocapture",
+      "result": "Pass",
+      "tests": 3,
+      "failed": 0,
+      "exact_work_N": 59,
+      "N_minus_1": "ResourceLimit",
+      "fresh_N": "identical TypedModule",
+      "log": "types-final.log",
+      "source_binding": "b7a7a44243e46067bc57ddf556952a90fee2777d; production identical at final source"
+    },
+    {
+      "command": "cargo test -p zil-ir --lib static_utf8_43 -j1 -- --nocapture",
+      "result": "Pass",
+      "tests": 1,
+      "failed": 0,
+      "scope": "Wire/fingerprint/truncation/forged count/untrusted bytes transport; not kernel admission"
+    },
+    {
+      "command": "cargo test -p zil-driver --test cross_function_borrows g931_ -j1 -- --nocapture",
+      "result": "Pass",
+      "tests": 4,
+      "failed": 0,
+      "source_commit": "b7a7a44243e46067bc57ddf556952a90fee2777d",
+      "log": "source-default.log"
+    },
+    {
+      "command": "ZIL_TEST_REPORT_DIR=/tmp/G9.3.1-validation/artifacts cargo test -p zil-driver --features llvm-api --test cross_function_borrows g931_ -j1 -- --nocapture",
+      "result": "Pass",
+      "tests": 4,
+      "failed": 0,
+      "source_commit": "0fc67dd1246b0683a095f7e2516b2dd3d7d701a5",
+      "log": "source-artifacts.log"
+    }
+  ],
+  "source_controls": {
+    "backends": [
+      "Clang",
+      "LlvmApi"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "literal": [
+      "exact UTF8 Unicode bytes",
+      "empty string",
+      "embedded NUL",
+      "scalar escapes",
+      "combining sequence distinct from normalized scalar",
+      "ordinary helper call/return",
+      "direct index/len/slice"
+    ],
+    "literal_allocator_calls": 0,
+    "owned": [
+      "explicit std.string from_utf8",
+      "clone",
+      "append/replace",
+      "empty capacity0",
+      "real fail_at1/fail_at2"
+    ],
+    "owning_failure_live_owners": 0,
+    "capacity_rejection_allocator_calls": 0,
+    "two_module_export": [
+      "title/empty static_storage=true and empty parameters",
+      "forward static_storage=false and parameters=[0]",
+      "warm session library body replacement with local return rejected at Verify"
+    ],
+    "negative": [
+      "Types E-ADDRESS-PERMISSION for mutable consumer",
+      "Verify rejection of returned local slice",
+      "Ct E-CT-FORBIDDEN for explicit &[u8] CT query"
+    ],
+    "actual_source_byte_N": 39,
+    "byte_N_minus_1": "ResourceLimit",
+    "fresh_byte_N": "Success"
+  },
+  "artifact_receipts": [
+    {
+      "input_fingerprint": "e1c67221d1697d7ac3a1809090883f8cf5ccb82d3aa1289f252723233cc53a10",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "3d58885c9f0f414c66c3d2fd29aeba2031e1db50582d40f393a77dd0ae6edadd",
+          "bytes": 34560
+        },
+        {
+          "name": "llvm",
+          "sha256": "18c2e4bcd016343b117b3745d3dfc3ab6ec95ad2b8ee9545f85ce5d0eb42dc14",
+          "bytes": 125198
+        }
+      ],
+      "consumer": "capacity-Clang-O0"
+    },
+    {
+      "input_fingerprint": "ed80cf806e6d6e694e91734e7c982e63f3cc82965771b57cc9e26cff39d4adb6",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "46fb8a022e48111378b2b900f7d779f554eaace319e855aad1f8136851080b6c",
+          "bytes": 22064
+        },
+        {
+          "name": "llvm",
+          "sha256": "a3c491514bbd264f6edaafe9633c2afd65a755b519020f006e615367383cb23a",
+          "bytes": 125198
+        }
+      ],
+      "consumer": "capacity-Clang-O2"
+    },
+    {
+      "input_fingerprint": "e725e52f92070ed35882a6762fec01ce4ea7f65ccf3eaf918be9eaec25efb00d",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "c99c7c61e0bd1b25fad3d688196ce1d7a326eaa3b57faaddebb89e239b5f5a73",
+          "bytes": 34560
+        },
+        {
+          "name": "llvm",
+          "sha256": "1fda061f3d85d9d8939cad82e1dda9503e07519baabc0c56a190c2f7ab5daf0e",
+          "bytes": 125198
+        }
+      ],
+      "consumer": "capacity-LlvmApi-O0"
+    },
+    {
+      "input_fingerprint": "eb65f2953aad067a2843ec65dd4df2e0031706ac72d6ddb6a73bca4d2d9fa95f",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "cbd5a50db13dfebe794781745b743f4a048b8dfc9238d14a8e648a1994d2314b",
+          "bytes": 22064
+        },
+        {
+          "name": "llvm",
+          "sha256": "23c5d7cdb14dadf63f28103080a3004fbaaae42d9a6aa2aacf29ecdf248eb5e7",
+          "bytes": 125198
+        }
+      ],
+      "consumer": "capacity-LlvmApi-O2"
+    },
+    {
+      "input_fingerprint": "1e1d3bcafc8e135baf0cae2b48567978dc89366aa1704b94d407932212fbc479",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "1e6cc2e235344e2e461b96e6407e1e18de326c361be69a4ca9c7c0736850bbc7",
+          "bytes": 17120
+        },
+        {
+          "name": "llvm",
+          "sha256": "eeef6c1cafc57ce04d05c13c0fb72229931297d8617d328b9cc02b09aec57f9f",
+          "bytes": 9682
+        }
+      ],
+      "consumer": "literal-Clang-O0"
+    },
+    {
+      "input_fingerprint": "27ad3b9de727086a0a5e24ffa2addfe403e5b74b4a5c538a11d3dc7d360ce9b0",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "cbfb2aec091bbc351bf65dc52a5277ae0c8f0d2fad5dc489502e88cb31d158ca",
+          "bytes": 17120
+        },
+        {
+          "name": "llvm",
+          "sha256": "bc93274dea4494a386cf7269fd542cda311539b3a17ed41f11e77d93a628455c",
+          "bytes": 9682
+        }
+      ],
+      "consumer": "literal-Clang-O2"
+    },
+    {
+      "input_fingerprint": "da949c7cad4b8a43e9587f77cd09b271ac579f09538e3786dbbe9d618fa6b23a",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "2c4b7b2060b741133bade189cbf24224418a284aea0fcedd1d7cb2311161cbb6",
+          "bytes": 17112
+        },
+        {
+          "name": "llvm",
+          "sha256": "4b6ad815866c8510c01a0a3c5e590ebef58a61f309773d8a009fa34fbbe7d109",
+          "bytes": 9682
+        }
+      ],
+      "consumer": "literal-LlvmApi-O0"
+    },
+    {
+      "input_fingerprint": "8802406601596c070ff86843b15d55cf9cd3b13ee25b4d44032abf3e2981f212",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "43e12e9e92b20ad68f7d7bae40941abed0207aea58bd04c2009369a4db191593",
+          "bytes": 17112
+        },
+        {
+          "name": "llvm",
+          "sha256": "bd752fa9046fc276b3e305b757533b22c9340add9a37d5637af0b405ddd95f45",
+          "bytes": 9682
+        }
+      ],
+      "consumer": "literal-LlvmApi-O2"
+    },
+    {
+      "input_fingerprint": "fbe87872f23af7b6c5d2038300f382abc7c99e3218cd2e7dd3642893c73a9f84",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "72ed2efd217245b686b48df29fe9cb9bad76e11048b8598b6799cb57aff599d7",
+          "bytes": 38656
+        },
+        {
+          "name": "llvm",
+          "sha256": "b65501c419b45c1be3e18b312c57eb06611cbe87a825c58ad649be5a17d3f0a6",
+          "bytes": 142172
+        }
+      ],
+      "consumer": "owned-Clang-O0"
+    },
+    {
+      "input_fingerprint": "e9ee224bfded7a3b7ddf26806e4df0ebee45ad0d80912fea9248c725e6aa403c",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "c818bd936246da5ff6105212e7aaa0e502fe16ff22df1c24ae4cb8bae7ef845a",
+          "bytes": 22064
+        },
+        {
+          "name": "llvm",
+          "sha256": "0d92cc0b794a8741e1f682fe189f4376d1bd8e200e3a50ee328e5a6854680bf2",
+          "bytes": 142172
+        }
+      ],
+      "consumer": "owned-Clang-O2"
+    },
+    {
+      "input_fingerprint": "3b7a1f390f5227dce289bb46106b8fcc160c51f9b12a46e8a8c585bdb5586ab6",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "d0867225ca3c990c3e53821e401cdc0b19b2cc3c300cbe4c9189aa43c6f2e921",
+          "bytes": 34560
+        },
+        {
+          "name": "llvm",
+          "sha256": "d4916c3b8ec4d4acbf3411b9221fe36c17b4c50ac48ef5aa3b7231d8ef5de8c0",
+          "bytes": 142172
+        }
+      ],
+      "consumer": "owned-LlvmApi-O0"
+    },
+    {
+      "input_fingerprint": "c26b9f9ff136e27d78fc8dcdfc495bec7e58282b9ee5a9a13ed693a51cb9351d",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "187ffc650e26d68e047f28e6b4f5ec33534ccdf233a7f70c250f9158d504c5ab",
+          "bytes": 22064
+        },
+        {
+          "name": "llvm",
+          "sha256": "3251bdf42e523e5f8776914a43103dd684a64bbc77aa426f374085cddffc418b",
+          "bytes": 142172
+        }
+      ],
+      "consumer": "owned-LlvmApi-O2"
+    },
+    {
+      "input_fingerprint": "f666624ee2ba93191aa43f317923c5b9311c2c63b2a92172f2bee1f6b05cc50d",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "3486ea332daaa16c07de5b0cc791b087a0ed7f36793cf3566b095c14c2db9a64",
+          "bytes": 16008
+        },
+        {
+          "name": "llvm",
+          "sha256": "67ad314356a638cbb08e9b2746cf4da0346197b601164a2c4e2bf2d27790a644",
+          "bytes": 3270
+        }
+      ],
+      "consumer": "two-module-Clang"
+    },
+    {
+      "input_fingerprint": "f666624ee2ba93191aa43f317923c5b9311c2c63b2a92172f2bee1f6b05cc50d",
+      "status": "Success",
+      "verification_runs": 1,
+      "artifacts": [
+        {
+          "name": "executable",
+          "sha256": "db7372728a7d28241e0f96fa9af43c154aa74227f41d5b6c5c991df0bca2d29a",
+          "bytes": 16008
+        },
+        {
+          "name": "llvm",
+          "sha256": "67ad314356a638cbb08e9b2746cf4da0346197b601164a2c4e2bf2d27790a644",
+          "bytes": 3270
+        }
+      ],
+      "consumer": "two-module-LlvmApi"
+    }
+  ],
+  "fixture_sha256": {
+    "tests/language-readiness/G9.3.1/capacity-invalid.zil": "13e677453a7d900cb2193b60b19e15b9d0546598e1738d0d8a7fd83955a4ff9a",
+    "tests/language-readiness/G9.3.1/ct-invalid.zil": "4248d3fac7c53923b418f00e0a46bdfa474a343f778a09ca894eb0fc3dac6dda",
+    "tests/language-readiness/G9.3.1/literal.zil": "34aab42f1344180ad413a2ba503bdc4d68015e377b20762863529c139fe2908b",
+    "tests/language-readiness/G9.3.1/local-return-invalid.zil": "37f312c4e76601436bf255c35640835e32ac536b795671a109854b6a56ed642f",
+    "tests/language-readiness/G9.3.1/mutable-invalid.zil": "e67971015e8743baec870d410762bf3108ad5fcfe12fb29b5784c6abe92ed949",
+    "tests/language-readiness/G9.3.1/owned.zil": "8af2fb1452bb969347b0279a2dadb62f94d24468a905a57ba10bb5653ee354a4",
+    "tests/language-readiness/G9.3.1/static_library.zil": "30c631466f90f00e543983ed3741833fc09575f78324dda6f63c11ef91460a4f"
+  },
+  "logs": {
+    "source-api.log": {
+      "sha256": "f68751bc62a46ea356a63576e086fcba587ae6685f8d823c66858e0e2d2c52c5",
+      "stdout_stderr": "   Compiling zil-llvm-api v0.1.0 (/workspace/zil-G9.3.1/crates/zil-llvm-api)\n   Compiling zil-backend-llvm v0.1.0 (/workspace/zil-G9.3.1/crates/zil-backend-llvm)\n   Compiling zil-types v0.1.0 (/workspace/zil-G9.3.1/crates/zil-types)\n   Compiling zil-driver v0.1.0 (/workspace/zil-G9.3.1/crates/zil-driver)\n    Finished `test` profile [unoptimized] target(s) in 27.57s\n     Running tests/cross_function_borrows.rs (/workspace/.zil-env/target-G9.3.1/debug/deps/cross_function_borrows-aea7de94db12f456)\n\nrunning 4 tests\nUTF8 actual Source byte budget N=39; N-1 ResourceLimit; fresh N accepted\ntest utf8_literals_g931::g931_source_byte_budget_exact_and_fresh_retry ... ok\ntest utf8_literals_g931::g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type ... ok\ntest utf8_literals_g931::g931_two_module_static_returns_publish_explicit_verified_origin ... ok\ntest utf8_literals_g931::g931_real_source_native_utf8_exact_bytes_and_explicit_allocation ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 84 filtered out; finished in 2.45s\n\n"
+    },
+    "source-default.log": {
+      "sha256": "d8082fd421a43be6ad141cc8c3c4831c20be2e85f3c66b2394b33297637cba1e",
+      "stdout_stderr": "   Compiling zil-driver v0.1.0 (/workspace/zil-G9.3.1/crates/zil-driver)\n    Finished `test` profile [unoptimized] target(s) in 12.13s\n     Running tests/cross_function_borrows.rs (/workspace/.zil-env/target-G9.3.1/debug/deps/cross_function_borrows-ab0d929364646094)\n\nrunning 4 tests\nUTF8 actual Source byte budget N=39; N-1 ResourceLimit; fresh N accepted\ntest utf8_literals_g931::g931_source_byte_budget_exact_and_fresh_retry ... ok\ntest utf8_literals_g931::g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type ... ok\ntest utf8_literals_g931::g931_two_module_static_returns_publish_explicit_verified_origin ... ok\ntest utf8_literals_g931::g931_real_source_native_utf8_exact_bytes_and_explicit_allocation ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 84 filtered out; finished in 1.46s\n\n"
+    },
+    "source-artifacts.log": {
+      "sha256": "37e4c1593ae430c3963680fa2c47e8c0f82a199f4d8a58b2e45e152f031b9abf",
+      "stdout_stderr": "   Compiling zil-driver v0.1.0 (/workspace/zil-G9.3.1/crates/zil-driver)\n    Finished `test` profile [unoptimized] target(s) in 1.83s\n     Running tests/cross_function_borrows.rs (/workspace/.zil-env/target-G9.3.1/debug/deps/cross_function_borrows-aea7de94db12f456)\n\nrunning 4 tests\nUTF8 actual Source byte budget N=39; N-1 ResourceLimit; fresh N accepted\ntest utf8_literals_g931::g931_source_byte_budget_exact_and_fresh_retry ... ok\ntest utf8_literals_g931::g931_mutability_local_escape_and_ct_are_not_granted_by_literal_type ... ok\ntest utf8_literals_g931::g931_two_module_static_returns_publish_explicit_verified_origin ... ok\ntest utf8_literals_g931::g931_real_source_native_utf8_exact_bytes_and_explicit_allocation ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 84 filtered out; finished in 2.70s\n\n"
+    },
+    "types-final.log": {
+      "sha256": "4f1939bad4319b92fa4ca0b623a741d60ba183a41017d380e47a9c4109928a30",
+      "stdout_stderr": "   Compiling zil-types v0.1.0 (/workspace/zil-G9.3.1/crates/zil-types)\n    Finished `test` profile [unoptimized] target(s) in 10.99s\n     Running unittests src/lib.rs (/workspace/.zil-env/target-G9.3.1/debug/deps/zil_types-ddd1278fae1cbb55)\n\nrunning 3 tests\ntest utf8_literals::tests::scalar_decoding_preserves_utf8_empty_zero_and_escapes ... ok\ntest tests::utf8_runtime_core_produces_static_bytes_and_rejects_forged_spelling ... ok\nUTF8 Types exact N=59, N-1 ResourceLimit, fresh N identical\ntest tests::utf8_runtime_types_exact_work_boundary_and_fresh_retry ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 49 filtered out; finished in 0.00s\n\n"
+    }
+  },
+  "historical_failures": [
+    {
+      "kind": "BuildInfrastructure",
+      "detail": "Shared target contained older zil-ir metadata from another worktree: E0599 StaticUtf8/Static absent despite current source. Excluded from semantic rejection evidence; final runs use independent target."
+    },
+    {
+      "kind": "RetainedOracleMigration",
+      "detail": "Initial broad IR test build found a missing new-variant match in retained cp34 oracle. Added explicit panic outside its retained operation set and migrated its current module domain to V43; focused Wire --lib then passed. Archived legacy domains unchanged."
+    },
+    {
+      "kind": "TestExpectation",
+      "detail": "Original unannotated CT literal expected Unsupported but got Ct E-TYPE-MISMATCH through existing default i32 query inference. Explicit &[u8] fixture then correctly reached existing Ct E-CT-FORBIDDEN; assertion corrected to SafeReject. No production admission was widened."
+    }
+  ],
+  "limits": [
+    "Author focused evidence only; no independent review or full gate claim",
+    "14 machine compilation receipts in final API matrix, including repeated Clang/reference controls; executions and configurations are not aggregated as unique scenarios",
+    "No native Windows execution or same-semantics Rust runtime/RSS/compile/maintenance comparison",
+    "Static closure-return and general borrowed-storage aggregate profiles remain outside this slice",
+    "Existing default limits and product gates unchanged"
+  ]
+}
