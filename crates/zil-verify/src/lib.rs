@@ -77,6 +77,8 @@ mod resource_closure_tests;
 #[cfg(test)]
 mod resource_tests;
 mod resources;
+#[cfg(test)]
+mod static_utf8_tests;
 pub use resources::task_frames::{
     TaskDebtBoundary, TaskOwner, TaskOwnerAction, TaskOwnerActions, TaskOwnerSlot, TaskOwnership,
 };
@@ -270,6 +272,25 @@ impl VerifiedModule {
             .collect::<BTreeSet<_>>();
         Some(roots.into_iter().collect())
     }
+
+    /// Program-static storage actually returned by the independently checked CFG.
+    /// This observation cannot authorize a raw interface claim or mutable access.
+    pub fn result_has_static_origin(&self, function: FunctionId) -> Option<bool> {
+        let f = self.module().functions.get(function.0 as usize)?;
+        let plan = self.plan().functions.get(function.0 as usize)?;
+        if !matches!(f.return_type, Type::Address { .. }) {
+            return Some(false);
+        }
+        Some(f.blocks.iter().any(|block| {
+            if let Terminator::Return(Some(value)) = block.terminator {
+                plan.holds[value.0 as usize]
+                    .roots
+                    .contains(&HoldRoot::Static)
+            } else {
+                false
+            }
+        }))
+    }
 }
 
 /// A closed pure CT operation list whose types, dependencies, and budget were
@@ -298,6 +319,8 @@ fn limit(message: impl Into<String>) -> Diagnostic {
 
 struct Budget {
     remaining: usize,
+    // Derived from raw instructions; only avoids work in unaffected modules.
+    static_utf8: bool,
     sums: bool,
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
@@ -329,6 +352,7 @@ impl Budget {
     fn new(limits: &Limits) -> Self {
         Self {
             remaining: limits.max_analysis_steps,
+            static_utf8: false,
             sums: false,
             tasks: false,
             task_origin_roots: false,
@@ -771,6 +795,21 @@ fn check_module(
                     InstructionKind::CommitPlaceReplace { .. }
                     | InstructionKind::AbortPlaceReservation { .. } => {
                         budget.replacements = true;
+                    }
+                    InstructionKind::StaticUtf8 { bytes } => {
+                        budget.static_utf8 = true;
+                        if bytes.len() > limits.max_nodes {
+                            return Err(limit("static UTF8 byte count exceeds the raw bound"));
+                        }
+                        // Reserve byte validation and module fingerprint traversal first.
+                        budget.spend(bytes.len().saturating_mul(2))?;
+                        if std::str::from_utf8(bytes).is_err() {
+                            return Err(reject(
+                                "E-VERIFY-UTF8",
+                                Some(instruction.span),
+                                "program-static text contains invalid UTF8",
+                            ));
+                        }
                     }
                     InstructionKind::Constant(constant) => native_values::constant(
                         constant,
@@ -2120,6 +2159,12 @@ fn check_instruction(
             arguments,
             ..
         } => foreign::check_call(module, function, *callee, arguments, span, budget)?,
+        InstructionKind::StaticUtf8 { .. } => Some(Type::Address {
+            mutable: false,
+            inner: Box::new(Type::Slice {
+                element: Box::new(Type::U8),
+            }),
+        }),
         InstructionKind::Constant(constant) => Some(constant.ty()),
         InstructionKind::ConvertNumber { value, target } => Some(number_conversion(
             value_type(function, *value, span)?,
@@ -3358,7 +3403,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::BorrowPlaceAddress { address, .. }
         | InstructionKind::VariantTagAddress { address, .. }
         | InstructionKind::BorrowVariantAddress { address, .. } => ([Some(*address), None], &[]),
-        InstructionKind::Constant(_)
+        InstructionKind::StaticUtf8 { .. }
+        | InstructionKind::Constant(_)
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }
         | InstructionKind::BorrowVariantLocal { .. }

@@ -627,7 +627,8 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::TakeErrorUnion { value, .. }
         | InstructionKind::VariantTag { value }
         | InstructionKind::ReadVariant { value, .. } => (Some(*value), None, &[]),
-        InstructionKind::ByteBufferNew
+        InstructionKind::StaticUtf8 { .. }
+        | InstructionKind::ByteBufferNew
         | InstructionKind::RegisterDefer { .. }
         | InstructionKind::VariantTagLocal { .. }
         | InstructionKind::ReadVariantLocal { .. }

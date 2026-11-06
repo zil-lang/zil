@@ -73,9 +73,10 @@ pub(super) fn returns(
                     "life return source inclusion",
                 )?;
                 if row.roots.is_empty()
-                    || row.roots.iter().any(
-                        |r| !matches!(r,HoldRoot::Parameter(i) if bound.binary_search(i).is_ok()),
-                    )
+                    || row.roots.iter().any(|r| {
+                        *r != HoldRoot::Static
+                            && !matches!(r,HoldRoot::Parameter(i) if bound.binary_search(i).is_ok())
+                    })
                 {
                     return Err(error(
                         f,
