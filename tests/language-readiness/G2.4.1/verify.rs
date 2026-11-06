@@ -86,7 +86,28 @@ fn actual_receiver_is_checked_while_the_first_option_is_live() {
                 })
         })
         .collect();
-    assert_eq!(calls.len(), 2, "source must have two actual next calls");
+    assert_eq!(
+        calls.len(),
+        2,
+        "source must have two actual next calls; functions={:?}; main_calls={:?}",
+        module
+            .functions
+            .iter()
+            .map(|f| (&f.name, f.parameters.len(), f.storage_life.is_some()))
+            .collect::<Vec<_>>(),
+        module.functions[main]
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .filter_map(|i| match &i.kind {
+                InstructionKind::Call {
+                    function,
+                    arguments,
+                } => Some((function.0, arguments.len())),
+                _ => None,
+            })
+            .collect::<Vec<_>>()
+    );
     let (block, instruction, _) = calls[1];
     let InstructionKind::Call { arguments, .. } =
         &mut module.functions[main].blocks[block].instructions[instruction].kind
