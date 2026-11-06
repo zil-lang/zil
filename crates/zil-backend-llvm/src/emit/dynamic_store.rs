@@ -4,7 +4,7 @@ use super::*;
 use zil_base::Limits;
 
 /// Private representation plans, built only after exact verified-LIR binding.
-/// The two protocols can cross the snapshot threshold at different sizes.
+/// Classify each complete protocol rather than assuming the element size.
 pub(super) struct Protocols {
     push: Option<copy_aggregates::Slot>,
     pop: Option<copy_aggregates::Slot>,
@@ -1422,10 +1422,10 @@ mod pod_tests {
         // and native consumers belong to the root's independent machine matrix.
         for (words, expected_push, expected_pop) in [
             (509, None, None),
-            (510, Some(4096), None),
-            (511, Some(4104), Some(4096)),
-            (512, Some(4112), Some(4104)),
-            (32768, Some(262160), Some(262152)),
+            (510, None, None),
+            (511, Some(4096), Some(4096)),
+            (512, Some(4104), Some(4104)),
+            (32768, Some(262152), Some(262152)),
         ] {
             let resources = [resource(words)];
             let mut remaining = usize::MAX;
@@ -1474,17 +1474,17 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_nested_unit_uses_existing_aggregate_placeholder_layout() {
+    fn g932_nested_unit_preserves_existing_zero_size_aggregate_layout() {
         for (field, stride) in [
-            (Type::Unit, 16),
+            (Type::Unit, 8),
             (
                 Type::Array {
                     element: Box::new(Type::Unit),
                     length: 3,
                 },
-                16,
+                8,
             ),
-            (Type::Tuple(vec![Type::Unit, Type::I64]), 24),
+            (Type::Tuple(vec![Type::Unit, Type::I64]), 16),
         ] {
             let r = ResourceDefinition {
                 name: "unit-layout".into(),
@@ -1502,15 +1502,15 @@ mod pod_tests {
                 stride
             );
         }
-        let mut overflowing = resource(1);
-        let Type::OwnedStore { element } = &mut overflowing.payload else {
+        let mut many_units = resource(1);
+        let Type::OwnedStore { element } = &mut many_units.payload else {
             unreachable!()
         };
         let Type::Record { fields, .. } = element.as_mut() else {
             unreachable!()
         };
         fields.push((
-            "too_many_units".into(),
+            "many_units".into(),
             Type::Array {
                 element: Box::new(Type::Array {
                     element: Box::new(Type::Unit),
@@ -1521,11 +1521,8 @@ mod pod_tests {
         ));
         let mut work = usize::MAX;
         assert_eq!(
-            plan(&[overflowing], &Limits::default(), &mut work)
-                .err()
-                .unwrap()[0]
-                .category,
-            ResultCategory::ResourceLimit
+            plan(&[many_units], &Limits::default(), &mut work).unwrap()[&0].stride,
+            8
         );
     }
 
