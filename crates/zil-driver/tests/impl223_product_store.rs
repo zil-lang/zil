@@ -671,3 +671,6 @@ fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
 
 #[path = "../../../tests/language-readiness/G9.3.2/consumers.rs"]
 mod pod_collections;
+
+#[path = "../../../tests/language-readiness/G9.3.3/consumers.rs"]
+mod g933_consumers;

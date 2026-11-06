@@ -92,12 +92,12 @@ fn g932_actual_live_shared_view_blocks_same_root_mutations_with_spare_capacity()
 }
 
 #[test]
-fn g932_pod_store_mutable_view_is_rejected_without_banning_record_mutability() {
+fn g933_original_pod_mutable_source_is_accepted_without_banning_record_mutability() {
     let source = "struct Cell{value:i32}fn main(){let items:Store<Cell>=store_new();store_reserve(items,1);store_push(items,Cell{value:41});let view=store_at_mut(items,0);view.value=42}";
     let report = check("g932-store-mut", source, Stage::Verify);
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );

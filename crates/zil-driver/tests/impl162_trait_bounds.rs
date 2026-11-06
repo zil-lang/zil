@@ -1,6 +1,8 @@
 //! Ordinary nominal bounds are checked symbolically and at each instantiation.
 #[path = "../../../tests/language-readiness/G2.4.1/consumers.rs"]
 mod g241_consumers;
+#[path = "../../../tests/language-readiness/G2.4.2/consumers.rs"]
+mod g242_consumers;
 use std::{
     collections::BTreeMap,
     fs,

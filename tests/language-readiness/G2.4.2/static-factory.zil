@@ -1,0 +1,1 @@
+trait Factory{fn make<T:Copy>(value:T)->Self;}struct Cell{n:i32}impl Factory for Cell{fn make<T:Copy>(value:T)->Self{return Cell{n:7}}}fn main()->i32{return Cell.make::<i32>(3).n-7}
