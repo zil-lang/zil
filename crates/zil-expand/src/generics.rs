@@ -87,6 +87,8 @@ mod copy;
 mod enums;
 #[path = "generic_helper_graph.rs"]
 mod helper_graph;
+#[path = "generic_inherent.rs"]
+mod inherent;
 #[path = "generic_options.rs"]
 mod options;
 #[path = "generic_origins.rs"]
@@ -215,12 +217,19 @@ fn specialize_products_prepared<'a>(
     let mut has_associated = false;
     let mut has_generic_methods = false;
     let mut has_impl_recipes = false;
+    let mut has_inherent = false;
     let mut has_alias = false;
     for item in &module.items {
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
         has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
+        if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_none() && !i.generics.is_empty())
+        {
+            has_impl_recipes = true;
+            has_inherent = true;
+            names_budget.note_source_identity();
+        }
         if let ItemKind::Trait(declaration) = &item.kind {
             let (defaults, associated, methods) =
                 trait_defaults::features_with_methods(declaration, &mut names_budget)
@@ -329,7 +338,7 @@ fn specialize_products_prepared<'a>(
             &BTreeMap::new(),
             names_budget,
             products,
-            (has_associated, has_generic_methods),
+            (has_associated, has_generic_methods, has_inherent),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -349,7 +358,7 @@ fn specialize_products_prepared<'a>(
                     &aliased.pattern_types,
                     budget,
                     products,
-                    (has_associated, has_generic_methods),
+                    (has_associated, has_generic_methods, has_inherent),
                     runtime_ct,
                 )
             }
@@ -359,7 +368,7 @@ fn specialize_products_prepared<'a>(
                 &BTreeMap::new(),
                 budget,
                 products,
-                (has_associated, has_generic_methods),
+                (has_associated, has_generic_methods, has_inherent),
                 runtime_ct,
             ),
         }
@@ -397,7 +406,7 @@ fn specialize_products_prepared<'a>(
             &normalized.pattern_types,
             names_budget,
             products,
-            (has_associated, has_generic_methods),
+            (has_associated, has_generic_methods, has_inherent),
             runtime_ct,
         )
         .map(Cow::Owned)
@@ -423,7 +432,7 @@ fn specialize_products_prepared<'a>(
         &BTreeMap::new(),
         names_budget,
         products,
-        (has_associated, has_generic_methods),
+        (has_associated, has_generic_methods, has_inherent),
         runtime_ct,
     )
     .map(Cow::Owned)
@@ -436,12 +445,19 @@ fn specialize_with_budget<'a>(
     pattern_types: &'a BTreeMap<String, TypeRef>,
     mut budget: Budget<'a>,
     products: &mut products::Products,
-    type_features: (bool, bool),
+    type_features: (bool, bool, bool),
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
 ) -> R<Module> {
-    let (has_associated, has_generic_methods) = type_features;
-    source_life::validate(module, &mut budget)?;
+    let (has_associated, has_generic_methods, has_inherent) = type_features;
     let mut origins = products.origins.take();
+    let inherent = inherent::prepare(module, has_inherent, origins.as_mut(), &mut budget)?;
+    let module = inherent
+        .as_ref()
+        .map_or(module, |prepared| &prepared.module);
+    let inherent_methods = inherent
+        .as_ref()
+        .map_or(&[][..], |prepared| prepared.methods.as_slice());
+    source_life::validate(module, &mut budget)?;
     let methods =
         trait_methods::prepare(module, has_generic_methods, origins.as_ref(), &mut budget)?;
     let module = methods.as_ref().map_or(module, |prepared| &prepared.module);
@@ -460,12 +476,19 @@ fn specialize_with_budget<'a>(
         limits,
         pattern_types,
         origins.as_ref(),
+        inherent_methods,
         budget,
         runtime_ct,
     )?;
     engine.runtime_ct = runtime_ct;
     if !engine.nominal_binder_collision {
         return engine.run(module, products);
+    }
+    if !inherent_methods.is_empty() {
+        return Err(unsupported(
+            module.span,
+            "generic inherent binder collides with a nominal declaration",
+        ));
     }
     // Generated aggregates no longer carry the original generic declaration.
     // Protect actual nominal identities in the original, still-scoped AST,
@@ -476,6 +499,7 @@ fn specialize_with_budget<'a>(
         limits,
         pattern_types,
         origins.as_ref(),
+        inherent_methods,
         engine.budget,
         runtime_ct,
     )?;
@@ -490,6 +514,8 @@ fn specialize_with_budget<'a>(
 }
 
 struct Engine<'a> {
+    inherent_methods: &'a [inherent::Method],
+    inherent_instances: BTreeMap<String, (String, BTreeMap<String, TypeRef>)>,
     runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     runtime_calls: BTreeMap<usize, u32>,
     runtime_call: Option<u32>,
@@ -593,11 +619,14 @@ impl<'a> Engine<'a> {
         limits: &'a Limits,
         pattern_types: &'a BTreeMap<String, TypeRef>,
         origins: Option<&'a origins::Origins>,
+        inherent_methods: &'a [inherent::Method],
         mut budget: Budget<'a>,
         runtime_ct: Option<&'a dyn crate::runtime_ct::RuntimeCt>,
     ) -> R<Self> {
         let traits = trait_bounds::Index::with_origins(module, origins, &mut budget)?;
         let mut engine = Self {
+            inherent_methods,
+            inherent_instances: BTreeMap::new(),
             runtime_ct,
             runtime_calls: BTreeMap::new(),
             runtime_call: None,

@@ -2,6 +2,76 @@
 //! These private facts describe lexical type meaning, never loans or authority.
 use super::*;
 
+/// A mixed ordinary helper may compare qualified nominal source classes only
+/// when its written signature actually contains that nominal application.
+/// The nominal catalog and lexical life checker remain separate proof inputs.
+pub(super) fn qualified_signature(
+    function: &Function,
+    nominals: &BTreeMap<String, &Item>,
+    budget: &mut Budget<'_>,
+) -> R<bool> {
+    if !budget.has_stored_lifetimes() || !super::super::lifetimes::copy_life(function) {
+        return Ok(false);
+    }
+    struct Qualified<'a, 'b, 'l> {
+        nominals: &'a BTreeMap<String, &'a Item>,
+        budget: &'b mut Budget<'l>,
+        inside_nominal: bool,
+        found: bool,
+    }
+    impl crate::ct_selection::Visitor for Qualified<'_, '_, '_> {
+        fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
+            self.budget.node(span, depth).map_err(|e| vec![e])
+        }
+        fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
+            self.budget.text(text, span).map_err(|e| vec![e])
+        }
+        fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
+            let old = self.inside_nominal;
+            if let TypeKind::Named { path, args } = &ty.kind
+                && let [name] = path.as_slice()
+                && !args.is_empty()
+            {
+                self.budget.text(name, ty.span).map_err(|e| vec![e])?;
+                self.inside_nominal |= self.nominals.contains_key(name);
+                if self.inside_nominal {
+                    for argument in args {
+                        self.budget.node(ty.span, depth).map_err(|e| vec![e])?;
+                        self.found |= matches!(argument, GenericArg::Lifetime(_));
+                    }
+                }
+            }
+            self.found |= self.inside_nominal
+                && matches!(
+                    ty.kind,
+                    TypeKind::Reference {
+                        lifetime: Some(_),
+                        ..
+                    }
+                );
+            let result = crate::ct_selection::walk_type(self, ty, depth);
+            self.inside_nominal = old;
+            result
+        }
+    }
+    use crate::ct_selection::Visitor;
+    let mut visit = Qualified {
+        nominals,
+        budget,
+        inside_nominal: false,
+        found: false,
+    };
+    for ty in function
+        .params
+        .iter()
+        .map(|p| &p.ty)
+        .chain(function.return_type.iter())
+    {
+        visit.ty(ty, 0).map_err(|mut errors| errors.remove(0))?;
+    }
+    Ok(visit.found)
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Binder(usize, usize); // actual declaration in this walk, original full ordinal
 #[derive(Clone, PartialEq, Eq)]
