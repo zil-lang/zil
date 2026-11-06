@@ -12,9 +12,11 @@
     "f1d75dd0e",
     "34cdeef1a",
     "ae40fb6b7",
-    "3d667cf4d"
+    "3d667cf4d",
+    "4e9bde828",
+    "d74fdf895"
   ],
-  "status": "StaticReviewed_FunctionalMatrixPassed_LoopAndIndependentSourceNegativePending",
+  "status": "PassForReviewedFiniteScope_ReuseRootRun",
   "scope": {
     "included": [
       "crates/zil-types/src/stored.rs",
@@ -157,7 +159,7 @@
     "Review None joined with unresolved/ungrounded producer, None joined with Some, copied Some invalidated source, and actual original SliceIter loop",
     "Record any id(None) or general Option-parameter precision boundary explicitly rather than treating it as tested composition"
   ],
-  "acceptance": "Exact 3d667cf4d has no new blocking static finding in this review. Original a4cf None and comparison-fee findings are closed. Inspected root logs demonstrate the added Some/mixed/None value-match matrix and tag/condition/opcode raw/Wire controls; actual loop-backedge consumer and independent wrong-source negative execution remain pending, and original native SliceIter is codegen Unsupported. This record does not claim whole G3.4.1 or machine acceptance.",
+  "acceptance": "Recommend acceptance only for the reviewed sealed shared-Address Option consumers at 3d667cf4d with exact fixture d74fdf895 and the inspected clean rootb029 17/0 run. The two original findings and the actual loop/wrong-source execution gaps are closed. This is reused root execution, not independent reviewer execution. Whole G3.4.1, broader iterator/lending, native Windows, wide integer ABI and Rust product goals remain outside this finite verdict.",
   "initial_review": {
     "source_commit": "a4cf8ebfce1722622698b012719c39e85d98fdf6",
     "status": "ChangesRequested",
@@ -197,7 +199,7 @@
   },
   "pattern_extension": {
     "source_commit": "ae40fb6b78de1b01a938c51e70ceb06d5f12bba3",
-    "status": "ExactScopeReviewed_FunctionalMatrixPassInInspectedRootLog",
+    "status": "PassForExactConsumerAndRootFunctionalMatrix",
     "scope": [
       "crates/zil-types/src/enums.rs conditional_pattern",
       "crates/zil-types/src/enums.rs enum_match",
@@ -265,9 +267,78 @@
       }
     ]
   },
-  "open_dynamic_requirements": [
-    "Repair producer handling of the actual local Option name in loop patterns, then execute the None-to-Some backedge test and its real Parameter(0) root assertion",
-    "Retain the now-earlier source-class rejection with its true Expand phase; provide a source-derived raw/Wire actual-local-source mutation so independent consumer rejection is exercised rather than bypassed by upstream failure",
-    "Keep machine borrowed-Enum lowering and original native result42 separate from this consumer review; root owns downstream implementation and integration acceptance"
-  ]
+  "open_dynamic_requirements": [],
+  "fixture_reviewed_commit": "d74fdf895d55fc25b55dd4564b12c49f91794115",
+  "root_execution_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+  "actual_source_negative_review": {
+    "source_commit": "d74fdf895d55fc25b55dd4564b12c49f91794115",
+    "result": "Same-typed actual-source counterexample is valid; precise independent failure order retained",
+    "construction": "Good Source contains the unused local [i64;1] array and local_slice plus valid Some(&slice[0]). It first passes Types, Analyze and Verify. Change only Core Index.object from Name(slice) to Name(local_slice), then rerun Types successfully. Complete local/value types, block counts and instruction counts equal the positive body. Only candidate module fingerprint is refreshed.",
+    "source_early_rejection": {
+      "phase": "Expand",
+      "code": "E-UNSUPPORTED",
+      "message": "retained reference class needs its actual source class"
+    },
+    "analyze_raw_and_wire": {
+      "phase": "Analyze",
+      "code": "E-ANALYZE-IR",
+      "message": "stored target proof: stored return would retain an activation-local target"
+    },
+    "verify_raw_and_wire": {
+      "phase": "Verify",
+      "category": "SafeReject",
+      "code": "E-VERIFY-STORED",
+      "message": "stored target proof: actual target intersects a live incompatible loan"
+    },
+    "order": "Verify checks actual execution windows before final returned-origin rejection. The actual Some loan conflicts with cleanup of its activation-local array. This precise earlier source/loan failure is required; arbitrary errors, candidate width/type mismatch or upstream Source rejection cannot satisfy the downstream assertions."
+  },
+  "final_reused_root_run": {
+    "role": "Reviewer read root execution log and exact assertion code; reviewer did not run Cargo or execute these tests",
+    "source_commit": "b029abf78b0629ff126946a3153030b9e047e407",
+    "log": "/workspace/.zil-env/G10.1.12-all-final-preflight.log",
+    "sha256": "6a9fafa72d827b9ebd8ed1799ce9fcd01556e1bf56794840063affaa846887e4",
+    "command_family": "cargo test -p zil-driver --features llvm-api --test cross_function_borrows g3_4_1 -j1 -- --nocapture",
+    "passed": 17,
+    "failed": 0,
+    "ignored": 0,
+    "filtered_out": 88,
+    "breakdown": {
+      "option_consumers": 13,
+      "original_slice_iter": 3,
+      "separate_lexical_life_core": 1
+    },
+    "source_correspondence": "git diff -w is empty between consumer3d and rootb029 for dedicated Option/nominal files, between fixture d74 and rootb029 for option-consumers.rs, and between ae40 and rootb029 for the Types pattern file. Unrelated text/static work is excluded from review.",
+    "actual_closed_controls": [
+      "None-to-Some loop backedge passes Source/raw/Wire consumers and asserts the real Some ReadVariant result still holds Parameter(0)",
+      "Actual local-source negative succeeds in Types and reaches four exact downstream raw/Wire failure assertions",
+      "Some-only/runtime-mixed/None-only helper matching passes",
+      "Five actual tag/comparison/Branch mutations reject independently in raw/Wire",
+      "Five actual constructor/projection/tag-type opcode mutations reject independently in raw/Wire",
+      "Original SliceIter source two-kernel raw/Wire and actual target invalidation pass"
+    ],
+    "native_observation": {
+      "backends": [
+        "Clang",
+        "LlvmApi"
+      ],
+      "optimizations": [
+        "O0",
+        "O2"
+      ],
+      "entry": "result",
+      "return_type": "i64",
+      "status": "success (exit0)",
+      "stdout": "42\n",
+      "stderr": "",
+      "scope": "One real iterator result42; not wide-i64-domain or arbitrary ABI acceptance"
+    },
+    "description_correction": "An earlier root summary called this exit42. The actual source result type and parent execute helper assert successful process status plus full stdout 42\\n. That earlier description is corrected here; no low-eight-bit process status is presented as an i64 value proof."
+  },
+  "historical_preflight_before_fixture_correction": {
+    "log": "/workspace/.zil-env/G10.1.12-option-final-preflight.log",
+    "sha256": "b4103784d21fedb45a30d90f4c431bb88422c9fbd7a61461913936a604d98a3b",
+    "passed": 11,
+    "failed": 2,
+    "detail": "After producer loop pattern repair, the loop fixture still had an unreachable trailing return and the wrong-source test demanded the later activation wording instead of the earlier real Verify loan-window rejection. d74 only removed that dead tail and tightened all four errors to precise actual phases/messages. No production safety rule was relaxed."
+  }
 }
