@@ -788,7 +788,7 @@ pub(crate) fn member_owner_type_cost(
                     Some(span),
                 )]);
             }
-            Type::Dyn { .. } => {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Expand,
                     "dynamic owner metadata requires its complete declaration context",

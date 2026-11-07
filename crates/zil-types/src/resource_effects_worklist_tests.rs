@@ -487,6 +487,7 @@ fn expression_variant(kind: &CoreExprKind) -> &'static str {
     use CoreExprKind::*;
     match kind {
         MakeDynBorrow { .. } => "MakeDynBorrow",
+        MakeDynOwned { .. } => "MakeDynOwned",
         CallDynSlot { .. } => "CallDynSlot",
         Literal(_) => "Literal",
         Ascribed { .. } => "Ascribed",

@@ -401,6 +401,10 @@ pub enum Type {
     Dyn {
         interface: DynInterfaceId,
     },
+    /// Affine two-pointer owner of an explicitly allocated concrete dyn Self.
+    OwnedDyn {
+        interface: DynInterfaceId,
+    },
     /// Relational shape; machine layout is exactly the actual storage layout.
     BorrowedStorage {
         storage: Box<Type>,
@@ -1198,6 +1202,13 @@ pub enum CoreExprKind {
         source: Box<CoreExpr>,
         mutable: bool,
     },
+    /// Explicit fallible Heap erasure, consuming one complete concrete owner.
+    MakeDynOwned {
+        interface: DynInterfaceId,
+        vtable: DynVtableId,
+        source: Box<CoreExpr>,
+        route: DynOwnedStorage,
+    },
     /// Callee is evaluated once before nonreceiver arguments and supplies arg0.
     CallDynSlot {
         callee: Box<CoreExpr>,
@@ -1616,6 +1627,19 @@ pub enum InstructionKind {
         vtable: DynVtableId,
         source: ValueId,
         mutable: bool,
+    },
+    MakeDynOwned {
+        interface: DynInterfaceId,
+        vtable: DynVtableId,
+        source: ValueId,
+        route: DynOwnedStorage,
+    },
+    BorrowDynOwned {
+        local: LocalId,
+        mutable: bool,
+    },
+    DropDynOwned {
+        local: LocalId,
     },
     /// arguments excludes the receiver supplied by this exact callee.
     CallDynSlot {
@@ -3003,6 +3027,10 @@ fn encode_life_inventory(
 
 fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
     match t {
+        Type::OwnedDyn { interface } => {
+            b.push(40);
+            encode_dyn_interface_id(b, interface);
+        }
         Type::Dyn { interface } => {
             b.push(36);
             encode_dyn_interface_id(b, interface);
@@ -3318,6 +3346,29 @@ fn encode_constant(b: &mut impl FingerprintSink, c: &Constant) {
 }
 fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
     match i {
+        InstructionKind::MakeDynOwned {
+            interface,
+            vtable,
+            source,
+            route,
+        } => {
+            b.push(148);
+            encode_dyn_interface_id(b, interface);
+            encode_dyn_vtable_id(b, vtable);
+            encode_u32(b, source.0);
+            b.push(match route {
+                DynOwnedStorage::Heap => 1,
+            });
+        }
+        InstructionKind::BorrowDynOwned { local, mutable } => {
+            b.push(149);
+            encode_u32(b, local.0);
+            b.push(u8::from(*mutable));
+        }
+        InstructionKind::DropDynOwned { local } => {
+            b.push(150);
+            encode_u32(b, local.0);
+        }
         InstructionKind::MakeDynBorrow {
             interface,
             vtable,

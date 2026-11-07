@@ -59,7 +59,10 @@ impl Builder<'_, '_> {
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
         matches!(
             ty,
-            Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. }
+            Type::Managed(_)
+                | Type::Package { .. }
+                | Type::MutexGuard { .. }
+                | Type::OwnedDyn { .. }
         ) || matches!(ty, Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. }))
             || errors::owned(ty)
@@ -69,7 +72,9 @@ impl Builder<'_, '_> {
     }
     pub(super) fn drop_owned_local(&mut self, local: LocalId, span: Span) -> R<()> {
         let ty = &self.function.locals[local.0 as usize].ty;
-        let kind = if matches!(ty, Type::Managed(_)) {
+        let kind = if matches!(ty, Type::OwnedDyn { .. }) {
+            Some(InstructionKind::DropDynOwned { local })
+        } else if matches!(ty, Type::Managed(_)) {
             Some(InstructionKind::DropManaged { local })
         } else if matches!(ty, Type::MutexGuard { .. }) {
             Some(InstructionKind::DropMutexGuard { local })

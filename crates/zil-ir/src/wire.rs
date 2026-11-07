@@ -705,6 +705,10 @@ impl<'a> Writer<'a> {
             }
             self.charge(1)?;
             match ty {
+                Type::OwnedDyn { interface } => {
+                    self.u8(40)?;
+                    self.dyn_interface_id(interface)?;
+                }
                 Type::Dyn { interface } => {
                     self.u8(36)?;
                     self.dyn_interface_id(interface)?;
@@ -1318,6 +1322,29 @@ impl<'a> Writer<'a> {
                 self.dyn_vtable_id(vtable)?;
                 self.u32(source.0)?;
                 self.boolean(*mutable)?;
+            }
+            InstructionKind::MakeDynOwned {
+                interface,
+                vtable,
+                source,
+                route,
+            } => {
+                self.u8(148)?;
+                self.dyn_interface_id(interface)?;
+                self.dyn_vtable_id(vtable)?;
+                self.u32(source.0)?;
+                self.u8(match route {
+                    DynOwnedStorage::Heap => 1,
+                })?;
+            }
+            InstructionKind::BorrowDynOwned { local, mutable } => {
+                self.u8(149)?;
+                self.u32(local.0)?;
+                self.boolean(*mutable)?;
+            }
+            InstructionKind::DropDynOwned { local } => {
+                self.u8(150)?;
+                self.u32(local.0)?;
             }
             InstructionKind::CallDynSlot {
                 callee,
@@ -2959,6 +2986,9 @@ impl<'a> Reader<'a> {
                 36 => Type::Dyn {
                     interface: self.dyn_interface_id()?,
                 },
+                40 => Type::OwnedDyn {
+                    interface: self.dyn_interface_id()?,
+                },
                 26 => Type::U64,
                 27 => Type::Usize,
                 28 => Type::F32,
@@ -4048,6 +4078,22 @@ impl<'a> Reader<'a> {
                 vtable: self.dyn_vtable_id()?,
                 source: ValueId(self.u32()?),
                 mutable: self.boolean()?,
+            },
+            148 => InstructionKind::MakeDynOwned {
+                interface: self.dyn_interface_id()?,
+                vtable: self.dyn_vtable_id()?,
+                source: ValueId(self.u32()?),
+                route: match self.u8()? {
+                    1 => DynOwnedStorage::Heap,
+                    _ => return Err(malformed("E-WIRE-TAG", "unknown owned dyn storage route")),
+                },
+            },
+            149 => InstructionKind::BorrowDynOwned {
+                local: LocalId(self.u32()?),
+                mutable: self.boolean()?,
+            },
+            150 => InstructionKind::DropDynOwned {
+                local: LocalId(self.u32()?),
             },
             132 => {
                 let callee = ValueId(self.u32()?);

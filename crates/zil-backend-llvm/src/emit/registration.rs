@@ -794,7 +794,7 @@ pub(super) fn reserve_function(
                     None,
                 );
             }
-            Type::Dyn { .. } => {
+            Type::Dyn { .. } | Type::OwnedDyn { .. } => {
                 return unsupported(
                     "dynamic registration environments require explicit retained interface lowering",
                     None,

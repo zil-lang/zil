@@ -246,6 +246,7 @@ fn lower_view_with_budget(
             || function.return_type.is_copy_value()
             || function.return_type.is_scalar_or_address()
             || matches!(function.return_type, Type::MutexGuard { .. })
+            || matches!(function.return_type, Type::OwnedDyn { .. })
             || resource_type(&function.return_type, &module.resources)
             || package_value_type(&function.return_type, &module.resources)
             || error_type(&function.return_type, &module.resources)
@@ -274,6 +275,7 @@ fn lower_view_with_budget(
                 || ty.is_copy_value()
                 || ty.is_scalar_or_address()
                 || matches!(ty, Type::MutexGuard { .. })
+                || matches!(ty, Type::OwnedDyn { .. })
                 || resource_type(ty, &module.resources)
                 || resource_head_address(ty)
                 || package_value_type(ty, &module.resources)
@@ -310,6 +312,7 @@ fn lower_view_with_budget(
                 && !ty.is_shared_sync_cell_address()
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !matches!(ty, Type::MutexGuard { .. })
+                && !matches!(ty, Type::OwnedDyn { .. })
                 && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
                 && !resource_head_address(ty)
                 && !ty.is_exclusive_task_head_address()
@@ -553,6 +556,10 @@ fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
             && (result.is_copy_value() || package_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resource_type(result, resources))
+            || (matches!(result.as_ref(), Type::OwnedDyn { .. })
+                && matches!(error.as_ref(), Type::Enum { name, variants }
+                    if name == "@std.dyn:v1:DynCreateError"
+                    && matches!(variants.as_slice(), [(case, fields)] if case == "Allocation" && fields.is_empty())))
             || (**error == Type::Unit && product_type(result, resources))
             || (**result == Type::Unit && product_type(error, resources)))
 }

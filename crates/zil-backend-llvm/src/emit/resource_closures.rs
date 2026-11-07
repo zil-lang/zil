@@ -458,7 +458,10 @@ impl FunctionEmitter<'_> {
 
     pub(super) fn owns_resource(&self, ty: &Type) -> bool {
         match ty {
-            Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. } => true,
+            Type::Managed(_)
+            | Type::Package { .. }
+            | Type::MutexGuard { .. }
+            | Type::OwnedDyn { .. } => true,
             Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. }) =>
             {

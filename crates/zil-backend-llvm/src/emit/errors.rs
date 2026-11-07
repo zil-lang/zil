@@ -13,6 +13,8 @@ pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> boo
             && (result.is_copy_value() || packages::supported_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resources::supported_type(result, resources))
+            || (error.as_ref() == &dyn_dispatch::create_error()
+                && matches!(result.as_ref(), Type::OwnedDyn { .. }))
             || (**error == Type::Unit && packages::supported_value_type(result, resources))
             || (**result == Type::Unit && packages::supported_value_type(error, resources)))
         || drop_plan::value_type(ty, resources)
@@ -24,7 +26,11 @@ fn teardowns(
 ) -> CompileResult<Vec<(Vec<u32>, String)>> {
     if matches!(
         payload,
-        Type::Package { .. } | Type::Managed(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        Type::Package { .. }
+            | Type::Managed(_)
+            | Type::OwnedDyn { .. }
+            | Type::Enum { .. }
+            | Type::ErrorUnion { .. }
     ) {
         packages::teardown_paths(payload, resources)
     } else {

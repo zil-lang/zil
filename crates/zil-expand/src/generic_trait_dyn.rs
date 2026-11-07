@@ -56,6 +56,7 @@ pub(crate) struct Catalog {
     targets: Vec<source::Target>,
     pub(crate) interfaces: Vec<Interface>,
     pub(crate) vtables: Vec<Vtable>,
+    pub(crate) owned_interfaces: Vec<trait_instances::Reference>,
 }
 fn pay_key(key: &trait_instances::Key, budget: &mut Budget<'_>, span: Span) -> R<()> {
     budget.text(&key.name, span)?;
@@ -397,6 +398,27 @@ pub(in crate::generics) fn collect<'a>(
         budget: &'b mut Budget<'l>,
     }
     impl Visitor for Collect<'_, '_, '_> {
+        fn expression(&mut self, expression: &Expr, depth: usize) -> CompileResult<()> {
+            if let ExprKind::Call { callee, .. } = &expression.kind
+                && let ExprKind::TypeApply {
+                    callee: target,
+                    arguments,
+                } = &callee.kind
+                && matches!(&target.kind, ExprKind::Name(name) if name == "owned_dyn")
+            {
+                self.node(expression.span, depth)?;
+                if let [GenericArg::Type(actual)] = arguments.as_slice()
+                    && is_interface(actual)
+                {
+                    self.catalog.owned_interfaces.push(
+                        self.index
+                            .dynamic_reference(actual, self.budget)
+                            .map_err(|e| vec![e])?,
+                    );
+                }
+            }
+            super::super::super::ct_selection::walk_expression(self, expression, depth)
+        }
         fn node(&mut self, span: Span, depth: usize) -> CompileResult<()> {
             self.budget.node(span, depth).map_err(|e| vec![e])
         }

@@ -476,6 +476,7 @@ fn charge_type(
         Type::AsyncRegistration { .. }
         | Type::BorrowedStorage { .. }
         | Type::Dyn { .. }
+        | Type::OwnedDyn { .. }
         | Type::Mutex { .. }
         | Type::MutexGuard { .. } => {
             return None;

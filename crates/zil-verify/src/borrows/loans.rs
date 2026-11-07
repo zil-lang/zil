@@ -211,8 +211,15 @@ fn reconstruct(
                     } else {
                         match &instruction.kind {
                             InstructionKind::BorrowLocal { local }
-                            | InstructionKind::BorrowLocalMut { local } => {
+                            | InstructionKind::BorrowLocalMut { local }
+                            | InstructionKind::BorrowDynOwned { local, .. } => {
                                 row.insert(id);
+                                if matches!(
+                                    instruction.kind,
+                                    InstructionKind::BorrowDynOwned { .. }
+                                ) {
+                                    flow.roots[id] = vec![Root::Local(*local)];
+                                }
                                 if matches!(f.locals[local.0 as usize].ty, Type::Closure(_)) {
                                     // The new loan qualifies the environment position.
                                     // Its captured loans retain their own permissions.
@@ -1221,11 +1228,16 @@ pub(super) fn check(
             match &instruction.kind {
                 InstructionKind::Load(local)
                 | InstructionKind::BorrowLocal { local }
-                | InstructionKind::BorrowLocalMut { local } => {
+                | InstructionKind::BorrowLocalMut { local }
+                | InstructionKind::BorrowDynOwned { local, .. } => {
                     access.check(
                         &empty,
                         &[Root::Local(*local)],
-                        matches!(instruction.kind, InstructionKind::BorrowLocalMut { .. }),
+                        matches!(
+                            instruction.kind,
+                            InstructionKind::BorrowLocalMut { .. }
+                                | InstructionKind::BorrowDynOwned { mutable: true, .. }
+                        ),
                         budget,
                     )?;
                 }

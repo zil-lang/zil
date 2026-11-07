@@ -436,6 +436,9 @@ impl Scan<'_> {
             CoreExprKind::MakeDynBorrow {
                 source: operand, ..
             }
+            | CoreExprKind::MakeDynOwned {
+                source: operand, ..
+            }
             | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Ascribed { value: operand, .. }
             | CoreExprKind::IntegerConvert { value: operand, .. }

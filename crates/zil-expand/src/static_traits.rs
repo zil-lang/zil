@@ -289,7 +289,9 @@ impl<'a> Expander<'a> {
             let Some(host) = locals.get(host_name).filter(|a| {
                 matches!(
                     a.kind,
-                    s::AggregateKind::Struct | s::AggregateKind::Resource
+                    s::AggregateKind::Struct
+                        | s::AggregateKind::Resource
+                        | s::AggregateKind::Package
                 ) && a.generics.is_empty()
             }) else {
                 self.unsupported(

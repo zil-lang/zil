@@ -167,6 +167,9 @@ pub(super) fn teardown_paths(
     let mut result = Vec::new();
     while let Some((ty, path)) = pending.pop() {
         match ty {
+            Type::OwnedDyn { interface } => {
+                result.push((path, dyn_dispatch::owner_drop_symbol(*interface)))
+            }
             Type::Enum { .. } | Type::ErrorUnion { .. } if drop_plan::owned_sum(ty) => {
                 result.push((path, drop_plan::symbol(ty)))
             }
