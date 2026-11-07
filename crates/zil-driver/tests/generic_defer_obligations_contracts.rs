@@ -26,6 +26,315 @@ fn wrap<T:StoreElement>(give items:Store<T>)->Root<T>{return Root::<T>{child:Bag
 fn again<T:StoreElement>(give items:Store<T>)->Root<T>{return wrap(give items)}
 fn main()->i32{let first:Store<Item>=store_new();let second:Store<Item>=store_new();let a=wrap(give first);let b=again(give second);return a.tag+b.tag-14}
 "#;
+const TWO_VALUE_ENTRY_FAILURE: &str = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn fail()->bool!i32{return true}
+fn work()->bool!i32{
+ let entry=Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}};
+ return fail()?
+}
+fn main()->i32{match work(){.err(_)=>{return 0},.ok(_)=>{return 1}}}
+"#;
+
+#[test]
+fn two_independent_owned_value_fields_cleanup_on_error() {
+    native("two-value-entry-error-cleanup", TWO_VALUE_ENTRY_FAILURE, "AB");
+}
+
+#[test]
+fn store_of_two_independent_owned_value_fields_cleans_each_child() {
+    native(
+        "two-value-entry-store-cleanup",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let values:Store<Entry<Item,Item>>=store_new();
+ store_reserve(values,1);
+ store_push(values,Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}});
+ return i32(store_len(values))-1
+}
+"#,
+        "AB",
+    );
+}
+
+#[test]
+fn two_copy_actuals_have_no_cleanup_debt_but_package_stays_affine() {
+    native(
+        "two-copy-value-entry",
+        "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let entry=Entry::<i32,u64>{key:7,value:9};return entry.key-7}",
+        "",
+    );
+    native(
+        "two-copy-value-entry-store",
+        "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let values:Store<Entry<i32,u64>>=store_new();if !store_reserve(values,1){return 1}let pushed=store_push(values,Entry::<i32,u64>{key:7,value:9});return i32(store_len(values))-1}",
+        "",
+    );
+    let duplicate = "package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}fn main()->i32{let entry=Entry::<i32,u64>{key:7,value:9};let first=entry;let second=entry;return first.key+second.key}";
+    let input = unit(duplicate);
+    let failure = compile_source(
+        &input,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert!(
+        matches!(failure.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+        "a Copy actual must not make Package copyable: {failure:#?}"
+    );
+}
+
+#[test]
+fn explicit_managed_value_argument_is_owned_without_manages_formal() {
+    native(
+        "two-value-entry-managed-argument",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let entry=Entry::<Managed<Ticket>,Item>{key:Ticket{code:65},value:Item{ticket:Ticket{code:66}}};
+ return 0
+}
+"#,
+        "AB",
+    );
+}
+
+#[test]
+fn two_byte_buffer_owners_remain_independent_value_fields() {
+    native(
+        "two-value-entry-byte-buffers",
+        r#"
+package Bytes{manages data:ByteBuffer}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let left=bytes_new();let right=bytes_new();
+ if !bytes_reserve(left,3){return 1}
+ if !bytes_reserve(right,5){return 2}
+ if !bytes_push(left,65u8){return 3}
+ if !bytes_push(right,66u8){return 4}
+ let entry=Entry::<Bytes,Bytes>{key:Bytes{data:give left},value:Bytes{data:give right}};
+ return i32(bytes_len(entry.key.data))+i32(bytes_len(entry.value.data))-2
+}
+"#,
+        "",
+    );
+}
+
+#[test]
+fn imported_two_value_entry_preserves_both_actuals_and_cleanup() {
+    let project = ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                r#"import library;
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+fn main()->i32{
+ let entry=library.Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}};
+ return 0
+}"#,
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "library.zil",
+                "pub package Entry<K:StoreElement,V:StoreElement>{pub key:K;pub value:V}",
+            ),
+        ],
+        paths: [(vec!["library".into()], ModuleId(1))].into(),
+    };
+    let out = dir("imported-two-value-entry");
+    let report = compile_project(
+        &project,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            backend: if cfg!(feature = "llvm-api") {
+                NativeBackend::LlvmApi
+            } else {
+                NativeBackend::Clang
+            },
+            output: Some(out.join("program")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+    assert_eq!(run.status.code(), Some(0), "{run:?}");
+    assert_eq!(run.stdout, b"AB");
+}
+
+#[test]
+fn concrete_map_reserves_before_owned_entry_commit_and_borrows_its_key() {
+    native(
+        "two-value-map-insert-and-lookup",
+        r#"resource Ticket{code:i32}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+package Map<K:StoreElement,V:StoreElement>{manages items:Store<Entry<K,V>>}
+fn insert(map:&mut Map<Item,Item>,entry:Entry<Item,Item>)->Entry<Item,Item>!void{
+ if !store_reserve(map.items,store_len(map.items)+1){return entry}
+ return store_push(map.items,entry)
+}
+fn main()->i32{
+ let items:Store<Entry<Item,Item>>=store_new();
+ var map=Map::<Item,Item>{items:give items};
+ let entry=Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}};
+ match insert(&mut map,entry){.err(failed)=>{return failed.key.ticket.code+failed.value.ticket.code-131},.ok(_)=>{if !contains(&map,65){return 1}return i32(store_len(map.items))-1}}
+}
+fn contains(map:&Map<Item,Item>,code:i32)->bool{
+ var i:i64=0;
+ while i<store_len(map.items){
+  let entry=store_at(map.items,i);
+  if entry.key.ticket.code==code{return true}
+  i+=1
+ }
+ return false
+}
+"#,
+        "",
+    );
+}
+
+#[test]
+fn symbolic_key_move_preserves_the_other_actual_owner() {
+    native(
+        "two-value-entry-partial-move",
+        r#"extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn take<T:StoreElement>(entry:Entry<T,Item>)->T{return entry.key}
+fn main()->i32{
+ let item=take(Entry::<Item,Item>{key:Item{ticket:Ticket{code:65}},value:Item{ticket:Ticket{code:66}}});
+ return item.ticket.code-65
+}
+"#,
+        "BA",
+    );
+}
+
+#[test]
+fn symbolic_field_refill_retires_old_value_once() {
+    native(
+        "two-value-entry-refill",
+        r#"extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn refill<T:StoreElement>(entry:Entry<T,i32>,replacement:T)->Entry<T,i32>{
+ var current=entry;
+ let old=current.key;
+ current.key=replacement;
+ return current
+}
+fn main()->i32{
+ let entry=refill(Entry::<Item,i32>{key:Item{ticket:Ticket{code:65}},value:7},Item{ticket:Ticket{code:66}});
+ return 0
+}
+"#,
+        "AB",
+    );
+}
+
+#[test]
+fn two_formal_recipe_indices_and_argument_arity_are_independently_checked() {
+    let original = core(TWO_VALUE_ENTRY_FAILURE);
+    let template = original
+        .aggregate_templates
+        .iter()
+        .position(|template| template.name == "Entry")
+        .unwrap();
+    for case in ["duplicate-formal", "gap", "out-of-range-recipe", "missing-actual"] {
+        let mut raw = original.clone();
+        let template_id = raw.aggregate_templates[template].id;
+        match case {
+            "duplicate-formal" => raw.aggregate_templates[template].parameters[1].name = "K".into(),
+            "gap" => raw.aggregate_templates[template].parameters[1].index = 3,
+            "out-of-range-recipe" => raw.aggregate_templates[template].fields[1].ty =
+                CoreAggregateTypeRecipe::Parameter { index: 2 },
+            "missing-actual" => raw
+                .aggregate_applications
+                .iter_mut()
+                .find(|application| application.template == template_id)
+                .unwrap()
+                .arguments
+                .pop()
+                .map(|_| ())
+                .unwrap(),
+            _ => unreachable!(),
+        }
+        all_type_entries_reject(case, &raw);
+    }
+}
+
+#[test]
+fn a_borrowed_description_cannot_satisfy_an_owned_value_argument() {
+    let mut raw = core(TWO_VALUE_ENTRY_FAILURE);
+    let entry = raw
+        .aggregate_templates
+        .iter()
+        .find(|template| template.name == "Entry")
+        .unwrap()
+        .id;
+    let application = raw
+        .aggregate_applications
+        .iter_mut()
+        .find(|application| application.template == entry)
+        .unwrap();
+    application.arguments[0] = CoreAggregateArgument::Concrete(Type::Desc(Box::new(
+        Type::Record {
+            name: "@module0:Ticket".into(),
+            fields: vec![("code".into(), Type::I32)],
+        },
+    )));
+    let diagnostics = zil_types::check(&raw, &TargetProfile::host_llvm(), &Limits::default())
+        .unwrap_err();
+    assert!(diagnostics.iter().any(|diagnostic| {
+        diagnostic.code == "E-PRODUCT-TEMPLATE"
+            && diagnostic.message.contains("StoreElement")
+    }), "{diagnostics:#?}");
+}
+
+#[test]
+fn unused_symbolic_value_field_cannot_be_moved_twice() {
+    for body in [
+        "fn duplicate<T:StoreElement>(entry:Entry<T,i32>)->Entry<T,T>{return Entry::<T,T>{key:entry.key,value:entry.key}}",
+        "fn partial<T:StoreElement>(entry:Entry<T,i32>)->Entry<T,i32>{let key=entry.key;return entry}",
+    ] {
+        let source = format!(
+            "package Entry<K:StoreElement,V:StoreElement>{{key:K;value:V}}{body}fn main()->i32{{return 0}}"
+        );
+        let report = compile_source(
+            &unit(&source),
+            &CompileOptions {
+                stop_after: Stage::Core,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, ResultCategory::SafeReject, "{report:#?}");
+        assert_eq!(report.phase, Phase::Expand);
+    }
+}
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn dir(label: &str) -> PathBuf {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -622,7 +931,6 @@ fn an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks() {
         "recipe-parameter-slot",
         "unowned-address",
         "duplicate-field",
-        "no-owned-leaf",
         "absent-Apply-family",
     ] {
         let mut input = phantom_metadata("UnusedInvalid");
@@ -644,10 +952,6 @@ fn an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks() {
                 let copy = field.clone();
                 template.fields.push(copy);
             }
-            "no-owned-leaf" => {
-                field.manages = false;
-                field.ty = CoreAggregateTypeRecipe::Concrete(Type::I32);
-            }
             "absent-Apply-family" => {
                 field.manages = false;
                 field.ty = CoreAggregateTypeRecipe::Apply {
@@ -660,6 +964,15 @@ fn an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks() {
         }
         all_type_entries_reject(mode, &input);
     }
+}
+
+#[test]
+fn an_uninstantiated_copy_only_value_recipe_is_valid() {
+    let mut input = phantom_metadata("UnusedCopyValue");
+    input.aggregate_templates[0].fields[0].manages = false;
+    input.aggregate_templates[0].fields[0].ty =
+        CoreAggregateTypeRecipe::Concrete(Type::I32);
+    zil_types::check(&input, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
 }
 
 #[test]

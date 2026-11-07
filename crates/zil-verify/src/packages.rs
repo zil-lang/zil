@@ -478,7 +478,7 @@ fn check_package_type(
             check_type(field, span)?;
         }
     }
-    if !owns {
+    if !owns && (fields.is_empty() || !fields.iter().all(|(_, field)| field.is_copy_value())) {
         return Err(unsupported(
             "this package slice requires at least one manages field",
             span,

@@ -488,7 +488,11 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 // Keep the existing predicate above for error-payload and array qualification.
 // Verify has already bounded the full inline type and its cleanup paths.
 fn package_value_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    package_type(ty, resources) || owned_product_type(ty, resources)
+    package_type(ty, resources)
+        || owned_product_type(ty, resources)
+        || matches!(ty, Type::Package { name, fields }
+            if !name.is_empty() && !fields.is_empty()
+                && fields.iter().all(|(name, field)| !name.is_empty() && field.is_copy_value()))
 }
 
 // Representation only: the caller has an immutable verified capability and
@@ -584,8 +588,8 @@ fn package_store_fields(ty: &Type) -> bool {
 
 fn error_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
-        if ((error.is_copy_value() || package_type(error, resources))
-            && (result.is_copy_value() || package_type(result, resources)))
+        if ((error.is_copy_value() || package_value_type(error, resources))
+            && (result.is_copy_value() || package_value_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resource_type(result, resources))
             || (matches!(result.as_ref(), Type::OwnedDyn { .. })
