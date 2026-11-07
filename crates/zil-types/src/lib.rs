@@ -431,6 +431,12 @@ pub fn check(
     let core = &inferred;
     let mut signatures = signatures(core, limits, 0, None)?;
     let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
+    if !core.dyn_declarations.is_empty() && core.dyn_interfaces.is_empty() {
+        return Err(vec![unsupported(
+            Span::default(),
+            "dyn declaration has no actual interface",
+        )]);
+    }
     if core.dyn_interfaces.iter().any(|interface| {
         !dyn_vtables
             .iter()

@@ -5593,14 +5593,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
 
 /// Dyn inventory is consumed by the bounded admission pass after concrete
 /// signature resolution. An orphan raw table cannot enter inference.
-pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
-    if core.dyn_interfaces.is_empty()
-        && (!core.dyn_declarations.is_empty() || !core.dyn_vtables.is_empty())
-    {
-        return Err(unsupported(
-            Span::default(),
-            "dyn declarations or tables have no interface consumer",
-        ));
-    }
+pub(super) fn unconsumed_inventory(_core: &CoreModule) -> R<()> {
+    // A project may place the trait declaration, interface and committed
+    // provider table in different modules. Admission needs the complete
+    // project graph and runs after name/type resolution.
     Ok(())
 }
