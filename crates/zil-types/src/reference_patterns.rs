@@ -102,6 +102,50 @@ impl Builder<'_, '_> {
         expected: Option<&Type>,
         e: &CoreExpr,
     ) -> R<()> {
+        if let CoreExprKind::Name(name) = &e.kind
+            && let Some(local) = self.lookup(name)
+            && let Some(inner) = self.borrowed_captures.get(&local).cloned()
+            && owned_shapes::sum(&inner)
+            && dynamic_store::contains_inline_carrier(&inner)
+        {
+            let address_ty = self.function.locals[local.0 as usize].ty.clone();
+            let Type::Address {
+                mutable: false,
+                inner: actual,
+            } = &address_ty
+            else {
+                unreachable!("shared owning Sum capture stores its actual address")
+            };
+            self.same(actual, &inner, e.span)?;
+            if let Some(expected) = expected {
+                self.same(&inner, expected, e.span)?;
+            }
+            if !self.irrefutable_pattern(p, &inner)? {
+                return Err(error(
+                    "E-PATTERN-REFUTABLE",
+                    p.span,
+                    "ordinary binding must be irrefutable",
+                ));
+            }
+            self.closures.snapshot_type(&inner, 2, 0, e.span)?;
+            let address = self.value(InstructionKind::Load(local), address_ty, e.span)?;
+            let mut bindings = Vec::new();
+            let fail = self.current.expect("captured pattern in live block");
+            self.reference_mixed_address_test(
+                p,
+                address,
+                &mut Vec::new(),
+                &inner,
+                false,
+                fail,
+                &mut bindings,
+            )?;
+            for (name, value, ty, span) in bindings {
+                let local = self.local(&name, ty, mutable, span)?;
+                self.store(local, value, span)?;
+            }
+            return Ok(());
+        }
         let place = if matches!(
             e.kind,
             CoreExprKind::Name(_)

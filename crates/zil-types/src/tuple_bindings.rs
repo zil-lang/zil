@@ -56,6 +56,15 @@ impl Builder<'_, '_> {
             self.limits.max_call_depth,
         )?;
         if reference_patterns::has_reference(pattern)
+            && let CoreExprKind::Name(name) = &initializer.kind
+            && let Some(local) = self.lookup(name)
+            && self.borrowed_captures.get(&local).is_some_and(|ty| {
+                owned_shapes::sum(ty) && dynamic_store::contains_inline_carrier(ty)
+            })
+        {
+            return self.reference_binding(pattern, mutable, expected, initializer);
+        }
+        if reference_patterns::has_reference(pattern)
             && !matches!(
                 initializer.kind,
                 CoreExprKind::Unary {

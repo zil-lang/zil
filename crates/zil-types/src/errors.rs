@@ -9,6 +9,7 @@ pub(super) fn owned(ty: &Type) -> bool {
             || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
             || (matches!(error.as_ref(), Type::Enum { .. }) && !error.is_copy_value())
             || (matches!(result.as_ref(), Type::Enum { .. }) && !result.is_copy_value()))
+        || (matches!(ty, Type::ErrorUnion { .. }) && owned_shapes::sum(ty))
 }
 
 /// Structural classification only. `supported` separately admits the finite
