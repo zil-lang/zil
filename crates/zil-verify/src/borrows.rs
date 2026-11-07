@@ -42,7 +42,7 @@ fn has_sources(
             || retained_task_value(ty));
     }
     match ty {
-        Type::Address { .. } | Type::Desc(_) => Ok(true),
+        Type::Address { .. } | Type::Desc(_) | Type::MutexGuard { .. } => Ok(true),
         Type::Managed(_) | Type::ErrorUnion { .. } if retained_task_value(ty) => Ok(true),
         Type::Closure(id) => {
             let captures = &module.closures[id.0 as usize].captures;
@@ -1160,6 +1160,7 @@ fn reconstruct_module(
                                 let Some(local) = function.parameters.get(index as usize) else { return true };
                                 !matches!(&function.locals[local.0 as usize].ty,
                                     Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                    && !matches!(&function.locals[local.0 as usize].ty, Type::MutexGuard { .. })
                             }))
                         {
                             return Err(reject("E-VERIFY-MUTEX", Some(function.span), "guard return has no actual mutex head input"));

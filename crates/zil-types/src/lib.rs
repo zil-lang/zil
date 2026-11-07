@@ -391,6 +391,7 @@ fn signature_errors(
             || packages::ordinary(&p.ty)
             || errors::supported(&p.ty)
             || owned_shapes::sum(&p.ty)
+            || matches!(p.ty, Type::MutexGuard { .. })
             || packages::owned_array_supported(&p.ty))
         {
             errors.push(unsupported(

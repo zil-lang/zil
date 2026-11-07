@@ -110,6 +110,26 @@ fn generic_mutex_source_candidate_has_real_guard_operations() {
     assert!(zil_analyze::analyze(&typed, &Limits::default()).is_err());
 }
 #[test]
+fn generic_mutex_forged_reserved_resource_is_rejected() {
+    let src = source("fn main()->i32{return 0}");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let mut typed = zil_types::check(
+        &core,
+        &zil_base::TargetProfile::default(),
+        &Limits::default(),
+    )
+    .unwrap();
+    typed.resources.push(zil_ir::ResourceDefinition {
+        name: "@builtin:Mutex<forged>".into(),
+        payload: zil_ir::Type::I32,
+        teardown: None,
+    });
+    let errors = zil_analyze::analyze(&typed, &Limits::default()).unwrap_err();
+    assert_eq!(errors[0].category, ResultCategory::SafeReject);
+    assert!(errors[0].message.contains("mutex identity"), "{errors:?}");
+}
+#[test]
 fn generic_mutex_thread_candidate() {
     let src = source(
         "fn worker(cell:Mutex<i32>)->i32{var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value+=1;return 0}fn run(cell:Mutex<i32>)->i32{let (created,child,parent)=thread_scope(worker,cell,()->i32=>worker(cell));if !created{return 1}var guard=mutex_lock(cell);let value=mutex_value(&mut guard);let result=*value;return result-2+child+parent}fn entry()->MutexCreateError!i32{let cell=mutex_create(0)?;return run(cell)}fn main()->i32{match entry(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
@@ -140,6 +160,31 @@ fn generic_mutex_owned_package_thread_candidate() {
     check_mutex_native(&src, "thread-owned-package");
 }
 #[test]
+fn generic_mutex_thread_rejects_untransferable_inputs() {
+    for (name, text) in [
+        (
+            "guard",
+            include_str!(
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/sync-probes/mutex-guard-thread-reject.zil"
+            ),
+        ),
+        (
+            "ffi-drop",
+            include_str!(
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/sync-probes/mutex-drop-tls-reject.zil"
+            ),
+        ),
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+}
+#[test]
 fn generic_mutex_copy_native_candidate() {
     let src = source(
         "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer}fn main()->i32{match run(){.ok(value)=>{return value-9},.err(_)=>{return 1}}}",
@@ -166,6 +211,20 @@ fn generic_mutex_guard_return_native_candidate() {
         "fn lock(cell:Mutex<i32>)->MutexGuard<i32>{return mutex_lock(cell)}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer-9}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
     );
     check_mutex_native(&src, "helper-guard");
+}
+#[test]
+fn generic_mutex_guard_parameter_native_candidate() {
+    let src = source(
+        "fn finish(guard:MutexGuard<i32>)->i32{mutex_unlock(guard);return 0}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;let guard=mutex_lock(cell);return finish(guard)}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "guard-parameter");
+}
+#[test]
+fn generic_mutex_guard_forward_native_candidate() {
+    let src = source(
+        "fn relay(guard:MutexGuard<i32>)->MutexGuard<i32>{return guard}fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=relay(mutex_lock(cell));let value=mutex_value(&mut guard);*value=9;mutex_unlock(guard);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    check_mutex_native(&src, "guard-forward");
 }
 #[test]
 fn generic_mutex_custom_drop_native_candidate() {
