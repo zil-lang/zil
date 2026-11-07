@@ -932,6 +932,7 @@ fn known_copy(
         // Source Store values are descriptions. The real carrier can only
         // leave an owning position through an explicitly checked give.
         TypeKind::Named { path, .. } if path.as_slice() == ["Store"] => true,
+        TypeKind::Named { path, .. } if path.as_slice() == ["Managed"] => false,
         TypeKind::Reference { mutable: false, .. }
         | TypeKind::Function { .. }
         | TypeKind::ForLifetime { .. }
@@ -5437,14 +5438,33 @@ impl Check<'_, '_, '_> {
                     return Err(error(e.span, "managed Package field used after give"));
                 }
                 self.alias_read_place(e, state)?;
-                let opaque_value = !field.manages
-                    && products::parameters(aggregate).is_some()
-                    && trait_bounds::plain(&field.ty).is_some_and(|name| {
-                        aggregate.generics.iter().any(|formal| formal.name == name)
-                    })
+                // Every complete non-Copy Package child carries its own
+                // affine Value state, including mixed-bound families that
+                // cannot use the retained Product recipe fast path.
+                let value_child = !field.manages
+                    && aggregate.kind == AggregateKind::Package
+                    && match &group(&ty).kind {
+                        TypeKind::Named { path, .. } if path.as_slice() == ["Managed"] => true,
+                        TypeKind::Named { path, args }
+                            if path.len() == 1 && args.is_empty() && self.variables.contains(&path[0]) =>
+                        {
+                            self.bounds.get(&path[0]).is_some_and(|bounds| {
+                                bounds.iter().any(|bound| matches!(bound, trait_bounds::Bound::StoreElement))
+                            })
+                        }
+                        TypeKind::Named { path, .. } => match self.nominals.get(&path.join(".")) {
+                            Some(Item { kind: ItemKind::Aggregate(child), .. }) =>
+                                child.kind == AggregateKind::Package,
+                            Some(Item { kind: ItemKind::Enum(_), .. }) => true,
+                            _ => false,
+                        },
+                        TypeKind::Tuple(_) | TypeKind::Union(_) | TypeKind::Array { .. }
+                        | TypeKind::Error { .. } => true,
+                        _ => false,
+                    }
                     && !self.known_copy(&ty)?;
                 if let Some(local) = package
-                    && (opaque_value || self.callable.as_ref().is_some_and(|bounds| {
+                    && (value_child || self.callable.as_ref().is_some_and(|bounds| {
                         bounds.bindings().any(|bound| {
                             callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
                         })

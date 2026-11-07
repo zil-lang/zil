@@ -256,6 +256,70 @@ fn zero_debt_package_shape_is_rechecked_from_raw_and_wire() {
 }
 
 #[test]
+fn no_resource_zero_debt_package_rejects_raw_double_take_and_call() {
+    let input = core(
+        "package Pair{first:i32;second:u64}fn consume(value:Pair)->i32{return value.first}fn main()->i32{let first=Pair{first:7,second:9};let second=Pair{first:8,second:10};return consume(first)+consume(second)-15}",
+    );
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let module = zil_types::check(&input, &target, &limits).unwrap();
+    assert!(module.resources.is_empty());
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    for case in ["double-take", "same-ssa-double-call"] {
+        let mut changed = module.clone();
+        let function = changed.functions.iter_mut().find(|function| function.name == "main").unwrap();
+        let values = &function.values;
+        let calls: Vec<_> = function.blocks.iter().enumerate().flat_map(|(block_index, block)| {
+            block.instructions.iter().enumerate().filter_map(move |(instruction_index, instruction)| {
+                let InstructionKind::Call { arguments, .. } = &instruction.kind else { return None };
+                (arguments.len() == 1 && matches!(&values[arguments[0].0 as usize], Type::Package { .. }))
+                    .then_some((block_index, instruction_index, arguments[0]))
+            })
+        }).collect();
+        assert_eq!(calls.len(), 2);
+        let first_argument = calls[0].2;
+        let (block_index, instruction_index, second_argument) = calls[1];
+        match case {
+            "double-take" => {
+                let first_local = function.blocks.iter().flat_map(|block| &block.instructions)
+                    .find_map(|instruction| match (&instruction.kind, instruction.result) {
+                        (InstructionKind::TakeLocal { local }, Some(result)) if result == first_argument => Some(*local),
+                        _ => None,
+                    }).unwrap();
+                let second_take = function.blocks[block_index].instructions.iter_mut()
+                    .find(|instruction| instruction.result == Some(second_argument)).unwrap();
+                let InstructionKind::TakeLocal { local } = &mut second_take.kind else { panic!("expected call argument to be a local transfer") };
+                *local = first_local;
+            }
+            "same-ssa-double-call" => {
+                let InstructionKind::Call { arguments, .. } = &mut function.blocks[block_index].instructions[instruction_index].kind else { unreachable!() };
+                arguments[0] = first_argument;
+            }
+            _ => unreachable!(),
+        }
+        let analyzed = zil_analyze::analyze(&changed, &limits);
+        let analyze_errors = analyzed.expect_err("Analyze must reject a duplicate affine transfer");
+        assert!(analyze_errors.iter().any(|error| error.phase == Phase::Analyze
+            && error.code == match case {
+                "double-take" => "E-UNINITIALIZED",
+                "same-ssa-double-call" => "E-ANALYZE-IR",
+                _ => unreachable!(),
+            }), "{case}: {analyze_errors:#?}");
+        let mut candidate = plan.clone();
+        candidate.module_fingerprint = changed.fingerprint();
+        let verified = zil_verify::verify_module(changed, candidate, &target, &limits);
+        let verify_errors = verified.expect_err("Verify must reject a duplicate affine transfer");
+        assert!(verify_errors.iter().any(|error| error.phase == Phase::Verify
+            && error.code == match case {
+                "double-take" => "E-VERIFY-INITIALIZATION",
+                "same-ssa-double-call" => "E-VERIFY-RESOURCE",
+                _ => unreachable!(),
+            }), "{case}: {verify_errors:#?}");
+    }
+}
+
+#[test]
 fn two_bound_ordinary_helpers_move_distinct_values_and_cleanup_on_error() {
     native(
         "two-bound-value-relay-error",
@@ -344,6 +408,52 @@ fn main()->i32{
         "{}",
         rejected.to_json()
     );
+}
+
+#[test]
+fn mixed_bounds_and_complete_child_still_reject_duplicate_value_moves() {
+    for (label, source) in [
+        (
+            "mixed-bound-formal",
+            "package Entry<K:Copy+StoreElement,V:StoreElement>{key:K;value:V}fn dup<V:StoreElement>(entry:Entry<i32,V>)->V{let first=entry.value;return entry.value}fn main()->i32{return 0}",
+        ),
+        (
+            "mixed-bound-complete-child",
+            "package Item{manages bytes:ByteBuffer}package Parent<T:Copy+StoreElement>{child:Item;tag:T}fn dup<T:Copy+StoreElement>(p:Parent<T>)->Item{let first=p.child;return p.child}fn main()->i32{return 0}",
+        ),
+        (
+            "mixed-bound-partial-whole-parent",
+            "package Item{manages bytes:ByteBuffer}package Parent<T:Copy+StoreElement>{child:Item;tag:T}fn dup<T:Copy+StoreElement>(p:Parent<T>)->Parent<T>{let first=p.child;return p}fn main()->i32{return 0}",
+        ),
+        (
+            "mixed-bound-explicit-managed-child",
+            "resource Ticket{code:i32}package Parent<T:Copy+StoreElement>{child:Managed<Ticket>;tag:T}fn dup<T:Copy+StoreElement>(p:Parent<T>)->Managed<Ticket>{let first=p.child;return p.child}fn main()->i32{return 0}",
+        ),
+        (
+            "mixed-bound-owned-enum-child",
+            "resource Ticket{code:i32}enum Choice{None,Some(manages Ticket)}package Parent<T:Copy+StoreElement>{child:Choice;tag:T}fn dup<T:Copy+StoreElement>(p:Parent<T>)->Choice{let first=p.child;return p.child}fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(
+            &unit(source),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, ResultCategory::SafeReject, "{label}: {}", report.to_json());
+        assert!(
+            report.diagnostics.iter().any(|diagnostic| {
+                diagnostic.phase == Phase::Expand
+                    && diagnostic.message.contains(match label {
+                        "mixed-bound-partial-whole-parent" => "partial callable State must be refilled",
+                        _ => "owning Package field used after its Value moved",
+                    })
+            }),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
