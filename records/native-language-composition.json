@@ -4,7 +4,7 @@
   "status": "InProgress",
   "accepted_main_commit": null,
   "base_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
-  "published_integration_commit": "1400aeab58530623d6540bd01cf257b1dda85945",
+  "published_integration_commit": "f1d1b45a6a71175032e50cdcc9025615a2d5e822",
   "source_branch": "task/G10.6.2",
   "scope": [
     "Single direct mutable borrowed Record leaf",
@@ -37,11 +37,12 @@
   "integration": {
     "status": "InProgress",
     "consumer": "tests/language-readiness/native-composition/{main,model,rules}.zil",
-    "blocker": "Whole-module stored solver dispatch rejects unrelated ordinary callback and Task operations. Independent function partition kernels under implementation; only exact direct I32->I32 cross-component calls planned.",
-    "fixed": "Actual Option/Task compiler prelude provenance, structural Drop in nominal trait modules, imported stored declarations, mutable holder inference and Task annotation hidden-context preservation. Expand lib 73/0.",
-    "acceptance": "No full integrated acceptance or new main delivery claimed yet."
+    "native": "Single linked program passes Clang and LLVM API at O0/O2: Verify=1, exact backend, no fallback, exit42, complete queued-host output.",
+    "review": "Exact f1d1b45 production review NoBlockingFinding. Earlier aeba543 independent header and resource payload omissions were fixed; rejected candidate preserved in archive.",
+    "regression": "First complete default run is still collecting results. Known failures are historical Wire40 fixture migration and stale expectations for newly admitted structural Drop composition / earlier exact Task cleanup rejection. No accepted main update yet.",
+    "recovery": "Fresh GitHub clone matches all 3734 tracked files byte-for-byte, cold build pending."
   },
   "raw_evidence": "/workspace/.zil-env/native-foundations/",
-  "archive_commit": "4e3753d5309c6d11e5e0efced1dd379cb1bcb09d",
+  "archive_commit": "7eca802e321dab7650be503a4759223f8ea96527",
   "limits": "Mixed owning/borrowed Package, unified same-function permissions, general projection/lending, arbitrary protocols, cross-thread close, Rust product gates and GUI remain open."
 }
