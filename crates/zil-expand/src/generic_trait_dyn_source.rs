@@ -280,6 +280,37 @@ fn prove_scalar_read(
                 object,
                 member,
                 owner: None,
+            } if arguments.len() == 1
+                && matches!(&object.kind, zil_ir::CoreExprKind::Name(_))
+                && matches!(&arguments[0].kind, zil_ir::CoreExprKind::Name(name)
+                        if name == &current.parameters[0].name) =>
+            {
+                budget.text(member, callee.span)?;
+                for _ in modules {
+                    budget.node(callee.span, 0)?;
+                }
+                let trait_module = modules
+                    .iter()
+                    .find(|m| m.module_id == table.interface.module)
+                    .ok_or_else(|| {
+                        unsupported(callee.span, "dyn default definition module absent")
+                    })?;
+                for function in &trait_module.functions {
+                    budget.node(function.span, 0)?;
+                }
+                let mut targets = trait_module.functions.iter().filter(|f| f.name == *member);
+                target = targets.next();
+                if targets.next().is_some() {
+                    return Err(unsupported(
+                        callee.span,
+                        "dyn default definition is ambiguous",
+                    ));
+                }
+            }
+            zil_ir::CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
             } if arguments.is_empty()
                 && matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
             {

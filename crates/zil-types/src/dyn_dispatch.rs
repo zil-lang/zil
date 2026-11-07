@@ -58,6 +58,16 @@ pub(super) fn inventory(
     signatures: &BTreeMap<String, Signature>,
     limits: &Limits,
 ) -> R<Vec<DynVtable>> {
+    inventory_in_modules(core, signatures, limits, &[core], None)
+}
+
+fn inventory_in_modules(
+    core: &CoreModule,
+    signatures: &BTreeMap<String, Signature>,
+    limits: &Limits,
+    modules: &[&CoreModule],
+    program_signatures: Option<&BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
+) -> R<Vec<DynVtable>> {
     if core.dyn_declarations.is_empty()
         && core.dyn_interfaces.is_empty()
         && core.dyn_vtables.is_empty()
@@ -269,6 +279,7 @@ pub(super) fn inventory(
                     .any(|(p, ty)| p.ty != *ty)
                 || !scalar_body(
                     core,
+                    modules,
                     table,
                     interface,
                     function,
@@ -276,6 +287,7 @@ pub(super) fn inventory(
                     slot.receiver.mutable,
                     &slot.result,
                     signatures,
+                    program_signatures,
                     &mut left,
                 )?
             {
@@ -475,7 +487,29 @@ pub(super) fn inventory_program(
         let mut local = inference::snapshot_context_module(&module.core, limits, &mut left)?;
         local.dyn_declarations = declarations.clone();
         local.dyn_interfaces = interfaces.clone();
-        for table in inventory(&local, &signatures[&module.core.module_id], limits)? {
+        left = left.checked_sub(program.modules.len()).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dyn project module lookup budget exceeded",
+                None,
+            )
+        })?;
+        let related: Vec<&CoreModule> = std::iter::once(&local)
+            .chain(
+                program
+                    .modules
+                    .iter()
+                    .filter(|other| other.core.module_id != local.module_id)
+                    .map(|other| &other.core),
+            )
+            .collect();
+        for table in inventory_in_modules(
+            &local,
+            &signatures[&module.core.module_id],
+            limits,
+            &related,
+            Some(signatures),
+        )? {
             left = left.checked_sub(tables.len()).ok_or_else(|| {
                 Diagnostic::limit(
                     Phase::Types,
@@ -510,6 +544,7 @@ pub(super) fn inventory_program(
 
 fn scalar_body(
     core: &CoreModule,
+    modules: &[&CoreModule],
     table: &CoreDynVtable,
     interface: &DynInterface,
     function: &CoreFunction,
@@ -517,9 +552,11 @@ fn scalar_body(
     mutable: bool,
     result: &Type,
     signatures: &BTreeMap<String, Signature>,
+    program_signatures: Option<&BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
     left: &mut usize,
 ) -> R<bool> {
     let mut current = function;
+    let mut current_module = core.module_id;
     let mut seen = Vec::new();
     let value = loop {
         *left = left.checked_sub(1 + seen.len()).ok_or_else(|| {
@@ -529,10 +566,10 @@ fn scalar_body(
                 Some(current.span),
             )
         })?;
-        if seen.contains(&current.id) {
+        if seen.contains(&(current_module, current.id)) {
             return Ok(false);
         }
-        seen.push(current.id);
+        seen.push((current_module, current.id));
         if mutable && current.body.statements.len() == 2 {
             *left = left
                 .checked_sub(
@@ -615,8 +652,10 @@ fn scalar_body(
         }
         *left = left
             .checked_sub(
-                core.functions
-                    .len()
+                modules
+                    .iter()
+                    .map(|m| m.functions.len())
+                    .sum::<usize>()
                     .saturating_add(core.dyn_declarations.len())
                     .saturating_add(
                         core.dyn_declarations
@@ -633,16 +672,19 @@ fn scalar_body(
                     Some(value.span),
                 )
             })?;
-        let next = match &callee.kind {
+        let (next_module, next) = match &callee.kind {
             CoreExprKind::Name(target_name)
                 if arguments.len() == 1
                     && matches!(&arguments[0].kind,
                     CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
             {
-                let mut targets = core
-                    .functions
-                    .iter()
-                    .filter(|candidate| candidate.name == *target_name);
+                let mut targets = modules.iter().flat_map(|module| {
+                    module
+                        .functions
+                        .iter()
+                        .filter(move |candidate| candidate.name == *target_name)
+                        .map(move |function| (module.module_id, function))
+                });
                 let Some(found) = targets.next() else {
                     return Ok(false);
                 };
@@ -650,6 +692,30 @@ fn scalar_body(
                     return Ok(false);
                 }
                 found
+            }
+            CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } if arguments.len() == 1
+                && matches!(&object.kind, CoreExprKind::Name(_))
+                && matches!(&arguments[0].kind,
+                        CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
+            {
+                let Some(trait_module) = modules
+                    .iter()
+                    .find(|m| m.module_id == table.interface.module)
+                else {
+                    return Ok(false);
+                };
+                let mut targets = trait_module.functions.iter().filter(|f| f.name == *member);
+                let Some(found) = targets.next() else {
+                    return Ok(false);
+                };
+                if targets.next().is_some() {
+                    return Ok(false);
+                }
+                (trait_module.module_id, found)
             }
             CoreExprKind::Member {
                 object,
@@ -673,19 +739,28 @@ fn scalar_body(
                 let Some(entry) = table
                     .entries
                     .get(ordinal)
-                    .filter(|e| e.slot as usize == ordinal && e.module == core.module_id)
+                    .filter(|e| e.slot as usize == ordinal)
                 else {
                     return Ok(false);
                 };
-                let Some(found) = core.functions.iter().find(|f| f.id == entry.function) else {
+                let Some(found) = modules
+                    .iter()
+                    .find(|m| m.module_id == entry.module)
+                    .and_then(|m| m.functions.iter().find(|f| f.id == entry.function))
+                else {
                     return Ok(false);
                 };
-                found
+                (entry.module, found)
             }
             _ => return Ok(false),
         };
-        if signatures
-            .get(&next.name)
+        let target_signatures = if next_module == core.module_id {
+            Some(signatures)
+        } else {
+            program_signatures.and_then(|all| all.get(&next_module))
+        };
+        if target_signatures
+            .and_then(|all| all.get(&next.name))
             .is_none_or(|signature| signature.id.is_none())
             || next.foreign.is_some()
             || !next.type_parameters.is_empty()
@@ -700,6 +775,7 @@ fn scalar_body(
             return Ok(false);
         }
         current = next;
+        current_module = next_module;
     };
     if mutable {
         return Ok(false);
