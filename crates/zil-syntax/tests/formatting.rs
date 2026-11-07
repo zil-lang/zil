@@ -54,7 +54,7 @@ fn short_closure_annotations_and_tail_discard_survive_trivia_formatting() {
 }
 
 #[test]
-fn plan_t01_001_formatter_changes_trivia_preserving_bindings_and_ast_shape() {
+fn formatter_changes_trivia_preserving_bindings_and_ast_shape() {
     let text = "  struct   Point { x: i32 }  \r\n\timpl Point(self: &Self) {\r\n\tfn make(x: i32) {\r\n\t\tlet   cb = (x: i32) => x + .x;\r\n\t\tlet quoted = \"#[] \\n 字\"; // keep  spaces\r\n\t\treturn\r\n\t\tcb(x)\r\n\t}\r\n}\r\n";
     let before = zil_syntax::parse(&source(text)).into_result().unwrap();
     let output = zil_syntax::format::format(&source(text)).unwrap();
@@ -104,7 +104,7 @@ fn plan_t01_001_formatter_changes_trivia_preserving_bindings_and_ast_shape() {
 }
 
 #[test]
-fn plan_t01_001_logical_newlines_and_syntax_island_bytes_are_preserved() {
+fn logical_newlines_and_syntax_island_bytes_are_preserved() {
     let island = "{  a\t/* 保留\r\n /* inner */ */ (\r\n  x  ) }";
     let text = format!(
         "fn f() {{\r\nlet x = 1 +\r\n 2\r\nx\r\n(4)\r\nlet z = b.tokens!{island}\r\n}}\r\n"
@@ -134,7 +134,7 @@ fn plan_t01_001_logical_newlines_and_syntax_island_bytes_are_preserved() {
 }
 
 #[test]
-fn plan_t01_001_lossless_tokens_and_delimiter_recovery_keep_real_spans() {
+fn lossless_tokens_and_delimiter_recovery_keep_real_spans() {
     let input = source(
         "// 保留\r\nfn broken(a: i32) { let value = (1; }\r\n/* nested /* 内 */ */ fn good() -> i32 => 7\r\n",
     );

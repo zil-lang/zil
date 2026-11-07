@@ -838,7 +838,7 @@ mod tests {
     }
 
     #[test]
-    fn task343_semantic_cache_retains_exports_as_untrusted_candidates() {
+    fn async_registration_semantic_cache_retains_exports_as_untrusted_candidates() {
         let dir = std::env::temp_dir().join(format!(
             "task343-semantic-{}-{}",
             std::process::id(),

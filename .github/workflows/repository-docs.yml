@@ -1,0 +1,34 @@
+name: Repository structure
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+concurrency:
+  group: zil-structure-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  documentation:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Check semantic names and delivery tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check-repository-layout.py --full --delivery
+          python3 -m unittest discover -s tools -p test_check_repository_layout.py
+      - name: Check static language contracts and indexes
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 tools/check-plan.py --self-test
+          python3 tools/check-conformance.py
+          python3 tools/update-indexes.py
+          git diff --exit-code -- conformance/index.json spec/diagnostics.json data/normative-inputs.json

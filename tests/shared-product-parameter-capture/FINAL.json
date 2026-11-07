@@ -101,8 +101,8 @@
   },
   "commands": [
     "source /workspace/.zil-env/env.sh",
-    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-clang-final cargo test -p zil-driver --test impl226_shared_product_capture -- --test-threads=1",
-    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-api-final cargo test -p zil-driver --features llvm-api --test impl226_shared_product_capture -- --test-threads=1"
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-clang-final cargo test -p zil-driver --test shared_product_capture -- --test-threads=1",
+    "CARGO_TARGET_DIR=/workspace/.zil-env/target-287 CARGO_BUILD_JOBS=1 ZIL_TEST_REPORT_DIR=/tmp/287-api-final cargo test -p zil-driver --features llvm-api --test shared_product_capture -- --test-threads=1"
   ],
   "limits": "Synchronous nonescaping shared Product parameter captures only. No new IR/schema/runtime mechanism; no new allocation-failure matrix, full workspace gate or Rust performance comparison is claimed."
 }

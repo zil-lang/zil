@@ -1,0 +1,84 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "582312371eb12da7e90123b304b15d3f10e364c7",
+  "cli_sha256": "0ec2489cc9572e26753a26ebd45c269fba92137041f2d81bdc6bed3ead5935b6",
+  "cases": [
+    {
+      "id": "thread-helper-returned-mutable-conflict",
+      "path": "thread-helper-returned-mutable-conflict.zil",
+      "source_sha256": "b4449d9aa05f6f7a3af33c6ff1eb87f955af4112082a594b857ef83d9de0b993",
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
+        "--stop-after",
+        "analyze",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "analyze",
+      "diagnostics": [],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-helper-returned-mutable-conflict",
+      "path": "thread-helper-returned-mutable-conflict.zil",
+      "source_sha256": "b4449d9aa05f6f7a3af33c6ff1eb87f955af4112082a594b857ef83d9de0b993",
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-raw-helper-return-seed",
+      "path": "thread-raw-helper-return-seed.zil",
+      "source_sha256": "42713ed5a68b720b2d45af940a6bdafcaba1d394604a1729caa44093cae9088d",
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
+        "--stop-after",
+        "analyze",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "analyze",
+      "diagnostics": [],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-raw-helper-return-seed",
+      "path": "thread-raw-helper-return-seed.zil",
+      "source_sha256": "42713ed5a68b720b2d45af940a6bdafcaba1d394604a1729caa44093cae9088d",
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
+        "--stop-after",
+        "verify",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    }
+  ]
+}

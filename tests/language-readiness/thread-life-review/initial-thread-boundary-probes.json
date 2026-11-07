@@ -1,0 +1,182 @@
+{
+  "schema_version": 1,
+  "kind": "IndependentBoundaryProbe",
+  "implementation_commit": "582312371eb12da7e90123b304b15d3f10e364c7",
+  "cli_sha256": "4189feeb4f66f7bd7247153f49a0b8ec46365f22aa983064707443ab0c3dcaac",
+  "cases": [
+    {
+      "id": "thread-helper-retained-store",
+      "path": "thread-helper-retained-store.zil",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-invalidates-store",
+      "path": "thread-helper-invalidates-store.zil",
+      "source_sha256": "f684b94fa0e490112af92fa55d8e7d39c5287b6a37551753cff283d78c3aca9a",
+      "expected": "SafeReject",
+      "expectation_met": false,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-invalidates-store.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires an owned carrier with finite leaf Package elements"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-capture-retained-store",
+      "path": "thread-capture-retained-store.zil",
+      "source_sha256": "e020e491ea33d71a7532d83a4d5478d287093e3f98ccd5a0e0715e384e197350",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-retained-store.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-capture-invalidates-store",
+      "path": "thread-capture-invalidates-store.zil",
+      "source_sha256": "8a3207e7eb876b3aa49fc211a90a06fbea64303a37900041de5e26fe6e819610",
+      "expected": "SafeReject",
+      "expectation_met": false,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-invalidates-store.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "types",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "Store capture requires an owned carrier with finite leaf Package elements"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-parent-static-identity",
+      "path": "thread-parent-static-identity.zil",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "expected": "Success",
+      "expectation_met": false,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "shared thread dynamic, lending or owning projection storage is not implemented"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-conflicting-inputs",
+      "path": "thread-helper-conflicting-inputs.zil",
+      "source_sha256": "ee0a5313f2d89e3315dfad57c6790ab6f4ed8d2a53ee24c8005f203563f5186c",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-conflicting-inputs.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-consumes-store",
+      "path": "thread-helper-consumes-store.zil",
+      "source_sha256": "c80a8719b18bb07b8f865912c1a2b21268f4b128552c1d33f184ad160bcb105e",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-consumes-store.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-capture-consumes-store",
+      "path": "thread-capture-consumes-store.zil",
+      "source_sha256": "317c680bdc9228af4db0893cc2321d01d4a221702a9b580a4da9f17f5712a37b",
+      "expected": "SafeReject",
+      "expectation_met": false,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-consumes-store.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "callback State requires a self-contained environment with supported owned captures"
+        }
+      ],
+      "verification_runs": 0
+    }
+  ]
+}

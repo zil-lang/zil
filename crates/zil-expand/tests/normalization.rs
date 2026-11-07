@@ -96,7 +96,7 @@ fn range_name_and_ordered_endpoints_survive_source_expansion() {
 }
 
 #[test]
-fn plan_t01_002_explicit_group_default_and_static_are_fixed_before_body() {
+fn explicit_group_default_and_static_are_fixed_before_body() {
     let (_, expanded) = parse_expand(
         "struct Point { x: i32 }\nimpl Point(self: &Self) { fn read() -> i32 => .x\nfn take(self: Self) -> Self => self\nfn unused() -> i32 => 7 }\nimpl Point { fn static_value() -> i32 => 3\nfn explicit(self: &mut Self) -> i32 => .x }",
     );
@@ -132,7 +132,7 @@ fn plan_t01_002_explicit_group_default_and_static_are_fixed_before_body() {
 }
 
 #[test]
-fn plan_t01_002_nested_closures_inherit_lexical_receiver_only() {
+fn nested_closures_inherit_lexical_receiver_only() {
     let (_, expanded) = parse_expand(
         "struct Point { x: i32, Center: i32 }\nimpl Point(self: &Self) { fn nested() { let x = 3; let cb = move () => () => .Center; let same = () => self.x; let ordinary = () => x; let pipe = 4 |> .callback } }\nfn bad() => .x",
     );
@@ -170,7 +170,7 @@ fn plan_t01_002_nested_closures_inherit_lexical_receiver_only() {
 }
 
 #[test]
-fn plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order() {
+fn trait_receiver_comes_from_signature_not_body_or_order() {
     let (_, expanded) = parse_expand(
         "struct Point { x: i32 }\nimpl Read for Point { fn value() -> i32 => .x\nfn zero() -> i32 => .x }\ntrait Read { fn value(self: &Self) -> i32; fn zero() -> i32; }",
     );
@@ -195,7 +195,7 @@ fn plan_t01_002_trait_receiver_comes_from_signature_not_body_or_order() {
 }
 
 #[test]
-fn plan_t01_002_implicit_parameter_and_shorthand_map_to_real_sources() {
+fn implicit_parameter_and_shorthand_map_to_real_sources() {
     let (source, expanded) = parse_expand(
         "struct Point { x: i32 }\nimpl Point(self: &Self) { fn value() -> i32 => .x }",
     );
@@ -293,7 +293,7 @@ fn observe(
 }
 
 #[test]
-fn plan_t01_004_pipeline_order_single_input_and_callable_factory() {
+fn pipeline_order_single_input_and_callable_factory() {
     let (_, expanded) =
         parse_expand("fn demo() { return input() |> factory(seed()) |> final_target }");
     let mut events = Vec::new();
@@ -321,7 +321,7 @@ fn plan_t01_004_pipeline_order_single_input_and_callable_factory() {
 }
 
 #[test]
-fn plan_t01_004_record_update_prepares_base_then_source_order_overrides() {
+fn record_update_prepares_base_then_source_order_overrides() {
     let (_, expanded) = parse_expand(
         "struct Point { x: i32 = default_x(), y: i32 = default_y() }\nfn demo() -> Point => Point { ...base(), y: override_y(), x: override_x() }",
     );
@@ -369,7 +369,7 @@ fn plan_t01_004_record_update_prepares_base_then_source_order_overrides() {
 }
 
 #[test]
-fn plan_t01_004_failed_override_does_not_commit_or_run_later_fields() {
+fn failed_override_does_not_commit_or_run_later_fields() {
     let (_, expanded) = parse_expand(
         "struct Point { x: i32, y: i32 }\nfn demo() -> Point => Point { ...base(), x: fail(), y: later() }",
     );

@@ -34,7 +34,7 @@
 当前范围是直接 Managed 字段和有限 Copy 字段，包无整体自定义 Drop。一般嵌套拥有包、包含拥有闭包的包、动态成员集合、拥有错误载荷和自定义整体析构后的拆分仍待后续合同。旧 Desc 的未来使用必须在修改该字段前结束；兄弟字段不受牵连。准备失败不撤销 RHS 已发生的副作用；当前 teardown panic 沿用 abort 行为。
 
 ```sh
-cargo test --locked --offline -p zil-driver --test impl074_packages
+cargo test --locked --offline -p zil-driver --test owning_package_field_updates_packages
 cargo run --locked --offline -p zil-cli -- build examples/mainline/update_ui/main.zil -o out/update-ui
 printf '+r-tbbq' | out/update-ui
 ```

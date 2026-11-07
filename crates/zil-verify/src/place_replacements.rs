@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use zil_ir::{PlaceProjection, ReservationId};
 pub(crate) mod actual;
 #[cfg(test)]
-#[path = "../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/reservation_protocol.rs"]
 pub(crate) mod fixture;
 
 #[derive(Clone)]

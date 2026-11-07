@@ -2849,10 +2849,10 @@ mod scoped_tests {
                 );
             }
         }
-        eprintln!("G3.3.2.4 actual closure lineage N={low}/N-1/fresh/retry");
+        eprintln!("closure lineage actual closure lineage N={low}/N-1/fresh/retry");
     }
     #[test]
-    fn g231_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
+    fn self_associated_constant_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
         fn audit(text: &str, extra: &str, move_original: bool) -> CompileResult<()> {
             let source =
                 SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-coverage.zil", text);
@@ -2968,9 +2968,9 @@ mod scoped_tests {
     }
 
     #[test]
-    fn g231_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
+    fn self_associated_constant_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
         let text = include_str!(
-            "../../../../tests/language-readiness/terminal/341/associated-constant-self.zil"
+            "../../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-self.zil"
         );
         let source = SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-shared.zil", text);
         let mut parsed = zil_syntax::parse(&source);
@@ -3040,7 +3040,7 @@ mod scoped_tests {
             zil_backend_llvm::Optimization::O2,
         ] {
             let dir = std::env::temp_dir().join(format!(
-                "g231-shared-{}-{:?}",
+                "self_associated_constant-shared-{}-{:?}",
                 std::process::id(),
                 optimization
             ));
@@ -3177,7 +3177,7 @@ mod scoped_tests {
     #[test]
     fn ct6_generated_member_binds_its_actual_frozen_lifetime_owner() {
         let text = include_str!(
-            "../../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+            "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-generated-member.zil"
         );
         let probe = zil_syntax::parse(&SourceUnit::new(
             zil_base::FileId(0),
@@ -3200,7 +3200,7 @@ mod scoped_tests {
             "generated root must not share the emitter's identity"
         );
         let strong = include_str!(
-            "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+            "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-member-life.zil"
         );
         let output = run(strong).unwrap();
         assert!(
@@ -3215,19 +3215,19 @@ mod scoped_tests {
             (
                 "member",
                 include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-member-life.zil"
+                    "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-member-life.zil"
                 ),
             ),
             (
                 "factory",
                 include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory.zil"
+                    "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-factory.zil"
                 ),
             ),
             (
                 "nominal-factory",
                 include_str!(
-                    "../../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-nominal-factory.zil"
+                    "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-nominal-factory.zil"
                 ),
             ),
         ]
@@ -3403,7 +3403,7 @@ mod scoped_tests {
     #[test]
     fn closed_generic_scalar_is_materialized_even_with_an_unrelated_deferred_root() {
         let original = include_str!(
-            "../../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil"
+            "../../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/actual-caller-good.zil"
         );
         let text = format!(
             "{} fn unrelated<#N:i32>()->i32{{return #(N)}}",
@@ -3548,7 +3548,7 @@ mod scoped_tests {
     #[test]
     fn ct4_materialization_binds_original_full_lifetime_ordinal() {
         let text = include_str!(
-            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+            "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context.zil"
         );
         for (text, name) in [
             (text.to_owned(), "s"),
@@ -3625,14 +3625,14 @@ mod scoped_tests {
     #[test]
     fn ct4_materialization_scope_work_is_exact_and_request_local() {
         let original = include_str!(
-            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+            "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context.zil"
         );
         let long = format!("scope_{}", "x".repeat(512));
         let renamed = original
             .replace("life s", &format!("life {long}"))
             .replace("'s", &format!("'{long}"));
         let generic = include_str!(
-            "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-generic-context.zil"
         );
         for text in [original, renamed.as_str(), generic] {
             let defaults = Limits::default();
@@ -3681,13 +3681,13 @@ mod scoped_tests {
     fn ct4_materialization_preserves_joint_and_mixed_nominal_actuals() {
         for text in [
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-mixed-context.zil"
             ),
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-joint-context.zil"
             ),
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-generic-context.zil"
             ),
         ] {
             let output = run(text).unwrap();

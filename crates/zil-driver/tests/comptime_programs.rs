@@ -86,7 +86,7 @@ fn rejection(text: &str, options: CompileOptions, category: ResultCategory, code
 }
 
 #[test]
-fn ct027_01_recursive_functions_and_local_mutation_execute_natively() {
+fn compile_time_recursive_functions_and_local_mutation_execute_natively() {
     native(
         "fn fib(n: i64) -> i64 { if n < 2 { return n } return fib(n-1) + fib(n-2) }\nfn result() -> i64 { return #(fib(10)) }",
         55,
@@ -97,21 +97,21 @@ fn ct027_01_recursive_functions_and_local_mutation_execute_natively() {
     );
 }
 #[test]
-fn ct027_02_range_continue_break_and_nested_calls() {
+fn compile_time_range_continue_break_and_nested_calls() {
     native(
         "fn square(x: i64) -> i64 { return x*x } fn sum(n: i64) -> i64 { var total: i64 = 0; for i in 0..n { if i % 2 != 0 { continue } if i > 8 { break } total += square(i) } return total } fn result() -> i64 { return #(sum(20)) }",
         120,
     );
 }
 #[test]
-fn ct027_03_short_circuit_and_branch_skip_unexecuted_arithmetic() {
+fn compile_time_short_circuit_and_branch_skip_unexecuted_arithmetic() {
     native(
         "fn result() -> i32 { let a = #(false && (1 / 0 == 0)); let b = #(true || (1 / 0 == 0)); let c = #(if true { 42 } else { 1/0 }); if !a && b { return c } return 0 }",
         42,
     );
 }
 #[test]
-fn ct027_04_i64_context_wrapping_and_unit_calls() {
+fn compile_time_i64_context_wrapping_and_unit_calls() {
     native(
         "fn ping() {} fn wrap(x: i64) -> i64 { ping(); return x +% 1 } fn result() -> i64 { return #(wrap(9223372036854775807)) }",
         i64::MIN,
@@ -122,7 +122,7 @@ fn ct027_04_i64_context_wrapping_and_unit_calls() {
     );
 }
 #[test]
-fn ct027_13_unsuffixed_literals_share_runtime_type_context() {
+fn compile_time_unsuffixed_literals_share_runtime_type_context() {
     native(
         "fn large() -> i64 { return 5000000000 } fn result() -> i64 { let v = #(1 + large()); return v }",
         5_000_000_001,
@@ -133,14 +133,14 @@ fn ct027_13_unsuffixed_literals_share_runtime_type_context() {
     );
 }
 #[test]
-fn ct027_05_mutual_recursion_and_nested_compile_time_marker() {
+fn compile_time_mutual_recursion_and_nested_compile_time_marker() {
     native(
         "fn even(n: i32) -> bool { if n == 0 { return true } return odd(n-1) } fn odd(n: i32) -> bool { if n == 0 { return false } return even(n-1) } fn result() -> i32 { if #(even(#(8 + 2))) { return 91 } return 0 }",
         91,
     );
 }
 #[test]
-fn ct027_06_calls_observe_checked_arithmetic_failures() {
+fn compile_time_calls_observe_checked_arithmetic_failures() {
     rejection(
         "fn f(x: i64) -> i64 { return x + 1 } fn result() -> i64 { return #(f(9223372036854775807)) }",
         CompileOptions::default(),
@@ -155,7 +155,7 @@ fn ct027_06_calls_observe_checked_arithmetic_failures() {
     );
 }
 #[test]
-fn ct027_07_execution_and_recursion_budgets_do_not_fall_back() {
+fn compile_time_execution_and_recursion_budgets_do_not_fall_back() {
     let mut options = CompileOptions::default();
     options.limits.max_ct_steps = 80;
     rejection(
@@ -174,7 +174,7 @@ fn ct027_07_execution_and_recursion_budgets_do_not_fall_back() {
     );
 }
 #[test]
-fn ct027_08_runtime_bindings_and_shadowed_function_names_are_rejected() {
+fn compile_time_runtime_bindings_and_shadowed_function_names_are_rejected() {
     rejection(
         "fn f(x: i32) -> i32 { return x } fn result() -> i32 { let x = 42; return #(f(x)) }",
         CompileOptions::default(),
@@ -189,7 +189,7 @@ fn ct027_08_runtime_bindings_and_shadowed_function_names_are_rejected() {
     );
 }
 #[test]
-fn ct027_09_multiple_queries_share_actual_execution_budget() {
+fn compile_time_multiple_queries_share_actual_execution_budget() {
     let text = "fn zero() -> i32 { return 0 } fn result() -> i32 { let a = #(zero()); let b = #(zero()); return a + b }";
     // Each query executes a six-step scoped query entry and a six-step scoped
     // callee. Scope markers are verified no-ops but their actual VM visits still
@@ -227,7 +227,7 @@ fn ct027_09_multiple_queries_share_actual_execution_budget() {
     );
 }
 #[test]
-fn ct027_10_project_calls_respect_visibility_and_module_identity() {
+fn compile_time_project_calls_respect_visibility_and_module_identity() {
     let temp = Temp::new();
     let mut project = ProjectSources {
         root: ModuleId(0),
@@ -302,7 +302,7 @@ fn raw(text: &str) -> CtProgram {
     }
 }
 #[test]
-fn ct027_11_raw_wire_reverification_and_forged_claims() {
+fn compile_time_raw_wire_reverification_and_forged_claims() {
     let raw = raw(
         "fn sum(n: i64) -> i64 { var v: i64 = 0; for i in 0..n { v += i } return v } fn result() -> i64 { return sum(10) }",
     );
@@ -346,7 +346,7 @@ fn ct027_11_raw_wire_reverification_and_forged_claims() {
     );
 }
 #[test]
-fn ct027_12_ordinary_verified_addresses_do_not_grant_ct_permission() {
+fn compile_time_ordinary_verified_addresses_do_not_grant_ct_permission() {
     let raw = raw("fn result() -> i64 { let x: i64 = 42; let p = &x; return *p }");
     let target = TargetProfile::default();
     let limits = Limits::default();
@@ -358,7 +358,7 @@ fn ct027_12_ordinary_verified_addresses_do_not_grant_ct_permission() {
 }
 
 #[test]
-fn ct027_14_query_selection_preserves_later_integer_context() {
+fn compile_time_query_selection_preserves_later_integer_context() {
     for (expression, expected) in [
         ("5000000000 + large()", 10000000000),
         ("-5000000000 + large()", 0),

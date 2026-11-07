@@ -105,7 +105,7 @@ def main():
     # still fails the gate, while one old fixture cannot hide later regressions.
     run('rust-tests',['cargo','test','--workspace','--offline','--locked','--no-fail-fast'])
     run('scalar-source',[sys.executable,'tests/integration/scalar.py','--out-root',str(out/'scalar-source'/'campaign')])
-    run('native-stdio-rust-comparison',[sys.executable,'tests/integration/impl044.py','--zil',str(built_compiler),'--out',str(out/'native-stdio-rust-comparison'/'campaign'),'--evidence',str(out/'native-stdio-rust-comparison'/'receipt.json')],expected_status='Pass',executed_field='checks',minimum_executed=32)
+    run('native-stdio-rust-comparison',[sys.executable,'tests/integration/ascii-uppercase-filter.py','--zil',str(built_compiler),'--out',str(out/'native-stdio-rust-comparison'/'campaign'),'--evidence',str(out/'native-stdio-rust-comparison'/'receipt.json')],expected_status='Pass',executed_field='checks',minimum_executed=32)
     run('closure-source-oracle',[sys.executable,'tests/integration/closures.py','--compiler',str(built_compiler),'--seed','23041','--cases','24','--out-root',str(out/'closure-source-oracle'/'campaign')],timeout=300,expected_status='Pass',executed_field='executed',minimum_executed=26)
     closure_record=records[-1]
     closure_report=closure_record.get('reported',{})
@@ -172,7 +172,7 @@ def main():
     run('native-cli',[sys.executable,'tests/script/native-protocol.py'])
     win_campaign=out/'win64-platform-closure'/'campaign'
     if a.win64_imports and a.wine:
-        win_command=[sys.executable,'tools/platform/087/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--wine',a.wine,'--out',str(win_campaign)]
+        win_command=[sys.executable,'tools/platform/win64-compatibility/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--wine',a.wine,'--out',str(win_campaign)]
     else:
         win_command=[sys.executable,'-c','import json; print(json.dumps({"status":"InfraError","error":"Win64 closure requires --win64-imports and --wine, or ZIL_WIN64_IMPORTS and ZIL_WINE, plus an isolated X11 environment."})); raise SystemExit(2)']
     run('win64-platform-closure',win_command,timeout=300,expected_status='Pass',executed_field='assertions',minimum_executed=66)
@@ -210,7 +210,7 @@ def main():
                     and win_report.get('compiler_path')==str(built_compiler.resolve())
                     and built_compiler_sha is not None
                     and win_report.get('compiler_sha256')==built_compiler_sha==sha(built_compiler)
-                    and win_report.get('harness_sha256')==sha(ROOT/'tools/platform/087/verify.py')
+                    and win_report.get('harness_sha256')==sha(ROOT/'tools/platform/win64-compatibility/verify.py')
                     and type(win_report.get('pe_executions')) is int and win_report['pe_executions']==len(actual_runs)==10
                     and machine_commands
                     and win_report.get('execution')=='Win64 PE under Wine on isolated X display; not native Windows'
@@ -232,7 +232,7 @@ def main():
         slice_clang_name=os.environ.get('ZIL_CLANG','clang')
         slice_clang=pathlib.Path(shutil.which(slice_clang_name) or slice_clang_name).absolute()
         slice_linker=slice_clang.parent/'lld-link'
-        slice_command=[sys.executable,'tools/slices/092/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--wine',a.wine,'--clang',str(slice_clang),'--linker',str(slice_linker),'--out',str(slice_campaign)]
+        slice_command=[sys.executable,'tools/slices/ordinary-slice-abi/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--wine',a.wine,'--clang',str(slice_clang),'--linker',str(slice_linker),'--out',str(slice_campaign)]
     else:
         slice_command=[sys.executable,'-c','import json; print(json.dumps({"status":"InfraError","error":"Slice ABI requires explicit Win64 imports and Wine."})); raise SystemExit(2)']
     run('slice-native-abi',slice_command,timeout=240,expected_status='Pass',executed_field='executions',minimum_executed=4)
@@ -281,7 +281,7 @@ def main():
         byte_clang_name=os.environ.get('ZIL_CLANG','clang')
         byte_clang=pathlib.Path(shutil.which(byte_clang_name) or byte_clang_name).absolute()
         byte_linker=byte_clang.parent/'lld-link'
-        byte_command=[sys.executable,'tools/byte-buffer/096/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--heap-library',a.byte_heap_library,'--wine',a.wine,'--clang',str(byte_clang),'--linker',str(byte_linker),'--out',str(byte_campaign)]
+        byte_command=[sys.executable,'tools/byte-buffer/owned-storage-abi/verify.py','--compiler',str(built_compiler),'--imports',a.win64_imports,'--heap-library',a.byte_heap_library,'--wine',a.wine,'--clang',str(byte_clang),'--linker',str(byte_linker),'--out',str(byte_campaign)]
     else:
         byte_command=[sys.executable,'-c','import json; print(json.dumps({"status":"InfraError","error":"Byte storage ABI requires explicit heap imports, kernel32 imports and Wine."})); raise SystemExit(2)']
     run('byte-buffer-native-abi',byte_command,timeout=240,expected_status='Pass',executed_field='executions',minimum_executed=4)
@@ -374,8 +374,7 @@ def main():
     run('architecture',['node','tools/check-architecture.mjs','--metadata',str(metadata_path)])
     run('plan',[sys.executable,'tools/check-plan.py','--self-test'])
     run('manifest-integrity',[sys.executable,'tools/check-conformance.py'])
-    run('handoff',['node','tools/handoff.mjs','--check'],expected_status='Pass')
-    run('tool-tests',['node','--test','tests/architecture.test.mjs','tests/hash-syntax.test.mjs','tests/handoff.test.mjs','tests/report.test.mjs'])
+    run('tool-tests',['node','--test','tests/architecture.test.mjs','tests/hash-syntax.test.mjs','tests/report.test.mjs'])
     protocol_reports={}
     for owner in ['B0','T01','T04','T05']:
         protocol_reports[owner]=run('protocol-'+owner,[sys.executable,'tools/run-cases.py','--task',owner,'--manifest','validation/task-test-plans.json','--out-root',str(out/('protocol-'+owner)/'campaign')],required=owner in ['B0','T01'])

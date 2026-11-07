@@ -539,7 +539,7 @@
       "responsibility": "Strong non-spurious cmpxchg; independent actual cell/root/operand/order proofs; both observed and success results, all visitors/identities, decoded Wire and two native paths. Raw transport and LLVM model success do not grant source admission.",
       "compatibility": "Isolated successor of40; Typed/Type/LifeInventory domainsV41 and Wire41 reject older versions. CT5 unchanged."
     },
-    "pollable_registration_G8_4_1": {
+    "pollable_registration": {
       "authority": "_zil_design.md §12.3.1 and §12.1.3/§12.2/§12.3",
       "state": "ContractToImplement",
       "schema_version": 42,
@@ -585,7 +585,7 @@
       "acceptance": "Actual Source producers/consumers, joint graph-and-witness and call-actual swaps, raw/Wire version and graph controls, N/N-1/fresh, cache identity, full native observations; transport/schema presence is not parent completion",
       "enclosing_scope": "CtAmbientLifeScope.enclosing: Option<CtAmbientScopeId>; authentic lexical host edge with independent Definition/Instantiated own actuals, bounded acyclic parent graph and full contextual identity; free scopes None"
     },
-    "runtime_utf8_G9_3_1": {
+    "runtime_utf8": {
       "authority": "_zil_design.md §15.1",
       "state": "ContractToImplement",
       "schema_version": 43,
@@ -599,7 +599,7 @@
       "accounting": "Prepay actual new scans/copies/comparisons/storage from remaining current request; unchanged default budgets",
       "scope": "Ordinary immutable byte-slice literals and explicit std.string construction; not full text/formatting/grapheme library or Rust cost acceptance"
     },
-    "shared_option_address_G3_4_1": {
+    "shared_option_address": {
       "authority": "_zil_design.md §15.2",
       "state": "ContractToImplement",
       "representation": "Existing Address Type actual and ordinary Enum; no additional wire fields",
@@ -608,7 +608,7 @@
       "independence": "Types/Analyze/Verify separately authenticate full declaration, shape, actual and complete relation; runtime targets reconstructed from real active payload and calls",
       "boundary": "Mutable or ordinary user nominal direct Address actuals remain unsupported pending complete formal occurrence metadata; names and same-shaped types do not authorize"
     },
-    "pod_store_G9_3_2": {
+    "pod_store": {
       "authority": "_zil_design.md §8.2.5",
       "state": "ContractToImplement",
       "representation": "Existing full OwnedStore Record element, canonical resource identity and opcodes80–88; schema/Wire43 unchanged",
@@ -620,7 +620,7 @@
       "acceptance": "Actual Source std.store, raw/Wire negatives, full native O0/O2 values and allocation-failure cleanup, independent review and formal integration",
       "layout": "Nonzero bounded actual stored stride; aggregate Unit and empty Record/Tuple are empty structs size0/align1; closure capture Unit placeholder is distinct; existing ABI unchanged"
     },
-    "static_trait_G2_4_2": {
+    "static_trait": {
       "authority": "_zil_design.md §15.4",
       "state": "ContractToImplement",
       "representation": "Existing ordinary Function/Call with actual origin-backed provider; no receiver argument, public schema or ABI change",
@@ -629,7 +629,7 @@
       "obligations": "Existing type-only generic, where, ordered argument/result and unused definition checks; no additional Copy/ownership/lifetime permissions",
       "accounting": "New scans/substitution/keys/clones prepaid; unaffected receiver request fees unchanged"
     },
-    "pod_store_mutable_G9_3_3": {
+    "pod_store_mutable": {
       "authority": "_zil_design.md §8.2.5",
       "state": "ContractToImplement",
       "extends": "pod_store_G9_3_2",
@@ -639,7 +639,7 @@
       "machine": "Initialized-prefix bounds before address, real Copy field updates and large readback, allocation failure preserves modified contents and single release",
       "boundary": "No contiguous slice, owning-element widening, escaping return, capture or default limit increase"
     },
-    "scalar_store_G9_3_4": {
+    "scalar_store": {
       "authority": "_zil_design.md §8.2.5",
       "state": "ContractToImplement",
       "extends": [
@@ -1796,16 +1796,16 @@
     "budget": "No default limits increased. Existing semantic fees on absent feature unchanged; new actual work prepaid from current request; new wire role byte is charged as part of schema32 format",
     "status": "In construction; no external lifetime acceptance claimed before source/raw/native independent tests"
   },
-  "trait_lending_G2_4_1": {
-    "source": "_zil_design.md §18.1; changes/G2.4.1-trait-lending-iterator.md",
+  "trait_lending": {
+    "source": "_zil_design.md §18.1; spec/trait-method-lending.md",
     "representation": "Existing function-local life relation and StorageLifeContract positions, canonical Option shared-address profile; no new opcode/schema",
     "identity": "Static trait/provider and complete associated substitution; alpha-equivalent local binders preserve relation and receiver mode",
     "consumer": "Types checks declaration relations; Analyze and Verify independently reconstruct actual return/call roots, parent loans, live result windows and unused definitions",
     "scope": "Ordinary nongeneric traits; concrete/type-only nominal generic impls; life-only method generics and Copy referent; no GAT/impl-life/default-body widening",
     "budget": "Prepay actual new scans/maps/clones/substitutions with existing request, no default limit increase"
   },
-  "ordinary_store_ownership_G9_3_5": {
-    "proposal": "changes/ordinary-store-ownership.md",
+  "ordinary_store_ownership": {
+    "proposal": "spec/ordinary-store-ownership.md",
     "normative": "_zil_design.md §8.1.3.2",
     "representation": "Existing complete Managed<OwnedStore<T>>, Package/Tuple/Enum/ErrorUnion, concrete capture and actual ownership/loan instructions; no schema/ABI bump.",
     "consumers": [
@@ -1816,8 +1816,8 @@
     ],
     "trust": "Ordinary ownership does not grant StoreElement, array, borrowed storage, dyn or asynchronous qualification. Admission and execution require scoped independent acceptance."
   },
-  "shared_dyn_dispatch_G5_2_1": {
-    "proposal": "changes/shared-scalar-dynamic-dispatch.md",
+  "shared_dyn_dispatch": {
+    "proposal": "spec/shared-dyn-dispatch.md",
     "normative": "_zil_design.md §9.4",
     "representation": "Existing Dyn declarations/interface/vtable, DynContract, shared Address<Dyn>, MakeDynBorrow and CallDynSlot; actual receiver pointer plus immutable static table pointer. No schema/Wire/ABI bump.",
     "consumers": [

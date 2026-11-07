@@ -1,4 +1,4 @@
-//! Hand-authored raw kernel cases; source evidence is kept in impl253_source.
+//! Hand-authored raw kernel cases; source-level acceptance lives in the driver tests.
 use super::*;
 use zil_base::{FileId, Fingerprint, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 
@@ -978,21 +978,21 @@ mod schema40_fixture;
 // Frozen old bytes remain immutable; only tests migrate unchanged candidate records.
 macro_rules! reviewed_fixture_current {
     ($name:literal) => {{
-        let historical = include_bytes!(concat!("../tests/impl253_fixtures/", $name));
+        let historical = include_bytes!(concat!("../tests/forward_call_wire_fixtures/", $name));
         let errors =
             zil_ir::wire::decode_module_candidate(historical, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        let v34 = include_bytes!(concat!("../tests/impl253_fixtures/v34/", $name));
+        let v34 = include_bytes!(concat!("../tests/forward_call_wire_fixtures/v34/", $name));
         let errors = zil_ir::wire::decode_module_candidate(v34, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        let v37 = include_bytes!(concat!("../tests/impl253_fixtures/v37/", $name));
+        let v37 = include_bytes!(concat!("../tests/forward_call_wire_fixtures/v37/", $name));
         let errors = zil_ir::wire::decode_module_candidate(v37, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
-        let v39 = include_bytes!(concat!("../tests/impl253_fixtures/v39/", $name));
+        let v39 = include_bytes!(concat!("../tests/forward_call_wire_fixtures/v39/", $name));
         let errors = zil_ir::wire::decode_module_candidate(v39, &Limits::default()).unwrap_err();
         assert_eq!(errors[0].code, "E-WIRE-VERSION");
         schema40_fixture::migrate(
-            include_bytes!(concat!("../tests/impl253_fixtures/v40/", $name)),
+            include_bytes!(concat!("../tests/forward_call_wire_fixtures/v40/", $name)),
             &Limits::default(),
         )
     }};

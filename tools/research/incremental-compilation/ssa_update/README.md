@@ -45,7 +45,7 @@ and native oracle fixtures. Supply the review fixture paths explicitly; it
 checks actual DSO loading, LLVM verification, complete native output, and IR
 comparison against the chosen original. It refuses an existing output path.
 Author reruns are labeled separately from the independent review. Actual ZIL
-requests use `pass_timing/run_probe.py`, current Verify, the original opaque
+requests used the historical `pass_timing/run_probe.py` at the fixed source commit, current Verify, the original opaque
 source, disabled caches, and the five retained expected outputs. Source the
 cloud environment so the CLI can launch clang at the link step.
 

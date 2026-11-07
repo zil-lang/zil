@@ -2,7 +2,7 @@
 use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
-fn common_retained40_and_ct5_transport_preserves_context_and_budgets() {
+fn retained_context_and_ct_transport_preserves_context_and_budgets() {
     assert_eq!(SCHEMA_VERSION, 43);
     assert_eq!(wire::WIRE_VERSION, 43);
     let shape = StorageLifeShape {

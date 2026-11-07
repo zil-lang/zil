@@ -837,7 +837,7 @@ mod qualified_snapshot_tests {
     use super::*;
 
     #[test]
-    fn g4463_qualified_snapshot_classification_preserves_layout_and_full_metadata_fee() {
+    fn qualified_snapshot_classification_preserves_layout_and_full_metadata_fee() {
         // Private physical planner probe only. Source nominal and borrowing
         // authentication is performed before this planner in real requests.
         let leaf = Type::BorrowedStorage {

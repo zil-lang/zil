@@ -299,7 +299,7 @@ impl Builder<'_, '_> {
 }
 
 #[cfg(test)]
-mod terminal343_hint_budget {
+mod hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {
@@ -457,7 +457,7 @@ mod terminal343_hint_budget {
                     }
                 }
                 growth.push(n);
-                eprintln!("task343 hint exact case={case} prefix={prefix} N={n}");
+                eprintln!("hint exact case={case} prefix={prefix} N={n}");
             }
             if case != 0 {
                 assert!(

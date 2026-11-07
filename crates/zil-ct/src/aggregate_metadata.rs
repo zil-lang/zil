@@ -303,7 +303,7 @@ mod tests {
         }
     }
     #[test]
-    fn product237_metadata_is_prepaid_at_exact_node_work_and_depth_boundaries() {
+    fn product_metadata_is_prepaid_at_exact_node_work_and_depth_boundaries() {
         let core = core();
         let limits = Limits::default();
         let (nodes, work) = preflight_aggregate_metadata(&core, &limits).unwrap();
@@ -338,7 +338,7 @@ mod tests {
         }
     }
     #[test]
-    fn product237_runtime_normalization_preserves_recipes_and_identity_scans_them() {
+    fn product_runtime_normalization_preserves_recipes_and_identity_scans_them() {
         let mut core = core();
         let limits = Limits::default();
         assert_eq!(
