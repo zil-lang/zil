@@ -3570,7 +3570,9 @@ fn infer_module_inner(
             || retained_task_value(&function.return_type)
         {
             let mut retained_inputs = BTreeSet::new();
-            if retained_task_value(&function.return_type) {
+            if retained_task_value(&function.return_type)
+                && !matches!(function.return_type, Type::MutexGuard { .. })
+            {
                 let contract = function
                     .storage_life
                     .as_ref()

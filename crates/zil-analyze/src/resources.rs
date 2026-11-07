@@ -2881,7 +2881,10 @@ impl Flow<'_> {
                             budget,
                         )?;
                         if exact(&fact, Life::Cleaned) {
-                            return Err(error("duplicate automatic cleanup"));
+                            return Err(error(&format!(
+                                "duplicate automatic cleanup of local {} in {} block {} at instruction {} ({:?})",
+                                local.0, f.name, b, position, i.kind
+                            )));
                         }
                         for (before, later) in &state.later {
                             budget.spend(1, "resource cleanup order")?;
