@@ -168,6 +168,8 @@ pub(super) fn actual(
                     | InstructionKind::Binary { .. }
                     | InstructionKind::ConvertNumber { .. }
                     | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::UnsafeEnter { .. }
+                    | InstructionKind::UnsafeExit { .. }
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::StorageLive(_)

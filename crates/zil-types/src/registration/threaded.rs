@@ -108,8 +108,16 @@ fn environment(module: &TypedModule, id: ClosureId, left: &mut usize, span: Span
     }
     Ok(c.function)
 }
-pub(super) fn actual(module: &TypedModule, id: ClosureId, left: &mut usize, span: Span) -> R<()> {
-    let entry = environment(module, id, left, span)?;
+fn entry_graph(module: &TypedModule, id: ClosureId, left: &mut usize, span: Span) -> R<()> {
+    spend(left, module.closures.len().saturating_add(1))?;
+    let c = module
+        .closures
+        .get(id.0 as usize)
+        .ok_or_else(|| denied(span))?;
+    if c.id != id || !c.lending_captures.is_empty() {
+        return Err(denied(span));
+    }
+    let entry = c.function;
     let mut queue = vec![entry];
     let mut seen = BTreeSet::new();
     while let Some(fid) = queue.pop() {
@@ -174,6 +182,8 @@ pub(super) fn actual(module: &TypedModule, id: ClosureId, left: &mut usize, span
                     | InstructionKind::Store { .. }
                     | InstructionKind::StorageLive(_)
                     | InstructionKind::StorageDead(_)
+                    | InstructionKind::UnsafeEnter { .. }
+                    | InstructionKind::UnsafeExit { .. }
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::Constant(_)
@@ -204,7 +214,7 @@ pub(crate) fn check(
         environment(module, *id, left, Span::default())?;
     }
     for id in entries {
-        actual(module, *id, left, Span::default())?;
+        entry_graph(module, *id, left, Span::default())?;
     }
     Ok(())
 }
@@ -345,10 +355,12 @@ pub(crate) fn definition(
                             };
                             if signature.is_some_and(|s| {
                                 s.scoped_callback == Some(ScopedCallbackRole::ThreadAsyncRegister)
-                            }) {
-                                return Err(unsupported(
+                            }) && !matches!(f.callable_parameters.as_slice(), [b] if b.closed_environment && b.transfer && b.thread_callable && b.kind == CallableKind::FnMut)
+                            {
+                                return Err(error(
+                                    "E-REGISTRATION-THREAD-BOUND",
                                     e.span,
-                                    "generic threaded registration requires a declared thread-call capability; ClosedEnvironment and Transfer prove only the value and cleanup",
+                                    "threaded registration definition requires explicit FnMut + ClosedEnvironment + Transfer + ThreadCallable",
                                 ));
                             }
                         }

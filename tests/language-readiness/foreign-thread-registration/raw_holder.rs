@@ -198,18 +198,22 @@ fn threaded_fnmut_preserves_writes_and_drains_every_raw_holder() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let clang = std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into());
     let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
-    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
-        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
-            continue;
-        }
-        for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = std::env::temp_dir().join(format!(
-                "zil-threaded-registration-{}-{backend:?}-{optimization:?}",
-                std::process::id()
-            ));
-            fs::create_dir_all(&dir).unwrap();
-            let observer = dir.join("host.o");
-            let compiled = Command::new(&clang)
+    for (lane, text) in [
+        ("concrete", include_str!("threaded.zil")),
+        ("generic", include_str!("threaded-generic.zil")),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let dir = std::env::temp_dir().join(format!(
+                    "zil-threaded-registration-{lane}-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                fs::create_dir_all(&dir).unwrap();
+                let observer = dir.join("host.o");
+                let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
                 .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join(
                     "../../tests/language-readiness/foreign-thread-registration/threaded-host.c",
@@ -218,112 +222,113 @@ fn threaded_fnmut_preserves_writes_and_drains_every_raw_holder() {
                 .arg(&observer)
                 .output()
                 .unwrap();
-            assert!(compiled.status.success(), "{compiled:?}");
-            let wrapper = dir.join("link.sh");
-            fs::write(&wrapper, format!(
+                assert!(compiled.status.success(), "{compiled:?}");
+                let wrapper = dir.join("link.sh");
+                fs::write(&wrapper, format!(
                 "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -pthread -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",
                 quote(Path::new(&clang)), quote(&observer), quote(Path::new(&clang))
             )).unwrap();
-            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
-            let report = compile_source(
-                &source(include_str!("threaded.zil")),
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    clang: Some(wrapper.clone()),
-                    stop_after: Stage::Build,
-                    output: Some(dir.join("program")),
-                    emit_dir: Some(dir.join("artifacts")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
-            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            for failure in [
-                None,
-                Some("ZIL_THREAD_ALLOC_FAIL"),
-                Some("ZIL_THREAD_INSTALL_FAIL"),
-            ] {
-                let mut run = Command::new(&report.artifacts["executable"]);
-                if let Some(failure) = failure {
-                    run.env(failure, "1");
-                }
-                let result = run.output().unwrap();
-                assert_eq!(
-                    result.status.code(),
-                    Some(0),
-                    "{backend:?} {optimization:?} {failure:?}: {result:?}"
+                fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+                let report = compile_source(
+                    &source(text),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper.clone()),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        emit_dir: Some(dir.join("artifacts")),
+                        ..CompileOptions::default()
+                    },
                 );
-                let expected = if failure.is_some() {
-                    "threaded construction failure drained; owned buffer freed once\n"
-                } else {
-                    "thread F writes acquired; raw holder drained; cleanup reentry pending; once free\n"
-                };
-                assert_eq!(result.stdout, expected.as_bytes(), "{result:?}");
-            }
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.native_codegen.as_ref().unwrap().backend, backend);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                for failure in [
+                    None,
+                    Some("ZIL_THREAD_ALLOC_FAIL"),
+                    Some("ZIL_THREAD_INSTALL_FAIL"),
+                ] {
+                    let mut run = Command::new(&report.artifacts["executable"]);
+                    if let Some(failure) = failure {
+                        run.env(failure, "1");
+                    }
+                    let result = run.output().unwrap();
+                    assert_eq!(
+                        result.status.code(),
+                        Some(0),
+                        "{backend:?} {optimization:?} {failure:?}: {result:?}"
+                    );
+                    let expected = if failure.is_some() {
+                        "threaded construction failure drained; owned buffer freed once\n"
+                    } else {
+                        "thread F writes acquired; raw holder drained; cleanup reentry pending; once free\n"
+                    };
+                    assert_eq!(result.stdout, expected.as_bytes(), "{result:?}");
+                }
 
-            let invalid = Command::new(&report.artifacts["executable"])
-                .env("ZIL_THREAD_INVALID_DRAIN", "1")
-                .env("ZIL_THREAD_TRACE", "1")
-                .output()
-                .unwrap();
-            assert_eq!(invalid.status.code(), None, "{invalid:?}");
-            let trace = String::from_utf8_lossy(&invalid.stdout);
-            assert!(
-                trace.contains("invalid drain; frame=1 buffer=1"),
-                "{invalid:?}"
-            );
-            assert!(
-                !trace.contains("buffer-free") && !trace.contains("frame-free"),
-                "{invalid:?}"
-            );
-            let original = include_str!("threaded.zil");
-            let early = format!(
-                "{}async_registration_finish_destroy(give owner);return 0;}}}}",
-                original
-                    .split("    if !async_registration_valid(owner)")
-                    .next()
-                    .unwrap()
-            );
-            let premature = compile_source(
-                &source(&early),
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    clang: Some(wrapper),
-                    stop_after: Stage::Build,
-                    output: Some(dir.join("early")),
-                    emit_dir: Some(dir.join("early-artifacts")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                premature.status,
-                ResultCategory::Success,
-                "{}",
-                premature.to_json()
-            );
-            let premature = Command::new(&premature.artifacts["executable"])
-                .env("ZIL_THREAD_TRACE", "1")
-                .output()
-                .unwrap();
-            assert_eq!(premature.status.code(), None, "{premature:?}");
-            let trace = String::from_utf8_lossy(&premature.stdout);
-            assert!(
-                trace.contains("installed frame=1 buffer=1"),
-                "{premature:?}"
-            );
-            assert!(
-                !trace.contains("buffer-free") && !trace.contains("frame-free"),
-                "{premature:?}"
-            );
-            fs::remove_dir_all(dir).unwrap();
+                let invalid = Command::new(&report.artifacts["executable"])
+                    .env("ZIL_THREAD_INVALID_DRAIN", "1")
+                    .env("ZIL_THREAD_TRACE", "1")
+                    .output()
+                    .unwrap();
+                assert_eq!(invalid.status.code(), None, "{invalid:?}");
+                let trace = String::from_utf8_lossy(&invalid.stdout);
+                assert!(
+                    trace.contains("invalid drain; frame=1 buffer=1"),
+                    "{invalid:?}"
+                );
+                assert!(
+                    !trace.contains("buffer-free") && !trace.contains("frame-free"),
+                    "{invalid:?}"
+                );
+                let original = text;
+                let early = format!(
+                    "{}async_registration_finish_destroy(give owner);return 0;}}}}",
+                    original
+                        .split("    if !async_registration_valid(owner)")
+                        .next()
+                        .unwrap()
+                );
+                let premature = compile_source(
+                    &source(&early),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        clang: Some(wrapper),
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("early")),
+                        emit_dir: Some(dir.join("early-artifacts")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    premature.status,
+                    ResultCategory::Success,
+                    "{}",
+                    premature.to_json()
+                );
+                let premature = Command::new(&premature.artifacts["executable"])
+                    .env("ZIL_THREAD_TRACE", "1")
+                    .output()
+                    .unwrap();
+                assert_eq!(premature.status.code(), None, "{premature:?}");
+                let trace = String::from_utf8_lossy(&premature.stdout);
+                assert!(
+                    trace.contains("installed frame=1 buffer=1"),
+                    "{premature:?}"
+                );
+                assert!(
+                    !trace.contains("buffer-free") && !trace.contains("frame-free"),
+                    "{premature:?}"
+                );
+                fs::remove_dir_all(dir).unwrap();
+            }
         }
     }
 }
@@ -350,7 +355,7 @@ fn threaded_callback_checks_actual_source_core_raw_and_wire_dependencies() {
     let report = compile_source(&source(&generic), &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
@@ -542,5 +547,114 @@ fn threaded_callback_kernel_budget_debits_are_finite_and_not_renewed() {
         );
         accepts(low).unwrap();
         eprintln!("threaded registration exact kernel verify={verify} N={low}");
+    }
+}
+
+#[test]
+fn thread_callable_is_an_independent_checked_premise_in_source_core_and_ct() {
+    let original = include_str!("threaded-generic.zil");
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    for bounds in [
+        "FnMut(i32)->i32 + ClosedEnvironment + Transfer + ThreadCallable",
+        "ThreadCallable + Transfer + ClosedEnvironment + FnMut(i32)->i32",
+        "ClosedEnvironment + ThreadCallable + FnMut(i32)->i32 + Transfer",
+    ] {
+        let text = original.replace(
+            "FnMut(i32)->i32 + ClosedEnvironment + Transfer + ThreadCallable",
+            bounds,
+        );
+        let input = source(&text);
+        let syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let core = zil_expand::expand(&input, &syntax).unwrap();
+        let bound = &core
+            .functions
+            .iter()
+            .find(|f| f.name == "install")
+            .unwrap()
+            .callable_parameters[0];
+        assert!(bound.closed_environment && bound.transfer && bound.thread_callable);
+        let reconstructed = zil_ct::evaluate_source_constants(&core, &target, &limits).unwrap();
+        let after = &reconstructed
+            .functions
+            .iter()
+            .find(|f| f.name == "install")
+            .unwrap()
+            .callable_parameters[0];
+        assert_eq!(after, bound);
+        let typed = zil_types::check(&reconstructed, &target, &limits).unwrap();
+        let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+        zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
+        for missing in 0..4 {
+            let mut raw = reconstructed.clone();
+            let bound = &mut raw
+                .functions
+                .iter_mut()
+                .find(|f| f.name == "install")
+                .unwrap()
+                .callable_parameters[0];
+            match missing {
+                0 => bound.closed_environment = false,
+                1 => bound.transfer = false,
+                2 => bound.thread_callable = false,
+                3 => bound.kind = zil_ir::CallableKind::FnOnce,
+                _ => unreachable!(),
+            }
+            assert!(
+                zil_types::check(&raw, &target, &limits).is_err(),
+                "missing {missing}"
+            );
+            let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+            main.body.statements.clear();
+            main.return_type = zil_ir::Type::Unit;
+            assert!(
+                zil_types::check(&raw, &target, &limits).is_err(),
+                "unused missing {missing}"
+            );
+        }
+    }
+    let state = source(
+        "resource Ticket{code:i32}package State<F>{manages marker:Ticket;first:F;second:F}fn inspect<F:FnMut(i32)->i32 + ThreadCallable>(state:State<F>)->i32{return 0}fn main(){}",
+    );
+    let report = compile_source(&state, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    let pure_unsafe = original.replace("count+=1;", "unsafe{count+=1;}");
+    let result = compile_source(&source(&pure_unsafe), &CompileOptions::default());
+    assert_eq!(
+        result.status,
+        ResultCategory::Success,
+        "{}",
+        result.to_json()
+    );
+    for text in [
+        original.replace(" + ThreadCallable", ""),
+        original.replace(" + Transfer", ""),
+        original.replace(" + ClosedEnvironment", ""),
+        original.replace(" + ThreadCallable", " + Share"),
+        format!("trait ThreadCallable {{}}\n{original}"),
+        format!("struct Fake{{value:i32}}impl ThreadCallable for Fake{{}}\n{original}"),
+        format!(
+            "extern \"C\" fn forbidden_entry() contract{{effects(ffi);}};\n{}",
+            original.replace("count+=1;", "count+=1;unsafe{forbidden_entry();}")
+        ),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::InfraError,
+            "{}",
+            report.to_json()
+        );
     }
 }

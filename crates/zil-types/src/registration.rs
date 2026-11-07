@@ -371,9 +371,16 @@ impl Builder<'_, '_> {
             self.closures.factory_self_contained(id, callback.span)?;
             closed_environment_for(self.closures, id, callback.span, asynchronous)?;
             if threaded {
-                self.closures
-                    .snapshot(self.closures.thread_entries.len().saturating_add(1), span)?;
+                self.closures.snapshot(
+                    self.closures
+                        .thread_entries
+                        .len()
+                        .saturating_add(self.closures.thread_transfers.len())
+                        .saturating_add(2),
+                    span,
+                )?;
                 self.closures.thread_entries.insert(id);
+                self.closures.thread_transfers.insert(id);
             }
             let environment = Box::new(Type::Closure(id));
             let ty = Type::Managed(Box::new(if asynchronous {
