@@ -991,6 +991,9 @@ fn ownership(
     }
     Ok(view)
 }
+// Keep the independently reconstructed loan and port evidence explicit at
+// this proof boundary; bundling it would obscure which authority is consumed.
+#[allow(clippy::too_many_arguments)]
 pub(super) fn check(
     module: &TypedModule,
     f: &TypedFunction,

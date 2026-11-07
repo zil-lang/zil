@@ -7,6 +7,7 @@ struct Origins {
     // A checked active alternative contains no Task at all.
     vacant: bool,
     workers: BTreeSet<FunctionId>,
+    parameters: BTreeSet<u32>,
 }
 impl Origins {
     fn add(&mut self, other: &Self, budget: &mut Budget) -> CompileResult<bool> {
@@ -14,6 +15,8 @@ impl Origins {
             self.workers
                 .len()
                 .saturating_add(other.workers.len())
+                .saturating_add(self.parameters.len())
+                .saturating_add(other.parameters.len())
                 .saturating_add(1),
             "Task automatic Drop actual origins",
         )?;
@@ -21,6 +24,7 @@ impl Origins {
         self.unknown |= other.unknown;
         self.vacant |= other.vacant;
         self.workers.extend(other.workers.iter().copied());
+        self.parameters.extend(other.parameters.iter().copied());
         Ok(*self != old)
     }
 }
@@ -272,7 +276,11 @@ fn returned_origin(
     )?;
     if let Some(origin) = returned.get(&id) {
         budget.spend(
-            origin.workers.len().saturating_add(1),
+            origin
+                .workers
+                .len()
+                .saturating_add(origin.parameters.len())
+                .saturating_add(1),
             "Task factory cached return snapshot",
         )?;
         return Ok(origin.clone());
@@ -329,7 +337,11 @@ fn returned_origin(
                     result.unknown = true;
                 }
                 let origin = &values[value.0 as usize];
-                if !origin.unknown && !origin.vacant && origin.workers.is_empty() {
+                if !origin.unknown
+                    && !origin.vacant
+                    && origin.workers.is_empty()
+                    && origin.parameters.is_empty()
+                {
                     result.unknown = true;
                 }
                 result.add(origin, budget)?;
@@ -340,7 +352,11 @@ fn returned_origin(
     }
     result.unknown |= !has_return;
     budget.spend(
-        result.workers.len().saturating_add(1),
+        result
+            .workers
+            .len()
+            .saturating_add(result.parameters.len())
+            .saturating_add(1),
         "Task factory return cache insertion",
     )?;
     returned.insert(id, result.clone());
@@ -367,9 +383,10 @@ fn infer_origins(
     for t in &f.values {
         relevant.push(contains_kind(module, t, budget, false)?);
     }
-    for p in &f.parameters {
+    for (index, p) in f.parameters.iter().enumerate() {
         if contains_kind(module, &f.locals[p.0 as usize].ty, budget, false)? {
-            locals[p.0 as usize].unknown = true;
+            budget.spend(1, "Task formal owner source selector")?;
+            locals[p.0 as usize].parameters.insert(index as u32);
         }
     }
     let reachable = reachable_blocks(f, budget)?;
@@ -408,9 +425,33 @@ fn infer_origins(
                         unknown: false,
                         vacant: false,
                         workers: BTreeSet::from([*worker]),
+                        parameters: BTreeSet::new(),
                     },
-                    InstructionKind::Call { function, .. } => {
-                        returned_origin(module, *function, budget, active, returned)?
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let summary = returned_origin(module, *function, budget, active, returned)?;
+                        let mut actual = Origins {
+                            unknown: summary.unknown,
+                            vacant: summary.vacant,
+                            workers: summary.workers.clone(),
+                            parameters: BTreeSet::new(),
+                        };
+                        budget.spend(
+                            summary
+                                .workers
+                                .len()
+                                .saturating_add(summary.parameters.len()),
+                            "Task helper return actual source",
+                        )?;
+                        for parameter in &summary.parameters {
+                            let source = arguments
+                                .get(*parameter as usize)
+                                .ok_or_else(|| fail(i.span, "Task helper result input absent"))?;
+                            actual.add(&values[source.0 as usize], budget)?;
+                        }
+                        actual
                     }
                     InstructionKind::MakeErrorUnion { value, .. }
                         if !relevant[value.0 as usize] =>
@@ -480,6 +521,7 @@ fn infer_origins(
                         unknown: true,
                         vacant: false,
                         workers: BTreeSet::new(),
+                        parameters: BTreeSet::new(),
                     },
                 };
                 changed |= values[out.0 as usize].add(&origin, budget)?;

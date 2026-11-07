@@ -129,6 +129,17 @@ fn direct_retained_carrier(ty: &Type) -> bool {
         _ => false,
     }
 }
+fn retained_input_carrier(ty: &Type) -> bool {
+    let payload = match ty {
+        Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+        Type::Address { inner, .. } => match inner.as_ref() {
+            Type::Managed(payload) | Type::Desc(payload) => payload.as_ref(),
+            _ => return false,
+        },
+        _ => return false,
+    };
+    matches!(payload, Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
+}
 fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     for closure in &module.closures {
         budget.spend(
@@ -721,6 +732,7 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     }
     for f in &module.functions {
         budget.spend(1)?;
+        let mut has_retained_input = false;
         if budget.borrowed_task_ports {
             budget.spend(f.parameters.len())?;
             for parameter in &f.parameters {
@@ -730,13 +742,47 @@ pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
                     .ok_or_else(|| reject("E-VERIFY-TASK", Some(f.span), "Task parameter absent"))?
                     .ty;
                 if retained_parameter(ty, budget)? {
-                    return Err(reject(
-                        "E-VERIFY-TASK",
-                        Some(f.span),
-                        "retained Task parameter has no complete incoming frame loan",
-                    ));
+                    if !retained_input_carrier(ty) {
+                        return Err(reject(
+                            "E-VERIFY-TASK",
+                            Some(f.span),
+                            "nested retained Task parameter has no frame owner loan",
+                        ));
+                    }
+                    has_retained_input = true;
                 }
             }
+        }
+        if has_retained_input {
+            let contract = f.storage_life.as_ref().ok_or_else(|| {
+                reject(
+                    "E-VERIFY-TASK",
+                    Some(f.span),
+                    "retained Task input lacks complete source life contract",
+                )
+            })?;
+            let mut inputs = Vec::new();
+            for parameter in &f.parameters {
+                budget.spend(1)?;
+                inputs.push(
+                    f.locals
+                        .get(parameter.0 as usize)
+                        .ok_or_else(|| {
+                            reject("E-VERIFY-TASK", Some(f.span), "Task input local absent")
+                        })?
+                        .ty
+                        .clone(),
+                );
+            }
+            super::signature_life::charge(contract, budget)?;
+            super::signature_life::function_relation(
+                module,
+                &inputs,
+                &f.return_type,
+                contract,
+                Some(f.span),
+                false,
+            )?;
         }
         if borrowed_result(&f.return_type) && f.storage_life.is_none() {
             return Err(reject(

@@ -49,6 +49,7 @@ pub(super) struct Budget {
     pub(super) tasks: bool,
     // Derived only by the complete paid raw-type preflight, never producer metadata.
     pub(super) task_origin_roots: bool,
+    pub(super) borrowed_task_ports: bool,
     pub(super) invocation_callbacks: bool,
     pub(super) head_descriptions: bool,
     pub(super) registrations: bool,
@@ -109,6 +110,7 @@ impl Budget {
             borrowed_function_pointers: false,
             tasks: false,
             task_origin_roots: false,
+            borrowed_task_ports: false,
             invocation_callbacks: false,
             head_descriptions: false,
             registrations: false,
@@ -815,6 +817,8 @@ pub(super) fn preflight(
         {
             budget.input(1, "type shape")?;
             budget.task_origin_roots |= matches!(ty, Type::Task { .. });
+            budget.borrowed_task_ports |=
+                matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
             super::tasks::require_closed_context(ty)?;
             if depth > limits.max_call_depth {
                 return Err(exhausted("aggregate nesting"));
@@ -1486,9 +1490,32 @@ pub(super) fn preflight(
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
         budget.protocol_contracts |= function.protocol_contract.is_some();
-        if function.storage_life.is_some() && !super::tasks::borrowed_signature(function, budget)? {
-            super::stored_flow::header(module, function, budget)?;
-            budget.stored_borrows = true;
+        if let Some(contract) = &function.storage_life {
+            if function.call_kind == zil_ir::CallKind::Suspend {
+                budget.spend(function.parameters.len(), "Suspend signature inputs")?;
+                let parameters = function
+                    .parameters
+                    .iter()
+                    .map(|id| {
+                        function
+                            .locals
+                            .get(id.0 as usize)
+                            .map(|local| local.ty.clone())
+                            .ok_or_else(|| bad("Suspend signature input absent"))
+                    })
+                    .collect::<CompileResult<Vec<_>>>()?;
+                super::signature_life::charge(contract, budget)?;
+                super::signature_life::function_relation(
+                    &parameters,
+                    &function.return_type,
+                    contract,
+                    false,
+                    &[],
+                )?;
+            } else if !super::tasks::borrowed_signature(function, budget)? {
+                super::stored_flow::header(module, function, budget)?;
+                budget.stored_borrows = true;
+            }
         }
         if function.id.0 as usize != function_index {
             return Err(bad("noncanonical function ID"));

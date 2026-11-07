@@ -365,18 +365,17 @@ pub(super) fn prepare(
                 "borrowed Task factory result differs from its actual input ports",
             ));
         }
-        if let Some(life) = &function.life {
-            if life.result_life.is_some()
+        if let Some(life) = &function.life
+            && (life.result_life.is_some()
                 || life.parameter_lives.len() != function.parameters.len()
                 || inputs.iter().enumerate().any(|(port, input)| {
                     life.parameter_lives[*input] != Some(retained_life.ports[port].binder)
-                })
-            {
-                return Err(unsupported(
-                    function.span,
-                    "Task factory input lifetime classes differ from retained ports",
-                ));
-            }
+                }))
+        {
+            return Err(unsupported(
+                function.span,
+                "Task factory input lifetime classes differ from retained ports",
+            ));
         }
         let mut port_path = Vec::new();
         let mut class_path = Vec::new();

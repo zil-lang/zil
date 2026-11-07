@@ -23,7 +23,7 @@ pub(super) struct Catalog {
     /// Actual specialized function spelling -> retained source relation. These
     /// are output lookup keys, never declaration identities or capabilities.
     pub(super) functions: BTreeMap<String, StorageLifeContract>,
-    project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
+    pub(super) project_functions: Vec<(zil_base::ModuleId, String, StorageLifeContract)>,
     pub(super) pointers: BTreeMap<String, Type>,
     pub(super) borrowed_signatures: bool,
     pub(super) source_helpers: bool,

@@ -1245,7 +1245,14 @@ fn check_module_mask(
     mask: Option<&[bool]>,
     budget: &mut Budget,
 ) -> Check<()> {
-    let port_facts = port_facts::solve(module, graphs, budget)?;
+    // The complete raw-type preflight already found every retained Task port.
+    // Closed/legacy modules keep their original fee path and need no new table.
+    let port_facts = if budget.borrowed_task_ports {
+        Some(port_facts::solve(module, graphs, budget)?)
+    } else {
+        None
+    };
+    let empty_port_facts = port_facts::FunctionFacts::default();
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
     if budget.invocation_callbacks {
@@ -1557,7 +1564,9 @@ fn check_module_mask(
             function,
             graph,
             facts,
-            &port_facts[function_index],
+            port_facts
+                .as_ref()
+                .map_or(&empty_port_facts, |facts| &facts[function_index]),
             has_buffers.then(|| captures::Context {
                 module,
                 function,

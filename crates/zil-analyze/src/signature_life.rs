@@ -313,11 +313,90 @@ fn relation_inner(
             } else {
                 (ty, false)
             };
-            if let Type::BorrowedStorage { storage, life } = target {
-                if (!matches!(
-                    storage.as_ref(),
-                    Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
-                ) || !life.retained.is_empty())
+            let task = match target {
+                Type::Task { .. } => Some((target, None, false)),
+                Type::Managed(inner) | Type::Desc(inner)
+                    if matches!(inner.as_ref(), Type::Task { .. }) =>
+                {
+                    Some((inner.as_ref(), None, true))
+                }
+                Type::ErrorUnion {
+                    result: success, ..
+                } => match success.as_ref() {
+                    Type::Managed(inner) | Type::Desc(inner)
+                        if matches!(inner.as_ref(), Type::Task { .. }) =>
+                    {
+                        Some((inner.as_ref(), Some(PlaceProjection::ErrorArm(false)), true))
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            if let Some((task, arm, wrapped)) = task {
+                if capture {
+                    return Err(bad("captured Task retained owner needs its own consumer"));
+                }
+                super::tasks::require_closed_context(task)?;
+                let Type::Task { retained_life, .. } = task else {
+                    unreachable!()
+                };
+                if retained_life.ports.is_empty() {
+                    return Err(bad("closed Task has no rich retained class relation"));
+                }
+                let mut class_path = Vec::new();
+                let mut borrow_path = Vec::new();
+                if let Some(arm) = arm {
+                    class_path.push(LifeTypeProjection::Place(arm));
+                    borrow_path.push(ContractProjection::Place(arm));
+                }
+                if pointed {
+                    class_path.push(LifeTypeProjection::Pointee);
+                }
+                if wrapped {
+                    class_path.push(LifeTypeProjection::Pointee);
+                }
+                for (port, shape) in retained_life.ports.iter().enumerate() {
+                    let row = self
+                        .c
+                        .bindings
+                        .get(self.borrow)
+                        .ok_or_else(|| bad("Task signature omits retained port"))?;
+                    let mut path = borrow_path.clone();
+                    path.push(ContractProjection::RetainedPort(port as u32));
+                    if row.position.base != base || row.position.path != path {
+                        return Err(bad("Task retained port relation differs from actual owner"));
+                    }
+                    let class_row = self
+                        .c
+                        .classes
+                        .get(self.class + shape.binder as usize)
+                        .ok_or_else(|| bad("Task retained class absent"))?;
+                    if row.binder != class_row.binder {
+                        return Err(bad("Task port and class bind different source lifetimes"));
+                    }
+                    self.borrow += 1;
+                    self.binder(row.binder, self.inputs.is_none())?;
+                }
+                for local in 0..retained_life.binder_count {
+                    let row = self
+                        .c
+                        .classes
+                        .get(self.class)
+                        .ok_or_else(|| bad("Task signature omits retained class"))?;
+                    if row.position.base != base
+                        || row.position.path != class_path
+                        || row.position.class != local
+                    {
+                        return Err(bad(
+                            "Task retained class position differs from actual owner",
+                        ));
+                    }
+                    self.class += 1;
+                    self.binder(row.binder, self.inputs.is_none())?;
+                }
+            } else if let Type::BorrowedStorage { storage, life } = target {
+                if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. } | Type::Tuple(_))
+                    || !life.retained.is_empty())
                     && !pure_nominal_value(target)
                     && !super::stored_flow::option_address::signature(target)
                 {

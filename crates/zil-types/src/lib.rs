@@ -692,11 +692,16 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures.block(f.span)?;
         let worker_life = if f.storage_life.is_none()
             && f.call_kind == Some(CallKind::Suspend)
-            && f.life.as_ref().is_some_and(|life| life.parameter_lives.iter().flatten().count() > 1)
+            && f.life
+                .as_ref()
+                .is_some_and(|life| life.parameter_lives.iter().flatten().count() > 1)
         {
-            f.life.as_ref().and_then(|life|
-                StorageLifeContract::from_flat(borrowed_fp::from_life(life)))
-        } else { None };
+            f.life
+                .as_ref()
+                .and_then(|life| StorageLifeContract::from_flat(borrowed_fp::from_life(life)))
+        } else {
+            None
+        };
         let storage_life = f.storage_life.clone().or(worker_life);
         if let Some(contract) = &storage_life {
             borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
@@ -875,6 +880,25 @@ impl<'a, 'c> Builder<'a, 'c> {
             return Ok(self.function);
         }
         self.block(body)?;
+        // A Source worker can acquire Suspend from its actual task_yield body.
+        // Its complete parameter relation must then be published on the typed
+        // worker, just as it is on an explicitly declared Suspend worker.
+        if self.function.call_kind == CallKind::Suspend
+            && self.function.storage_life.is_none()
+            && let Some(life) = self
+                .signatures
+                .get(&self.function.name)
+                .and_then(|s| s.life.as_ref())
+            && life.parameter_lives.iter().flatten().count() > 1
+            && let Some(contract) = StorageLifeContract::from_flat(life.clone())
+        {
+            borrowed_fp::charge_contract(
+                &contract,
+                |work| self.closures.snapshot(work, body.span),
+                1,
+            )?;
+            self.function.storage_life = Some(contract);
+        }
         if self.current.is_some() {
             if self.function.return_type == Type::Unit {
                 if !self.prepared_replacements.is_empty() {

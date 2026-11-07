@@ -85,7 +85,9 @@ pub(super) fn partition(module: &TypedModule, b: &mut Budget) -> CompileResult<V
                 )
             });
         }
-        let rich_stored = f.storage_life.is_some() && !super::tasks::borrowed_signature(f, b)?;
+        let rich_stored = f.storage_life.is_some()
+            && f.call_kind != CallKind::Suspend
+            && !super::tasks::borrowed_signature(f, b)?;
         stored[index] = has_stored_type || has_stored_op || rich_stored;
     }
     for closure in &module.closures {

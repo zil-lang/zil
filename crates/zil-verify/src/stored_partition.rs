@@ -116,7 +116,9 @@ pub(super) fn mixed(module: &TypedModule, budget: &mut Budget) -> Check<Option<V
                 .saturating_add(f.values.len())
                 .saturating_add(2),
         )?;
-        let mut stored = f.storage_life.is_some() && !tasks::borrowed_signature(module, f, budget)?;
+        let mut stored = f.storage_life.is_some()
+            && f.call_kind != CallKind::Suspend
+            && !tasks::borrowed_signature(module, f, budget)?;
         for ty in std::iter::once(&f.return_type)
             .chain(f.locals.iter().map(|l| &l.ty))
             .chain(&f.values)

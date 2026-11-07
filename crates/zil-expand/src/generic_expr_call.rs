@@ -148,8 +148,30 @@ impl Engine<'_> {
                         "task_create argument count differs from worker",
                     ));
                 }
+                let mut context_ports = Vec::new();
+                let mut complete_context = true;
                 for (argument, parameter) in arguments[1..].iter_mut().zip(&signature.params) {
-                    self.expr_expected(&mut argument.value, env, Some(&parameter.ty), depth + 1)?;
+                    let actual = self.expr_expected(
+                        &mut argument.value,
+                        env,
+                        Some(&parameter.ty),
+                        depth + 1,
+                    )?;
+                    if let TypeKind::Reference {
+                        mutable: expected, ..
+                    } = &grouped(&parameter.ty).kind
+                    {
+                        match actual {
+                            Some(actual)
+                                if matches!(&grouped(&actual).kind,
+                                TypeKind::Reference { mutable, .. }
+                                    if mutable == expected) =>
+                            {
+                                context_ports.push(actual)
+                            }
+                            _ => complete_context = false,
+                        }
+                    }
                 }
                 let mut result = signature
                     .return_type
@@ -173,6 +195,18 @@ impl Engine<'_> {
                     self.ty(&mut result, depth + 1)?;
                     return Ok(Some(Some(result)));
                 }
+                let mut task_args = vec![GenericArg::Type(result)];
+                if complete_context && !context_ports.is_empty() {
+                    let context = if context_ports.len() == 1 {
+                        context_ports.pop().unwrap()
+                    } else {
+                        TypeRef {
+                            span: e.span,
+                            kind: TypeKind::Tuple(context_ports),
+                        }
+                    };
+                    task_args.push(GenericArg::Type(context));
+                }
                 let mut result = TypeRef {
                     span: e.span,
                     kind: TypeKind::Error {
@@ -181,7 +215,7 @@ impl Engine<'_> {
                             span: e.span,
                             kind: TypeKind::Named {
                                 path: vec!["Task".into()],
-                                args: vec![GenericArg::Type(result)],
+                                args: task_args,
                             },
                         }),
                     },

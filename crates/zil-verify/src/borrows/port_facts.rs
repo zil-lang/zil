@@ -939,15 +939,6 @@ pub(super) fn solve(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<FunctionFacts>> {
-    let present = module.functions.iter().any(|f| {
-        f.values
-            .iter()
-            .chain(f.locals.iter().map(|l| &l.ty))
-            .any(super::retained_task_value)
-    });
-    if !present {
-        return Ok(vec![FunctionFacts::default(); module.functions.len()]);
-    }
     let mut summaries = vec![Carrier::default(); module.functions.len()];
     let mut facts = vec![FunctionFacts::default(); module.functions.len()];
     loop {

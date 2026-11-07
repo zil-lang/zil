@@ -676,11 +676,13 @@ impl<'a> Engine<'a> {
                     path.pop();
                 }
                 for (class, life) in classes.into_iter().enumerate() {
+                    let mut class_path = type_path.clone();
+                    class_path.push(zil_ir::LifeTypeProjection::Pointee);
                     occurrences.push(stored_types::Occurrence {
                         position: stored_types::OccurrencePosition::Class(
                             zil_ir::SignatureLifeClass {
                                 base,
-                                path: type_path.clone(),
+                                path: class_path,
                                 class: u32::try_from(class)
                                     .map_err(|_| error(ty.span, "Task class overflow"))?,
                             },
