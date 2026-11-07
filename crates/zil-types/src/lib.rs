@@ -2252,6 +2252,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .is_some_and(|ty| matches!(ty, Type::Closure(_)))
                 {
                     self.owned_array_input(v, hints.get(name))?
+                } else if hints.get(name).is_some_and(|ty| self.affine_type(ty)) {
+                    // Field staging preserves the constructor's actual move.
+                    self.transfer_expr(v, hints.get(name))?
                 } else {
                     self.expr(v, hints.get(name))?
                 };

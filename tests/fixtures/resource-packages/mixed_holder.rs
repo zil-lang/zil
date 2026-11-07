@@ -41,6 +41,16 @@ const EXCLUSIVE_RECORD_BRANCH_UNINITIALIZED: &str =
 const EXCLUSIVE_RECORD_AFTER_MOVE: &str = include_str!("exclusive-record-after-move.zil");
 const EXCLUSIVE_PAIR: &str = include_str!("exclusive-pair.zil");
 const TWO_EXCLUSIVE_HOLDERS: &str = include_str!("two-exclusive-holders.zil");
+const SHARED_HOLDER_BRANCH_REFILL: &str = include_str!("shared-holder-branch-refill.zil");
+const SHARED_HOLDER_BRANCH_COPY_HOLE: &str = include_str!("shared-holder-branch-copy-hole.zil");
+const EXCLUSIVE_HOLDER_LOOP_RETENTION: &str = include_str!("exclusive-holder-loop-retention.zil");
+const EXCLUSIVE_HOLDER_LOOP_TRANSFER: &str = include_str!("exclusive-holder-loop-transfer.zil");
+const EXCLUSIVE_HOLDER_LOOP_REFILL: &str = include_str!("exclusive-holder-loop-refill.zil");
+const EXCLUSIVE_HOLDER_LOOP_RECONSTRUCT: &str =
+    include_str!("exclusive-holder-loop-reconstruct.zil");
+const EXCLUSIVE_ADDRESS_SEQUENTIAL_REBORROWS: &str =
+    include_str!("exclusive-address-sequential-reborrows.zil");
+const EXCLUSIVE_NESTED_HOLDER_TRANSFER: &str = include_str!("exclusive-nested-holder-transfer.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -69,6 +79,695 @@ fn local_move_out_path() -> std::path::PathBuf {
 
 fn source(name: &str, program: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), name, program)
+}
+
+fn typed_source(
+    name: &str,
+    program: &str,
+    target: &TargetProfile,
+    limits: &Limits,
+) -> zil_ir::TypedModule {
+    let input = source(name, program);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        limits,
+        target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    zil_types::check(&core, target, limits).unwrap()
+}
+
+#[test]
+fn constructor_transfer_blocks_later_ssa_accesses() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let original = typed_source(
+        "two-exclusive-holders.zil",
+        TWO_EXCLUSIVE_HOLDERS,
+        &target,
+        &limits,
+    );
+    let peek = original
+        .functions
+        .iter()
+        .find(|f| f.name == "peek")
+        .unwrap()
+        .id;
+    for mode in ["read", "write", "reborrow", "call"] {
+        let mut raw = original.clone();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "use_two")
+            .unwrap();
+        let block = &mut function.blocks[0];
+        let transferred = block
+            .instructions
+            .iter()
+            .find_map(|i| match &i.kind {
+                zil_ir::InstructionKind::MakeAggregate { fields } => Some(fields[0]),
+                _ => None,
+            })
+            .unwrap();
+        let position = block
+            .instructions
+            .iter()
+            .position(|i| matches!(i.kind, zil_ir::InstructionKind::WriteAddress { .. }))
+            .unwrap();
+        let (safe, value) = match block.instructions[position].kind {
+            zil_ir::InstructionKind::WriteAddress { address, value } => (address, value),
+            _ => unreachable!(),
+        };
+        let kind = match mode {
+            "read" => zil_ir::InstructionKind::ReadAddress { address: safe },
+            "write" => zil_ir::InstructionKind::WriteAddress {
+                address: safe,
+                value,
+            },
+            "reborrow" => zil_ir::InstructionKind::ReborrowAddress {
+                address: safe,
+                mutable: true,
+            },
+            "call" => zil_ir::InstructionKind::Call {
+                function: peek,
+                arguments: vec![safe],
+            },
+            _ => unreachable!(),
+        };
+        let result = if mode == "write" {
+            None
+        } else {
+            let result = zil_ir::ValueId(function.values.len() as u32);
+            function.values.push(if mode == "reborrow" {
+                function.values[safe.0 as usize].clone()
+            } else {
+                Type::I32
+            });
+            Some(result)
+        };
+        let span = block.instructions[position].span;
+        block
+            .instructions
+            .insert(position, zil_ir::Instruction { result, kind, span });
+        // The candidate comes from a fresh, independently verified safe child
+        // access; only its operand is changed to the transferred constructor input.
+        let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == "use_two")
+            .unwrap();
+        match &mut function.blocks[0].instructions[position].kind {
+            zil_ir::InstructionKind::ReadAddress { address }
+            | zil_ir::InstructionKind::WriteAddress { address, .. }
+            | zil_ir::InstructionKind::ReborrowAddress { address, .. } => *address = transferred,
+            zil_ir::InstructionKind::Call { arguments, .. } => arguments[0] = transferred,
+            _ => unreachable!(),
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            format!("{analyze:?}").contains("used after transfer"),
+            "{mode}: {analyze:?}"
+        );
+        let verify =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            format!("{verify:?}").contains("used after transfer"),
+            "{mode}: {verify:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            format!("{verify:?}").contains("used after transfer"),
+            "{mode}: {verify:?}"
+        );
+    }
+}
+
+#[test]
+fn shared_holder_branch_copy_requires_every_slot_filled() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for (name, program, expected) in [
+        (
+            "shared-holder-branch-refill.zil",
+            SHARED_HOLDER_BRANCH_REFILL,
+            ResultCategory::Success,
+        ),
+        (
+            "shared-holder-branch-copy-hole.zil",
+            SHARED_HOLDER_BRANCH_COPY_HOLE,
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(name, program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{}", report.to_json());
+    }
+    let mut raw = typed_source(
+        "shared-holder-branch-refill.zil",
+        SHARED_HOLDER_BRANCH_REFILL,
+        &target,
+        &limits,
+    );
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "read_copy")
+        .unwrap();
+    let mut removed = 0;
+    for block in &mut function.blocks {
+        block.instructions.retain(|i| {
+            if matches!(i.kind, zil_ir::InstructionKind::StoreStoredBorrow { .. }) {
+                removed += 1;
+                false
+            } else {
+                true
+            }
+        });
+    }
+    assert_eq!(removed, 1);
+    claim.module_fingerprint = raw.fingerprint();
+    let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("whole carrier copy has a vacant"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("whole carrier copy has a vacant"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("whole carrier copy has a vacant"),
+        "{verify:?}"
+    );
+}
+
+#[test]
+fn constructor_retains_a_child_across_saved_address_reload() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let mut raw = typed_source(
+        "two-exclusive-holders.zil",
+        TWO_EXCLUSIVE_HOLDERS,
+        &target,
+        &limits,
+    );
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "use_two")
+        .unwrap();
+    let block = &mut function.blocks[0];
+    let constructors: Vec<_> = block
+        .instructions
+        .iter()
+        .enumerate()
+        .filter_map(|(position, i)| match &i.kind {
+            zil_ir::InstructionKind::MakeAggregate { fields } => Some((position, fields[0])),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(constructors.len(), 2);
+    let (position, address) = constructors[0];
+    let second = constructors[1].1;
+    let saved = zil_ir::LocalId(function.locals.len() as u32);
+    let span = block.instructions[position].span;
+    function.locals.push(zil_ir::LocalDecl {
+        id: saved,
+        name: "saved_address".into(),
+        ty: function.values[address.0 as usize].clone(),
+        mutable: false,
+        span,
+    });
+    block.instructions.insert(
+        1,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::StorageLive(saved),
+            span,
+        },
+    );
+    block.instructions.splice(
+        position + 1..position + 1,
+        [zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::Store {
+                local: saved,
+                value: address,
+            },
+            span,
+        }],
+    );
+    let exit = block
+        .instructions
+        .iter()
+        .rposition(|i| matches!(i.kind, zil_ir::InstructionKind::ScopeExit { .. }))
+        .unwrap();
+    block.instructions.insert(
+        exit,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::StorageDead(saved),
+            span,
+        },
+    );
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "use_two")
+        .unwrap();
+    let load = function.blocks[0]
+        .instructions
+        .iter_mut()
+        .find(|i| i.result == Some(second))
+        .unwrap();
+    assert!(matches!(
+        load.kind,
+        zil_ir::InstructionKind::Load(_) | zil_ir::InstructionKind::TakeLocal { .. }
+    ));
+    load.kind = zil_ir::InstructionKind::Load(saved);
+    claim.module_fingerprint = raw.fingerprint();
+    let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("simultaneously live access overlaps"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("actual target intersects"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("actual target intersects"),
+        "{verify:?}"
+    );
+}
+
+#[test]
+fn constructors_reject_overlapping_parent_and_child_addresses() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for (program, function_name, pair) in [
+        (EXCLUSIVE_PAIR, "make", true),
+        (TWO_EXCLUSIVE_HOLDERS, "use_two", false),
+    ] {
+        let mut raw = typed_source("constructor-alias.zil", program, &target, &limits);
+        let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+        let function = raw
+            .functions
+            .iter_mut()
+            .find(|f| f.name == function_name)
+            .unwrap();
+        let inputs: Vec<_> = function
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .filter_map(|i| match &i.kind {
+                zil_ir::InstructionKind::MakeAggregate { fields } => Some(fields.clone()),
+                _ => None,
+            })
+            .flatten()
+            .collect();
+        assert_eq!(inputs.len(), 2);
+        if pair {
+            let second = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| i.result == Some(inputs[1]))
+                .unwrap();
+            second.kind = zil_ir::InstructionKind::ReborrowAddress {
+                address: inputs[0],
+                mutable: true,
+            };
+        } else {
+            let parameter = function.parameters[0];
+            let parent = function
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find_map(|i| {
+                    matches!(i.kind, zil_ir::InstructionKind::Load(local) | zil_ir::InstructionKind::TakeLocal { local } if local == parameter).then(|| i.result.unwrap())
+                })
+                .unwrap();
+            let first = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| i.result == Some(inputs[0]))
+                .unwrap();
+            first.kind = zil_ir::InstructionKind::ReborrowAddress {
+                address: parent,
+                mutable: true,
+            };
+            // This parent has not itself been consumed by either constructor.
+            let second = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .filter_map(|i| match &mut i.kind {
+                    zil_ir::InstructionKind::MakeAggregate { fields } => Some(fields),
+                    _ => None,
+                })
+                .nth(1)
+                .unwrap();
+            second[0] = parent;
+        }
+        claim.module_fingerprint = raw.fingerprint();
+        let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+        assert!(
+            format!("{analyze:?}").contains("simultaneously live access overlaps"),
+            "pair={pair}: {analyze:?}"
+        );
+        let verify =
+            zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+        assert!(
+            format!("{verify:?}").contains("actual target intersects"),
+            "pair={pair}: {verify:?}"
+        );
+        let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+        let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+        assert!(
+            format!("{verify:?}").contains("actual target intersects"),
+            "pair={pair}: {verify:?}"
+        );
+    }
+}
+
+#[test]
+fn exclusive_holder_loop_preserves_transfers_and_retention() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    for (name, program, expected) in [
+        (
+            "exclusive-holder-loop-transfer.zil",
+            EXCLUSIVE_HOLDER_LOOP_TRANSFER,
+            ResultCategory::Success,
+        ),
+        (
+            "exclusive-holder-loop-refill.zil",
+            EXCLUSIVE_HOLDER_LOOP_REFILL,
+            ResultCategory::Success,
+        ),
+        (
+            "exclusive-holder-loop-reconstruct.zil",
+            EXCLUSIVE_HOLDER_LOOP_RECONSTRUCT,
+            ResultCategory::Success,
+        ),
+        (
+            "exclusive-holder-loop-retention.zil",
+            EXCLUSIVE_HOLDER_LOOP_RETENTION,
+            ResultCategory::SafeReject,
+        ),
+    ] {
+        let report = compile_source(
+            &source(name, program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(report.status, expected, "{name}: {}", report.to_json());
+    }
+    let mut raw = typed_source(
+        "exclusive-holder-loop-transfer.zil",
+        EXCLUSIVE_HOLDER_LOOP_TRANSFER,
+        &target,
+        &limits,
+    );
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "keep_two")
+        .unwrap();
+    let pointer = function.parameters[2];
+    let left = function
+        .locals
+        .iter()
+        .find(|l| l.name == "left")
+        .unwrap()
+        .id;
+    let right = function
+        .locals
+        .iter()
+        .find(|l| l.name == "right")
+        .unwrap()
+        .id;
+    let input = zil_ir::ValueId(function.values.len() as u32);
+    function
+        .values
+        .push(function.locals[pointer.0 as usize].ty.clone());
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions.iter().any(
+                |i| matches!(i.kind, zil_ir::InstructionKind::TakeLocal { local } if local == left),
+            )
+        })
+        .unwrap();
+    let position = block
+        .instructions
+        .iter()
+        .position(
+            |i| matches!(i.kind, zil_ir::InstructionKind::TakeLocal { local } if local == left),
+        )
+        .unwrap();
+    let span = block.instructions[position].span;
+    block.instructions.insert(
+        position,
+        zil_ir::Instruction {
+            result: Some(input),
+            kind: zil_ir::InstructionKind::Load(pointer),
+            span,
+        },
+    );
+    let mut claim = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap();
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "keep_two")
+        .unwrap();
+    let mut changed_constructor = false;
+    for block in &mut function.blocks {
+        for instruction in &mut block.instructions {
+            if matches!(instruction.kind, zil_ir::InstructionKind::TakeLocal { local } if local == left)
+                && !changed_constructor
+            {
+                instruction.kind = zil_ir::InstructionKind::MakeAggregate {
+                    fields: vec![input],
+                };
+                changed_constructor = true;
+            }
+        }
+    }
+    assert!(changed_constructor);
+    // The second conditional assignment now keeps another iteration's result.
+    let stores: Vec<_> = function
+        .blocks
+        .iter()
+        .enumerate()
+        .flat_map(|(bi, b)| {
+            b.instructions
+                .iter()
+                .enumerate()
+                .filter_map(move |(ii, i)| {
+                    matches!(i.kind, zil_ir::InstructionKind::Store { local, .. } if local == left)
+                        .then_some((bi, ii))
+                })
+        })
+        .collect();
+    assert_eq!(stores.len(), 3);
+    let (bi, ii) = stores[2];
+    let zil_ir::InstructionKind::Store { local, .. } =
+        &mut function.blocks[bi].instructions[ii].kind
+    else {
+        unreachable!()
+    };
+    *local = right;
+    // Replacing TakeLocal changes this local's initialization facts. Refresh
+    // just those claims so Verify must reach its independent actual-loan check.
+    let mut predecessors = vec![Vec::new(); function.blocks.len()];
+    for (bi, block) in function.blocks.iter().enumerate() {
+        let successors = match block.terminator {
+            zil_ir::Terminator::Jump(next) => vec![next],
+            zil_ir::Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => vec![then_block, else_block],
+            zil_ir::Terminator::Return(_) => Vec::new(),
+            ref other => panic!("unexpected loop terminator {other:?}"),
+        };
+        for next in successors {
+            predecessors[next.0 as usize].push(bi);
+        }
+    }
+    let mut initialized_in = vec![true; function.blocks.len()];
+    let mut initialized_out = initialized_in.clone();
+    loop {
+        let mut changed = false;
+        for (bi, block) in function.blocks.iter().enumerate() {
+            let incoming = if block.id == function.entry {
+                function.parameters.contains(&left)
+            } else {
+                predecessors[bi].iter().all(|p| initialized_out[*p])
+            };
+            let mut outgoing = incoming;
+            for i in &block.instructions {
+                match i.kind {
+                    zil_ir::InstructionKind::Store { local, .. } if local == left => {
+                        outgoing = true
+                    }
+                    zil_ir::InstructionKind::TakeLocal { local }
+                    | zil_ir::InstructionKind::StorageLive(local)
+                    | zil_ir::InstructionKind::StorageDead(local)
+                        if local == left =>
+                    {
+                        outgoing = false
+                    }
+                    _ => {}
+                }
+            }
+            changed |= initialized_in[bi] != incoming || initialized_out[bi] != outgoing;
+            initialized_in[bi] = incoming;
+            initialized_out[bi] = outgoing;
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (bi, block) in claim.functions[function.id.0 as usize]
+        .blocks
+        .iter_mut()
+        .enumerate()
+    {
+        for (set, initialized) in [
+            (&mut block.initialized_in, initialized_in[bi]),
+            (&mut block.initialized_out, initialized_out[bi]),
+        ] {
+            set.retain(|local| *local != left);
+            if initialized {
+                set.push(left);
+                set.sort();
+            }
+        }
+    }
+    claim.module_fingerprint = raw.fingerprint();
+    let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("simultaneously live access overlaps"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(raw.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("actual target intersects"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
+    let verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("actual target intersects"),
+        "{verify:?}"
+    );
+}
+
+#[test]
+fn exclusive_address_storage_moves_preserve_explicit_reborrows_and_nested_children() {
+    for (name, program) in [
+        (
+            "exclusive-address-sequential-reborrows.zil",
+            EXCLUSIVE_ADDRESS_SEQUENTIAL_REBORROWS,
+        ),
+        (
+            "exclusive-nested-holder-transfer.zil",
+            EXCLUSIVE_NESTED_HOLDER_TRANSFER,
+        ),
+    ] {
+        let report = compile_source(
+            &source(name, program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+    for (name, program) in [
+        (
+            "exclusive-holder-refill-after-move.zil",
+            EXCLUSIVE_HOLDER_LOOP_REFILL.replace(
+                "holder.pointer = previous",
+                "holder.pointer = previous\n        *previous += 1",
+            ),
+        ),
+        (
+            "exclusive-nested-holder-duplicate.zil",
+            EXCLUSIVE_NESTED_HOLDER_TRANSFER.replace(
+                "return Outer::<'a>",
+                "var moved = holder\n    return Outer::<'a>",
+            ),
+        ),
+    ] {
+        let report = compile_source(
+            &source(name, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.phase == zil_base::Phase::Analyze && d.message.contains("initial")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
@@ -290,6 +989,61 @@ fn exclusive_record_transfer_native_matches_moved_target() {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
+fn affine_holder_control_flow_native_matches_targets() {
+    for name in [
+        "shared-holder-branch-refill.zil",
+        "exclusive-holder-loop-transfer.zil",
+        "exclusive-holder-loop-refill.zil",
+        "exclusive-holder-loop-reconstruct.zil",
+        "exclusive-address-sequential-reborrows.zil",
+        "exclusive-nested-holder-transfer.zil",
+    ] {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../tests/fixtures/resource-packages")
+            .join(name);
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let output = std::env::temp_dir().join(format!(
+                    "zil-affine-{name}-{}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                let report = compile_path(
+                    &path,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(output.clone()),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{name}: {}",
+                    report.to_json()
+                );
+                let result = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(
+                    result.status.code(),
+                    Some(0),
+                    "{name} {backend:?} {optimization:?}: {result:?}"
+                );
+                assert_eq!(result.stdout, b"0\n", "{name}: {result:?}");
+                let _ = std::fs::remove_file(output);
+            }
+        }
+    }
+}
+
+#[test]
 fn exclusive_record_branch_join_requires_initialized_carrier() {
     let accepted = compile_source(
         &source(
@@ -439,9 +1193,12 @@ fn independent_exclusive_holder_constructors_reject_reused_address_value() {
     let position = block
         .instructions
         .iter()
-        .position(|i| i.kind == zil_ir::InstructionKind::Load(parameter))
+        .position(|i| matches!(i.kind, zil_ir::InstructionKind::Load(local) | zil_ir::InstructionKind::TakeLocal { local } if local == parameter))
         .unwrap();
-    let address = block.instructions[position].result.unwrap();
+    let address = zil_ir::ValueId(function.values.len() as u32);
+    function
+        .values
+        .push(function.locals[parameter.0 as usize].ty.clone());
     let span = block.instructions[position].span;
     let calls: Vec<_> = (0..2)
         .map(|_| {
@@ -457,7 +1214,15 @@ fn independent_exclusive_holder_constructors_reject_reused_address_value() {
             }
         })
         .collect();
-    block.instructions.splice(position + 1..position + 1, calls);
+    block.instructions.splice(
+        position..position,
+        std::iter::once(zil_ir::Instruction {
+            result: Some(address),
+            kind: zil_ir::InstructionKind::Load(parameter),
+            span,
+        })
+        .chain(calls),
+    );
     let reborrow_claim = zil_analyze::analyze(&reborrows, &limits).unwrap();
     zil_verify::verify_module(reborrows.clone(), reborrow_claim.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&reborrows, &reborrow_claim, &limits).unwrap();
@@ -534,10 +1299,12 @@ fn independent_exclusive_holder_constructors_reject_reused_address_value() {
         .iter_mut()
         .flat_map(|block| &mut block.instructions)
     {
-        if let zil_ir::InstructionKind::Load(local) = &mut instruction.kind {
-            if *local == first || *local == second {
+        if let zil_ir::InstructionKind::Load(local) | zil_ir::InstructionKind::TakeLocal { local } =
+            instruction.kind
+        {
+            if local == first || local == second {
                 input_loads.push(instruction.result.unwrap());
-                *local = first;
+                instruction.kind = zil_ir::InstructionKind::Load(first);
             }
         }
     }
@@ -1164,7 +1931,7 @@ fn stored_exclusive_slot_does_not_leave_its_input_ssa_writable() {
     assert!(
         analyze_error
             .iter()
-            .any(|d| d.message.contains("simultaneously live access")),
+            .any(|d| d.message.contains("used after transfer")),
         "{analyze_error:?}"
     );
     let verify_error =
@@ -1172,7 +1939,7 @@ fn stored_exclusive_slot_does_not_leave_its_input_ssa_writable() {
     assert!(
         verify_error
             .iter()
-            .any(|d| d.message.contains("live incompatible loan")),
+            .any(|d| d.message.contains("used after transfer")),
         "{verify_error:?}"
     );
     let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
@@ -1180,7 +1947,7 @@ fn stored_exclusive_slot_does_not_leave_its_input_ssa_writable() {
     assert!(
         wire_error
             .iter()
-            .any(|d| d.message.contains("live incompatible loan")),
+            .any(|d| d.message.contains("used after transfer")),
         "{wire_error:?}"
     );
 }

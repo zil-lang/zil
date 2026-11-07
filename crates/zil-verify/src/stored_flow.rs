@@ -1738,6 +1738,18 @@ fn write_sites(
                 Ok(())
             };
             match &i.kind {
+                InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. } => {
+                    if let Some((_, shape)) = qualified(vt(
+                        f,
+                        i.result.ok_or_else(|| err("aggregate lacks result"))?,
+                    )?) {
+                        for slot in &shape.slots {
+                            if slot.mode == StoredBorrowMode::ExclusiveAddress {
+                                add(u32::MAX, &slot.path, true)?;
+                            }
+                        }
+                    }
+                }
                 InstructionKind::StoreStoredBorrow { path, value, .. } => add(
                     u32::MAX,
                     path,
@@ -2132,10 +2144,26 @@ fn step(
                     let value = val(*fields
                         .get(*index as usize)
                         .ok_or_else(|| err("aggregate omits actual borrowed field"))?)?;
-                    if tail.is_empty() {
-                        add_leaf(&mut out, &row.path, &value.address, b)?;
-                    } else if let Some(p) = leaf(value, tail, b)? {
-                        add_leaf(&mut out, &row.path, p, b)?;
+                    let permission = if tail.is_empty() {
+                        Some(&value.address)
+                    } else {
+                        leaf(value, tail, b)?
+                    };
+                    if let Some(permission) = permission {
+                        if row.mode == StoredBorrowMode::ExclusiveAddress {
+                            let held = retain_written_slot(
+                                permission,
+                                i,
+                                u32::MAX,
+                                &row.path,
+                                sites,
+                                loans,
+                                b,
+                            )?;
+                            add_leaf(&mut out, &row.path, &held, b)?;
+                        } else {
+                            add_leaf(&mut out, &row.path, permission, b)?;
+                        }
                     }
                 }
             }
@@ -2198,9 +2226,8 @@ fn step(
             };
             let new =
                 retain_written_slot(&val(*value)?.address, i, u32::MAX, path, sites, loans, b)?;
-            if new.sources.is_empty() {
-                return Err(err("replacement value has no actual source"));
-            }
+            // Reverse CFG batches can first see an unresolved predecessor.
+            // Final access validation rejects a truly empty replacement.
             let holder = match root.base {
                 HoldRoot::Local(local) => state.locals.get_mut(local.0 as usize),
                 HoldRoot::Parameter(index) => state.external.get_mut(index as usize),
@@ -2872,6 +2899,53 @@ fn windows(
                     .ok_or_else(|| err("address operand absent"))
             };
             match &i.kind {
+                InstructionKind::MakeAggregate { fields }
+                | InstructionKind::MakePackage { fields } => {
+                    let result = i.result.ok_or_else(|| err("aggregate lacks result"))?;
+                    if let Some((_, shape)) = qualified(vt(f, result)?) {
+                        for (index, slot) in shape.slots.iter().enumerate() {
+                            b.spend(slot.path.len().saturating_add(1))?;
+                            let Some((PlaceProjection::Field(field), tail)) =
+                                slot.path.split_first()
+                            else {
+                                return Err(err("constructor slot has no input field"));
+                            };
+                            let source = &solution.values[fields[*field as usize].0 as usize];
+                            let permission = if tail.is_empty() {
+                                &source.address
+                            } else {
+                                leaf(source, tail, b)?
+                                    .ok_or_else(|| err("constructor has no actual input leaf"))?
+                            };
+                            let exclusive = slot.mode == StoredBorrowMode::ExclusiveAddress;
+                            access(
+                                permission,
+                                exclusive,
+                                &active,
+                                &solution.loans,
+                                requirements,
+                                b,
+                            )?;
+                            for previous in &shape.slots[..index] {
+                                b.spend(1)?;
+                                if exclusive || previous.mode == StoredBorrowMode::ExclusiveAddress
+                                {
+                                    let other = leaf(
+                                        &solution.values[result.0 as usize],
+                                        &previous.path,
+                                        b,
+                                    )?
+                                    .ok_or_else(|| err("constructor has no prior stored leaf"))?;
+                                    for left in &permission.sources {
+                                        for right in &other.sources {
+                                            apart(left, right, requirements, b)?;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
@@ -2895,20 +2969,28 @@ fn windows(
                     b.spend(1)?;
                     access(&actual, true, &active, &solution.loans, requirements, b)?;
                 }
-                InstructionKind::Load(local)
+                InstructionKind::Load(local) => {
+                    b.spend(state.vacant.len())?;
+                    if state
+                        .vacant
+                        .iter()
+                        .any(|slot| slot.base == HoldRoot::Local(*local))
+                    {
+                        return Err(err("whole carrier copy has a vacant stored slot"));
+                    }
                     if matches!(
                         f.locals[local.0 as usize].ty,
                         Type::Address { mutable: true, .. }
-                    ) =>
-                {
-                    access(
-                        &state.locals[local.0 as usize].address,
-                        true,
-                        &active,
-                        &solution.loans,
-                        requirements,
-                        b,
-                    )?;
+                    ) {
+                        access(
+                            &state.locals[local.0 as usize].address,
+                            true,
+                            &active,
+                            &solution.loans,
+                            requirements,
+                            b,
+                        )?;
+                    }
                 }
                 InstructionKind::BorrowCapture { index, mutable } => {
                     b.spend(1)?;
@@ -3561,6 +3643,20 @@ fn check_exclusive_transfers(
                 used[value.0 as usize] = false;
             }
             let (first, rest) = exclusive_consumers(&instruction.kind);
+            for value in instruction_operands(&instruction.kind) {
+                b.spend(1)?;
+                let index = value.0 as usize;
+                if !affine[index] || !used[index] {
+                    continue;
+                }
+                b.spend(rest.len().saturating_add(1))?;
+                let consuming = (first == Some(value) || rest.contains(&value))
+                    && (exclusive_carrier_value(&f.values[index])
+                        || transfers_address(&instruction.kind));
+                if !consuming {
+                    return Err(err("exclusive stored SSA value was used after transfer"));
+                }
+            }
             for value in first.into_iter().chain(rest.iter().copied()) {
                 let index = value.0 as usize;
                 b.spend(1)?;
