@@ -1,0 +1,1225 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "4d7c8b020c595f745a25c060bac7242532548e63",
+  "cli_sha256": "5dc7da80f5e114580cdce02e5a41c5adc9b9742882b0905c6b4341fbc95c9d9c",
+  "cli_unchanged": true,
+  "clang": "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+  "clang_version": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+  "counts": {
+    "observer_builds": 4,
+    "observer_executions": 16,
+    "independent_source_builds": 12,
+    "independent_source_executions": 12
+  },
+  "cases": [
+    {
+      "kind": "ReplayAuthorObservationHarness",
+      "backend": "clang",
+      "optimization": "O0",
+      "observer_inputs": [
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
+          "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
+          "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
+          "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
+        }
+      ],
+      "observer_compile_argv": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        "-c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/observer.o"
+      ],
+      "observer_object_sha256": "21cb1cccf59f0328de104f6785f3ca712875dc35804a26050cda162d819ed2ee",
+      "link_wrapper": "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\" -x none /workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/observer.o -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/main.zil",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/link.sh",
+        "--codegen-units",
+        "1",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "1c5bc490cbb4be7911f043feffcc7eb65da80d8336b0f987f1e4755bdb9846f1",
+      "executable_sha256": "0ab509ec1fc56037130e9f7120bba8df470c0ca2d63352c5fd5857afd4c1ede2",
+      "runs": [
+        {
+          "stdin": "0",
+          "exit_code": 0,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "1",
+          "exit_code": 1,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "2",
+          "exit_code": 2,
+          "stdout": "CDA",
+          "stderr": ""
+        },
+        {
+          "stdin": "3",
+          "exit_code": -6,
+          "stdout": "CBDX",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "kind": "ReplayAuthorObservationHarness",
+      "backend": "clang",
+      "optimization": "O2",
+      "observer_inputs": [
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
+          "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
+          "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
+          "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
+        }
+      ],
+      "observer_compile_argv": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        "-c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/observer.o"
+      ],
+      "observer_object_sha256": "21cb1cccf59f0328de104f6785f3ca712875dc35804a26050cda162d819ed2ee",
+      "link_wrapper": "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\" -x none /workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/observer.o -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/main.zil",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/link.sh",
+        "--codegen-units",
+        "1",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "99c89b52d5eebc4ac756fdf108d4c82d1a66b0e6b70d696d86d26016a42d962a",
+      "executable_sha256": "2affd845f3e393e70c5d07d42c69e866165e8202d5d6b105e3c33e1a0dc2b777",
+      "runs": [
+        {
+          "stdin": "0",
+          "exit_code": 0,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "1",
+          "exit_code": 1,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "2",
+          "exit_code": 2,
+          "stdout": "CDA",
+          "stderr": ""
+        },
+        {
+          "stdin": "3",
+          "exit_code": -6,
+          "stdout": "CBDX",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "kind": "ReplayAuthorObservationHarness",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "observer_inputs": [
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
+          "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
+          "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
+          "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
+        }
+      ],
+      "observer_compile_argv": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        "-c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/observer.o"
+      ],
+      "observer_object_sha256": "21cb1cccf59f0328de104f6785f3ca712875dc35804a26050cda162d819ed2ee",
+      "link_wrapper": "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\" -x none /workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/observer.o -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/main.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--clang",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/link.sh",
+        "--codegen-units",
+        "1",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 3864,
+            "input_kind": "builder",
+            "preflight_ns": 1004211,
+            "builder_ns": 746864,
+            "parse_ns": 0,
+            "optimize_ns": 189114,
+            "emit_ns": 3486998,
+            "total_ns": 6179400
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "c4a4ea284b17c74abb0d8ff54c0d385843367b7cbc63c7cbb6b21148daa870f8",
+      "executable_sha256": "40ff1d59274d168df6dfc622cf53f74d7cbc4a3af58600c0b223f8a2fbec0598",
+      "runs": [
+        {
+          "stdin": "0",
+          "exit_code": 0,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "1",
+          "exit_code": 1,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "2",
+          "exit_code": 2,
+          "stdout": "CDA",
+          "stderr": ""
+        },
+        {
+          "stdin": "3",
+          "exit_code": -6,
+          "stdout": "CBDX",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "kind": "ReplayAuthorObservationHarness",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "observer_inputs": [
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
+          "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
+          "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
+        },
+        {
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
+          "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
+        }
+      ],
+      "observer_compile_argv": [
+        "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+        "-std=c11",
+        "-Wall",
+        "-Wextra",
+        "-Werror",
+        "-pthread",
+        "-c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/observer.o"
+      ],
+      "observer_object_sha256": "21cb1cccf59f0328de104f6785f3ca712875dc35804a26050cda162d819ed2ee",
+      "link_wrapper": "#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\" -x none /workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/observer.o -pthread -Wl,--wrap=pthread_create -Wl,--wrap=pthread_join\nfi\nexec /workspace/.zil-env/llvm-23.1.4/bin/clang \"$@\"\n",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/main.zil",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--clang",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/link.sh",
+        "--codegen-units",
+        "4",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2552,
+            "input_kind": "builder",
+            "preflight_ns": 1022829,
+            "builder_ns": 944101,
+            "parse_ns": 0,
+            "optimize_ns": 5259917,
+            "emit_ns": 5790725,
+            "total_ns": 13583755
+          },
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 584,
+            "input_kind": "builder",
+            "preflight_ns": 150446,
+            "builder_ns": 77126,
+            "parse_ns": 0,
+            "optimize_ns": 854917,
+            "emit_ns": 1016580,
+            "total_ns": 2238850
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 4,
+        "actual_units": 2,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "e8c76b95ef7c64a9bf3d3445229e25b0d02af7082c07ef5d731b0fcc0a9d7a6e",
+      "executable_sha256": "2d2f6ed0fe2661319be3964e31956b7acd85a287d7ada3ad51784a69b29b5d3c",
+      "runs": [
+        {
+          "stdin": "0",
+          "exit_code": 0,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "1",
+          "exit_code": 1,
+          "stdout": "CBDJA",
+          "stderr": ""
+        },
+        {
+          "stdin": "2",
+          "exit_code": 2,
+          "stdout": "CDA",
+          "stderr": ""
+        },
+        {
+          "stdin": "3",
+          "exit_code": -6,
+          "stdout": "CBDX",
+          "stderr": ""
+        }
+      ]
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-mixed-capture-modes",
+      "source_sha256": "8b5b727d05a979a3e823dea390a63dbe66a5a1a7bc162f7faa80c0b5104608ec",
+      "backend": "clang",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-_mpijmf4/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-_mpijmf4/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "81b32e63fc7926110750a35a3f2de6dd4db2d661c23e3f01828eaa02198b742a",
+      "executable_sha256": "39bcb885dd829567861047310adbf591ec46e358c5b6c960e74417c94b2fc598",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-mixed-capture-modes",
+      "source_sha256": "8b5b727d05a979a3e823dea390a63dbe66a5a1a7bc162f7faa80c0b5104608ec",
+      "backend": "clang",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-3zzrhy_y/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-3zzrhy_y/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "81b32e63fc7926110750a35a3f2de6dd4db2d661c23e3f01828eaa02198b742a",
+      "executable_sha256": "617055de6daf505d67fa2ab7d51b931f7b7ff7bd924f1c396eb1f9ec9b84e30e",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-mixed-capture-modes",
+      "source_sha256": "8b5b727d05a979a3e823dea390a63dbe66a5a1a7bc162f7faa80c0b5104608ec",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-7xre13vh/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-7xre13vh/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2272,
+            "input_kind": "builder",
+            "preflight_ns": 742678,
+            "builder_ns": 544329,
+            "parse_ns": 0,
+            "optimize_ns": 276917,
+            "emit_ns": 3366206,
+            "total_ns": 5720430
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "81b32e63fc7926110750a35a3f2de6dd4db2d661c23e3f01828eaa02198b742a",
+      "executable_sha256": "cd0ee9beea7c898cd14554c1b6278f0ae77be41ef9f8093a7712b0fb064621ad",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-mixed-capture-modes",
+      "source_sha256": "8b5b727d05a979a3e823dea390a63dbe66a5a1a7bc162f7faa80c0b5104608ec",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-ftwuomqd/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-ftwuomqd/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1840,
+            "input_kind": "builder",
+            "preflight_ns": 761726,
+            "builder_ns": 518791,
+            "parse_ns": 0,
+            "optimize_ns": 4187572,
+            "emit_ns": 5451344,
+            "total_ns": 11526197
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "81b32e63fc7926110750a35a3f2de6dd4db2d661c23e3f01828eaa02198b742a",
+      "executable_sha256": "9d7d0e4f06d7a481392e5847e09b154b80fccbf8c4c437c9600c377d495d56cf",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-parent-static-identity",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "backend": "clang",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-5vdq3b1m/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-5vdq3b1m/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "e96550315bc74b409dd4f5291c23437450d53ab6be8dbf92a0b5108dd5cdd9d4",
+      "executable_sha256": "101721fe917ef81d8df8d206f54f1d21ad4945dbf1f1e439cd0f842b16c9a286",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-parent-static-identity",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "backend": "clang",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-gvazybs5/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-gvazybs5/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "e96550315bc74b409dd4f5291c23437450d53ab6be8dbf92a0b5108dd5cdd9d4",
+      "executable_sha256": "a0a99a114f816b8f9ec1a79957d4537ae1a9df81e5c3a73383469389b58b5123",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-parent-static-identity",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-okslos2c/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-okslos2c/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2200,
+            "input_kind": "builder",
+            "preflight_ns": 380813,
+            "builder_ns": 372140,
+            "parse_ns": 0,
+            "optimize_ns": 186220,
+            "emit_ns": 2700575,
+            "total_ns": 4130156
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "e96550315bc74b409dd4f5291c23437450d53ab6be8dbf92a0b5108dd5cdd9d4",
+      "executable_sha256": "aef87258363ffa77fe72cdb7b95b7e0ef64980e94a46e7014e46b43c2eec7bd8",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-parent-static-identity",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-4lwikj7v/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-4lwikj7v/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 1784,
+            "input_kind": "builder",
+            "preflight_ns": 413141,
+            "builder_ns": 438379,
+            "parse_ns": 0,
+            "optimize_ns": 3838787,
+            "emit_ns": 5389281,
+            "total_ns": 10759503
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "e96550315bc74b409dd4f5291c23437450d53ab6be8dbf92a0b5108dd5cdd9d4",
+      "executable_sha256": "12725860bd9c06f9e89ccaf492a962906d5a0bb12a57134de974df8058eaae58",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-helper-retained-store",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "backend": "clang",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-k0uweog4/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-k0uweog4/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "3dd9f5c4080f2f7cadff43e391a189304cb22a17c1bd07bfcb707f3cfc1e1950",
+      "executable_sha256": "9276ef406bfc5af1a89ba68aa697bb2c18cb852fc378d237f0a6334214f7d212",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-helper-retained-store",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "backend": "clang",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "clang",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-vsmvkplc/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-vsmvkplc/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "clang",
+        "object_reports": [],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "3dd9f5c4080f2f7cadff43e391a189304cb22a17c1bd07bfcb707f3cfc1e1950",
+      "executable_sha256": "9fee1bb85a2c9839e885cfa2ad35adb73618637780054436b1ea5486f84db8ac",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-helper-retained-store",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "backend": "llvm-api",
+      "optimization": "O0",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O0",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-5uvi9ng0/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-5uvi9ng0/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O0>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 4432,
+            "input_kind": "builder",
+            "preflight_ns": 827356,
+            "builder_ns": 815327,
+            "parse_ns": 0,
+            "optimize_ns": 188444,
+            "emit_ns": 5029058,
+            "total_ns": 7465455
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "3dd9f5c4080f2f7cadff43e391a189304cb22a17c1bd07bfcb707f3cfc1e1950",
+      "executable_sha256": "8d6cdefbbcf9e532c0f9892777cf1ceca7f474205b6dc8c7d8fb6ebaacf9ab56",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    },
+    {
+      "kind": "IndependentSourceConsumer",
+      "id": "thread-helper-retained-store",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "backend": "llvm-api",
+      "optimization": "O2",
+      "build_argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "build",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--entry",
+        "main",
+        "--backend",
+        "llvm-api",
+        "--opt",
+        "O2",
+        "--emit-dir",
+        "/workspace/.zil-review336-astra-tmp/native339-source-3w3ze7xh/phases",
+        "-o",
+        "/workspace/.zil-review336-astra-tmp/native339-source-3w3ze7xh/program",
+        "--json"
+      ],
+      "build_status": "Success",
+      "verification_runs": 1,
+      "native_codegen": {
+        "backend": "llvm-api",
+        "object_reports": [
+          {
+            "backend": "llvm-api",
+            "llvm_version": "23.1.4",
+            "triple": "x86_64-unknown-linux-gnu",
+            "cpu": "x86-64",
+            "features": "",
+            "data_layout": "e-m:e-p270:32:32-p271:32:32-p272:64:64-i64:64-i128:128-f80:128-n8:16:32:64-S128",
+            "pipeline": "default<O2>",
+            "relocation": "PIC",
+            "code_model": "default",
+            "verify_before_after": true,
+            "object_bytes": 2080,
+            "input_kind": "builder",
+            "preflight_ns": 1083792,
+            "builder_ns": 783750,
+            "parse_ns": 0,
+            "optimize_ns": 5853599,
+            "emit_ns": 6766704,
+            "total_ns": 15070402
+          }
+        ],
+        "object_cache": {
+          "requested": false,
+          "enabled": false,
+          "hits": 0,
+          "misses": 0,
+          "corrupt": 0,
+          "stored": 0,
+          "write_failures": 0,
+          "key_ns": 0,
+          "lookup_ns": 0,
+          "current_preflight_ns": 0,
+          "disabled_reason": null
+        },
+        "requested_units": 1,
+        "actual_units": 1,
+        "jobs": 1,
+        "fallback": null
+      },
+      "llvm_sha256": "3dd9f5c4080f2f7cadff43e391a189304cb22a17c1bd07bfcb707f3cfc1e1950",
+      "executable_sha256": "2d19033394a076f0cd1783c12cf7e3273e6289b22cc11ef3c836d883a4d16970",
+      "exit_code": 0,
+      "stdout": "0\n",
+      "stderr": ""
+    }
+  ],
+  "artifact_policy": "Source bytes and compact hashes retained; temporary generated artifacts removed. Core dumps disabled for intentional join-abort case."
+}

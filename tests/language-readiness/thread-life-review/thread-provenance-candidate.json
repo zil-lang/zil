@@ -1,0 +1,444 @@
+{
+  "schema_version": 1,
+  "kind": "ExactCandidateIndependentSourceCheck",
+  "implementation_commit": "4d7c8b020c595f745a25c060bac7242532548e63",
+  "cli_sha256": "5dc7da80f5e114580cdce02e5a41c5adc9b9742882b0905c6b4341fbc95c9d9c",
+  "cases": [
+    {
+      "id": "thread-mixed-capture-modes",
+      "path": "thread-mixed-capture-modes.zil",
+      "source_sha256": "8b5b727d05a979a3e823dea390a63dbe66a5a1a7bc162f7faa80c0b5104608ec",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-shared-helper",
+      "path": "thread-shared-helper.zil",
+      "source_sha256": "8559c6fc7ba38cb0d9e1b6fb30dbf7ccf04440b3500de2de43216aa57291ceb7",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-shared-helper.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-ordinary-ref-input",
+      "path": "thread-ordinary-ref-input.zil",
+      "source_sha256": "1cfcc0bc567cd49c0489672eb93484075bbf194b82b0a3c869b16e464da5fc47",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-ordinary-ref-input.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-fixed-parent-capture",
+      "path": "thread-fixed-parent-capture.zil",
+      "source_sha256": "9cd860d42a1943c000658eee0de616c21c72db7477434c3d5d71c0dd106daec4",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-fixed-parent-capture.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-last-use-write",
+      "path": "thread-last-use-write.zil",
+      "source_sha256": "0c6816e1c91dd1c974fc0afbabd209bbcfe103fab57ecbfe2f83d370b66fe010",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-last-use-write.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "shared child payload overlaps an exclusive body capture, including nested captures"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-ancestor-write",
+      "path": "thread-ancestor-write.zil",
+      "source_sha256": "aa1ac38a86ada664c3c4703fbb826788f0f4b75371d47bd0e1363530b5049a6f",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-ancestor-write.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "shared child payload overlaps an exclusive body capture, including nested captures"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-nested-writer",
+      "path": "thread-nested-writer.zil",
+      "source_sha256": "fadb34b0b365c92adaa4c7430a8db2387dc39875e2a2e6236816a65da8d73da0",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-nested-writer.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "shared child payload overlaps an exclusive body capture, including nested captures"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-nested-reader",
+      "path": "thread-nested-reader.zil",
+      "source_sha256": "684b7da8fdafbadabbf4bd9a10fafbdfc0160931da9b7ed46c566d0e9a4f94c7",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-nested-reader.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-transitive-foreign",
+      "path": "thread-transitive-foreign.zil",
+      "source_sha256": "c6fdf0b3bc12d37ef59ea6fef5f092b52dee1175d7358132944b536a40fdf8d4",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-transitive-foreign.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-THREAD-WORKER",
+          "message": "instruction is outside the closed pure scalar thread worker profile"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-helper-address-result",
+      "path": "thread-helper-address-result.zil",
+      "source_sha256": "effb49d63fe88cd9469897cd05e7c201fc5773504cd8e045d25ee0b4f6fbc40b",
+      "expected": "ProfileReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-address-result.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-THREAD-WORKER",
+          "message": "shared worker address has no permitted actual producer"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-lending-origin",
+      "path": "thread-lending-origin.zil",
+      "source_sha256": "74318e83ce684a8033252a3e211b5683da1698e781bba007ea75196993ad33ab",
+      "expected": "Unsupported",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-lending-origin.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "shared thread dynamic, lending or aggregate payload storage is not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-store-origin",
+      "path": "thread-store-origin.zil",
+      "source_sha256": "23c37ea914f6cec1293583245664652582a7a81e02704b66636b75fca000bcd3",
+      "expected": "Unsupported",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-store-origin.zil",
+        "--json"
+      ],
+      "exit_code": 3,
+      "status": "Unsupported",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-UNSUPPORTED",
+          "message": "shared thread dynamic, lending or aggregate payload storage is not implemented"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-raw-disjoint-seed",
+      "path": "thread-raw-disjoint-seed.zil",
+      "source_sha256": "26f5df21b1fd71c2b71432ed263dd195ea809a63dcc5217e38d1b52973ac59f7",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-disjoint-seed.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-retained-store",
+      "path": "thread-helper-retained-store.zil",
+      "source_sha256": "7a9fd645cec4fb032f5b0768658de8e5a51ba8512165f228004180999f126b2d",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-capture-retained-store",
+      "path": "thread-capture-retained-store.zil",
+      "source_sha256": "e020e491ea33d71a7532d83a4d5478d287093e3f98ccd5a0e0715e384e197350",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-retained-store.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-conflicting-inputs",
+      "path": "thread-helper-conflicting-inputs.zil",
+      "source_sha256": "ee0a5313f2d89e3315dfad57c6790ab6f4ed8d2a53ee24c8005f203563f5186c",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-conflicting-inputs.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "access overlaps an active address window without its delegated authority"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-consumes-store",
+      "path": "thread-helper-consumes-store.zil",
+      "source_sha256": "c80a8719b18bb07b8f865912c1a2b21268f4b128552c1d33f184ad160bcb105e",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-consumes-store.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "verify",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "write or storage change overlaps a shared address still required by a later use"
+        }
+      ],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-parent-static-identity",
+      "path": "thread-parent-static-identity.zil",
+      "source_sha256": "a0524563cb1080b4e09d5e650aed3379145e26a5247ae4e9f03438dabb47ffcd",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-returned-mutable-conflict",
+      "path": "thread-helper-returned-mutable-conflict.zil",
+      "source_sha256": "b4449d9aa05f6f7a3af33c6ff1eb87f955af4112082a594b857ef83d9de0b993",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "shared child payload overlaps an exclusive body capture, including nested captures"
+        }
+      ],
+      "verification_runs": 0
+    },
+    {
+      "id": "thread-raw-helper-return-seed",
+      "path": "thread-raw-helper-return-seed.zil",
+      "source_sha256": "42713ed5a68b720b2d45af940a6bdafcaba1d394604a1729caa44093cae9088d",
+      "expected": "Success",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
+        "--json"
+      ],
+      "exit_code": 0,
+      "status": "Success",
+      "phase": "verify",
+      "diagnostics": [],
+      "verification_runs": 1
+    },
+    {
+      "id": "thread-helper-returned-mutable-conflict-analyze",
+      "path": "thread-helper-returned-mutable-conflict.zil",
+      "source_sha256": "b4449d9aa05f6f7a3af33c6ff1eb87f955af4112082a594b857ef83d9de0b993",
+      "expected": "SafeReject",
+      "expectation_met": true,
+      "argv": [
+        "/workspace/.zil-env/target339/debug/zil",
+        "check",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
+        "--stop-after",
+        "analyze",
+        "--json"
+      ],
+      "exit_code": 1,
+      "status": "SafeReject",
+      "phase": "analyze",
+      "diagnostics": [
+        {
+          "code": "E-BORROW-CONFLICT",
+          "message": "shared child payload overlaps an exclusive body capture, including nested captures"
+        }
+      ],
+      "verification_runs": 0
+    }
+  ],
+  "cli_unchanged": true
+}

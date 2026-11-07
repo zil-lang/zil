@@ -459,7 +459,7 @@ impl Builder<'_, '_> {
 }
 
 #[cfg(test)]
-mod terminal343_snapshot_budget {
+mod snapshot_budget {
     use super::*;
     fn function(ty: Type) -> TypedFunction {
         TypedFunction {
@@ -569,6 +569,6 @@ mod terminal343_snapshot_budget {
                 );
             }
         }
-        eprintln!("task343 exact definition ledger N={minimum}");
+        eprintln!("exact task definition ledger N={minimum}");
     }
 }

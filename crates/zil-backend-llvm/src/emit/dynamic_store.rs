@@ -1456,7 +1456,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_full_protocols_cross_snapshot_threshold_independently() {
+    fn full_protocols_cross_snapshot_threshold_independently() {
         // Private physical planner probe. The real Source/raw/Wire admission
         // and native consumers belong to the root's independent machine matrix.
         for (words, expected_push, expected_pop) in [
@@ -1477,7 +1477,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g934_scalar_protocols_have_exact_nonzero_stride() {
+    fn scalar_protocols_have_exact_nonzero_stride() {
         for (element, stride) in [
             (Type::Bool, 1),
             (Type::U8, 1),
@@ -1505,7 +1505,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_protocol_plan_has_exact_budget_and_retains_package_cost() {
+    fn protocol_plan_has_exact_budget_and_retains_package_cost() {
         let resources = [resource(510), resource(32768)];
         let limits = Limits::default();
         let mut remaining = usize::MAX;
@@ -1541,7 +1541,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_unused_pod_still_prepays_long_scalar_scans() {
+    fn unused_pod_still_prepays_long_scalar_scans() {
         use zil_ir::{BasicBlock, BlockId, CallKind, PassingMode};
         let span = Span::new(zil_base::FileId(0), 0, 1);
         let scalar = |count: usize| TypedFunction {
@@ -1606,7 +1606,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_nested_unit_preserves_existing_zero_size_aggregate_layout() {
+    fn nested_unit_preserves_existing_zero_size_aggregate_layout() {
         for (field, stride) in [
             (Type::Unit, 8),
             (
@@ -1659,7 +1659,7 @@ mod pod_tests {
     }
 
     #[test]
-    fn g932_runtime_uses_pointer_helpers_and_constant_time_pod_drop() {
+    fn runtime_uses_pointer_helpers_and_constant_time_pod_drop() {
         let resources = [resource(509), resource(510), resource(511), resource(32768)];
         let target = TargetProfile::default();
         let view = view(&resources, &target);

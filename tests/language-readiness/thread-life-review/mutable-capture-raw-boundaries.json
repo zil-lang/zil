@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "51788f2b95d22394967ef102ad68b8976135596c",
+  "implementation_identity": "Existing target337 rlibs from author clean same-SHA candidate build; no Cargo rebuild.",
+  "source_sha256": "dc4f94ded1c5e47a0aed0c39446a7eb0f5dec94fd455342d662c67679f3ce3d7",
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "argv": [
+    "rustc",
+    "--edition=2024",
+    "--test",
+    "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/raw.rs",
+    "-L",
+    "dependency=/workspace/.zil-env/target337/debug/deps",
+    "-o",
+    "/workspace/.zil-review336-astra-tmp/raw337",
+    "--extern",
+    "zil_base=/workspace/.zil-env/target337/debug/deps/libzil_base-f8787e05901477bc.rlib",
+    "--extern",
+    "zil_ir=/workspace/.zil-env/target337/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+    "--extern",
+    "zil_syntax=/workspace/.zil-env/target337/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+    "--extern",
+    "zil_expand=/workspace/.zil-env/target337/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+    "--extern",
+    "zil_types=/workspace/.zil-env/target337/debug/deps/libzil_types-571f611b402b80ed.rlib",
+    "--extern",
+    "zil_ct=/workspace/.zil-env/target337/debug/deps/libzil_ct-f0e2e0baaaeb0ff1.rlib",
+    "--extern",
+    "zil_analyze=/workspace/.zil-env/target337/debug/deps/libzil_analyze-e35d46dbb0dfbb66.rlib",
+    "--extern",
+    "zil_verify=/workspace/.zil-env/target337/debug/deps/libzil_verify-303a5546ba4884c7.rlib"
+  ],
+  "linked_rlibs": [
+    {
+      "crate": "zil_base",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_base-f8787e05901477bc.rlib",
+      "sha256": "7cc4353ca77fa742ed6107e83cf14add1c808f6251c4462097b49b72c5836cb8"
+    },
+    {
+      "crate": "zil_ir",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+      "sha256": "173294aedeadfe7369378af4edfb2f757c650265667fef33a2b020f688412609"
+    },
+    {
+      "crate": "zil_syntax",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+      "sha256": "c5cabe10ccd3d4caf3223e3476a459ac35b596cba9b33aeeee74729bdf4ffe0d"
+    },
+    {
+      "crate": "zil_expand",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+      "sha256": "85727821c497974e8a35e1b20758c05d50ab864364859d619fb20ffcc1fa604e"
+    },
+    {
+      "crate": "zil_types",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_types-571f611b402b80ed.rlib",
+      "sha256": "216feecbefed31282024ca0bb3da7b7ae034dcab47c72b31c20a72e00bc3b3c9"
+    },
+    {
+      "crate": "zil_ct",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_ct-f0e2e0baaaeb0ff1.rlib",
+      "sha256": "abdbad3b634bf5e82d636d2bc7643fd64ca75f68ef8875d73543c23a7a18c439"
+    },
+    {
+      "crate": "zil_analyze",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_analyze-e35d46dbb0dfbb66.rlib",
+      "sha256": "ff9d5c99a13faad5dcef56bfcb33953bcbb76b1cba48a1168339771a8c7d80c4"
+    },
+    {
+      "crate": "zil_verify",
+      "path": "/workspace/.zil-env/target337/debug/deps/libzil_verify-303a5546ba4884c7.rlib",
+      "sha256": "82bef7f7126c896597d4b22cc0546d85efaf5c4318e6b7b6e669b20d2d4717a9"
+    }
+  ],
+  "build_exit_code": 0,
+  "build_stderr": "",
+  "test_argv": [
+    "/workspace/.zil-review336-astra-tmp/raw337",
+    "review337_",
+    "--nocapture"
+  ],
+  "test_exit_code": 0,
+  "test_stdout": "\nrunning 3 tests\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-ADDRESS\nWire: E-VERIFY-ADDRESS\ntest actual_shared_input_cannot_ground_mutable_return ... ok\nraw: E-VERIFY-RETURN\nWire: E-VERIFY-RETURN\ntest declared_result_mode_is_verified_independently_of_candidate_analysis ... ok\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-LIFE\nWire: E-VERIFY-LIFE\ntest mixed_upper_bound_cannot_replace_actual_return_origin ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s\n\n",
+  "test_stderr": "",
+  "test_binary_sha256": "49ea0b9617a74b7feaaf57048a4c23aaec4db3ce9b439e38e75e7e2e5fe4bfcb"
+}

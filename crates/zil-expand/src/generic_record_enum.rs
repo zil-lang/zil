@@ -386,7 +386,7 @@ impl Engine<'_> {
 }
 
 #[cfg(test)]
-mod record_enum329_ledger {
+mod record_enum_ledger {
     use super::*;
     use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 

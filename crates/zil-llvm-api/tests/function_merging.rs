@@ -1,7 +1,7 @@
 #![cfg(feature = "native")]
-mod support210;
+mod llvm_test_support;
+use llvm_test_support::*;
 use std::{fs, process::Command};
-use support210::*;
 use zil_llvm_api::{Config, ErrorKind, FunctionMerging, Optimization, model::*};
 
 fn body(name: &str) -> Function {

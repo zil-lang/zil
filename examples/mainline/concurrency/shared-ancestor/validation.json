@@ -1,0 +1,302 @@
+{
+  "status": "AuthorLimitedChecks",
+  "production_source_commit": "4d7c8b020c595f745a25c060bac7242532548e63",
+  "composition": {
+    "shared_thread_checkpoint": "14349597e",
+    "authorized_root_merge": "2a95773df",
+    "also_contains": "independently reviewed336/337 production"
+  },
+  "binary_sha256": "5dc7da80f5e114580cdce02e5a41c5adc9b9742882b0905c6b4341fbc95c9d9c",
+  "shared_original_sha256": "e4e212877aaf5262b225fa29d45c450c74694eb0ee82ddf8bbbfa9406750d22a",
+  "checks": {
+    "existing_generic_regressions": {
+      "passed": 32,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    "existing_backend_scoped_thread": {
+      "passed": 3,
+      "failed": 0
+    },
+    "narrow_clippy": "Pass",
+    "fmt": "Pass"
+  },
+  "native_shared_profile": {
+    "backends": [
+      "clang",
+      "llvm-api"
+    ],
+    "optimizations": [
+      "O0",
+      "O2"
+    ],
+    "observed_os_cases": 16,
+    "ordinary_source_control_executions": 48,
+    "cache_executions": 3,
+    "replays_not_added": true,
+    "actual_api_O2_multiple_CGUs": true
+  },
+  "budgets_Types_Analyze_Verify": {
+    "shared_child": [
+      532,
+      8345,
+      29372
+    ],
+    "disjoint_write": [
+      656,
+      10837,
+      46218
+    ],
+    "two_scopes": [
+      632,
+      4175,
+      11774
+    ],
+    "nested_shared": [
+      477,
+      3769,
+      7724
+    ]
+  },
+  "identical_B_C_scalar_budgets": {
+    "scalar_control": [
+      526,
+      7787,
+      15329
+    ],
+    "parent332_kinds": [
+      1587,
+      26216,
+      92685
+    ],
+    "all": "N/N-1/fresh"
+  },
+  "source_checks": [
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/shared_child.zil",
+      "source_sha256": "e4e212877aaf5262b225fa29d45c450c74694eb0ee82ddf8bbbfa9406750d22a",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/scalar_control.zil",
+      "source_sha256": "3d3e778cc5b255b9951435b96bc855cac4a6bc84506ccf434ac1b4f0cfd4c106",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/disjoint_write.zil",
+      "source_sha256": "6a23bc1b5c001bf6e9bb3dbb16ad79da1fd371d6634514019bfbdbc9f9f4a40a",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/nested_disjoint.zil",
+      "source_sha256": "16676534246f16d07f946c5a81867226fb605d76e855a390cabb9a0aa7c02488",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/parent_parameter.zil",
+      "source_sha256": "ed11d0824c7c6fc0b3da23c96f00423fbebd9a5586df716fc04639bfbb84bb0d",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/parent_return.zil",
+      "source_sha256": "f496536347e3db52dba87fff2e133b43a0fdb598b1886fe255b05675d94f7652",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/parent_capture.zil",
+      "source_sha256": "4efa889ae3104d116cf56c4a3ef503bfe1ef1d32c6dbf2eca7873c68c9ee2259",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/ancestor_shared.zil",
+      "source_sha256": "b8ea51b8bac070119c9b042abdfd2df367115613e65a67b23e15a766b1b404ac",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/helper_disjoint.zil",
+      "source_sha256": "42713ed5a68b720b2d45af940a6bdafcaba1d394604a1729caa44093cae9088d",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/copied_lender.zil",
+      "source_sha256": "7c3c66554f98eaf30f98dcf06d6246b3faa0cb2b5465540ceb5031453403f2a0",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/owned_lender_retained.zil",
+      "source_sha256": "7c9e58fb6cbac1c6b9a466e3c5378afdf6a0dbceb6339ad48b0a99b499d735cb",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/two_scopes.zil",
+      "source_sha256": "5a1969ba297c08f5226b361fd0ec6462d31e8420e5d505558f8d9844789e4f44",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/nested_shared.zil",
+      "source_sha256": "32508ff4b9e10d6526e600ac69252948474745a2b218f37e43a65db60fa04b4d",
+      "status": "Success",
+      "phase": "verify",
+      "codes": [],
+      "verification_runs": 1,
+      "exit_code": 0
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/body_write.zil",
+      "source_sha256": "2c03ecc50244530d2a846eb868751d24e6f18dc1116e314da89d2322652c6631",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "verification_runs": 0,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/nested_writer.zil",
+      "source_sha256": "732e1da7f37efeb02a6dbf29e1132a87d9be65229565bc70ce61c6eb32a90b36",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "verification_runs": 0,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/mutable_worker.zil",
+      "source_sha256": "89d121f8f8b6e817bc16c49a28bfe31d9630543fdb43aa185c8e24a822824f5e",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "codes": [
+        "E-THREAD-WORKER"
+      ],
+      "verification_runs": 0,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/ancestor_write.zil",
+      "source_sha256": "005c61167173f89d9999eb33f49bf6503bb35645be97db1a6376db1a82382f17",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "verification_runs": 0,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/helper_writer.zil",
+      "source_sha256": "b4449d9aa05f6f7a3af33c6ff1eb87f955af4112082a594b857ef83d9de0b993",
+      "status": "SafeReject",
+      "phase": "analyze",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "verification_runs": 0,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/owned_lender_cleanup.zil",
+      "source_sha256": "3ebbd978bd42a5b04cbe7e829936838d7c2dec6e27ceec1c003adbc93df0daf8",
+      "status": "SafeReject",
+      "phase": "verify",
+      "codes": [
+        "E-BORROW-CONFLICT"
+      ],
+      "verification_runs": 1,
+      "exit_code": 1
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/projection_pending.zil",
+      "source_sha256": "29f443dd1f4af060b6eb19d64d13c6c76cc2738e012c812ab721cb67cd46579a",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "verification_runs": 0,
+      "exit_code": 3
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/lending_pending.zil",
+      "source_sha256": "b31c547240ef10b3fb62973f591ffbb4567d3ba846174a5421e8477f102a90e5",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "verification_runs": 0,
+      "exit_code": 3
+    },
+    {
+      "source": "examples/mainline/concurrency/shared-ancestor/owner_cleanup.zil",
+      "source_sha256": "c169be64a6bfec78703ede2ff3cf069e8b1b0a2be72f73577b5b5939ef63abcd",
+      "status": "Unsupported",
+      "phase": "analyze",
+      "codes": [
+        "E-UNSUPPORTED"
+      ],
+      "verification_runs": 0,
+      "exit_code": 3
+    }
+  ],
+  "known_incomplete": [
+    "Direct unqualified Store/lending/owning projection payload origins",
+    "Mutex/Atomic/general Transfer/Share",
+    "Async/SABI/cancellation",
+    "Non-Linux-x64 thread adapter",
+    "Full-language/B0/ZUI and Rust product cost comparison"
+  ],
+  "independent_review": "Separate root/Astra receipts; not included in author counts",
+  "formal_workspace_suite": "NotRun by author"
+}

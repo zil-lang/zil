@@ -1,5 +1,5 @@
-mod support210;
-use support210::*;
+mod llvm_test_support;
+use llvm_test_support::*;
 use zil_llvm_api::{model::*, validate_module};
 
 fn imported() -> Function {

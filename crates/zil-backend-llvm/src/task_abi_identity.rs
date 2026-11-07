@@ -357,7 +357,7 @@ mod tests {
     use std::hash::Hash;
     use zil_base::{FingerprintBuilder, ResultCategory};
     #[test]
-    fn cas343_actual_machine_fields_have_paid_exact_identity() {
+    fn actual_machine_fields_have_paid_exact_identity() {
         let observed = m::Ty::Struct(vec![m::Ty::Int(32), m::Ty::Int(1)]);
         let make = |name: String| m::Module {
             triple: "x86_64-unknown-linux-gnu".into(),
@@ -461,7 +461,7 @@ mod tests {
                 assert_ne!(paid(&changed, n).unwrap().0, identity);
             }
             growth.push(n);
-            eprintln!("cas343 machine identity operand_bytes={size} Codegen N={n}");
+            eprintln!("cas machine identity operand_bytes={size} Codegen N={n}");
         }
         assert!(growth[1] > growth[0] + 4096);
     }
@@ -507,7 +507,7 @@ mod tests {
         }
     }
     #[test]
-    fn task343_machine_identity_pays_bytes_types_and_long_symbols_before_hash() {
+    fn machine_identity_pays_bytes_types_and_long_symbols_before_hash() {
         let small = unit(1, 0, 1);
         let large = unit(65536, 24, 1024);
         let cost = |m: &m::Module| {
@@ -572,6 +572,6 @@ mod tests {
         global.initializer = Some(m::Val::F64(0x7ff8_0000_0000_0002));
         assert_eq!(cost(&floating), float_n);
         assert_ne!(paid_hash(&floating, float_n).unwrap().0, before.0);
-        eprintln!("task343 actual machine identity N={n}");
+        eprintln!("actual machine identity N={n}");
     }
 }

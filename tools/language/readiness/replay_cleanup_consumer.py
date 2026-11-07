@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay existing ZUI-language177 cleanup oracles through real LLVM API objects."""
+"""Replay existing composed State/Store cleanup oracles through real LLVM API objects."""
 import argparse, hashlib, importlib.util, json, os, pathlib, subprocess, sys, time
 
 def digest(p):
@@ -19,13 +19,13 @@ def main():
     out.mkdir(parents=True, exist_ok=False)
     assert digest(cli) == a.cli_sha256
     assert len(a.source_commit) == 40
-    oracle = repo / 'tools/language/177/consumer.py'
+    oracle = repo / 'tools/language/composed-state-store/consumer.py'
     spec = importlib.util.spec_from_file_location('existing177', oracle)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     clang = pathlib.Path(os.environ.get('ZIL_CLANG', subprocess.check_output(['which', 'clang'], text=True).strip())).resolve()
-    sources = repo / 'examples/mainline/zui_language177'
-    report = {'status': 'Running', 'source_commit': a.source_commit, 'source_identity_kind': 'external observed build receipt; not binary self authentication', 'cli_sha256': digest(cli), 'clang_sha256': digest(clang), 'source_hashes': {p.name: digest(p) for p in sorted(sources.glob('*.zil'))}, 'oracle': 'tools/language/177/consumer.py scenarios (preexisting business oracle)', 'oracle_sha256': digest(oracle), 'builds': [], 'observations': [], 'commands': 0}
+    sources = repo / 'examples/mainline/zui-language-store-fields'
+    report = {'status': 'Running', 'source_commit': a.source_commit, 'source_identity_kind': 'external observed build receipt; not binary self authentication', 'cli_sha256': digest(cli), 'clang_sha256': digest(clang), 'source_hashes': {p.name: digest(p) for p in sorted(sources.glob('*.zil'))}, 'oracle': 'tools/language/composed-state-store/consumer.py scenarios (preexisting business oracle)', 'oracle_sha256': digest(oracle), 'builds': [], 'observations': [], 'commands': 0}
 
     def save():
         (out / 'summary.json').write_text(json.dumps(report, indent=2) + '\n')
@@ -41,12 +41,12 @@ def main():
         report['commands'] += 1
         return result
     probe = out / 'allocator.o'
-    compiled = run([clang, '-O0', '-c', repo / 'tools/language/173/allocator_probe.c', '-o', probe], 'prepare-probe')
+    compiled = run([clang, '-O0', '-c', repo / 'tools/language/composed-store-closures/allocator_probe.c', '-o', probe], 'prepare-probe')
     assert compiled.returncode == 0, compiled.stderr
     wrapper = out / 'link-probe.py'
     wrapper.write_text('#!' + sys.executable + '\nimport os,sys,json\ncmd=' + repr([str(clang)]) + '+sys.argv[1:]+' + repr([str(probe), '-Wl,--wrap=realloc', '-Wl,--wrap=free']) + '\nassert "ir" not in sys.argv and "-c" not in sys.argv, "probe must only link actual API objects"\nwith open(' + repr(str(out / 'probe-link-argv.jsonl')) + ',"a") as f:f.write(json.dumps(cmd)+"\\n")\nos.execv(cmd[0],cmd)\n')
     wrapper.chmod(493)
-    report.update(probe_sha256=digest(repo / 'tools/language/173/allocator_probe.c'), link_wrapper_sha256=digest(wrapper))
+    report.update(probe_sha256=digest(repo / 'tools/language/composed-store-closures/allocator_probe.c'), link_wrapper_sha256=digest(wrapper))
     save()
     try:
         for units in [1, 4]:

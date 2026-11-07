@@ -241,7 +241,7 @@ fn two_roots() -> TypedModule {
 }
 
 #[test]
-fn impl203_two_actual_layout_roots_include_each_environment_and_flags() {
+fn two_actual_layout_roots_include_each_environment_and_flags() {
     let m = two_roots();
     let limits = Limits::default();
     let mut budget = Budget::new(&limits);
@@ -288,7 +288,7 @@ fn impl203_two_actual_layout_roots_include_each_environment_and_flags() {
 }
 
 #[test]
-fn impl203_bad_second_capture_root_never_hides_behind_a_valid_first() {
+fn bad_second_capture_root_never_hides_behind_a_valid_first() {
     let limits = Limits::default();
     let store = Type::Managed(Box::new(Type::OwnedStore {
         element: Box::new(element(&[0])),
@@ -329,7 +329,7 @@ fn impl203_bad_second_capture_root_never_hides_behind_a_valid_first() {
 }
 
 #[test]
-fn impl203_heterogeneous_results_are_copy_and_preflighted_before_recursion() {
+fn heterogeneous_results_are_copy_and_preflighted_before_recursion() {
     let limits = Limits::default();
     for changed in [0, 1] {
         let mut m = two_roots();
@@ -358,7 +358,7 @@ fn impl203_heterogeneous_results_are_copy_and_preflighted_before_recursion() {
 }
 
 #[test]
-fn impl203_two_root_qualification_has_an_exact_fresh_work_boundary() {
+fn two_root_qualification_has_an_exact_fresh_work_boundary() {
     let m = two_roots();
     let ty = element(&[0, 1]);
     let limits = Limits::default();
@@ -382,7 +382,7 @@ fn impl203_two_root_qualification_has_an_exact_fresh_work_boundary() {
     )
     .unwrap_err();
     assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
-    println!("impl203 independent two-root qualification work={n}");
+    println!("independent two-root qualification work={n}");
 }
 
 fn captured_leaf_store() -> (Type, ResourceDefinition) {
@@ -407,7 +407,7 @@ fn captured_leaf_store() -> (Type, ResourceDefinition) {
 }
 
 #[test]
-fn impl204_direct_and_package_capture_layouts_keep_every_store_flag() {
+fn direct_and_package_capture_layouts_keep_every_store_flag() {
     let (store, resource) = captured_leaf_store();
     let limits = Limits::default();
     let mut m = module(vec![store.clone(), store.clone()]);
@@ -434,7 +434,7 @@ fn impl204_direct_and_package_capture_layouts_keep_every_store_flag() {
 }
 
 #[test]
-fn impl204_fixed_store_head_never_bypasses_canonical_or_leaf_checks() {
+fn fixed_store_head_never_bypasses_canonical_or_leaf_checks() {
     let (store, resource) = captured_leaf_store();
     let limits = Limits::default();
     let mut m = module(vec![store.clone()]);
@@ -497,7 +497,7 @@ fn impl204_fixed_store_head_never_bypasses_canonical_or_leaf_checks() {
 }
 
 #[test]
-fn impl204_copy_result_restriction_follows_actual_owned_closure_children() {
+fn copy_result_restriction_follows_actual_owned_closure_children() {
     let (store, resource) = captured_leaf_store();
     let limits = Limits::default();
     let mut m = module(vec![store]);
@@ -535,7 +535,7 @@ fn impl204_copy_result_restriction_follows_actual_owned_closure_children() {
 }
 
 #[test]
-fn impl204_owning_store_qualification_has_an_exact_fresh_work_boundary() {
+fn owning_store_qualification_has_an_exact_fresh_work_boundary() {
     let (store, resource) = captured_leaf_store();
     let mut m = module(vec![store.clone(), store]);
     m.resources.push(resource);
@@ -558,11 +558,11 @@ fn impl204_owning_store_qualification_has_an_exact_fresh_work_boundary() {
         zil_base::ResultCategory::ResourceLimit
     );
     admit(&m, &ty, &exact).unwrap();
-    println!("impl204 independent owning Store qualification work={n}");
+    println!("independent owning Store qualification work={n}");
 }
 
 #[test]
-fn impl204_callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads() {
+fn callable_types_cannot_hide_in_copy_leaf_fields_or_resource_heads() {
     let limits = Limits::default();
     for callback in [
         Type::Closure(ClosureId(0)),
@@ -756,7 +756,7 @@ fn pod_both(
 }
 
 #[test]
-fn pod932_complete_numeric_tree_and_actual_target_layout() {
+fn pod_store_complete_numeric_tree_and_actual_target_layout() {
     let ty = pod(vec![
         ("head", Type::U8),
         (
@@ -804,7 +804,7 @@ fn pod932_complete_numeric_tree_and_actual_target_layout() {
 }
 
 #[test]
-fn pod932_forbidden_leaves_cannot_hide_in_zero_length_arrays() {
+fn pod_store_forbidden_leaves_cannot_hide_in_zero_length_arrays() {
     let forbidden = vec![
         Type::Enum {
             name: "E".into(),
@@ -862,7 +862,7 @@ fn pod932_forbidden_leaves_cannot_hide_in_zero_length_arrays() {
 }
 
 #[test]
-fn pod932_unused_definitions_local_and_ssa_types_are_admitted_independently() {
+fn pod_store_unused_definitions_local_and_ssa_types_are_admitted_independently() {
     let limits = Limits::default();
     let valid = pod(vec![("n", Type::U64)]);
     for bad in [
@@ -934,7 +934,7 @@ fn pod932_unused_definitions_local_and_ssa_types_are_admitted_independently() {
 }
 
 #[test]
-fn pod932_canonical_name_and_complete_nominal_identity_are_both_required() {
+fn pod_store_canonical_name_and_complete_nominal_identity_are_both_required() {
     let limits = Limits::default();
     let ty = pod(vec![("a", Type::I64), ("b", Type::U8)]);
     for variant in 0..5 {
@@ -964,7 +964,7 @@ fn pod932_canonical_name_and_complete_nominal_identity_are_both_required() {
 }
 
 #[test]
-fn pod932_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
+fn pod_store_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
     let limits = Limits::default();
     let ty = pod(vec![("n", Type::I64)]);
     let mut m = module(vec![]);
@@ -1039,7 +1039,7 @@ fn pod932_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
 }
 
 #[test]
-fn pod932_paid_qualification_has_exact_and_fresh_work_controls() {
+fn pod_store_paid_qualification_has_exact_and_fresh_work_controls() {
     let ty = pod(vec![
         ("n", Type::U64),
         (
@@ -1074,11 +1074,11 @@ fn pod932_paid_qualification_has_exact_and_fresh_work_controls() {
         zil_base::ResultCategory::ResourceLimit
     );
     admit(&m, &ty, &exact).unwrap();
-    println!("G9.3.2.3 independent POD qualification N={n}");
+    println!("independent POD qualification N={n}");
 }
 
 #[test]
-fn pod932_logical_payload_and_stored_unit_stride_are_separate() {
+fn pod_store_logical_payload_and_stored_unit_stride_are_separate() {
     let limits = Limits::default();
     let m = module(vec![]);
     for ty in [
@@ -1279,7 +1279,7 @@ fn mutable_window_fixture(
 }
 
 #[test]
-fn pod933_mutable_window_keeps_actual_whole_store_root_until_last_use() {
+fn pod_store_mutable_window_keeps_actual_whole_store_root_until_last_use() {
     let limits = Limits::default();
     for (distinct, read_first, accept) in [
         (false, false, false),
@@ -1303,7 +1303,7 @@ fn pod933_mutable_window_keeps_actual_whole_store_root_until_last_use() {
 }
 
 #[test]
-fn pod933_mutable_window_requires_exact_complete_result_even_when_unused() {
+fn pod_store_mutable_window_requires_exact_complete_result_even_when_unused() {
     let limits = Limits::default();
     let (module, plan) = pod_mut_window_fixture(false, true);
     for wrong in [
@@ -1349,7 +1349,7 @@ fn pod933_mutable_window_requires_exact_complete_result_even_when_unused() {
 }
 
 #[test]
-fn pod933_mutable_window_conflicts_with_every_same_store_index_and_view_mode() {
+fn pod_store_mutable_window_conflicts_with_every_same_store_index_and_view_mode() {
     let limits = Limits::default();
     for second_mutable in [false, true] {
         for read_first in [false, true] {
@@ -1407,7 +1407,7 @@ fn pod933_mutable_window_conflicts_with_every_same_store_index_and_view_mode() {
 }
 
 #[test]
-fn pod933_mutable_raw_and_wire_requests_have_exact_fresh_work_boundaries() {
+fn pod_store_mutable_raw_and_wire_requests_have_exact_fresh_work_boundaries() {
     let (module, plan) = pod_mut_window_fixture(false, true);
     let limits = Limits::default();
     for wire in [false, true] {
@@ -1443,12 +1443,12 @@ fn pod933_mutable_raw_and_wire_requests_have_exact_fresh_work_boundaries() {
             zil_base::ResultCategory::ResourceLimit
         );
         check(lo).unwrap();
-        println!("G9.3.3.3 mutable request wire={wire} N={lo}");
+        println!("mutable request wire={wire} N={lo}");
     }
 }
 
 #[test]
-fn scalar934_nine_direct_elements_and_canonical_carriers_are_independent() {
+fn scalar_store_nine_direct_elements_and_canonical_carriers_are_independent() {
     let limits = Limits::default();
     for scalar in [
         Type::Bool,
@@ -1507,7 +1507,7 @@ fn scalar934_nine_direct_elements_and_canonical_carriers_are_independent() {
 }
 
 #[test]
-fn scalar934_raw_wire_checks_complete_mutable_result_and_unused_producer() {
+fn scalar_store_raw_wire_checks_complete_mutable_result_and_unused_producer() {
     let limits = Limits::default();
     let (module, plan) = mutable_window_fixture(plain_window_fixture(Type::I32, false, true));
     for wrong in [
@@ -1552,7 +1552,7 @@ fn scalar934_raw_wire_checks_complete_mutable_result_and_unused_producer() {
 }
 
 #[test]
-fn scalar934_actual_whole_store_window_rejects_same_root_and_forged_hold() {
+fn scalar_store_actual_whole_store_window_rejects_same_root_and_forged_hold() {
     let limits = Limits::default();
     for (distinct, read_first, accept) in [
         (false, false, false),
@@ -1622,7 +1622,7 @@ fn scalar934_actual_whole_store_window_rejects_same_root_and_forged_hold() {
 }
 
 #[test]
-fn scalar934_raw_wire_exact_fresh_request_budget() {
+fn scalar_store_raw_wire_exact_fresh_request_budget() {
     let (module, plan) = mutable_window_fixture(plain_window_fixture(Type::I32, false, true));
     let limits = Limits::default();
     for wire in [false, true] {
@@ -1656,12 +1656,12 @@ fn scalar934_raw_wire_exact_fresh_request_budget() {
             zil_base::ResultCategory::ResourceLimit
         );
         check(lo).unwrap();
-        println!("G9.3.4.3 scalar request wire={wire} N={lo}");
+        println!("scalar request wire={wire} N={lo}");
     }
 }
 
 #[test]
-fn store935_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
+fn owned_store_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
     let limits = Limits::default();
     let (module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1727,7 +1727,7 @@ fn store935_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
 }
 
 #[test]
-fn store935_capture_requires_the_actual_entry_even_after_carrier_admission() {
+fn owned_store_capture_requires_the_actual_entry_even_after_carrier_admission() {
     let limits = Limits::default();
     let (mut module, plan) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1749,7 +1749,7 @@ fn store935_capture_requires_the_actual_entry_even_after_carrier_admission() {
 }
 
 #[test]
-fn store935_nested_product_capture_checks_every_actual_store_definition() {
+fn owned_store_nested_product_capture_checks_every_actual_store_definition() {
     let limits = Limits::default();
     let (mut module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1774,7 +1774,7 @@ fn store935_nested_product_capture_checks_every_actual_store_definition() {
 }
 
 #[test]
-fn store935_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
+fn owned_store_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
     let limits = Limits::default();
     let (module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1805,7 +1805,7 @@ fn store935_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
 }
 
 #[test]
-fn store935_ordinary_product_parent_addresses_qualify_but_record_parent_does_not() {
+fn owned_store_ordinary_product_parent_addresses_qualify_but_record_parent_does_not() {
     let limits = Limits::default();
     let (module, _) = pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
@@ -1866,7 +1866,7 @@ fn store935_ordinary_product_parent_addresses_qualify_but_record_parent_does_not
 }
 
 #[test]
-fn store935_raw_wire_unused_owner_has_exact_fresh_budget_and_same_size_forgery_rejects() {
+fn owned_store_raw_wire_unused_owner_has_exact_fresh_budget_and_same_size_forgery_rejects() {
     let (mut module, plan) = scoped_pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
     let span = module.functions[0].span;
@@ -1923,7 +1923,7 @@ fn store935_raw_wire_unused_owner_has_exact_fresh_budget_and_same_size_forgery_r
 }
 
 #[test]
-fn pod932_actual_shared_window_blocks_mutation_and_tracks_last_use_and_roots() {
+fn pod_store_actual_shared_window_blocks_mutation_and_tracks_last_use_and_roots() {
     let limits = Limits::default();
     for (distinct, read_first, accept) in [
         (false, false, false),
@@ -1960,7 +1960,7 @@ fn pod932_actual_shared_window_blocks_mutation_and_tracks_last_use_and_roots() {
 }
 
 #[test]
-fn pod932_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
+fn pod_store_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
     let (m, plan) = pod_window_fixture(false, true);
     let limits = Limits::default();
     for wire in [false, true] {
@@ -1992,7 +1992,7 @@ fn pod932_complete_raw_and_wire_request_has_exact_fresh_boundaries() {
             zil_base::ResultCategory::ResourceLimit
         );
         check(lo).unwrap();
-        println!("G9.3.2.3 complete request wire={wire} N={lo}");
+        println!("complete request wire={wire} N={lo}");
     }
 }
 
@@ -2100,7 +2100,7 @@ fn pod_protocol_fixture() -> (TypedModule, CandidatePlan) {
 }
 
 #[test]
-fn pod932_complete_copy_push_pop_protocols_and_no_element_debt_are_raw_and_wire_checked() {
+fn pod_store_complete_copy_push_pop_protocols_and_no_element_debt_are_raw_and_wire_checked() {
     let limits = Limits::default();
     let (m, plan) = pod_protocol_fixture();
     for result in pod_both(&m, &plan, &limits) {
@@ -2138,7 +2138,7 @@ fn pod932_complete_copy_push_pop_protocols_and_no_element_debt_are_raw_and_wire_
 }
 
 #[test]
-fn store935_unused_package_and_recursive_product_gain_qualified_pod_store_ownership() {
+fn owned_store_unused_package_and_recursive_product_gain_qualified_pod_store_ownership() {
     let limits = Limits::default();
     for nested in [false, true] {
         let (mut m, plan) = scoped_pod_fixture(pod(vec![("n", Type::I64)]));
@@ -2197,7 +2197,7 @@ fn store935_unused_package_and_recursive_product_gain_qualified_pod_store_owners
 }
 
 #[test]
-fn store935_new_head_family_enters_qualified_owning_sum_containers() {
+fn owned_store_new_head_family_enters_qualified_owning_sum_containers() {
     let limits = Limits::default();
     let (old_store, old_resource) = captured_leaf_store();
     let wrap = |store: Type| {

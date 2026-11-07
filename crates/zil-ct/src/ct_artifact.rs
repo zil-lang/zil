@@ -3411,10 +3411,10 @@ mod tests {
     fn anonymous_value_schema_three_rejects_preserved_v2_envelopes() {
         let limits = Limits::default();
         let program = include_bytes!(
-            "../../../tests/language-readiness/terminal/344/anonymous/fixtures/artifact-v2-program.wire"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/fixtures/artifact-v2-program.wire"
         );
         let value = include_bytes!(
-            "../../../tests/language-readiness/terminal/344/anonymous/fixtures/artifact-v2-value.wire"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/fixtures/artifact-v2-value.wire"
         );
         for bytes in [program.as_slice(), value.as_slice()] {
             assert_eq!(u32::from_le_bytes(bytes[8..12].try_into().unwrap()), 2);

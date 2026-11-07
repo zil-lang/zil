@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "implementation_commit": "4d7c8b020c595f745a25c060bac7242532548e63",
+  "source_sha256": "dede5221749b812cbc876c2e14884f8dff15cee7e5505ebeafcda183f329286c",
+  "included_prepared_source_sha256": "dc4f94ded1c5e47a0aed0c39446a7eb0f5dec94fd455342d662c67679f3ce3d7",
+  "rustc_version": "rustc 1.99.1 (58cf8f9c3 2026-10-13)",
+  "argv": [
+    "rustc",
+    "--edition=2024",
+    "--test",
+    "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/raw339.rs",
+    "-L",
+    "dependency=/workspace/.zil-env/target339/debug/deps",
+    "-o",
+    "/workspace/.zil-review336-astra-tmp/raw339",
+    "--extern",
+    "zil_base=/workspace/.zil-env/target339/debug/deps/libzil_base-f8787e05901477bc.rlib",
+    "--extern",
+    "zil_ir=/workspace/.zil-env/target339/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+    "--extern",
+    "zil_syntax=/workspace/.zil-env/target339/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+    "--extern",
+    "zil_expand=/workspace/.zil-env/target339/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+    "--extern",
+    "zil_types=/workspace/.zil-env/target339/debug/deps/libzil_types-571f611b402b80ed.rlib",
+    "--extern",
+    "zil_ct=/workspace/.zil-env/target339/debug/deps/libzil_ct-f0e2e0baaaeb0ff1.rlib",
+    "--extern",
+    "zil_analyze=/workspace/.zil-env/target339/debug/deps/libzil_analyze-e35d46dbb0dfbb66.rlib",
+    "--extern",
+    "zil_verify=/workspace/.zil-env/target339/debug/deps/libzil_verify-303a5546ba4884c7.rlib"
+  ],
+  "linked_rlibs": [
+    {
+      "crate": "zil_base",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_base-f8787e05901477bc.rlib",
+      "sha256": "f46e3d320b418f474a0738883e91bbf832b130675c090dce170c4dc70e403b29"
+    },
+    {
+      "crate": "zil_ir",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_ir-fcef0ed96d262ed9.rlib",
+      "sha256": "495fd102bb9f8fe2ceff815121767702fa58abc524c8ce72a32407bdf2a35afc"
+    },
+    {
+      "crate": "zil_syntax",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_syntax-5e151b39b2246141.rlib",
+      "sha256": "37b2a77f552ac62af283070e1b1d6cb8ee9d56d122324187384b7bdaf81b0d4f"
+    },
+    {
+      "crate": "zil_expand",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_expand-99d8eb937b73e1b3.rlib",
+      "sha256": "78c8abbe8c860c06ef8079cd2872dfe7ae0911ef875bb0e8e0cf86bb79a3e730"
+    },
+    {
+      "crate": "zil_types",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_types-571f611b402b80ed.rlib",
+      "sha256": "e0b0970b57f08e06722105c91d77007e578c923e77404d087e61eaefff871115"
+    },
+    {
+      "crate": "zil_ct",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_ct-f0e2e0baaaeb0ff1.rlib",
+      "sha256": "da7fdc08c6793b6aa62c74b19f78f142b04e5eaf18b965ab3d1e9b3bea6c91db"
+    },
+    {
+      "crate": "zil_analyze",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_analyze-e35d46dbb0dfbb66.rlib",
+      "sha256": "173489f5127cc7670a25ccf9a0c57bf63c73f83b0eddf56d4ffcaa173b7182c8"
+    },
+    {
+      "crate": "zil_verify",
+      "path": "/workspace/.zil-env/target339/debug/deps/libzil_verify-303a5546ba4884c7.rlib",
+      "sha256": "47f0bb71aa351aed5f29c664dd93a0f4a244429273fb2eb467c87436ee5ab7f0"
+    }
+  ],
+  "build_exit_code": 0,
+  "build_stderr": "",
+  "test_argv": [
+    "/workspace/.zil-review336-astra-tmp/raw339",
+    "review339_",
+    "--nocapture"
+  ],
+  "test_exit_code": 0,
+  "test_stdout": "\nrunning 4 tests\nAnalyze: E-THREAD-WORKER\nraw: E-THREAD-WORKER\nWire: E-THREAD-WORKER\ntest prepared::same_signature_worker_substitution_rechecks_reachable_foreign_dependency ... ok\nAnalyze: E-BORROW-CONFLICT\nAnalyze: E-BORROW-CONFLICT for helper-returned mutable capture\nraw: E-BORROW-CONFLICT for helper-returned mutable capture\nWire: E-BORROW-CONFLICT for helper-returned mutable capture\ntest returned_mutable_capture_retains_its_actual_exclusive_root ... ok\nTypes N=557; N-1 ResourceLimit; fresh N Success\nraw: E-BORROW-CONFLICT\nWire: E-BORROW-CONFLICT\ntest prepared::single_scope_argument_substitution_exposes_final_use_alias ... ok\nAnalyze N=6544; N-1 ResourceLimit; fresh N Success\nVerify N=20261; N-1 ResourceLimit; fresh N Success\ntest new_capture_work_has_exact_fresh_budget ... ok\n\ntest result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.09s\n\n",
+  "test_stderr": "",
+  "test_binary_sha256": "52206b513c02dc50287faf9c916861afcce1cea783fb6461da653729bcc1c11b",
+  "rlibs_unchanged": true
+}

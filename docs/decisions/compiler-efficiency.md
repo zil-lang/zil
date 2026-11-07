@@ -4,4 +4,4 @@ LLVM API、直接 Builder、对象缓存和增量研究各有独立收益与边�
 
 研究候选须冻结同一源码、工具链、配置和输入，计完整准备、恢复、验证、CPU 与墙钟成本，并保留慢例和失败。不同窗口比例不相乘，局部热点改善不等于产品门通过。图切割、局部域和事实复用等研究先在影子路径与强基线对照，证明准确性与端到端收益后再进入生产安全核。语言所需构建时段优先，研究不占主线必要门。
 
-长期边界由 `policy/dependencies.json`、`validation/product-gates.json` 和实际验收定义。历史数字与轮次见 Git 中 `.agent/compiler-efficiency.md`、`.agent/mainline-priority.md`；本文件不把它们转记为当前成绩。
+长期边界由 `policy/dependencies.json`、`validation/product-gates.json` 和实际验收定义。历史测量按其绑定提交解释，不转记为当前成绩。

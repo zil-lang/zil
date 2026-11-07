@@ -1587,7 +1587,7 @@ fn owned_callback_fixture(kind: CallableKind, count: usize) -> TypedModule {
 }
 
 #[test]
-fn impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners() {
+fn owned_callbacks_consume_fresh_arguments_and_return_incoming_owners() {
     for (kind, count) in [
         (CallableKind::Fn, 2),
         (CallableKind::FnMut, 2),
@@ -1599,7 +1599,7 @@ fn impl247_owned_callbacks_consume_fresh_arguments_and_return_incoming_owners() 
 }
 
 #[test]
-fn impl247_owned_callback_arguments_and_results_have_one_responsibility() {
+fn owned_callback_arguments_and_results_have_one_responsibility() {
     let m = owned_callback_fixture(CallableKind::Fn, 2);
     let mut duplicate = m.clone();
     let arguments: Vec<_> = duplicate.functions[0].blocks[0]
@@ -1624,7 +1624,7 @@ fn impl247_owned_callback_arguments_and_results_have_one_responsibility() {
 }
 
 #[test]
-fn impl247_owned_callback_definition_and_actual_call_are_checked_independently() {
+fn owned_callback_definition_and_actual_call_are_checked_independently() {
     let m = owned_callback_fixture(CallableKind::FnOnce, 1);
     let mut malformed = m.clone();
     malformed.closures[0].parameters[0] = Type::I32;
@@ -1648,7 +1648,7 @@ fn impl247_owned_callback_definition_and_actual_call_are_checked_independently()
 }
 
 #[test]
-fn impl247_owned_callback_result_cannot_export_created_freshness() {
+fn owned_callback_result_cannot_export_created_freshness() {
     let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
     // The callee really creates the returned leaf, rather than merely passing
     // an incoming parameter through. Its private Created fact stays private.
@@ -1708,12 +1708,12 @@ fn impl247_owned_callback_result_cannot_export_created_freshness() {
 }
 
 #[test]
-fn impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh() {
+fn owned_callback_budget_is_module_scoped_and_recovers_fresh() {
     let m = owned_callback_fixture(CallableKind::FnMut, 2);
     let mut budget = Budget::new(&Limits::default());
     let expected = analyze_budgeted(&m, &Limits::default(), &mut budget, None).unwrap();
     let exact = Limits::default().max_analysis_steps - budget.remaining();
-    println!("impl247 owned callback Analyze N={exact}; N-1 ResourceLimit; fresh equality");
+    println!("owned callback Analyze N={exact}; N-1 ResourceLimit; fresh equality");
     let mut limits = Limits {
         max_analysis_steps: exact,
         ..Limits::default()
@@ -1730,7 +1730,7 @@ fn impl247_owned_callback_budget_is_module_scoped_and_recovers_fresh() {
 }
 
 #[test]
-fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
+fn callback_data_cannot_smuggle_a_callback_state_through_store() {
     let mut m = owned_callback_fixture(CallableKind::FnOnce, 1);
     let state = Type::Package {
         name: "State".into(),
@@ -1800,7 +1800,7 @@ fn impl247_callback_data_cannot_smuggle_a_callback_state_through_store() {
 }
 
 #[test]
-fn impl247_owned_signature_does_not_grant_state_array_or_opaque_profiles() {
+fn owned_signature_does_not_grant_state_array_or_opaque_profiles() {
     let base = owned_callback_fixture(CallableKind::FnOnce, 1);
     for (valid, ty) in [
         (
@@ -2067,7 +2067,7 @@ fn private_empty_slot_permission_does_not_discharge_an_unstored_owned_ssa() {
 
 // 282: concrete local callable composition in an ordinary symbolic helper.
 // These raw values are constructed independently of Types and Verify.
-fn local_composition_282(child: bool, captured: bool) -> TypedModule {
+fn local_composition(child: bool, captured: bool) -> TypedModule {
     let mut module = scoped_helper_with_local_body(CallableKind::FnOnce, false);
     let f = &mut module.functions[0];
     let at = f.blocks[0]
@@ -2211,7 +2211,7 @@ fn local_composition_282(child: bool, captured: bool) -> TypedModule {
     module
 }
 
-fn result_wire_282(module: &TypedModule, accepted: bool) {
+fn result_wire(module: &TypedModule, accepted: bool) {
     let limits = Limits::default();
     let actual = analyze(module, &limits);
     assert_eq!(actual.is_ok(), accepted, "{actual:?}");
@@ -2225,10 +2225,10 @@ fn result_wire_282(module: &TypedModule, accepted: bool) {
 }
 
 #[test]
-fn concrete_local_282_calls_child_and_capture_do_not_invent_f_events_raw_wire() {
+fn concrete_local_calls_child_and_capture_do_not_invent_f_events_raw_wire() {
     for (child, captured) in [(false, false), (true, false), (false, true)] {
-        let module = local_composition_282(child, captured);
-        result_wire_282(&module, true);
+        let module = local_composition(child, captured);
+        result_wire(&module, true);
         let mut forged = module.clone();
         let CallableTraces::Finite(paths) = &mut forged.functions[0]
             .callable_contract
@@ -2239,7 +2239,7 @@ fn concrete_local_282_calls_child_and_capture_do_not_invent_f_events_raw_wire() 
             unreachable!()
         };
         paths[0].calls.clear();
-        result_wire_282(&forged, false);
+        result_wire(&forged, false);
         let mut invented = module.clone();
         let CallableTraces::Finite(paths) = &mut invented.functions[0]
             .callable_contract
@@ -2253,13 +2253,13 @@ fn concrete_local_282_calls_child_and_capture_do_not_invent_f_events_raw_wire() 
             parameter: 0,
             kind: CallableKind::FnOnce,
         });
-        result_wire_282(&invented, false);
+        result_wire(&invented, false);
     }
 }
 
 #[test]
-fn concrete_local_282_rejects_actual_f_capture_and_local_reuse_raw_wire() {
-    let mut hidden = local_composition_282(false, true);
+fn concrete_local_rejects_actual_f_capture_and_local_reuse_raw_wire() {
+    let mut hidden = local_composition(false, true);
     let f = &mut hidden.functions[0];
     let callback = ValueId(0);
     let at = f.blocks[0]
@@ -2281,9 +2281,9 @@ fn concrete_local_282_rejects_actual_f_capture_and_local_reuse_raw_wire() {
     };
     *captures = vec![callback];
     hidden.closures[2].captures = vec![f.values[callback.0 as usize].clone()];
-    result_wire_282(&hidden, false);
+    result_wire(&hidden, false);
 
-    let mut reused = local_composition_282(true, false);
+    let mut reused = local_composition(true, false);
     let f = &mut reused.functions[0];
     let at = f.blocks[0]
         .instructions
@@ -2302,24 +2302,24 @@ fn concrete_local_282_rejects_actual_f_capture_and_local_reuse_raw_wire() {
     second.result = Some(ValueId(f.values.len() as u32));
     f.values.push(Type::I32);
     f.blocks[0].instructions.insert(at + 1, second);
-    result_wire_282(&reused, false);
+    result_wire(&reused, false);
 
-    let mut upgraded = local_composition_282(true, false);
+    let mut upgraded = local_composition(true, false);
     upgraded.functions[5]
         .callable_contract
         .as_mut()
         .unwrap()
         .roles[0]
         .kind = CallableKind::Fn;
-    result_wire_282(&upgraded, false);
+    result_wire(&upgraded, false);
 }
 
 #[test]
-fn concrete_local_282_work_is_prepaid_n_minus_one_and_fresh_raw_wire() {
+fn concrete_local_work_is_prepaid_n_minus_one_and_fresh_raw_wire() {
     for module in [
-        local_composition_282(false, false),
-        local_composition_282(true, false),
-        local_composition_282(false, true),
+        local_composition(false, false),
+        local_composition(true, false),
+        local_composition(false, true),
     ] {
         let defaults = Limits::default();
         let mut budget = Budget::new(&defaults);
@@ -2361,8 +2361,8 @@ fn concrete_local_282_work_is_prepaid_n_minus_one_and_fresh_raw_wire() {
 }
 
 #[test]
-fn concrete_local_282_child_mixed_roles_preserve_actual_f_order_raw_wire() {
-    let mut module = local_composition_282(true, false);
+fn concrete_local_child_mixed_roles_preserve_actual_f_order_raw_wire() {
+    let mut module = local_composition(true, false);
     let callback_type = module.functions[0].locals[0].ty.clone();
     let f = &mut module.functions[0];
     let call = f.blocks[0]
@@ -2459,7 +2459,7 @@ fn concrete_local_282_child_mixed_roles_preserve_actual_f_order_raw_wire() {
         }]),
     });
     module.functions[5] = entry.finish(result);
-    result_wire_282(&module, true);
+    result_wire(&module, true);
     let CallableTraces::Finite(paths) = &mut module.functions[0]
         .callable_contract
         .as_mut()
@@ -2469,12 +2469,12 @@ fn concrete_local_282_child_mixed_roles_preserve_actual_f_order_raw_wire() {
         unreachable!()
     };
     paths[0].calls.pop();
-    result_wire_282(&module, false);
+    result_wire(&module, false);
 }
 
 #[test]
-fn concrete_local_282_once_formal_keeps_declared_consumption_raw_wire() {
-    let mut module = local_composition_282(false, false);
+fn concrete_local_once_formal_keeps_declared_consumption_raw_wire() {
+    let mut module = local_composition(false, false);
     let f = &mut module.functions[0];
     f.locals[0].ty = Type::Closure(ClosureId(0));
     f.values[0] = f.locals[0].ty.clone();
@@ -2502,7 +2502,7 @@ fn concrete_local_282_once_formal_keeps_declared_consumption_raw_wire() {
         unreachable!()
     };
     paths[0].calls[0].kind = CallableKind::FnOnce;
-    result_wire_282(&module, true);
+    result_wire(&module, true);
     let f = &mut module.functions[0];
     let at = f.blocks[0]
         .instructions
@@ -2521,12 +2521,12 @@ fn concrete_local_282_once_formal_keeps_declared_consumption_raw_wire() {
     twice.result = Some(ValueId(f.values.len() as u32));
     f.values.push(Type::I32);
     f.blocks[0].instructions.insert(at + 1, twice);
-    result_wire_282(&module, false);
+    result_wire(&module, false);
 }
 
 #[test]
-fn concrete_local_282_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
-    let mut unknown = local_composition_282(false, true);
+fn concrete_local_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
+    let mut unknown = local_composition(false, true);
     let f = &mut unknown.functions[0];
     let made = f.blocks[0]
         .instructions
@@ -2547,9 +2547,9 @@ fn concrete_local_282_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
         error[0].message,
         "local environment capture has a symbolic, mixed or unknown callable source"
     );
-    result_wire_282(&unknown, false);
+    result_wire(&unknown, false);
 
-    let mut mixed = local_composition_282(false, true);
+    let mut mixed = local_composition(false, true);
     let f = &mut mixed.functions[0];
     let at = f.blocks[0]
         .instructions
@@ -2601,21 +2601,21 @@ fn concrete_local_282_unknown_and_cfg_mixed_capture_sources_fail_raw_wire() {
         error[0].message,
         "local environment capture has a symbolic, mixed or unknown callable source"
     );
-    result_wire_282(&mixed, false);
+    result_wire(&mixed, false);
 }
 
 // Actual initial/copied forward Slot cells and Origin snapshot/helper-table
 // cells, measured independently for the unchanged fixtures. See the scoped
-// accounting in changes/G3.3.9.1-joint-regressions.md. Prior reservations were
+// accounting for joint regressions. Prior reservations were
 // one unit per cell; the dynamic actual-role representation pays its bytes.
-fn callable_storage_delta_3391(state_cells: usize, origin_cells: usize) -> usize {
+fn callable_storage_delta(state_cells: usize, origin_cells: usize) -> usize {
     type Origin = crate::helpers::Origin;
     state_cells * (std::mem::size_of::<(Origin, u8, bool)>() - 1)
         + origin_cells * (std::mem::size_of::<Origin>() - 1)
 }
 
 #[test]
-fn concrete_local_282_legacy_cost_controls() {
+fn concrete_local_legacy_cost_controls() {
     for (name, module, old_cost, state_cells, origin_cells) in [
         ("ordinary", fixture(CallableKind::Fn, false, 1), 1548, 0, 0),
         (
@@ -2638,7 +2638,7 @@ fn concrete_local_282_legacy_cost_controls() {
         let mut budget = Budget::new(&limits);
         analyze_budgeted(&module, &limits, &mut budget, None).unwrap();
         let exact = limits.max_analysis_steps - budget.remaining();
-        let delta = callable_storage_delta_3391(state_cells, origin_cells);
+        let delta = callable_storage_delta(state_cells, origin_cells);
         assert_eq!(exact, old_cost + delta, "{name}");
         if delta != 0 {
             assert_eq!(
@@ -2675,7 +2675,7 @@ fn concrete_local_282_legacy_cost_controls() {
     }
 }
 
-fn same_closure_distinct_roots_282() -> TypedModule {
+fn same_closure_distinct_roots() -> TypedModule {
     let mut module = scoped_fixture(0);
     module.closures[1].kind = CallableKind::Fn;
     let mut f = Body::new(0);
@@ -2736,15 +2736,15 @@ fn same_closure_distinct_roots_282() -> TypedModule {
 }
 
 #[test]
-fn concrete_local_282_same_closure_id_never_revives_or_merges_actual_roots_raw_wire() {
-    let module = same_closure_distinct_roots_282();
-    result_wire_282(&module, true);
+fn concrete_local_same_closure_id_never_revives_or_merges_actual_roots_raw_wire() {
+    let module = same_closure_distinct_roots();
+    result_wire(&module, true);
     let mut reused = module.clone();
     reused.functions[0].blocks[0].instructions[3].kind = InstructionKind::CallClosureOnce {
         callee: ValueId(0),
         arguments: vec![],
     };
-    result_wire_282(&reused, false);
+    result_wire(&reused, false);
 
     // Both branches store the exact same ClosureId. Only one alternative is
     // the incoming symbolic F; the other is this construction's actual value.
@@ -2823,12 +2823,12 @@ fn concrete_local_282_same_closure_id_never_revives_or_merges_actual_roots_raw_w
         error[0].message,
         "callable instance source is missing or mixed at this CFG position"
     );
-    result_wire_282(&mixed, false);
+    result_wire(&mixed, false);
 }
 
 // 282 follow-up: no With and no MakeClosure in the symbolic helper itself.
-fn factory_only_composition_282() -> TypedModule {
-    let mut module = local_composition_282(true, false);
+fn factory_only_composition() -> TypedModule {
+    let mut module = local_composition(true, false);
     let f = &mut module.functions[0];
     let construction = f.blocks[0]
         .instructions
@@ -2873,8 +2873,8 @@ fn factory_only_composition_282() -> TypedModule {
 }
 
 #[test]
-fn concrete_factory_only_282_actual_fresh_contract_is_required_raw_wire() {
-    let module = factory_only_composition_282();
+fn concrete_factory_only_actual_fresh_contract_is_required_raw_wire() {
+    let module = factory_only_composition();
     assert!(
         !module.functions[0]
             .blocks
@@ -2885,17 +2885,17 @@ fn concrete_factory_only_282_actual_fresh_contract_is_required_raw_wire() {
                 InstructionKind::MakeClosure { .. } | InstructionKind::WithForeignCallback { .. }
             ))
     );
-    result_wire_282(&module, true);
+    result_wire(&module, true);
     let mut unknown = module.clone();
     unknown.functions[6].callable_return_contract = None;
-    result_wire_282(&unknown, false);
+    result_wire(&unknown, false);
     let mut parameter = module.clone();
     parameter.functions[6]
         .callable_return_contract
         .as_mut()
         .unwrap()
         .source = CallableReturnSource::Parameter(0);
-    result_wire_282(&parameter, false);
+    result_wire(&parameter, false);
     let mut wrong_result = module.clone();
     let result = wrong_result.functions[0].blocks[0]
         .instructions
@@ -2913,14 +2913,14 @@ fn concrete_factory_only_282_actual_fresh_contract_is_required_raw_wire() {
         })
         .unwrap();
     wrong_result.functions[0].values[result.0 as usize] = Type::Closure(ClosureId(0));
-    result_wire_282(&wrong_result, false);
+    result_wire(&wrong_result, false);
     let mut wrong_claim = module.clone();
     wrong_claim.functions[6]
         .callable_return_contract
         .as_mut()
         .unwrap()
         .closure = ClosureId(0);
-    result_wire_282(&wrong_claim, false);
+    result_wire(&wrong_claim, false);
     let mut reused = module;
     let f = &mut reused.functions[0];
     let at = f.blocks[0]
@@ -2940,17 +2940,17 @@ fn concrete_factory_only_282_actual_fresh_contract_is_required_raw_wire() {
     second.result = Some(ValueId(f.values.len() as u32));
     f.values.push(Type::I32);
     f.blocks[0].instructions.insert(at + 1, second);
-    result_wire_282(&reused, false);
+    result_wire(&reused, false);
 }
 
 #[test]
-fn concrete_factory_only_282_shared_allowance_n_minus_one_fresh_raw_wire() {
-    let module = factory_only_composition_282();
+fn concrete_factory_only_shared_allowance_n_minus_one_fresh_raw_wire() {
+    let module = factory_only_composition();
     let defaults = Limits::default();
     let mut budget = Budget::new(&defaults);
     let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
     let exact = defaults.max_analysis_steps - budget.remaining();
-    assert_eq!(exact, 2073 + callable_storage_delta_3391(18, 30));
+    assert_eq!(exact, 2073 + callable_storage_delta(18, 30));
     assert_eq!(
         analyze(
             &module,
@@ -2994,9 +2994,9 @@ fn concrete_factory_only_282_shared_allowance_n_minus_one_fresh_raw_wire() {
     println!("282 factory-only raw=Wire N={exact}; N-1 ResourceLimit; fresh equality");
 }
 
-fn parameter_forwarded_local_282() -> TypedModule {
-    let mut module = same_closure_distinct_roots_282();
-    let mut factory = factory_only_composition_282().functions[6].clone();
+fn parameter_forwarded_local() -> TypedModule {
+    let mut module = same_closure_distinct_roots();
+    let mut factory = factory_only_composition().functions[6].clone();
     factory.id = FunctionId(5);
     factory.callable_return_contract.as_mut().unwrap().kind = CallableKind::Fn;
     module.functions.push(factory);
@@ -3061,9 +3061,9 @@ fn parameter_forwarded_local_282() -> TypedModule {
 }
 
 #[test]
-fn concrete_factory_only_282_valid_parameter_result_keeps_actual_source_raw_wire() {
-    let module = parameter_forwarded_local_282();
-    result_wire_282(&module, true);
+fn concrete_factory_only_valid_parameter_result_keeps_actual_source_raw_wire() {
+    let module = parameter_forwarded_local();
+    result_wire(&module, true);
     let mut symbolic = module.clone();
     symbolic.functions[0].blocks[0].instructions.remove(1);
     let InstructionKind::Call { arguments, .. } =
@@ -3074,7 +3074,7 @@ fn concrete_factory_only_282_valid_parameter_result_keeps_actual_source_raw_wire
     arguments[0] = ValueId(0);
     // A valid Parameter result of the actual F is still F, even though an
     // independent public Fresh result has the identical ClosureId.
-    result_wire_282(&symbolic, true);
+    result_wire(&symbolic, true);
     let mut erased_event = symbolic;
     let CallableTraces::Finite(paths) = &mut erased_event.functions[0]
         .callable_contract
@@ -3093,7 +3093,7 @@ fn concrete_factory_only_282_valid_parameter_result_keeps_actual_source_raw_wire
         error[0].message,
         "public helper trace claim differs from its CFG"
     );
-    result_wire_282(&erased_event, false);
+    result_wire(&erased_event, false);
 
     let mut consumed = module;
     let InstructionKind::Call { arguments, .. } =
@@ -3110,10 +3110,10 @@ fn concrete_factory_only_282_valid_parameter_result_keeps_actual_source_raw_wire
         error[0].message,
         "callable instance is moved, absent or cleaned on a reachable path"
     );
-    result_wire_282(&consumed, false);
+    result_wire(&consumed, false);
 }
 
-fn supplied_body_hidden_in_with_282(twice: bool) -> TypedModule {
+fn supplied_body_hidden_in_with(twice: bool) -> TypedModule {
     let mut module = scoped_helper(CallableKind::Fn);
     let mut entry = Body::new(5);
     entry.0.environment = Some(ClosureId(2));
@@ -3174,10 +3174,10 @@ fn supplied_body_hidden_in_with_282(twice: bool) -> TypedModule {
 }
 
 #[test]
-fn concrete_local_282_with_body_cannot_hide_actual_supplied_role_raw_wire() {
-    result_wire_282(&scoped_helper(CallableKind::Fn), true);
+fn concrete_local_with_body_cannot_hide_actual_supplied_role_raw_wire() {
+    result_wire(&scoped_helper(CallableKind::Fn), true);
     for twice in [false, true] {
-        let module = supplied_body_hidden_in_with_282(twice);
+        let module = supplied_body_hidden_in_with(twice);
         let error = analyze(&module, &Limits::default()).unwrap_err();
         assert_eq!(error[0].phase, Phase::Analyze);
         assert_eq!(error[0].code, "E-ANALYZE-IR");
@@ -3185,12 +3185,12 @@ fn concrete_local_282_with_body_cannot_hide_actual_supplied_role_raw_wire() {
             error[0].message,
             "forwarded symbolic F cannot be hidden in a new local environment"
         );
-        result_wire_282(&module, false);
+        result_wire(&module, false);
     }
 }
 
-fn wrapped_factory_body_282(supplied: bool) -> TypedModule {
-    let mut module = supplied_body_hidden_in_with_282(true);
+fn wrapped_factory_body(supplied: bool) -> TypedModule {
+    let mut module = supplied_body_hidden_in_with(true);
     let package = Type::Package {
         name: "Hidden".into(),
         fields: vec![
@@ -3317,10 +3317,10 @@ fn wrapped_factory_body_282(supplied: bool) -> TypedModule {
 }
 
 #[test]
-fn concrete_factory_only_282_wrapped_factory_never_launders_actual_role_raw_wire() {
+fn concrete_factory_only_wrapped_factory_never_launders_actual_role_raw_wire() {
     for scoped in [true, false] {
         for supplied in [false, true] {
-            let mut module = wrapped_factory_body_282(supplied);
+            let mut module = wrapped_factory_body(supplied);
             if !scoped {
                 let f = &mut module.functions[0];
                 for instruction in &mut f.blocks[0].instructions {
@@ -3353,13 +3353,13 @@ fn concrete_factory_only_282_wrapped_factory_never_launders_actual_role_raw_wire
                     "symbolic F enters an unsupported value operation"
                 );
             }
-            result_wire_282(&module, !supplied);
+            result_wire(&module, !supplied);
         }
     }
 }
 
-fn copy_fn_observation_282(alias: bool) -> TypedModule {
-    let mut module = same_closure_distinct_roots_282();
+fn copy_fn_observation(alias: bool) -> TypedModule {
+    let mut module = same_closure_distinct_roots();
     let f = &mut module.functions[0];
     f.blocks[0].instructions[0].kind = InstructionKind::Load(LocalId(0));
     f.blocks[0].instructions[1].kind = InstructionKind::CallClosure {
@@ -3407,21 +3407,21 @@ fn copy_fn_observation_282(alias: bool) -> TypedModule {
 }
 
 #[test]
-fn concrete_local_282_copy_fn_observations_never_become_transferable_roles_raw_wire() {
+fn concrete_local_copy_fn_observations_never_become_transferable_roles_raw_wire() {
     for alias in [false, true] {
-        let module = copy_fn_observation_282(alias);
-        result_wire_282(&module, true);
+        let module = copy_fn_observation(alias);
+        result_wire(&module, true);
         let mut once = module;
         once.functions[0].callable_contract.as_mut().unwrap().roles[0].kind = CallableKind::FnOnce;
-        result_wire_282(&once, false);
+        result_wire(&once, false);
     }
     for (mut hidden, message) in [
         (
-            wrapped_factory_body_282(true),
+            wrapped_factory_body(true),
             "symbolic F enters an unsupported value operation",
         ),
         (
-            supplied_body_hidden_in_with_282(true),
+            supplied_body_hidden_in_with(true),
             "a symbolic F observation cannot be copied into a transferred value",
         ),
     ] {
@@ -3435,9 +3435,9 @@ fn concrete_local_282_copy_fn_observations_never_become_transferable_roles_raw_w
             .kind = InstructionKind::Load(LocalId(1));
         let error = analyze(&hidden, &Limits::default()).unwrap_err();
         assert_eq!(error[0].message, message);
-        result_wire_282(&hidden, false);
+        result_wire(&hidden, false);
     }
-    let mut transferred = parameter_forwarded_local_282();
+    let mut transferred = parameter_forwarded_local();
     let f = &mut transferred.functions[0];
     f.blocks[0].instructions[0].kind = InstructionKind::Load(LocalId(0));
     f.blocks[0].instructions.remove(1);
@@ -3455,13 +3455,13 @@ fn concrete_local_282_copy_fn_observations_never_become_transferable_roles_raw_w
         error[0].message,
         "a symbolic F observation cannot be copied into a transferred value"
     );
-    result_wire_282(&transferred, false);
+    result_wire(&transferred, false);
 }
 
 #[test]
-fn concrete_local_282_copy_fn_observation_budget_raw_wire() {
+fn concrete_local_copy_fn_observation_budget_raw_wire() {
     for alias in [false, true] {
-        let module = copy_fn_observation_282(alias);
+        let module = copy_fn_observation(alias);
         let defaults = Limits::default();
         let mut budget = Budget::new(&defaults);
         let expected = analyze_budgeted(&module, &defaults, &mut budget, None).unwrap();
@@ -3470,7 +3470,7 @@ fn concrete_local_282_copy_fn_observation_budget_raw_wire() {
             if alias { (855, 14, 21) } else { (726, 10, 15) };
         assert_eq!(
             exact,
-            old_cost + callable_storage_delta_3391(state_cells, origin_cells)
+            old_cost + callable_storage_delta(state_cells, origin_cells)
         );
         assert_eq!(
             analyze(

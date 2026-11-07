@@ -22,7 +22,7 @@ import tarfile
 
 FORMAT = "zil-ci-evidence-v1"
 MARKER = "ZIL_CI_EVIDENCE_V1"
-ROOTS = ("receipts", "native-evidence", "consumer209",
+ROOTS = ("receipts", "native-evidence", "native-consumer",
          "llvm-23.1.4/install-receipt.json", "llvm-23.1.4/installation-logs")
 MAX_ARCHIVE = 256 * 1024 * 1024
 MAX_EXPANDED = 16 * 1024 * 1024 * 1024
@@ -102,7 +102,7 @@ def pack(root, output):
         blobs.setdefault(entry["sha256"], entry)
     require(not output.resolve().is_relative_to(root / "receipts")
             and not output.resolve().is_relative_to(root / "native-evidence")
-            and not output.resolve().is_relative_to(root / "consumer209")
+            and not output.resolve().is_relative_to(root / "native-consumer")
             and not output.resolve().is_relative_to(root / "llvm-23.1.4"),
             "archive must be outside the input roots")
     with output.open("xb") as destination:
@@ -171,6 +171,7 @@ def verify(path, restore=None):
             index = json.loads(archive.extractfile(first).read())
             require(index.get("format") == FORMAT and isinstance(index.get("files"), list)
                     and 0 < len(index["files"]) <= MAX_FILES, "invalid evidence index")
+            # Restores preserve archive paths, including the historical consumer209 root.
             references = {}
             names = set()
             total = 0

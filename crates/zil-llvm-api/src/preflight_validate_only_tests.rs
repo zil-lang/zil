@@ -872,7 +872,7 @@ fn native_atomics_synchronize_real_threads_at_o0_and_o2() {
     };
     static NEXT: AtomicU64 = AtomicU64::new(0);
     let scratch = std::env::temp_dir().join(format!(
-        "zil343-atomic-{}-{}",
+        "zil-preflight-validate-only-tests-atomic-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
@@ -1233,7 +1233,7 @@ fn strong_compare_exchange_native_observes_failure_and_real_contention() {
         .kind,
         crate::ErrorKind::Cancelled
     );
-    let scratch = std::env::temp_dir().join(format!("zil343-strong-cas-{}", std::process::id()));
+    let scratch = std::env::temp_dir().join(format!("zil-strong-cas-{}", std::process::id()));
     fs::create_dir_all(&scratch).unwrap();
     fs::write(scratch.join("cas.ll"), source.to_text()).unwrap();
     let host = format!("#include <stdint.h>\n#include <pthread.h>\n{declarations}\n")

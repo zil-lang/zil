@@ -442,7 +442,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_keeps_final_use_inputs_distinct_from_output() {
+    fn pool_keeps_final_use_inputs_distinct_from_output() {
         let f = function(
             vec![block(
                 0,
@@ -477,7 +477,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_sorts_actual_definitions_and_retains_maximum_size_alignment() {
+    fn pool_sorts_actual_definitions_and_retains_maximum_size_alignment() {
         let aligned = Type::Array {
             element: Box::new(Type::U64),
             length: 1024,
@@ -512,7 +512,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_live_across_diamond_cannot_alias_branch_snapshot() {
+    fn pool_live_across_diamond_cannot_alias_branch_snapshot() {
         let f = function(
             vec![
                 block(
@@ -553,7 +553,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_falls_back_for_cycles_unknown_operations_and_missing_definitions() {
+    fn pool_falls_back_for_cycles_unknown_operations_and_missing_definitions() {
         let cases = [
             function(
                 vec![block(
@@ -588,7 +588,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_prepays_each_repeated_operand_lookup() {
+    fn pool_prepays_each_repeated_operand_lookup() {
         let mut costs = Vec::new();
         for repeats in [1, 8192] {
             let f = function(
@@ -636,7 +636,7 @@ mod tests {
     }
 
     #[test]
-    fn g932_pool_prepays_exact_work_and_preserves_uncommitted_plans_on_failure() {
+    fn pool_prepays_exact_work_and_preserves_uncommitted_plans_on_failure() {
         let f = function(
             vec![block(
                 0,

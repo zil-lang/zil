@@ -26,7 +26,7 @@ The prepared workspace has launchers with an explicit library directory:
 /workspace/.zil-env/research/stage6/jump-threading-api-pair/zil-entry --help
 ```
 
-Use either launcher as the `--zil` argument to `stage6_bench.py`, or pass ordinary
+Use either launcher as the `--zil` argument to `jump_threading_bench.py`, or pass ordinary
 ZIL build arguments directly. The sibling `api-pair-receipt.json` records the
 launcher, ELF, common source, pipeline tag, DSO, producer logs and exact hashes.
 Each process must load only its own LLVM. These launchers select the library;

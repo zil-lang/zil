@@ -24,7 +24,7 @@
 | `5` | 0 | `XABCZ` | finish 真正执行后清理 |
 | `l` | 0 | `ABCABC` | continue 和 break 各清理当轮完整包一次 |
 
-每个入口都有独立手写 Rust 对照，直接描述相同资源与行为，不读取 ZIL IR。`crates/zil-driver/tests/impl060.rs` 使用实际源码→Types→Analyze→独立 Verify→LLVM→native，在 ZIL/Rust 各 O0/O2 上比较退出码、stdout 和 stderr。该对照验证当前有限语义，不是运行速度或内存基准。
+每个入口都有独立手写 Rust 对照，直接描述相同资源与行为，不读取 ZIL IR。`crates/zil-driver/tests/package_event_lifecycle.rs` 使用实际源码→Types→Analyze→独立 Verify→LLVM→native，在 ZIL/Rust 各 O0/O2 上比较退出码、stdout 和 stderr。该对照验证当前有限语义，不是运行速度或内存基准。
 
 ## 运行
 
@@ -34,7 +34,7 @@
 cargo build --offline -p zil-cli
 target/debug/zil build examples/mainline/package_ui/main.zil -o out/package-ui
 printf '++r-q' | out/package-ui
-cargo test --offline -p zil-driver --test impl060
+cargo test --offline -p zil-driver --test package_event_lifecycle
 ```
 
 `Type::Package` 使用内联字段加单个完整责任标志；字段 Desc 指向本地包中真实资源头。这里没有部分完成的公开包对象：先用现有真实 owning locals 守护已求值字段，全部成功后无失败提交。机器清理先清除整体责任标志，再按声明顺序调用各字段 teardown。一般部分移出、replace、嵌套包、拥有错误载荷、包内闭包保存和包整体自定义 Drop 尚未开放。

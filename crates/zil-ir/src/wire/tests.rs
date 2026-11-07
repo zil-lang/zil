@@ -2,7 +2,7 @@ use super::*;
 use zil_base::ResultCategory;
 
 #[test]
-fn async_registration42_raw_operations_preserve_every_field_without_admission() {
+fn async_registration_raw_operations_preserve_every_field_without_admission() {
     use InstructionKind as I;
     let limits = Limits::default();
     let operations = [
@@ -92,7 +92,7 @@ fn async_registration42_raw_operations_preserve_every_field_without_admission() 
 }
 
 #[test]
-fn async_registration42_complete_environment_is_bounded_noncopy_raw_data() {
+fn async_registration_complete_environment_is_bounded_noncopy_raw_data() {
     let limits = Limits::default();
     let payload = Type::AsyncRegistration {
         environment: Box::new(Type::Closure(ClosureId(17))),
@@ -186,7 +186,7 @@ fn async_registration42_complete_environment_is_bounded_noncopy_raw_data() {
 }
 
 #[test]
-fn async_registration42_foreign_roles_have_distinct_identity_and_reject_unknown_tags() {
+fn async_registration_foreign_roles_have_distinct_identity_and_reject_unknown_tags() {
     let limits = Limits::default();
     let (mut module, _) = module_candidate();
     let mut encoded = Vec::new();
@@ -1194,7 +1194,7 @@ fn package_capture_view_current_wire_preserves_indices_end_kind_and_fingerprints
 }
 
 #[test]
-fn bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject() {
+fn scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_reject() {
     let mut raw = ct();
     raw.instructions = vec![
         CtInstruction {
@@ -1234,7 +1234,7 @@ fn bytes083_scalar_ct_current_wire_preserves_byte_conversion_and_all_prefixes_re
 }
 
 #[test]
-fn defer227_registration_preserves_raw_ids_and_binds_both_fingerprint_fields() {
+fn registration_preserves_raw_ids_and_binds_both_fingerprint_fields() {
     let limits = Limits::default();
     for (scope, local) in [(0, 0), (7, 11), (u32::MAX, u32::MAX)] {
         let original = Instruction {
@@ -1425,7 +1425,7 @@ fn strong_compare_exchange_transport_preserves_both_orders_and_all_operands() {
 }
 
 #[test]
-fn static_utf8_43_wire_fingerprint_bounds_and_untrusted_bytes() {
+fn static_utf8_wire_fingerprint_bounds_and_untrusted_bytes() {
     let limits = Limits::default();
     let mut identities = std::collections::BTreeSet::new();
     for bytes in [

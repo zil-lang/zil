@@ -1,0 +1,36 @@
+{
+  "status": "PredeclaredBeforeConsumerCompilation",
+  "source_freeze_parent": "cf33e523f2dff81a1fdb5e078e3305aa1af39fd9",
+  "scope": "244 source consumer only; reviewer remains non-author of production239\u2013243",
+  "spec_hash": "47e90dcf92adffe3d23696a4b4a7128864b7e667cf47e86a2fb23de33bfa2f52",
+  "normative_hash": "e587b977f43efa4eb4bab75c33b72b25b90619426da41949cb6cbedf493d947e",
+  "implementation_execution": "NotRun",
+  "original_six_probes": "byte-identical to frozen Q PLAN; original semantics/oracles retained",
+  "normal_cases_per_optimization": 32,
+  "invalid_cases_per_optimization": 5,
+  "allocation_probes_per_optimization": 190,
+  "actual_failure_positions_per_optimization": 126,
+  "optimizations": [
+    "O0",
+    "O2"
+  ],
+  "generated_owned_enum": "separate later source probes under newly frozen identical ordinary checks; not required by this handwritten checkpoint",
+  "files": {
+    "tests/owned-sum-consumer/ORACLE.json": "e357f2d4f553f87d6b5ba0d3570fcc133d2582895c8708aecd6752fdbcc0b254",
+    "tests/owned-sum-consumer/README.md": "28f5da0b3d1e71303d6c661d8d871d4818dc6a31d322496096d386eaba76dc50",
+    "tests/owned-sum-consumer/frozen-probes/unit-flat/main.zil": "ca1b2ad3ee2fc50293458e996537be8ffaf8438b500db89dcf2d847b6d333fd7",
+    "tests/owned-sum-consumer/frozen-probes/unit-nested-and-owned-error-unit/main.zil": "ee7903a07715d935a37f2c3b3294250cb2ca8b1470c860670755cf7bf3b0512d",
+    "tests/owned-sum-consumer/frozen-probes/unit-store-session/main.zil": "711e96d70a4225254168ec1134d678baeb5f934a5fb75dbe0fe7d98adeaa434c",
+    "tests/owned-sum-consumer/frozen-probes/both-owned-flat/main.zil": "f205b79668d60de59e38c48fa82dea544bcb7d98661e70c327b1b75f5c514d49",
+    "tests/owned-sum-consumer/frozen-probes/owned-option-session/main.zil": "158d195a306f7e982de6e1ee860eb477c7dca7834ae4d96c07cc1e2e6c7a548f",
+    "tests/owned-sum-consumer/frozen-probes/negative-double-consume/main.zil": "16fb83ba3a1a3541422dbad23ec6f7f405b053a74d805328ccf449a6b3effa0e",
+    "tests/owned-sum-consumer/frozen-probes/BASELINE-CHECKS.json": "269e500d5d1d9294c5aec51d7c7bbd49dc15c3e653a3c8cbd4a6c8862f2fd9cd",
+    "tests/owned-sum-consumer/frozen-probes/PLAN.json": "7ce86d69326841b32807fbd424b1e3695ce986b2ba31aca806945b87e90fa876",
+    "tests/owned-sum-consumer/project/main.zil": "fc7b6e8faa8c52798c06986bfff7973589e3a591b22daa9491986f8cd9f9b12f",
+    "tests/owned-sum-consumer/project/model.zil": "314afdcd4066b37a24c10043eda04449f031a2668f1cd12a6395cdf5ef23bd4b",
+    "tests/owned-sum-consumer/project/portable.zil": "6d97afabc23947412c40f7d26a4e6abbb8ffd172e5e3b3c026c09faa0c8186bf",
+    "tests/owned-sum-consumer/project/state.zil": "895d1fa3126aee1bd56daa993efb192707a4415b5df3be99fa8b8ce458b4feec",
+    "tests/owned-sum-consumer/project/storage.zil": "6dfcadb8bc885fbefb87179db748ddb4645036abfda677e27dd3a8b4a72c37e3",
+    "tools/research/owner-join-review/oracle.py": "48e59232595324f9a2b4fc550122d312cdf7bc41adfec5ad0aea76222f0dd5fe"
+  }
+}

@@ -7,7 +7,7 @@
 使用具有 x86 COFF 工具的 LLVM，显式建立导入库；输出目录必须尚不存在：
 
 ```bash
-python3 tools/platform/087/imports.py --out out/win64-imports
+python3 tools/platform/win64-compatibility/imports.py --out out/win64-imports
 cargo build --offline --locked -p zil-cli
 target/debug/zil build examples/mainline/win32/main.zil \
   --target win64 --opt O2 --clang clang --linker lld-link \
@@ -27,12 +27,12 @@ target/debug/zil build examples/mainline/win32/main.zil \
 
 ## 独立机器对照
 
-`crates/zil-driver/tests/impl087_native.rs` 在 Linux 上执行真实 ZIL 源码的 u16 算术、转换、陷阱及窄 C ABI；其中的 C 文件是 ABI 测试 oracle，完全不进入窗口应用。独立审核另检验超过寄存器参数数量的静态回调、混合 record 布局和静态值保留。
+`crates/zil-driver/tests/foreign_abi_native.rs` 在 Linux 上执行真实 ZIL 源码的 u16 算术、转换、陷阱及窄 C ABI；其中的 C 文件是 ABI 测试 oracle，完全不进入窗口应用。独立审核另检验超过寄存器参数数量的静态回调、混合 record 布局和静态值保留。
 
 在隔离 X11 显示、Wine、xdotool、ImageMagick `import` 和 Pillow 已准备的环境中：
 
 ```bash
-python3 tools/platform/087/verify.py \
+python3 tools/platform/win64-compatibility/verify.py \
   --compiler target/debug/zil --imports out/win64-imports \
   --wine /absolute/path/to/wine64 --out out/win64-check-001
 ```
