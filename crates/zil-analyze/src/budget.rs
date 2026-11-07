@@ -72,6 +72,7 @@ pub(super) struct Budget {
     ordinary_store_sum_captures: Vec<BTreeSet<usize>>,
     ordinary_store_sum_addresses: BTreeSet<usize>,
     ordinary_pod_store_roots: BTreeSet<usize>,
+    owned_store_package_roots: BTreeSet<usize>,
 }
 
 impl Budget {
@@ -126,6 +127,7 @@ impl Budget {
             ordinary_store_sum_captures: Vec::new(),
             ordinary_store_sum_addresses: BTreeSet::new(),
             ordinary_pod_store_roots: BTreeSet::new(),
+            owned_store_package_roots: BTreeSet::new(),
         }
     }
 
@@ -189,6 +191,18 @@ impl Budget {
         )?;
         Ok(self
             .ordinary_pod_store_roots
+            .contains(&(ty as *const Type as usize)))
+    }
+    fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.owned_store_package_roots.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.owned_store_package_roots.len(),
+            "owned Store Package root lookup",
+        )?;
+        Ok(self
+            .owned_store_package_roots
             .contains(&(ty as *const Type as usize)))
     }
     pub(super) fn remaining(&self) -> usize {
@@ -548,10 +562,10 @@ fn local_value(
     if let Type::Address { inner, .. } = ty
         && (super::resources::product::nested(inner)
             || (matches!(inner.as_ref(), Type::Package { .. })
-                && super::resources::product::has_owned_store(inner, budget)?))
+                && budget.owned_store_package_type(inner)?))
     {
         return if budget.ordinary_pod_store_type(inner)?
-            || super::resources::product::has_owned_store(inner, budget)?
+            || budget.owned_store_package_type(inner)?
         {
             super::resources::product::admit_owned(module, inner, budget)
         } else {
@@ -560,8 +574,7 @@ fn local_value(
     }
     if super::resources::product::nested(ty)
         || (matches!(ty, Type::Package { .. })
-            && (budget.ordinary_pod_store_type(ty)?
-                || super::resources::product::has_owned_store(ty, budget)?))
+            && (budget.ordinary_pod_store_type(ty)? || budget.owned_store_package_type(ty)?))
     {
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
@@ -787,6 +800,7 @@ pub(super) fn preflight(
         let mut anonymous = Vec::new();
         let mut new_sum = false;
         let mut new_ordinary_pod_store = false;
+        let mut contains_owned_store_package_field = false;
         let mut first = Some((
             ty,
             0usize,
@@ -840,6 +854,11 @@ pub(super) fn preflight(
                     child.forbidden_store = true;
                 }
                 Type::Managed(payload) => {
+                    contains_owned_store_package_field |= context.in_product
+                        && !context.in_tuple
+                        && !context.in_enum
+                        && !context.in_error
+                        && matches!(payload.as_ref(), Type::OwnedStore { .. });
                     let ordinary_pod_store = context.pod_aggregate
                         && !context.blocked
                         && !context.forbidden_store
@@ -1194,6 +1213,27 @@ pub(super) fn preflight(
             )?;
             budget.spend(1, "ordinary POD Store root allocation")?;
             budget.ordinary_pod_store_roots.insert(root);
+        }
+        if contains_owned_store_package_field && matches!(ty, Type::Package { .. }) {
+            budget.lookup(
+                budget.owned_store_package_roots.len(),
+                "owned Store Package root insertion",
+            )?;
+            budget.spend(1, "owned Store Package root allocation")?;
+            budget.owned_store_package_roots.insert(root);
+        }
+        if contains_owned_store_package_field
+            && let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Package { .. })
+        {
+            budget.lookup(
+                budget.owned_store_package_roots.len(),
+                "borrowed owned Store Package root insertion",
+            )?;
+            budget.spend(1, "borrowed owned Store Package root allocation")?;
+            budget
+                .owned_store_package_roots
+                .insert(inner.as_ref() as *const Type as usize);
         }
         if new_ordinary_pod_store
             && let Type::Address { inner, .. } = ty
