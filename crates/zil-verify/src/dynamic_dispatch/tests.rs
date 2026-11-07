@@ -414,7 +414,7 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
     hidden.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
     module.functions.push(hidden);
     let receiver = module.functions[1].locals[0].ty.clone();
-    module.functions[1].values = vec![receiver, Type::I32];
+    module.functions[1].values = vec![receiver.clone(), receiver, Type::I32];
     module.functions[1].blocks[0].instructions = vec![
         Instruction {
             result: Some(ValueId(0)),
@@ -423,9 +423,17 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
         },
         Instruction {
             result: Some(ValueId(1)),
+            kind: InstructionKind::ReborrowAddress {
+                address: ValueId(0),
+                mutable: false,
+            },
+            span: span(),
+        },
+        Instruction {
+            result: Some(ValueId(2)),
             kind: InstructionKind::Call {
                 function: FunctionId(2),
-                arguments: vec![ValueId(0)],
+                arguments: vec![ValueId(1)],
             },
             span: span(),
         },
@@ -435,7 +443,7 @@ fn follows_actual_default_wrapper_to_finite_literal_target() {
             span: span(),
         },
     ];
-    module.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    module.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(2)));
     check(&module).unwrap();
     module.functions[2].values = vec![module.functions[2].locals[0].ty.clone(), Type::I32];
     module.functions[2].blocks[0].instructions = vec![
