@@ -330,3 +330,15 @@ fn state_replacement_compile_time_mixed_templates_and_wrappers_never_execute_in_
         assert_eq!(errors[0].code, "E-CT-FORBIDDEN");
     }
 }
+
+#[test]
+fn state_replacement_compile_time_does_not_erase_an_unsupported_transfer_premise() {
+    let mut input = mixed(false, 1, CallableKind::FnMut);
+    input.modules[0].core.functions[0].callable_parameters[0].transfer = true;
+    check_category(
+        "transfer-premise",
+        &input,
+        &Limits::default(),
+        ResultCategory::Unsupported,
+    );
+}

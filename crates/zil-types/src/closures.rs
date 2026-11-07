@@ -403,6 +403,9 @@ pub(super) struct State {
     pub helper_functions: Vec<TypedFunction>,
     pub helper_exports: Vec<helpers::Export>,
     pub pending: Vec<Pending>,
+    pub thread_transfers: BTreeSet<ClosureId>,
+    pub thread_entries: BTreeSet<ClosureId>,
+    pub threaded_providers: bool,
     // A converted closure owns a normal function slot, not an environment ID.
     // Reserve its slot before checking the body, which can create more entries.
     pub thin: Vec<Option<TypedFunction>>,
@@ -522,6 +525,9 @@ impl State {
             helper_functions: Vec::new(),
             helper_exports: Vec::new(),
             pending: vec![],
+            thread_transfers: BTreeSet::new(),
+            thread_entries: BTreeSet::new(),
+            threaded_providers: false,
             thin: vec![],
             limits: limits.clone(),
             work_left: limits.max_analysis_steps,

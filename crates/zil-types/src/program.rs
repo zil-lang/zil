@@ -490,6 +490,8 @@ pub(super) fn check_resolved_program_with_reuse(
     }
     let bound_elements =
         store_templates::bound_elements(&mut closure_state).map_err(|e| vec![e])?;
+    let thread_transfers = std::mem::take(&mut closure_state.thread_transfers);
+    let thread_entries = std::mem::take(&mut closure_state.thread_entries);
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
@@ -531,6 +533,8 @@ pub(super) fn check_resolved_program_with_reuse(
         unsupported: Vec::new(),
     };
     lending::populate(&mut module, &mut remaining).map_err(|e| vec![e])?;
+    registration::threaded::check(&module, &thread_transfers, &thread_entries, &mut remaining)
+        .map_err(|e| vec![e])?;
     for interface in &mut interfaces {
         interface.exports.sort_by(|a, b| a.name.cmp(&b.name));
         interface.signature_fingerprint =

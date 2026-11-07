@@ -1,5 +1,5 @@
 //! Stable external registration admission. This machine protocol does not grant
-//! thread capability: the independent language checks still admit same-thread F.
+//! capability: independent language checks must validate the actual F and roles.
 //! Gate states: 0 OpenIdle, 1 OpenBusy, 2 ClosingIdle, 3 ClosingBusy, 4 Closed.
 //! A callback and close compete on this one atomic gate. The separate driver
 //! byte excludes request/poll/cleanup reentry, including from environment Drop.
@@ -74,7 +74,6 @@ impl FunctionEmitter<'_> {
             },
         );
     }
-    #[allow(dead_code)]
     pub(in crate::emit) fn threaded_registration_functions(
         &mut self,
         i: &Instruction,

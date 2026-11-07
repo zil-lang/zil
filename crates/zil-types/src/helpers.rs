@@ -467,6 +467,8 @@ pub(super) fn reserve_signatures(
     for (name, signature) in signatures {
         // One bounded borrowed walk and one ensuing deep table clone.
         state.snapshot_signature(name, signature, span)?;
+        state.threaded_providers |=
+            signature.scoped_callback == Some(ScopedCallbackRole::ThreadAsyncRegister);
     }
     Ok(())
 }
@@ -535,6 +537,7 @@ pub(super) fn install(
             validate_template(function, &mut |ty, span| {
                 state.snapshot_type(ty, 2, 0, span)
             })?;
+            registration::threaded::definition(function, &context, state)?;
             registration::definition::check(function, core, &context.imports, |work| {
                 state.snapshot(work, function.span)
             })?;
@@ -917,10 +920,16 @@ impl Builder<'_, '_> {
         pending.inference.expect_result(&bound.result, span)?;
         self.materialize_closure(closure)?;
         if bound.transfer {
-            return Err(unsupported(
-                span,
-                "callable Transfer requires the actual thread environment consumer",
-            ));
+            if !bound.closed_environment {
+                return Err(error(
+                    "E-REGISTRATION-THREAD",
+                    span,
+                    "callable Transfer requires explicit ClosedEnvironment",
+                ));
+            }
+            self.closures
+                .snapshot(self.closures.thread_transfers.len().saturating_add(1), span)?;
+            self.closures.thread_transfers.insert(closure);
         }
         if bound.closed_environment {
             registration::closed_environment(self.closures, closure, span)?;

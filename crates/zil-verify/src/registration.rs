@@ -1,6 +1,7 @@
 //! Kernel reconstruction of the stable owning retained callback boundary.
 use super::*;
 mod phase;
+mod threaded;
 pub(super) fn check_phase(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if budget.protocol_contracts || budget.protocol_checked {
         phase::check(module, budget)
@@ -277,11 +278,25 @@ pub(super) fn instruction(
             callback,
             ..
         } => {
-            for (id, role) in [
-                (register, ScopedCallbackRole::AsyncRegister),
-                (request_close, ScopedCallbackRole::AsyncRequestClose),
-                (poll_drain, ScopedCallbackRole::AsyncPollDrain),
-            ] {
+            let is_threaded = module
+                .functions
+                .get(register.0 as usize)
+                .and_then(|f| f.foreign.as_ref())
+                .and_then(|f| f.scoped_callback)
+                == Some(ScopedCallbackRole::ThreadAsyncRegister);
+            for (id, role) in if is_threaded {
+                [
+                    (register, ScopedCallbackRole::ThreadAsyncRegister),
+                    (request_close, ScopedCallbackRole::ThreadAsyncRequestClose),
+                    (poll_drain, ScopedCallbackRole::ThreadAsyncPollDrain),
+                ]
+            } else {
+                [
+                    (register, ScopedCallbackRole::AsyncRegister),
+                    (request_close, ScopedCallbackRole::AsyncRequestClose),
+                    (poll_drain, ScopedCallbackRole::AsyncPollDrain),
+                ]
+            } {
                 let provider = module
                     .functions
                     .get(id.0 as usize)
@@ -307,6 +322,9 @@ pub(super) fn instruction(
                     span,
                     "async callback requires actual FnMut(i32)->i32",
                 ));
+            }
+            if is_threaded {
+                threaded::actual(module, *id, span, budget)?;
             }
             let ty = Type::Managed(Box::new(Type::AsyncRegistration {
                 environment: Box::new(Type::Closure(*id)),

@@ -117,6 +117,15 @@ impl FunctionEmitter<'_> {
         poll: FunctionId,
         callback: ValueId,
     ) -> CompileResult<()> {
+        if self
+            .functions
+            .get(&register)
+            .and_then(|f| f.foreign.as_ref())
+            .and_then(|f| f.scoped_callback)
+            == Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister)
+        {
+            return self.threaded_registration_functions(i, register, request, poll, callback);
+        }
         let out = result(i)?;
         let Type::Closure(id) = self.value_type(callback)? else {
             return unsupported("pollable registration needs concrete closure", Some(i.span));
