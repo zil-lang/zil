@@ -91,6 +91,9 @@ pub(super) fn encode(
                         match kind {
                             SyncCellKind::MutexI32 => 0,
                             SyncCellKind::AtomicI32 => 1,
+                            SyncCellKind::AtomicI64 => 2,
+                            SyncCellKind::AtomicU64 => 3,
+                            SyncCellKind::AtomicUsize => 4,
                         },
                     ]),
                     Type::Mutex { payload: inner } | Type::MutexGuard { payload: inner, .. } => {

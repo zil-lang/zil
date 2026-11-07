@@ -485,6 +485,9 @@ fn sync_layout(kind: SyncCellKind) -> m::Ty {
             m::Ty::Struct(vec![m::Ty::array(5, m::Ty::Int(64)), m::Ty::Int(32)])
         }
         SyncCellKind::AtomicI32 => m::Ty::Int(32),
+        SyncCellKind::AtomicI64 | SyncCellKind::AtomicU64 | SyncCellKind::AtomicUsize => {
+            m::Ty::Int(64)
+        }
     }
 }
 fn machine_order(ordering: AtomicOrdering) -> m::AtomicOrdering {
