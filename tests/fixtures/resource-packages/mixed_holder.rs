@@ -79,6 +79,131 @@ fn mixed_package_source_raw_and_wire() {
 }
 
 #[test]
+fn relay_uses_current_external_slot_after_identity_helper() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT);
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let observer = raw
+        .functions
+        .iter()
+        .find(|f| f.name == "observe")
+        .unwrap()
+        .id;
+    let relay = raw
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "relay")
+        .unwrap();
+    let instructions = &mut relay.blocks[0].instructions;
+    let call = instructions
+        .iter()
+        .position(|i| matches!(&i.kind, zil_ir::InstructionKind::Call { function, .. } if *function == observer))
+        .unwrap();
+    let loaded = instructions[..call]
+        .iter()
+        .rev()
+        .find_map(|i| match i.kind {
+            zil_ir::InstructionKind::Load(local) if local == relay.parameters[0] => i.result,
+            _ => None,
+        })
+        .unwrap();
+    if let zil_ir::InstructionKind::Call { arguments, .. } = &mut instructions[call].kind {
+        arguments[0] = loaded;
+    }
+    // A raw call may use the typed Load directly. Its SSA leaf snapshot was
+    // taken after replacement; the actual external slot is the authority.
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+}
+
+#[test]
+fn slot_update_cannot_extend_a_distinct_parameter_lifetime() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let original_source = source("mutable-package-slot-replacement.zil", SLOT_REPLACEMENT);
+    let syntax = zil_syntax::parse(&original_source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &original_source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: original_source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut original_plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let before = "fn replace<life a>(session:&mut Session<'a>,next:&'a mut i32)";
+    let after = "fn replace<life a,life b>(session:&mut Session<'a>,next:&'b mut i32)";
+    assert_eq!(SLOT_REPLACEMENT.matches(before).count(), 1);
+    let distinct_source = source(
+        "distinct-package-slot-lifetime.zil",
+        &SLOT_REPLACEMENT.replace(before, after),
+    );
+    let syntax = zil_syntax::parse(&distinct_source).into_result().unwrap();
+    let distinct_core = zil_expand::expand_with_map_limits_target_context(
+        &distinct_source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: distinct_source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let distinct = zil_types::check(&distinct_core, &target, &limits).unwrap();
+    let analyze_error = zil_analyze::analyze(&distinct, &limits).unwrap_err();
+    assert!(
+        analyze_error
+            .iter()
+            .any(|d| d.message.contains("declared lifetime relation")),
+        "{analyze_error:?}"
+    );
+    original_plan.module_fingerprint = distinct.fingerprint();
+    let verify_error =
+        zil_verify::verify_module(distinct.clone(), original_plan.clone(), &target, &limits)
+            .unwrap_err();
+    assert!(
+        verify_error
+            .iter()
+            .any(|d| d.message.contains("declared lifetime relation")),
+        "{verify_error:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&distinct, &original_plan, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error
+            .iter()
+            .any(|d| d.message.contains("declared lifetime relation")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn mixed_package_native_both_optimizations() {
     for (name, program, expected) in [
@@ -222,6 +347,30 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
             report.to_json()
         );
     }
+    assert_eq!(
+        SLOT_REPLACEMENT.matches("    observe(session)\n}").count(),
+        1
+    );
+    let replaced_target_write = SLOT_REPLACEMENT.replace(
+        "    observe(session)\n}",
+        "    observe(session)\n    *next=7\n}",
+    );
+    let report = compile_source(
+        &source(
+            "stored-replacement-target-write.zil",
+            &replaced_target_write,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
     let overlapping = LOCAL_EXCLUSIVE_SLOT
         .replace(
             "let pointer=session.pointer",
