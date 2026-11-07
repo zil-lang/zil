@@ -404,9 +404,9 @@ fn dyn_type(
             dyn_scalar(parameter, bytes, left)?;
         }
         dyn_scalar(&slot.result, bytes, left)?;
+        fee(left, 128)?;
         bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
         let life = slot.storage_life.as_ref().expect("checked slot relation");
-        fee(left, 128)?;
         bytes.extend_from_slice(&life.fingerprint().0);
     }
     Ok(())
