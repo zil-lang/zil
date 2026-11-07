@@ -608,7 +608,8 @@ impl Slots {
                 } else { borrowed_closures[id.0 as usize] })
                 || (!managed
                     && (head_descriptions || matches!(ty, Type::Address { inner, .. }
-                        if package_storage(inner).is_some()))
+                        if matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. }
+                            if matches!(storage.as_ref(), Type::Package { .. }))))
                     && (head_address(ty)
                         || ty.is_package_address()
                         || matches!(ty, Type::Address { inner, .. }
