@@ -337,6 +337,19 @@ fn ordinary_tuple_capture_mode_follows_owning_child_binding() {
         definition.kind == zil_ir::CallableKind::FnOnce
             && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
     }));
+
+    let discarded = source
+        .replacen(original, "let (_,marker,bytes)=packet", 1)
+        .replacen(
+            "return *store_at(values,0)+marker.n+bytes[0]",
+            "return marker.n+bytes[0]",
+            1,
+        );
+    let (module, _) = candidate(&discarded);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::FnOnce
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
 }
 
 #[test]

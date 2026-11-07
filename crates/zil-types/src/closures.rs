@@ -358,7 +358,9 @@ fn tuple_pattern_takes_owner(
         .checked_sub(1)
         .ok_or_else(|| limit("owned Tuple pattern budget exceeded", pattern.span))?;
     match (&pattern.kind, ty) {
-        (CorePatternKind::Name(_), ty) => {
+        // UnpackTuple creates an owned hidden target for a discarded field;
+        // its cleanup also consumes the captured environment's owner.
+        (CorePatternKind::Name(_) | CorePatternKind::Wildcard, ty) => {
             Ok(!ty.is_copy_value() && dynamic_store::contains_inline_carrier(ty))
         }
         (CorePatternKind::Tuple(patterns), Type::Tuple(fields))
@@ -371,7 +373,7 @@ fn tuple_pattern_takes_owner(
             Ok(takes)
         }
         // A reference binding keeps the child in its actual parent place.
-        (CorePatternKind::Reference { .. } | CorePatternKind::Wildcard, _) => Ok(false),
+        (CorePatternKind::Reference { .. }, _) => Ok(false),
         _ => Ok(false),
     }
 }
