@@ -1,33 +1,35 @@
 {
   "commit_parents": [
-    "1c8631a18f209241222b4084d971cab196aee8e2",
-    "150e1ef4fff5204c955b465ed2919657ddbf7931",
-    "19e20c0e2065fd8f7a0ae53b8b7b2663d1188502",
-    "30fc9f76592c004da132239a5300203a949a149b",
-    "31db26aa190afbc91e0278be8ef53db4f2bd04db",
-    "3caa2e83f1203055604a566ff2ce9eb4f705e5f5",
-    "3d8637808551505c98e9dd943b1f994e226268c3",
-    "3f0af9ca64b9ab1ed652ace880d9a7ecb9724c3f",
-    "53b4cd8e757bd968aa5419e3b2892883f519e7b1",
-    "5b4fd9afeccba0aa72c02d1b98a8c7eadbb543cc",
-    "a6ed130d50b157d571ef29af395331c81baaf576",
-    "ba8677824731bec87a70ee0fb7d1d4371aac41ef",
-    "bbef3c37e8b4ce37da2514400b11a7d7048404f4",
-    "dc7be483d725028055aca0840f9ead85b0946f4b",
-    "e22bf85a81e0d7ed5d2755cc6e2d1c5aafdadb2a",
-    "fa906e07d498917dec375afed7021e51564915d9"
+    "271e1440badcf0c246a1ecff94b2f2aa5eb2191e",
+    "0804c40533ac2b5dadbb8d5b3b8357ea9929ea33",
+    "0fa89f43052a66d545e42586c94acc8efe9c5666",
+    "1414dba0e4ad47ec408849134b9f5472ff2c471a",
+    "1a2cc7ea953b2a01d9e91dd6797633402f8844e4",
+    "2b9f04c273ed245f9c70382a3189dab10579c8ba",
+    "544fa98edd9665e26cbf8a6f0840343c91c0ad2a",
+    "55a773aac7ca806ad73b83ca2e2761977a4376be",
+    "6219d694626517417ecb55fbbff03d07b887ea22",
+    "a51c2b591e04311d5c5b0c4f2c7a263a120b650a",
+    "bb7a7c11f14819d715ee50cad982aeccd6ace02a",
+    "c8940e1f64a2aa0f859a6829fdf037b5b883c16f",
+    "cf3a04f79bd1cf307c106f045b46ea175a131fb0",
+    "ec7147f66d80338c899dfcb9e43354355985f0dd",
+    "f32db3ed04f040afd56665ed015298e0610fd44e",
+    "f7bdf7262bb920e2f3ed90b120f6ff9216c0fb39"
   ],
   "commit_tips": [
     "01d47eee6797d755e35938fc9769fc3733424944",
     "05976f0480449034870b7c077e0a5d066a078fdf",
     "0760d243874d17f651cc4877193c7ffb98978266",
+    "0804c40533ac2b5dadbb8d5b3b8357ea9929ea33",
     "0b35ea60996babf37b8b6cbc5ed8b19b1ae28b83",
     "0ba64a223494860d513d7d7522e1d1b942af6069",
-    "150e1ef4fff5204c955b465ed2919657ddbf7931",
+    "0fa89f43052a66d545e42586c94acc8efe9c5666",
+    "1414dba0e4ad47ec408849134b9f5472ff2c471a",
     "1512f5ced96ddb676f1f719fc9c1dd2a4734f6c2",
     "15498f14af8f11d3a3bf4b198fe69208be5913ce",
-    "19e20c0e2065fd8f7a0ae53b8b7b2663d1188502",
     "19f8663c0d22953b5a24cd809bfa92cba9659b21",
+    "1a2cc7ea953b2a01d9e91dd6797633402f8844e4",
     "1afac7a91ec6bf6b4ffc717cf4562975b0f47990",
     "1c8631a18f209241222b4084d971cab196aee8e2",
     "1cd28f379885041938f84b7773c1574c9beece32",
@@ -38,25 +40,24 @@
     "22985cefd14ff8a8367f7baaab92724467ac7468",
     "22efbc330a40ef01d6912e22d9cff34cfa87486f",
     "23484fdef72b146a0b4b797ee84422e6d57bdd20",
+    "24a32cb898bd38428a246f30895e6ec2f667c588",
     "251809a418584a12a3ec4751767891625048e8ad",
+    "25b23f18d59755da4672e3af29ec4d48f5cda6a9",
     "27178049ae1ed69ffc4338591fe8063c073fecf5",
+    "271e1440badcf0c246a1ecff94b2f2aa5eb2191e",
     "2860c1bcdba907e297ca4dc08e48012cff71b032",
     "2b3495700b8696fa275694a81e12193d9330846a",
     "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+    "2b9f04c273ed245f9c70382a3189dab10579c8ba",
     "2bb0b026a57b61127db2a56687dd59056ec20097",
     "301a60cf5b1c9b6391966384412d972835be5c8c",
-    "30fc9f76592c004da132239a5300203a949a149b",
     "31864832c972773b9a0446b5abb157aa2e587247",
-    "31db26aa190afbc91e0278be8ef53db4f2bd04db",
     "31fe310b1c919c3dc8da2c89b05ff262f456614c",
     "33542bff29621d271c3d82208ebb4770aeacf20e",
     "36e532e8636e3f208b477547b764c3661016748b",
     "37fd067b6d2ada95961b7dc37b587a5317c7ea86",
     "385a2d7b536be0b60aa75d1e19bfdfabc5152029",
     "3a3b7649d40b5f12eca6882d94fe0d5654732e94",
-    "3caa2e83f1203055604a566ff2ce9eb4f705e5f5",
-    "3d8637808551505c98e9dd943b1f994e226268c3",
-    "3f0af9ca64b9ab1ed652ace880d9a7ecb9724c3f",
     "3f2543770f1616253e89ffb976b5baf283e72e3c",
     "43881a0965c490a7086bf12199b9e9247c3df99f",
     "449852818ee8d2199b63bd5e1c05da403728d9dc",
@@ -67,21 +68,22 @@
     "51e84f87f16dd0a2c8a93d889c4952f2e801c591",
     "5304bf5f06fcce7b101497a91788a2f17022a354",
     "53ae712520f83c58d6b31959e61a60f47fc48339",
-    "53b4cd8e757bd968aa5419e3b2892883f519e7b1",
+    "544fa98edd9665e26cbf8a6f0840343c91c0ad2a",
     "54d9b0f1aeb24d16d826bba4bbe849d4ae46466b",
     "54e618a07c99126203d44d28b6f03a302e65c266",
-    "57e2340f38f9fb90cc86949278f272b67c294d8f",
+    "55a773aac7ca806ad73b83ca2e2761977a4376be",
     "57e5e8b430af91a0f237dfbe144a177ce41c03a0",
     "5921c1fd19f87c611f3691bf707a32180b282f03",
     "5b207389c70f8e2a2eb540667d2422675b238864",
-    "5b4fd9afeccba0aa72c02d1b98a8c7eadbb543cc",
     "5bccd3cd2de833d51d7031a96ce6a0c3c33adecd",
     "5e3e0495d9ad1267c84cfaea135e5f49e98ae5b2",
     "5ec284ae5257fae4dfc64142d866d58a4147c57d",
+    "6219d694626517417ecb55fbbff03d07b887ea22",
     "62aaedea97cd389172f0fe2d2d21344d4ad82160",
     "66644baae15ce4d481363038c34747256522b020",
     "69931f83c11f8127d0d4aebe4e2bd6fe2aaeffbf",
     "6be80252cd836900fb6d9d5067fcf4e188836730",
+    "6d320eae92f0a50c72b5a3d1d3e0aaeb1e862019",
     "6ee490d75f2de971ea19193cded3cf17b12e15eb",
     "6fb14e208527ec8a6a113f48e1a90adfdde2f1c4",
     "7129a4687194a8b3f15ef3f8672ea2430f256ff6",
@@ -101,6 +103,7 @@
     "87ed9dde4036f0b8084f7351abd3a7a774688337",
     "899c2ba640e154fb40e8f22f15302f1510c3290f",
     "8dad3ac7fcbaa10295d8ef6c10aac19a605774a4",
+    "8e5ce1858551afa3bdf6b3cb6a9f847c5bfa45c9",
     "8ea37c2de56cf65f1448e4fa647671f4459ad148",
     "9087959cd2018acbc1c888f4de129740ba41e3a0",
     "94515c1c78c77c8bb9eb2300cdadce714fed7e19",
@@ -112,20 +115,18 @@
     "a128fd8942b18fb2d1a99e97ac303f056f32984e",
     "a2c38f749a23bc6f29a71491cd0c4616040b6bc0",
     "a516dcbbc68608269f51ba1adc5dba598891faae",
-    "a6adfe8cb3968ed2980a3d117a922d451998a565",
-    "a6ed130d50b157d571ef29af395331c81baaf576",
+    "a51c2b591e04311d5c5b0c4f2c7a263a120b650a",
     "a8d2ed706f8d052604d8bee2a103dfcd6785e4b3",
     "ac8aaf94483ef889801252032cf313d2baeb4cc1",
     "ad61e7693c26dc5583b66c6ae9eb011bd171bb08",
-    "ae174c66f3d1b81e55ed1ba41c283b4c2c624b9d",
     "aebc4a6006150e2da6be3e544eab67c2dc0c2a75",
     "afb2650380f2583ab47cefc4e1013b73cfbcdacc",
+    "b82a290e1085e9eca2886a62834ebec7e2247e4c",
     "b83b57e14ccc3585342b9a2cef1025812e64b0ab",
     "ba2af02c54f1ab24bb4725990a32bbd8ad3d38d5",
-    "ba8677824731bec87a70ee0fb7d1d4371aac41ef",
     "bb69ef7a1f239c9b1401ac65b8c9e2f0b40e33a6",
+    "bb7a7c11f14819d715ee50cad982aeccd6ace02a",
     "bb9d113455d3f940cfa2fe237347039f1e241007",
-    "bbef3c37e8b4ce37da2514400b11a7d7048404f4",
     "bd4ae974fdf228aaf6c3c5b0e48b5217a46bd1b3",
     "be1084c9fe2ddcab7c9215522347fa218717be17",
     "bfbc703e6c3ee3ea4d169b96b16a814b1b875115",
@@ -136,9 +137,11 @@
     "c1fcc745e859c19cef83256e8977dde895749a5e",
     "c3a1b606171124a37511a96466cb60bd75c6fcb1",
     "c61802e6e5b9d968b913ee86ac99f61a0e6aeda5",
+    "c8940e1f64a2aa0f859a6829fdf037b5b883c16f",
     "c8dd71a4b75ed7731fca8372a3a055f017991eb3",
     "cce1418cf926c00e7875815327df30ab4ebde6f2",
     "ce63108da60b7f9c77e9336ce307638ae4aad1e5",
+    "cf3a04f79bd1cf307c106f045b46ea175a131fb0",
     "cf84206c1dd41fc2eea14820304416d3010cd1eb",
     "d3d5c39bd5e73214ed63f8aac2e0f34f45f34431",
     "d49001092b6b98f04bfaf2185f67fe20d36862fe",
@@ -147,38 +150,42 @@
     "dc7be483d725028055aca0840f9ead85b0946f4b",
     "dc8ade8e701e72d1fe784a02e95ceb2cff29c1c9",
     "dfc10af518ad056ab01611c8f5c6718e7c9b1907",
-    "e22bf85a81e0d7ed5d2755cc6e2d1c5aafdadb2a",
+    "e08ae51acd2a3d216e1dbae5315821d23dcfaebd",
     "e533d9d469caec0c30e264e32c957bfc26c45104",
     "e800b39d5f9a096b33560625a4273c1ef11e3d92",
     "e92508be996a190fa188d08319d37cc8b522bae6",
     "ea713a48004e5c3c3de2f940ec3dbec3ebadb89e",
     "eb3fd3e791221391a67b67886fbb84c5e87e2f2a",
+    "ec7147f66d80338c899dfcb9e43354355985f0dd",
     "ee788ecbb7596dafe4101e66a4405e4dfb16184a",
     "f1240f5be6318170c0a9af53486bd5b8f3ba44b9",
     "f1492652cb6497a33f39e615fd398456ce09253a",
     "f3091ac509e3c3af24dfb51bb0ad110fd433df4f",
+    "f32db3ed04f040afd56665ed015298e0610fd44e",
     "f4c742fd8bb9567120902812c9a7117928784e5c",
+    "f706fcdaccb93c3991a32b57c24f0f859c409fa6",
+    "f7bdf7262bb920e2f3ed90b120f6ff9216c0fb39",
     "fa34160bacb8ca5bd4c998467be6e6177e3a5aec",
-    "fa906e07d498917dec375afed7021e51564915d9",
     "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
     "fb5ae99288cc8478848278621d49d16406e6227d",
     "fc760502e39529d1222cdac39fda1147882fca37",
     "fe4cb19ae9bf82cedc1c80dd7677808aa46b4072",
     "fe790f94f10b08025ecb041b6c4c503a59949f93"
   ],
-  "created_utc": "2026-11-07T16:58:47.561049+00:00",
+  "created_utc": "2026-11-07T17:34:25.669114+00:00",
   "format": 1,
   "local_refs": {
-    "refs/heads/goal": "ba8677824731bec87a70ee0fb7d1d4371aac41ef",
+    "refs/heads/goal": "bb7a7c11f14819d715ee50cad982aeccd6ace02a",
     "refs/heads/main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
     "refs/heads/task/G1.4.1": "dc7be483d725028055aca0840f9ead85b0946f4b",
-    "refs/heads/task/G10.6.3": "3f0af9ca64b9ab1ed652ace880d9a7ecb9724c3f",
-    "refs/heads/task/G10.6.3.1": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
-    "refs/heads/task/G2.3.3": "ae174c66f3d1b81e55ed1ba41c283b4c2c624b9d",
-    "refs/heads/task/G3.4.3": "a6adfe8cb3968ed2980a3d117a922d451998a565",
-    "refs/heads/task/G8.5.1": "5b4fd9afeccba0aa72c02d1b98a8c7eadbb543cc",
-    "refs/heads/task/G8.6.3": "57e2340f38f9fb90cc86949278f272b67c294d8f",
-    "refs/heads/task/G9.3.6": "53b4cd8e757bd968aa5419e3b2892883f519e7b1",
+    "refs/heads/task/G1.4.2": "8e5ce1858551afa3bdf6b3cb6a9f847c5bfa45c9",
+    "refs/heads/task/G10.6.3": "e08ae51acd2a3d216e1dbae5315821d23dcfaebd",
+    "refs/heads/task/G10.6.3.1": "55a773aac7ca806ad73b83ca2e2761977a4376be",
+    "refs/heads/task/G2.3.3": "25b23f18d59755da4672e3af29ec4d48f5cda6a9",
+    "refs/heads/task/G3.4.3": "c8940e1f64a2aa0f859a6829fdf037b5b883c16f",
+    "refs/heads/task/G8.5.1": "24a32cb898bd38428a246f30895e6ec2f667c588",
+    "refs/heads/task/G8.6.3": "f706fcdaccb93c3991a32b57c24f0f859c409fa6",
+    "refs/heads/task/G9.3.6": "6d320eae92f0a50c72b5a3d1d3e0aaeb1e862019",
     "refs/recovery-20261103/tags/archive/2026-10-29/heads-before-213": "a128fd8942b18fb2d1a99e97ac303f056f32984e",
     "refs/recovery-20261103/tags/archive/2026-10-29/main-before-213": "d8b8b4f58ec893da3dde77b826647ee260f96c33",
     "refs/recovery-20261103/tags/archive/2026-10-29/sync-bundle-94515c1c78c7": "87ed9dde4036f0b8084f7351abd3a7a774688337",
@@ -208,11 +215,12 @@
     "refs/remotes/origin/main": "e800b39d5f9a096b33560625a4273c1ef11e3d92"
   },
   "missing_commit_objects": [],
-  "prior_archive": "1c8631a18f209241222b4084d971cab196aee8e2",
+  "prior_archive": "271e1440badcf0c246a1ecff94b2f2aa5eb2191e",
   "remote_refs": {
-    "refs/heads/archive/source-history": "1c8631a18f209241222b4084d971cab196aee8e2",
-    "refs/heads/goal": "ba8677824731bec87a70ee0fb7d1d4371aac41ef",
+    "refs/heads/archive/source-history": "271e1440badcf0c246a1ecff94b2f2aa5eb2191e",
+    "refs/heads/goal": "bb7a7c11f14819d715ee50cad982aeccd6ace02a",
     "refs/heads/main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+    "refs/heads/task/G10.6.3": "b82a290e1085e9eca2886a62834ebec7e2247e4c",
     "refs/pull/1/head": "66644baae15ce4d481363038c34747256522b020",
     "refs/pull/10/head": "8ea37c2de56cf65f1448e4fa647671f4459ad148",
     "refs/pull/11/head": "faf7c8e2c713d81cedaf2b2a74a738045f093cd0",
@@ -329,7 +337,7 @@
         "?? crates/zil-verify/src/resources/replacements/tests.rs",
         "?? crates/zil-verify/src/sums/replacements.rs"
       ],
-      "wip_commit": "150e1ef4fff5204c955b465ed2919657ddbf7931",
+      "wip_commit": "1414dba0e4ad47ec408849134b9f5472ff2c471a",
       "work_tree": "4fd3a438e1e25dc66782d540ce0d4a2bf6547a56"
     },
     {
@@ -375,7 +383,7 @@
         "?? tests/language-readiness/terminal/343/cas-negative-values.zil",
         "?? tests/language-readiness/terminal/343/cas.rs"
       ],
-      "wip_commit": "31db26aa190afbc91e0278be8ef53db4f2bd04db",
+      "wip_commit": "f32db3ed04f040afd56665ed015298e0610fd44e",
       "work_tree": "1437c82bdcdaf1d06def8be0ba4cdadf4ddc4626"
     },
     {
@@ -480,7 +488,7 @@
       "status": [
         "?? crates/zil-verify/tests/review_g442_scope_depth.rs"
       ],
-      "wip_commit": "3caa2e83f1203055604a566ff2ce9eb4f705e5f5",
+      "wip_commit": "0fa89f43052a66d545e42586c94acc8efe9c5666",
       "work_tree": "1831f46bc7c62344bf4472ea8fabcf3b68cd46b4"
     },
     {
@@ -709,7 +717,7 @@
     },
     {
       "excluded_untracked": [],
-      "head": "ba8677824731bec87a70ee0fb7d1d4371aac41ef",
+      "head": "bb7a7c11f14819d715ee50cad982aeccd6ace02a",
       "included_untracked_source": [],
       "path": "/workspace/zil-goal",
       "status": []
@@ -737,100 +745,121 @@
     },
     {
       "excluded_untracked": [],
-      "head": "5b4fd9afeccba0aa72c02d1b98a8c7eadbb543cc",
+      "head": "24a32cb898bd38428a246f30895e6ec2f667c588",
       "included_untracked_source": [],
+      "index_tree": "42a34bc4dddf26361b4533546ddc39997620511e",
       "path": "/workspace/zil-release-concurrency",
-      "status": []
+      "status": [
+        " M crates/zil-driver/tests/generic_regressions.rs",
+        " M crates/zil-types/src/closures.rs",
+        " M crates/zil-types/src/inference.rs",
+        " M crates/zil-types/src/scoped_thread.rs"
+      ],
+      "wip_commit": "0804c40533ac2b5dadbb8d5b3b8357ea9929ea33",
+      "work_tree": "f8b7c17172acc08a583849ab3ce314fc2c31ba58"
     },
     {
       "excluded_untracked": [],
-      "head": "ae174c66f3d1b81e55ed1ba41c283b4c2c624b9d",
+      "head": "25b23f18d59755da4672e3af29ec4d48f5cda6a9",
       "included_untracked_source": [],
-      "index_tree": "4cfe2955005966bf42517f59943dd8afd146d18c",
+      "index_tree": "4702937cbfebb0a4a1e88e4891556e59104251bf",
       "path": "/workspace/zil-release-generics",
       "status": [
-        " M crates/zil-expand/src/generic_store.rs",
-        " M crates/zil-expand/src/generics.rs"
+        " M crates/zil-expand/src/generic_check.rs"
       ],
-      "wip_commit": "30fc9f76592c004da132239a5300203a949a149b",
-      "work_tree": "4580fdd6beecb4c43c27297c9a542a24a0beb2b9"
+      "wip_commit": "cf3a04f79bd1cf307c106f045b46ea175a131fb0",
+      "work_tree": "992d7de9e9aa964005808c6f335a8d4e497946d2"
     },
     {
       "excluded_untracked": [],
-      "head": "3f0af9ca64b9ab1ed652ace880d9a7ecb9724c3f",
+      "head": "e08ae51acd2a3d216e1dbae5315821d23dcfaebd",
       "included_untracked_source": [],
+      "index_tree": "a9e6bdfb8f7231be7600670d3a277500ef059eba",
       "path": "/workspace/zil-release-integration",
-      "status": []
+      "status": [
+        " M crates/zil-backend-llvm/src/emit/drop_plan.rs"
+      ],
+      "wip_commit": "6219d694626517417ecb55fbbff03d07b887ea22",
+      "work_tree": "4024e26cfc565250f8d8720d5bb1180644957dc7"
     },
     {
       "excluded_untracked": [],
-      "head": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+      "head": "8e5ce1858551afa3bdf6b3cb6a9f847c5bfa45c9",
       "included_untracked_source": [
-        "crates/zil-driver/src/project_manifest.rs"
+        "crates/zil-driver/tests/owned_package_patterns.rs"
       ],
-      "index_tree": "35376ad31586f02e441c436c68019edc6e5e5d5d",
+      "index_tree": "10c266cc1c86d5b318dfbc44877094e0b13d81a9",
+      "path": "/workspace/zil-release-owned-patterns",
+      "status": [
+        " M crates/zil-types/src/enums.rs",
+        " M crates/zil-types/src/partial_patterns.rs",
+        " M crates/zil-types/src/reference_patterns.rs",
+        "?? crates/zil-driver/tests/owned_package_patterns.rs"
+      ],
+      "wip_commit": "544fa98edd9665e26cbf8a6f0840343c91c0ad2a",
+      "work_tree": "ff15592e4d11a4ddf3e89fe47092fbf93cd51a52"
+    },
+    {
+      "excluded_untracked": [],
+      "head": "55a773aac7ca806ad73b83ca2e2761977a4376be",
+      "included_untracked_source": [],
       "path": "/workspace/zil-release-projects",
-      "status": [
-        " M crates/zil-backend-llvm/src/cgu.rs",
-        " M crates/zil-backend-llvm/src/emit.rs",
-        " M crates/zil-backend-llvm/src/emit/drop_plan.rs",
-        " M crates/zil-backend-llvm/src/lib.rs",
-        " M crates/zil-backend-llvm/src/machine_cgu.rs",
-        " M crates/zil-backend-llvm/src/machine_cgu/layout.rs",
-        " M crates/zil-cli/src/main.rs",
-        " M crates/zil-driver/src/lib.rs",
-        " M crates/zil-driver/src/project.rs",
-        " M crates/zil-driver/src/session.rs",
-        " M crates/zil-expand/src/lib.rs",
-        "?? crates/zil-driver/src/project_manifest.rs"
-      ],
-      "wip_commit": "19e20c0e2065fd8f7a0ae53b8b7b2663d1188502",
-      "work_tree": "bf140e1c26ebe5bc2449852bd6504712e3249d85"
-    },
-    {
-      "excluded_untracked": [],
-      "head": "53b4cd8e757bd968aa5419e3b2892883f519e7b1",
-      "included_untracked_source": [],
-      "path": "/workspace/zil-release-stdlib",
       "status": []
     },
     {
       "excluded_untracked": [],
-      "head": "a6adfe8cb3968ed2980a3d117a922d451998a565",
+      "head": "6d320eae92f0a50c72b5a3d1d3e0aaeb1e862019",
       "included_untracked_source": [
-        "tests/fixtures/resource-packages/mixed-owned-borrowed-package.zil",
-        "tests/fixtures/resource-packages/mixed_holder.rs"
+        "tests/language-readiness/terminal/library-and-ui/string_map_failure.zil"
       ],
-      "index_tree": "81e5986e52008caae9fb1d86094ecf2c1e7c4640",
-      "path": "/workspace/zil-release-storage",
+      "index_tree": "d57d2c3dd3cac9115a57b325c0c99df7b97db2ff",
+      "path": "/workspace/zil-release-stdlib",
       "status": [
-        " M crates/zil-backend-llvm/src/emit/packages.rs",
-        " M crates/zil-backend-llvm/src/emit/resource_closures.rs",
-        " M crates/zil-backend-llvm/src/emit/stored_borrows.rs",
-        " M crates/zil-driver/tests/aggregates.rs",
-        "?? tests/fixtures/resource-packages/mixed-owned-borrowed-package.zil",
-        "?? tests/fixtures/resource-packages/mixed_holder.rs"
+        " M lib/std/pod_hash_map.zil",
+        "?? tests/language-readiness/terminal/library-and-ui/string_map_failure.zil"
       ],
-      "wip_commit": "a6ed130d50b157d571ef29af395331c81baaf576",
-      "work_tree": "61033d2471e1747980b296c223896fd6c0f3821c"
+      "wip_commit": "f7bdf7262bb920e2f3ed90b120f6ff9216c0fb39",
+      "work_tree": "039b9c235240998c5c044693e1fe6724ff1eb3de"
     },
     {
       "excluded_untracked": [],
-      "head": "57e2340f38f9fb90cc86949278f272b67c294d8f",
+      "head": "c8940e1f64a2aa0f859a6829fdf037b5b883c16f",
       "included_untracked_source": [],
-      "index_tree": "99ebfbcfcecc58981e6299f7576489a2f8816030",
+      "path": "/workspace/zil-release-storage",
+      "status": []
+    },
+    {
+      "excluded_untracked": [],
+      "head": "f706fcdaccb93c3991a32b57c24f0f859c409fa6",
+      "included_untracked_source": [
+        "crates/zil-analyze/src/tasks/port_origins.rs"
+      ],
+      "index_tree": "5dcd7efcc64b94db9b60294cdafc1268b739f73b",
       "path": "/workspace/zil-release-tasks",
       "status": [
+        " M crates/zil-analyze/src/holds.rs",
+        " M crates/zil-analyze/src/signature_life.rs",
+        " M crates/zil-analyze/src/tasks.rs",
+        " M crates/zil-analyze/src/tasks/borrowed_loans.rs",
         " M crates/zil-ct/src/aggregate_metadata.rs",
+        " M crates/zil-ct/src/source.rs",
         " M crates/zil-driver/tests/nominal_trait_bounds.rs",
+        " M crates/zil-expand/src/generic_expr_call.rs",
         " M crates/zil-expand/src/generic_products.rs",
+        " M crates/zil-expand/src/generic_source_life.rs",
+        " M crates/zil-expand/src/generic_stored_actuals.rs",
         " M crates/zil-expand/src/generic_stored_nominal.rs",
+        " M crates/zil-expand/src/stored_types.rs",
         " M crates/zil-ir/src/lib.rs",
         " M crates/zil-types/src/aggregate_templates.rs",
-        " M crates/zil-types/src/aggregates.rs"
+        " M crates/zil-types/src/aggregates.rs",
+        " M crates/zil-types/src/inference.rs",
+        " M crates/zil-verify/src/signature_life.rs",
+        " M crates/zil-verify/src/tasks.rs",
+        "?? crates/zil-analyze/src/tasks/port_origins.rs"
       ],
-      "wip_commit": "bbef3c37e8b4ce37da2514400b11a7d7048404f4",
-      "work_tree": "a0bb3eb2c5c60f237af54eaa2517dd50da89506b"
+      "wip_commit": "ec7147f66d80338c899dfcb9e43354355985f0dd",
+      "work_tree": "7b918d24b28a2cd251242cb32b8740b3dc4d8082"
     },
     {
       "excluded_untracked": [],
@@ -857,7 +886,7 @@
       "status": [
         "?? crates/zil-driver/tests/review_g334_source.rs"
       ],
-      "wip_commit": "e22bf85a81e0d7ed5d2755cc6e2d1c5aafdadb2a",
+      "wip_commit": "2b9f04c273ed245f9c70382a3189dab10579c8ba",
       "work_tree": "25492802ef2fff050dd5170bbd658f5f87d75408"
     },
     {
@@ -871,7 +900,7 @@
       "status": [
         "?? crates/zil-driver/tests/review_g335_source.rs"
       ],
-      "wip_commit": "fa906e07d498917dec375afed7021e51564915d9",
+      "wip_commit": "1a2cc7ea953b2a01d9e91dd6797633402f8844e4",
       "work_tree": "5cc7b74808f9c55617a7313896a47fe0df449b93"
     },
     {
@@ -947,7 +976,7 @@
         " M crates/zil-driver/tests/codegen_work_budget.rs",
         " M crates/zil-driver/tests/llvm_api_driver_integration.rs"
       ],
-      "wip_commit": "3d8637808551505c98e9dd943b1f994e226268c3",
+      "wip_commit": "a51c2b591e04311d5c5b0c4f2c7a263a120b650a",
       "work_tree": "e55b57a46a60fabd8ae847eacadf8849b372435f"
     },
     {
