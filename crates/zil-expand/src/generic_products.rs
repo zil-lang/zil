@@ -294,6 +294,7 @@ impl Products {
         if self.templates.is_empty()
             && self.storage.instances.is_empty()
             && self.storage.functions.is_empty()
+            && self.storage.project_functions.is_empty()
             && self.dynamic.is_empty()
         {
             return Ok(());
@@ -527,19 +528,54 @@ fn recipe(
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind
         && path.as_slice() == ["Task"]
-        && args.len() == 2
+        && let [GenericArg::Type(result), rest @ ..] = args.as_slice()
+        && rest.len() <= 1
     {
-        return Err(unsupported(
-            ty.span,
-            "generic Product Task retained context needs a complete Core recipe",
-        ));
-    }
-    if let TypeKind::Named { path, args } = &grouped(ty).kind
-        && path.as_slice() == ["Task"]
-        && let [GenericArg::Type(result)] = args.as_slice()
-    {
+        let mut ports = Vec::new();
+        let mut classes = BTreeMap::new();
+        if let [GenericArg::Type(context)] = rest {
+            let sources = match &grouped(context).kind {
+                TypeKind::Tuple(fields) => fields.as_slice(),
+                _ => std::slice::from_ref(context),
+            };
+            if sources.is_empty() {
+                return Err(unsupported(
+                    ty.span,
+                    "Task retained recipe has no actual ports",
+                ));
+            }
+            for source in sources {
+                budget.node(source.span, depth + 1)?;
+                let TypeKind::Reference {
+                    lifetime: Some(life),
+                    mutable,
+                    inner,
+                } = &grouped(source).kind
+                else {
+                    return Err(unsupported(
+                        source.span,
+                        "Task retained recipe requires named address ports",
+                    ));
+                };
+                budget.text(life, source.span)?;
+                let binder = if let Some(existing) = classes.get(life) {
+                    *existing
+                } else {
+                    let next = classes.len() as u32;
+                    classes.insert(life.clone(), next);
+                    next
+                };
+                ports.push(CoreTaskPortRecipe {
+                    pointee: Box::new(recipe(inner, formal, families, budget, depth + 1)?),
+                    mutable: *mutable,
+                    binder,
+                });
+            }
+        }
         return Ok(CoreAggregateTypeRecipe::Task {
             result: Box::new(recipe(result, formal, families, budget, depth + 1)?),
+            binder_count: classes.len() as u32,
+            ports,
         });
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind

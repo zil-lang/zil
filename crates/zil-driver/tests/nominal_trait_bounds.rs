@@ -28,6 +28,7 @@ fn task_two_actual_address_ports_keep_independent_modes() {
     *b=*b+n;
     return true;
 }
+
 fn main()->TaskCreateError!i32 {
     let a=4;
     var b=5;
@@ -48,6 +49,123 @@ fn main()->TaskCreateError!i32 {
         "{}",
         report.to_json()
     );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn retained_task_helper_moves_exact_input_frame() {
+    let source = r#"fn worker(a:&i32)->i32 { task_yield(); return *a; }
+fn relay<life a>(give task:Task<i32,&'a i32>)->Task<i32,&'a i32> contract{result(give)} {
+    return give task;
+}
+
+fn bridge<life a>(input:&'a i32)->TaskCreateError!i32 {
+    var task=task_create(worker,input)?;
+    var moved=relay(give task);
+    task_finish_destroy(give moved);
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    return bridge(&a);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn retained_task_helper_preserves_two_port_context_and_modes() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn relay<life a,life b>(give task:Task<i32,(&'a i32,&'b mut i32)>)->Task<i32,(&'a i32,&'b mut i32)> contract{result(give)} {
+    return give task;
+}
+
+fn bridge<life a,life b>(a:&'a i32,b:&'b mut i32)->TaskCreateError!i32 {
+    var task=task_create(worker,a,b)?;
+    var moved=relay(give task);
+    let observed=*a;
+    task_finish_destroy(give moved);
+    return observed+*b;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    return bridge(&a,&mut b);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn task_exclusive_retained_port_blocks_shared_read_until_destroy() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    var task=task_create(worker,&a,&mut b)?;
+    let observed=b;
+    task_finish_destroy(give task);
+    return observed;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.diagnostics[0].phase, zil_base::Phase::Analyze);
+}
+
+#[test]
+fn task_shared_retained_port_allows_read_beside_exclusive_port() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    var task=task_create(worker,&a,&mut b)?;
+    let observed=a;
+    task_finish_destroy(give task);
+    return observed;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
     assert_eq!(report.verification_runs, 1);
 }
 

@@ -3,6 +3,7 @@ use super::*;
 mod borrowed_loans;
 mod drop_sync;
 mod owned;
+mod port_origins;
 pub(super) use drop_sync::{
     needs_proof as needs_synchronous_proof, require as require_synchronous_drop,
     require_value as require_synchronous_value, require_worker as require_synchronous_worker,
@@ -140,6 +141,17 @@ pub(super) fn borrowed_signature(f: &TypedFunction, budget: &mut Budget) -> Comp
     super::signature_life::charge(contract, budget)?;
     super::signature_life::function_relation(&parameters, &f.return_type, contract, false, &[])?;
     Ok(true)
+}
+fn direct_retained_parameter(ty: &Type) -> bool {
+    let task = match ty {
+        Type::Managed(inner) | Type::Desc(inner) => inner.as_ref(),
+        Type::Address { inner, .. } => match inner.as_ref() {
+            Type::Managed(payload) | Type::Desc(payload) => payload.as_ref(),
+            _ => return false,
+        },
+        _ => return false,
+    };
+    matches!(task, Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
 }
 fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
@@ -398,6 +410,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             f.parameters.len().saturating_add(1),
             "Task parameter inventory",
         )?;
+        let mut has_retained_input = false;
         for parameter in &f.parameters {
             let ty = &f
                 .locals
@@ -405,11 +418,35 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 .ok_or_else(|| fail(f.span, "Task parameter absent"))?
                 .ty;
             if retained_parameter(ty, budget)? {
-                return Err(fail(
-                    f.span,
-                    "retained Task parameter has no complete incoming frame loan",
-                ));
+                if !direct_retained_parameter(ty) {
+                    return Err(fail(
+                        f.span,
+                        "nested retained Task parameter has no frame loan consumer",
+                    ));
+                }
+                has_retained_input = true;
             }
+        }
+        if has_retained_input {
+            let contract = f.storage_life.as_ref().ok_or_else(|| {
+                fail(
+                    f.span,
+                    "retained Task input lacks complete source life contract",
+                )
+            })?;
+            let mut inputs = Vec::new();
+            for parameter in &f.parameters {
+                budget.spend(1, "Task input signature")?;
+                inputs.push(f.locals[parameter.0 as usize].ty.clone());
+            }
+            super::signature_life::charge(contract, budget)?;
+            super::signature_life::function_relation(
+                &inputs,
+                &f.return_type,
+                contract,
+                false,
+                &[],
+            )?;
         }
     }
     budget.spend(
@@ -773,6 +810,7 @@ pub(super) fn loans(
     budget: &mut Budget,
 ) -> CompileResult<()> {
     if budget.tasks {
+        port_origins::check(module, plan, graphs, budget)?;
         borrowed_loans::check(module, plan, graphs, budget)?;
     }
     use std::collections::BTreeMap;

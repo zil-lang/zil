@@ -326,6 +326,76 @@ fn relation_inner(
             }
             _ => (ty, false),
         };
+        let task = match actual {
+            Type::Task { .. } => Some((actual, None, false)),
+            Type::Managed(inner) | Type::Desc(inner)
+                if matches!(inner.as_ref(), Type::Task { .. }) =>
+            {
+                Some((inner.as_ref(), None, true))
+            }
+            Type::ErrorUnion {
+                result: success, ..
+            } => match success.as_ref() {
+                Type::Managed(inner) | Type::Desc(inner)
+                    if matches!(inner.as_ref(), Type::Task { .. }) =>
+                {
+                    Some((inner.as_ref(), Some(PlaceProjection::ErrorArm(false)), true))
+                }
+                _ => None,
+            },
+            _ => None,
+        };
+        if let Some((task, arm, wrapped)) = task {
+            if capture {
+                return Err(invalid());
+            }
+            super::tasks::require_closed_context(task, span)?;
+            let Type::Task { retained_life, .. } = task else {
+                unreachable!()
+            };
+            if retained_life.ports.is_empty() {
+                return Err(invalid());
+            }
+            let mut class_path = Vec::new();
+            let mut port_path = Vec::new();
+            if let Some(arm) = arm {
+                class_path.push(LifeTypeProjection::Place(arm.clone()));
+                port_path.push(ContractProjection::Place(arm));
+            }
+            if pointee {
+                class_path.push(LifeTypeProjection::Pointee);
+            }
+            if wrapped {
+                class_path.push(LifeTypeProjection::Pointee);
+            }
+            for (port, shape) in retained_life.ports.iter().enumerate() {
+                let row = c.bindings.get(borrow).ok_or_else(invalid)?;
+                let mut path = port_path.clone();
+                path.push(ContractProjection::RetainedPort(port as u32));
+                if row.position.base != base
+                    || row.position.path != path
+                    || c.classes
+                        .get(class + shape.binder as usize)
+                        .is_none_or(|class_row| class_row.binder != row.binder)
+                {
+                    return Err(invalid());
+                }
+                borrow += 1;
+                visit(row.binder, !output)?;
+            }
+            for local in 0..retained_life.binder_count {
+                let row = c.classes.get(class).ok_or_else(invalid)?;
+                if row.position.base != base
+                    || row.position.path != class_path
+                    || row.position.class != local
+                {
+                    return Err(invalid());
+                }
+                class += 1;
+                visit(row.binder, !output)?;
+            }
+            continue;
+        }
         match actual {
             Type::BorrowedStorage { storage, life } => {
                 if (!matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })

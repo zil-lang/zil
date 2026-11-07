@@ -47,8 +47,21 @@ impl Walk<'_> {
             match recipe {
                 CoreAggregateTypeRecipe::Concrete(ty) => self.ty(ty, span, depth + 1)?,
                 CoreAggregateTypeRecipe::Parameter { .. } => {}
-                CoreAggregateTypeRecipe::Task { result: element }
-                | CoreAggregateTypeRecipe::AsyncRegistration {
+                CoreAggregateTypeRecipe::Task {
+                    result,
+                    ports,
+                    binder_count,
+                } => {
+                    self.work = self
+                        .work
+                        .checked_sub(ports.len().saturating_add(*binder_count as usize))
+                        .ok_or_else(|| quota(Some(span)))?;
+                    pending.push((result, depth + 1));
+                    for port in ports {
+                        pending.push((&port.pointee, depth + 1));
+                    }
+                }
+                CoreAggregateTypeRecipe::AsyncRegistration {
                     environment: element,
                 }
                 | CoreAggregateTypeRecipe::Registration {

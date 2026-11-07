@@ -521,7 +521,9 @@ impl Check<'_, '_, '_> {
                 }
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
-                if !expected.has_class() && a == b && xs.len() == ys.len() => {
+                if a == b && xs.len() == ys.len()
+                    && (!expected.has_class()
+                        || (a.as_slice() == ["Task"] && xs.len() == 2)) => {
                     for (x,y) in xs.iter().zip(ys) { this.compatible_position(x,y,span,true)?; }
                 }
             (Fact::Tuple(xs), Fact::Tuple(ys)) if xs.len() == ys.len() => {
@@ -1125,6 +1127,65 @@ impl Check<'_, '_, '_> {
     ) -> R<Fact> {
         let actual = match &e.kind {
             ExprKind::Try(inner) => {
+                if let ExprKind::Call { callee, arguments } = &inner.kind
+                    && matches!(&callee.kind, ExprKind::Name(name)
+                        if name == "task_create" && !env.contains_key(name))
+                    && let Some(ExprKind::Name(worker_name)) =
+                        arguments.first().map(|arg| &arg.value.kind)
+                {
+                    self.budget.text(worker_name, e.span)?;
+                    let mut worker = None;
+                    for owner in 0..self.functions.len() {
+                        self.pay(e.span, 1)?;
+                        let function = self.functions[owner];
+                        self.budget.text(&function.name, e.span)?;
+                        if &function.name == worker_name
+                            && self.standalone[owner]
+                            && function.generics.is_empty()
+                        {
+                            worker = Some((owner, function));
+                            break;
+                        }
+                    }
+                    if let Some((owner, worker)) = worker
+                        && arguments.len() == worker.params.len() + 1
+                    {
+                        let definition = Scope {
+                            owner,
+                            parameters: &worker.generics,
+                            host: self.hosts[owner],
+                            impl_target: self.impl_targets.get(&owner).copied(),
+                        };
+                        let result = worker
+                            .return_type
+                            .as_ref()
+                            .map(|ty| self.ty(ty, &definition, depth + 1))
+                            .transpose()?
+                            .unwrap_or(Fact::Unknown);
+                        let mut ports = Vec::new();
+                        for (parameter, argument) in worker.params.iter().zip(&arguments[1..]) {
+                            self.budget.node(parameter.ty.span, depth + 1)?;
+                            let actual = self.expr(&argument.value, scope, env, None, depth + 1)?;
+                            if matches!(parameter.ty.kind, TypeKind::Reference { .. }) {
+                                if !matches!(actual, Fact::Address(..)) {
+                                    return Ok(Fact::Unknown);
+                                }
+                                ports.push(actual);
+                            }
+                        }
+                        if !ports.is_empty() {
+                            let context = if ports.len() == 1 {
+                                ports.pop().unwrap()
+                            } else {
+                                Fact::Tuple(ports)
+                            };
+                            return Ok(Fact::Named(
+                                Head::Plain(vec!["Task".into()]),
+                                vec![result, context],
+                            ));
+                        }
+                    }
+                }
                 self.expr(inner, scope, env, None, depth + 1)?;
                 Fact::Unknown
             }
@@ -1285,6 +1346,7 @@ impl Check<'_, '_, '_> {
                             Fact::Unknown
                         }
                     }
+                    UnaryOp::Give => source,
                     _ => Fact::Unknown,
                 }
             }

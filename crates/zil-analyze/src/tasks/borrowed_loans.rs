@@ -10,7 +10,13 @@ enum Owner {
     Local(LocalId),
 }
 type Roots = BTreeSet<HoldRoot>;
-type State = BTreeMap<Owner, Roots>;
+type Apart = BTreeSet<(u32, u32)>;
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+struct Debt {
+    all: Roots,
+    exclusive: Roots,
+}
+type State = BTreeMap<Owner, Debt>;
 
 fn retained(ty: &Type) -> bool {
     match ty {
@@ -21,37 +27,59 @@ fn retained(ty: &Type) -> bool {
         _ => false,
     }
 }
+fn retained_shape(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    match ty {
+        Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => Some(retained_life),
+        Type::Managed(inner) | Type::Desc(inner) => retained_shape(inner),
+        Type::ErrorUnion { result, .. } => retained_shape(result),
+        _ => None,
+    }
+}
 fn fee(b: &mut Budget, n: usize) -> CompileResult<()> {
     b.spend(n, "borrowed Task actual owner dependencies")
 }
 fn copy(state: &State, b: &mut Budget) -> CompileResult<State> {
     fee(b, state.len())?;
-    for roots in state.values() {
-        fee(b, roots.len())?;
+    for debt in state.values() {
+        fee(b, debt.all.len().saturating_add(debt.exclusive.len()))?;
     }
     Ok(state.clone())
 }
 fn merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = false;
-    for (owner, roots) in from {
-        fee(b, to.len().saturating_add(roots.len()).saturating_add(1))?;
+    for (owner, debt) in from {
+        fee(
+            b,
+            to.len()
+                .saturating_add(debt.all.len())
+                .saturating_add(debt.exclusive.len())
+                .saturating_add(1),
+        )?;
         let entry = to.entry(*owner).or_default();
-        let before = entry.len();
-        entry.extend(roots);
-        changed |= entry.len() != before;
+        let before = (entry.all.len(), entry.exclusive.len());
+        entry.all.extend(&debt.all);
+        entry.exclusive.extend(&debt.exclusive);
+        changed |= (entry.all.len(), entry.exclusive.len()) != before;
     }
     Ok(changed)
 }
-fn take(state: &mut State, owner: Owner, b: &mut Budget) -> CompileResult<Roots> {
+fn take(state: &mut State, owner: Owner, b: &mut Budget) -> CompileResult<Debt> {
     fee(b, state.len().saturating_add(1))?;
     Ok(state.remove(&owner).unwrap_or_default())
 }
-fn put(state: &mut State, owner: Owner, roots: Roots, b: &mut Budget) -> CompileResult<()> {
-    fee(b, state.len().saturating_add(roots.len()).saturating_add(1))?;
-    if roots.is_empty() {
+fn put(state: &mut State, owner: Owner, debt: Debt, b: &mut Budget) -> CompileResult<()> {
+    fee(
+        b,
+        state
+            .len()
+            .saturating_add(debt.all.len())
+            .saturating_add(debt.exclusive.len())
+            .saturating_add(1),
+    )?;
+    if debt.all.is_empty() && debt.exclusive.is_empty() {
         state.remove(&owner);
     } else {
-        state.insert(owner, roots);
+        state.insert(owner, debt);
     }
     Ok(())
 }
@@ -77,15 +105,42 @@ fn transfer(
     fee(b, 1)?;
     let output = i.result.filter(|v| retained(&f.values[v.0 as usize]));
     let roots = match &i.kind {
-        InstructionKind::TaskCreate { .. } if output.is_some() => {
-            let roots = actual(holds, output.unwrap(), b)?;
-            if roots.is_empty() {
+        InstructionKind::TaskCreate {
+            arguments,
+            port_bindings,
+            ..
+        } if output.is_some() => {
+            let all = actual(holds, output.unwrap(), b)?;
+            if all.is_empty() {
                 return Err(fail(
                     i.span,
                     "borrowed Task constructor lacks an actual input root",
                 ));
             }
-            Some(roots)
+            let shape = retained_shape(&f.values[output.unwrap().0 as usize])
+                .ok_or_else(|| bad("borrowed Task constructor retained shape absent"))?;
+            let mut exclusive = Roots::new();
+            fee(b, port_bindings.len())?;
+            for binding in port_bindings {
+                let port = shape
+                    .ports
+                    .get(binding.port as usize)
+                    .ok_or_else(|| bad("Task exclusive source port absent"))?;
+                if port.mode != zil_ir::StoredBorrowMode::ExclusiveAddress {
+                    continue;
+                }
+                let zil_ir::StorageBase::Parameter(index) = binding.source.base else {
+                    return Err(bad("Task exclusive port is not a worker parameter"));
+                };
+                if !binding.source.path.is_empty() {
+                    return Err(bad("Task exclusive port path is unproved"));
+                }
+                let value = *arguments
+                    .get(index as usize)
+                    .ok_or_else(|| bad("Task exclusive port argument absent"))?;
+                exclusive.extend(actual(holds, value, b)?);
+            }
+            Some(Debt { all, exclusive })
         }
         InstructionKind::Call {
             function,
@@ -93,6 +148,7 @@ fn transfer(
         } => {
             // Ownership arguments are discharged by the independently checked
             // callee. Its returned carrier starts with the actual return roots.
+            let mut carried_exclusive = Roots::new();
             for argument in arguments {
                 fee(b, 1)?;
                 if retained(&f.values[argument.0 as usize]) {
@@ -102,7 +158,7 @@ fn transfer(
                             "borrowed Task cannot escape through an unverified foreign owner transfer",
                         ));
                     }
-                    take(state, Owner::Value(*argument), b)?;
+                    carried_exclusive.extend(take(state, Owner::Value(*argument), b)?.exclusive);
                 }
             }
             if output.is_some() && module.functions[function.0 as usize].foreign.is_some() {
@@ -111,11 +167,33 @@ fn transfer(
                     "foreign Task result has no reconstructed frame dependency",
                 ));
             }
-            output.map(|v| actual(holds, v, b)).transpose()?
+            output
+                .map(|v| {
+                    let all = actual(holds, v, b)?;
+                    let mut exclusive = carried_exclusive;
+                    if exclusive_port(&f.values[v.0 as usize]) {
+                        // A callee may create a fresh frame from any address input.
+                        // Existing Task inputs retain their exact exclusive roots;
+                        // address inputs add their actual target roots conservatively.
+                        for argument in arguments {
+                            fee(b, 1)?;
+                            if matches!(f.values[argument.0 as usize], Type::Address { .. }) {
+                                exclusive.extend(actual(holds, *argument, b)?);
+                            }
+                        }
+                        if exclusive.is_empty() {
+                            exclusive.extend(&all);
+                        }
+                    } else {
+                        exclusive.clear();
+                    }
+                    Ok::<Debt, Vec<Diagnostic>>(Debt { all, exclusive })
+                })
+                .transpose()?
         }
         InstructionKind::Store { local, value } if retained(&f.locals[local.0 as usize].ty) => {
-            let roots = take(state, Owner::Value(*value), b)?;
-            put(state, Owner::Local(*local), roots, b)?;
+            let debt = take(state, Owner::Value(*value), b)?;
+            put(state, Owner::Local(*local), debt, b)?;
             None
         }
         InstructionKind::TakeLocal { local } if retained(&f.locals[local.0 as usize].ty) => {
@@ -126,9 +204,9 @@ fn transfer(
         {
             // The independent Sum pass has already checked the actual tag
             // guard and that this selective take consumes the owning shell.
-            let roots = take(state, Owner::Local(*local), b)?;
+            let debt = take(state, Owner::Local(*local), b)?;
             match path.as_slice() {
-                [zil_ir::PlaceProjection::ErrorArm(false)] => Some(roots),
+                [zil_ir::PlaceProjection::ErrorArm(false)] => Some(debt),
                 [zil_ir::PlaceProjection::ErrorArm(true)] => None,
                 _ => {
                     return Err(fail(
@@ -141,12 +219,12 @@ fn transfer(
         InstructionKind::TakeErrorUnion { value, is_error }
             if retained(&f.values[value.0 as usize]) =>
         {
-            let roots = take(state, Owner::Value(*value), b)?;
-            if *is_error { None } else { Some(roots) }
+            let debt = take(state, Owner::Value(*value), b)?;
+            if *is_error { None } else { Some(debt) }
         }
         InstructionKind::MakeErrorUnion { value, is_error } if output.is_some() => {
             Some(if *is_error {
-                Roots::new()
+                Debt::default()
             } else {
                 take(state, Owner::Value(*value), b)?
             })
@@ -212,23 +290,94 @@ fn overlaps(left: HoldRoot, right: HoldRoot) -> bool {
                 | (HoldRoot::Capture(_), HoldRoot::Capture(_))
         )
 }
-fn exclusive(state: &State, roots: &Roots, i: &Instruction, b: &mut Budget) -> CompileResult<()> {
+fn conflict(
+    left: HoldRoot,
+    right: HoldRoot,
+    apart: &mut Apart,
+    b: &mut Budget,
+) -> CompileResult<bool> {
+    if let (HoldRoot::Parameter(a), HoldRoot::Parameter(c)) = (left, right)
+        && a != c
+    {
+        fee(b, apart.len().saturating_add(1))?;
+        apart.insert((a.min(c), a.max(c)));
+        return Ok(false);
+    }
+    Ok(overlaps(left, right))
+}
+fn exclusive(
+    state: &State,
+    roots: &Roots,
+    i: &Instruction,
+    apart: &mut Apart,
+    b: &mut Budget,
+) -> CompileResult<()> {
     fee(b, state.len())?;
-    for held in state.values() {
+    for debt in state.values() {
+        let held = &debt.all;
         b.product(
             roots.len(),
             held.len(),
             1,
             "borrowed Task protected root overlap",
         )?;
-        if roots
+        for root in roots {
+            for source in held {
+                if conflict(*root, *source, apart, b)? {
+                    return Err(fail(
+                        i.span,
+                        "exclusive access or storage end conflicts with a live borrowed Task frame",
+                    ));
+                }
+            }
+        }
+    }
+    Ok(())
+}
+fn exclusive_port(ty: &Type) -> bool {
+    retained_shape(ty).is_some_and(|shape| {
+        shape
+            .ports
             .iter()
-            .any(|root| held.iter().any(|held| overlaps(*root, *held)))
-        {
-            return Err(fail(
-                i.span,
-                "exclusive access or storage end conflicts with a live borrowed Task frame",
-            ));
+            .any(|p| p.mode == zil_ir::StoredBorrowMode::ExclusiveAddress)
+    })
+}
+fn shared_access(
+    f: &TypedFunction,
+    state: &State,
+    roots: &Roots,
+    i: &Instruction,
+    apart: &mut Apart,
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, state.len())?;
+    for (owner, debt) in state {
+        let held = &debt.exclusive;
+        fee(b, held.len().saturating_add(1))?;
+        let ty = match owner {
+            Owner::Value(value) => f.values.get(value.0 as usize),
+            Owner::Local(local) => f.locals.get(local.0 as usize).map(|l| &l.ty),
+        }
+        .ok_or_else(|| bad("Task exclusive owner type is absent"))?;
+        b.type_work(ty, false, "Task exclusive owner port modes")?;
+        if !exclusive_port(ty) {
+            continue;
+        }
+        b.product(
+            roots.len(),
+            held.len(),
+            1,
+            "Task exclusive port shared read",
+        )?;
+        for root in roots {
+            for source in held {
+                if conflict(*root, *source, apart, b)? {
+                    return Err(fail(
+                        i.span,
+                        "shared access conflicts with a live exclusive Task frame port",
+                    ));
+                }
+            }
         }
     }
     Ok(())
@@ -238,6 +387,7 @@ fn access(
     i: &Instruction,
     holds: &[ValueHold],
     state: &State,
+    apart: &mut Apart,
     b: &mut Budget,
 ) -> CompileResult<()> {
     if state.is_empty() {
@@ -290,7 +440,54 @@ fn access(
         _ => None,
     };
     if let Some(local) = local {
-        exclusive(state, &Roots::from([HoldRoot::Local(local)]), i, b)?;
+        exclusive(state, &Roots::from([HoldRoot::Local(local)]), i, apart, b)?;
+    }
+    let read_local = match i.kind {
+        InstructionKind::Load(local)
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowFieldLocal {
+            local,
+            mutable: false,
+            ..
+        }
+        | InstructionKind::BorrowPlaceLocal {
+            local,
+            mutable: false,
+            ..
+        }
+        | InstructionKind::BorrowVariantLocal {
+            local,
+            mutable: false,
+            ..
+        }
+        | InstructionKind::BorrowPackageField {
+            local,
+            mutable: false,
+            ..
+        }
+        | InstructionKind::BorrowOwnedArrayElement {
+            local,
+            mutable: false,
+            ..
+        }
+        | InstructionKind::ReadPackageField { local, .. }
+        | InstructionKind::ReadVariantLocal { local, .. } => Some(local),
+        _ => None,
+    };
+    if let Some(local) = read_local
+        && !f
+            .locals
+            .get(local.0 as usize)
+            .is_some_and(|l| retained(&l.ty))
+    {
+        shared_access(
+            f,
+            state,
+            &Roots::from([HoldRoot::Local(local)]),
+            i,
+            apart,
+            b,
+        )?;
     }
     match i.kind {
         InstructionKind::CallClosureShared { .. }
@@ -306,7 +503,7 @@ fn access(
             index,
             mutable: true,
         } => {
-            exclusive(state, &Roots::from([HoldRoot::Capture(index)]), i, b)?;
+            exclusive(state, &Roots::from([HoldRoot::Capture(index)]), i, apart, b)?;
         }
         InstructionKind::CommitPlaceReplace { reservation, .. } => {
             // A reservation may predate creation of the Task. Check its actual
@@ -320,14 +517,14 @@ fn access(
                             local,
                             ..
                         } if id == reservation => {
-                            exclusive(state, &Roots::from([HoldRoot::Local(local)]), i, b)?;
+                            exclusive(state, &Roots::from([HoldRoot::Local(local)]), i, apart, b)?;
                         }
                         InstructionKind::ReservePlaceAddress {
                             reservation: id,
                             address,
                             ..
                         } if id == reservation => {
-                            exclusive(state, &actual(holds, address, b)?, i, b)?;
+                            exclusive(state, &actual(holds, address, b)?, i, apart, b)?;
                         }
                         _ => {}
                     }
@@ -355,7 +552,7 @@ fn access(
         _ => None,
     };
     if let Some(value) = address {
-        exclusive(state, &actual(holds, value, b)?, i, b)?;
+        exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
     }
     // Existing addresses can be used after Task construction. Checking only
     // BorrowLocalMut would miss writes through an earlier reference or helper.
@@ -363,12 +560,106 @@ fn access(
         fee(b, 1)?;
         if matches!(
             &f.values[value.0 as usize],
+            Type::Address { mutable: false, .. }
+        ) {
+            shared_access(f, state, &actual(holds, value, b)?, i, apart, b)?;
+        }
+        if matches!(
+            &f.values[value.0 as usize],
             Type::Address { mutable: true, .. }
         ) {
-            exclusive(state, &actual(holds, value, b)?, i, b)?;
+            exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
         }
         if matches!(&f.values[value.0 as usize], Type::Closure(_)) {
-            exclusive(state, &actual(holds, value, b)?, i, b)?;
+            exclusive(state, &actual(holds, value, b)?, i, apart, b)?;
+        }
+    }
+    Ok(())
+}
+
+fn prove_apart(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
+    apart: &mut [Apart],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    fee(b, apart.len())?;
+    if apart.iter().all(Apart::is_empty) {
+        return Ok(());
+    }
+    loop {
+        let mut changed = false;
+        for (caller, (f, (_, reachable))) in module.functions.iter().zip(graphs).enumerate() {
+            let holds = &plan.functions[caller].holds;
+            for (block, live) in f.blocks.iter().zip(reachable) {
+                fee(b, 1)?;
+                if !live {
+                    continue;
+                }
+                for instruction in &block.instructions {
+                    fee(b, 1)?;
+                    match &instruction.kind {
+                        InstructionKind::FunctionRef { function }
+                            if !apart.get(function.0 as usize).is_some_and(Apart::is_empty) =>
+                        {
+                            return Err(fail(
+                                instruction.span,
+                                "Task port separation cannot pass through an indirect function reference",
+                            ));
+                        }
+                        InstructionKind::Call {
+                            function,
+                            arguments,
+                        } => {
+                            let target = function.0 as usize;
+                            let rows = apart
+                                .get(target)
+                                .ok_or_else(|| bad("Task port separation callee absent"))?;
+                            fee(b, rows.len())?;
+                            let requirements = rows.iter().copied().collect::<Vec<_>>();
+                            for (left, right) in requirements {
+                                let left = *arguments
+                                    .get(left as usize)
+                                    .ok_or_else(|| bad("Task port separation input absent"))?;
+                                let right = *arguments
+                                    .get(right as usize)
+                                    .ok_or_else(|| bad("Task port separation input absent"))?;
+                                let a = actual(holds, left, b)?;
+                                let c = actual(holds, right, b)?;
+                                if a.is_empty() || c.is_empty() {
+                                    return Err(fail(
+                                        instruction.span,
+                                        "Task port separation has no actual input root",
+                                    ));
+                                }
+                                b.product(
+                                    a.len(),
+                                    c.len(),
+                                    1,
+                                    "Task port actual caller separation",
+                                )?;
+                                for x in &a {
+                                    for y in &c {
+                                        let before = apart[caller].len();
+                                        if conflict(*x, *y, &mut apart[caller], b)? {
+                                            return Err(fail(
+                                                instruction.span,
+                                                "actual caller aliases Task ports requiring separation",
+                                            ));
+                                        }
+                                        changed |= apart[caller].len() != before;
+                                    }
+                                }
+                            }
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        if !changed {
+            break;
         }
     }
     Ok(())
@@ -380,6 +671,8 @@ pub(super) fn check(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<()> {
+    fee(b, module.functions.len())?;
+    let mut apart = vec![Apart::new(); module.functions.len()];
     for (fi, f) in module.functions.iter().enumerate() {
         fee(b, f.values.len().saturating_add(f.locals.len()))?;
         if !f.values.iter().any(retained) && !f.locals.iter().any(|l| retained(&l.ty)) {
@@ -412,10 +705,16 @@ pub(super) fn check(
         for (index, local) in f.parameters.iter().enumerate() {
             fee(b, 1)?;
             if retained(&f.locals[local.0 as usize].ty) {
+                let all = Roots::from([HoldRoot::Parameter(index as u32)]);
+                let exclusive = if exclusive_port(&f.locals[local.0 as usize].ty) {
+                    all.clone()
+                } else {
+                    Roots::new()
+                };
                 put(
                     &mut initial,
                     Owner::Local(*local),
-                    Roots::from([HoldRoot::Parameter(index as u32)]),
+                    Debt { all, exclusive },
                     b,
                 )?;
             }
@@ -462,8 +761,8 @@ pub(super) fn check(
                     transfer(module, f, i, holds, &mut state, b)?;
                 }
                 fee(b, state.len().saturating_add(outputs[index].len()))?;
-                for roots in state.values().chain(outputs[index].values()) {
-                    fee(b, roots.len())?;
+                for debt in state.values().chain(outputs[index].values()) {
+                    fee(b, debt.all.len().saturating_add(debt.exclusive.len()))?;
                 }
                 if state != outputs[index] {
                     outputs[index] = state;
@@ -480,10 +779,11 @@ pub(super) fn check(
             }
             let mut state = copy(&inputs[index], b)?;
             for i in &block.instructions {
-                access(f, i, holds, &state, b)?;
+                access(f, i, holds, &state, &mut apart[fi], b)?;
                 transfer(module, f, i, holds, &mut state, b)?;
             }
         }
     }
+    prove_apart(module, plan, graphs, &mut apart, b)?;
     Ok(())
 }

@@ -11,6 +11,11 @@ impl Engine<'_> {
         span: Span,
         depth: usize,
     ) -> R<bool> {
+        if name == "Task" {
+            // The retained Task envelope is a builtin qualified carrier.
+            // Its Context is checked by the Task header/recipe consumer.
+            return Ok(false);
+        }
         if self.stored_declaration(name, span)? {
             return Ok(true);
         }
