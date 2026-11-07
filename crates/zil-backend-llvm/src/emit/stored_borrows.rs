@@ -979,6 +979,16 @@ mod tests {
                 inner: Box::new(Type::I32),
             }],
         ));
+        // Ordinary shared borrowed Enums now have a physical representation.
+        // This layout predicate does not establish their lifetime inventory.
+        assert!(representation_type(&sum));
+        let Type::BorrowedStorage { storage, .. } = &mut sum else {
+            unreachable!()
+        };
+        let Type::Enum { variants, .. } = storage.as_mut() else {
+            unreachable!()
+        };
+        variants.push(("Unsupported".into(), vec![Type::Unsupported("leaf".into())]));
         assert!(!representation_type(&sum));
         let array = |element| Type::Array {
             element: Box::new(element),

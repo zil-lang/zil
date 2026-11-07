@@ -1305,14 +1305,26 @@ mod tests {
                 0,
                 vec![address(mutable)],
                 Type::I32,
-                vec![address(mutable), creation(&[0], mutable), Type::I32],
+                vec![
+                    address(mutable),
+                    creation(&[0], mutable),
+                    Type::I32,
+                    address(mutable),
+                ],
                 vec![
                     instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                    instruction(
+                        Some(3),
+                        InstructionKind::ReborrowAddress {
+                            address: ValueId(0),
+                            mutable,
+                        },
+                    ),
                     instruction(
                         Some(1),
                         InstructionKind::TaskCreate {
                             worker: FunctionId(1),
-                            arguments: vec![ValueId(0)],
+                            arguments: vec![ValueId(3)],
                             port_bindings: vec![RetainedPortBinding {
                                 port: 0,
                                 source: StoragePosition {
@@ -1366,10 +1378,10 @@ mod tests {
             );
             raw.functions[0].values.push(task(&[0], mutable));
             raw.functions[0].blocks[0].instructions.splice(
-                2..2,
+                3..3,
                 [
                     instruction(
-                        Some(3),
+                        Some(4),
                         InstructionKind::TakeErrorUnion {
                             value: ValueId(1),
                             is_error: false,
@@ -1377,7 +1389,7 @@ mod tests {
                     ),
                     instruction(
                         None,
-                        InstructionKind::TaskFinishDestroy { task: ValueId(3) },
+                        InstructionKind::TaskFinishDestroy { task: ValueId(4) },
                     ),
                 ],
             );

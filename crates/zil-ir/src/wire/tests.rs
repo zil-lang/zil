@@ -281,7 +281,7 @@ fn async_registration_complete_environment_is_bounded_noncopy_raw_data() {
         decode_module_candidate(&bytes, &limits).unwrap(),
         (module, plan)
     );
-    for version in [40u32, 41, 42, 44, 46] {
+    for version in [40u32, 41, 42, 44, 45, WIRE_VERSION + 1] {
         let mut bad = bytes.clone();
         bad[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(

@@ -336,6 +336,6 @@ pub fn transport(
         start = end;
     }
     output.extend_from_slice(&bytes[start..]);
-    output[8..12].copy_from_slice(&45u32.to_le_bytes());
+    output[8..12].copy_from_slice(&zil_ir::wire::WIRE_VERSION.to_le_bytes());
     Ok(output)
 }

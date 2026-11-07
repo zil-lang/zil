@@ -305,14 +305,20 @@ fn package_names_field_names_and_manages_admission_are_checked() {
         m.functions[0].locals[0].ty = ty;
         rejected(m, "E-VERIFY-PACKAGE");
     }
-    for fields in [vec![], vec![("value".into(), Type::I32)]] {
-        let mut m = plain();
-        m.functions[0].locals[0].ty = Type::Package {
-            name: "EmptyOwner".into(),
-            fields,
-        };
-        rejected(m, "at least one manages field");
-    }
+    let mut m = plain();
+    m.functions[0].locals[0].ty = Type::Package {
+        name: "EmptyOwner".into(),
+        fields: vec![],
+    };
+    rejected(m, "at least one manages field");
+    // A complete scalar Package is an affine zero-debt Value. Relabelling only
+    // the local declaration must still reject its unchanged owning initializer.
+    let mut m = plain();
+    m.functions[0].locals[0].ty = Type::Package {
+        name: "ScalarValue".into(),
+        fields: vec![("value".into(), Type::I32)],
+    };
+    rejected(m, "stored value does not match local type");
 }
 
 #[test]
