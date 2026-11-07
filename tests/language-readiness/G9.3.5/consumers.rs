@@ -192,6 +192,56 @@ fn ordinary_ownership_does_not_admit_a_nested_store_element() {
 }
 
 #[test]
+fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
+    let source = include_str!("ordinary-direct-shape-captures.zil");
+    for (label, from, to, code) in [
+        (
+            "shared-takes-owner",
+            "let (ref values,tag)=pair",
+            "let previous=pair\n        let (values,tag)=previous",
+            "E-ANALYZE-IR",
+        ),
+        (
+            "mutable-return-unfilled",
+            "choice=Choice.Value(make(18446744073709551612u64))",
+            "if false { choice=Choice.Value(make(18446744073709551612u64)) }",
+            "E-UNINITIALIZED",
+        ),
+        (
+            "mutable-error-unfilled",
+            "choice=Choice.Value(make(18446744073709551612u64))",
+            "if store_len(make(1u64))==1 { return 0u64 }\n        choice=Choice.Value(make(18446744073709551612u64))",
+            "E-UNINITIALIZED",
+        ),
+    ] {
+        assert_eq!(
+            source.matches(from).count(),
+            1,
+            "{label} must change its real capture body"
+        );
+        let changed = source.replacen(from, to, 1);
+        let report = check(label, &changed, Stage::Verify);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(
+            report.phase,
+            Phase::Analyze,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn ordinary_store_same_size_canonical_element_rejects_raw_and_wire() {
     let (mut module, mut plan) = candidate(include_str!("ordinary-sums.zil"));
     let store = module
