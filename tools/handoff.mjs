@@ -9,10 +9,7 @@ import {fileURLToPath} from 'node:url';
 const digest = value => createHash('sha256').update(value).digest('hex');
 const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const sliceStates = new Set(['施工', '待验', '退回', '已合入', '卡住']);
-const formalStates = new Set(['Planned', 'Ready', 'Doing', 'Review', 'Done', 'Cancelled']);
-const activeStates = new Set(['Ready', 'Doing', 'Review', 'Done']);
 const formalIds = new Set(['B0', ...Array.from({length: 9}, (_, i) => `T${String(i + 1).padStart(2, '0')}`), ...Array.from({length: 4}, (_, i) => `W${i + 1}`)]);
-const goalId = /^G[1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))+$/;
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
 const migrationPath = 'docs/validation/handoff-migration-326.json';
 const pointer = (value, selector = '') => {
@@ -289,8 +286,8 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
         }
         if (entry.classification === 'HistoricalRecord') {
           const full = inside(root, name);
-          if (!full || !fs.existsSync(full) || digest(fs.readFileSync(full)) !== entry.sha256 || !tracked(name, fs.readFileSync(full))) {
-            complain('migration', `Historical record was removed, changed or uncommitted: ${name}`); continue;
+          if (full && fs.existsSync(full) && (digest(fs.readFileSync(full)) !== entry.sha256 || !tracked(name, fs.readFileSync(full)))) {
+            complain('migration', `Historical record differs from its frozen source: ${name}`); continue;
           }
           const objectAvailabilityChanges = observedReferences.flatMap((ref, index) => ref.availability === entry.object_references[index].availability ? [] :
             [{field: ref.field, commit: ref.commit, recorded: entry.object_references[index].availability, observed: ref.availability}]);
@@ -306,23 +303,47 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
     }
   }
 
-  const tasks = [], slices = [], legacyErrors = [], goalNotes = [];
-  for (const [directory, output, isSlice] of [['.task', tasks, false], ['.task/impl', slices, true]]) {
+  const tasks = [], slices = [], legacyErrors = [];
+  const staticRegistry = readJson('validation/engineering-contracts.json');
+  const staticPath = path.join(root, 'validation/engineering-contracts.json');
+  if (fs.existsSync(staticPath) && !tracked('validation/engineering-contracts.json', fs.readFileSync(staticPath)))
+    complain('contracts', 'Static engineering contracts differ from committed HEAD.');
+  const staticContracts = staticRegistry?.contracts;
+  if (staticRegistry?.schema_version !== 1 || !nonempty(staticRegistry.handoff_protocol) || !nonempty(staticRegistry.acceptance_evidence) || !staticContracts || typeof staticContracts !== 'object' || Array.isArray(staticContracts) || Object.keys(staticContracts).length !== formalIds.size) {
+    complain('contracts', 'Expected 14 semantic static engineering contracts.');
+  } else {
+    const seen = new Set();
+    const requiredFields = new Set(['source_id', 'title', 'requirements', 'acceptance', 'depends_on', 'required_artifacts', 'provided_artifacts', 'plan_case_ids', 'conformance_case_ids', 'profile', 'test_plan_manifest', 'test_commands', 'conformance_command', 'done_when', 'input_obligations', 'implementation_obligations', 'boundary_obligations']);
+    for (const [capability, contract] of Object.entries(staticContracts)) {
+      const id = contract?.source_id;
+      if (!/^[a-z][a-z0-9]*(?:_[a-z0-9]+)*$/.test(capability) || !contract || typeof contract !== 'object' || Array.isArray(contract) ||
+          Object.keys(contract).length !== requiredFields.size || Object.keys(contract).some(field => !requiredFields.has(field)) ||
+          !formalIds.has(id) || seen.has(id) || !nonempty(contract.title) || !nonempty(contract.input_obligations) ||
+          !nonempty(contract.implementation_obligations) || !nonempty(contract.boundary_obligations) ||
+          contract.profile !== 'validation/product-gates.json' || contract.test_plan_manifest !== 'validation/task-test-plans.json' ||
+          !Array.isArray(contract.done_when) || !contract.done_when.length ||
+          !Array.isArray(contract.plan_case_ids) || !contract.plan_case_ids.length ||
+          !Array.isArray(contract.requirements) || !contract.requirements.length ||
+          !Array.isArray(contract.acceptance) || !contract.acceptance.length ||
+          !Array.isArray(contract.depends_on) || contract.depends_on.some(dep => !Object.hasOwn(staticContracts, dep) || dep === capability) ||
+          !Array.isArray(contract.required_artifacts) || !Array.isArray(contract.provided_artifacts) || !contract.provided_artifacts.length ||
+          !Array.isArray(contract.conformance_case_ids) || !Array.isArray(contract.test_commands) || !contract.test_commands.length ||
+          !nonempty(contract.conformance_command)) complain('contracts', `Malformed static contract: ${capability}`);
+      seen.add(id);
+      tasks.push({id, capability, path: 'validation/engineering-contracts.json', status: 'StaticContract',
+        blocked_by: contract.depends_on, required_artifacts: contract.required_artifacts,
+        provided_artifacts: contract.provided_artifacts, recorded_acceptance: false});
+    }
+    if (seen.size !== formalIds.size) complain('contracts', 'Static contract source IDs are incomplete.');
+  }
+  for (const directory of ['.task/impl']) {
     const folder = path.join(root, directory);
-    if (!fs.existsSync(folder)) { if (!isSlice) complain('tasks', 'Task directory is missing.'); continue; }
+    if (!fs.existsSync(folder)) continue;
     for (const filename of fs.readdirSync(folder).filter(x => x.endsWith('.md') && x !== 'TEMPLATE.md').sort()) {
-      if (!isSlice && goalId.test(filename.slice(0, -3))) {
-        goalNotes.push(`${directory}/${filename}`);
-        continue;
-      }
-      if (!isSlice && !formalIds.has(filename.slice(0, -3))) {
-        complain(`${directory}/${filename}`, 'Unknown formal contract or noncanonical Goal ID.');
-        continue;
-      }
       const relative = `${directory}/${filename}`, bytes = fs.readFileSync(path.join(root, relative));
       const archived = historicalRecords.get(relative);
       if (archived && !legacyAudit) {
-        output.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false}, parent_task: archived.parent_task});
+        slices.push({id: filename.slice(0, -3), path: relative, status: archived.recorded_state, baseline: archived.object_references.find(ref => ['baseline', 'base_revision'].includes(ref.field))?.commit ?? null, record_sha256: digest(bytes), committed: true, validation: {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false}, parent_task: archived.parent_task});
         continue;
       }
       const errorStart = errors.length;
@@ -337,13 +358,13 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       if (!task || typeof task !== 'object' || Array.isArray(task)) { complain(relative, 'Task record must be an object.'); continue; }
       const id = task.id;
       if (id !== filename.slice(0, -3)) complain(relative, 'Task ID does not match filename.');
-      if (!(isSlice ? sliceStates : formalStates).has(task.status)) complain(id, 'Unknown task state.');
-      const historical = isSlice && task.status === '已合入';
+      if (!sliceStates.has(task.status)) complain(id, 'Unknown task state.');
+      const historical = task.status === '已合入';
       const committed = tracked(relative, bytes);
       let specificationSource = historical ? 'implementation_commit' : 'current';
       let specificationRevision = historical ? task.implementation_commit : null;
       if (Object.hasOwn(task, 'specification_revision')) {
-        if (!isSlice || historical || task.status_authority !== 'goal:goal.md') {
+        if (historical || task.status_authority !== 'goal:goal.md') {
           complain(id, 'specification_revision requires an unmerged historical slice with status_authority goal:goal.md.');
         } else if (typeof task.specification_revision !== 'string') {
           complain(id, 'specification_revision must identify an existing complete commit.');
@@ -364,11 +385,11 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       if (task.spec_hash !== snapshot.spec_hash || task.normative_hash !== snapshot.normative_hash) complain(id,
         specificationSource === 'implementation_commit' ? 'Task specification snapshot differs from its implementation commit.' :
         specificationSource === 'specification_revision' ? 'Task specification snapshot differs from its specification_revision.' : 'Task specification snapshot is stale.');
-      const baseline = isSlice ? task.baseline : task.base_revision;
-      if (isSlice || activeStates.has(task.status)) checkCommit(id, 'baseline', baseline);
+      const baseline = task.baseline;
+      checkCommit(id, 'baseline', baseline);
       const record = {id, path: relative, status: task.status, baseline: baseline ?? null, record_sha256: digest(bytes), committed, evidence: []};
       record.specification = {source: specificationSource, revision: specificationRevision, spec_hash: snapshot.spec_hash, normative_hash: snapshot.normative_hash};
-      if (isSlice) {
+      {
         record.parent_task = task.parent_task;
         record.write_set = task.write_set;
         record.implementation_author = task.implementation_author ?? null;
@@ -394,24 +415,18 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
           if (checkCommit(id, 'integration_commit', task.integration_commit) && !git(root, 'merge-base', '--is-ancestor', task.integration_commit, mainHead).ok) complain(id, 'Integration commit is not in main history.');
           if (!record.committed) complain(id, 'Merged task record has not been committed.');
         }
-      } else {
-        record.blocked_by = Array.isArray(task.blocked_by) ? task.blocked_by : [];
-        if (!Array.isArray(task.blocked_by)) complain(id, 'Formal dependency list is missing.');
-        if (task.evidence?.length || task.status === 'Done') record.evidence = evidence(id, task.evidence, null, task.status === 'Done');
-        if (task.status === 'Done' && !task.acceptance_record) complain(id, 'Done task lacks an integrator acceptance record.');
       }
       if (!record.committed) warnings.push({id, reason: 'Engineering record differs from committed main; it is not a completed handoff or a live assignment.'});
-      output.push(record);
+      slices.push(record);
       if (archived) {
         record.validation = {classification: 'HistoricalRecord', availability: archived.availability, object_availability_changes: archived.object_availability_changes, claims_revalidated: false};
         legacyErrors.push(...errors.splice(errorStart));
       }
     }
   }
-  if (!tasks.length) complain('tasks', 'No formal task records were found.');
+  if (!tasks.length) complain('contracts', 'No static engineering contracts were found.');
   const byId = new Map(tasks.map(t => [t.id, t]));
-  if (byId.size !== formalIds.size || [...formalIds].some(id => !byId.has(id))) complain('tasks', 'Expected exactly B0, T01..T09, W1..W4; Goal notes cannot replace formal contracts.');
-  for (const task of tasks) if (activeStates.has(task.status) && task.blocked_by.some(id => byId.get(id)?.status !== 'Done')) complain(task.id, 'Active formal task has an incomplete dependency.');
+  if (byId.size !== formalIds.size || [...formalIds].some(id => !byId.has(id))) complain('contracts', 'Expected exactly B0, T01..T09, W1..W4 source IDs.');
   for (const slice of slices) if (slice.validation?.classification !== 'HistoricalRecord' && !byId.has(slice.parent_task)) complain(slice.id, 'Implementation slice has no formal parent task.');
   let measured = null;
   const summary = path.join(root, 'evidence/final-summary.json');
@@ -438,14 +453,14 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
   const legacyFailed = errors.length + legacyErrors.length > 0;
   const livePlan = {branch: 'goal', path: 'goal.md', refresh_command: 'git fetch origin refs/heads/goal:refs/remotes/origin/goal', read_command: 'git show refs/remotes/origin/goal:goal.md'};
   return {
-    schema_version: migration ? 2 : 1, scope: 'Main-tree engineering and delivery record integrity; historical availability is separate. Does not read the live goal board or check all development branches; not language correctness, review quality or full task acceptance.',
+    schema_version: migration ? 2 : 1, scope: 'Main-tree static engineering contracts and delivery record integrity; historical availability is separate. Does not read the live goal board or check all development branches; not language correctness, review quality or full task acceptance.',
     status: migration ? legacyAudit ? legacyFailed ? 'LegacyAuditFail' : 'LegacyAuditPass' : currentGate.status : errors.length ? 'Fail' : 'Pass', snapshot_only: true,
     live_plan: livePlan, live_plan_checked: false, development_branches_checked: false,
-    goal_implementation_notes: {scope: 'Canonical Goal ID filenames only; note contents, review and acceptance are not validated.', validated: false, paths: goalNotes},
+    goal_implementation_notes: {scope: 'Goal implementation notes are task-branch history; they are not inspected in the main tree.', validated: false, paths: []},
     current_gate: currentGate,
     historical_status: {status: unavailable ? 'Unavailable' : historicalRecords.size ? 'Unreviewed' : 'NotClassified', archived: historicalRecords.size, unavailable, unreviewed: historicalRecords.size - unavailable, object_availability_changes: [...historicalRecords.values()].reduce((total, record) => total + record.object_availability_changes.length, 0), claims_revalidated: false, source_commit: migration?.source_commit ?? null},
     legacy_audit: {status: legacyAudit ? legacyFailed ? 'Fail' : 'Pass' : 'NotRun', errors: legacyAudit ? [...errors, ...legacyErrors] : []},
-    authority: {method: mainTree ? 'explicit-main-worktree' : top.ok ? authorityBranch === 'work' ? 'git-primary-worktree' : 'git-main-worktree' : 'archive-without-git', task_root: '.task', task_scope: 'Main-tree engineering and delivery records only; live planning authority is goal:goal.md.', verified: authorityVerified, branch: authorityBranch, current_is_main: authorityVerified && current === root, origin_main_tracking_head: top.ok ? cachedGit('rev-parse', '--verify', 'refs/remotes/origin/main').text || null : null, remote_observation: 'Local tracking ref only; no network or remote merge claim.'},
+    authority: {method: mainTree ? 'explicit-main-worktree' : top.ok ? authorityBranch === 'work' ? 'git-primary-worktree' : 'git-main-worktree' : 'archive-without-git', contract_root: 'validation/engineering-contracts.json', contract_scope: 'Static engineering obligations only; live planning authority is goal:goal.md.', verified: authorityVerified, branch: authorityBranch, current_is_main: authorityVerified && current === root, origin_main_tracking_head: top.ok ? cachedGit('rev-parse', '--verify', 'refs/remotes/origin/main').text || null : null, remote_observation: 'Local tracking ref only; no network or remote merge claim.'},
     current_head: git(current, 'rev-parse', '--verify', 'HEAD').text || null, main_head: mainHead,
     spec_hash: specHash, normative_hash: frozen?.normative_hash ?? null,
     worktrees: trees.map(t => ({branch: t.branch ?? null, head: t.head ?? null, is_main: path.resolve(t.path) === root})),

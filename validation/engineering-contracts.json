@@ -1,0 +1,821 @@
+{
+  "schema_version": 1,
+  "scope": "Static engineering obligations; registry and case membership do not claim execution, acceptance or current task status.",
+  "source_mapping": "B0, T01–T09 and W1–W4 identify historical source contracts; semantic keys identify current capabilities.",
+  "contracts": {
+    "source_pipeline": {
+      "source_id": "B0",
+      "title": "正式最小流水线、公共接口与验收入口",
+      "requirements": [
+        "ZIL-TARGET",
+        "ZIL-ARCH",
+        "ZIL-ACCEPT",
+        "ZIL-BYTE-STORAGE"
+      ],
+      "acceptance": [
+        "V18",
+        "V22"
+      ],
+      "depends_on": [],
+      "required_artifacts": [],
+      "provided_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "bootstrap.v1",
+        "target-profile.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-B0-001",
+        "PLAN-B0-002",
+        "PLAN-B0-003",
+        "PLAN-B0-004",
+        "PLAN-B0-005"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task B0 --manifest validation/task-test-plans.json --out-root evidence/B0"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task B0 --manifest conformance/index.json --out-root evidence/B0",
+      "done_when": [
+        "精确工具链与目标 profile 已记录，真实算术源经过全部正式阶段并返回预期结果；类型/语法错误不产生可运行产物。",
+        "Verified wrapper 构造权封装于 zil-verify；解析/反序列化只能产生候选，编译测试证明下游不能直接构造已核值。",
+        "runner 支持两个已登记 manifest，零选择、缺 fixture、未执行和 Unsupported 均非 Pass；提交所有 PLAN-B0 用例的实际结果。",
+        "公共 schema 与产物协议已供 T01/T02/T04/T05 复核，原始阶段产物和产物哈希进入证据。"
+      ],
+      "input_obligations": "本包规范及附件；实际仓库和目标环境。由施工入场记录精确 commit、Rust/LLVM 版本、target、依赖锁和工作区状态，不继承旧 Zig 项目的完成标记。",
+      "implementation_obligations": "在新 Rust 实现仓的正式 crate 流水线上，从一个真实算术源文件经过语法、类型、候选、核验和 LIR 生成可运行原生产物；同时建立错误链、公共 schema、精确工具链和统一 runner。未实施能力显式 Unsupported。\n\n只实现该链实际需要的节点和行为，其他接口给有类型的 Unsupported；不另建一次性编译器。schema 全形状先冻结，语义能力按阶段实现。runner分别处理main进程退出码和具名函数的完整类型返回值，超过255的结果须由原生harness读取，不能截为shell状态。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "syntax_and_normalization": {
+      "source_id": "T01",
+      "title": "完整固定语法、无损树与表面归一化",
+      "requirements": [
+        "ZIL-SYNTAX",
+        "ZIL-ATTRIBUTE",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V08",
+        "V11"
+      ],
+      "depends_on": [
+        "source_pipeline"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "parsed-core.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T01-001",
+        "PLAN-T01-002",
+        "PLAN-T01-003",
+        "PLAN-T01-004",
+        "PLAN-T01-005"
+      ],
+      "conformance_case_ids": [
+        "CL28",
+        "RX12",
+        "RX20",
+        "RC11",
+        "RC12",
+        "PP10",
+        "SC02",
+        "SC05"
+      ],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T01 --manifest validation/task-test-plans.json --out-root evidence/T01"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T01 --manifest conformance/index.json --out-root evidence/T01",
+      "done_when": [
+        "conformance 中归 T01 的样本全部经生产 parser；错误位置和来源映射可定位。",
+        "所有表面糖产生声明的 CoreModule 形状，临时节点保持源映射和求值顺序。",
+        "实际闭包/记录/管道样本与期望树比较；不能把 EBNF 引用检查计为生产解析通过。"
+      ],
+      "input_obligations": "B0 的 SourceUnit/CoreModule schema；spec/grammar.ebnf；conformance 中归本单的源样本。",
+      "implementation_obligations": "固定文法的 token/CST、source map 和未核 CoreModule；组接收者、词法 .field、闭包、记录更新、管道和脚本入口各有唯一解析与确定归一化。\n\n本单只处理语法和绑定所需语法身份，不判断描述拥有权或自行授予权限。管道/记录更新生成显式临时节点，保留规范规定的求值次数和顺序；不因转写复制有副作用表达式。未完成语法可先报 Unsupported，但最终本单范围必须完整。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "types_and_callable_shapes": {
+      "source_id": "T02",
+      "title": "名字、类型、接收者、闭包形状与 trait",
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-TRAIT",
+        "ZIL-RECEIVER",
+        "ZIL-CAPTURE",
+        "ZIL-RECORD",
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V01",
+        "V06",
+        "V10",
+        "V11"
+      ],
+      "depends_on": [
+        "source_pipeline"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "typed-cfg.v1",
+        "typed-interface.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T02-001",
+        "PLAN-T02-002",
+        "PLAN-T02-003",
+        "PLAN-T02-004",
+        "PLAN-T02-005"
+      ],
+      "conformance_case_ids": [
+        "CL31",
+        "RX01",
+        "RX02",
+        "RX03",
+        "RX04",
+        "RX05",
+        "RX06",
+        "RX07",
+        "RX08",
+        "RX09",
+        "RX10",
+        "RX11",
+        "RX13",
+        "RX14",
+        "RX18",
+        "RX19",
+        "RX21",
+        "RX22",
+        "RX23",
+        "RX25",
+        "RX26",
+        "RX27",
+        "RC05",
+        "RC06",
+        "RC07",
+        "RC08",
+        "RC13",
+        "RC14",
+        "RC15",
+        "PP03",
+        "PP05",
+        "PP08",
+        "PP12",
+        "PP14"
+      ],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T02 --manifest validation/task-test-plans.json --out-root evidence/T02"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T02 --manifest conformance/index.json --out-root evidence/T02",
+      "done_when": [
+        "名字/类别/接收者与 trait 解答均有稳定阶段输出；不依靠安全失败选择另一个目标。",
+        "TypedCFG 显式包含求值、错误、清理与潜在调用边；analyze 无需回读 parser 关键字。",
+        "fn 指针、捕获闭包、调用能力及 opaque 返回的正反例经生产类型器；候选关联等式不得自证。"
+      ],
+      "input_obligations": "B0 CoreModule、TypedCFG 与接口 schema。允许用注明等级的 CoreModule 夹具独立并行开发；真实 T01 源连接由 W1/W2验收。",
+      "implementation_obligations": "名字解析、类别、Copy/Move/Describe/Create/Give、receiver、trait 求解和 CoreModule→TypedCFG；给捕获环境与调用合同生成明确类型形状，包含受限 opaque 返回。\n\nfn(A)->R 固定为无捕获函数指针；捕获闭包使用具体环境、Fn/FnMut/FnOnce 约束或明确存储的 dyn。普通/inherent 函数的 -> impl Trait 只有一个隐藏具体返回类型，导出其 Hold/Call/Cleanup/Resume 上界；不自动 Box，不扩展为 trait/dyn 任意返回。最终来源、窗口与责任安全由 T06/T08 联合核验，不在类型阶段猜测成功。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "compile_time_generation": {
+      "source_id": "T03",
+      "title": "已核编译期执行、属性和生成调度",
+      "requirements": [
+        "ZIL-COMPTIME",
+        "ZIL-ATTRIBUTE"
+      ],
+      "acceptance": [
+        "V08",
+        "V09"
+      ],
+      "depends_on": [
+        "syntax_and_normalization",
+        "types_and_callable_shapes",
+        "independent_verification"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "parsed-core.v1",
+        "typed-cfg.v1",
+        "verified-ctir.v1"
+      ],
+      "provided_artifacts": [
+        "ct-generation.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T03-001",
+        "PLAN-T03-002",
+        "PLAN-T03-003",
+        "PLAN-T03-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T03 --manifest validation/task-test-plans.json --out-root evidence/T03"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T03 --manifest conformance/index.json --out-root evidence/T03",
+      "done_when": [
+        "已核 CTIR 由实际 verifier 产生并执行，输出重新检查。",
+        "配置、重复/冲突属性、配额耗尽和依赖循环分别产生稳定结果。",
+        "实际输入变更进入依赖记录，不声明访问的宿主输入不可读取。"
+      ],
+      "input_obligations": "T01 未核语法、T02 完成类型快照、T05 实际 VerifiedCTIR 接口；不只依赖同名 mock。",
+      "implementation_obligations": "受限 CTIR 执行、完成快照查询、cfg/derive 阶段排序、输入依赖与配额；生成产物回到未核 CoreModule 正常检查。\n\n只消费已完成的查询快照，禁止运行中递归向未完成类型/impl 查询授信。所有反射/生成结果与手写代码经过同一 types/analyze/verify 链；不能序列化一个生成结果并直接标成 Verified。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "module_driver_and_native_run": {
+      "source_id": "T04",
+      "title": "数据库、模块驱动、CLI/IDE与native脚本",
+      "requirements": [
+        "ZIL-MODULE",
+        "ZIL-ARCH",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V11",
+        "V18",
+        "V20"
+      ],
+      "depends_on": [
+        "source_pipeline"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "bootstrap.v1"
+      ],
+      "provided_artifacts": [
+        "query-driver.v1",
+        "native-run.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T04-001",
+        "PLAN-T04-002",
+        "PLAN-T04-003",
+        "PLAN-T04-004"
+      ],
+      "conformance_case_ids": [
+        "SC01",
+        "SC03",
+        "SC04"
+      ],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T04 --manifest validation/task-test-plans.json --out-root evidence/T04"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T04 --manifest conformance/index.json --out-root evidence/T04",
+      "done_when": [
+        "各指纹实际控制查询重算；私有编辑、公开合同编辑与源位置变动有可见差异。",
+        "缓存损坏、版本不匹配与取消不产生伪已核值或半写成功记录。",
+        "native run 与显式入口代码语义一致；CLI/IDE 对同一输入返回同一语义诊断。"
+      ],
+      "input_obligations": "B0 的阶段接口、结果状态与工具链 profile；",
+      "implementation_obligations": "实际查询依赖与各类指纹、缓存损坏重建、取消；CLI/IDE 共用语义入口。native run 仅生成普通入口包装，不开启隐式 GC。\n\ndriver 组合已完成阶段快照，不维护第二套安全判断。native run 的顶层语句与模块、导入和错误边界按规范包装；宿主GC/桥接不成为首发隐式依赖。缺阶段输出必须 Unsupported，不以缓存命中或空结果冒充完成。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "independent_verification": {
+      "source_id": "T05",
+      "title": "独立核验器与已核访问能力",
+      "requirements": [
+        "ZIL-ARCH",
+        "ZIL-ORIGIN",
+        "ZIL-ACCESS",
+        "ZIL-COMPTIME"
+      ],
+      "acceptance": [
+        "V02",
+        "V09",
+        "V12",
+        "V22"
+      ],
+      "depends_on": [
+        "source_pipeline"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1"
+      ],
+      "provided_artifacts": [
+        "verified-ir.v1",
+        "verified-ctir.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T05-001",
+        "PLAN-T05-002",
+        "PLAN-T05-003",
+        "PLAN-T05-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T05 --manifest validation/task-test-plans.json --out-root evidence/T05"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T05 --manifest conformance/index.json --out-root evidence/T05",
+      "done_when": [
+        "依赖门与实际 Rust 构建证明未导入 types/analyze 求证实现。",
+        "全部控制边、窗口/责任事实和 CT 允许操作有核验路径；变异夹具能触发具体拒绝。",
+        "Verified 构造权、只读访问和缓存解码路线符合 interfaces.json。"
+      ],
+      "input_obligations": "B0 固定原始数据/证书 schema 与阶段ID；候选可先用标注为模型夹具的输入，完整真实来源由 W1 对接。",
+      "implementation_obligations": "有限证据核验、VerifiedModule/VerifiedCTIR 私有构造接口、反序列化重检与变异拒绝；不依赖 types/analyze 求证函数。\n\ncrate 必须 forbid(unsafe_code)。只共享原始 schema、格式和算术定义；核验安全结论必须有独立实现。新节点尚未支持时 fail closed，不通过未知字段或默认分支授信。CT 验证是 T03 的生产前置。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "resource_origin_and_cleanup": {
+      "source_id": "T06",
+      "title": "来源、顺序别名、管理路由与准确责任",
+      "requirements": [
+        "ZIL-ORIGIN",
+        "ZIL-CONTRACT",
+        "ZIL-ROUTE",
+        "ZIL-CLEANUP",
+        "ZIL-PACKAGE"
+      ],
+      "acceptance": [
+        "V02",
+        "V03",
+        "V04",
+        "V05",
+        "V13"
+      ],
+      "depends_on": [
+        "types_and_callable_shapes",
+        "independent_verification"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "typed-cfg.v1",
+        "typed-interface.v1",
+        "verified-ir.v1"
+      ],
+      "provided_artifacts": [
+        "resource-plan.v1",
+        "resource-interface.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T06-001",
+        "PLAN-T06-002",
+        "PLAN-T06-003",
+        "PLAN-T06-004",
+        "PLAN-T06-005"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T06 --manifest validation/task-test-plans.json --out-root evidence/T06"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T06 --manifest conformance/index.json --out-root evidence/T06",
+      "done_when": [
+        "同源先读后关闭接受，先关闭后读拒绝；不返回前缀与实际 Drop 不遗漏。",
+        "选择返回中 payload/route/authority 一致，跨模块可核验；未知候选使用弱更新。",
+        "真实候选交给 T05 核验；失败清理与包移动没有重复或丢失责任。"
+      ],
+      "input_obligations": "T02 TypedCFG/类型形状与 T05 核验 API；合同实例化不读取私有 callee 正文。",
+      "implementation_obligations": "固定来源图、One/Many、有序前缀/逐出口合同、BindingRoute、真实责任 carrier 与清理候选；由独立 verifier 实际接收。\n\n本单完成 W1 所需的固定资源、选择返回和包移动；高阶闭包保存不列入本单完成门。所有初始化/关闭/错误边生成显式证据，既有别名通过共享位置事实失效；不得扫描全部运行时别名。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "llvm_lowering_and_runtime": {
+      "source_id": "T07",
+      "title": "LLVM主路径、布局和最小内存运行原语",
+      "requirements": [
+        "ZIL-LOWERING",
+        "ZIL-PACKAGE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V05",
+        "V13",
+        "V17"
+      ],
+      "depends_on": [
+        "independent_verification"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "target-profile.v1",
+        "verified-ir.v1"
+      ],
+      "provided_artifacts": [
+        "resource-lir.v1",
+        "native-resource.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T07-001",
+        "PLAN-T07-002",
+        "PLAN-T07-003",
+        "PLAN-T07-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T07 --manifest validation/task-test-plans.json --out-root evidence/T07"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T07 --manifest conformance/index.json --out-root evidence/T07",
+      "done_when": [
+        "真实机器产物与已核输入的初始化/布局/清理事件一致。",
+        "责任记录自身释放顺序安全，部分构造与错误边没有二次析构。",
+        "未支持目标能力明确拒绝；属性/ABI变异在实际产物检查中被发现。"
+      ],
+      "input_obligations": "T05 VerifiedModule 只读接口、B0 Layout/LIR schema 和实际目标 profile。",
+      "implementation_obligations": "在 B0 锁定的 LLVM 主原生 profile 真实发射布局、管理 ABI、初始化与清理；可消费已核夹具，不以手写 C 充当 ZIL 贯通。\n\nDesc 不变为宿主 Rust 引用，不默认 noalias/dereferenceable。机器属性必须由已核合同与目标规则支持。其他后端保留后续支持边界，不把 C 与 LLVM 失效指针规则混用。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "higher_order_and_graphs": {
+      "source_id": "T08",
+      "title": "完整CFG、闭包、析构及图容器",
+      "requirements": [
+        "ZIL-CAPTURE",
+        "ZIL-CFG",
+        "ZIL-CLEANUP",
+        "ZIL-ACCESS",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE"
+      ],
+      "acceptance": [
+        "V06",
+        "V07",
+        "V11",
+        "V12",
+        "V13"
+      ],
+      "depends_on": [
+        "cross_module_resource_flow"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "w1-integration.v1"
+      ],
+      "provided_artifacts": [
+        "higher-order.v1",
+        "graph-containers.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T08-001",
+        "PLAN-T08-002",
+        "PLAN-T08-003",
+        "PLAN-T08-004",
+        "PLAN-T08-005",
+        "PLAN-T08-006"
+      ],
+      "conformance_case_ids": [
+        "CL01",
+        "CL02",
+        "CL03",
+        "CL04",
+        "CL05",
+        "CL06",
+        "CL07",
+        "CL08",
+        "CL09",
+        "CL10",
+        "CL11",
+        "CL12",
+        "CL13",
+        "CL14",
+        "CL15",
+        "CL16",
+        "CL17",
+        "CL18",
+        "CL19",
+        "CL20",
+        "CL21",
+        "CL22",
+        "CL23",
+        "CL24",
+        "CL25",
+        "CL26",
+        "CL27",
+        "CL29",
+        "CL30",
+        "RX15",
+        "RX16",
+        "RX17",
+        "RX24",
+        "RX28",
+        "RC01",
+        "RC02",
+        "RC03",
+        "RC04",
+        "RC09",
+        "RC10",
+        "PP01",
+        "PP02",
+        "PP04",
+        "PP06",
+        "PP07",
+        "PP09",
+        "PP11",
+        "PP13"
+      ],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T08 --manifest validation/task-test-plans.json --out-root evidence/T08"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T08 --manifest conformance/index.json --out-root evidence/T08",
+      "done_when": [
+        "归本单 conformance 的正反例由真实源通过类型/分析/独立核验/机器阶段，非只比较环境结构。",
+        "未调用、调用成功、调用失败和移出捕获各条路径准确清理；残留借用/route依赖不能被move消掉。",
+        "闭包保存/替换、图与动态容器在固定外借、存在包、Key各路线有实际样本；n/2n/4n记录工作量。"
+      ],
+      "input_obligations": "W1 已完成的源码到资源机器链及已冻结最终 schema。",
+      "implementation_obligations": "一般循环/递归、正文推导捕获、move/责任捕获、调用能力与调用状态、清理和高阶容器；类型/分析/核验/lowering 同批形成真实功能。\n\n闭包拥有环境不等于只能调用一次；调用能力与状态可重复性分别检查。捕获闭包不隐式变成 fn 指针，返回 opaque 环境不自动装箱。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。 src/lib.rs 和注册表等共享入口由集成者串行修改。"
+    },
+    "async_and_completion_roots": {
+      "source_id": "T09",
+      "title": "挂起帧、取消、同步与真实完成根",
+      "requirements": [
+        "ZIL-ASYNC",
+        "ZIL-CONCURRENCY",
+        "ZIL-LOWERING"
+      ],
+      "acceptance": [
+        "V14",
+        "V15",
+        "V16",
+        "V17"
+      ],
+      "depends_on": [
+        "cross_module_resource_flow",
+        "higher_order_and_graphs"
+      ],
+      "required_artifacts": [
+        "schema.v1",
+        "runner.v1",
+        "w1-integration.v1",
+        "higher-order.v1"
+      ],
+      "provided_artifacts": [
+        "sabi-completion.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-T09-001",
+        "PLAN-T09-002",
+        "PLAN-T09-003",
+        "PLAN-T09-004",
+        "PLAN-T09-005"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task T09 --manifest validation/task-test-plans.json --out-root evidence/T09"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task T09 --manifest conformance/index.json --out-root evidence/T09",
+      "done_when": [
+        "源码挂起形状产生实际帧与SABI，结果责任只转交一次。",
+        "取消、失败、panic和drain均等待真实使用者归还及no-future保证；模型和实际平台证据分开。",
+        "所有新增操作在 types/analyze/verify/lower/runtime 中具有对应消费者；不靠runtime补未经检查的资格。"
+      ],
+      "input_obligations": "T08 完成的高阶/清理/CFG能力；W1 的机器资源链；实际平台 API 和冻结目标支持表。",
+      "implementation_obligations": "SABI/静态帧、显式动态递归、PendingExit、取消/异常、真实同步和全部外部完成根；源类型与核验、frame和runtime一致。\n\n所有系统用户在发布前登记，准入与关闭线性化；cancel、active=0或旧通知都不能单独授权释放。具体 OS 适配进入受审计可信模块，设备模拟不代表真实 DMA 验证。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "cross_module_resource_flow": {
+      "source_id": "W1",
+      "title": "两模块资源管理源码贯通",
+      "requirements": [
+        "ZIL-MODES",
+        "ZIL-ROUTE",
+        "ZIL-PACKAGE",
+        "ZIL-CORE",
+        "ZIL-CLEANUP"
+      ],
+      "acceptance": [
+        "V01",
+        "V03",
+        "V04",
+        "V05",
+        "V13",
+        "V17"
+      ],
+      "depends_on": [
+        "syntax_and_normalization",
+        "types_and_callable_shapes",
+        "module_driver_and_native_run",
+        "independent_verification",
+        "resource_origin_and_cleanup",
+        "llvm_lowering_and_runtime"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "parsed-core.v1",
+        "typed-cfg.v1",
+        "query-driver.v1",
+        "verified-ir.v1",
+        "resource-plan.v1",
+        "resource-interface.v1",
+        "resource-lir.v1",
+        "native-resource.v1"
+      ],
+      "provided_artifacts": [
+        "w1-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W1-001",
+        "PLAN-W1-002",
+        "PLAN-W1-003",
+        "PLAN-W1-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W1 --manifest validation/task-test-plans.json --out-root evidence/W1"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W1 --manifest conformance/index.json --out-root evidence/W1",
+      "done_when": [
+        "源码→导出接口→导入实例化→候选→Verified→机器产物全链有绑定同一源码的证据。",
+        "选择返回的真实payload与route对应，包移动与失败路径只清理一次。",
+        "最近反例在相应编译阶段拒绝且没有新可运行产物；完成后才能开放 T08。"
+      ],
+      "input_obligations": "所列模块的实际产物，不接受同名mock、手填来源或手写后端代码。",
+      "implementation_obligations": "真实 ZIL 两模块工厂/选择/管理返回、包移动、失败与准确清理；导出导入合同并实际生成原生产物。\n\nW1 不承接闭包保存、高阶容器或一般挂起，它们明确由 T08/W2/T09 承接，未从终态删去。 发现生产模块缺陷通过关联返修回该模块写集，W1 不跨目录私补分析规则。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "syntax_to_graph_flow": {
+      "source_id": "W2",
+      "title": "语法、闭包和图演进端到端",
+      "requirements": [
+        "ZIL-SYNTAX",
+        "ZIL-TRAIT",
+        "ZIL-COMPTIME",
+        "ZIL-MODULE",
+        "ZIL-CAPTURE",
+        "ZIL-RECEIVER",
+        "ZIL-RECORD",
+        "ZIL-PIPE",
+        "ZIL-SCRIPT"
+      ],
+      "acceptance": [
+        "V06",
+        "V08",
+        "V09",
+        "V10",
+        "V11",
+        "V18",
+        "V21"
+      ],
+      "depends_on": [
+        "cross_module_resource_flow",
+        "compile_time_generation",
+        "higher_order_and_graphs"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "w1-integration.v1",
+        "ct-generation.v1",
+        "higher-order.v1",
+        "graph-containers.v1",
+        "native-run.v1"
+      ],
+      "provided_artifacts": [
+        "w2-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W2-001",
+        "PLAN-W2-002",
+        "PLAN-W2-003",
+        "PLAN-W2-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W2 --manifest validation/task-test-plans.json --out-root evidence/W2"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W2 --manifest conformance/index.json --out-root evidence/W2",
+      "done_when": [
+        "接收者/捕获/责任/记录/管道/script 的规范行为都有源程序和最近反例，不能以parser接受代替执行。",
+        "匿名闭包以受限opaque结果真实返回；捕获环境和fn指针界线、dyn显式存储经跨模块验证。",
+        "稳定图→共享环→可删身份的完整演进具有实际改动统计，其他语言基线未测不得宣称收益。"
+      ],
+      "input_obligations": "T03/T08 与 W1 的真实生产实现；所有 conformance 源样本和阶段引用。",
+      "implementation_obligations": "最终语法全部从源码执行；闭包返回/保存/替换/析构、泛型/dyn和图演进贯通，连同缓存与生成对照。\n\n同一功能同时写无糖版本与标准糖版本，比较可观察求值/错误/清理并核对归一化核心。维护成本同时记录应用、标准库、适配和可信代码；图演进语义确实变化处保留显式修改。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "system_io_and_callbacks": {
+      "source_id": "W3",
+      "title": "真实系统I/O、取消与外部回调贯通",
+      "requirements": [
+        "ZIL-ASYNC",
+        "ZIL-CONCURRENCY",
+        "ZIL-LOWERING"
+      ],
+      "acceptance": [
+        "V14",
+        "V15",
+        "V16",
+        "V17",
+        "V22"
+      ],
+      "depends_on": [
+        "async_and_completion_roots",
+        "module_driver_and_native_run"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "query-driver.v1",
+        "sabi-completion.v1"
+      ],
+      "provided_artifacts": [
+        "w3-integration.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W3-001",
+        "PLAN-W3-002",
+        "PLAN-W3-003",
+        "PLAN-W3-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W3 --manifest validation/task-test-plans.json --out-root evidence/W3"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W3 --manifest conformance/index.json --out-root evidence/W3",
+      "done_when": [
+        "真实OS路径和最小故障路径均经过源语言前端；全部完成根到最后实际用户归还才清理。",
+        "取消与晚通知重复运行无提前回收或重复转交；失败样本不删除。",
+        "每个目标profile的实际覆盖和未支持能力单列，不以平台模型宣称硬件DMA完成。"
+      ],
+      "input_obligations": "T09 实际平台实现和支持表、T04 实际查询/driver；故障注入需标明注入层和未覆盖真实平台范围。",
+      "implementation_obligations": "源码→静态帧→真实 OS I/O，验证同步/异步完成、迟通知、waker、取消、错误/panic与drain。\n\nSC模型、压力调度和实际OS事件各自记录证据，不能互相替代。示例应用不获得编译器特殊语义；运行时安全依赖必须来自普通导出接口和平台协议。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    },
+    "product_comparison_and_release": {
+      "source_id": "W4",
+      "title": "同语义产品对照与发布验收",
+      "requirements": [
+        "ZIL-TARGET",
+        "ZIL-ACCEPT",
+        "ZIL-ARCH"
+      ],
+      "acceptance": [
+        "V19",
+        "V20",
+        "V21",
+        "V22"
+      ],
+      "depends_on": [
+        "syntax_to_graph_flow",
+        "system_io_and_callbacks"
+      ],
+      "required_artifacts": [
+        "runner.v1",
+        "w2-integration.v1",
+        "w3-integration.v1"
+      ],
+      "provided_artifacts": [
+        "product-evidence.v1"
+      ],
+      "plan_case_ids": [
+        "PLAN-W4-001",
+        "PLAN-W4-002",
+        "PLAN-W4-003",
+        "PLAN-W4-004"
+      ],
+      "conformance_case_ids": [],
+      "profile": "validation/product-gates.json",
+      "test_plan_manifest": "validation/task-test-plans.json",
+      "test_commands": [
+        "python3 tools/run-cases.py --task W4 --manifest validation/task-test-plans.json --out-root evidence/W4"
+      ],
+      "conformance_command": "python3 tools/run-cases.py --task W4 --manifest conformance/index.json --out-root evidence/W4",
+      "done_when": [
+        "所有必需能力/目标均有实际证据或明确未达项，未达发布门不能报告产品完成。",
+        "性能/维护场景在见到结果前冻结，报告中位数/P95/内存/保留与真实工作量；同语义基线可复现。",
+        "V19–V22 按批准profile逐项裁决，真实缺陷/失败样本和可信边界完整保留。"
+      ],
+      "input_obligations": "W2/W3 的实现、validation/product-gates.json、已批准场景manifest和精确基线提交。",
+      "implementation_obligations": "在测试前冻结同语义 Rust 基线、场景 manifest 和目标profile，测量运行/内存/编译/演进及全部成本；逐项发布产品证据。\n\n正式计时独占资源，构造/清理/转换/取消、元程序首次准备、核验和缓存成本都计入。阈值只能引用profile，不能在工单另定更宽数值。未证明Rust基线最快不得称全局最快，结构性退步不能由平均掩盖。",
+      "boundary_obligations": "不改所引用规则和profile。不把 IR 夹具、手工 lowering 或依赖策略检查冒充真实源码贯通；不恢复旧世代方案、不隐式加入 GC/RC/锁/堆盒。共享 schema、根 Cargo/工具链、其他写集变更须由集成者记录关联变更，不能以实现便利暗改接口。"
+    }
+  },
+  "handoff_protocol": "An artifact ID alone does not prove completion. Each producer handoff must include actual artifact version, exact source commit, and build evidence; consumers verify the interface in spec/interfaces.json.",
+  "acceptance_evidence": "Record the exact delivery commit, normative input and profile digests, toolchain, command, selected/executed/assertion counts, stdout/stderr, exit codes, stage and machine artifacts, and failure examples. An independent reviewer binds a verdict to the exact delivery commit; historical Done text does not establish current acceptance."
+}
