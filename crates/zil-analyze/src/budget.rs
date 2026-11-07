@@ -775,7 +775,7 @@ pub(super) fn preflight(
                             None,
                         )]);
                     }
-                    new_sum |= extension;
+                    new_sum |= extension || (context.in_error && ordinary_pod_store);
                     child = SumContext {
                         blocked: true,
                         pod_aggregate: context.pod_aggregate,
