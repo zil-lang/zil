@@ -826,15 +826,25 @@ pub enum CoreAggregateTypeRecipe {
     AsyncRegistration {
         environment: Box<CoreAggregateTypeRecipe>,
     },
-    /// General sealed task application, retaining its full actual result recipe.
+    /// Task application with actual result and retained-port type recipes.
     Task {
         result: Box<CoreAggregateTypeRecipe>,
+        binder_count: u32,
+        ports: Vec<CoreTaskPortRecipe>,
     },
     Apply {
         module: ModuleId,
         template: NodeId,
         arguments: Vec<CoreAggregateTypeRecipe>,
     },
+}
+/// Core-only recipe; each pointee is resolved against the actual template Type.
+/// Neither the label nor the recipe grants a loan or runtime address.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct CoreTaskPortRecipe {
+    pub pointee: Box<CoreAggregateTypeRecipe>,
+    pub mutable: bool,
+    pub binder: u32,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CoreAggregateApplication {

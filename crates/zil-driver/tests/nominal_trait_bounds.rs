@@ -28,6 +28,7 @@ fn task_two_actual_address_ports_keep_independent_modes() {
     *b=*b+n;
     return true;
 }
+
 fn main()->TaskCreateError!i32 {
     let a=4;
     var b=5;
@@ -49,6 +50,361 @@ fn main()->TaskCreateError!i32 {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn task_retains_array_slice_and_record_ports_from_local_producer() {
+    let source = r#"struct Pair { x:i32; y:i32 }
+fn worker(a:&[i32;2],s:&[i32],b:&mut Pair)->i32 {
+    task_yield();
+    b.x=a[0]+s[1];
+    return b.x+b.y;
+}
+fn main()->TaskCreateError!i32 {
+    let a=[2,3];
+    let s=[4,5];
+    var b=Pair{x:0,y:7};
+    var task=task_create(worker,&a,&s[..],&mut b)?;
+    task_finish_destroy(give task);
+    return b.x;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn retained_task_helper_moves_exact_input_frame() {
+    let source = r#"fn worker(a:&i32)->i32 { task_yield(); return *a; }
+fn relay<life a>(give task:Task<i32,&'a i32>)->Task<i32,&'a i32> contract{result(give)} {
+    return give task;
+}
+
+fn bridge<life a>(input:&'a i32)->TaskCreateError!i32 {
+    var task=task_create(worker,input)?;
+    var moved=relay(give task);
+    task_finish_destroy(give moved);
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    return bridge(&a);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn retained_task_helper_preserves_two_port_context_and_modes() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn relay<life a,life b>(give task:Task<i32,(&'a i32,&'b mut i32)>)->Task<i32,(&'a i32,&'b mut i32)> contract{result(give)} {
+    return give task;
+}
+
+fn bridge<life a,life b>(a:&'a i32,b:&'b mut i32)->TaskCreateError!i32 {
+    var task=task_create(worker,a,b)?;
+    var moved=relay(give task);
+    let observed=*a;
+    task_finish_destroy(give moved);
+    return observed+*b;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    return bridge(&a,&mut b);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn task_exclusive_retained_port_blocks_shared_read_until_destroy() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    var task=task_create(worker,&a,&mut b)?;
+    let observed=b;
+    task_finish_destroy(give task);
+    return observed;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.diagnostics[0].phase, zil_base::Phase::Analyze);
+}
+
+#[test]
+fn task_shared_retained_port_allows_read_beside_exclusive_port() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->i32 { task_yield(); *b=*a; return *b; }
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    var task=task_create(worker,&a,&mut b)?;
+    let observed=a;
+    task_finish_destroy(give task);
+    return observed;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn task_helper_returns_only_second_of_two_same_shape_frames() {
+    let source = r#"fn worker(input:&mut i32)->i32 { task_yield(); return *input; }
+fn choose<life a,life b>(give first:Task<i32,&'a mut i32>,give second:Task<i32,&'b mut i32>)->Task<i32,&'b mut i32> contract{result(give)} {
+    task_finish_destroy(give first);
+    return give second;
+}
+fn bridge<life a,life b>(a:&'a mut i32,b:&'b mut i32)->TaskCreateError!i32 {
+    var first=task_create(worker,a)?;
+    var second=task_create(worker,b)?;
+    var chosen=choose(give first,give second);
+    *a=3;
+    task_finish_destroy(give chosen);
+    return *a;
+}
+fn main()->TaskCreateError!i32 {
+    var a=1;
+    var b=2;
+    return bridge(&mut a,&mut b);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn local_task_create_infers_hidden_context_for_explicit_helper() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->bool { task_yield(); *b=*a; return true; }
+fn relay<life a,life b>(give task:Task<bool,(&'a i32,&'b mut i32)>)->Task<bool,(&'a i32,&'b mut i32)> contract{result(give)} {
+    return give task;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    var task=task_create(worker,&a,&mut b)?;
+    var moved=relay(give task);
+    task_finish_destroy(give moved);
+    return b;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn same_life_two_task_ports_keep_distinct_actual_targets() {
+    let source = r#"fn worker<life x>(a:&'x i32,b:&'x mut i32)->i32 { task_yield(); return *a+*b; }
+fn relay<life x>(give task:Task<i32,(&'x i32,&'x mut i32)>)->Task<i32,(&'x i32,&'x mut i32)> contract{result(give)} {
+    return give task;
+}
+
+fn bridge<life x>(a:&'x i32,b:&'x mut i32)->TaskCreateError!i32 {
+    var task=task_create(worker,a,b)?;
+    var moved=relay(give task);
+    let observed=*a;
+    task_finish_destroy(give moved);
+    return observed+*b;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=1;
+    return bridge(&a,&mut b);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn two_local_shared_borrows_of_one_root_keep_separate_ports() {
+    let source = r#"fn worker(a:&i32,b:&i32)->i32 {
+    task_yield();
+    return *a+*b;
+}
+fn main()->TaskCreateError!i32 {
+    let value=21;
+    var task=task_create(worker,&value,&value)?;
+    match task_poll_close(&mut task) {
+        Poll.Pending()=>{return 97;},
+        Poll.Ready(_)=>{}
+    }
+    task_finish_destroy(give task);
+    return 0;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn record_task_helper_keeps_explicit_context() {
+    let source = r#"struct Pair { x:i32; y:i32 }
+fn worker(input:&Pair)->bool { task_yield(); return input.x==input.y; }
+fn relay<life a>(give task:Task<bool,&'a Pair>)->Task<bool,&'a Pair> contract{result(give)} {
+    return give task;
+}
+fn bridge<life a>(input:&'a Pair)->TaskCreateError!i32 {
+    var task=task_create(worker,input)?;
+    var moved=relay(give task);
+    match task_poll_close(&mut moved) {
+        Poll.Pending()=>{return 97;},
+        Poll.Ready(_)=>{}
+    }
+    task_finish_destroy(give moved);
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let pair=Pair{x:3,y:3};
+    return bridge(&pair);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn symbolic_resource_name_cannot_become_a_retained_task_port() {
+    let source = r#"resource Owner { x:i32 }
+fn relay<life a>(give task:Task<i32,&'a Owner>)->Task<i32,&'a Owner> contract{result(give)} {
+    return give task;
+}
+fn main(){}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("borrowed Task retained classes")),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]

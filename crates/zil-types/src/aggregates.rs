@@ -1391,12 +1391,29 @@ impl Resolver<'_> {
                 result,
                 retained_life,
             } => {
-                tasks::require_closed_context(ty, span)?;
                 let result = self.ty(result, depth + 1, span)?;
-                Type::Task {
+                let ports = retained_life
+                    .ports
+                    .iter()
+                    .map(|port| {
+                        Ok(zil_ir::RetainedBorrowPort {
+                            leaf: self.ty(&port.leaf, depth + 1, span)?,
+                            mode: port.mode,
+                            binder: port.binder,
+                        })
+                    })
+                    .collect::<R<Vec<_>>>()?;
+                let task = Type::Task {
                     result: Box::new(result),
-                    retained_life: retained_life.clone(),
-                }
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: retained_life.binder_count,
+                        ports,
+                        retained: retained_life.retained.clone(),
+                        nominal_arguments: retained_life.nominal_arguments.clone(),
+                    },
+                };
+                tasks::require_closed_context(&task, span)?;
+                task
             }
             Type::AsyncRegistration { environment } => Type::AsyncRegistration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
@@ -3281,11 +3298,60 @@ impl Resolver<'_> {
                 span,
                 "generic Product formal index is invalid",
             )),
-            CoreAggregateTypeRecipe::Task { result } => {
+            CoreAggregateTypeRecipe::Task {
+                result,
+                binder_count,
+                ports,
+            } => {
                 let result = self.generic_recipe(result, args, owner, depth + 1, span)?;
+                aggregate_templates::spend(
+                    &mut self.remaining,
+                    ports.len().saturating_add(*binder_count as usize),
+                    span,
+                )?;
+                let mut resolved = Vec::new();
+                let mut next = 0u32;
+                for port in ports {
+                    let pointee =
+                        self.generic_recipe(&port.pointee, args, owner, depth + 1, span)?;
+                    if !tasks::retained_pointee(&pointee) || port.binder > next {
+                        return Err(error(
+                            "E-PRODUCT-TEMPLATE",
+                            span,
+                            "Task recipe retained port has an unsupported actual pointee or class",
+                        ));
+                    }
+                    if port.binder == next {
+                        next += 1;
+                    }
+                    resolved.push(zil_ir::RetainedBorrowPort {
+                        leaf: Type::Address {
+                            mutable: port.mutable,
+                            inner: Box::new(pointee),
+                        },
+                        mode: if port.mutable {
+                            zil_ir::StoredBorrowMode::ExclusiveAddress
+                        } else {
+                            zil_ir::StoredBorrowMode::SharedAddress
+                        },
+                        binder: port.binder,
+                    });
+                }
+                if next != *binder_count {
+                    return Err(error(
+                        "E-PRODUCT-TEMPLATE",
+                        span,
+                        "Task recipe retained class domain differs from actual ports",
+                    ));
+                }
                 Ok(Type::Desc(Box::new(Type::Task {
                     result: Box::new(result),
-                    retained_life: tasks::empty_context(),
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: *binder_count,
+                        ports: resolved,
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
                 })))
             }
             CoreAggregateTypeRecipe::Registration { environment } => {

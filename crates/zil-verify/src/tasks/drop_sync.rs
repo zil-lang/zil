@@ -4,6 +4,7 @@ use super::*;
 struct Origins {
     unknown: bool,
     workers: BTreeSet<FunctionId>,
+    parameters: BTreeSet<u32>,
 }
 impl Origins {
     fn add(&mut self, other: &Self, budget: &mut Budget) -> Check<bool> {
@@ -11,11 +12,14 @@ impl Origins {
             self.workers
                 .len()
                 .saturating_add(other.workers.len())
+                .saturating_add(self.parameters.len())
+                .saturating_add(other.parameters.len())
                 .saturating_add(1),
         )?;
         let old = self.clone();
         self.unknown |= other.unknown;
         self.workers.extend(other.workers.iter().copied());
+        self.parameters.extend(other.parameters.iter().copied());
         Ok(*self != old)
     }
 }
@@ -222,7 +226,7 @@ fn returned_workers(
         }
     }
     visiting.remove(&function);
-    if !saw_return || origins.workers.is_empty() {
+    if !saw_return || (origins.workers.is_empty() && origins.parameters.is_empty()) {
         origins.unknown = true;
     }
     Ok(origins)
@@ -244,6 +248,7 @@ fn returned_value(
         return Ok(Origins {
             unknown: true,
             workers: BTreeSet::new(),
+            parameters: BTreeSet::new(),
         });
     }
     let mut found = None;
@@ -267,6 +272,7 @@ fn returned_value(
         | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
             unknown: false,
             workers: BTreeSet::from([*worker]),
+            parameters: BTreeSet::new(),
         },
         Some(InstructionKind::MakeErrorUnion { is_error: true, .. })
         | Some(InstructionKind::TakeErrorUnion { is_error: true, .. }) => Origins::default(),
@@ -280,12 +286,39 @@ fn returned_value(
                 module, f, reachable, *local, functions, values, locals, budget,
             )?
         }
-        Some(InstructionKind::Call { function, .. }) => {
-            returned_workers(module, *function, functions, budget)?
+        Some(InstructionKind::Call {
+            function,
+            arguments,
+        }) => {
+            let summary = returned_workers(module, *function, functions, budget)?;
+            budget.spend(
+                summary
+                    .workers
+                    .len()
+                    .saturating_add(summary.parameters.len()),
+            )?;
+            let mut actual = Origins {
+                unknown: summary.unknown,
+                workers: summary.workers,
+                parameters: BTreeSet::new(),
+            };
+            for parameter in summary.parameters {
+                let argument = *arguments.get(parameter as usize).ok_or_else(|| {
+                    reject("E-VERIFY-TASK", None, "Task helper result input absent")
+                })?;
+                actual.add(
+                    &returned_value(
+                        module, f, reachable, argument, functions, values, locals, budget,
+                    )?,
+                    budget,
+                )?;
+            }
+            actual
         }
         _ => Origins {
             unknown: true,
             workers: BTreeSet::new(),
+            parameters: BTreeSet::new(),
         },
     };
     values.remove(&value);
@@ -309,10 +342,17 @@ fn returned_local(
             .saturating_add(f.parameters.len())
             .saturating_add(1),
     )?;
-    if f.parameters.contains(&local) || !locals.insert(local) {
+    if let Some(index) = f.parameters.iter().position(|p| *p == local) {
+        return Ok(Origins {
+            parameters: BTreeSet::from([index as u32]),
+            ..Origins::default()
+        });
+    }
+    if !locals.insert(local) {
         return Ok(Origins {
             unknown: true,
             workers: BTreeSet::new(),
+            parameters: BTreeSet::new(),
         });
     }
     let mut origin = Origins::default();
@@ -402,9 +442,10 @@ fn require_origin(
     for t in &f.values {
         relevant.push(contains_kind(module, t, budget, false)?);
     }
-    for p in &f.parameters {
+    for (index, p) in f.parameters.iter().enumerate() {
         if contains_kind(module, &f.locals[p.0 as usize].ty, budget, false)? {
-            locals[p.0 as usize].unknown = true;
+            budget.spend(1)?;
+            locals[p.0 as usize].parameters.insert(index as u32);
         }
     }
     loop {
@@ -435,9 +476,36 @@ fn require_origin(
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
+                        parameters: BTreeSet::new(),
                     },
-                    InstructionKind::Call { function, .. } => {
-                        returned_workers(module, *function, &mut BTreeSet::new(), budget)?
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let summary =
+                            returned_workers(module, *function, &mut BTreeSet::new(), budget)?;
+                        budget.spend(
+                            summary
+                                .workers
+                                .len()
+                                .saturating_add(summary.parameters.len()),
+                        )?;
+                        let mut actual = Origins {
+                            unknown: summary.unknown,
+                            workers: summary.workers,
+                            parameters: BTreeSet::new(),
+                        };
+                        for parameter in summary.parameters {
+                            let argument = *arguments.get(parameter as usize).ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK",
+                                    Some(i.span),
+                                    "Task helper result input absent",
+                                )
+                            })?;
+                            actual.add(&values[argument.0 as usize], budget)?;
+                        }
+                        actual
                     }
                     InstructionKind::Load(local)
                     | InstructionKind::BorrowLocal { local }
@@ -489,6 +557,7 @@ fn require_origin(
                     _ => Origins {
                         unknown: true,
                         workers: BTreeSet::new(),
+                        parameters: BTreeSet::new(),
                     },
                 };
                 changed |= values[out.0 as usize].add(&origin, budget)?;

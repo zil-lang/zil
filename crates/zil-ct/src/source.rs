@@ -615,16 +615,25 @@ pub(super) fn hint_type(
             result,
             retained_life,
         } => {
-            if retained_life.binder_count != 0
-                || !retained_life.ports.is_empty()
-                || !retained_life.retained.is_empty()
-                || !retained_life.nominal_arguments.is_empty()
-            {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Ct,
-                    "retained Task CT hints require scoped metadata handling",
-                    None,
-                )]);
+            if retained_life.ports.len() > limits.max_locals
+                || retained_life.retained.len() > limits.max_locals
+                || retained_life.nominal_arguments.len() > limits.max_locals {
+                return Err(limit());
+            }
+            *work = work.checked_sub((retained_life.binder_count as usize)
+                .saturating_add(retained_life.ports.len().saturating_mul(4))
+                .saturating_add(retained_life.retained.len().saturating_mul(4))
+                .saturating_add(retained_life.nominal_arguments.len().saturating_mul(6)))
+                .ok_or_else(limit)?;
+            for port in &retained_life.ports {
+                hint_type(&port.leaf, depth + 1, nodes, work, limits)?;
+            }
+            for row in &retained_life.retained {
+                *work = work.checked_sub(row.path.len()).ok_or_else(limit)?;
+            }
+            for row in &retained_life.nominal_arguments {
+                *work = work.checked_sub(row.path.len().saturating_add(3))
+                    .ok_or_else(limit)?;
             }
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)

@@ -3,6 +3,68 @@ use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
 const SHARED_INPUT: &str =
     include_str!("../../task-composition/verified-source-consumers/shared-input-retained-task.zil");
+const MULTI_PORT_HELPER: &str = r#"extern "C" fn putchar(code:i32)->i32;
+fn worker(a:&i32,b:&mut i32)->bool {
+    task_yield();
+    *b=*a+1;
+    return true;
+}
+fn relay<life a,life b>(give task:Task<bool,(&'a i32,&'b mut i32)>)->Task<bool,(&'a i32,&'b mut i32)> contract{result(give)} {
+    return give task;
+}
+fn bridge<life a,life b>(a:&'a i32,b:&'b mut i32)->TaskCreateError!i32 {
+    var task=task_create(worker,a,b)?;
+    var moved=relay(give task);
+    match task_poll(&mut moved) {
+        .ok(_)=>{unsafe {putchar(80);}},
+        .err(_)=>{return 97;}
+    }
+    match task_poll(&mut moved) {
+        .ok(_)=>{unsafe {putchar(82);}},
+        .err(_)=>{return 98;}
+    }
+    match task_poll_close(&mut moved) {
+        Poll.Pending()=>{return 94;},
+        Poll.Ready(_)=>{unsafe {putchar(67);}}
+    }
+    task_finish_destroy(give moved);
+    if *b!=42 {return 95;}
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var b=0;
+    return bridge(&a,&mut b);
+}"#;
+const ARRAY_SLICE_RECORD_PORTS: &str = r#"extern "C" fn putchar(code:i32)->i32;
+struct Pair { x:i32; y:i32 }
+fn worker(a:&[i32;2],s:&[i32],b:&mut Pair)->i32 {
+    task_yield();
+    b.x=a[0]+s[1];
+    return b.x+b.y;
+}
+fn main()->TaskCreateError!i32 {
+    let a=[2,3];
+    let s=[4,5];
+    var b=Pair{x:0,y:11};
+    var task=task_create(worker,&a,&s[..],&mut b)?;
+    match task_poll(&mut task) {
+        .ok(_)=>{},
+        .err(_)=>{return 96;}
+    }
+    match task_poll(&mut task) {
+        .ok(_)=>{},
+        .err(_)=>{return 97;}
+    }
+    match task_poll_close(&mut task) {
+        Poll.Pending()=>{return 98;},
+        Poll.Ready(_)=>{}
+    }
+    task_finish_destroy(give task);
+    if b.x!=7 {return 99;}
+    unsafe {putchar(65);}
+    return 0;
+}"#;
 fn mixed_shared_input() -> String {
     let holder = r#"
 struct MutableHolder<life a> { pointer:&'a mut i32 }
@@ -36,6 +98,169 @@ fn closed_task_shape() -> zil_ir::RetainedLifeShape {
         ports: vec![],
         retained: vec![],
         nominal_arguments: vec![],
+    }
+}
+#[test]
+fn two_retained_ports_bool_result_and_helper_poll_reach_verify() {
+    let report = compile_source(
+        &source(MULTI_PORT_HELPER),
+        &zil_driver::CompileOptions {
+            stop_after: zil_driver::Stage::Verify,
+            ..zil_driver::CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+#[test]
+#[cfg(target_os = "linux")]
+fn two_retained_ports_bool_helper_poll_native_matches_both_backends() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "task-two-ports-bool-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            std::fs::create_dir_all(&dir).unwrap();
+            let report = compile_source(
+                &source(MULTI_PORT_HELPER),
+                &zil_driver::CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    ..zil_driver::CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let native = report.native_codegen.as_ref().unwrap();
+            assert_eq!(native.backend, backend);
+            assert!(native.fallback.is_none(), "{native:?}");
+            let output = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(output.status.code(), Some(0), "{output:?}");
+            assert_eq!(output.stdout, b"PRC");
+        }
+    }
+}
+#[test]
+#[cfg(target_os = "linux")]
+fn array_slice_record_retained_ports_native_match_both_backends() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        let dir = std::env::temp_dir().join(format!(
+            "task-array-slice-record-{}-{backend:?}",
+            std::process::id()
+        ));
+        std::fs::create_dir_all(&dir).unwrap();
+        let report = compile_source(
+            &source(ARRAY_SLICE_RECORD_PORTS),
+            &zil_driver::CompileOptions {
+                backend,
+                optimization: Optimization::O0,
+                stop_after: Stage::Build,
+                output: Some(dir.join("program")),
+                ..zil_driver::CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        let native = report.native_codegen.as_ref().unwrap();
+        assert_eq!(native.backend, backend);
+        assert!(native.fallback.is_none(), "{native:?}");
+        let output = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert_eq!(output.stdout, b"A");
+    }
+}
+#[test]
+fn same_life_ports_reject_swapped_actual_bindings_in_raw_and_wire() {
+    use zil_ir::InstructionKind;
+    let text = r#"fn worker<life x>(a:&'x i32,b:&'x i32)->i32 {
+    task_yield();
+    return *a+*b;
+}
+fn bridge<life x>(a:&'x i32,b:&'x i32)->TaskCreateError!i32 {
+    var task=task_create(worker,a,b)?;
+    match task_poll_close(&mut task) {
+        Poll.Pending()=>{return 97;},
+        Poll.Ready(_)=>{}
+    }
+    task_finish_destroy(give task);
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let a=1;
+    let b=2;
+    return bridge(&a,&b);
+}"#;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(text, &limits).unwrap().core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+    let mut bad = typed;
+    let bridge = bad
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "bridge")
+        .unwrap();
+    let bindings = bridge
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find_map(|i| match &mut i.kind {
+            InstructionKind::TaskCreate { port_bindings, .. } => Some(port_bindings),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(bindings.len(), 2);
+    bindings.swap(0, 1);
+    bindings[0].port = 0;
+    bindings[1].port = 1;
+    assert!(zil_analyze::analyze(&bad, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = bad.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+    for wire in [false, true] {
+        let errors = if wire {
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+        } else {
+            zil_verify::verify_module(bad.clone(), claim.clone(), &target, &limits).unwrap_err()
+        };
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("task retained ports differ")),
+            "wire={wire}: {errors:?}"
+        );
     }
 }
 #[test]
@@ -514,7 +739,7 @@ fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
     assert!(
         error
             .iter()
-            .any(|d| d.message.contains("retained Task parameter")),
+            .any(|d| d.message.contains("resource/address parameter mode")),
         "{error:?}"
     );
 
@@ -541,9 +766,9 @@ fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
     let entry = main.entry;
     let error = zil_analyze::analyze(&bad, &limits).unwrap_err();
     assert!(
-        error
-            .iter()
-            .any(|d| d.message.contains("retained Task parameter")),
+        error.iter().any(|d| d
+            .message
+            .contains("retained Task input lacks complete source life contract")),
         "{error:?}"
     );
     let mut claim = plan.clone();
@@ -558,18 +783,21 @@ fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
         .push(input);
     let error = zil_verify::verify_module(bad, claim, &target, &limits).unwrap_err();
     assert!(
-        error
-            .iter()
-            .any(|d| d.message.contains("retained Task parameter")),
+        error.iter().any(|d| d
+            .message
+            .contains("retained Task input lacks complete source life contract")),
         "{error:?}"
     );
 
-    for result in [
-        Type::Bool,
-        Type::Address {
-            mutable: false,
-            inner: Box::new(Type::I32),
-        },
+    for (result, expected_category) in [
+        (Type::Bool, ResultCategory::SafeReject),
+        (
+            Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            },
+            ResultCategory::Unsupported,
+        ),
     ] {
         let mut bad = good.clone();
         let make = bad.functions.iter_mut().find(|f| f.name == "make").unwrap();
@@ -591,18 +819,14 @@ fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
         **payload = result;
         let error = zil_analyze::analyze(&bad, &limits).unwrap_err();
         assert!(
-            error
-                .iter()
-                .any(|d| d.message.contains("borrowed Task retained classes")),
+            error.iter().any(|d| d.category == expected_category),
             "{error:?}"
         );
         let mut claim = plan.clone();
         claim.module_fingerprint = bad.fingerprint();
         let error = zil_verify::verify_module(bad, claim, &target, &limits).unwrap_err();
         assert!(
-            error
-                .iter()
-                .any(|d| d.message.contains("borrowed Task retained classes")),
+            error.iter().any(|d| d.category == expected_category),
             "{error:?}"
         );
     }

@@ -121,6 +121,9 @@ enum Head {
 enum Fact {
     Unknown,
     Class(Binder),
+    /// A real source borrow expression with no named lifetime. It is a
+    /// private class identity only; the borrow kernels still prove the target.
+    LocalClass(u32),
     Parameter(Binder),
     Named(Head, Vec<Fact>),
     Address(Option<Box<Fact>>, Box<Fact>),
@@ -143,6 +146,7 @@ struct Check<'a, 'b, 'l> {
     hosts: Vec<Option<usize>>,
     impl_targets: BTreeMap<usize, &'a TypeRef>,
     standalone: Vec<bool>,
+    borrow_ids: BTreeMap<usize, u32>,
     fact_depth: usize,
     budget: &'b mut Budget<'l>,
 }
@@ -160,13 +164,13 @@ impl Fact {
             Self::Function(parameters, result) => {
                 parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
             }
-            Self::Class(_) => true,
+            Self::Class(_) | Self::LocalClass(_) => true,
             Self::Unknown | Self::Parameter(_) => false,
         }
     }
     fn has_class(&self) -> bool {
         match self {
-            Self::Class(_) => true,
+            Self::Class(_) | Self::LocalClass(_) => true,
             // Generic actuals are stored type positions: a direct Address
             // contributes its own declared class there, unlike an ordinary
             // outer function borrow whose upper is checked by its own lane.
@@ -181,6 +185,20 @@ impl Fact {
     }
 }
 impl Check<'_, '_, '_> {
+    fn borrow_class(&mut self, expression: &Expr) -> R<Fact> {
+        // The pointer is used only to memoize this actual AST node during the
+        // bounded walk. The fact carries a paid ordinal, never a span/address.
+        let node = std::ptr::from_ref(expression) as usize;
+        self.lookup(self.borrow_ids.len(), 1, expression.span)?;
+        if let Some(id) = self.borrow_ids.get(&node) {
+            return Ok(Fact::LocalClass(*id));
+        }
+        let id = u32::try_from(self.borrow_ids.len())
+            .map_err(|_| error(expression.span, "source borrow ordinal overflow"))?;
+        self.budget.node(expression.span, 0)?;
+        self.borrow_ids.insert(node, id);
+        Ok(Fact::LocalClass(id))
+    }
     fn pay(&mut self, span: Span, n: usize) -> R<()> {
         self.budget.identity_work(n, span)
     }
@@ -499,6 +517,7 @@ impl Check<'_, '_, '_> {
                     "source annotation cannot equate distinct declared lifetime classes",
                 ));
             }
+            (Fact::LocalClass(a), Fact::LocalClass(b)) if a == b => {}
             (Fact::Named(Head::Declaration(a), xs), Fact::Named(Head::Declaration(b), ys)) => {
                 if expected.has_class() && (a != b || xs.len() != ys.len()) {
                     return Err(error(
@@ -521,7 +540,9 @@ impl Check<'_, '_, '_> {
                 }
             }
             (Fact::Named(Head::Plain(a), xs), Fact::Named(Head::Plain(b), ys))
-                if !expected.has_class() && a == b && xs.len() == ys.len() => {
+                if a == b && xs.len() == ys.len()
+                    && (!expected.has_class()
+                        || (a.as_slice() == ["Task"] && xs.len() == 2)) => {
                     for (x,y) in xs.iter().zip(ys) { this.compatible_position(x,y,span,true)?; }
                 }
             (Fact::Tuple(xs), Fact::Tuple(ys)) if xs.len() == ys.len() => {
@@ -1125,6 +1146,67 @@ impl Check<'_, '_, '_> {
     ) -> R<Fact> {
         let actual = match &e.kind {
             ExprKind::Try(inner) => {
+                if let ExprKind::Call { callee, arguments } = &inner.kind
+                    && matches!(&callee.kind, ExprKind::Name(name)
+                        if name == "task_create" && !env.contains_key(name))
+                    && let Some(ExprKind::Name(worker_name)) =
+                        arguments.first().map(|arg| &arg.value.kind)
+                {
+                    self.budget.text(worker_name, e.span)?;
+                    let mut worker = None;
+                    for owner in 0..self.functions.len() {
+                        self.pay(e.span, 1)?;
+                        let function = self.functions[owner];
+                        self.budget.text(&function.name, e.span)?;
+                        self.pay(e.span, function.generics.len().saturating_add(1))?;
+                        if &function.name == worker_name
+                            && self.standalone[owner]
+                            && (function.generics.is_empty()
+                                || crate::lifetimes::only_life(function))
+                        {
+                            worker = Some((owner, function));
+                            break;
+                        }
+                    }
+                    if let Some((owner, worker)) = worker
+                        && arguments.len() == worker.params.len() + 1
+                    {
+                        let definition = Scope {
+                            owner,
+                            parameters: &worker.generics,
+                            host: self.hosts[owner],
+                            impl_target: self.impl_targets.get(&owner).copied(),
+                        };
+                        let result = worker
+                            .return_type
+                            .as_ref()
+                            .map(|ty| self.ty(ty, &definition, depth + 1))
+                            .transpose()?
+                            .unwrap_or(Fact::Unknown);
+                        let mut ports = Vec::new();
+                        for (parameter, argument) in worker.params.iter().zip(&arguments[1..]) {
+                            self.budget.node(parameter.ty.span, depth + 1)?;
+                            let actual = self.expr(&argument.value, scope, env, None, depth + 1)?;
+                            if matches!(parameter.ty.kind, TypeKind::Reference { .. }) {
+                                if !matches!(actual, Fact::Address(..)) {
+                                    return Ok(Fact::Unknown);
+                                }
+                                ports.push(actual);
+                            }
+                        }
+                        if !ports.is_empty() {
+                            let context = if ports.len() == 1 {
+                                ports.pop().unwrap()
+                            } else {
+                                Fact::Tuple(ports)
+                            };
+                            return Ok(Fact::Named(
+                                Head::Plain(vec!["Task".into()]),
+                                vec![result, context],
+                            ));
+                        }
+                    }
+                }
                 self.expr(inner, scope, env, None, depth + 1)?;
                 Fact::Unknown
             }
@@ -1275,7 +1357,11 @@ impl Check<'_, '_, '_> {
                                 _ => Fact::Address(None, Box::new(source)),
                             }
                         } else {
-                            Fact::Address(None, Box::new(source))
+                            // The constructor sees this exact physical borrow
+                            // even without a lexical life name. Its span is a
+                            // private source-class identity, never a target or
+                            // permission certificate.
+                            Fact::Address(Some(Box::new(self.borrow_class(e)?)), Box::new(source))
                         }
                     }
                     UnaryOp::Dereference => {
@@ -1285,6 +1371,7 @@ impl Check<'_, '_, '_> {
                             Fact::Unknown
                         }
                     }
+                    UnaryOp::Give => source,
                     _ => Fact::Unknown,
                 }
             }
@@ -2098,6 +2185,7 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         hosts: found.hosts,
         impl_targets: found.impl_targets,
         standalone: found.standalone,
+        borrow_ids: BTreeMap::new(),
         fact_depth: 0,
         budget,
     };
@@ -2148,4 +2236,42 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod local_class_tests {
+    use super::*;
+
+    #[test]
+    fn identical_spans_do_not_merge_distinct_actual_borrow_nodes() {
+        let limits = zil_base::Limits::default();
+        let mut budget = Budget::new(&limits);
+        let mut check = Check {
+            functions: vec![],
+            records: vec![],
+            enums: vec![],
+            hosts: vec![],
+            impl_targets: BTreeMap::new(),
+            standalone: vec![],
+            borrow_ids: BTreeMap::new(),
+            fact_depth: 0,
+            budget: &mut budget,
+        };
+        let first = Expr {
+            kind: ExprKind::Name("root".into()),
+            span: Span::default(),
+        };
+        let second = first.clone();
+        let Fact::LocalClass(a) = check.borrow_class(&first).unwrap() else {
+            panic!("first actual borrow class absent")
+        };
+        let Fact::LocalClass(revisited) = check.borrow_class(&first).unwrap() else {
+            panic!("revisited actual borrow class absent")
+        };
+        let Fact::LocalClass(b) = check.borrow_class(&second).unwrap() else {
+            panic!("second actual borrow class absent")
+        };
+        assert_eq!(a, revisited);
+        assert_ne!(a, b);
+    }
 }

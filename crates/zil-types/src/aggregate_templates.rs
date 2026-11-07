@@ -343,8 +343,22 @@ impl Index {
                     self.check_links(a, span, left)?;
                 }
             }
-            CoreAggregateTypeRecipe::Task { result: element }
-            | CoreAggregateTypeRecipe::AsyncRegistration {
+            CoreAggregateTypeRecipe::Task {
+                result,
+                ports,
+                binder_count,
+            } => {
+                spend(
+                    left,
+                    ports.len().saturating_add(*binder_count as usize),
+                    span,
+                )?;
+                self.check_links(result, span, left)?;
+                for port in ports {
+                    self.check_links(&port.pointee, span, left)?;
+                }
+            }
+            CoreAggregateTypeRecipe::AsyncRegistration {
                 environment: element,
             }
             | CoreAggregateTypeRecipe::Registration {
@@ -386,8 +400,28 @@ fn validate_recipe(
             ));
         }
         CoreAggregateTypeRecipe::Concrete(ty) => type_work(ty, limits, left, span)?,
-        CoreAggregateTypeRecipe::Task { result: element }
-        | CoreAggregateTypeRecipe::AsyncRegistration {
+        CoreAggregateTypeRecipe::Task {
+            result,
+            ports,
+            binder_count,
+        } => {
+            spend(
+                left,
+                ports.len().saturating_add(*binder_count as usize),
+                span,
+            )?;
+            validate_recipe(result, depth + 1, limits, left, span)?;
+            for port in ports {
+                validate_recipe(&port.pointee, depth + 1, limits, left, span)?;
+                if port.binder >= *binder_count {
+                    return Err(bad(span, "Task recipe port class absent"));
+                }
+            }
+            if (*binder_count == 0) != ports.is_empty() {
+                return Err(bad(span, "Task recipe context incomplete"));
+            }
+        }
+        CoreAggregateTypeRecipe::AsyncRegistration {
             environment: element,
         }
         | CoreAggregateTypeRecipe::Registration {

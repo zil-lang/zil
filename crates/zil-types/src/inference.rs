@@ -16,7 +16,6 @@ struct Budget<'a> {
     ordinary_functions: usize,
     closures: usize,
     inside_store: bool,
-    inside_parameter: bool,
     store_shapes: bool,
     direct_type_callee: bool,
     products: aggregate_templates::Products,
@@ -31,7 +30,6 @@ impl<'a> Budget<'a> {
             ordinary_functions: 0,
             closures: 0,
             inside_store: false,
-            inside_parameter: false,
             store_shapes: false,
             direct_type_callee: false,
             products: None,
@@ -677,9 +675,7 @@ fn headers(
         validate_type(&function.return_type, 0, function.span, budget)?;
         for parameter in &function.parameters {
             budget.work(parameter.name.len(), parameter.span)?;
-            budget.inside_parameter = true;
             validate_type(&parameter.ty, 0, parameter.span, budget)?;
-            budget.inside_parameter = false;
         }
         if let Some(receiver) = &function.receiver {
             validate_type(&receiver.ty, 0, function.span, budget)?;
@@ -950,15 +946,7 @@ fn validate_module_metadata(core: &CoreModule, budget: &mut Budget<'_>) -> R<()>
 }
 fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -> R<()> {
     budget.node(depth, span)?;
-    if budget.inside_parameter
-        && matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
-    {
-        return Err(unsupported(
-            span,
-            "retained Task parameter transport requires a complete owner input loan profile",
-        ));
-    }
-    tasks::require_closed_context(ty, span)?;
+    tasks::pre_resolution_context(ty, span)?;
     match ty {
         // The concrete interface ID is checked against the complete inventory
         // by the dyn admission pass after ordinary type resolution.

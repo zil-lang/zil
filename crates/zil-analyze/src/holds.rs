@@ -3507,6 +3507,35 @@ fn infer_module_inner(
         if matches!(function.return_type, Type::Address { .. })
             || retained_task_value(&function.return_type)
         {
+            let mut retained_inputs = BTreeSet::new();
+            if retained_task_value(&function.return_type) {
+                let contract = function
+                    .storage_life
+                    .as_ref()
+                    .ok_or_else(|| bad("borrowed Task return has no source relation"))?;
+                for result in &contract.bindings {
+                    budget.spend(1, "Task return port relation")?;
+                    if result.position.base != zil_ir::StorageBase::Result
+                        || !matches!(
+                            result.position.path.last(),
+                            Some(zil_ir::ContractProjection::RetainedPort(_))
+                        )
+                    {
+                        continue;
+                    }
+                    for input in &contract.bindings {
+                        budget.spend(1, "Task return actual input relation")?;
+                        if input.binder == result.binder
+                            && let zil_ir::StorageBase::Parameter(index) = input.position.base
+                        {
+                            retained_inputs.insert(index);
+                        }
+                    }
+                }
+                if retained_inputs.is_empty() {
+                    return Err(bad("borrowed Task return lacks a grounded input port"));
+                }
+            }
             let mut result = Roots::new();
             for (block, live) in function.blocks.iter().zip(reachable) {
                 budget.spend(1, "return contract block")?;
@@ -3529,13 +3558,13 @@ fn infer_module_inner(
                     if retained_task_value(&function.return_type)
                         && !explicit_error
                         && (roots.roots.is_empty()
-                            || roots
-                                .roots
-                                .iter()
-                                .any(|root| !matches!(root, HoldRoot::Parameter(0))))
+                            || roots.roots.iter().any(|root| {
+                                !matches!(root, HoldRoot::Parameter(index)
+                                    if retained_inputs.contains(index))
+                            }))
                     {
                         return Err(bad(
-                            "borrowed Task return exceeds its actual shared input root",
+                            "borrowed Task return exceeds its actual declared input ports",
                         ));
                     }
                     for root in &roots.roots {

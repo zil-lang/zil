@@ -54,6 +54,9 @@ pub(super) fn borrowed_context_with_life(
     }
 }
 pub(super) fn retained_pointee(ty: &Type) -> bool {
+    retained_pointee_with_named(ty, false)
+}
+fn retained_pointee_with_named(ty: &Type, allow_named: bool) -> bool {
     match ty {
         Type::Unit
         | Type::Bool
@@ -65,13 +68,23 @@ pub(super) fn retained_pointee(ty: &Type) -> bool {
         | Type::U16
         | Type::F32
         | Type::F64 => true,
-        Type::Record { fields, .. } => fields.iter().all(|(_, ty)| retained_pointee(ty)),
-        Type::Tuple(fields) => fields.iter().all(retained_pointee),
-        Type::Array { element, .. } | Type::Slice { element } => retained_pointee(element),
+        Type::Named(_) if allow_named => true,
+        Type::Record { fields, .. } => fields
+            .iter()
+            .all(|(_, ty)| retained_pointee_with_named(ty, allow_named)),
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|ty| retained_pointee_with_named(ty, allow_named)),
+        Type::Array { element, .. } | Type::Slice { element } => {
+            retained_pointee_with_named(element, allow_named)
+        }
         _ => false,
     }
 }
 fn retained_result(ty: &Type) -> bool {
+    retained_result_with_named(ty, false)
+}
+fn retained_result_with_named(ty: &Type, allow_named: bool) -> bool {
     match ty {
         Type::Unit
         | Type::Bool
@@ -83,13 +96,23 @@ fn retained_result(ty: &Type) -> bool {
         | Type::Usize
         | Type::F32
         | Type::F64 => true,
-        Type::Managed(payload) => retained_result(payload),
-        Type::Record { fields, .. } => fields.iter().all(|(_, ty)| retained_result(ty)),
-        Type::Tuple(fields) => fields.iter().all(retained_result),
-        Type::Enum { variants, .. } => variants
+        Type::Named(_) if allow_named => true,
+        Type::Managed(payload) => retained_result_with_named(payload, allow_named),
+        Type::Record { fields, .. } => fields
             .iter()
-            .all(|(_, fields)| fields.iter().all(retained_result)),
-        Type::ErrorUnion { error, result } => retained_result(error) && retained_result(result),
+            .all(|(_, ty)| retained_result_with_named(ty, allow_named)),
+        Type::Tuple(fields) => fields
+            .iter()
+            .all(|ty| retained_result_with_named(ty, allow_named)),
+        Type::Enum { variants, .. } => variants.iter().all(|(_, fields)| {
+            fields
+                .iter()
+                .all(|ty| retained_result_with_named(ty, allow_named))
+        }),
+        Type::ErrorUnion { error, result } => {
+            retained_result_with_named(error, allow_named)
+                && retained_result_with_named(result, allow_named)
+        }
         _ => false,
     }
 }
@@ -114,23 +137,31 @@ fn retained_bindings(parameters: &[Type]) -> Vec<zil_ir::RetainedPortBinding> {
         .collect()
 }
 pub(super) fn require_closed_context(ty: &Type, span: Span) -> R<()> {
+    check_context(ty, span, false)
+}
+pub(super) fn pre_resolution_context(ty: &Type, span: Span) -> R<()> {
+    // A symbolic name is a placeholder during Core inference only. Complete
+    // aggregate resolution must repeat the strict check on each resolved port.
+    check_context(ty, span, true)
+}
+fn check_context(ty: &Type, span: Span, allow_named: bool) -> R<()> {
     let mut next = 0;
     if let Type::Task {
         result,
         retained_life,
     } = ty
         && *retained_life != empty_context()
-        && (retained_life.retained.len() != 0
+        && (!retained_life.retained.is_empty()
             || !retained_life.nominal_arguments.is_empty()
             || retained_life.ports.iter().any(|port| {
                 let dense = if port.binder == next { next += 1; true } else { port.binder < next };
                 !dense
                     || !matches!(&port.leaf, Type::Address { mutable, inner }
-                        if retained_pointee(inner)
+                        if retained_pointee_with_named(inner, allow_named)
                             && port.mode == if *mutable { zil_ir::StoredBorrowMode::ExclusiveAddress } else { zil_ir::StoredBorrowMode::SharedAddress })
             })
             || next != retained_life.binder_count
-            || !retained_result(result))
+            || !retained_result_with_named(result, allow_named))
     {
         return Err(unsupported(
             span,

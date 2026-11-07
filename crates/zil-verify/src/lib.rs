@@ -648,11 +648,39 @@ fn check_module(
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
         budget.protocol_contracts |= function.protocol_contract.is_some();
-        if function.storage_life.is_some()
-            && !tasks::borrowed_signature(module, function, &mut budget)?
-        {
-            stored_flow::header(module, function, &mut budget)?;
-            budget.stored_borrows = true;
+        if let Some(contract) = &function.storage_life {
+            if function.call_kind == CallKind::Suspend {
+                budget.spend(function.parameters.len())?;
+                let parameters = function
+                    .parameters
+                    .iter()
+                    .map(|id| {
+                        function
+                            .locals
+                            .get(id.0 as usize)
+                            .map(|local| local.ty.clone())
+                            .ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK",
+                                    Some(function.span),
+                                    "Suspend signature input absent",
+                                )
+                            })
+                    })
+                    .collect::<Check<Vec<_>>>()?;
+                signature_life::charge(contract, &mut budget)?;
+                signature_life::function_relation(
+                    module,
+                    &parameters,
+                    &function.return_type,
+                    contract,
+                    Some(function.span),
+                    false,
+                )?;
+            } else if !tasks::borrowed_signature(module, function, &mut budget)? {
+                stored_flow::header(module, function, &mut budget)?;
+                budget.stored_borrows = true;
+            }
         }
         budget.current_function = Some(index);
         for ty in std::iter::once(&function.return_type)
