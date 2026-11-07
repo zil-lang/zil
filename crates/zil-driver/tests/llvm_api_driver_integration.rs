@@ -220,7 +220,7 @@ fn invalid_borrow_has_same_rejection_before_native_calls() {
 #[test]
 fn missing_external_symbol_is_still_link_failure_in_both_modes() {
     let d = Dir::new();
-    d.write("main.zil", "extern \"C\" fn zil-llvm-api-driver-integration_absent()->i32; fn main()->i32 { unsafe { return zil-llvm-api-driver-integration_absent(); } }");
+    d.write("main.zil", "extern \"C\" fn zil_llvm_api_driver_integration_absent()->i32; fn main()->i32 { unsafe { return zil_llvm_api_driver_integration_absent(); } }");
     for opt in [Optimization::O0, Optimization::O2] {
         let r = compile_path(&d.0.join("main.zil"), &options(&d, 1, opt));
         assert_eq!(r.status, ResultCategory::InfraError, "{}", r.to_json());
