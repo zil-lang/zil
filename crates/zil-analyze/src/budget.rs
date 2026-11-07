@@ -681,6 +681,7 @@ pub(super) fn preflight(
         // Reuse the already paid structural visit to classify new ordinary
         // positions. No extra recursive eligibility scan runs on legacy types.
         let root = ty as *const Type as usize;
+        let dyn_carrier = matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. }));
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
         let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
@@ -818,8 +819,10 @@ pub(super) fn preflight(
                 }
                 Type::Dyn { interface } => {
                     budget.lookup(budget.dyn_interfaces.len(), "dyn type interface")?;
-                    if !budget.dyn_interfaces.contains(interface) {
-                        return Err(bad("dyn type has no admitted interface"));
+                    if !dyn_carrier || depth != 1 || !budget.dyn_interfaces.contains(interface) {
+                        return Err(bad(
+                            "dyn type requires an exact admitted shared address carrier",
+                        ));
                     }
                 }
                 Type::Array { element, length } => {

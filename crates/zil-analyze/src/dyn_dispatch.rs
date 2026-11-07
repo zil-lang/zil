@@ -239,8 +239,7 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
     let mut seen = BTreeSet::new();
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeMap::new();
-    let mut read_values = BTreeSet::new();
-    let mut saw_read = false;
+    let mut value_results = BTreeSet::new();
     let mut saw_return = false;
     while let Some(id) = queue.pop_front() {
         budget.lookup(seen.len(), WORK)?;
@@ -305,8 +304,18 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
                     if value(f, result, budget)? != field_values.get(address).unwrap() {
                         return Err(bad("dyn field read result differs from actual field"));
                     }
-                    read_values.insert(result);
-                    saw_read = true;
+                    value_results.insert(result);
+                }
+                InstructionKind::Constant(constant) if scalar(&constant.ty()) => {
+                    // A body need not exercise the slot's shared Read upper
+                    // bound. A literal proves an empty actual access set.
+                    let result = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn scalar literal lacks result"))?;
+                    if value(f, result, budget)? != &constant.ty() {
+                        return Err(bad("dyn scalar literal actual type differs"));
+                    }
+                    value_results.insert(result);
                 }
                 InstructionKind::ScopeEnter { .. }
                 | InstructionKind::ScopeExit { .. }
@@ -321,9 +330,7 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
         }
         match &block.terminator {
             Terminator::Return(Some(result))
-                if read_values.contains(result)
-                    && scalar(value(f, *result, budget)?)
-                    && saw_read =>
+                if value_results.contains(result) && scalar(value(f, *result, budget)?) =>
             {
                 saw_return = true
             }
@@ -538,6 +545,12 @@ pub(super) fn check_roots(
     }
     for (f, plan) in module.functions.iter().zip(plans) {
         budget.spend(f.blocks.len().saturating_add(1), WORK)?;
+        if matches!(&f.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }))
+        {
+            return Err(bad(
+                "dyn borrowed carrier return is outside the finite scalar-result profile",
+            ));
+        }
         for block in &f.blocks {
             budget.spend(block.instructions.len(), WORK)?;
             for instruction in &block.instructions {
@@ -840,6 +853,28 @@ mod tests {
     }
 
     #[test]
+    fn literal_body_has_empty_actual_access_but_unknown_call_and_wrong_slot_fail() {
+        let mut m = fixture();
+        m.functions[0].blocks[0].instructions =
+            vec![inst(Some(2), InstructionKind::Constant(Constant::I32(17)))];
+        admitted(&m).unwrap();
+        m.functions[0].blocks[0].instructions.insert(
+            0,
+            inst(
+                None,
+                InstructionKind::Call {
+                    function: FunctionId(0),
+                    arguments: vec![],
+                },
+            ),
+        );
+        assert!(admitted(&m).is_err());
+        let mut m = fixture();
+        m.dyn_vtables[0].entries[0].slot = 1;
+        assert!(admitted(&m).is_err());
+    }
+
+    #[test]
     fn forged_source_and_unused_bad_table_are_rejected() {
         let mut m = fixture();
         m.functions[1].blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(7));
@@ -850,5 +885,52 @@ mod tests {
         bad.entries[0].function = FunctionId(99);
         m.dyn_vtables.push(bad);
         assert!(admitted(&m).is_err());
+    }
+
+    #[test]
+    fn actual_owner_window_survives_call_but_rejects_early_death() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        crate::analyze(&m, &Limits::default()).unwrap();
+        m.functions[1].blocks[0]
+            .instructions
+            .insert(2, inst(None, InstructionKind::StorageDead(LocalId(0))));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
+    }
+
+    #[test]
+    fn fresh_dyn_budget_has_exact_n_and_n_minus_one_boundary() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        let baseline = Limits::default();
+        let mut budget = Budget::new(&baseline);
+        crate::analyze_budgeted(&m, &baseline, &mut budget, None).unwrap();
+        let spent = baseline.max_analysis_steps - budget.remaining();
+        let mut exact = baseline.clone();
+        exact.max_analysis_steps = spent;
+        crate::analyze(&m, &exact).unwrap();
+        exact.max_analysis_steps -= 1;
+        assert!(crate::analyze(&m, &exact).is_err());
+    }
+
+    #[test]
+    fn local_dyn_escape_and_nested_carrier_are_closed() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        m.functions[1].return_type = m.functions[1].values[1].clone();
+        m.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
+
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        let held = m.functions[1].values[1].clone();
+        m.functions[1].locals.push(local(
+            1,
+            Type::Record {
+                name: "Escape".into(),
+                fields: vec![("held".into(), held)],
+            },
+        ));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
     }
 }
