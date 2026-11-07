@@ -500,7 +500,7 @@ pub(super) fn definition_name(element: &Type) -> String {
 // Aggregate resolution already bounds each complete nominal tree. This
 // selector keeps the old Tuple/Enum-only requests off the new Store scan; the
 // selected full subtree is charged before any new pending entries are grown.
-fn contains_inline_carrier(ty: &Type) -> bool {
+pub(super) fn contains_inline_carrier(ty: &Type) -> bool {
     match ty {
         Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
             if inline_element(element) && supported_element(element)),

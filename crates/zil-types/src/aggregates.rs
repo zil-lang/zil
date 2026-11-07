@@ -1422,7 +1422,7 @@ impl Resolver<'_> {
                     Type::Package { .. }
                         if packages::product::nested(&inner)
                             || packages::product::supported(&inner)
-                            || (packages::has_store_fields(&inner)
+                            || (dynamic_store::contains_inline_carrier(&inner)
                                 && packages::product::owned_supported(&inner)) =>
                     {
                         if packages::product::supported(&inner) {

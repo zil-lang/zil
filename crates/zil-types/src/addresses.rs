@@ -298,14 +298,23 @@ impl Builder<'_, '_> {
                     let work = inference::type_snapshot_work(&decl.ty, e.span, self.limits)?;
                     self.closures.snapshot(work, e.span)?;
                     if !packages::product::supported(&decl.ty) {
-                        return Err(unsupported(
-                            e.span,
-                            if mutable {
-                                "Product heads require finite complete ordinary children"
-                            } else {
-                                "shared Product heads require finite complete ordinary children"
-                            },
-                        ));
+                        // Only the new inline Store owner enters the ordinary
+                        // Product branch. Reserve both structural walks before
+                        // inspecting its complete children; old accepted
+                        // Product heads retain their exact previous fee.
+                        self.closures.snapshot(work.saturating_mul(4), e.span)?;
+                        if !dynamic_store::contains_inline_carrier(&decl.ty)
+                            || !packages::product::owned_supported(&decl.ty)
+                        {
+                            return Err(unsupported(
+                                e.span,
+                                if mutable {
+                                    "Product heads require finite complete ordinary children"
+                                } else {
+                                    "shared Product heads require finite complete ordinary children"
+                                },
+                            ));
+                        }
                     }
                 }
                 let resource_head = !mutable
