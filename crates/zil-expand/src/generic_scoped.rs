@@ -39,7 +39,8 @@ impl Check<'_, '_, '_> {
                     "c_register requires explicit unsafe and ordered arguments",
                 ));
             }
-            for (argument, role) in providers {
+            let mut threaded = false;
+            for (index, (argument, role)) in providers.into_iter().enumerate() {
                 self.tick(argument.span)?;
                 let name = super::super::super::foreign::bare_name(&argument.value)
                     .filter(|n| !state.locals.contains_key(*n))
@@ -64,12 +65,37 @@ impl Check<'_, '_, '_> {
                 }
                 let (_, static_callbacks, actual) =
                     super::super::super::foreign::noescape_contract(function)?;
+                if index == 0 && asynchronous {
+                    threaded = actual == Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister);
+                }
+                let role = if threaded {
+                    match role {
+                        zil_ir::ScopedCallbackRole::AsyncRegister => {
+                            zil_ir::ScopedCallbackRole::ThreadAsyncRegister
+                        }
+                        zil_ir::ScopedCallbackRole::AsyncRequestClose => {
+                            zil_ir::ScopedCallbackRole::ThreadAsyncRequestClose
+                        }
+                        zil_ir::ScopedCallbackRole::AsyncPollDrain => {
+                            zil_ir::ScopedCallbackRole::ThreadAsyncPollDrain
+                        }
+                        other => other,
+                    }
+                } else {
+                    role
+                };
                 if actual != Some(role) || !static_callbacks {
                     return Err(error(
                         argument.span,
                         "registration role differs from actual foreign declaration",
                     ));
                 }
+            }
+            if threaded {
+                return Err(unsupported(
+                    span,
+                    "generic threaded registration requires a declared thread-call capability; ClosedEnvironment and Transfer do not prove the callback entry",
+                ));
             }
             let ty = self.expr(&callback.value, state, None, false)?;
             let bound = self
@@ -85,7 +111,8 @@ impl Check<'_, '_, '_> {
                         "generic registration requires its actual declared concrete callable input",
                     )
                 })?;
-            if !bound.closed_environment
+            if (threaded && !bound.transfer)
+                || !bound.closed_environment
                 || bound.kind != zil_ir::CallableKind::FnMut
                 || bound.parameters.len() != 1
             {

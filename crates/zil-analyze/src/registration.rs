@@ -2,6 +2,7 @@
 use super::*;
 use zil_base::Span;
 mod phase;
+mod threaded;
 const PREFIX: &str = "@builtin:Registration:";
 pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
@@ -316,11 +317,25 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         callback,
                         ..
                     } => {
-                        for (id, role) in [
-                            (register, ScopedCallbackRole::AsyncRegister),
-                            (request_close, ScopedCallbackRole::AsyncRequestClose),
-                            (poll_drain, ScopedCallbackRole::AsyncPollDrain),
-                        ] {
+                        let is_threaded = module
+                            .functions
+                            .get(register.0 as usize)
+                            .and_then(|f| f.foreign.as_ref())
+                            .and_then(|f| f.scoped_callback)
+                            == Some(ScopedCallbackRole::ThreadAsyncRegister);
+                        for (id, role) in if is_threaded {
+                            [
+                                (register, ScopedCallbackRole::ThreadAsyncRegister),
+                                (request_close, ScopedCallbackRole::ThreadAsyncRequestClose),
+                                (poll_drain, ScopedCallbackRole::ThreadAsyncPollDrain),
+                            ]
+                        } else {
+                            [
+                                (register, ScopedCallbackRole::AsyncRegister),
+                                (request_close, ScopedCallbackRole::AsyncRequestClose),
+                                (poll_drain, ScopedCallbackRole::AsyncPollDrain),
+                            ]
+                        } {
                             let target = module
                                 .functions
                                 .get(id.0 as usize)
@@ -349,6 +364,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 i.span,
                                 "async callback requires actual FnMut(i32)->i32",
                             ));
+                        }
+                        if is_threaded {
+                            threaded::actual(module, *id, budget, i.span)?;
                         }
                         let payload = Type::AsyncRegistration {
                             environment: Box::new(Type::Closure(*id)),

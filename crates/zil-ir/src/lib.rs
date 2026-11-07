@@ -954,7 +954,8 @@ pub struct CoreCallableParameter {
     pub generic_name: String,
     /// Explicit sealed requirement; never a producer proof of actual captures.
     pub closed_environment: bool,
-    /// Explicit sealed Transfer premise; actual environment and code are rechecked.
+    /// Explicit sealed Transfer premise for the value and cleanup. Actual data
+    /// is rechecked; this premise does not establish thread-call authority.
     pub transfer: bool,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
@@ -1034,8 +1035,8 @@ pub enum ScopedCallbackRole {
     /// backend access, including pre-trampoline holders, with their writes visible
     /// before returning null. This promise grants no capability to F or its owner.
     ThreadAsyncRegister,
-    /// Close the provider's future admission after the runtime closes its gate;
-    /// request is Direct, persistent and idempotent, but establishes no drain.
+    /// Direct C request, called once after the runtime closes its own gate.
+    /// The provider retains that request; return does not establish drain.
     ThreadAsyncRequestClose,
     /// 0 Pending; 1 promises that, when this call returns, all raw holders and
     /// backend userdata accesses (including rejected and pre-trampoline entries)

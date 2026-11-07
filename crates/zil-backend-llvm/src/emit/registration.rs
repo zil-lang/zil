@@ -931,7 +931,16 @@ pub(super) fn reserve_function(
                     // actual expanded alignment/capture classification walks.
                     meter.spend(
                         if matches!(i.kind, InstructionKind::AsyncRegistrationStart { .. }) {
-                            24576
+                            if functions
+                                .get(&register)
+                                .and_then(|f| f.foreign.as_ref())
+                                .and_then(|f| f.scoped_callback)
+                                == Some(zil_ir::ScopedCallbackRole::ThreadAsyncRegister)
+                            {
+                                32768
+                            } else {
+                                24576
+                            }
                         } else {
                             8192
                         },

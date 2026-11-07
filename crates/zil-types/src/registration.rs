@@ -2,6 +2,7 @@
 use super::*;
 use std::collections::BTreeSet;
 pub(super) mod definition;
+pub(super) mod threaded;
 pub(super) fn charge_contract(
     c: &FunctionProtocolContract,
     mut pay: impl FnMut(usize) -> R<()>,
@@ -294,21 +295,32 @@ impl Builder<'_, '_> {
             let register = self.resolve_callee(register)?.clone();
             let close = self.resolve_callee(close)?.clone();
             let drain = drain.map(|d| self.resolve_callee(d).cloned()).transpose()?;
+            let threaded = asynchronous
+                && register.scoped_callback == Some(ScopedCallbackRole::ThreadAsyncRegister);
             if register.scoped_callback
-                != Some(if asynchronous {
+                != Some(if threaded {
+                    ScopedCallbackRole::ThreadAsyncRegister
+                } else if asynchronous {
                     ScopedCallbackRole::AsyncRegister
                 } else {
                     ScopedCallbackRole::Register
                 })
                 || close.scoped_callback
-                    != Some(if asynchronous {
+                    != Some(if threaded {
+                        ScopedCallbackRole::ThreadAsyncRequestClose
+                    } else if asynchronous {
                         ScopedCallbackRole::AsyncRequestClose
                     } else {
                         ScopedCallbackRole::Close
                     })
-                || drain
-                    .as_ref()
-                    .is_some_and(|d| d.scoped_callback != Some(ScopedCallbackRole::AsyncPollDrain))
+                || drain.as_ref().is_some_and(|d| {
+                    d.scoped_callback
+                        != Some(if threaded {
+                            ScopedCallbackRole::ThreadAsyncPollDrain
+                        } else {
+                            ScopedCallbackRole::AsyncPollDrain
+                        })
+                })
             {
                 return Err(error(
                     "E-FFI-REGISTRATION",
@@ -358,6 +370,11 @@ impl Builder<'_, '_> {
             }
             self.closures.factory_self_contained(id, callback.span)?;
             closed_environment_for(self.closures, id, callback.span, asynchronous)?;
+            if threaded {
+                self.closures
+                    .snapshot(self.closures.thread_entries.len().saturating_add(1), span)?;
+                self.closures.thread_entries.insert(id);
+            }
             let environment = Box::new(Type::Closure(id));
             let ty = Type::Managed(Box::new(if asynchronous {
                 Type::AsyncRegistration { environment }
