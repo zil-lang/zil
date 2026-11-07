@@ -214,6 +214,26 @@ pub(super) fn project_symbol(name: &str) -> bool {
         || name.starts_with("$generic_$stdTaskPoll343_")
 }
 
+// Project specialization emits the sealed task prelude once, in its actual
+// declaration module. Other modules may reference this ordinary error type in
+// a public factory header. Import its complete declaration, not an unresolved
+// name or a general permission for resource error-union payloads.
+fn shared_task_create_error(declaration: &CoreEnum, remaining: &mut usize) -> R<bool> {
+    if declaration.name != "$stdTaskCreateError343" {
+        return Ok(false);
+    }
+    aggregate_templates::spend(remaining, 32, declaration.span)?;
+    if !matches!(declaration.variants.as_slice(), [(name, fields)] if name == "Allocation" && fields.is_empty())
+    {
+        return Err(error(
+            "E-TASK-CREATE-ERROR-TYPE",
+            declaration.span,
+            "shared TaskCreateError requires its exact Allocation declaration",
+        ));
+    }
+    Ok(true)
+}
+
 /// Resolve project syntax names against actual declarations, not a parsed
 /// module number in a generated string. Nominal identity belongs to the module
 /// which contains the declaration; importer aliases never participate.
@@ -393,7 +413,25 @@ fn resolve_indexed(
                         Some(declaration.span),
                     )]
                 })?;
-            if project_symbol(&declaration.name)
+            let shared_task_error =
+                shared_task_create_error(declaration, remaining).map_err(|e| vec![e])?;
+            if shared_task_error {
+                if declarations.contains_key(&declaration.name) {
+                    return Err(vec![error(
+                        "E-NAME-DUPLICATE",
+                        declaration.span,
+                        "shared TaskCreateError conflicts with an aggregate declaration",
+                    )]);
+                }
+                if let Some(existing) = enum_declarations.get(&declaration.name) {
+                    shared_task_create_error(existing, remaining).map_err(|e| vec![e])?;
+                    // Repeated exact prelude declarations have the same sealed
+                    // semantic identity; unrelated project names remain unique.
+                    continue;
+                }
+            }
+            if shared_task_error
+                || project_symbol(&declaration.name)
                 || stored::project_option_enum(module, declaration, remaining, limits)
                     .map_err(|e| vec![e])?
             {

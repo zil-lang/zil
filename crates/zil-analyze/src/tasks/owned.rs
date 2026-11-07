@@ -439,6 +439,7 @@ pub(super) fn profile(
     for parameter in &f.parameters {
         if !matches!(local_type(f, *parameter, span)?, Type::Managed(_))
             && !record(local_type(f, *parameter, span)?, budget)?
+            && !matches!(local_type(f, *parameter, span)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32 && f.parameters.len() == 1)
         {
             return Err(reject(
                 "E-VERIFY-TASK",

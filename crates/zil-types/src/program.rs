@@ -216,12 +216,10 @@ pub(super) fn check_resolved_program_with_reuse(
     for module in &program.modules {
         let table = &signatures_by_module[&module.core.module_id];
         let imports = imports_for(module, &signatures_by_module)?;
-        for f in module
-            .core
-            .functions
-            .iter()
-            .filter(|f| f.callable_return.is_some() && f.callable_parameters.is_empty())
-        {
+        for f in module.core.functions.iter().filter(|f| {
+            (f.callable_return.is_some() && f.callable_parameters.is_empty())
+                || task_factories::factory(f)
+        }) {
             let id = table[&f.name].concrete_id(f.span).map_err(|e| vec![e])?;
             let dependencies = retained::factory_dependencies(
                 f,
@@ -245,6 +243,15 @@ pub(super) fn check_resolved_program_with_reuse(
         let enum_types = enums::project_definitions(program, core, &mut enum_work, limits)?;
         let table = &signatures_by_module[&core.module_id];
         let imports = imports_for(module, &signatures_by_module)?;
+        let resolved_task;
+        let f = if task_factories::factory(f) {
+            resolved_task =
+                task_factories::prepare(f, table, Some(&imports), &mut closure_state, limits)
+                    .map_err(|e| vec![e])?;
+            &resolved_task
+        } else {
+            f
+        };
         let pending_start = closure_state.pending.len();
         let thin_start = closure_state.thin.len();
         let mut builder =
@@ -282,11 +289,23 @@ pub(super) fn check_resolved_program_with_reuse(
             .get_mut(&f.name)
             .expect("factory signature")
             .result = typed.return_type.clone();
+        if task_factories::factory(f) {
+            let signature = signatures_by_module
+                .get_mut(&core.module_id)
+                .expect("module table")
+                .get_mut(&f.name)
+                .expect("Task factory signature");
+            signature.storage_life = typed.storage_life.clone();
+            if typed.storage_life.is_some() {
+                signature.life = None;
+            }
+        }
         helpers::resolve_factory_result(
             &mut closure_state,
             core.module_id,
             &f.name,
             &typed.return_type,
+            typed.storage_life.as_ref(),
             f.span,
         )
         .map_err(|e| vec![e])?;

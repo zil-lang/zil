@@ -137,6 +137,60 @@ pub(super) fn function_relation(
     allow_callback: bool,
     closures: &[ClosureDefinition],
 ) -> CompileResult<()> {
+    if let Type::ErrorUnion {
+        result: success, ..
+    } = result
+        && let Type::Managed(payload) = success.as_ref()
+        && let Type::Task { retained_life, .. } = payload.as_ref()
+        && !retained_life.ports.is_empty()
+    {
+        super::tasks::require_closed_context(payload)?;
+        let input = Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        };
+        if parameters != [input]
+            || c.fixed_binder_count != 0
+            || c.invocation_binder_count != 1
+            || c.bindings
+                != [
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Parameter(0),
+                            path: vec![],
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    },
+                    StorageLifeBinding {
+                        position: StoragePosition {
+                            base: StorageBase::Result,
+                            path: vec![
+                                ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                                ContractProjection::RetainedPort(0),
+                            ],
+                        },
+                        binder: StorageBinder::Invocation(0),
+                    },
+                ]
+            || c.classes
+                != [SignatureLifeClassBinding {
+                    position: SignatureLifeClass {
+                        base: StorageBase::Result,
+                        path: vec![
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                            LifeTypeProjection::Pointee,
+                        ],
+                        class: 0,
+                    },
+                    binder: StorageBinder::Invocation(0),
+                }]
+        {
+            return Err(bad(
+                "borrowed Task signature has no exact shared input and retained port relation",
+            ));
+        }
+        return Ok(());
+    }
     relation_inner(parameters, None, result, c, allow_callback, closures)
 }
 

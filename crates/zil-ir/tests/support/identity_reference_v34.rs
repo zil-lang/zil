@@ -1,4 +1,4 @@
-// Independent Vec-based TypedV43 reference for the retained legacy cases.
+// Independent Vec-based TypedV44 reference for the retained legacy cases.
 // New nonempty life/dyn inventories and storage instructions are tested separately.
 // Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
@@ -34,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V43\0"
+        b"ZIL-TYPED-MODULE-V44\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
@@ -500,7 +500,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
                 encode_u32(b, argument.0);
             }
         }
-        InstructionKind::TaskCreate { worker, arguments } => {
+        InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } => {
             assert!(v32, "schema31 cannot represent general task creation");
             b.push(128);
             encode_u32(b, worker.0);
@@ -508,6 +512,11 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
             for argument in arguments {
                 encode_u32(b, argument.0);
             }
+            encode_len(b, port_bindings.len());
+            assert!(
+                port_bindings.is_empty(),
+                "retained Task ports are outside this legacy oracle"
+            );
         }
         InstructionKind::SyncI32CompareExchange {
             address,

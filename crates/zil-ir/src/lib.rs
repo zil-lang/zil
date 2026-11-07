@@ -387,7 +387,7 @@ pub fn life_inventory_fingerprint(
     instances: &[LifeNominalInstance],
 ) -> Fingerprint {
     let mut bytes = FingerprintStream::new();
-    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V43\0");
+    bytes.extend_from_slice(b"ZIL-LIFE-INVENTORY-V44\0");
     encode_life_inventory(&mut bytes, declarations, instances);
     bytes.finish()
 }
@@ -521,7 +521,7 @@ impl Type {
     /// Untrusted callers must validate and prepay the type traversal first.
     pub fn fingerprint(&self) -> Fingerprint {
         let mut bytes = FingerprintStream::new();
-        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V43\0");
+        bytes.extend_from_slice(b"ZIL-TYPE-IDENTITY-V44\0");
         encode_type(&mut bytes, self);
         bytes.finish()
     }
@@ -2004,6 +2004,9 @@ pub enum InstructionKind {
     TaskCreate {
         worker: FunctionId,
         arguments: Vec<ValueId>,
+        /// Maps each retained port to an actual constructor input. A binding is
+        /// checked against the worker and the executable borrow provenance.
+        port_bindings: Vec<RetainedPortBinding>,
     },
     /// A source suspension point. Its live scalar state is spilled in the SABI frame.
     TaskYield,
@@ -2626,7 +2629,7 @@ impl FingerprintSink for FingerprintStream {
 }
 
 fn encode_module(bytes: &mut impl FingerprintSink, module: &TypedModule) {
-    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V43\0");
+    bytes.extend_from_slice(b"ZIL-TYPED-MODULE-V44\0");
     encode_u32(bytes, module.schema_version);
     encode_u32(bytes, module.module_id.0);
     bytes.extend_from_slice(&module.source_fingerprint.0);
@@ -3694,12 +3697,20 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
                 encode_u32(b, argument.0);
             }
         }
-        InstructionKind::TaskCreate { worker, arguments } => {
+        InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } => {
             b.push(128);
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
                 encode_u32(b, argument.0);
+            }
+            encode_len(b, port_bindings.len());
+            for binding in port_bindings {
+                encode_retained_port_binding(b, binding);
             }
         }
         InstructionKind::TaskYield => b.push(100),

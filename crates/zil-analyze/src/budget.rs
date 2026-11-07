@@ -1408,7 +1408,7 @@ pub(super) fn preflight(
     let mut package_functions = Vec::new();
     for (function_index, function) in module.functions.iter().enumerate() {
         budget.protocol_contracts |= function.protocol_contract.is_some();
-        if function.storage_life.is_some() {
+        if function.storage_life.is_some() && !super::tasks::borrowed_signature(function, budget)? {
             super::stored_flow::header(module, function, budget)?;
             budget.stored_borrows = true;
         }

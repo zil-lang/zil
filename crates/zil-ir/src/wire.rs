@@ -1558,12 +1558,20 @@ impl<'a> Writer<'a> {
                     self.u32(argument.0)?;
                 }
             }
-            InstructionKind::TaskCreate { worker, arguments } => {
+            InstructionKind::TaskCreate {
+                worker,
+                arguments,
+                port_bindings,
+            } => {
                 self.u8(128)?;
                 self.u32(worker.0)?;
                 self.count(arguments.len(), self.limits.max_values)?;
                 for argument in arguments {
                     self.u32(argument.0)?;
+                }
+                self.count(port_bindings.len(), self.limits.max_values)?;
+                for binding in port_bindings {
+                    self.retained_port_binding(binding)?;
                 }
             }
             InstructionKind::TaskYield => self.u8(100)?,
@@ -4264,7 +4272,16 @@ impl<'a> Reader<'a> {
                 for _ in 0..count {
                     arguments.push(ValueId(self.u32()?));
                 }
-                InstructionKind::TaskCreate { worker, arguments }
+                let count = self.count(self.limits.max_values, 4)?;
+                let mut port_bindings = Vec::with_capacity(count);
+                for _ in 0..count {
+                    port_bindings.push(self.retained_port_binding()?);
+                }
+                InstructionKind::TaskCreate {
+                    worker,
+                    arguments,
+                    port_bindings,
+                }
             }
             100 => InstructionKind::TaskYield,
             101 => InstructionKind::TaskValid {

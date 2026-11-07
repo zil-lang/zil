@@ -1196,6 +1196,19 @@ fn tracked_desc(ty: &Type) -> bool {
     matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
 }
 
+fn retained_task_value(ty: &Type) -> bool {
+    match ty {
+        Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
+        Type::Managed(inner) | Type::Desc(inner) => {
+            matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
+        }
+        Type::ErrorUnion { result, .. } => {
+            matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty()))
+        }
+        _ => false,
+    }
+}
+
 fn state_cost(state: &State, budget: &mut Budget) -> CompileResult<()> {
     budget.spend(state.len(), "sparse Hold state")?;
     for roots in state.values() {
@@ -1546,10 +1559,9 @@ fn infer_with_private(
             .iter()
             .any(|ty| matches!(ty, Type::Address { .. })))
     };
-    let mut has_sources = f
-        .values
-        .iter()
-        .any(|ty| matches!(ty, Type::Address { .. }) || tracked_desc(ty));
+    let mut has_sources = f.values.iter().any(|ty| {
+        matches!(ty, Type::Address { .. }) || tracked_desc(ty) || retained_task_value(ty)
+    });
     if !has_sources {
         for local in &f.parameters {
             if captured_address(&f.locals[local.0 as usize].ty, budget)? {
@@ -1681,6 +1693,7 @@ fn infer_with_private(
                 for (index, local) in f.parameters.iter().enumerate() {
                     if matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
                         || tracked_desc(&f.locals[local.0 as usize].ty)
+                        || retained_task_value(&f.locals[local.0 as usize].ty)
                         || captured_address(&f.locals[local.0 as usize].ty, budget)?
                     {
                         state.insert(*local, Roots::from([Root::Parameter(index as u32)]));
@@ -1968,6 +1981,58 @@ fn infer_with_private(
                                 state.remove(local);
                             }
                         }
+                        InstructionKind::TaskCreate {
+                            arguments,
+                            port_bindings,
+                            ..
+                        } if instruction.result.is_some_and(|result| {
+                            f.values
+                                .get(result.0 as usize)
+                                .is_some_and(retained_task_value)
+                        }) =>
+                        {
+                            for binding in port_bindings {
+                                let zil_ir::StorageBase::Parameter(index) = binding.source.base
+                                else {
+                                    return Err(bad("task retained port has no actual input"));
+                                };
+                                let source = arguments
+                                    .get(index as usize)
+                                    .ok_or_else(|| bad("task retained port input absent"))?;
+                                extend(&mut found, &values[source.0 as usize], budget)?;
+                            }
+                        }
+                        InstructionKind::TakeErrorUnion {
+                            value,
+                            is_error: false,
+                        } if instruction.result.is_some_and(|result| {
+                            retained_task_value(&f.values[result.0 as usize])
+                        }) =>
+                        {
+                            extend(&mut found, &values[value.0 as usize], budget)?;
+                        }
+                        InstructionKind::TakeVariantField { local, path }
+                            if retained_task_value(&f.locals[local.0 as usize].ty) =>
+                        {
+                            if path.as_slice() == [zil_ir::PlaceProjection::ErrorArm(false)]
+                                && instruction.result.is_some_and(|result| {
+                                    retained_task_value(&f.values[result.0 as usize])
+                                })
+                            {
+                                budget.lookup(state.len(), "Task success arm Hold local")?;
+                                if let Some(source) = state.get(local) {
+                                    extend(&mut found, source, budget)?;
+                                }
+                            }
+                            state.remove(local);
+                        }
+                        InstructionKind::MakeErrorUnion { value, .. }
+                            if instruction.result.is_some_and(|result| {
+                                retained_task_value(&f.values[result.0 as usize])
+                            }) =>
+                        {
+                            extend(&mut found, &values[value.0 as usize], budget)?;
+                        }
                         InstructionKind::Store { local, value } => {
                             let source = values
                                 .get(value.0 as usize)
@@ -2065,6 +2130,9 @@ fn infer_with_private(
                             arguments,
                         } if instruction.result.is_some_and(|value| {
                             matches!(f.values.get(value.0 as usize), Some(Type::Address { .. }))
+                                || f.values
+                                    .get(value.0 as usize)
+                                    .is_some_and(retained_task_value)
                         }) =>
                         {
                             let incoming = summaries
@@ -3323,11 +3391,9 @@ fn infer_module_inner(
     budget: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
     capture_inventory(module, budget)?;
-    if !module
-        .functions
-        .iter()
-        .any(|f| matches!(f.return_type, Type::Address { .. }))
-    {
+    if !module.functions.iter().any(|f| {
+        matches!(f.return_type, Type::Address { .. }) || retained_task_value(&f.return_type)
+    }) {
         return module
             .functions
             .iter()
@@ -3380,7 +3446,10 @@ fn infer_module_inner(
                         matches!(
                             function.values.get(value.0 as usize),
                             Some(Type::Address { .. })
-                        )
+                        ) || function
+                            .values
+                            .get(value.0 as usize)
+                            .is_some_and(retained_task_value)
                     })
                 {
                     let users = callers
@@ -3423,7 +3492,9 @@ fn infer_module_inner(
             capture_returns.then_some(&mut actual),
         )?;
         let mut changed = false;
-        if matches!(function.return_type, Type::Address { .. }) {
+        if matches!(function.return_type, Type::Address { .. })
+            || retained_task_value(&function.return_type)
+        {
             let mut result = Roots::new();
             for (block, live) in function.blocks.iter().zip(reachable) {
                 budget.spend(1, "return contract block")?;
@@ -3431,6 +3502,30 @@ fn infer_module_inner(
                     let roots = values
                         .get(value.0 as usize)
                         .ok_or_else(|| bad("return outside Hold table"))?;
+                    budget.spend(
+                        block.instructions.len(),
+                        "task return actual error tag search",
+                    )?;
+                    let explicit_error = roots.roots.is_empty()
+                        && block.instructions.iter().any(|i| {
+                            i.result == Some(value)
+                                && matches!(
+                                    i.kind,
+                                    InstructionKind::MakeErrorUnion { is_error: true, .. }
+                                )
+                        });
+                    if retained_task_value(&function.return_type)
+                        && !explicit_error
+                        && (roots.roots.is_empty()
+                            || roots
+                                .roots
+                                .iter()
+                                .any(|root| !matches!(root, HoldRoot::Parameter(0))))
+                    {
+                        return Err(bad(
+                            "borrowed Task return exceeds its actual shared input root",
+                        ));
+                    }
                     for root in &roots.roots {
                         budget.spend(1, "return parameter origin")?;
                         match root {
