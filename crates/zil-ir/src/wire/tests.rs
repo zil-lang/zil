@@ -128,7 +128,7 @@ fn async_registration_raw_operations_preserve_every_field_without_admission() {
             assert!(identities.insert(encoded));
         }
         let mut bad = writer.output;
-        bad[5] = 141;
+        bad[5] = 255;
         assert_eq!(
             Reader::new(&bad, &limits)
                 .unwrap()
@@ -177,7 +177,7 @@ fn async_registration_complete_environment_is_bounded_noncopy_raw_data() {
         );
     }
     let mut bad = writer.output;
-    bad[0] = 38;
+    bad[0] = 255;
     assert_eq!(
         Reader::new(&bad, &limits).unwrap().ty(0).unwrap_err().code,
         "E-WIRE-TYPE"
@@ -225,7 +225,7 @@ fn async_registration_complete_environment_is_bounded_noncopy_raw_data() {
         decode_module_candidate(&bytes, &limits).unwrap(),
         (module, plan)
     );
-    for version in [40u32, 41, 42, 45] {
+    for version in [40u32, 41, 42, 44, 46] {
         let mut bad = bytes.clone();
         bad[8..12].copy_from_slice(&version.to_le_bytes());
         assert_eq!(
