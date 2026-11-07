@@ -1591,7 +1591,7 @@ mod tests {
     use zil_ct::SourceCompiler;
 
     #[test]
-    fn g334_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
+    fn shared_helper_life_actual_source_helper_context_cannot_be_selected_by_pure_ct() {
         use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
         let input = SourceUnit::new(
             FileId(0),

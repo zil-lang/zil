@@ -32,10 +32,10 @@ mod terminal342_higher_rank;
 mod terminal342_stored_physical;
 
 #[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
-mod utf8_literals_g931;
+mod utf8_literals;
 
 #[path = "../../../tests/language-readiness/G2.4.1/analyze.rs"]
-mod g241_analyze;
+mod trait_shared_lending_analyze;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
@@ -1400,7 +1400,7 @@ fn contract_identity_tracks_return_origin_changes_only_after_verify() {
 }
 
 #[test]
-fn g3_4_1_option_borrowed_source_keeps_lexical_life_in_core() {
+fn shared_option_borrow_option_borrowed_source_keeps_lexical_life_in_core() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/342/slice-iterator/option-borrowed.zil"
     );
@@ -1447,7 +1447,7 @@ fn g3_4_1_option_borrowed_source_keeps_lexical_life_in_core() {
 }
 
 #[path = "../../../tests/language-readiness/terminal/342/slice-iterator/option-consumers.rs"]
-mod g3_4_1_option_consumers;
+mod shared_option_borrow_option_consumers;
 
 #[path = "../../../tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs"]
-mod g3_4_1_original_consumers;
+mod shared_option_borrow_original_consumers;

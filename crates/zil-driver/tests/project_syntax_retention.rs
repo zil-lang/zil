@@ -216,7 +216,7 @@ fn retained_syntax_checks_current_frontend_quota_and_first_error() {
     for input in [Input::Project, Input::Filesystem] {
         let mut case = Case::new(40);
         // Use a fully accepted project to retain its Expand owner. Attribute
-        // parser work is covered separately by cp33_parse_budget; unexecuted
+        // parser work is covered separately by parse work budget test; unexecuted
         // #[doc] attributes cannot seed a successful project syntax epoch.
         case.put(39, leaf(39).trim_end().to_owned());
         let base = CompileOptions::default();

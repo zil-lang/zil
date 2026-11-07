@@ -1083,7 +1083,7 @@ fn parse_identity(source: &SourceUnit, options: &CompileOptions) -> QueryKey {
     neutral.max_tokens = 0;
     neutral.max_nodes = 0;
     let mut key = query_key_with_limits(source, options, Phase::Parse, false, &neutral);
-    let mut rules = b"ZIL-PARSE-RECEIPT-CP33-v1\0".to_vec();
+    let mut rules = b"ZIL-PARSE-RECEIPT-PARSE_WORK_BUDGET-v1\0".to_vec();
     rules.extend_from_slice(&key.rules.0);
     key.rules = Fingerprint::of(&rules);
     key

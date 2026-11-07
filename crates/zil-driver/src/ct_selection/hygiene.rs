@@ -577,7 +577,7 @@ mod generated_enum_tests {
     use zil_ir::InstructionKind;
 
     #[test]
-    fn impl230_generated_enum_raw_wire_reconstructs_and_rejects_forgery() {
+    fn generated_enum_nominals_generated_enum_raw_wire_reconstructs_and_rejects_forgery() {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),

@@ -1,4 +1,4 @@
-//! Independent construction10 review of the exact 225/226 implementations.
+//! Independent product_store_capture_review review of the exact 225/226 implementations.
 //! Invalid source/IR is verified only; only positive controls reach native code.
 use std::{
     fs,

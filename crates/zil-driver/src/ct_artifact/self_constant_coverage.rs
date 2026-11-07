@@ -399,7 +399,7 @@ impl Materializer<'_, '_> {
 mod tests {
     use super::*;
     #[test]
-    fn g231_coverage_import_aliases_require_one_actual_target() {
+    fn self_associated_constant_coverage_import_aliases_require_one_actual_target() {
         let texts = [
             "import api;fn main(){}",
             "pub trait C{const N:i32=1;}",
