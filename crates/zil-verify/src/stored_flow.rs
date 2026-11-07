@@ -1433,6 +1433,19 @@ fn instantiate(
     let mut p = if source.leaf.is_empty() {
         permission_work(&v.address, b)?;
         v.address.clone()
+    } else if !v.leaves.is_empty()
+        && matches!(v.address.sources.as_slice(), [root]
+        if root.leaf.is_empty()
+            && root.inline.is_empty()
+            && match root.base {
+                HoldRoot::Local(local) => state.locals.get(local.0 as usize).is_some(),
+                HoldRoot::Parameter(index) => state.external.get(index as usize).is_some(),
+                HoldRoot::Static | HoldRoot::Capture(_) => false,
+            })
+    {
+        // A mutable carrier's current slot comes from the frame. The loaded
+        // SSA payload can predate an earlier call or field replacement.
+        select(state, &v.address, &source.leaf, b)?
     } else if let Some(p) = leaf(v, &source.leaf, b)? {
         permission_work(p, b)?;
         p.clone()
@@ -2248,6 +2261,11 @@ fn live_loans(
             add_loans(&mut loans, &p.loans, b)?;
         }
     }
+    for holder in &state.external {
+        for (_, p) in &holder.leaves {
+            add_loans(&mut loans, &p.loans, b)?;
+        }
+    }
     ancestry(&loans, &solution.loans, b)
 }
 #[allow(clippy::too_many_arguments)]
@@ -2834,6 +2852,14 @@ fn summarize(
                     for source in &permission.sources {
                         if !matches!(source.base, HoldRoot::Parameter(_) | HoldRoot::Static) {
                             return Err(err("external slot update retains a callee-local target"));
+                        }
+                        if let HoldRoot::Parameter(origin) = source.base
+                            && relation(f, StorageBase::Parameter(position as u32), path, b)?
+                                != relation(f, StorageBase::Parameter(origin), &source.leaf, b)?
+                        {
+                            return Err(err(
+                                "external slot update exceeds its declared lifetime relation",
+                            ));
                         }
                     }
                     let key = (position as u32, path.clone());

@@ -1578,6 +1578,23 @@ fn substitute(
             union(&mut out, actual, b)?;
         }
         out
+    } else if !value.slots.is_empty()
+        && value.pointer.targets.len() == 1
+        && value.pointer.targets.iter().next().is_some_and(|root| {
+            root.stored.is_empty()
+                && root.place.is_empty()
+                && match root.base {
+                    HoldRoot::Local(local) => state.locals.contains_key(&local),
+                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
+                        state.external.contains_key(&root.base)
+                    }
+                    HoldRoot::Static => false,
+                }
+        })
+    {
+        // A mutable carrier may have been replaced since this SSA argument
+        // was loaded. Its leaf snapshot is no longer the current memory slot.
+        select(state, &value.pointer, &source.stored, b)?
     } else if !value.slots.is_empty() {
         ordered(b, value.slots.len(), source.stored.len())?;
         let mut out = Permission::default();
@@ -2458,6 +2475,13 @@ fn active(
             union(&mut direct, leaf, b)?;
         }
     }
+    if b.stored_slot_updates {
+        for slots in state.external.values() {
+            for leaf in slots.values() {
+                union(&mut direct, leaf, b)?;
+            }
+        }
+    }
     ancestry(&direct.loans, loans, b)
 }
 fn reverse(
@@ -3059,6 +3083,19 @@ fn derive_cfg(
                                 {
                                     return Err(failure(
                                         "stored external update retains an activation-local target",
+                                    ));
+                                }
+                                if let HoldRoot::Parameter(source) = target.base
+                                    && binding(f, StorageBase::Parameter(*index), path, b)?
+                                        != binding(
+                                            f,
+                                            StorageBase::Parameter(source),
+                                            &target.stored,
+                                            b,
+                                        )?
+                                {
+                                    return Err(failure(
+                                        "stored external update exceeds its declared lifetime relation",
                                     ));
                                 }
                                 if !row.contains(target) {

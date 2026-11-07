@@ -5,8 +5,10 @@ fn make<life a>(pointer:&'a mut i32)->Session<'a>{
 fn replace<life a>(session:&mut Session<'a>,next:&'a mut i32){
     session.pointer=next
 }
+fn observe<life a>(session:&mut Session<'a>){}
 fn relay<life a>(session:&mut Session<'a>,next:&'a mut i32){
     replace(session,next)
+    observe(session)
 }
 fn main()->i32{
     var old=1
