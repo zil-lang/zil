@@ -4,7 +4,7 @@
 
 先核 main 与 goal 的实际远端 SHA、worktree、未提交和未跟踪源码。看 [goal.md](goal.md) 当前范围与依赖，再读 main 的 [正式语言设计](https://github.com/zil-lang/zil/blob/main/_zil_design.md)、[阶段接口](https://github.com/zil-lang/zil/blob/main/spec/interfaces.json) 和实际受影响模块。每项确定基线、写集、成功例、最近反例、消费者、风险和退出条件。一任务一分支一 worktree；相交公共 schema、根 Cargo/锁和正式门由 root 单写协调。
 
-施工和常规独审用 sol high，疑难语义才交 Astra。Analyze 与 Verify 独立实现和复核，不用一方结果替另一方求证。当前四核环境同一时间只开一个重构建窗口；其他人员继续阅读、实现或轻量检查。并行工作先核不相交写集、target/临时输出与磁盘余量。
+施工和常规独审用 sol high，疑难语义才交 Astra。Analyze 与 Verify 独立实现和复核，不用一方结果替另一方求证。当前四核环境同一时间只开一个重构建窗口；其他人员继续阅读、实现或轻量检查。并行工作先核不相交写集、target/临时输出与磁盘余量。每条施工树使用独立 `CARGO_TARGET_DIR`，加载环境脚本后再显式设置；不同公共表示的分支不得共用编译产物目录。
 
 任务分支可用 `.task/<ID>.md` 保存基线、父合同、写集、方案、测试和交付条件。合入 main 前将生效规则、接口、真实输入与必要精简验收归入语义路径，移除 `.task`；不在 main 保留当前排期或施工过程。编号只作任务/历史身份，永久文件、模块、测试和工具以能力或不变量命名。迁名必须覆盖 Rust mod/include、Cargo target、fixture、测试选择、脚本、CI、打包和 Markdown；输入字节、断言集合和规范条件不能因清理减少。
 
