@@ -261,6 +261,34 @@ impl Builder<'_, '_> {
                 ty: declared,
                 fields,
             } => {
+                if bind
+                    && path.len() == 1
+                    && matches!(root_ty, Type::Package { .. })
+                    && matches!(ty, Type::Package { .. })
+                {
+                    let PlaceProjection::Field(index) = path[0] else {
+                        unreachable!("Package child field")
+                    };
+                    let value = self.value(
+                        InstructionKind::TakePackageField { local: root, index },
+                        ty.clone(),
+                        p.span,
+                    )?;
+                    let name = format!("$patternChild340${}", self.function.locals.len());
+                    let child = self.local(&name, ty.clone(), true, p.span)?;
+                    self.store(child, value, p.span)?;
+                    return self.owner_pattern_walk(
+                        p,
+                        child,
+                        &mut Vec::new(),
+                        ty,
+                        ty,
+                        fail,
+                        true,
+                        consume,
+                        out,
+                    );
+                }
                 self.closures.snapshot(
                     fields
                         .len()
@@ -433,6 +461,16 @@ impl Builder<'_, '_> {
         fail: BlockId,
         consume: bool,
     ) -> R<Bindings> {
+        self.owner_pattern_check(p, place, fail, consume)?;
+        self.owner_pattern_bind(p, place, fail, consume)
+    }
+    fn owner_pattern_check(
+        &mut self,
+        p: &CorePattern,
+        place: &Place,
+        fail: BlockId,
+        consume: bool,
+    ) -> R<()> {
         self.owner_pattern_walk(
             p,
             place.local,
@@ -443,7 +481,15 @@ impl Builder<'_, '_> {
             false,
             consume,
             &mut Vec::new(),
-        )?;
+        )
+    }
+    fn owner_pattern_bind(
+        &mut self,
+        p: &CorePattern,
+        place: &Place,
+        fail: BlockId,
+        consume: bool,
+    ) -> R<Bindings> {
         let mut values = Vec::new();
         self.owner_pattern_walk(
             p,
@@ -482,11 +528,9 @@ impl Builder<'_, '_> {
             }
 
             let fail = self.block_id()?;
-            let values = self.owner_pattern_values(&arm.pattern, &place, fail, consume)?;
+            self.owner_pattern_check(&arm.pattern, &place, fail, consume)?;
             self.push_scope(arm.span)?;
-            if consume {
-                self.finish_resource_temps(arm.span)?;
-            }
+            let values = self.owner_pattern_bind(&arm.pattern, &place, fail, consume)?;
             for (name, value, ty, span) in values.into_iter().rev() {
                 let local = self.local(&name, ty, false, span)?;
                 self.store(local, value, span)?;
@@ -494,6 +538,9 @@ impl Builder<'_, '_> {
             self.block(&arm.body)?;
             if self.current.is_some() {
                 self.end_scopes(self.scopes.len() - 1, arm.span)?;
+                if consume {
+                    self.finish_resource_temps(arm.span)?;
+                }
             }
             if let Some(end) = self.current.take() {
                 ends.push(end)
