@@ -607,7 +607,10 @@ impl FunctionEmitter<'_> {
         path: &[PlaceProjection],
         mode: StoredBorrowLoad,
     ) -> CompileResult<()> {
-        if mode != StoredBorrowLoad::CopyShared {
+        if !matches!(
+            mode,
+            StoredBorrowLoad::CopyShared | StoredBorrowLoad::Reborrow { mutable: true }
+        ) {
             return unsupported(
                 "stored mutable/reborrow/description native operation is not yet implemented",
                 Some(i.span),
@@ -661,8 +664,16 @@ impl FunctionEmitter<'_> {
             })?;
             indices.push(m::Arg::new(m::Ty::Int(32), m::Val::Int(i128::from(*index))));
         }
-        if !matches!(current, Type::Address { mutable: false, .. })
-            || self.value_type(result(i)?)? != current
+        if !matches!(
+            (current, mode),
+            (
+                Type::Address { mutable: false, .. },
+                StoredBorrowLoad::CopyShared
+            ) | (
+                Type::Address { mutable: true, .. },
+                StoredBorrowLoad::Reborrow { mutable: true }
+            )
+        ) || self.value_type(result(i)?)? != current
         {
             return invalid(
                 "E-CODEGEN-STORAGE",

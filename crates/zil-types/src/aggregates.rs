@@ -1138,8 +1138,7 @@ impl Resolver<'_> {
                             &self.generic_limits,
                             f.span,
                         )?)
-                    || (stored_instance.is_some()
-                        && matches!(ty, Type::Address { mutable: false, .. }))
+                    || (stored_instance.is_some() && matches!(ty, Type::Address { .. }))
                     || (d.kind == AggregateKind::Package
                         && !f.manages
                         && d.name.starts_with("$generic_")
@@ -2428,7 +2427,15 @@ impl<'a> Builder<'a, '_> {
         if self.known_type_is(object, |ty| {
             stored::shared_value(ty) || stored::shared_address(ty)
         }) {
-            let (storage, address_ty) = self.projection_base(object, false)?;
+            let exclusive = self.known_type_is(object, |ty| {
+                let ty = match ty {
+                    Type::Address { inner, .. } => inner.as_ref(),
+                    _ => ty,
+                };
+                matches!(stored::physical(ty), Type::Record { fields, .. }
+                    if fields.iter().any(|(_, field)| matches!(field, Type::Address { mutable: true, .. })))
+            });
+            let (storage, address_ty) = self.projection_base(object, exclusive)?;
             let Type::Address { mutable, inner } = &address_ty else {
                 unreachable!()
             };
@@ -2442,6 +2449,26 @@ impl<'a> Builder<'a, '_> {
                             storage,
                             path: vec![PlaceProjection::Field(index)],
                             mode: StoredBorrowLoad::CopyShared,
+                        },
+                        ty.clone(),
+                        e.span,
+                    )?,
+                    ty,
+                ));
+            }
+            if matches!(ty, Type::Address { mutable: true, .. }) {
+                if !mutable {
+                    return Err(unsupported(
+                        e.span,
+                        "exclusive stored field requires a mutable holder",
+                    ));
+                }
+                return Ok((
+                    self.value(
+                        InstructionKind::LoadStoredBorrow {
+                            storage,
+                            path: vec![PlaceProjection::Field(index)],
+                            mode: StoredBorrowLoad::Reborrow { mutable: true },
                         },
                         ty.clone(),
                         e.span,

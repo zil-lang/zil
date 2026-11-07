@@ -336,16 +336,20 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     while let Some((t, path)) = todo.pop() {
         b.spend(1)?;
         match t {
-            Type::Address {
-                mutable: false,
-                inner,
-            } => {
+            Type::Address { mutable, inner } => {
                 type_work(inner, limits, b)?;
                 if !inner.is_address_pointee() {
                     return Err(err("stored shared leaf has invalid actual pointee"));
                 }
                 b.spend(path.len().saturating_add(1))?;
-                actual.push(path);
+                actual.push((
+                    path,
+                    if *mutable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    },
+                ));
             }
             Type::Record { name, fields } => {
                 b.spend(name.len())?;
@@ -458,11 +462,22 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         b.spend(row.path.len().saturating_add(1))?;
         class(row.binder, b)?;
     }
-    for (path, row) in actual.iter().zip(&shape.slots) {
+    for ((path, mode), row) in actual.iter().zip(&shape.slots) {
         b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
-        if path != &row.path || row.mode != StoredBorrowMode::SharedAddress {
+        if path != &row.path || mode != &row.mode {
             return Err(err(
                 "actual physical stored path or mode differs from declared leaf",
+            ));
+        }
+        if *mode == StoredBorrowMode::ExclusiveAddress
+            && (!matches!(storage, Type::Record { .. })
+                || shape.slots.len() != 1
+                || !shape.retained.is_empty()
+                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+        {
+            return Err(unsupported(
+                "exclusive stored holder requires one direct Record slot",
+                None,
             ));
         }
         class(row.binder, b)?;
@@ -631,7 +646,8 @@ pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budg
                             | InstructionKind::ScopeEnter { .. }
                             | InstructionKind::ScopeExit { .. }
                             | InstructionKind::LoadStoredBorrow {
-                                mode: StoredBorrowLoad::CopyShared,
+                                mode: StoredBorrowLoad::CopyShared
+                                    | StoredBorrowLoad::Reborrow { mutable: true },
                                 ..
                             }
                     )
@@ -1218,7 +1234,7 @@ fn seed_payload(
             loans.push(Loan {
                 sources: vec![source.clone()],
                 parents: Vec::new(),
-                exclusive: false,
+                exclusive: slot.mode == StoredBorrowMode::ExclusiveAddress,
             });
             p.leaves.push((
                 slot.path.clone(),
@@ -1601,6 +1617,14 @@ fn step(
             path,
             mode: StoredBorrowLoad::CopyShared,
         } => out.address = select(state, &val(*storage)?.address, path, b)?,
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode: StoredBorrowLoad::Reborrow { mutable: true },
+        } => {
+            out.address = select(state, &val(*storage)?.address, path, b)?;
+            add_loans(&mut out.address.loans, &val(*storage)?.address.loans, b)?;
+        }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             return Err(unsupported(
                 "stored reborrow/take/replacement CFG is not yet implemented",
@@ -1646,6 +1670,17 @@ fn step(
                         &instantiate(source, arguments, values, state, b)?,
                         b,
                     )?;
+                    if path.is_empty()
+                        && matches!(callee.return_type, Type::Address { mutable: true, .. })
+                        && !source.leaf.is_empty()
+                        && let HoldRoot::Parameter(index) = source.base
+                    {
+                        let actual = arguments
+                            .get(index as usize)
+                            .and_then(|v| values.get(v.0 as usize))
+                            .ok_or_else(|| err("stored result carrier parameter absent"))?;
+                        add_loans(&mut p.loans, &actual.address.loans, b)?;
+                    }
                 }
                 if path.is_empty() {
                     out.address = p;
@@ -1737,6 +1772,10 @@ fn step(
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::LoadStoredBorrow {
+                    mode: StoredBorrowLoad::Reborrow { mutable: true },
+                    ..
+                }
                 | InstructionKind::AddressField { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
@@ -1795,7 +1834,7 @@ fn step(
                     .ok_or_else(|| err("stored result loan outside actual arena"))?;
                 add_sources(&mut row.sources, &p.sources, b)?;
                 add_loans(&mut row.parents, &p.loans, b)?;
-                row.exclusive = false;
+                row.exclusive = declaration.mode == StoredBorrowMode::ExclusiveAddress;
                 b.spend(1)?;
                 p.loans = vec![loan_id];
             }
@@ -2222,17 +2261,25 @@ fn windows(
                     requirements,
                     b,
                 )?,
-                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode,
+                } => {
+                    let exclusive = matches!(
+                        mode,
+                        StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
+                    );
                     access(
                         pointer(*storage)?,
-                        false,
+                        exclusive,
                         &active,
                         &solution.loans,
                         requirements,
                         b,
                     )?;
                     let p = select(&state, pointer(*storage)?, path, b)?;
-                    access(&p, false, &active, &solution.loans, requirements, b)?;
+                    access(&p, exclusive, &active, &solution.loans, requirements, b)?;
                 }
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
