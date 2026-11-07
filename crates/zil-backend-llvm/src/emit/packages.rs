@@ -24,7 +24,20 @@ pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) 
 }
 
 pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    supported_type(ty, resources) || product_type(ty, resources)
+    supported_type(ty, resources)
+        || product_type(ty, resources)
+        || (has_inline_store_owner(ty) && owned_product_type(ty, resources))
+}
+
+fn has_inline_store_owner(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
+            if dynamic_store::inline_protocol_element(element)),
+        Type::Package { fields, .. } => fields
+            .iter()
+            .any(|(_, field)| has_inline_store_owner(field)),
+        _ => false,
+    }
 }
 
 fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {

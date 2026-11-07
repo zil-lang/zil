@@ -21,8 +21,21 @@ pub(super) fn has_array_fields(ty: &Type) -> bool {
 }
 
 pub(super) fn has_store_fields(ty: &Type) -> bool {
-    matches!(ty, Type::Package { fields, .. }
-        if fields.iter().any(|(_, t)| dynamic_store::is_carrier(t)))
+    fn contained(ty: &Type) -> bool {
+        if dynamic_store::is_carrier(ty) {
+            return true;
+        }
+        match ty {
+            Type::Package { fields, .. } => fields.iter().any(|(_, ty)| contained(ty)),
+            Type::Tuple(fields) => fields.iter().any(contained),
+            Type::Enum { variants, .. } => variants
+                .iter()
+                .any(|(_, fields)| fields.iter().any(contained)),
+            Type::ErrorUnion { error, result } => contained(error) || contained(result),
+            _ => false,
+        }
+    }
+    matches!(ty, Type::Package { .. }) && contained(ty)
 }
 
 pub(super) fn supported(ty: &Type) -> bool {
