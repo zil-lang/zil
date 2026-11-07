@@ -12,12 +12,12 @@ import time
 CASES = [
     ('byte_io/main.zil', b'hello, Zil!\n\0\x80'),
     ('resource_closures/main.zil', b'D'),
-    ('generic_store178/main.zil', b'2'),
-    ('mixed_capture182/main.zil', b'2'),
-    ('ct_selection219/main.zil', b'2'),
-    ('ct_types228/arrays_defaults.zil', b''),
-    ('where_copy229/main.zil', b''),
-    ('shared_product224/main.zil', b''),
+    ('generic-store/main.zil', b'2'),
+    ('mixed-capture/main.zil', b'2'),
+    ('ct-selection/main.zil', b'2'),
+    ('ct-types/arrays_defaults.zil', b''),
+    ('where-copy/main.zil', b''),
+    ('shared-product/main.zil', b''),
 ]
 def sha(path): return hashlib.sha256(path.read_bytes()).hexdigest()
 def main():

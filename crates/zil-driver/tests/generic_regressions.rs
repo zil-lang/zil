@@ -1056,9 +1056,9 @@ fn thread_native_parent_observer(profile: &str) {
             let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
                 .arg(thread_local_parent_root().join(if shared {
-                    "shared339/observer.c"
+                    "shared-ancestor/observer.c"
                 } else if nested {
-                    "parent332/nested_observer.c"
+                    "parent-child/nested_observer.c"
                 } else {
                     "observer.c"
                 }))
@@ -1083,7 +1083,7 @@ fn thread_native_parent_observer(profile: &str) {
                     .iter()
                     .enumerate()
                     .map(|(index, name)| {
-                        let path = thread_local_parent_root().join(format!("shared339/{name}.zil"));
+                        let path = thread_local_parent_root().join(format!("shared-ancestor/{name}.zil"));
                         SourceUnit::new(
                             FileId(index as u32),
                             ModuleId(index as u32),
@@ -1097,9 +1097,9 @@ fn thread_native_parent_observer(profile: &str) {
             }
             if concrete_parent {
                 let path = thread_local_parent_root().join(if nested {
-                    "parent332/nested_owned.zil"
+                    "parent-child/nested_owned.zil"
                 } else {
-                    "parent332/owned_main.zil"
+                    "parent-child/owned_main.zil"
                 });
                 project.modules[0] = SourceUnit::new(
                     FileId(0),
@@ -1235,14 +1235,14 @@ fn thread_native_parent_observer(profile: &str) {
             for control in controls {
                 let text = if shared {
                     fs::read_to_string(
-                        thread_local_parent_root().join(format!("shared339/{control}.zil")),
+                        thread_local_parent_root().join(format!("shared-ancestor/{control}.zil")),
                     )
                     .unwrap()
                 } else if concrete_parent {
                     let path = if *control == "parent_closure" {
                         "pending/parent_closure.zil".to_owned()
                     } else {
-                        format!("parent332/{control}.zil")
+                        format!("parent-child/{control}.zil")
                     };
                     fs::read_to_string(thread_local_parent_root().join(path)).unwrap()
                 } else if *control == "return_factory" {
@@ -1299,7 +1299,7 @@ fn thread_parent_concrete_parent_kinds_and_nested_source() {
     let target = zil_base::TargetProfile::default();
     for name in ["kinds", "nested", "borrow"] {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("parent332/{name}.zil")),
+            thread_local_parent_root().join(format!("parent-child/{name}.zil")),
         )
         .unwrap();
         let src = source(&text);
@@ -1371,7 +1371,7 @@ fn thread_parent_parent_boundaries() {
         ),
     ] {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("parent332/{name}.zil")),
+            thread_local_parent_root().join(format!("parent-child/{name}.zil")),
         )
         .unwrap();
         let report = compile_source(&source(&text), &CompileOptions::default());
@@ -1846,7 +1846,7 @@ fn thread_parent_cleanup_shared_source_and_independent_windows() {
         "scalar_control",
     ] {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+            thread_local_parent_root().join(format!("shared-ancestor/{name}.zil")),
         )
         .unwrap();
         let src = source(&text);
@@ -1984,7 +1984,7 @@ fn thread_parent_cleanup_shared_source_and_independent_windows() {
         ),
     ] {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+            thread_local_parent_root().join(format!("shared-ancestor/{name}.zil")),
         )
         .unwrap();
         let report = compile_source(&source(&text), &CompileOptions::default());
@@ -2074,7 +2074,7 @@ fn thread_parent_cleanup_types_shared_budget_and_scalar_control() {
         "nested_shared",
     ] {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+            thread_local_parent_root().join(format!("shared-ancestor/{name}.zil")),
         )
         .unwrap();
         let src = source(&text);
@@ -2142,7 +2142,7 @@ fn thread_parent_cleanup_helper_return_mutable_roots_are_joint_in_both_kernels()
     let target = zil_base::TargetProfile::default();
     let limits = Limits::default();
     let text =
-        std::fs::read_to_string(thread_local_parent_root().join("shared339/helper_disjoint.zil"))
+        std::fs::read_to_string(thread_local_parent_root().join("shared-ancestor/helper_disjoint.zil"))
             .unwrap();
     let src = source(&text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
@@ -2192,7 +2192,7 @@ fn thread_parent_cleanup_helper_return_mutable_roots_are_joint_in_both_kernels()
         "{errors:?}"
     );
     let text =
-        std::fs::read_to_string(thread_local_parent_root().join("shared339/helper_writer.zil"))
+        std::fs::read_to_string(thread_local_parent_root().join("shared-ancestor/helper_writer.zil"))
             .unwrap();
     let src = source(&text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
@@ -2219,7 +2219,7 @@ fn thread_parent_cleanup_machine_cache_keeps_scalar_and_pointer_payloads_distinc
         .enumerate()
     {
         let text = std::fs::read_to_string(
-            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+            thread_local_parent_root().join(format!("shared-ancestor/{name}.zil")),
         )
         .unwrap();
         let report = compile_source(

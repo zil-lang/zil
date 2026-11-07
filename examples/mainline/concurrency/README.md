@@ -40,7 +40,7 @@ cargo test -p zil-driver --features llvm-api --test generic_regressions thread32
 
 ## 339：真实共享i32地址进入joined child
 
-`shared339/shared_child.zil`保持原B失败字节：worker接收`&i32`并通过普通静态
+`shared-ancestor/shared_child.zil`保持原B失败字节：worker接收`&i32`并通过普通静态
 helper读取，父body同时读取同一位置，join返回后父方才写入。有限参数来源及父
 helper返回沿真实根核验；直接未核Store/lending/拥有投影保留Unsupported。
 `nested_disjoint`将同一个shared x与可变y置于被借入writer，不能用整个闭包FnMut
@@ -51,7 +51,7 @@ helper返回沿真实根核验；直接未核Store/lending/拥有投影保留Uns
 非原子写被共享窗口排除。child结果写入独立槽，join成功才观察；无法证明静止
 仍abort。没有新语言Mutex/Atomic、隐式RC或Box。
 
-`shared339/observer.c`仅包装真实pthread，比较父body的真实input与context指针，
+`shared-ancestor/observer.c`仅包装真实pthread，比较父body的真实input与context指针，
 延迟production start到body Drop以后；生成child仍实际解引用父局部。两backend
 O0/O2覆盖成功、业务错误、create失败及join失败，共16观察场景；另12源码控制
 ×4配置=48执行，cache三次执行分列。重放不叠加，初版与审核失败见changes记录。
@@ -59,10 +59,10 @@ O0/O2覆盖成功、业务错误、create失败及join失败，共16观察场景
 ```sh
 source /workspace/.zil-env/env.sh
 export CARGO_TARGET_DIR=/workspace/.zil-env/target339 CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
-export TMPDIR=/workspace/.zil-env/tmp-batch336/339
+export TMPDIR=/workspace/.zil-env/tmp-component-replay/339
 cargo test -p zil-driver --features llvm-api --test generic_regressions -- --nocapture
 cargo test -p zil-backend-llvm --features llvm-api --lib scoped_thread -- --nocapture
 ```
 
 精确作者受测源码、原输入SHA、阶段拒绝、预算与不支持项在
-`shared339/validation.json`；独审分开记账，不把局部成功替代完整语言或产品门。
+`shared-ancestor/validation.json`；独审分开记账，不把局部成功替代完整语言或产品门。
