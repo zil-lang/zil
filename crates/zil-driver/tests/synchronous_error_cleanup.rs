@@ -209,12 +209,26 @@ fn choose<E:Copy,T:Copy>(failure:E,success:T,fail:bool)->E!T{
  if fail{return error_err::<E,T>(failure)}
  return error_ok::<E,T>(success)
 }
+fn choose_implicit<E:Copy,T:Copy>(failure:E,success:T,fail:bool)->E!T{
+ if fail{return failure}
+ return success
+}
+fn local_implicit<E:Copy,T:Copy>(failure:E,success:T,fail:bool)->E!T{
+ if fail{let value:E!T=failure;return value}
+ let value:E!T=success;return value
+}
+fn arrow_implicit<E:Copy,T:Copy>(success:T)->E!T => success
 
 fn good()->i32{match success(){.ok(value)=>{return value},.err(_)=>{return 0}}}
 fn bad()->i32{match failure(){.ok(_)=>{return 0},.err(value)=>{return value}}}
 fn generic_good()->i32{match choose::<i32,i32>(7,42,false){.ok(value)=>{return value},.err(_)=>{return 0}}}
 fn generic_bad()->i32{match choose::<i32,i32>(7,42,true){.ok(_)=>{return 0},.err(value)=>{return value}}}
-fn main()->i32{return good()+bad()+generic_good()+generic_bad()-98}
+fn implicit_good()->i32{match choose_implicit::<i32,i32>(7,42,false){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn implicit_bad()->i32{match choose_implicit::<i32,i32>(7,42,true){.ok(_)=>{return 0},.err(value)=>{return value}}}
+fn local_good()->i32{match local_implicit::<i32,i32>(7,42,false){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn local_bad()->i32{match local_implicit::<i32,i32>(7,42,true){.ok(_)=>{return 0},.err(value)=>{return value}}}
+fn arrow_good()->i32{match arrow_implicit::<i32,i32>(42){.ok(value)=>{return value},.err(_)=>{return 0}}}
+fn main()->i32{return good()+bad()+generic_good()+generic_bad()+implicit_good()+implicit_bad()+local_good()+local_bad()+arrow_good()-238}
 "#;
     let temp = Temp::new();
     let input = temp.0.join("explicit-error-construction.zil");
@@ -292,6 +306,117 @@ fn error_constructor_names_cannot_be_rebound_or_choose_the_wrong_payload() {
         );
         assert_eq!(report.verification_runs, 0, "{name}: {}", report.to_json());
     }
+}
+
+#[test]
+fn equal_owning_error_arms_transfer_each_entry_once() {
+    let source = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn entry(a:i32,b:i32)->Entry<Item,Item> {return Entry::<Item,Item>{key:Item{ticket:Ticket{code:a}},value:Item{ticket:Ticket{code:b}}}}
+fn explicit_ok()->Entry<Item,Item>!Entry<Item,Item>{return error_ok::<Entry<Item,Item>,Entry<Item,Item>>(entry(65,66))}
+fn explicit_err()->Entry<Item,Item>!Entry<Item,Item>{return error_err::<Entry<Item,Item>,Entry<Item,Item>>(entry(67,68))}
+fn generic<E:StoreElement,T:StoreElement>(failure:E,success:T,fail:bool)->E!T{
+ if fail{return failure}
+ return success
+}
+
+fn observe(value:Entry<Item,Item>!Entry<Item,Item>)->i32{
+ match value{.ok(_)=>{return 0},.err(_)=>{return 1}}
+}
+fn main()->i32{
+ let a=observe(explicit_ok());
+ let b=observe(explicit_err());
+ let c=observe(generic::<Entry<Item,Item>,Entry<Item,Item>>(entry(69,70),entry(71,72),false));
+ let d=observe(generic::<Entry<Item,Item>,Entry<Item,Item>>(entry(73,74),entry(75,76),true));
+ return a+b+d-2
+}
+"#;
+    let temp = Temp::new();
+    let input = temp.0.join("equal-owning-error.zil");
+    fs::write(&input, source).unwrap();
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let report = compile_path(
+            &input,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(temp.0.join(format!("owning-{optimization:?}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1);
+        run(&report.artifacts["executable"], b"", 0, "ABCDEFGHKLIJ");
+    }
+}
+
+#[test]
+fn explicit_equal_owning_tag_survives_raw_wire_and_wrong_arm_rejects() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::{InstructionKind, PlaceProjection};
+    let source = r#"
+resource R{code:i32}
+package P{manages r:R}
+fn make()->P!P{return error_ok::<P,P>(P{r:R{code:65}})}
+fn observe(value:P!P)->i32{match value{.ok(p)=>{return p.r.code-65},.err(_)=>{return 1}}}
+fn main()->i32{return observe(make())}
+"#;
+    let input = SourceUnit::new(FileId(0), ModuleId(0), "equal-owning-wire", source);
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let constructions: Vec<_> = raw
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match i.kind {
+            InstructionKind::MakeErrorUnion { is_error, .. } => Some(is_error),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(constructions, [false]);
+    let plan = zil_analyze::analyze(&raw, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
+    assert_eq!(
+        zil_verify::verify_module_bytes(&wire, &target, &limits)
+            .unwrap()
+            .module(),
+        &raw
+    );
+
+    let mut wrong = raw.clone();
+    let extraction = wrong
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| {
+            matches!(&i.kind, InstructionKind::TakeVariantField { path, .. }
+            if path == &[PlaceProjection::ErrorArm(false)])
+        })
+        .unwrap();
+    let InstructionKind::TakeVariantField { path, .. } = &mut extraction.kind else {
+        unreachable!()
+    };
+    path[0] = PlaceProjection::ErrorArm(true);
+    assert!(zil_analyze::analyze(&wrong, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = wrong.fingerprint();
+    assert!(zil_verify::verify_module(wrong.clone(), claim.clone(), &target, &limits).is_err());
+    let forged = zil_ir::wire::encode_module_candidate(&wrong, &claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&forged, &target, &limits).is_err());
 }
 
 #[test]

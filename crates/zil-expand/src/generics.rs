@@ -554,6 +554,7 @@ struct Engine<'a> {
     nominals: BTreeMap<String, &'a Item>,
     traits: trait_bounds::Index<'a>,
     trait_calls: trait_instances::Calls,
+    selected_error_arms: BTreeMap<String, error_injection::Choices>,
     resolved_method_calls: trait_instances::Calls,
     method_calls: trait_instances::CallTargets,
     return_type: Option<TypeRef>,
@@ -664,6 +665,7 @@ impl<'a> Engine<'a> {
             pattern_types,
             traits,
             trait_calls: trait_instances::Calls::new(),
+            selected_error_arms: BTreeMap::new(),
             resolved_method_calls: trait_instances::Calls::new(),
             method_calls: trait_instances::CallTargets::new(),
             templates: BTreeMap::new(),
@@ -934,7 +936,7 @@ impl<'a> Engine<'a> {
                     engine.traits.has_instances || ct_types.is_some(),
                     source_ids,
                 )?;
-                validate_parametric(
+                let selected = validate_parametric(
                     &checked,
                     check::ParametricTables {
                         ct_types: ct_types.as_ref(),
@@ -952,6 +954,10 @@ impl<'a> Engine<'a> {
                     &mut engine.budget,
                     &mut engine.trait_calls,
                 )?;
+                if selected.expression.is_some() || !selected.statements.is_empty() {
+                    engine.budget.text(&f.name, f.span)?;
+                    engine.selected_error_arms.insert(f.name.clone(), selected);
+                }
             }
             if let ItemKind::Enum(e) = &item.kind
                 && !engine.budget.enum_profile(item.span)
@@ -1559,6 +1565,11 @@ impl<'a> Engine<'a> {
                     &mut self.budget,
                 )?;
             }
+        }
+        if let ItemKind::Function(function) = &mut instance.kind
+            && let Some(selected) = self.selected_error_arms.get(&function.name)
+        {
+            error_injection::apply(function, selected, &mut self.budget)?;
         }
         substitute_item(&mut instance, &substitution)?;
         self.runtime_materialize(
@@ -4090,6 +4101,8 @@ impl Substitution<'_> {
 
 #[path = "generic_check.rs"]
 mod check;
+#[path = "generic_error_injection.rs"]
+mod error_injection;
 use check::validate_parametric;
 
 #[path = "generic_type_keys.rs"]

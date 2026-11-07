@@ -166,19 +166,30 @@ pub(super) fn same_return(
     scope: Scope<'_>,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    same_return_selected(actual, expected, span, scope, budget).map(|_| ())
+}
+pub(super) fn same_return_selected(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    scope: Scope<'_>,
+    budget: &mut Budget<'_>,
+) -> R<Option<bool>> {
     if !scope.active {
-        return super::same_return(actual, expected, span, budget);
+        return super::same_return_selected(actual, expected, span, budget);
     }
     let actual_key = key(actual, scope, budget)?;
     if actual_key == key(expected, scope, budget)? {
-        return Ok(());
+        return Ok(None);
     }
-    if let TypeKind::Error { error: err, result } = &group(expected).kind
-        && (actual_key == key(err, scope, budget)?) != (actual_key == key(result, scope, budget)?)
-    {
-        return Ok(());
+    if let TypeKind::Error { error: err, result } = &group(expected).kind {
+        let error_match = actual_key == key(err, scope, budget)?;
+        let result_match = actual_key == key(result, scope, budget)?;
+        if error_match != result_match {
+            return Ok(Some(error_match));
+        }
     }
-    same(actual, expected, span, scope, budget)
+    same(actual, expected, span, scope, budget).map(|_| None)
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
