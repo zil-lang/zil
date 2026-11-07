@@ -487,10 +487,10 @@ fn package_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 
 fn copy_only_package(ty: &Type) -> bool {
     matches!(ty, Type::Package { name, fields }
-        if !name.is_empty() && !fields.is_empty()
-            && fields.iter().all(|(name, field)| {
-                !name.is_empty() && (field.is_copy_value() || copy_only_package(field))
-            }))
+    if !name.is_empty() && !fields.is_empty()
+        && fields.iter().all(|(name, field)| {
+            !name.is_empty() && (field.is_copy_value() || copy_only_package(field))
+        }))
 }
 
 // Keep the existing predicate above for error-payload and array qualification.

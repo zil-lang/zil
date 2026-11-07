@@ -42,7 +42,11 @@ fn main()->i32{match work(){.err(_)=>{return 0},.ok(_)=>{return 1}}}
 
 #[test]
 fn two_independent_owned_value_fields_cleanup_on_error() {
-    native("two-value-entry-error-cleanup", TWO_VALUE_ENTRY_FAILURE, "AB");
+    native(
+        "two-value-entry-error-cleanup",
+        TWO_VALUE_ENTRY_FAILURE,
+        "AB",
+    );
 }
 
 #[test]
@@ -88,7 +92,10 @@ fn two_copy_actuals_have_no_cleanup_debt_but_package_stays_affine() {
         },
     );
     assert!(
-        matches!(failure.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+        matches!(
+            failure.status,
+            ResultCategory::SafeReject | ResultCategory::Unsupported
+        ),
         "a Copy actual must not make Package copyable: {failure:#?}"
     );
 }
@@ -183,7 +190,10 @@ fn zero_debt_packages_still_require_one_whole_move() {
             },
         );
         assert!(
-            matches!(result.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+            matches!(
+                result.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
             "{label}: {}",
             result.to_json()
         );
@@ -243,12 +253,16 @@ fn zero_debt_package_shape_is_rechecked_from_raw_and_wire() {
             let errors = result.expect_err(case);
             assert!(
                 errors.iter().any(|error| error.phase == Phase::Verify
-                    && matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)
-                    && error.message == match case {
-                        "borrowed-description" => "non-Copy type requires another checker",
-                        "duplicate-field" => "package fields must have unique nonempty names",
-                        _ => unreachable!(),
-                    }),
+                    && matches!(
+                        error.category,
+                        ResultCategory::SafeReject | ResultCategory::Unsupported
+                    )
+                    && error.message
+                        == match case {
+                            "borrowed-description" => "non-Copy type requires another checker",
+                            "duplicate-field" => "package fields must have unique nonempty names",
+                            _ => unreachable!(),
+                        }),
                 "{case}: {errors:#?}"
             );
         }
@@ -268,44 +282,83 @@ fn no_resource_zero_debt_package_rejects_raw_double_take_and_call() {
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
     for case in ["double-take", "same-ssa-double-call"] {
         let mut changed = module.clone();
-        let function = changed.functions.iter_mut().find(|function| function.name == "main").unwrap();
+        let function = changed
+            .functions
+            .iter_mut()
+            .find(|function| function.name == "main")
+            .unwrap();
         let values = &function.values;
-        let calls: Vec<_> = function.blocks.iter().enumerate().flat_map(|(block_index, block)| {
-            block.instructions.iter().enumerate().filter_map(move |(instruction_index, instruction)| {
-                let InstructionKind::Call { arguments, .. } = &instruction.kind else { return None };
-                (arguments.len() == 1 && matches!(&values[arguments[0].0 as usize], Type::Package { .. }))
-                    .then_some((block_index, instruction_index, arguments[0]))
+        let calls: Vec<_> = function
+            .blocks
+            .iter()
+            .enumerate()
+            .flat_map(|(block_index, block)| {
+                block.instructions.iter().enumerate().filter_map(
+                    move |(instruction_index, instruction)| {
+                        let InstructionKind::Call { arguments, .. } = &instruction.kind else {
+                            return None;
+                        };
+                        (arguments.len() == 1
+                            && matches!(&values[arguments[0].0 as usize], Type::Package { .. }))
+                        .then_some((block_index, instruction_index, arguments[0]))
+                    },
+                )
             })
-        }).collect();
+            .collect();
         assert_eq!(calls.len(), 2);
         let first_argument = calls[0].2;
         let (block_index, instruction_index, second_argument) = calls[1];
         match case {
             "double-take" => {
-                let first_local = function.blocks.iter().flat_map(|block| &block.instructions)
-                    .find_map(|instruction| match (&instruction.kind, instruction.result) {
-                        (InstructionKind::TakeLocal { local }, Some(result)) if result == first_argument => Some(*local),
-                        _ => None,
-                    }).unwrap();
-                let second_take = function.blocks[block_index].instructions.iter_mut()
-                    .find(|instruction| instruction.result == Some(second_argument)).unwrap();
-                let InstructionKind::TakeLocal { local } = &mut second_take.kind else { panic!("expected call argument to be a local transfer") };
+                let first_local = function
+                    .blocks
+                    .iter()
+                    .flat_map(|block| &block.instructions)
+                    .find_map(
+                        |instruction| match (&instruction.kind, instruction.result) {
+                            (InstructionKind::TakeLocal { local }, Some(result))
+                                if result == first_argument =>
+                            {
+                                Some(*local)
+                            }
+                            _ => None,
+                        },
+                    )
+                    .unwrap();
+                let second_take = function.blocks[block_index]
+                    .instructions
+                    .iter_mut()
+                    .find(|instruction| instruction.result == Some(second_argument))
+                    .unwrap();
+                let InstructionKind::TakeLocal { local } = &mut second_take.kind else {
+                    panic!("expected call argument to be a local transfer")
+                };
                 *local = first_local;
             }
             "same-ssa-double-call" => {
-                let InstructionKind::Call { arguments, .. } = &mut function.blocks[block_index].instructions[instruction_index].kind else { unreachable!() };
+                let InstructionKind::Call { arguments, .. } =
+                    &mut function.blocks[block_index].instructions[instruction_index].kind
+                else {
+                    unreachable!()
+                };
                 arguments[0] = first_argument;
             }
             _ => unreachable!(),
         }
         let analyzed = zil_analyze::analyze(&changed, &limits);
         let analyze_errors = analyzed.expect_err("Analyze must reject a duplicate affine transfer");
-        assert!(analyze_errors.iter().any(|error| error.phase == Phase::Analyze
-            && error.code == match case {
-                "double-take" => "E-UNINITIALIZED",
-                "same-ssa-double-call" => "E-ANALYZE-IR",
-                _ => unreachable!(),
-            }), "{case}: {analyze_errors:#?}");
+        assert!(
+            analyze_errors
+                .iter()
+                .any(|error| error.phase == Phase::Analyze
+                    && error.code
+                        == match case {
+                            "double-take" => "E-UNINITIALIZED",
+                            "same-ssa-double-call" => "E-ANALYZE-IR",
+                            _ => unreachable!(),
+                        }),
+            "{case}: {analyze_errors:#?}"
+        );
         let mut candidate = plan.clone();
         candidate.module_fingerprint = changed.fingerprint();
         let wire = zil_ir::wire::encode_module_candidate(&changed, &candidate, &limits).unwrap();
@@ -313,13 +366,20 @@ fn no_resource_zero_debt_package_rejects_raw_double_take_and_call() {
             zil_verify::verify_module(changed, candidate, &target, &limits),
             zil_verify::verify_module_bytes(&wire, &target, &limits),
         ] {
-            let verify_errors = verified.expect_err("Verify and Wire must reject a duplicate affine transfer");
-            assert!(verify_errors.iter().any(|error| error.phase == Phase::Verify
-                && error.code == match case {
-                    "double-take" => "E-VERIFY-INITIALIZATION",
-                    "same-ssa-double-call" => "E-VERIFY-RESOURCE",
-                    _ => unreachable!(),
-                }), "{case}: {verify_errors:#?}");
+            let verify_errors =
+                verified.expect_err("Verify and Wire must reject a duplicate affine transfer");
+            assert!(
+                verify_errors
+                    .iter()
+                    .any(|error| error.phase == Phase::Verify
+                        && error.code
+                            == match case {
+                                "double-take" => "E-VERIFY-INITIALIZATION",
+                                "same-ssa-double-call" => "E-VERIFY-RESOURCE",
+                                _ => unreachable!(),
+                            }),
+                "{case}: {verify_errors:#?}"
+            );
         }
     }
 }
@@ -393,7 +453,10 @@ fn main()->i32{
         let errors = result.expect_err("a descriptor cannot discharge the owned Value field");
         assert!(
             errors.iter().any(|error| error.phase == Phase::Verify
-                && matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)),
+                && matches!(
+                    error.category,
+                    ResultCategory::SafeReject | ResultCategory::Unsupported
+                )),
             "{errors:#?}"
         );
     }
@@ -409,7 +472,10 @@ fn main()->i32{
         },
     );
     assert!(
-        matches!(rejected.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+        matches!(
+            rejected.status,
+            ResultCategory::SafeReject | ResultCategory::Unsupported
+        ),
         "{}",
         rejected.to_json()
     );
@@ -446,12 +512,19 @@ fn mixed_bounds_and_complete_child_still_reject_duplicate_value_moves() {
                 ..CompileOptions::default()
             },
         );
-        assert_eq!(report.status, ResultCategory::SafeReject, "{label}: {}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
         assert!(
             report.diagnostics.iter().any(|diagnostic| {
                 diagnostic.phase == Phase::Expand
                     && diagnostic.message.contains(match label {
-                        "mixed-bound-partial-whole-parent" => "partial callable State must be refilled",
+                        "mixed-bound-partial-whole-parent" => {
+                            "partial callable State must be refilled"
+                        }
                         _ => "owning Package field used after its Value moved",
                     })
             }),
@@ -560,8 +633,15 @@ fn main()->i32{
             ..CompileOptions::default()
         },
     );
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
-    let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let run = Command::new(&report.artifacts["executable"])
+        .output()
+        .unwrap();
     assert_eq!(run.status.code(), Some(0), "{run:?}");
     assert_eq!(run.stdout, b"AB");
 }
@@ -624,33 +704,68 @@ fn main()->i32{
         root: ModuleId(0),
         modules: vec![
             SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text),
-            SourceUnit::new(FileId(1), ModuleId(1), "std/store.zil", include_str!("../../../lib/std/store.zil")),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "std/store.zil",
+                include_str!("../../../lib/std/store.zil"),
+            ),
         ],
         paths: [(vec!["std".into(), "store".into()], ModuleId(1))].into(),
     };
     for optimization in [Optimization::O0, Optimization::O2] {
         let out = dir("ordinary-store-remove-generic-map-field");
-        let report = compile_project(&project(source), &CompileOptions {
-            stop_after: Stage::Build,
-            backend: if cfg!(feature = "llvm-api") { NativeBackend::LlvmApi } else { NativeBackend::Clang },
-            optimization,
-            output: Some(out.join("program")),
-            ..CompileOptions::default()
-        });
-        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
-        let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+        let report = compile_project(
+            &project(source),
+            &CompileOptions {
+                stop_after: Stage::Build,
+                backend: if cfg!(feature = "llvm-api") {
+                    NativeBackend::LlvmApi
+                } else {
+                    NativeBackend::Clang
+                },
+                optimization,
+                output: Some(out.join("program")),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let run = Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
         assert_eq!(run.status.code(), Some(0), "{run:?}");
         assert_eq!(run.stdout, b"AB");
     }
     let shared = source.replace("map:&mut Map<K,V>", "map:&Map<K,V>");
-    let report = compile_project(&project(&shared), &CompileOptions {
-        stop_after: Stage::Verify,
-        ..CompileOptions::default()
-    });
-    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-    assert!(report.diagnostics.iter().any(|diagnostic|
-        diagnostic.phase == Phase::Expand && diagnostic.message.contains("shared Package reference cannot write its Store field")),
-        "{}", report.to_json());
+    let report = compile_project(
+        &project(&shared),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|diagnostic| diagnostic.phase == Phase::Expand
+                && diagnostic
+                    .message
+                    .contains("shared Package reference cannot write its Store field")),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -660,26 +775,61 @@ fn static_store_write_port_stays_held_through_later_arguments() {
         "fn bad<T:Copy+StoreElement>(map:&mut Map<T>)->T{return mutate(map.items,store_at(map.items,0))}",
         "fn bad<T:Copy+StoreElement>(map:&mut Map<T>)->T{return mutate_rev(store_at(map.items,0),map.items)}",
     ] {
-        let report = compile_source(&unit(&format!("{prefix}{body}fn main()->i32{{return 0}}")), &CompileOptions {
+        let report = compile_source(
+            &unit(&format!("{prefix}{body}fn main()->i32{{return 0}}")),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.phase == Phase::Expand
+                    && diagnostic
+                        .message
+                        .contains("conflicts with a prepared callee or argument window")),
+            "{}",
+            report.to_json()
+        );
+    }
+    let good = format!(
+        "{prefix}fn good(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate(left.items,store_at(right.items,0))}}fn good_rev(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate_rev(store_at(right.items,0),left.items)}}fn main()->i32{{let a:Store<i32>=store_new();let b:Store<i32>=store_new();store_reserve(a,1);store_reserve(b,1);store_push(a,7);store_push(b,9);var first=Map::<i32>{{items:give a}};let second=Map::<i32>{{items:give b}};return good(&mut first,&second)-9}}"
+    );
+    let report = compile_source(
+        &unit(&good),
+        &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
-        });
-        assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
-        assert!(report.diagnostics.iter().any(|diagnostic| diagnostic.phase == Phase::Expand
-            && diagnostic.message.contains("conflicts with a prepared callee or argument window")), "{}", report.to_json());
-    }
-    let good = format!("{prefix}fn good(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate(left.items,store_at(right.items,0))}}fn good_rev(left:&mut Map<i32>,right:&Map<i32>)->i32{{return mutate_rev(store_at(right.items,0),left.items)}}fn main()->i32{{let a:Store<i32>=store_new();let b:Store<i32>=store_new();store_reserve(a,1);store_reserve(b,1);store_push(a,7);store_push(b,9);var first=Map::<i32>{{items:give a}};let second=Map::<i32>{{items:give b}};return good(&mut first,&second)-9}}");
-    let report = compile_source(&unit(&good), &CompileOptions {
-        stop_after: Stage::Verify,
-        ..CompileOptions::default()
-    });
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
     let reversed = good.replace("good(&mut first,&second)", "good_rev(&mut first,&second)");
-    let report = compile_source(&unit(&reversed), &CompileOptions {
-        stop_after: Stage::Verify,
-        ..CompileOptions::default()
-    });
-    assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    let report = compile_source(
+        &unit(&reversed),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -705,13 +855,24 @@ fn main()->i32{
         root: ModuleId(0),
         modules: vec![
             SourceUnit::new(FileId(0), ModuleId(0), "main.zil", main),
-            SourceUnit::new(FileId(1), ModuleId(1), "std/owning_entries.zil", include_str!("../../../lib/std/owning_entries.zil")),
-            SourceUnit::new(FileId(2), ModuleId(2), "std/store.zil", include_str!("../../../lib/std/store.zil")),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "std/owning_entries.zil",
+                include_str!("../../../lib/std/owning_entries.zil"),
+            ),
+            SourceUnit::new(
+                FileId(2),
+                ModuleId(2),
+                "std/store.zil",
+                include_str!("../../../lib/std/store.zil"),
+            ),
         ],
         paths: [
             (vec!["std".into(), "owning_entries".into()], ModuleId(1)),
             (vec!["std".into(), "store".into()], ModuleId(2)),
-        ].into(),
+        ]
+        .into(),
     };
     let failure = main.replace("(&mut entries,0,second)", "(&mut entries,99,second)");
     assert_ne!(failure, main);
@@ -720,15 +881,29 @@ fn main()->i32{
         project.modules[0] = SourceUnit::new(FileId(0), ModuleId(0), "main.zil", source);
         for optimization in [Optimization::O0, Optimization::O2] {
             let out = dir("owning-entries-complete-values");
-            let report = compile_project(&project, &CompileOptions {
-                stop_after: Stage::Build,
-                backend: if cfg!(feature = "llvm-api") { NativeBackend::LlvmApi } else { NativeBackend::Clang },
-                optimization,
-                output: Some(out.join("program")),
-                ..CompileOptions::default()
-            });
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
-            let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+            let report = compile_project(
+                &project,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend: if cfg!(feature = "llvm-api") {
+                        NativeBackend::LlvmApi
+                    } else {
+                        NativeBackend::Clang
+                    },
+                    optimization,
+                    output: Some(out.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let run = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
             assert_eq!(run.status.code(), Some(exit), "{run:?}");
             assert_eq!(run.stdout, b"CDAB", "{run:?}");
         }
@@ -786,14 +961,21 @@ fn two_formal_recipe_indices_and_argument_arity_are_independently_checked() {
         .iter()
         .position(|template| template.name == "Entry")
         .unwrap();
-    for case in ["duplicate-formal", "gap", "out-of-range-recipe", "missing-actual"] {
+    for case in [
+        "duplicate-formal",
+        "gap",
+        "out-of-range-recipe",
+        "missing-actual",
+    ] {
         let mut raw = original.clone();
         let template_id = raw.aggregate_templates[template].id;
         match case {
             "duplicate-formal" => raw.aggregate_templates[template].parameters[1].name = "K".into(),
             "gap" => raw.aggregate_templates[template].parameters[1].index = 3,
-            "out-of-range-recipe" => raw.aggregate_templates[template].fields[1].ty =
-                CoreAggregateTypeRecipe::Parameter { index: 2 },
+            "out-of-range-recipe" => {
+                raw.aggregate_templates[template].fields[1].ty =
+                    CoreAggregateTypeRecipe::Parameter { index: 2 }
+            }
             "missing-actual" => raw
                 .aggregate_applications
                 .iter_mut()
@@ -823,18 +1005,19 @@ fn a_borrowed_description_cannot_satisfy_an_owned_value_argument() {
         .iter_mut()
         .find(|application| application.template == entry)
         .unwrap();
-    application.arguments[0] = CoreAggregateArgument::Concrete(Type::Desc(Box::new(
-        Type::Record {
+    application.arguments[0] =
+        CoreAggregateArgument::Concrete(Type::Desc(Box::new(Type::Record {
             name: "@module0:Ticket".into(),
             fields: vec![("code".into(), Type::I32)],
-        },
-    )));
-    let diagnostics = zil_types::check(&raw, &TargetProfile::host_llvm(), &Limits::default())
-        .unwrap_err();
-    assert!(diagnostics.iter().any(|diagnostic| {
-        diagnostic.code == "E-PRODUCT-TEMPLATE"
-            && diagnostic.message.contains("StoreElement")
-    }), "{diagnostics:#?}");
+        })));
+    let diagnostics =
+        zil_types::check(&raw, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+    assert!(
+        diagnostics.iter().any(|diagnostic| {
+            diagnostic.code == "E-PRODUCT-TEMPLATE" && diagnostic.message.contains("StoreElement")
+        }),
+        "{diagnostics:#?}"
+    );
 }
 
 #[test]
@@ -1492,8 +1675,7 @@ fn an_uninstantiated_family_still_has_complete_recipe_and_ownership_checks() {
 fn an_uninstantiated_copy_only_value_recipe_is_valid() {
     let mut input = phantom_metadata("UnusedCopyValue");
     input.aggregate_templates[0].fields[0].manages = false;
-    input.aggregate_templates[0].fields[0].ty =
-        CoreAggregateTypeRecipe::Concrete(Type::I32);
+    input.aggregate_templates[0].fields[0].ty = CoreAggregateTypeRecipe::Concrete(Type::I32);
     zil_types::check(&input, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
 }
 

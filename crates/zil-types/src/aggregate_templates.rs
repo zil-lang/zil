@@ -177,7 +177,12 @@ impl Index {
                     t.name
                         .len()
                         .saturating_add(t.parameters.iter().map(|p| p.name.len()).sum::<usize>())
-                        .saturating_add(t.parameters.len().saturating_sub(1).saturating_mul(t.parameters.len()))
+                        .saturating_add(
+                            t.parameters
+                                .len()
+                                .saturating_sub(1)
+                                .saturating_mul(t.parameters.len()),
+                        )
                         .saturating_add(t.fields.len().saturating_mul(2)),
                     t.span,
                 )?;

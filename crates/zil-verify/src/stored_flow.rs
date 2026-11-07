@@ -3278,7 +3278,10 @@ fn windows(
                         let p = select(&state, pointer(*storage)?, path, b)?;
                         let target_write = if matches!(mode, StoredBorrowLoad::Take) {
                             i.result.is_some_and(|id| {
-                                matches!(f.values[id.0 as usize], Type::Address { mutable: true, .. })
+                                matches!(
+                                    f.values[id.0 as usize],
+                                    Type::Address { mutable: true, .. }
+                                )
                             })
                         } else {
                             exclusive

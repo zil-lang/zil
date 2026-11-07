@@ -1134,9 +1134,7 @@ impl Resolver<'_> {
         {
             for (_, field) in fields {
                 self.charge(depth + 1, span)?;
-                if !field.is_copy_value()
-                    && !self.store_element_shape(field, depth + 1, span)?
-                {
+                if !field.is_copy_value() && !self.store_element_shape(field, depth + 1, span)? {
                     return Ok(false);
                 }
             }
@@ -3546,8 +3544,7 @@ impl Resolver<'_> {
         // concrete owning application still proves its actual recursive shape.
         if let Type::Package { fields, .. } = &ty
             && !fields.iter().all(|(_, field)| {
-                field.is_copy_value()
-                    || (matches!(field, Type::Named(_)) && args.contains(field))
+                field.is_copy_value() || (matches!(field, Type::Named(_)) && args.contains(field))
             })
             && !owned_shapes::zero_debt_package(&ty)
         {

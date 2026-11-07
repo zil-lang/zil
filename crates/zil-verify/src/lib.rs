@@ -829,8 +829,14 @@ fn check_module(
             budget.spend(1)?;
             for instruction in &block.instructions {
                 budget.spend(1)?;
-                budget.stored_slot_updates |=
-                    matches!(instruction.kind, InstructionKind::StoreStoredBorrow { .. });
+                budget.stored_slot_updates |= matches!(
+                    instruction.kind,
+                    InstructionKind::StoreStoredBorrow { .. }
+                        | InstructionKind::LoadStoredBorrow {
+                            mode: StoredBorrowLoad::Take,
+                            ..
+                        }
+                );
                 match &instruction.kind {
                     InstructionKind::ReservePlaceLocal { path, .. }
                     | InstructionKind::ReservePlaceAddress { path, .. }

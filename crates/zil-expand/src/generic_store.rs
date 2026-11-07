@@ -320,15 +320,15 @@ pub(super) fn concrete_element(
         } else if !active
             && trait_bounds::plain(&field_type).is_some_and(|name| {
                 variables.contains(name)
-                    && available.get(name).is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+                    && available
+                        .get(name)
+                        .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
             })
         {
             // The declaration holds a complete opaque Value. Its concrete
             // application decides whether that Value has any Drop debt.
             storage = true;
-        } else if !active
-            && explicit_managed_value(&field_type, shape.nominals, shape.budget)?
-        {
+        } else if !active && explicit_managed_value(&field_type, shape.nominals, shape.budget)? {
             storage = true;
         } else if !active && shape.package_name(&field_type) {
             // The actual nominal application was bounded by substitute. A
@@ -496,7 +496,9 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 storage |= self.resource(&field_type)?;
             } else if trait_bounds::plain(&field_type).is_some_and(|name| {
                 variables.contains(name)
-                    && available.get(name).is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+                    && available
+                        .get(name)
+                        .is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
             }) {
                 storage = true;
             } else if explicit_managed_value(&field_type, self.nominals, self.budget)? {

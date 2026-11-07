@@ -5485,29 +5485,41 @@ impl Check<'_, '_, '_> {
                     && match &group(&ty).kind {
                         TypeKind::Named { path, .. } if path.as_slice() == ["Managed"] => true,
                         TypeKind::Named { path, args }
-                            if path.len() == 1 && args.is_empty() && self.variables.contains(&path[0]) =>
+                            if path.len() == 1
+                                && args.is_empty()
+                                && self.variables.contains(&path[0]) =>
                         {
                             self.bounds.get(&path[0]).is_some_and(|bounds| {
-                                bounds.iter().any(|bound| matches!(bound, trait_bounds::Bound::StoreElement))
+                                bounds
+                                    .iter()
+                                    .any(|bound| matches!(bound, trait_bounds::Bound::StoreElement))
                             })
                         }
                         TypeKind::Named { path, .. } => match self.nominals.get(&path.join(".")) {
-                            Some(Item { kind: ItemKind::Aggregate(child), .. }) =>
-                                child.kind == AggregateKind::Package,
-                            Some(Item { kind: ItemKind::Enum(_), .. }) => true,
+                            Some(Item {
+                                kind: ItemKind::Aggregate(child),
+                                ..
+                            }) => child.kind == AggregateKind::Package,
+                            Some(Item {
+                                kind: ItemKind::Enum(_),
+                                ..
+                            }) => true,
                             _ => false,
                         },
-                        TypeKind::Tuple(_) | TypeKind::Union(_) | TypeKind::Array { .. }
+                        TypeKind::Tuple(_)
+                        | TypeKind::Union(_)
+                        | TypeKind::Array { .. }
                         | TypeKind::Error { .. } => true,
                         _ => false,
                     }
                     && !self.known_copy(&ty)?;
                 if let Some(local) = package
-                    && (value_child || self.callable.as_ref().is_some_and(|bounds| {
-                        bounds.bindings().any(|bound| {
-                            callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
-                        })
-                    }))
+                    && (value_child
+                        || self.callable.as_ref().is_some_and(|bounds| {
+                            bounds.bindings().any(|bound| {
+                                callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
+                            })
+                        }))
                 {
                     let slot = self.field_slot(local, member, e.span)?;
                     if state.moved.contains(&slot) {
