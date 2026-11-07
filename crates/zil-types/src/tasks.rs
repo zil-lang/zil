@@ -8,12 +8,38 @@ pub(super) fn empty_context() -> zil_ir::RetainedLifeShape {
         nominal_arguments: vec![],
     }
 }
+pub(super) fn borrowed_context(parameters: &[Type]) -> zil_ir::RetainedLifeShape {
+    let port = Type::Address {
+        mutable: false,
+        inner: Box::new(Type::I32),
+    };
+    if parameters == [port.clone()] {
+        zil_ir::RetainedLifeShape {
+            binder_count: 1,
+            ports: vec![zil_ir::RetainedBorrowPort {
+                leaf: port,
+                mode: zil_ir::StoredBorrowMode::SharedAddress,
+                binder: 0,
+            }],
+            retained: vec![],
+            nominal_arguments: vec![],
+        }
+    } else {
+        empty_context()
+    }
+}
 pub(super) fn require_closed_context(ty: &Type, span: Span) -> R<()> {
-    if let Type::Task { retained_life, .. } = ty
-        && (retained_life.binder_count != 0
-            || !retained_life.ports.is_empty()
-            || !retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty())
+    if let Type::Task {
+        result,
+        retained_life,
+    } = ty
+        && *retained_life != empty_context()
+        && (*retained_life
+            != borrowed_context(&[Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }])
+            || result.as_ref() != &Type::I32)
     {
         return Err(unsupported(
             span,
@@ -64,12 +90,12 @@ pub(super) fn poll_type(result: &Type) -> Type {
         ],
     }
 }
-pub(super) fn create_type(result: &Type) -> Type {
+pub(super) fn create_type(result: &Type, context: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
         error: Box::new(create_error()),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
-            retained_life: empty_context(),
+            retained_life: context,
         }))),
     }
 }
@@ -314,6 +340,15 @@ impl Builder<'_, '_> {
             })();
             self.closures.snapshot(before - remaining, span)?;
             let (worker, parameters, worker_result) = prepared?;
+            if name == "task_create"
+                && !borrowed_context(&parameters).ports.is_empty()
+                && worker_result != Type::I32
+            {
+                return Err(unsupported(
+                    span,
+                    "retained Task result currently requires i32",
+                ));
+            }
             if arguments.len() != parameters.len() + 1 {
                 return Err(error(
                     "E-CALL-ARITY",
@@ -339,7 +374,7 @@ impl Builder<'_, '_> {
             let ty = if name == "task_await" {
                 worker_result
             } else {
-                create_type(&worker_result)
+                create_type(&worker_result, borrowed_context(&parameters))
             };
             if let Some(wanted) = expected {
                 self.same(&ty, wanted, span)?;
@@ -354,6 +389,17 @@ impl Builder<'_, '_> {
                     InstructionKind::TaskCreate {
                         worker,
                         arguments: inputs,
+                        port_bindings: if borrowed_context(&parameters).ports.is_empty() {
+                            Vec::new()
+                        } else {
+                            vec![zil_ir::RetainedPortBinding {
+                                port: 0,
+                                source: zil_ir::StoragePosition {
+                                    base: zil_ir::StorageBase::Parameter(0),
+                                    path: vec![],
+                                },
+                            }]
+                        },
                     }
                 },
                 ty.clone(),

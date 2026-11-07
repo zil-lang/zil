@@ -137,6 +137,214 @@ fn dependencies(
     }
     Ok(())
 }
+
+// A helper returning Task is transparent only after its executable return
+// values have been traced to real constructors. The declaration's `create`
+// mode is an obligation, not evidence of a worker.
+fn live_blocks(f: &TypedFunction, budget: &mut Budget) -> Check<Vec<bool>> {
+    budget.spend(f.blocks.len().saturating_add(1))?;
+    let mut live = vec![false; f.blocks.len()];
+    let mut pending = vec![f.entry];
+    while let Some(id) = pending.pop() {
+        budget.spend(3)?;
+        let Some(seen) = live.get_mut(id.0 as usize) else {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "Task factory CFG target absent",
+            ));
+        };
+        if *seen {
+            continue;
+        }
+        *seen = true;
+        match f.blocks[id.0 as usize].terminator {
+            Terminator::Jump(next) => pending.push(next),
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => {
+                pending.push(then_block);
+                pending.push(else_block);
+            }
+            _ => {}
+        }
+    }
+    Ok(live)
+}
+
+fn returned_workers(
+    module: &TypedModule,
+    function: FunctionId,
+    visiting: &mut BTreeSet<FunctionId>,
+    budget: &mut Budget,
+) -> Check<Origins> {
+    budget.spend(visiting.len().saturating_add(1))?;
+    if !visiting.insert(function) {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            None,
+            "cyclic Task factory has no complete worker origin",
+        ));
+    }
+    let f = module
+        .functions
+        .get(function.0 as usize)
+        .ok_or_else(|| reject("E-VERIFY-TASK", None, "Task factory target absent"))?;
+    if f.foreign.is_some() {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            Some(f.span),
+            "foreign Task factory has no actual worker origin",
+        ));
+    }
+    let reachable = live_blocks(f, budget)?;
+    let mut origins = Origins::default();
+    let mut saw_return = false;
+    for (index, block) in f.blocks.iter().enumerate() {
+        budget.spend(block.instructions.len().saturating_add(1))?;
+        if reachable[index]
+            && let Terminator::Return(Some(value)) = &block.terminator
+        {
+            saw_return = true;
+            let actual = returned_value(
+                module,
+                f,
+                &reachable,
+                *value,
+                visiting,
+                &mut BTreeSet::new(),
+                &mut BTreeSet::new(),
+                budget,
+            )?;
+            origins.add(&actual, budget)?;
+        }
+    }
+    visiting.remove(&function);
+    if !saw_return || origins.workers.is_empty() {
+        origins.unknown = true;
+    }
+    Ok(origins)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn returned_value(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    value: ValueId,
+    functions: &mut BTreeSet<FunctionId>,
+    values: &mut BTreeSet<ValueId>,
+    locals: &mut BTreeSet<LocalId>,
+    budget: &mut Budget,
+) -> Check<Origins> {
+    budget.spend(values.len().saturating_add(1))?;
+    if !values.insert(value) {
+        return Ok(Origins {
+            unknown: true,
+            workers: BTreeSet::new(),
+        });
+    }
+    let mut found = None;
+    for (index, block) in f.blocks.iter().enumerate() {
+        budget.spend(block.instructions.len().saturating_add(1))?;
+        if !reachable[index] {
+            continue;
+        }
+        for instruction in &block.instructions {
+            if instruction.result == Some(value) && found.replace(&instruction.kind).is_some() {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    Some(instruction.span),
+                    "Task factory value has duplicate definitions",
+                ));
+            }
+        }
+    }
+    let origin = match found {
+        Some(InstructionKind::TaskCreate { worker, .. })
+        | Some(InstructionKind::TaskStart { worker, .. }) => Origins {
+            unknown: false,
+            workers: BTreeSet::from([*worker]),
+        },
+        Some(InstructionKind::MakeErrorUnion { is_error: true, .. })
+        | Some(InstructionKind::TakeErrorUnion { is_error: true, .. }) => Origins::default(),
+        Some(InstructionKind::MakeErrorUnion { value: source, .. })
+        | Some(InstructionKind::TakeErrorUnion { value: source, .. })
+        | Some(InstructionKind::ReadErrorUnion { value: source, .. }) => returned_value(
+            module, f, reachable, *source, functions, values, locals, budget,
+        )?,
+        Some(InstructionKind::Load(local)) | Some(InstructionKind::TakeLocal { local }) => {
+            returned_local(
+                module, f, reachable, *local, functions, values, locals, budget,
+            )?
+        }
+        Some(InstructionKind::Call { function, .. }) => {
+            returned_workers(module, *function, functions, budget)?
+        }
+        _ => Origins {
+            unknown: true,
+            workers: BTreeSet::new(),
+        },
+    };
+    values.remove(&value);
+    Ok(origin)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn returned_local(
+    module: &TypedModule,
+    f: &TypedFunction,
+    reachable: &[bool],
+    local: LocalId,
+    functions: &mut BTreeSet<FunctionId>,
+    values: &mut BTreeSet<ValueId>,
+    locals: &mut BTreeSet<LocalId>,
+    budget: &mut Budget,
+) -> Check<Origins> {
+    budget.spend(
+        locals
+            .len()
+            .saturating_add(f.parameters.len())
+            .saturating_add(1),
+    )?;
+    if f.parameters.contains(&local) || !locals.insert(local) {
+        return Ok(Origins {
+            unknown: true,
+            workers: BTreeSet::new(),
+        });
+    }
+    let mut origin = Origins::default();
+    let mut found = false;
+    for (index, block) in f.blocks.iter().enumerate() {
+        budget.spend(block.instructions.len().saturating_add(1))?;
+        if !reachable[index] {
+            continue;
+        }
+        for instruction in &block.instructions {
+            if let InstructionKind::Store {
+                local: target,
+                value,
+            } = &instruction.kind
+                && *target == local
+            {
+                found = true;
+                origin.add(
+                    &returned_value(
+                        module, f, reachable, *value, functions, values, locals, budget,
+                    )?,
+                    budget,
+                )?;
+            }
+        }
+    }
+    locals.remove(&local);
+    if !found {
+        origin.unknown = true;
+    }
+    Ok(origin)
+}
 pub(crate) fn require(
     module: &TypedModule,
     f: &TypedFunction,
@@ -228,6 +436,9 @@ fn require_origin(
                         unknown: false,
                         workers: BTreeSet::from([*worker]),
                     },
+                    InstructionKind::Call { function, .. } => {
+                        returned_workers(module, *function, &mut BTreeSet::new(), budget)?
+                    }
                     InstructionKind::Load(local)
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }

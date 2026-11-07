@@ -1,6 +1,8 @@
 //! General Task source consumers; scalar worker admission remains explicit.
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
+const SHARED_INPUT: &str =
+    include_str!("../../task-composition/verified-source-consumers/shared-input-retained-task.zil");
 #[path = "../../task-composition/verified-source-consumers/source_consumers.rs"]
 mod verified_source_consumers;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
@@ -10,6 +12,491 @@ fn closed_task_shape() -> zil_ir::RetainedLifeShape {
         retained: vec![],
         nominal_arguments: vec![],
     }
+}
+#[test]
+fn shared_task_frame_retains_real_input_through_close() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let poll = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .unwrap();
+    let close = SHARED_INPUT
+        .find("    match task_poll_close(&mut task) {")
+        .unwrap();
+    let pc0 = format!("{}{}", &SHARED_INPUT[..poll], &SHARED_INPUT[close..]);
+    let second = SHARED_INPUT[poll + 1..]
+        .find("            match task_poll(&mut task)? {")
+        .unwrap()
+        + poll
+        + 1;
+    let cancel = format!(
+        "{}            task_request_cancel(&mut task);\n{}",
+        &SHARED_INPUT[..second],
+        &SHARED_INPUT[close..]
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            for (case, input, expected) in [
+                ("complete", SHARED_INPUT, b"PRCA".as_slice()),
+                ("pc0-close", pc0.as_str(), b"CA".as_slice()),
+                ("pending-cancel", cancel.as_str(), b"PCA".as_slice()),
+            ] {
+                let dir = std::env::temp_dir().join(format!(
+                    "shared-task-port-{}-{case}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                std::fs::create_dir_all(&dir).unwrap();
+                let report = compile_source(
+                    &source(input),
+                    &CompileOptions {
+                        backend,
+                        optimization,
+                        stop_after: Stage::Build,
+                        output: Some(dir.join("program")),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let native = report.native_codegen.as_ref().unwrap();
+                assert_eq!(native.backend, backend);
+                assert!(native.fallback.is_none(), "{native:?}");
+                let output = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(output.status.code(), Some(0), "{output:?}");
+                assert_eq!(output.stdout, expected);
+                std::fs::remove_dir_all(dir).unwrap();
+            }
+        }
+    }
+}
+#[test]
+fn shared_task_frame_rejects_input_writes_before_close() {
+    let before_poll = SHARED_INPUT.replace(
+        "            match task_poll(&mut task)? {",
+        "            value=43;\n            match task_poll(&mut task)? {",
+    );
+    let second = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .and_then(|first| {
+            SHARED_INPUT[first + 1..]
+                .find("            match task_poll(&mut task)? {")
+                .map(|next| first + 1 + next)
+        })
+        .unwrap();
+    let after_pending = format!(
+        "{}            value=43;\n{}",
+        &SHARED_INPUT[..second],
+        &SHARED_INPUT[second..]
+    );
+    let after_cancel = SHARED_INPUT.replace("            match task_poll_close(&mut task) {", "            task_request_cancel(&mut task);\n            value=43;\n            match task_poll_close(&mut task) {");
+    let after_ready = SHARED_INPUT.replace(
+        "            match task_poll_close(&mut task) {",
+        "            value=43;\n            match task_poll_close(&mut task) {",
+    );
+    let poll = SHARED_INPUT
+        .find("            match task_poll(&mut task)? {")
+        .unwrap();
+    let premature_destroy = format!(
+        "{}            task_finish_destroy(give task);\n{}",
+        &SHARED_INPUT[..poll],
+        &SHARED_INPUT[poll..]
+    );
+    for (case, input) in [
+        ("before-poll", &before_poll),
+        ("after-pending", &after_pending),
+        ("after-ready", &after_ready),
+        ("after-cancel", &after_cancel),
+        ("premature-destroy", &premature_destroy),
+    ] {
+        let report = compile_source(&source(input), &CompileOptions::default());
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0);
+        if case != "premature-destroy" {
+            assert_eq!(
+                report.phase,
+                zil_base::Phase::Analyze,
+                "{case}: {}",
+                report.to_json()
+            );
+            assert_eq!(report.status, ResultCategory::SafeReject);
+            assert!(
+                report
+                    .diagnostics
+                    .iter()
+                    .any(|d| d.message.contains("live borrowed Task frame")),
+                "{case}: {}",
+                report.to_json()
+            );
+        }
+    }
+}
+#[test]
+fn shared_task_raw_owner_keeps_input_borrow_after_last_ssa_use() {
+    use zil_ir::InstructionKind as I;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let mut typed = zil_types::check(&core, &target, &limits).unwrap();
+    zil_analyze::analyze(&typed, &limits).unwrap();
+    let main = typed
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "main")
+        .unwrap();
+    let value = main.locals.iter().find(|l| l.name == "value").unwrap().id;
+    let initial_write = main
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, I::Store { local, .. } if local == value))
+        .unwrap()
+        .clone();
+    let poll_block = main
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::TaskPoll { .. }))
+        })
+        .unwrap();
+    let poll_index = poll_block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TaskPoll { .. }))
+        .unwrap();
+    poll_block.instructions.insert(poll_index, initial_write);
+    assert!(zil_analyze::analyze(&typed, &limits).is_err());
+}
+#[test]
+fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {
+    use zil_ir::Type;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let mut core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let good = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&good, &limits).unwrap();
+    let make = good.functions.iter().find(|f| f.name == "make").unwrap();
+    let Type::ErrorUnion {
+        result: success, ..
+    } = &make.return_type
+    else {
+        unreachable!()
+    };
+    let carrier = success.as_ref().clone();
+    let Type::Managed(payload) = &carrier else {
+        unreachable!()
+    };
+    let Type::Task { retained_life, .. } = payload.as_ref() else {
+        unreachable!()
+    };
+    assert_eq!(retained_life.ports.len(), 1);
+
+    let worker = core
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "worker")
+        .unwrap();
+    worker.parameters[0].ty = carrier.clone();
+    let error = zil_types::check(&core, &target, &limits).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("retained Task parameter")),
+        "{error:?}"
+    );
+
+    let mut bad = good.clone();
+    let main = bad.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let input = zil_ir::LocalId(main.locals.len() as u32);
+    main.locals.push(zil_ir::LocalDecl {
+        id: input,
+        name: "raw_owner".into(),
+        ty: Type::Desc(payload.clone()),
+        mutable: false,
+        span: main.span,
+    });
+    main.parameters.push(input);
+    main.blocks[main.entry.0 as usize].instructions.insert(
+        1,
+        zil_ir::Instruction {
+            result: None,
+            kind: zil_ir::InstructionKind::StorageDead(input),
+            span: main.span,
+        },
+    );
+    let main_id = main.id;
+    let entry = main.entry;
+    let error = zil_analyze::analyze(&bad, &limits).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("retained Task parameter")),
+        "{error:?}"
+    );
+    let mut claim = plan.clone();
+    claim.module_fingerprint = bad.fingerprint();
+    let plan_main = claim
+        .functions
+        .iter_mut()
+        .find(|f| f.function == main_id)
+        .unwrap();
+    plan_main.blocks[entry.0 as usize]
+        .initialized_in
+        .push(input);
+    let error = zil_verify::verify_module(bad, claim, &target, &limits).unwrap_err();
+    assert!(
+        error
+            .iter()
+            .any(|d| d.message.contains("retained Task parameter")),
+        "{error:?}"
+    );
+
+    for result in [
+        Type::Bool,
+        Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32),
+        },
+    ] {
+        let mut bad = good.clone();
+        let make = bad.functions.iter_mut().find(|f| f.name == "make").unwrap();
+        let Type::ErrorUnion {
+            result: success, ..
+        } = &mut make.return_type
+        else {
+            unreachable!()
+        };
+        let Type::Managed(task) = success.as_mut() else {
+            unreachable!()
+        };
+        let Type::Task {
+            result: payload, ..
+        } = task.as_mut()
+        else {
+            unreachable!()
+        };
+        **payload = result;
+        let error = zil_analyze::analyze(&bad, &limits).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("borrowed Task retained classes")),
+            "{error:?}"
+        );
+        let mut claim = plan.clone();
+        claim.module_fingerprint = bad.fingerprint();
+        let error = zil_verify::verify_module(bad, claim, &target, &limits).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("borrowed Task retained classes")),
+            "{error:?}"
+        );
+    }
+}
+#[test]
+fn shared_task_retained_port_rejects_raw_and_wire_forgery() {
+    use zil_ir::InstructionKind as I;
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let good = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&good, &limits).unwrap();
+    zil_verify::verify_module(good.clone(), plan.clone(), &target, &limits).unwrap();
+    for case in 0..2 {
+        let mut bad = good.clone();
+        let factory = bad.functions.iter_mut().find(|f| f.name == "make").unwrap();
+        let local = factory
+            .locals
+            .iter()
+            .find(|l| l.name == "other")
+            .unwrap()
+            .id;
+        let other = factory
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .find_map(|i| {
+                matches!(i.kind, I::BorrowLocal { local: id } if id == local)
+                    .then_some(i.result)
+                    .flatten()
+            })
+            .unwrap();
+        let create = factory
+            .blocks
+            .iter_mut()
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, I::TaskCreate { .. }))
+            .unwrap();
+        let I::TaskCreate {
+            arguments,
+            port_bindings,
+            ..
+        } = &mut create.kind
+        else {
+            unreachable!()
+        };
+        if case == 0 {
+            port_bindings[0].port = 1;
+        } else {
+            arguments[0] = other;
+        }
+        assert!(zil_analyze::analyze(&bad, &limits).is_err());
+        let mut claim = plan.clone();
+        claim.module_fingerprint = bad.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+        for encoded in [false, true] {
+            let (typed, candidate) = if encoded {
+                zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+            } else {
+                (bad.clone(), claim.clone())
+            };
+            assert!(
+                zil_verify::verify_module(typed, candidate, &target, &limits).is_err(),
+                "case={case} wire={encoded}"
+            );
+        }
+    }
+}
+#[test]
+fn shared_task_raw_container_cannot_hide_frame_loan() {
+    use zil_ir::{InstructionKind as I, Type};
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let good = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&good, &limits).unwrap();
+    let mut bad = good.clone();
+    let main = bad.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let (block, offset, owner) = main
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, b)| {
+            b.instructions.iter().enumerate().find_map(|(offset, i)| {
+                matches!(&i.kind, I::TakeVariantField { path, .. }
+                if path.as_slice() == [zil_ir::PlaceProjection::ErrorArm(false)])
+                .then(|| (block, offset, i.result.unwrap()))
+            })
+        })
+        .unwrap();
+    let hidden = zil_ir::ValueId(main.values.len() as u32);
+    let carrier = main.values[owner.0 as usize].clone();
+    main.values.push(Type::Tuple(vec![carrier]));
+    main.blocks[block].instructions.insert(
+        offset + 1,
+        zil_ir::Instruction {
+            result: Some(hidden),
+            kind: I::MakeOwnedTuple {
+                fields: vec![owner],
+            },
+            span: main.span,
+        },
+    );
+    let main_id = main.id;
+    assert!(zil_analyze::analyze(&bad, &limits).is_err());
+    let mut claim = plan;
+    claim.module_fingerprint = bad.fingerprint();
+    let claim_main = claim
+        .functions
+        .iter_mut()
+        .find(|f| f.function == main_id)
+        .unwrap();
+    claim_main.holds.push(zil_ir::ValueHold {
+        value: hidden,
+        roots: vec![],
+    });
+    let wire = zil_ir::wire::encode_module_candidate(&bad, &claim, &limits).unwrap();
+    for encoded in [false, true] {
+        let (typed, candidate) = if encoded {
+            zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap()
+        } else {
+            (bad.clone(), claim.clone())
+        };
+        let error = zil_verify::verify_module(typed, candidate, &target, &limits).unwrap_err();
+        assert!(
+            error
+                .iter()
+                .any(|d| d.message.contains("nested retained Task transport")
+                    || d.message.contains("retained Task aggregate")),
+            "wire={encoded}: {error:?}"
+        );
+    }
+}
+#[test]
+fn shared_task_port_survives_cross_module_factory_return() {
+    use zil_driver::{NativeBackend, Optimization, ProjectSources, Stage};
+    let split = SHARED_INPUT.find("fn main").unwrap();
+    let provider = SHARED_INPUT[..split]
+        .replace("extern \"C\" fn putchar(code:i32)->i32;", "")
+        .replace("fn make<life a>", "pub fn make<life a>");
+    let consumer = format!(
+        "import provider\nextern \"C\" fn putchar(code:i32)->i32;\n{}",
+        SHARED_INPUT[split..].replace("make(&value)", "provider.make(&value)")
+    );
+    let project = ProjectSources {
+        root: zil_base::ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "main.zil",
+                consumer,
+            ),
+            SourceUnit::new(
+                zil_base::FileId(1),
+                zil_base::ModuleId(1),
+                "provider.zil",
+                provider,
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["provider".into()], zil_base::ModuleId(1))]),
+    };
+    let dir = std::env::temp_dir().join(format!("shared-task-cross-module-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let report = zil_driver::compile_project(
+        &project,
+        &CompileOptions {
+            backend: NativeBackend::Clang,
+            optimization: Optimization::O0,
+            stop_after: Stage::Build,
+            output: Some(dir.join("program")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let native = report.native_codegen.as_ref().unwrap();
+    assert_eq!(native.backend, NativeBackend::Clang);
+    assert!(native.fallback.is_none(), "{native:?}");
+    let output = std::process::Command::new(&report.artifacts["executable"])
+        .output()
+        .unwrap();
+    assert_eq!(output.status.code(), Some(0), "{output:?}");
+    assert_eq!(output.stdout, b"PRCA");
+    std::fs::remove_dir_all(dir).unwrap();
 }
 #[test]
 fn general_task_native_ordinary_poll_and_once_ready() {
@@ -213,7 +700,7 @@ fn general_task_raw_constructor_result_and_pc0_boundaries() {
                 "E-VERIFY-TASK",
                 "E-VERIFY-TASK",
                 "E-VERIFY-TYPE",
-                "E-VERIFY-TASK",
+                "E-VERIFY-TYPE",
             ][case];
             assert_eq!(
                 errors[0].code, expected,
@@ -314,108 +801,15 @@ fn general_task_borrowed_initial_frame_is_not_erased_by_scalar_result() {
         "{}",
         report.to_json()
     );
-    assert_eq!(
-        report.phase,
-        zil_base::Phase::Analyze,
-        "{}",
-        report.to_json()
-    );
-    assert!(report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"));
-    // The original bytes retain their old negative role. For a benign plan,
-    // explicitly close the ordinary Call result rather than promising default
-    // synchronous cleanup of an unknown Task frame. Both raw candidates use
-    // this same source-derived CFG/SSA inventory; only TaskCreate is retargeted.
-    let explicit = original.replace(
-        "fn main() { let task=escape(); }",
-        "fn main()->TaskCreateError!i32 {var task=escape()?;loop {match task_poll_close(&mut task) {std.task.Poll.Pending()=>{},std.task.Poll.Ready(_)=>{task_finish_destroy(give task);return 0}}}}",
-    );
-    assert_ne!(
-        explicit, original,
-        "the original fixture main must be retained"
-    );
-    let report = compile_source(&source(&explicit), &CompileOptions::default());
-    assert_eq!(
-        report.phase,
-        zil_base::Phase::Analyze,
-        "{}",
-        report.to_json()
-    );
+    assert_eq!(report.phase, zil_base::Phase::Types, "{}", report.to_json());
     assert!(
-        report.diagnostics.iter().any(|d| d.code == "E-TASK-ABI"
-            && d.message
-                .contains("initial frame cannot retain borrowed input storage")),
-        "{}",
-        report.to_json()
-    );
-    let limits = Limits::default();
-    let target = zil_base::TargetProfile::default();
-    let core = expand(&explicit, &limits).unwrap().core;
-    let raw = zil_types::check(&core, &target, &limits).unwrap();
-    assert!(
-        zil_analyze::analyze(&raw, &limits)
-            .unwrap_err()
+        report
+            .diagnostics
             .iter()
-            .any(|d| d.code == "E-TASK-ABI"
-                && d.message
-                    .contains("initial frame cannot retain borrowed input storage"))
+            .any(|d| d.code == "E-ERROR-INJECTION"),
+        "{}",
+        report.to_json()
     );
-    let mut benign = raw.clone();
-    let safe = benign
-        .functions
-        .iter()
-        .find(|f| f.name == "safe")
-        .unwrap()
-        .id;
-    let factory = benign
-        .functions
-        .iter_mut()
-        .find(|f| f.name == "escape")
-        .unwrap();
-    let scalar = factory
-        .blocks
-        .iter()
-        .flat_map(|b| &b.instructions)
-        .find_map(|i| {
-            matches!(
-                i.kind,
-                zil_ir::InstructionKind::Constant(zil_ir::Constant::I32(_))
-            )
-            .then_some(i.result)
-            .flatten()
-        })
-        .unwrap();
-    let creation = factory
-        .blocks
-        .iter_mut()
-        .flat_map(|b| &mut b.instructions)
-        .find(|i| matches!(i.kind, zil_ir::InstructionKind::TaskCreate { .. }))
-        .unwrap();
-    creation.kind = zil_ir::InstructionKind::TaskCreate {
-        worker: safe,
-        arguments: vec![scalar],
-    };
-    let mut claim = zil_analyze::analyze(&benign, &limits).unwrap();
-    zil_verify::verify_module(benign, claim.clone(), &target, &limits).unwrap();
-    claim.module_fingerprint = raw.fingerprint();
-    let bytes = zil_ir::wire::encode_module_candidate(&raw, &claim, &limits).unwrap();
-    for wire in [false, true] {
-        let (input, claim) = if wire {
-            zil_ir::wire::decode_module_candidate(&bytes, &limits).unwrap()
-        } else {
-            (raw.clone(), claim.clone())
-        };
-        let errors = zil_verify::verify_module(input, claim, &target, &limits).unwrap_err();
-        assert_eq!(
-            errors[0].code, "E-VERIFY-TASK",
-            "source PC0 wire={wire}: {errors:?}"
-        );
-        assert!(
-            errors[0]
-                .message
-                .contains("initial frame cannot retain borrowed input storage"),
-            "{errors:?}"
-        );
-    }
 }
 #[test]
 fn general_task_native_creation_failure_and_default_cleanup() {

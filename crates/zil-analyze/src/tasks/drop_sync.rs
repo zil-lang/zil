@@ -1,8 +1,11 @@
 //! Actual head origins and reachable worker graph, never a producer flag.
 use super::*;
+use std::collections::BTreeMap;
 #[derive(Clone, Default, PartialEq, Eq)]
 struct Origins {
     unknown: bool,
+    // A checked active alternative contains no Task at all.
+    vacant: bool,
     workers: BTreeSet<FunctionId>,
 }
 impl Origins {
@@ -16,6 +19,7 @@ impl Origins {
         )?;
         let old = self.clone();
         self.unknown |= other.unknown;
+        self.vacant |= other.vacant;
         self.workers.extend(other.workers.iter().copied());
         Ok(*self != old)
     }
@@ -193,6 +197,163 @@ fn require_origin(
     if !contains_kind(module, ty, budget, false)? {
         return Ok(());
     }
+    budget.spend(1, "Task factory return root activation")?;
+    let mut active = BTreeSet::from([f.id]);
+    let mut returned = BTreeMap::new();
+    let (values, locals) = infer_origins(module, f, budget, &mut active, &mut returned)?;
+    let origins = if let Some(local) = local {
+        &locals[local.0 as usize]
+    } else {
+        &values[value.expect("value endpoint").0 as usize]
+    };
+    budget.spend(
+        origins.workers.len().saturating_add(1),
+        "Task Drop actual dependencies",
+    )?;
+    if origins.unknown || (origins.workers.is_empty() && !origins.vacant) {
+        return Err(fail(
+            span.unwrap_or(f.span),
+            "Task automatic Drop has no complete synchronous worker origin",
+        ));
+    }
+    require_workers(
+        module,
+        origins.workers.iter().copied().collect(),
+        budget,
+        span,
+    )
+}
+
+fn reachable_blocks(f: &TypedFunction, budget: &mut Budget) -> CompileResult<Vec<bool>> {
+    budget.spend(
+        f.blocks.len().saturating_add(1),
+        "Task return actual reachability",
+    )?;
+    let mut reachable = vec![false; f.blocks.len()];
+    let mut pending = vec![f.entry];
+    while let Some(block) = pending.pop() {
+        budget.spend(3, "Task return actual CFG edge")?;
+        let Some(visited) = reachable.get_mut(block.0 as usize) else {
+            return Err(fail(f.span, "Task return CFG target absent"));
+        };
+        if *visited {
+            continue;
+        }
+        *visited = true;
+        match f.blocks[block.0 as usize].terminator {
+            Terminator::Jump(next) => pending.push(next),
+            Terminator::Branch {
+                then_block,
+                else_block,
+                ..
+            } => {
+                pending.push(then_block);
+                pending.push(else_block);
+            }
+            _ => {}
+        }
+    }
+    Ok(reachable)
+}
+
+fn returned_origin(
+    module: &TypedModule,
+    id: FunctionId,
+    budget: &mut Budget,
+    active: &mut BTreeSet<FunctionId>,
+    returned: &mut BTreeMap<FunctionId, Origins>,
+) -> CompileResult<Origins> {
+    budget.spend(
+        active
+            .len()
+            .saturating_add(returned.len())
+            .saturating_add(1),
+        "Task factory actual return dependencies",
+    )?;
+    if let Some(origin) = returned.get(&id) {
+        budget.spend(
+            origin.workers.len().saturating_add(1),
+            "Task factory cached return snapshot",
+        )?;
+        return Ok(origin.clone());
+    }
+    let target = module
+        .functions
+        .get(id.0 as usize)
+        .ok_or_else(|| fail(Default::default(), "Task factory target absent"))?;
+    if active.contains(&id) {
+        return Err(fail(
+            target.span,
+            "recursive Task factory returns have no finite synchronous worker origin",
+        ));
+    }
+    if active.len() >= budget.helper_depth {
+        return Err(vec![Diagnostic::limit(
+            Phase::Analyze,
+            "Task factory return dependency depth exceeded",
+            Some(target.span),
+        )]);
+    }
+    if target.foreign.is_some() {
+        return Ok(Origins {
+            unknown: true,
+            ..Origins::default()
+        });
+    }
+    active.insert(id);
+    let solved = infer_origins(module, target, budget, active, returned);
+    active.remove(&id);
+    let (values, _) = solved?;
+    let reachable = reachable_blocks(target, budget)?;
+    let mut result = Origins::default();
+    let mut has_return = false;
+    for (block, live) in target.blocks.iter().zip(reachable) {
+        budget.spend(1, "Task factory actual returned carrier")?;
+        if !live {
+            continue;
+        }
+        if let Terminator::Return(value) = block.terminator {
+            has_return = true;
+            if let Some(value) = value {
+                budget.type_work(
+                    &target.return_type,
+                    false,
+                    "Task factory actual return signature",
+                )?;
+                let actual = target
+                    .values
+                    .get(value.0 as usize)
+                    .ok_or_else(|| fail(target.span, "Task factory return value absent"))?;
+                budget.type_work(actual, false, "Task factory actual returned value")?;
+                if actual != &target.return_type {
+                    result.unknown = true;
+                }
+                let origin = &values[value.0 as usize];
+                if !origin.unknown && !origin.vacant && origin.workers.is_empty() {
+                    result.unknown = true;
+                }
+                result.add(origin, budget)?;
+            } else {
+                result.unknown = true;
+            }
+        }
+    }
+    result.unknown |= !has_return;
+    budget.spend(
+        result.workers.len().saturating_add(1),
+        "Task factory return cache insertion",
+    )?;
+    returned.insert(id, result.clone());
+    Ok(result)
+}
+
+fn infer_origins(
+    module: &TypedModule,
+    f: &TypedFunction,
+    budget: &mut Budget,
+    active: &mut BTreeSet<FunctionId>,
+    returned: &mut BTreeMap<FunctionId, Origins>,
+) -> CompileResult<(Vec<Origins>, Vec<Origins>)> {
     budget.spend(
         f.values
             .len()
@@ -211,10 +372,14 @@ fn require_origin(
             locals[p.0 as usize].unknown = true;
         }
     }
+    let reachable = reachable_blocks(f, budget)?;
     loop {
         let mut changed = false;
         budget.spend(f.blocks.len(), "Task Drop actual graph")?;
-        for block in &f.blocks {
+        for (index, block) in f.blocks.iter().enumerate() {
+            if !reachable[index] {
+                continue;
+            }
             for i in &block.instructions {
                 budget.spend(1, "Task automatic Drop actual origins")?;
                 if let InstructionKind::Store { local, value }
@@ -241,8 +406,20 @@ fn require_origin(
                     InstructionKind::TaskCreate { worker, .. }
                     | InstructionKind::TaskStart { worker, .. } => Origins {
                         unknown: false,
+                        vacant: false,
                         workers: BTreeSet::from([*worker]),
                     },
+                    InstructionKind::Call { function, .. } => {
+                        returned_origin(module, *function, budget, active, returned)?
+                    }
+                    InstructionKind::MakeErrorUnion { value, .. }
+                        if !relevant[value.0 as usize] =>
+                    {
+                        Origins {
+                            vacant: true,
+                            ..Origins::default()
+                        }
+                    }
                     InstructionKind::Load(local)
                     | InstructionKind::BorrowLocal { local }
                     | InstructionKind::BorrowLocalMut { local }
@@ -301,6 +478,7 @@ fn require_origin(
                     }
                     _ => Origins {
                         unknown: true,
+                        vacant: false,
                         workers: BTreeSet::new(),
                     },
                 };
@@ -311,27 +489,7 @@ fn require_origin(
             break;
         }
     }
-    let origins = if let Some(local) = local {
-        &locals[local.0 as usize]
-    } else {
-        &values[value.expect("value endpoint").0 as usize]
-    };
-    budget.spend(
-        origins.workers.len().saturating_add(1),
-        "Task Drop actual dependencies",
-    )?;
-    if origins.unknown || origins.workers.is_empty() {
-        return Err(fail(
-            span.unwrap_or(f.span),
-            "Task automatic Drop has no complete synchronous worker origin",
-        ));
-    }
-    require_workers(
-        module,
-        origins.workers.iter().copied().collect(),
-        budget,
-        span,
-    )
+    Ok((values, locals))
 }
 pub(crate) fn require_worker(
     module: &TypedModule,
