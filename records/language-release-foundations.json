@@ -1,0 +1,29 @@
+{
+  "kind": "coordination-only; no acceptance claim",
+  "source": "1b462001c6e74548196e72f62ab6074eb4296913",
+  "source_branch": "task/G10.6.3",
+  "main": "e800b39d5f9a096b33560625a4273c1ef11e3d92",
+  "strict_clippy": {
+    "status": "Pass",
+    "command": "cargo clippy --locked --workspace --all-targets --keep-going --features llvm-api -- -D warnings",
+    "log": "/workspace/.zil-env/release-foundations/schema46-clippy-sixth.log"
+  },
+  "default": {
+    "status": "Running",
+    "output": "/workspace/.zil-env/release-foundations/common-schema46-default"
+  },
+  "source_backup": {
+    "archive": "25e0f0db460766071d02af187192dbd8433ea027",
+    "verified_tips": 178,
+    "stable_source_snapshot": true,
+    "remote_verified": true,
+    "actual_wip_bytes": true
+  },
+  "not_accepted": [
+    "full default/reference/text",
+    "combined native delivery",
+    "this-source cold recovery",
+    "functional 1.0",
+    "formal product gates"
+  ]
+}
