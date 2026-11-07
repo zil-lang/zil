@@ -312,6 +312,28 @@ fn carrier(ty: &Type) -> Option<(&Type, &StorageLifeShape)> {
         None
     }
 }
+fn exclusive_carrier_value(ty: &Type) -> bool {
+    match ty {
+        Type::BorrowedStorage { storage, life } => {
+            life.slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                || exclusive_carrier_value(storage)
+        }
+        Type::Tuple(fields) => fields.iter().any(exclusive_carrier_value),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields
+            .iter()
+            .any(|(_, field)| exclusive_carrier_value(field)),
+        Type::Array { element, .. } => exclusive_carrier_value(element),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(exclusive_carrier_value)),
+        Type::ErrorUnion { error, result } => {
+            exclusive_carrier_value(error) || exclusive_carrier_value(result)
+        }
+        _ => false,
+    }
+}
 fn pointed_carrier(ty: &Type) -> Option<(&Type, &StorageLifeShape)> {
     if let Type::Address { inner, .. } = ty {
         carrier(inner)
@@ -3916,6 +3938,156 @@ fn actual_instructions(
     graph: &(Vec<Vec<usize>>, Vec<bool>),
     b: &mut Budget,
 ) -> CompileResult<()> {
+    // A stored exclusive leaf moves with its complete SSA carrier. Two copies
+    // retaining the same loan ID otherwise appear to be one permission.
+    fn consumed(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) {
+        match kind {
+            InstructionKind::Store { value, .. }
+            | InstructionKind::StorePackageField { value, .. }
+            | InstructionKind::StoreOwnedArrayElement { value, .. }
+            | InstructionKind::MakeErrorUnion { value, .. }
+            | InstructionKind::ExtractField {
+                aggregate: value, ..
+            }
+            | InstructionKind::ExtractIndex {
+                aggregate: value, ..
+            } => (Some(*value), &[]),
+            InstructionKind::UpdateField {
+                aggregate, value, ..
+            }
+            | InstructionKind::UpdateIndex {
+                aggregate, value, ..
+            } => (Some(*aggregate), std::slice::from_ref(value)),
+            InstructionKind::MakeAggregate { fields }
+            | InstructionKind::MakePackage { fields }
+            | InstructionKind::MakeManaged { fields }
+            | InstructionKind::MakeOwnedTuple { fields }
+            | InstructionKind::MakeVariant { fields, .. }
+            | InstructionKind::MakeOwnedArray { elements: fields }
+            | InstructionKind::MakeClosure {
+                captures: fields, ..
+            }
+            | InstructionKind::Call {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallIndirect {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallDynSlot {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallClosure {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallClosureOnce {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallClosureBorrowed {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallClosureShared {
+                arguments: fields, ..
+            }
+            | InstructionKind::CallClosureMut {
+                arguments: fields, ..
+            }
+            | InstructionKind::ForeignCall {
+                arguments: fields, ..
+            }
+            | InstructionKind::SuspendCall {
+                arguments: fields, ..
+            }
+            | InstructionKind::TaskCreate {
+                arguments: fields, ..
+            } => (None, fields),
+            _ => (None, &[]),
+        }
+    }
+    let affine: Vec<bool> = f.values.iter().map(exclusive_carrier_value).collect();
+    if affine.iter().any(|exclusive| *exclusive) {
+        let (preds, reachable) = graph;
+        let width = affine.len();
+        fee(b, width.saturating_mul(f.blocks.len().saturating_add(2)))?;
+        let mut outputs = vec![vec![false; width]; f.blocks.len()];
+        loop {
+            let mut changed = false;
+            for (block_index, block) in f.blocks.iter().enumerate() {
+                if !reachable[block_index] {
+                    continue;
+                }
+                let mut spent = vec![false; width];
+                if block_index != f.entry.0 as usize {
+                    for &pred in &preds[block_index] {
+                        if reachable[pred] {
+                            fee(b, width)?;
+                            for (current, previous) in spent.iter_mut().zip(&outputs[pred]) {
+                                *current |= *previous;
+                            }
+                        }
+                    }
+                }
+                for instruction in &block.instructions {
+                    if let Some(value) = instruction.result {
+                        spent[value.0 as usize] = false;
+                    }
+                    let (first, rest) = consumed(&instruction.kind);
+                    for value in first.into_iter().chain(rest.iter().copied()) {
+                        let index = value.0 as usize;
+                        fee(b, 1)?;
+                        if affine[index] {
+                            spent[index] = true;
+                        }
+                    }
+                }
+                if spent != outputs[block_index] {
+                    outputs[block_index] = spent;
+                    changed = true;
+                }
+            }
+            if !changed {
+                break;
+            }
+        }
+        for (block_index, block) in f.blocks.iter().enumerate() {
+            if !reachable[block_index] {
+                continue;
+            }
+            let mut spent = vec![false; width];
+            if block_index != f.entry.0 as usize {
+                for &pred in &preds[block_index] {
+                    if reachable[pred] {
+                        fee(b, width)?;
+                        for (current, previous) in spent.iter_mut().zip(&outputs[pred]) {
+                            *current |= *previous;
+                        }
+                    }
+                }
+            }
+            for instruction in &block.instructions {
+                if let Some(value) = instruction.result {
+                    spent[value.0 as usize] = false;
+                }
+                let (first, rest) = consumed(&instruction.kind);
+                for value in first.into_iter().chain(rest.iter().copied()) {
+                    let index = value.0 as usize;
+                    fee(b, 1)?;
+                    if affine[index] && std::mem::replace(&mut spent[index], true) {
+                        return Err(failure(
+                            "exclusive stored carrier SSA value was transferred twice",
+                        ));
+                    }
+                }
+            }
+            if let Terminator::Return(Some(value)) = block.terminator
+                && affine[value.0 as usize]
+                && spent[value.0 as usize]
+            {
+                return Err(failure(
+                    "exclusive stored carrier SSA value was returned after transfer",
+                ));
+            }
+        }
+    }
     let mut scalar_ffi = false;
     let (preds, reachable) = graph;
     fee(b, f.values.len())?;
@@ -4102,6 +4274,11 @@ fn actual_instructions(
                 }
                 InstructionKind::Load(local) => {
                     let ty = &f.locals[local.0 as usize].ty;
+                    if exclusive_carrier_value(ty) {
+                        return Err(failure(
+                            "copy of actual exclusive stored address carrier requires transfer",
+                        ));
+                    }
                     result(ty, b)?;
                 }
                 InstructionKind::Store { local, value } => {
