@@ -1608,6 +1608,13 @@ impl Graph {
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+                // A variant/error arm can bind the actual owned Store leaf.
+                // The pattern still takes its owning Sum in the Builder; this
+                // graph node only carries the already resolved leaf type.
+                || matches!(ty, Type::Managed(_)
+                    if dynamic_store::element(ty).is_some_and(|element|
+                        dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element)))
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE
