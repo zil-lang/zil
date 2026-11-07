@@ -899,7 +899,11 @@ impl Builder<'_, '_> {
                 Type::Address { inner, .. } => inner.as_ref(),
                 _ => ty,
             };
-            matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. }))
+            matches!(ty, Type::BorrowedStorage { storage, .. }
+                if match storage.as_ref() {
+                    Type::Record { fields, .. } | Type::Package { fields, .. } => fields.iter().any(|(name, field)| name == member && matches!(field, Type::Address { .. })),
+                    _ => false,
+                })
         }) {
             return Ok(false);
         }
@@ -928,12 +932,7 @@ impl Builder<'_, '_> {
         let mode = match field_ty {
             Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
             Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
-            _ => {
-                return Err(unsupported(
-                    target.span,
-                    "stored assignment requires a declared address slot",
-                ));
-            }
+            _ => return Ok(false),
         };
         if !life
             .slots

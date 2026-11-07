@@ -19,6 +19,8 @@ const CONDITIONAL_SLOT_REPLACEMENT: &str = include_str!("conditional-package-slo
 const NESTED_QUALIFIED_PACKAGE: &str = include_str!("nested-qualified-package.zil");
 const NESTED_QUALIFIED_BYTEBUFFER: &str = include_str!("nested-qualified-bytebuffer.zil");
 const NESTED_QUALIFIED_FAILURE: &str = include_str!("nested-qualified-failure.zil");
+const NESTED_QUALIFIED_CHILD_MOVE: &str = include_str!("nested-qualified-child-move.zil");
+const NESTED_QUALIFIED_CHILD_REFILL: &str = include_str!("nested-qualified-child-refill.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -64,6 +66,14 @@ fn mixed_package_source_raw_and_wire() {
             NESTED_QUALIFIED_BYTEBUFFER,
         ),
         ("nested-qualified-failure.zil", NESTED_QUALIFIED_FAILURE),
+        (
+            "nested-qualified-child-move.zil",
+            NESTED_QUALIFIED_CHILD_MOVE,
+        ),
+        (
+            "nested-qualified-child-refill.zil",
+            NESTED_QUALIFIED_CHILD_REFILL,
+        ),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -100,6 +110,38 @@ fn mixed_package_source_raw_and_wire() {
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    }
+}
+
+#[test]
+fn nested_child_transfer_rejects_reusing_removed_field_or_parent() {
+    let removed = "var child=give outer.child\n        let pointer=child.pointer";
+    let cases = [
+        (
+            "duplicate child transfer",
+            "var child=give outer.child\n        let duplicate=give outer.child\n        let pointer=child.pointer",
+        ),
+        (
+            "parent move with removed child",
+            "var child=give outer.child\n        let moved=outer\n        let pointer=child.pointer",
+        ),
+    ];
+    for (name, replacement) in cases {
+        let program = NESTED_QUALIFIED_CHILD_MOVE.replacen(removed, replacement, 1);
+        assert_ne!(program, NESTED_QUALIFIED_CHILD_MOVE, "{name}");
+        let report = compile_source(
+            &source(name, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
     }
 }
 
@@ -597,6 +639,16 @@ fn mixed_package_native_both_optimizations() {
             "nested-qualified-failure.zil",
             NESTED_QUALIFIED_FAILURE,
             b"F0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-move.zil",
+            NESTED_QUALIFIED_CHILD_MOVE,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-refill.zil",
+            NESTED_QUALIFIED_CHILD_REFILL,
+            b"M0\n".as_slice(),
         ),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {

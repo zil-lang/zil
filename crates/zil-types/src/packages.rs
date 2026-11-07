@@ -468,7 +468,9 @@ impl Builder<'_, '_> {
         else {
             return Ok(None);
         };
-        if !self.known_type_is(object, |ty| matches!(ty, Type::Package { .. })) {
+        if !self.known_type_is(object, |ty| {
+            matches!(stored::physical(ty), Type::Package { .. })
+        }) {
             return Ok(None);
         }
         let CoreExprKind::Name(name) = &object.kind else {
@@ -498,7 +500,9 @@ impl Builder<'_, '_> {
         let CoreExprKind::Member { object, member, .. } = &target.kind else {
             return Ok(None);
         };
-        if !self.known_type_is(object, |ty| matches!(ty, Type::Package { .. })) {
+        if !self.known_type_is(object, |ty| {
+            matches!(stored::physical(ty), Type::Package { .. })
+        }) {
             return Ok(None);
         }
         let CoreExprKind::Name(name) = &object.kind else {
@@ -545,6 +549,9 @@ impl Builder<'_, '_> {
             ty,
             Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
         ) || array_field_supported(&ty)
+            || matches!(&ty, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && product::owned_supported(&ty))
             || owned_shapes::sum(&ty)
         {
             let prepared = self.stage_argument(value, &ty, rhs.span)?;

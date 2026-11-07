@@ -477,6 +477,9 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ByteBufferTruncate { .. }
                     | InstructionKind::DescribeAddress { .. }
                     | InstructionKind::DropPackage { .. }
+                    | InstructionKind::TakePackageField { .. }
+                    | InstructionKind::DropPackageField { .. }
+                    | InstructionKind::StorePackageField { .. }
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
                     InstructionKind::MakeErrorUnion { .. }
