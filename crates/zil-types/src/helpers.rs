@@ -390,6 +390,7 @@ pub(super) fn validate_template(
             continue;
         }
         let old = p.ty.is_copy_value()
+            || p.ty.is_package_address()
             || matches!(&p.ty,Type::Address{inner,..} if inner.is_copy_value()
                 || ((function.return_type.is_copy_value() || invocation_result) && matches!(inner.as_ref(),Type::Slice{element} if element.is_copy_value())))
             || packages::supported(&p.ty)

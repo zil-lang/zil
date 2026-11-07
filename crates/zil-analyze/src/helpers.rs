@@ -721,6 +721,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             !candidates.iter().any(|(_, local)| p == local)
                 && !(budget.stored_borrows && (matches!(&function.locals[p.0 as usize].ty,Type::BorrowedStorage{..}) || matches!(&function.locals[p.0 as usize].ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))))
                 && !function.locals[p.0 as usize].ty.is_copy_value()
+                && !function.locals[p.0 as usize].ty.is_package_address()
                 && !matches!(&function.locals[p.0 as usize].ty,
                     Type::Address { inner, .. } if inner.is_copy_value()
                         || ((function.return_type.is_copy_value() || claim.roles.iter().any(|r|r.life.is_some()))
