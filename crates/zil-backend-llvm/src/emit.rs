@@ -625,9 +625,17 @@ fn lower_function_batch(
         }
         tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
         replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
+        let vacated_pollable_drops = if verified.uses_retained_registration()
+            && verified.task_ownership(function.id).is_none()
+        {
+            registration::vacated_direct_drops(function, task_meter)?
+        } else {
+            BTreeSet::new()
+        };
         let emitted = FunctionEmitter {
             dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
+            vacated_pollable_drops,
             function,
             target: lir.target,
             functions,
@@ -1304,6 +1312,7 @@ fn entry_wrapper(
 struct FunctionEmitter<'a> {
     dyn_module: &'a zil_ir::TypedModule,
     task_ownership: Option<&'a zil_verify::TaskOwnership>,
+    vacated_pollable_drops: BTreeSet<(zil_ir::BlockId, usize)>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
     functions: &'a BTreeMap<FunctionId, &'a TypedFunction>,
@@ -1544,27 +1553,10 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
             for (index, instruction) in block.instructions.iter().enumerate() {
                 let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
-                // A lexical cleanup after an actual TakeLocal has no owner to
-                // drain. Only an intervening Store could reactivate this local.
-                // Live direct-function cleanup still follows the strict guard.
-                let vacated_pollable_drop = self.task_ownership.is_none()
-                    && match &instruction.kind {
-                        InstructionKind::DropManaged { local } if pollable_drop => block
-                            .instructions[..index]
-                            .iter()
-                            .rev()
-                            .find_map(|prior| match &prior.kind {
-                                InstructionKind::TakeLocal { local: moved } if moved == local => {
-                                    Some(true)
-                                }
-                                InstructionKind::Store { local: stored, .. } if stored == local => {
-                                    Some(false)
-                                }
-                                _ => None,
-                            })
-                            .unwrap_or(false),
-                        _ => false,
-                    };
+                // The paid whole-CFG may-owner proof must be vacant on every
+                // incoming path. A same-block scan misses moves before a branch.
+                let vacated_pollable_drop =
+                    self.vacated_pollable_drops.contains(&(block.id, index));
                 if let Some(actions) = self
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))

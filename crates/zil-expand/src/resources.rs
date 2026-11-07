@@ -40,11 +40,9 @@ impl Expander<'_> {
         &mut self,
         f: &s::Function,
     ) -> Option<FunctionProtocolContract> {
-        let Some(requires) = f.contract.iter().find(|c| {
+        let requires = f.contract.iter().find(|c| {
             c.name == "requires" && c.terms.iter().any(|t| t.path.as_slice() == ["state"])
-        }) else {
-            return None;
-        };
+        })?;
         let invalid = || {
             Diagnostic::error(
                 Phase::Expand,

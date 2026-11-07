@@ -95,6 +95,7 @@ mod stored_borrows;
 mod stored_callables;
 mod stored_flow;
 mod stored_owned;
+mod stored_partition;
 mod sums;
 mod tasks;
 pub use ct_artifact::{
@@ -898,8 +899,13 @@ fn check_module(
     }
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
+    let stored_partition = if budget.stored_borrows && (budget.tasks || budget.registrations) {
+        stored_partition::mixed(module, &mut budget)?
+    } else {
+        None
+    };
     if budget.stored_borrows {
-        stored_flow::qualifications(module, limits, &mut budget)?;
+        stored_flow::qualifications(module, limits, stored_partition.as_deref(), &mut budget)?;
     }
     let fingerprint = module.fingerprint();
     if plan.module_fingerprint != fingerprint
@@ -938,11 +944,19 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    if budget.stored_borrows {
+    if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
         }
         stored_flow::check(module, &graphs, plan, &mut budget)?;
+    } else if let Some(mask) = stored_partition.as_deref() {
+        for (index, f) in module.functions.iter().enumerate() {
+            if mask[index] {
+                stored_flow::header(module, f, &mut budget)?;
+            }
+        }
+        stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
+        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?;
     } else {
         borrows::check_module(module, plan, &graphs, &mut budget)?;
     }

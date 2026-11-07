@@ -977,7 +977,10 @@ mod retained_member_tests {
             let (prepared, _) = options::prepare(&parsed.module, &limits).unwrap();
             let prepared = prepared.unwrap();
             let prefix = prepared.prelude.len;
-            assert_eq!(prepared.module.items.len(), parsed.module.items.len() + prefix);
+            assert_eq!(
+                prepared.module.items.len(),
+                parsed.module.items.len() + prefix
+            );
             assert!(prefix > 0);
             if body.contains("Task") {
                 assert!(prefix > 1);
@@ -988,24 +991,26 @@ mod retained_member_tests {
                 aliases: &paths,
                 declarations: DeclarationPlacement::Aligned(&rows),
             };
-            let resolved = context.resolve(std::slice::from_ref(&source), &mut budget).unwrap();
-            let mut origins = Origins::single_prepared(
-                &prepared.module,
-                prepared.prelude,
-                &mut budget,
-            )
-            .unwrap();
-            origins.capture_prepared_identities(
-                &prepared.module,
-                prepared.prelude,
-                &resolved,
-                &mut budget,
-            ).unwrap();
+            let resolved = context
+                .resolve(std::slice::from_ref(&source), &mut budget)
+                .unwrap();
+            let mut origins =
+                Origins::single_prepared(&prepared.module, prepared.prelude, &mut budget).unwrap();
+            origins
+                .capture_prepared_identities(
+                    &prepared.module,
+                    prepared.prelude,
+                    &resolved,
+                    &mut budget,
+                )
+                .unwrap();
             let compiler_ids: BTreeSet<_> = origins.entries[..prefix]
-                .iter().map(|origin| {
+                .iter()
+                .map(|origin| {
                     assert!(origin.compiler && origin.declaration.compiler);
                     origin.declaration
-                }).collect();
+                })
+                .collect();
             assert_eq!(compiler_ids.len(), prefix);
             if let Some(option) = prepared.prelude.option {
                 let item = &prepared.module.items[option];
@@ -1016,17 +1021,22 @@ mod retained_member_tests {
                 assert!(!origin.compiler && !origin.declaration.compiler);
                 assert_eq!(origin.declaration.ordinal, ordinal as u32);
                 assert_eq!(
-                    origins.identity(origin.declaration, &mut budget, source.span()).unwrap(),
+                    origins
+                        .identity(origin.declaration, &mut budget, source.span())
+                        .unwrap(),
                     &rows[0].items[ordinal],
                 );
             }
             // A wrong prefix cannot reinterpret source rows as compiler lineage.
             let mut wrong = prepared.prelude;
             wrong.len += 1;
-            let mut origins = Origins::single_prepared(&prepared.module, prepared.prelude, &mut budget).unwrap();
-            assert!(origins.capture_prepared_identities(
-                &prepared.module, wrong, &resolved, &mut budget,
-            ).is_err());
+            let mut origins =
+                Origins::single_prepared(&prepared.module, prepared.prelude, &mut budget).unwrap();
+            assert!(
+                origins
+                    .capture_prepared_identities(&prepared.module, wrong, &resolved, &mut budget,)
+                    .is_err()
+            );
         }
     }
 

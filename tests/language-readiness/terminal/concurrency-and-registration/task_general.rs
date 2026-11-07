@@ -3,6 +3,31 @@ use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
 const SHARED_INPUT: &str =
     include_str!("../../task-composition/verified-source-consumers/shared-input-retained-task.zil");
+fn mixed_shared_input() -> String {
+    let holder = r#"
+struct MutableHolder<life a> { pointer:&'a mut i32 }
+fn hold<life a>(pointer:&'a mut i32)->MutableHolder<'a> {
+    return MutableHolder::<'a>{pointer:pointer};
+}
+fn increment<life a>(holder:&mut MutableHolder<'a>) {
+    let pointer=holder.pointer;
+    *pointer=*pointer+1;
+}
+fn bump(value:i32)->i32 {
+    var result=value;
+    if true {
+        var holder=hold(&mut result);
+        increment(&mut holder);
+    }
+    return result;
+}
+"#;
+    format!(
+        "{}{}",
+        holder,
+        SHARED_INPUT.replace("var value=32;", "var value=bump(31);")
+    )
+}
 #[path = "../../task-composition/verified-source-consumers/source_consumers.rs"]
 mod verified_source_consumers;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
@@ -183,6 +208,277 @@ fn shared_task_raw_owner_keeps_input_borrow_after_last_ssa_use() {
         .unwrap();
     poll_block.instructions.insert(poll_index, initial_write);
     assert!(zil_analyze::analyze(&typed, &limits).is_err());
+}
+#[test]
+fn shared_task_retained_port_exact_source_kernel_budgets() {
+    use zil_ir::{InstructionKind, Type};
+
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let core = expand(SHARED_INPUT, &limits).unwrap().core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    let factory = typed.functions.iter().find(|f| f.name == "make").unwrap();
+    assert!(matches!(
+        &factory.return_type,
+        Type::ErrorUnion { result, .. }
+            if matches!(result.as_ref(), Type::Managed(task)
+                if matches!(task.as_ref(), Type::Task { retained_life, .. }
+                    if retained_life.ports.len() == 1))
+    ));
+    let created = typed
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match &i.kind {
+            InstructionKind::TaskCreate { port_bindings, .. } => Some(port_bindings),
+            _ => None,
+        })
+        .unwrap();
+    assert_eq!(
+        created.len(),
+        1,
+        "fixture must exercise a retained frame port"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
+
+    let types = |n| {
+        zil_types::check(
+            &core,
+            &target,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        )
+    };
+    let mut low = 1;
+    let mut high = limits.max_analysis_steps;
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match types(middle) {
+            Ok(_) => high = middle,
+            Err(errors) if errors[0].category == ResultCategory::ResourceLimit => low = middle + 1,
+            Err(errors) => panic!("retained Task Types at {middle}: {errors:?}"),
+        }
+    }
+    assert!(low > 1);
+    for n in [low, low - 1, low] {
+        if n == low {
+            assert_eq!(types(n).unwrap().fingerprint(), typed.fingerprint());
+        } else {
+            assert_eq!(
+                types(n).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+        }
+    }
+
+    let analyze = |n| {
+        zil_analyze::analyze(
+            &typed,
+            &Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            },
+        )
+    };
+    let (mut low, mut high) = (1, limits.max_analysis_steps);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        match analyze(middle) {
+            Ok(_) => high = middle,
+            Err(errors) if errors[0].category == ResultCategory::ResourceLimit => low = middle + 1,
+            Err(errors) => panic!("retained Task Analyze at {middle}: {errors:?}"),
+        }
+    }
+    assert!(low > 1);
+    for n in [low, low - 1, low] {
+        if n == low {
+            analyze(n).unwrap();
+        } else {
+            assert_eq!(
+                analyze(n).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+        }
+    }
+
+    for wire in [false, true] {
+        let verify = |n| {
+            let bounds = Limits {
+                max_analysis_steps: n,
+                ..limits.clone()
+            };
+            if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &bounds)
+            } else {
+                zil_verify::verify_module(typed.clone(), plan.clone(), &target, &bounds)
+            }
+        };
+        let (mut low, mut high) = (1, limits.max_analysis_steps);
+        while low < high {
+            let middle = low + (high - low) / 2;
+            match verify(middle) {
+                Ok(_) => high = middle,
+                Err(errors) if errors[0].category == ResultCategory::ResourceLimit => {
+                    low = middle + 1
+                }
+                Err(errors) => panic!("retained Task Verify wire={wire} at {middle}: {errors:?}"),
+            }
+        }
+        assert!(low > 1);
+        for n in [low, low - 1, low, low] {
+            if n == low {
+                assert_eq!(verify(n).unwrap().fingerprint(), typed.fingerprint());
+            } else {
+                assert_eq!(
+                    verify(n).unwrap_err()[0].category,
+                    ResultCategory::ResourceLimit
+                );
+            }
+        }
+    }
+}
+#[test]
+fn shared_task_and_holder_partition_rejects_false_raw_and_wire_proofs() {
+    use zil_ir::{CallKind, InstructionKind, Type};
+
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let src = source(&mixed_shared_input());
+    let parsed = zil_syntax::parse(&src).into_result().unwrap();
+    let aliases = std::collections::BTreeMap::new();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &src,
+        &parsed,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: src.module_id,
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+
+    let stored = typed
+        .functions
+        .iter()
+        .filter(|f| ["hold", "increment", "bump"].contains(&f.name.as_str()))
+        .find_map(|f| {
+            plan.functions[f.id.0 as usize]
+                .holds
+                .iter()
+                .position(|row| !row.roots.is_empty())
+                .map(|row| (f.id.0 as usize, row))
+        })
+        .expect("real stored-domain Hold row");
+    let factory = typed.functions.iter().find(|f| f.name == "make").unwrap();
+    let task_output = factory
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find_map(|i| match i.kind {
+            InstructionKind::TaskCreate { .. } => i.result,
+            _ => None,
+        })
+        .unwrap();
+    let task = (factory.id.0 as usize, task_output.0 as usize);
+    assert!(!plan.functions[task.0].holds[task.1].roots.is_empty());
+    assert!(matches!(
+        &factory.values[task.1],
+        Type::ErrorUnion { result, .. }
+            if matches!(result.as_ref(), Type::Managed(inner)
+                if matches!(inner.as_ref(), Type::Task { retained_life, .. }
+                    if !retained_life.ports.is_empty()))
+    ));
+
+    for (domain, location) in [("stored", stored), ("task", task)] {
+        let mut false_plan = plan.clone();
+        false_plan.functions[location.0].holds[location.1]
+            .roots
+            .clear();
+        let bytes = zil_ir::wire::encode_module_candidate(&typed, &false_plan, &limits).unwrap();
+        for wire in [false, true] {
+            let errors = if wire {
+                zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+            } else {
+                zil_verify::verify_module(typed.clone(), false_plan.clone(), &target, &limits)
+                    .unwrap_err()
+            };
+            assert_ne!(
+                errors[0].code, "E-VERIFY-PLAN-IDENTITY",
+                "{domain} wire={wire}"
+            );
+            assert_eq!(
+                errors[0].category,
+                ResultCategory::SafeReject,
+                "{domain} wire={wire}: {errors:?}"
+            );
+        }
+    }
+
+    let mut missing_header = typed.clone();
+    let hold = missing_header
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "hold")
+        .unwrap();
+    assert!(hold.storage_life.take().is_some());
+    assert!(zil_analyze::analyze(&missing_header, &limits).is_err());
+    let mut false_header_plan = plan.clone();
+    false_header_plan.module_fingerprint = missing_header.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&missing_header, &false_header_plan, &limits)
+        .unwrap();
+    for wire in [false, true] {
+        let errors = if wire {
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+        } else {
+            zil_verify::verify_module(
+                missing_header.clone(),
+                false_header_plan.clone(),
+                &target,
+                &limits,
+            )
+            .unwrap_err()
+        };
+        assert_ne!(errors[0].code, "E-VERIFY-PLAN-IDENTITY", "wire={wire}");
+        assert!(
+            errors[0].message.contains("stored signature"),
+            "wire={wire}: {errors:?}"
+        );
+    }
+
+    let mut non_direct = typed.clone();
+    let bump = non_direct
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "bump")
+        .unwrap();
+    bump.call_kind = CallKind::Suspend;
+    assert!(zil_analyze::analyze(&non_direct, &limits).is_err());
+    let mut false_plan = plan;
+    false_plan.module_fingerprint = non_direct.fingerprint();
+    let bytes = zil_ir::wire::encode_module_candidate(&non_direct, &false_plan, &limits).unwrap();
+    for wire in [false, true] {
+        let errors = if wire {
+            zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap_err()
+        } else {
+            zil_verify::verify_module(non_direct.clone(), false_plan.clone(), &target, &limits)
+                .unwrap_err()
+        };
+        assert_ne!(errors[0].code, "E-VERIFY-PLAN-IDENTITY", "wire={wire}");
+        assert!(
+            errors[0].message.contains("mixed stored/ordinary edge"),
+            "wire={wire}: {errors:?}"
+        );
+    }
 }
 #[test]
 fn shared_task_raw_rejects_untracked_parameter_and_result_shapes() {

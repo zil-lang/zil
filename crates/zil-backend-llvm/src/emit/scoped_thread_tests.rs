@@ -245,6 +245,7 @@ fn model() -> (m::Module, LirModule) {
             FunctionEmitter {
                 dyn_module: &dyn_module,
                 task_ownership: None,
+                vacated_pollable_drops: BTreeSet::new(),
                 function: f,
                 target: &lir.target,
                 functions: &functions,

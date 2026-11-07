@@ -176,7 +176,7 @@ fn shared_multi_slot_remains_valid_but_exclusive_tuple_or_multi_slot_is_closed()
     let Type::BorrowedStorage { storage, .. } = &mut new else {
         unreachable!()
     };
-    *storage = Box::new(Type::Tuple(vec![fixture::address(Type::I64, true)]));
+    **storage = Type::Tuple(vec![fixture::address(Type::I64, true)]);
     fixture::replace_carrier(&mut tuple, &old, &new);
     let candidate = fixture::mutable_holder();
     reject(

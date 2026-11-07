@@ -173,9 +173,13 @@ fn local_transfer(
         | InstructionKind::TakeVariantField { local, .. }
         | InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
-        | InstructionKind::DropManaged { local }
-        | InstructionKind::DropErrorUnion { local }
         | InstructionKind::DropClosure { local } => {
+            lookup(budget, state.len())?;
+            state.remove(&local);
+        }
+        InstructionKind::DropManaged { local } | InstructionKind::DropErrorUnion { local }
+            if budget.borrowed_task_ports =>
+        {
             lookup(budget, state.len())?;
             state.remove(&local);
         }
@@ -609,6 +613,14 @@ struct Facts {
     inputs: Vec<State>,
     product_captures: bool,
 }
+fn empty_facts(f: &TypedFunction, budget: &mut Budget) -> Check<Facts> {
+    budget.spend(f.values.len())?;
+    Ok(Facts {
+        values: vec![vec![]; f.values.len()],
+        inputs: Vec::new(),
+        product_captures: false,
+    })
+}
 
 fn reconstruct(
     module: &TypedModule,
@@ -1019,6 +1031,7 @@ fn reconstruct_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     descriptor_origins: bool,
+    mask: Option<&[bool]>,
     budget: &mut Budget,
 ) -> Check<Vec<Facts>> {
     let count = module.functions.len();
@@ -1031,12 +1044,22 @@ fn reconstruct_module(
             .functions
             .iter()
             .zip(graphs)
-            .map(|(f, graph)| reconstruct(module, f, graph, &summaries, descriptor_origins, budget))
+            .enumerate()
+            .map(|(index, (f, graph))| {
+                if mask.is_some_and(|mask| mask[index]) {
+                    empty_facts(f, budget)
+                } else {
+                    reconstruct(module, f, graph, &summaries, descriptor_origins, budget)
+                }
+            })
             .collect();
     }
     reserve(budget, &[count, 5])?;
     let mut dependents = vec![Vec::<usize>::new(); count];
     for (user, f) in module.functions.iter().enumerate() {
+        if mask.is_some_and(|mask| mask[user]) {
+            continue;
+        }
         for (b, block) in f.blocks.iter().enumerate() {
             budget.spend(1)?;
             if !graphs[user].reachable[b] {
@@ -1083,9 +1106,14 @@ fn reconstruct_module(
     // Keep this solver independent from the producer's FIFO. Complete a batch
     // before consuming its notifications, so many changed callees cause only
     // one revisit of an already-checked caller in the following batch.
-    let mut dirty: Vec<usize> = (0..count).rev().collect();
+    let mut dirty: Vec<usize> = (0..count)
+        .rev()
+        .filter(|index| !mask.is_some_and(|mask| mask[*index]))
+        .collect();
     let mut next = Vec::new();
-    let mut scheduled = vec![true; count];
+    let mut scheduled: Vec<bool> = (0..count)
+        .map(|index| !mask.is_some_and(|mask| mask[index]))
+        .collect();
     while !dirty.is_empty() {
         while let Some(index) = dirty.pop() {
             budget.spend(1)?;
@@ -1165,7 +1193,11 @@ fn reconstruct_module(
         std::mem::swap(&mut dirty, &mut next);
     }
     all.into_iter()
-        .map(|facts| {
+        .enumerate()
+        .map(|(index, facts)| {
+            if mask.is_some_and(|mask| mask[index]) {
+                return empty_facts(&module.functions[index], budget);
+            }
             facts.ok_or_else(|| reject("E-VERIFY-HOLD", None, "return frontier omitted a function"))
         })
         .collect()
@@ -1185,8 +1217,26 @@ pub(super) fn check_module(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<()> {
+    check_module_mask(module, plan, graphs, None, budget)
+}
+pub(super) fn check_mixed(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    graphs: &[FunctionGraph],
+    mask: &[bool],
+    budget: &mut Budget,
+) -> Check<()> {
+    check_module_mask(module, plan, graphs, Some(mask), budget)
+}
+fn check_module_mask(
+    module: &TypedModule,
+    plan: &CandidatePlan,
+    graphs: &[FunctionGraph],
+    mask: Option<&[bool]>,
+    budget: &mut Budget,
+) -> Check<()> {
     let descriptor_origins = descriptor_origins(module, budget)?;
-    let facts = reconstruct_module(module, graphs, descriptor_origins, budget)?;
+    let facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
     if budget.invocation_callbacks {
         check_callback_returns(module, graphs, &facts, budget)?;
     }
@@ -1236,7 +1286,7 @@ pub(super) fn check_module(
     // independently reconstructed above for effects and responsibility, and
     // must not be promoted to strong holds when publishing or checking it.
     let holds = if descriptor_origins {
-        Some(reconstruct_module(module, graphs, false, budget)?)
+        Some(reconstruct_module(module, graphs, false, mask, budget)?)
     } else {
         None
     };
@@ -1270,13 +1320,20 @@ pub(super) fn check_module(
     } else {
         Vec::new()
     };
-    for (((function, plan), graph), facts) in module
+    for (function_index, (((function, plan), graph), facts)) in module
         .functions
         .iter()
         .zip(&plan.functions)
         .zip(graphs)
         .zip(&facts)
+        .enumerate()
     {
+        if mask.is_some_and(|mask| mask[function_index]) {
+            if has_buffers {
+                apart.push(Default::default());
+            }
+            continue;
+        }
         // Only the new parameter-capture lane adds a whole-invocation
         // obligation. Ordinary local captures retain their existing cost.
         let mut captured_parameters = std::collections::BTreeSet::new();
@@ -1530,11 +1587,14 @@ pub(super) fn check_module(
     }
     if has_buffers {
         buffer_effects::close_apart(
-            module,
-            graphs,
-            &facts,
-            &capture_facts,
-            &effects,
+            buffer_effects::ApartContext {
+                module,
+                graphs,
+                facts: &facts,
+                capture_facts: &capture_facts,
+                effects: &effects,
+                mask,
+            },
             apart,
             budget,
         )?;
@@ -1816,8 +1876,14 @@ mod frontier_tests {
     fn compare(module: &TypedModule) -> (usize, usize) {
         let graphs = graphs(module);
         TEST_SOLVES.with(|n| n.set(0));
-        let fast = reconstruct_module(module, &graphs, false, &mut Budget::new(&Limits::default()))
-            .unwrap();
+        let fast = reconstruct_module(
+            module,
+            &graphs,
+            false,
+            None,
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap();
         let fast_visits = TEST_SOLVES.with(|n| n.get());
         TEST_SOLVES.with(|n| n.set(0));
         let reference = slow(module, &graphs, &mut Budget::new(&Limits::default())).unwrap();
@@ -1880,6 +1946,7 @@ mod frontier_tests {
             &module,
             &graphs(&module),
             false,
+            None,
             &mut Budget::new(&Limits::default()),
         )
         .unwrap_err();
@@ -1889,8 +1956,14 @@ mod frontier_tests {
             max_analysis_steps: 0,
             ..Limits::default()
         };
-        let error = reconstruct_module(&module, &graphs(&module), false, &mut Budget::new(&limits))
-            .unwrap_err();
+        let error = reconstruct_module(
+            &module,
+            &graphs(&module),
+            false,
+            None,
+            &mut Budget::new(&limits),
+        )
+        .unwrap_err();
         assert_eq!(error.category, zil_base::ResultCategory::ResourceLimit);
     }
 }

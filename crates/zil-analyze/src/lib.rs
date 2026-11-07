@@ -13,6 +13,7 @@ mod borrowed_fp;
 mod budget;
 mod callable_fields;
 mod class_flow;
+mod composition;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
@@ -125,23 +126,48 @@ fn analyze_budgeted(
             holds: Vec::new(),
         });
     }
+    let mut stored_holds = None;
     if budget.stored_borrows {
-        if !module.closures.is_empty() {
-            stored_callables::definitions(module, budget)?;
-            helpers::check(module, budget)?;
+        // These actual opaque carriers cannot enter the legacy stored lane.
+        // A stored module with only scalar helpers retains its old path/fees.
+        let ordinary_required = budget.tasks || budget.registrations;
+        if ordinary_required {
+            let members = composition::partition(module, budget)?;
+            if !members.iter().any(|member| *member) || !members.iter().any(|member| !*member) {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Analyze,
+                    "stored/ordinary composition has no separate actual function domains",
+                    None,
+                )]);
+            }
+            budget.composition_stored = members;
+            // Both solvers see the original module and CFG. The membership
+            // mask only selects which function each solver is authorized to
+            // prove; it never changes an ID, declaration, or contract.
+            for (index, function) in module.functions.iter().enumerate() {
+                if budget.composition_stored[index] {
+                    stored_flow::header(module, function, budget)?;
+                }
+            }
+            stored_holds = Some(stored_flow::infer(module, &hold_graphs, budget)?);
+        } else {
+            if !module.closures.is_empty() {
+                stored_callables::definitions(module, budget)?;
+                helpers::check(module, budget)?;
+            }
+            for f in &module.functions {
+                stored_flow::header(module, f, budget)?;
+            }
+            for (f, package) in module.functions.iter().zip(&package_functions) {
+                scopes::check(module, f, *package, budget)?;
+            }
+            let actual = stored_flow::infer(module, &hold_graphs, budget)?;
+            for (function, holds) in plan.functions.iter_mut().zip(actual) {
+                function.holds = holds;
+            }
+            dyn_dispatch::check_roots(module, &plan.functions, budget)?;
+            return Ok(plan);
         }
-        for f in &module.functions {
-            stored_flow::header(module, f, budget)?;
-        }
-        for (f, package) in module.functions.iter().zip(&package_functions) {
-            scopes::check(module, f, *package, budget)?;
-        }
-        let actual = stored_flow::infer(module, &hold_graphs, budget)?;
-        for (function, holds) in plan.functions.iter_mut().zip(actual) {
-            function.holds = holds;
-        }
-        dyn_dispatch::check_roots(module, &plan.functions, budget)?;
-        return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
@@ -155,7 +181,17 @@ fn analyze_budgeted(
     owned_callbacks::check(module, budget)?;
     let head_effects = head_access::check(module, &hold_graphs, budget)?;
     resources::check_module(module, &hold_graphs, budget)?;
-    let actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    let mut actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    if let Some(stored) = stored_holds {
+        for (index, rows) in stored.into_iter().enumerate() {
+            if budget.composition_stored[index] {
+                if rows.len() != module.functions[index].values.len() {
+                    return Err(bad("stored composition solver omitted an owned function"));
+                }
+                actual_holds[index] = rows;
+            }
+        }
+    }
     head_loans::check(module, &hold_graphs, &actual_holds, &head_effects, budget)?;
     for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;

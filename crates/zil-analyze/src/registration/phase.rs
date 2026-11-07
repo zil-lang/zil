@@ -391,10 +391,10 @@ fn effect(
             }
         }
         InstructionKind::ErrorTag { value } => {
-            if let Some(o) = out {
-                if let Some(p) = s.results[value.0 as usize] {
-                    s.conditions[o] = Some((p.root, p.generation, p.low, p.high));
-                }
+            if let Some(o) = out
+                && let Some(p) = s.results[value.0 as usize]
+            {
+                s.conditions[o] = Some((p.root, p.generation, p.low, p.high));
             }
         }
         InstructionKind::Constant(Constant::I32(n)) => {
@@ -411,15 +411,15 @@ fn effect(
                 let pair = [(*left, *right), (*right, *left)]
                     .into_iter()
                     .find_map(|(t, n)| Some((s.tags[t.0 as usize]?, s.integers[n.0 as usize]?)));
-                if let Some((v, n)) = pair.filter(|(_, n)| *n == 0 || *n == 1) {
-                    if let Some(p) = s.results[v] {
-                        s.conditions[o] = Some((
-                            p.root,
-                            p.generation,
-                            if n == 0 { p.low } else { p.high },
-                            if n == 0 { p.high } else { p.low },
-                        ));
-                    }
+                if let Some((v, n)) = pair.filter(|(_, n)| *n == 0 || *n == 1)
+                    && let Some(p) = s.results[v]
+                {
+                    s.conditions[o] = Some((
+                        p.root,
+                        p.generation,
+                        if n == 0 { p.low } else { p.high },
+                        if n == 0 { p.high } else { p.low },
+                    ));
                 }
             }
         }
@@ -520,10 +520,10 @@ fn effect(
                         s.generations[r] = s.generations[r].saturating_add(1);
                     }
                 }
-                if let Some(o) = out {
-                    if is_owner(&f.values[o]) {
-                        s.values[o] = OPEN | CLOSED;
-                    }
+                if let Some(o) = out
+                    && is_owner(&f.values[o])
+                {
+                    s.values[o] = OPEN | CLOSED;
                 }
             }
         }
@@ -595,13 +595,13 @@ fn run(
             for i in &block.instructions {
                 effect(&mut state, i, f, m, b)?;
             }
-            if matches!(block.terminator, Terminator::Return(_)) {
-                if let Some(c) = c {
-                    b.spend(
-                        c.exits.len().saturating_mul(2).saturating_add(1),
-                        "protocol return relation",
-                    )?;
-                }
+            if matches!(block.terminator, Terminator::Return(_))
+                && let Some(c) = c
+            {
+                b.spend(
+                    c.exits.len().saturating_mul(2).saturating_add(1),
+                    "protocol return relation",
+                )?;
             }
             let mut edge = |target: usize, next: &Flow| -> CompileResult<()> {
                 b.spend(
@@ -635,19 +635,19 @@ fn run(
                     then_block,
                     else_block,
                 } => {
-                    if let Some((r, g, t, e)) = state.conditions[condition.0 as usize] {
-                        if state.generations[r] == g {
-                            let original = state.phases[r];
-                            state.phases[r] &= t;
-                            if state.phases[r] != 0 {
-                                edge(then_block.0 as usize, &state)?;
-                            }
-                            state.phases[r] = original & e;
-                            if state.phases[r] != 0 {
-                                edge(else_block.0 as usize, &state)?;
-                            }
-                            continue;
+                    if let Some((r, g, t, e)) = state.conditions[condition.0 as usize]
+                        && state.generations[r] == g
+                    {
+                        let original = state.phases[r];
+                        state.phases[r] &= t;
+                        if state.phases[r] != 0 {
+                            edge(then_block.0 as usize, &state)?;
                         }
+                        state.phases[r] = original & e;
+                        if state.phases[r] != 0 {
+                            edge(else_block.0 as usize, &state)?;
+                        }
+                        continue;
                     }
                     edge(then_block.0 as usize, &state)?;
                     edge(else_block.0 as usize, &state)?;
