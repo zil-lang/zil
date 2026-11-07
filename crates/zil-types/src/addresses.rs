@@ -1,6 +1,98 @@
 //! One address layer. Pointer bytes and execution permission are separate.
 use super::*;
 impl Builder<'_, '_> {
+    /// Extract the actual stored address, rather than a child reborrow. The
+    /// independent flow kernels prove occupancy and required refill at exits.
+    pub(super) fn move_out_call(
+        &mut self,
+        arguments: &[CoreExpr],
+        expected: Option<&Type>,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let [target] = arguments else {
+            return Err(error(
+                "E-CALL-ARITY",
+                span,
+                "move_out requires one stored field place",
+            ));
+        };
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
+            return Err(error(
+                "E-MOVE-OUT-PLACE",
+                target.span,
+                "move_out requires a stored address field",
+            ));
+        };
+        let (storage, address_ty) = self.projection_base(object, true)?;
+        let Type::Address {
+            mutable: true,
+            inner,
+        } = address_ty
+        else {
+            return Err(error(
+                "E-ADDRESS-PERMISSION",
+                target.span,
+                "move_out requires a mutable holder place",
+            ));
+        };
+        self.closures.snapshot_type(&inner, 2, 2, target.span)?;
+        let Type::BorrowedStorage {
+            storage: physical,
+            life,
+        } = inner.as_ref()
+        else {
+            return Err(error(
+                "E-MOVE-OUT-PLACE",
+                target.span,
+                "move_out requires a qualified stored address field",
+            ));
+        };
+        self.member_owner(&inner, owner.as_ref(), target.span)?;
+        let (index, ty) = aggregates::field(physical, member, target.span)?;
+        let path = vec![PlaceProjection::Field(index)];
+        let mode = match ty {
+            Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+            Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+            _ => {
+                return Err(error(
+                    "E-MOVE-OUT-PLACE",
+                    target.span,
+                    "move_out requires a declared stored address slot",
+                ));
+            }
+        };
+        if !life
+            .slots
+            .iter()
+            .any(|slot| slot.path == path && slot.mode == mode)
+        {
+            return Err(error(
+                "E-MOVE-OUT-PLACE",
+                target.span,
+                "move_out requires a declared stored address slot",
+            ));
+        }
+        if let Some(expected) = expected {
+            self.same(&ty, expected, span)?;
+        }
+        Ok((
+            self.value(
+                InstructionKind::LoadStoredBorrow {
+                    storage,
+                    path,
+                    mode: StoredBorrowLoad::Take,
+                },
+                ty.clone(),
+                span,
+            )?,
+            ty,
+        ))
+    }
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
             Type::MutexGuard { .. } => true,
@@ -832,14 +924,24 @@ impl Builder<'_, '_> {
         self.member_owner(inner.as_ref(), owner.as_ref(), target.span)?;
         let (index, field_ty) = aggregates::field(physical, member, target.span)?;
         let path = vec![PlaceProjection::Field(index)];
+        let mode = match field_ty {
+            Type::Address { mutable: true, .. } => StoredBorrowMode::ExclusiveAddress,
+            Type::Address { mutable: false, .. } => StoredBorrowMode::SharedAddress,
+            _ => {
+                return Err(unsupported(
+                    target.span,
+                    "stored assignment requires a declared address slot",
+                ));
+            }
+        };
         if !life
             .slots
             .iter()
-            .any(|slot| slot.path == path && slot.mode == StoredBorrowMode::ExclusiveAddress)
+            .any(|slot| slot.path == path && slot.mode == mode)
         {
             return Err(unsupported(
                 target.span,
-                "stored assignment requires a declared exclusive address slot",
+                "stored assignment requires a declared address slot",
             ));
         }
         let (value, actual) = self.expr(rhs, Some(&field_ty))?;

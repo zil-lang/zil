@@ -24,6 +24,31 @@ fn typed(source: &str) -> TypedModule {
     let core = zil_expand::expand(&s, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
+fn stored_core(source: &str) -> zil_ir::CoreModule {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "stored-borrow-move-out.zil", source);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &ast,
+        &Limits::default(),
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core
+}
+fn typed_stored(source: &str) -> TypedModule {
+    zil_types::check(
+        &stored_core(source),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .unwrap()
+}
 fn baseline() -> (TypedModule, CandidatePlan) {
     let m = typed(SOURCE);
     let p = zil_analyze::analyze(&m, &Limits::default()).unwrap();
@@ -68,6 +93,171 @@ fn synchronize(m: &mut TypedModule) {
             c.lending_captures = m.closures[c.closure.0 as usize].lending_captures.clone();
             c.kind = m.closures[c.closure.0 as usize].kind;
         }
+    }
+}
+
+#[test]
+fn move_out_producer_emits_take_for_the_actual_exclusive_slot() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/stored-borrow-move-out.zil"
+    ));
+    let takes: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter_map(|i| match &i.kind {
+                    InstructionKind::LoadStoredBorrow {
+                        path,
+                        mode: zil_ir::StoredBorrowLoad::Take,
+                        ..
+                    } => Some((path, &f.values[i.result.unwrap().0 as usize])),
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(takes.len(), 1);
+    assert_eq!(takes[0].0, &[zil_ir::PlaceProjection::Field(1)]);
+    assert_eq!(
+        takes[0].1,
+        &Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I32),
+        }
+    );
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                InstructionKind::LoadStoredBorrow {
+                    mode: zil_ir::StoredBorrowLoad::Reborrow { mutable: true },
+                    ..
+                }
+            ))
+    );
+}
+
+#[test]
+fn move_out_producer_supports_a_qualified_record_slot() {
+    let module = typed_stored(
+        "struct Holder<life a>{pointer:&'a mut i32}fn exchange<life a>(holder:&mut Holder<'a>,next:&'a mut i32)->&'a mut i32{let previous=move_out(holder.pointer);holder.pointer=next;return previous}fn main(){}",
+    );
+    let paths: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match &i.kind {
+            InstructionKind::LoadStoredBorrow {
+                path,
+                mode: zil_ir::StoredBorrowLoad::Take,
+                ..
+            } => Some(path),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(paths, vec![&vec![zil_ir::PlaceProjection::Field(0)]]);
+}
+
+#[test]
+fn move_out_producer_preserves_a_shared_slot_mode_across_refill() {
+    let module = typed_stored(
+        "struct Holder<life a>{pointer:&'a i32}fn exchange<life a>(holder:&mut Holder<'a>,next:&'a i32)->i32{let previous=move_out(holder.pointer);holder.pointer=next;return *previous+*holder.pointer}fn main(){}",
+    );
+    let takes: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter_map(|i| match &i.kind {
+                    InstructionKind::LoadStoredBorrow {
+                        path,
+                        mode: zil_ir::StoredBorrowLoad::Take,
+                        ..
+                    } => Some((path, &f.values[i.result.unwrap().0 as usize])),
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(takes.len(), 1);
+    assert_eq!(takes[0].0, &[zil_ir::PlaceProjection::Field(0)]);
+    assert_eq!(
+        takes[0].1,
+        &Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32)
+        }
+    );
+}
+
+#[test]
+fn move_out_producer_rejects_unqualified_or_unavailable_places() {
+    let sources = [
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(holder:&Holder<'a>){move_out(holder.pointer)}fn main(){}",
+            "E-ADDRESS-PERMISSION",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(pointer:&'a mut i32){let holder=Holder::<'a>{pointer:pointer};move_out(holder.pointer)}fn main(){}",
+            "E-IMMUTABLE-ASSIGNMENT",
+        ),
+        (
+            "struct Holder{count:i32}fn take(holder:&mut Holder){move_out(holder.count)}fn main(){}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32,count:i32}fn take<life a>(holder:&mut Holder<'a>){move_out(holder.count)}fn main(){}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "fn main(){var n=1;let pointer=&mut n;move_out(pointer)}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(pointer:&'a mut i32){move_out(Holder::<'a>{pointer:pointer}.pointer)}fn main(){}",
+            "E-UNSUPPORTED",
+        ),
+    ];
+    for (source, code) in sources {
+        let core = stored_core(source);
+        let errors =
+            zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Types && d.code == code),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn move_out_source_requires_a_single_argument_and_reserved_bare_name() {
+    for (source, code) in [
+        ("fn main(){move_out()}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn main(){move_out(1,2)}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn main(){move_out(...(1,2))}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn move_out(){}fn main(){}", "E-MOVE-OUT-NAME"),
+        ("fn main(){let move_out=1}", "E-MOVE-OUT-NAME"),
+        ("fn take(move_out:i32){}fn main(){}", "E-MOVE-OUT-NAME"),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "move-out-surface.zil", source);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &ast).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Expand && d.code == code),
+            "{source}: {errors:?}"
+        );
     }
 }
 
