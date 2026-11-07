@@ -4156,15 +4156,36 @@ impl Check<'_, '_, '_> {
             )?;
         }
         if matches!(name, "store_at" | "store_at_mut") {
+            if name == "store_at_mut" {
+                self.store_field_write_permission(&arguments[0].value, state)?;
+            }
             self.alias_borrow(&arguments[0].value, state, name == "store_at_mut")?;
         } else if name != "store_new" {
             if matches!(name, "store_len" | "store_capacity") {
                 self.alias_read_place(&arguments[0].value, state)?;
             } else {
+                self.store_field_write_permission(&arguments[0].value, state)?;
                 self.alias_replace_place(&arguments[0].value, state)?;
             }
         }
         Ok(Some(stores::result(name, &element, e.span)))
+    }
+
+    fn store_field_write_permission(&mut self, target: &Expr, state: &mut State) -> R<()> {
+        let mut projected = target;
+        while let ExprKind::Group(inner) = &projected.kind {
+            self.tick(projected.span)?;
+            projected = inner;
+        }
+        if matches!(projected.kind, ExprKind::Member { .. })
+            && !self.place(projected, state)?.1
+        {
+            return Err(error(
+                target.span,
+                "shared Package reference cannot write its Store field",
+            ));
+        }
+        Ok(())
     }
 
     #[inline(never)]
@@ -5290,7 +5311,15 @@ impl Check<'_, '_, '_> {
                     self.source_definition,
                     self.budget,
                 )?;
-                if through_address && (field.manages || !self.known_copy(&ty)?) {
+                // Store primitives observe the descriptor through a borrowed
+                // Package field. The handle is never copied or moved here;
+                // the primitive's alias check below proves read versus write
+                // access from the actual parent reference.
+                let borrowed_store = borrowing && field.manages && stores::element(&ty).is_some();
+                if through_address
+                    && !borrowed_store
+                    && (field.manages || !self.known_copy(&ty)?)
+                {
                     return Err(unsupported(
                         e.span,
                         "generic address field reads require a proven Copy projection",
