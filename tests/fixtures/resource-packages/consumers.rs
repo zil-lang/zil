@@ -298,7 +298,7 @@ fn g10110_callable_native() {
 // captured Package roots through a loop and each leaf's actual Drop sequence.
 const COMPOSED: &[(&str, &str, &[u8])] = &[(
     "two-role-captured-replacement",
-    include_str!("../G10.1.11-inputs/two-role-captured-replacement.zil"),
+    include_str!("two-role-captured-replacement.zil"),
     b"ABEFCDGHEF91\n",
 )];
 
@@ -339,7 +339,7 @@ fn g10111_two_role_replacement_native() {
 #[cfg(target_os = "linux")]
 fn g10111_ct_ambient_type_preserves_outer_nominal_inventory() {
     let text = include_str!(
-        "../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
     );
     let directory = super::Temp::new();
     let cache = directory.0.join("cache");
