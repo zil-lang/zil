@@ -1,6 +1,6 @@
 # ZIL — 语言初稿开发预览
 
-当前语言主线以 Linux x86_64 的普通多模块程序为交付入口。已有泛型/trait、显式资源与错误责任、UTF-8/String、动态 Store、共享借入迭代；本批补齐普通 POD 元素原地修改、九种基础标量的直接 Store 和 trait 静态关联函数。使用方式、支持矩阵与尚未支持的组合见[语言初稿](docs/LANGUAGE-DRAFT.md)，精确工程状态见[主线恢复与交付](docs/DELIVERY.md)；实时任务看板在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md)。
+当前语言主线以 Linux x86_64 的普通多模块程序为交付入口。已有泛型/trait、显式资源与错误责任、UTF-8/String、动态 Store、共享借入迭代；本批补齐普通 POD 元素原地修改、九种基础标量的直接 Store 和 trait 静态关联函数。有限普通拥有 Store 与共享借入 dyn 的实测范围见[本批共同验收](docs/validation/ordinary-ownership-and-shared-dispatch-acceptance.json)。使用方式、支持矩阵与尚未支持的组合见[语言初稿](docs/LANGUAGE-DRAFT.md)，精确工程状态见[主线恢复与交付](docs/DELIVERY.md)；实时任务看板在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md)。
 
 构建遵循 `rust-toolchain.toml` 与 LLVM 工具链检查。首次联网执行 `cargo fetch --locked`，之后可 `cargo build --offline --locked -p zil-cli`；CLI 不隐式执行模块，运行完整返回值用 `zil run FILE --entry FUNCTION`。语言初稿是明确 profile 的开发预览，不代表完整语言、B0、原生 Windows、ZUI 或 Rust 同语义成本优势已经验收。
 

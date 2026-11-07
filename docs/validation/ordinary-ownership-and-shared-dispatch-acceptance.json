@@ -1,0 +1,781 @@
+{
+  "status": "AcceptedFiniteOrdinaryStoreAndSharedDyn",
+  "date_utc": "2026-11-07",
+  "tested_commit": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+  "tested_source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+  "tested_tree": "4c4a8c33545053ecfd7edef13b35f8d5531cc57f",
+  "gates": [
+    {
+      "gate": "default",
+      "status": "Pass",
+      "passed": 5248,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "reference",
+      "status": "Pass",
+      "passed": 5136,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "text-reference",
+      "status": "Pass",
+      "passed": 70,
+      "failed": 0,
+      "ignored": 0,
+      "filtered_out": 0
+    },
+    {
+      "gate": "fmt",
+      "status": "Pass"
+    },
+    {
+      "gate": "clippy",
+      "status": "Pass"
+    },
+    {
+      "gate": "reference-clippy",
+      "status": "Pass"
+    },
+    {
+      "gate": "release-build",
+      "status": "Pass"
+    },
+    {
+      "gate": "consumer209",
+      "status": "Pass"
+    },
+    {
+      "gate": "engineering",
+      "status": "Pass"
+    },
+    {
+      "gate": "remote-source-recovery",
+      "status": "Pass"
+    }
+  ],
+  "scope": "G9.3.5 ordinary POD/nine-scalar Store ownership in finite Package/Tuple/Enum/ErrorUnion and self-contained Fn/FnMut/FnOnce captures; G5.2.1 finite shared borrowed dyn with two Copy struct providers, fixed scalar slots and pure constant/field bodies.",
+  "full_gates": {
+    "default": {
+      "profiles": {
+        "CARGO_PROFILE_DEV_STRIP": "symbols",
+        "CARGO_PROFILE_TEST_STRIP": "symbols",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_BUILD_JOBS": "2"
+      },
+      "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "source_after": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "worktree_after": "",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 452.54,
+      "groups": 423,
+      "passed": 5248,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "3b6a14d9e2c20bf3f8a54f53e0bbd1b265a3dbb5546038de9204745c3d31b7f2",
+      "failures": [],
+      "reclaimed_cache_files": 409,
+      "reclaimed_cache_bytes": 17771392080
+    },
+    "reference": {
+      "profiles": {
+        "CARGO_PROFILE_DEV_STRIP": "symbols",
+        "CARGO_PROFILE_TEST_STRIP": "symbols",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_BUILD_JOBS": "2"
+      },
+      "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "source_after": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+      "worktree_after": "",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast",
+        "--no-default-features"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 402.42,
+      "groups": 423,
+      "passed": 5136,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "6716499558c142abd8df62a920a7411c105942309f14de2a8bf77a6d0681eb52",
+      "failures": [],
+      "reclaimed_cache_files": 409,
+      "reclaimed_cache_bytes": 16983434248
+    },
+    "text_reference": {
+      "passed": 70,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "e47de8671daa9493571ccccd5b3b858e8026efe5da565185caba31be5bfbe57f"
+    },
+    "pipeline": [
+      {
+        "name": "fmt",
+        "command": [
+          "cargo",
+          "fmt",
+          "--all",
+          "--",
+          "--check"
+        ],
+        "exit_code": 0,
+        "seconds": 5.67,
+        "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      {
+        "name": "clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--keep-going",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 26.17,
+        "log_sha256": "f3db659764857e5650dc4cbb75c9ff22a34c083f3b0ed682c2910907d791a6fb"
+      },
+      {
+        "name": "default-runner",
+        "command": [
+          "python3",
+          "/workspace/.zil-env/ordinary-dyn-batch/formal.py",
+          "/workspace/.zil-env/G9.3.5-common-run",
+          "default"
+        ],
+        "exit_code": 0,
+        "seconds": 452.62,
+        "log_sha256": "be77d7437552c2f20876f832a910a52a10f46efe92cd81cb13298358f3548868"
+      },
+      {
+        "name": "default-completed-output-cleanup",
+        "command": [
+          "python3",
+          "tools/ci/compact_results.py",
+          "cleanup",
+          "/workspace/.zil-env/G9.3.5-common-run",
+          "workspace"
+        ],
+        "exit_code": 0,
+        "seconds": 1.91,
+        "log_sha256": "7640cefe100411439642fb5a49e97b0f253669ecd8aa040058ba6197369607a4"
+      },
+      {
+        "name": "reference-runner",
+        "command": [
+          "python3",
+          "/workspace/.zil-env/ordinary-dyn-batch/formal.py",
+          "/workspace/.zil-env/G9.3.5-common-run",
+          "reference"
+        ],
+        "exit_code": 0,
+        "seconds": 402.52,
+        "log_sha256": "dcf6d9188e90368c1f2d01ec345d31a26a19faa96103119e867d2e26ec7dc7f9"
+      },
+      {
+        "name": "reference-completed-output-cleanup",
+        "command": [
+          "python3",
+          "tools/ci/compact_results.py",
+          "cleanup",
+          "/workspace/.zil-env/G9.3.5-common-run",
+          "reference"
+        ],
+        "exit_code": 0,
+        "seconds": 1.72,
+        "log_sha256": "c3cd3f2278c62276e1de0398634694796790ac2fd835bf7b1d4e11215053cdef"
+      },
+      {
+        "name": "reference-clippy",
+        "command": [
+          "cargo",
+          "clippy",
+          "--locked",
+          "--workspace",
+          "--all-targets",
+          "--no-default-features",
+          "--keep-going",
+          "--",
+          "-D",
+          "warnings"
+        ],
+        "exit_code": 0,
+        "seconds": 25.95,
+        "log_sha256": "55650ce0c86a5b58fc6538e939456b6a3d64692ba166b58a38b469ce4991e124"
+      },
+      {
+        "name": "text-reference",
+        "command": [
+          "cargo",
+          "test",
+          "--locked",
+          "-p",
+          "zil-llvm-api",
+          "--features",
+          "text-reference"
+        ],
+        "exit_code": 0,
+        "seconds": 4.79,
+        "log_sha256": "e47de8671daa9493571ccccd5b3b858e8026efe5da565185caba31be5bfbe57f"
+      },
+      {
+        "name": "release-build",
+        "command": [
+          "cargo",
+          "build",
+          "--locked",
+          "--release",
+          "-p",
+          "zil-cli"
+        ],
+        "exit_code": 0,
+        "seconds": 159.13,
+        "log_sha256": "1f8b1495b9a2c5fe70ccfc3912648f6bf309dac4b5c0ac4e143f27e71e029352"
+      },
+      {
+        "name": "consumer209",
+        "command": [
+          "python3",
+          "tools/research/208/validate.py",
+          "--repo",
+          ".",
+          "--cli",
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "--clang",
+          "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+          "--out",
+          "/workspace/.zil-env/G9.3.5-common-run/consumer209"
+        ],
+        "exit_code": 0,
+        "seconds": 1.99,
+        "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+      },
+      {
+        "name": "engineering",
+        "command": [
+          "python3",
+          "/workspace/.zil-env/ordinary-dyn-batch/engineering.py",
+          "/workspace/.zil-env/G9.3.5-common-run"
+        ],
+        "exit_code": 0,
+        "seconds": 6.98,
+        "log_sha256": "5d1d5cb8608799dcef9b95ab4ea357b02b799a46dc38a945bbca942fedddf624"
+      }
+    ],
+    "engineering": [
+      {
+        "name": "llvm-toolchain",
+        "command": [
+          "python3",
+          "tools/llvm/check_toolchain.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+      },
+      {
+        "name": "metadata",
+        "command": [
+          "cargo",
+          "metadata",
+          "--locked",
+          "--offline",
+          "--format-version",
+          "1",
+          "--no-deps"
+        ],
+        "exit_code": 0,
+        "log_sha256": "16ce3df00320c1f09330d6b35cd314a326101c817adcbcb4f372e14e969058f1"
+      },
+      {
+        "name": "architecture",
+        "command": [
+          "node",
+          "tools/check-architecture.mjs",
+          "--metadata",
+          "/workspace/.zil-env/G9.3.5-common-run/metadata.log"
+        ],
+        "exit_code": 0,
+        "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+      },
+      {
+        "name": "conformance",
+        "command": [
+          "python3",
+          "tools/check-conformance.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "811312af547020caf8a134823faa31ec1d41e89740af6c05400084988e7dfacf"
+      },
+      {
+        "name": "plan",
+        "command": [
+          "python3",
+          "tools/check-plan.py",
+          "--self-test"
+        ],
+        "exit_code": 0,
+        "log_sha256": "1ecc84b7425ca884f27050e61406e837c53b286109bdac0d05ec38d09f14cd30"
+      },
+      {
+        "name": "docs",
+        "command": [
+          "python3",
+          "tools/check-docs.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "e21309b24143c897dd1a54a06095f9a47eb7a525d284058e82d27d849005bb6c"
+      },
+      {
+        "name": "handoff",
+        "command": [
+          "node",
+          "tools/handoff.mjs",
+          "--check"
+        ],
+        "exit_code": 0,
+        "log_sha256": "56bd0c6ff27641c03b30945e5a5612edd31cb2614d6aea7f57eec894ed7eaa40"
+      },
+      {
+        "name": "migration-tool",
+        "command": [
+          "python3",
+          "tools/llvm/test_validate_migration.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "80813fea2a5c418cf207c936fb2200286c24f040ff6f1c23936712ed80c7e1bb"
+      },
+      {
+        "name": "evidence-transport",
+        "command": [
+          "python3",
+          "tools/ci/test_evidence_transport.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "bd214ec29d35ea46a7c4c920b50e32b53163972f5fe4163ff21650eaa3dd6058"
+      },
+      {
+        "name": "compact-results",
+        "command": [
+          "python3",
+          "tools/ci/test_compact_results.py"
+        ],
+        "exit_code": 0,
+        "log_sha256": "4debcd95c2617f5ef009b9686dc0782ebf6516ad4b397f5169a910e2705514a6"
+      }
+    ],
+    "consumer209_summary_sha256": "b9e233d745a5bff5199c76a1ac6c164f0fbc0b63df748bcfd6d3fbec377aa7a6"
+  },
+  "scope_evidence": {
+    "path": "/workspace/.zil-env/ordinary-dyn-batch/delivery-prepare/final-scope-evidence.json",
+    "sha256": "655458cb7d6a3a2828d2fadadeced98e5326640ba9f217a986ddfa97cf6194dd",
+    "profiles": [
+      {
+        "kind": "ordinary-store",
+        "source_cases": 17,
+        "raw_wire_cases": 7,
+        "types_analyze_verify": true,
+        "source_inputs": [
+          "tests/language-readiness/G9.3.5/ordinary-tuple-copy-companions.zil",
+          "tests/language-readiness/G9.3.5/ordinary-fnmut-error-capture.zil",
+          "tests/language-readiness/G9.3.5/ordinary-two-sum-captures.zil",
+          "tests/language-readiness/G9.3.5/ordinary-data-model.zil",
+          "tests/language-readiness/G9.3.5/ordinary-prepare-failure.zil",
+          "tests/language-readiness/G9.3.5/ordinary-enum-field.zil",
+          "tests/language-readiness/G9.3.5/ordinary-tuple-field.zil",
+          "tests/language-readiness/G9.3.5/ordinary-error-field.zil",
+          "tests/language-readiness/G9.3.5/ordinary-error-side.zil",
+          "tests/language-readiness/G9.3.5/ordinary-sum-capture.zil",
+          "tests/language-readiness/G9.3.5/ordinary-direct-shape-captures.zil",
+          "tests/language-readiness/G9.3.5/ordinary-both-owned-error.zil",
+          "tests/language-readiness/G9.3.5/ordinary-parent-two-views.zil",
+          "tests/language-readiness/G9.3.5/ordinary-pair-baseline.zil",
+          "tests/language-readiness/G9.3.5/ordinary-sums.zil",
+          "tests/language-readiness/G9.3.5/ordinary-captures.zil",
+          "tests/language-readiness/G9.3.5/ordinary-direct-captures.zil"
+        ],
+        "native_matrix": [
+          {
+            "backend": "clang",
+            "opt": "O0",
+            "runs": 17,
+            "failures": 0
+          },
+          {
+            "backend": "clang",
+            "opt": "O2",
+            "runs": 17,
+            "failures": 0
+          },
+          {
+            "backend": "llvm-api",
+            "opt": "O0",
+            "runs": 17,
+            "failures": 0
+          },
+          {
+            "backend": "llvm-api",
+            "opt": "O2",
+            "runs": 17,
+            "failures": 0
+          }
+        ],
+        "logs": [
+          {
+            "path": "/workspace/.zil-env/ordinary-dyn-batch/source-sweep-28/summary.json",
+            "sha256": "0bb8d1ab485954992ff3cffc07b5c3b5dbbe7c26e9b546904b8f6b49bc39d53c"
+          },
+          {
+            "path": "/workspace/.zil-env/G9.3.5-common-run/default.log",
+            "sha256": "3b6a14d9e2c20bf3f8a54f53e0bbd1b265a3dbb5546038de9204745c3d31b7f2"
+          }
+        ],
+        "source_sha256": {
+          "tests/language-readiness/G9.3.5/ordinary-tuple-copy-companions.zil": "634066f770e5949fe967674eed095b1b2fd89644623339e693f207411cf3e719",
+          "tests/language-readiness/G9.3.5/ordinary-fnmut-error-capture.zil": "0c8c55346f7898ffd3d175afff4f729c7e8a65239e743adebb48b84b8e13c7a4",
+          "tests/language-readiness/G9.3.5/ordinary-two-sum-captures.zil": "a01eb4e7cce9b5759cc2df41b2155b1a0a8ebabd25c9096f793b9b765e88c6dc",
+          "tests/language-readiness/G9.3.5/ordinary-data-model.zil": "5b11b1e8f75c65f2ef51d9a8c7779b315213a9a23e76b863cfd4e7bddbdf9923",
+          "tests/language-readiness/G9.3.5/ordinary-prepare-failure.zil": "f62bae3db5231fb10a5de0899241bdc631981564cf47942f28cc66eb1858b0e0",
+          "tests/language-readiness/G9.3.5/ordinary-enum-field.zil": "00f17ec507a2380dc6d9c4a2f3d5d9afcbe88359ccbbf51534b5ffb9442ba4f8",
+          "tests/language-readiness/G9.3.5/ordinary-tuple-field.zil": "8638ebabe61935ff8bca6ec58b213c466e1e1fe493881970fa77cc1022dab25c",
+          "tests/language-readiness/G9.3.5/ordinary-error-field.zil": "df496eb9b33ce65ce208df1d12253db899b4be7d02040245e29aca2f41fcea9a",
+          "tests/language-readiness/G9.3.5/ordinary-error-side.zil": "19d09fd5a83afbc73856d07cd1a732c67370d1dee31bbc6a5931c6d032cbbd26",
+          "tests/language-readiness/G9.3.5/ordinary-sum-capture.zil": "4cee3de20a0835054d2597cbe9c194fe17cac0b5282aa3d6777f1d0e66441a39",
+          "tests/language-readiness/G9.3.5/ordinary-direct-shape-captures.zil": "7484979580daa05d802cf2468f527bb6e20f2d9d88db7107cadc781a1df00cd1",
+          "tests/language-readiness/G9.3.5/ordinary-both-owned-error.zil": "0c44a3ecadfdb6f7ab25efaef422dede60f97d4065e49659b7b6ed6fe0610cf5",
+          "tests/language-readiness/G9.3.5/ordinary-parent-two-views.zil": "3265ce04cc0caaa27ef18a9bc666eed170ffa028e2da05f0a39c07d081a69c84",
+          "tests/language-readiness/G9.3.5/ordinary-pair-baseline.zil": "5d47e9bb2e505097c9dd50c4949bc6818756003de0ecafdef0a8ec57371c0c20",
+          "tests/language-readiness/G9.3.5/ordinary-sums.zil": "3468dd07c78cfa79f8a226ce32f74cfad92738c7e7c3851c9c6b7032d65916c1",
+          "tests/language-readiness/G9.3.5/ordinary-captures.zil": "51119afb45a0e2797f95f2c928e88c0921732752b493c010adce8bb206214127",
+          "tests/language-readiness/G9.3.5/ordinary-direct-captures.zil": "8560379ee7a465ff990f11567762174e232e791ebacb232cb3d32ee724d393d1"
+        }
+      },
+      {
+        "kind": "shared-dyn",
+        "source_cases": 2,
+        "raw_wire_cases": 3,
+        "types_analyze_verify": true,
+        "source_inputs": [
+          "tests/language-readiness/G5.2.1/dyn-input.zil",
+          "tests/language-readiness/G5.2.1/dyn-wide-argument.zil"
+        ],
+        "native_matrix": [
+          {
+            "backend": "clang",
+            "opt": "O0",
+            "runs": 4,
+            "failures": 0
+          },
+          {
+            "backend": "clang",
+            "opt": "O2",
+            "runs": 4,
+            "failures": 0
+          },
+          {
+            "backend": "llvm-api",
+            "opt": "O0",
+            "runs": 4,
+            "failures": 0
+          },
+          {
+            "backend": "llvm-api",
+            "opt": "O2",
+            "runs": 4,
+            "failures": 0
+          }
+        ],
+        "logs": [
+          {
+            "path": "/workspace/.zil-env/G9.3.5-common-run/default.log",
+            "sha256": "3b6a14d9e2c20bf3f8a54f53e0bbd1b265a3dbb5546038de9204745c3d31b7f2"
+          }
+        ],
+        "source_sha256": {
+          "tests/language-readiness/G5.2.1/dyn-input.zil": "9e52b1d2e16c4eab3b85954c96e85956ace0b060d39b64fa0d03c8a756bec891",
+          "tests/language-readiness/G5.2.1/dyn-wide-argument.zil": "a1a721d4666ce24581df255f690e92227d20d2ad4f6ac803f974e3c0d7b87d29"
+        }
+      }
+    ],
+    "old_profile_budget_controls": "Pass",
+    "allocation_cleanup": "Pass",
+    "source_native_bridge": "Pass"
+  },
+  "normative_inputs": {
+    "_zil_design.md": "778ccb497fb0c136e4b09719a78c92d12448be7d311598bf86a90d0fac159c6d",
+    "spec/interfaces.json": "1a75a3ad55bd26ffb1b1b2cce7010e9e3e4e9954492e3ace4f5773587ce7b2a0",
+    "validation/product-gates.json": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+    "changes/G9.3.5-ordinary-store-ownership.md": "f08637d4e29d3b978283691a5b5799473159e02a64e868bf058a8916b2277639",
+    "changes/G5.2.1-shared-dyn-dispatch.md": "ed8870152f582d371699d852aa2f1207957dfc941b5fb817b9b2c3fcdcabfb15"
+  },
+  "independent_review": {
+    "path": "docs/validation/ordinary-ownership-and-shared-dispatch-review.json",
+    "sha256": "45df7db8800f7865b4a4eb42ba206315a82e64c9b4e9f97c56be07c89272c9fc",
+    "reviewer": "/root/final_store_review",
+    "verdict": "Pass"
+  },
+  "cold_source_recovery": {
+    "path": "/workspace/.zil-env/G9.3.5-cold-source/result.json",
+    "sha256": "19b0eef37f2a359e89f6ae9ea4307ebd9a1176d4c565330e51950d177bf4eb82",
+    "remote_source_restored": true,
+    "source_tree": "4c4a8c33545053ecfd7edef13b35f8d5531cc57f",
+    "cli_sha256": "76f51d46887d75f6cea98a35050a744f87454e4a55c575ee278592da208d1290",
+    "steps": [
+      {
+        "name": "clone",
+        "command": [
+          "git",
+          "clone",
+          "--depth",
+          "1",
+          "--single-branch",
+          "--branch",
+          "task/G9.3.5",
+          "https://github.com/zil-lang/zil.git",
+          "/workspace/.zil-env/G9.3.5-cold-source/source"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/G9.3.5-cold-source/clone.log",
+        "log_sha256": "8bf074f22d347ebe3d8f3493c7f8a188cc306884c8b4d3e166d67269e5a30664",
+        "seconds": 4.1
+      },
+      {
+        "name": "goal-ref",
+        "command": [
+          "git",
+          "fetch",
+          "origin",
+          "refs/heads/goal:refs/remotes/origin/goal"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/G9.3.5-cold-source/goal-ref.log",
+        "log_sha256": "bb1e148b59074a4d3df595c234b4420ab7b4b4d3a6c3ead328e02f69f10bc98c",
+        "seconds": 0.95
+      },
+      {
+        "name": "build",
+        "command": [
+          "cargo",
+          "build",
+          "--offline",
+          "--locked",
+          "--release",
+          "-p",
+          "zil-cli"
+        ],
+        "exit_code": 0,
+        "log": "/workspace/.zil-env/G9.3.5-cold-source/build.log",
+        "log_sha256": "16313cd5c9f6f90120a07abb5d3b61c275fd11b913f3802509bfa321341e4b44",
+        "seconds": 162.13
+      }
+    ],
+    "cases": [
+      {
+        "kind": "ordinary-store",
+        "case": "ordinary-full-u64",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "tests/language-readiness/G9.3.5/ordinary-data-model.zil",
+          "--entry",
+          "result"
+        ],
+        "input": "",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "18446744073709551612\n",
+        "expected_stdout": "18446744073709551612\n",
+        "stderr": "",
+        "seconds": 0.05
+      },
+      {
+        "kind": "shared-dyn",
+        "case": "dyn-provider-a",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "tests/language-readiness/G5.2.1/dyn-input.zil",
+          "--entry",
+          "main"
+        ],
+        "input": "1\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "20\n",
+        "expected_stdout": "20\n",
+        "stderr": "",
+        "seconds": 0.04
+      },
+      {
+        "kind": "shared-dyn",
+        "case": "dyn-provider-b",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "tests/language-readiness/G5.2.1/dyn-input.zil",
+          "--entry",
+          "main"
+        ],
+        "input": "0\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "22\n",
+        "expected_stdout": "22\n",
+        "stderr": "",
+        "seconds": 0.03
+      },
+      {
+        "kind": "shared-dyn",
+        "case": "dyn-wide-a",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "tests/language-readiness/G5.2.1/dyn-wide-argument.zil",
+          "--entry",
+          "main"
+        ],
+        "input": "1\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "18446744073709551615\n",
+        "expected_stdout": "18446744073709551615\n",
+        "stderr": "",
+        "seconds": 0.04
+      },
+      {
+        "kind": "shared-dyn",
+        "case": "dyn-wide-b",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "tests/language-readiness/G5.2.1/dyn-wide-argument.zil",
+          "--entry",
+          "main"
+        ],
+        "input": "0\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "42\n",
+        "expected_stdout": "42\n",
+        "stderr": "",
+        "seconds": 0.04
+      },
+      {
+        "kind": "draft",
+        "case": "draft-foundations",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "examples/mainline/draft_foundations/main.zil",
+          "--entry",
+          "main"
+        ],
+        "input": "",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "42\n",
+        "expected_stdout": "42\n",
+        "stderr": "",
+        "seconds": 0.04
+      },
+      {
+        "kind": "stream",
+        "case": "stream-valid",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "examples/mainline/stream/main.zil"
+        ],
+        "input": "10 20 -3\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "3 0 45\n",
+        "expected_stdout": "3 0 45\n",
+        "stderr": "",
+        "seconds": 0.04
+      },
+      {
+        "kind": "stream",
+        "case": "stream-invalid",
+        "source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+        "command": [
+          "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+          "run",
+          "examples/mainline/stream/main.zil"
+        ],
+        "input": "1 broken 2 -4 +5\n",
+        "status": "Pass",
+        "exit_code": 0,
+        "stdout": "4 1 23\n",
+        "expected_stdout": "4 1 23\n",
+        "stderr": "",
+        "seconds": 0.04
+      }
+    ],
+    "limit": "Prepared pinned toolchain/Cargo cache may be reused; this does not prove empty-machine bootstrap or historical handoff revalidation."
+  },
+  "historical_handoff": {
+    "path": "docs/validation/handoff-migration-326.json",
+    "archived": 274,
+    "unavailable": 220,
+    "unreviewed": 54,
+    "claims_revalidated": false
+  },
+  "limits": [
+    "Unit dyn Source remains Types Unsupported.",
+    "Owning/mutable dyn, erased owning storage, general lending, arbitrary owning Store elements, cross-thread/async and Transfer/Share remain outside this finite batch.",
+    "No B0, complete ZIL/ZUI, Rust runtime/RSS/compile/maintenance comparison or product-gate Pass is claimed."
+  ],
+  "known_incomplete": [
+    "Unit dyn Source remains Types Unsupported.",
+    "Owning/mutable dyn, erased owning storage, general lending, arbitrary owning Store elements, cross-thread/async and Transfer/Share remain outside this finite batch.",
+    "No B0, complete ZIL/ZUI, Rust runtime/RSS/compile/maintenance comparison or product-gate Pass is claimed."
+  ],
+  "delivery_checks": {
+    "kind": "Post-acceptance documentation only",
+    "delivery_parent": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+    "code_test_example_spec_delta": [],
+    "identical_git_objects": {
+      "crates": "0457e1fc4ae4932d5af88077cf08bebb4e7771c4",
+      "tests": "393146180728610a06eb55553268f301dd37960f",
+      "examples": "52ad19645334ed2b215e0d09ce885b41cb75b26a",
+      "lib": "45dde5682f67b9443b47ceb37cd89e7318c69a77",
+      "spec": "c7b8c89d8a1e9c69a15f21bf9497ea6352917f79",
+      "policy": "4ec216e68e0cb7d671c1080f68a8dad702177ee2",
+      "validation": "3256856811b332eda58f1b200f8c05da388f4dc7",
+      "Cargo.toml": "d0e906f4852161e0d6e487124a633f5e0c094e8d",
+      "Cargo.lock": "9899ecc9c85cd62cbc60b22167dc7bd0b6ae78a3",
+      "rust-toolchain.toml": "58eef2ccd48f957feeada49b17ad1e3fd667bf8c",
+      "_zil_design.md": "ea8d7282f169c93c7eaac122a08a0c884942ba17"
+    }
+  }
+}
