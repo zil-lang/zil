@@ -1,0 +1,455 @@
+{
+  "schema_version": 1,
+  "kind": "repository-organization-delivery",
+  "status": "Pass",
+  "scope": "G10.7.4 and G10.7.6: all-tree semantic paths and main/goal ownership boundary; no new language feature or product acceptance claim",
+  "candidate_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+  "candidate_parent": "dd766f513bd8022e4d2c703f51a9343824150da8",
+  "accepted_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+  "remote_main_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+  "goal_coordination_commit": "00edea283c65b9cdac806f7e5ef3ff04fce953c4",
+  "retired_source_commit": "28b3e37bb4d8a1fe8b146c72cf891fc99de32440",
+  "history_archive_commit": "bac0e50f40dd9df81dbf6853d7d7460cec26f3b6",
+  "history_archive_ref": "archive/source-history",
+  "layout": {
+    "main_docs": [
+      "docs/README.md",
+      "docs/decisions/README.md",
+      "docs/decisions/compiler-boundaries.md",
+      "docs/decisions/compiler-efficiency.md",
+      "docs/guide/build.md",
+      "docs/guide/quickstart.md",
+      "docs/guide/supported-language.md"
+    ],
+    "main_authorities": [
+      "_zil_design.md",
+      "spec/",
+      "policy/",
+      "validation/product-gates.json",
+      "validation/engineering-contracts.json",
+      "validation/task-test-plans.json",
+      "conformance/",
+      "tests/",
+      "validation/inputs/"
+    ],
+    "goal_authorities": [
+      "goal.md",
+      "workflow.md",
+      "coordination/",
+      "records/"
+    ],
+    "retired_from_main": [
+      "changes/",
+      "design-candidates/",
+      "docs/development/",
+      "docs/research/",
+      "lang-designer.html",
+      "ui/",
+      "inputs/",
+      "templates/",
+      "old validation/results/ receipts"
+    ],
+    "recovery": "Exact old main commit is reachable through archive/source-history manifest; read old paths by commit, do not restore process trees to current main."
+  },
+  "preserved_obligations": [
+    "Normative design and named stage attachments remain in main.",
+    "Fourteen static engineering contracts retain source/build/execution/review and nonzero-evidence obligations; 63 registered plan cases and the conformance registry remain separate from execution success.",
+    "Product gate thresholds, actual Source/negative controls, independent Analyze/Verify, raw/Wire rejection, cleanup and budget boundaries are unchanged by layout work.",
+    "Historical language receipts stay bound to original source and tool identities; no frozen run is reclassified as current Pass."
+  ],
+  "checks": {
+    "semantic_path_gate": {
+      "status": "Pass",
+      "command": "python3 tools/check-repository-layout.py --full --delivery",
+      "paths": 3713,
+      "violations": 0
+    },
+    "documentation_links": {
+      "status": "Pass",
+      "main_markdown_files_checked": 40,
+      "goal_github_blob_links_checked": 37,
+      "broken": 0
+    },
+    "static_contracts": {
+      "status": "Pass",
+      "commands": [
+        "python3 tools/check-plan.py --self-test",
+        "python3 tools/check-conformance.py"
+      ],
+      "contracts": 14,
+      "plan_cases": 63,
+      "conformance_source_cases": 93,
+      "compiler_executions": 0
+    },
+    "source_and_tool_tests": {
+      "status": "Pass",
+      "layout_tests": 14,
+      "ci_tool_tests": 9,
+      "bundle_tests": 10,
+      "engineering_checks": [
+        {
+          "name": "llvm-toolchain",
+          "command": [
+            "python3",
+            "tools/llvm/check_toolchain.py"
+          ],
+          "exit_code": 0,
+          "log_sha256": "adcc1bace79757f9ebb0182dc199c98096e9543666144f1a3d54b33c1f5fc739"
+        },
+        {
+          "name": "metadata",
+          "command": [
+            "cargo",
+            "metadata",
+            "--locked",
+            "--offline",
+            "--format-version",
+            "1",
+            "--no-deps"
+          ],
+          "exit_code": 0,
+          "log_sha256": "6ec163ebb9a65fba39aa9c5bfaa560978581ada9a4da7b4feaa59fd1a17668ff"
+        },
+        {
+          "name": "architecture",
+          "command": [
+            "node",
+            "tools/check-architecture.mjs",
+            "--metadata",
+            "/workspace/.zil-env/semantic-restructure/engineering/metadata.log"
+          ],
+          "exit_code": 0,
+          "log_sha256": "0d2f63b07d8505d0f70fc94ed0dd5cd8eba6fca8dd27b119a262fda518642817"
+        },
+        {
+          "name": "migration-tool",
+          "command": [
+            "python3",
+            "tools/llvm/test_validate_migration.py"
+          ],
+          "exit_code": 0,
+          "log_sha256": "e74e963093f9c841efb8f62d12942349e4ddb07a30514838ea63df7feb1c5a53"
+        }
+      ]
+    },
+    "full_workspace": {
+      "status": "Pass",
+      "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "default": {
+        "passed": 5248,
+        "failed": 0
+      },
+      "reference": {
+        "passed": 5136,
+        "failed": 0
+      }
+    },
+    "independent_review": {
+      "status": "Pass",
+      "reviewed_commit": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "reviewed_tree": "562574cadf6a9bfe295a98c3d3d289a78dfaa51e",
+      "primary_reviewer": "restructure_review",
+      "separate_non_author_tool_reviewer": "semantic_kernels",
+      "evidence": "repository-organization-review.md",
+      "verdict_sha256": "69287908a9ab2aff57fd06b98c3b29d7be17551ea00eab5164895b999e91c49e",
+      "tool_review_sha256": "b50ffa5977a05f898a32a1728b3753d08b35504f27d22c875ae7aa8a95c44201"
+    },
+    "remote_readback": {
+      "status": "SourcePass; goal blob verified on publication",
+      "main_sha": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "source_files_verified": 3713,
+      "goal_board_blob": "6e12ba73754b23b4f768432d9f3a48f35c32e7cf",
+      "goal_ref": "refs/heads/goal",
+      "note": "The containing goal commit identifies this receipt; its own SHA is not embedded recursively."
+    }
+  },
+  "raw_evidence_locator": {
+    "final_run": "/workspace/.zil-env/repository-restructure-accepted",
+    "first_failed_run": "/workspace/.zil-env/repository-restructure-final-run",
+    "scope": "Local raw output; Git stores compact receipts and source. Large completed text dumps were losslessly compressed with decoded hashes checked; generated ELF objects may be rebuilt from source."
+  },
+  "limits": [
+    "Repository organization and consumer closure only.",
+    "No new language capability, full-language result, native Windows result, Rust performance comparison or product-gate result is inferred."
+  ],
+  "runtime_acceptance": {
+    "pipeline": {
+      "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "stages": [
+        {
+          "name": "fmt",
+          "command": [
+            "cargo",
+            "fmt",
+            "--all",
+            "--",
+            "--check"
+          ],
+          "exit_code": 0,
+          "seconds": 5.64,
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        },
+        {
+          "name": "clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--keep-going",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 0,
+          "seconds": 0.88,
+          "log_sha256": "25f572efe5c0caa1a9b8a593d59c832be379a37136a03a5a95d62162a0375991"
+        },
+        {
+          "name": "default-runner",
+          "command": [
+            "python3",
+            "/workspace/.zil-env/semantic-restructure/formal.py",
+            "/workspace/.zil-env/repository-restructure-accepted",
+            "default"
+          ],
+          "exit_code": 0,
+          "seconds": 453.0,
+          "log_sha256": "6165aaa51fb090e1b3d5f0d57ab0c8472bf1d0b60e14dcbf91210e07fd14b89b"
+        },
+        {
+          "name": "default-output-cleanup",
+          "command": [
+            "python3",
+            "tools/ci/compact_results.py",
+            "cleanup",
+            "/workspace/.zil-env/repository-restructure-accepted",
+            "workspace"
+          ],
+          "exit_code": 0,
+          "seconds": 1.89,
+          "log_sha256": "6a42fbbedf711c58dd21ff7f3aa967836df49322cc817bdb419d0332b240bb5c"
+        },
+        {
+          "name": "reference-clippy",
+          "command": [
+            "cargo",
+            "clippy",
+            "--locked",
+            "--workspace",
+            "--all-targets",
+            "--no-default-features",
+            "--keep-going",
+            "--",
+            "-D",
+            "warnings"
+          ],
+          "exit_code": 0,
+          "seconds": 25.9,
+          "log_sha256": "14880d8d6bae0f39a037d5bd7c1e6b02dc73c00574032a43fefd438b577b95e6"
+        },
+        {
+          "name": "reference-runner",
+          "command": [
+            "python3",
+            "/workspace/.zil-env/semantic-restructure/formal.py",
+            "/workspace/.zil-env/repository-restructure-accepted",
+            "reference"
+          ],
+          "exit_code": 0,
+          "seconds": 377.35,
+          "log_sha256": "f091f48eeaabcc78c2097475cede0646dee7a8c096cac7e2bce992a95992b772"
+        },
+        {
+          "name": "reference-output-cleanup",
+          "command": [
+            "python3",
+            "tools/ci/compact_results.py",
+            "cleanup",
+            "/workspace/.zil-env/repository-restructure-accepted",
+            "reference"
+          ],
+          "exit_code": 0,
+          "seconds": 1.78,
+          "log_sha256": "cac041a33a5ea4e52ed0d0eebc03eec7e3f21325d94fd82d1db1039a540aa5c3"
+        },
+        {
+          "name": "text-reference",
+          "command": [
+            "cargo",
+            "test",
+            "--locked",
+            "-p",
+            "zil-llvm-api",
+            "--features",
+            "text-reference"
+          ],
+          "exit_code": 0,
+          "seconds": 3.96,
+          "log_sha256": "fe78a35134ac8d8805f55a8cd106afd038934bcedaacb1894384154507700e39"
+        },
+        {
+          "name": "release-build",
+          "command": [
+            "cargo",
+            "build",
+            "--locked",
+            "--release",
+            "-p",
+            "zil-cli"
+          ],
+          "exit_code": 0,
+          "seconds": 156.34,
+          "log_sha256": "742bab66eacd762d517cd081e49f217c71e525da23b000bb9482fe2fe79c9cbc"
+        },
+        {
+          "name": "native-consumer",
+          "command": [
+            "python3",
+            "tools/research/native-api-validation/validate.py",
+            "--repo",
+            ".",
+            "--cli",
+            "/workspace/.zil-env/target-release-G9.3.2/release/zil",
+            "--clang",
+            "/workspace/.zil-env/llvm-23.1.4/bin/clang",
+            "--out",
+            "/workspace/.zil-env/repository-restructure-accepted/native-consumer"
+          ],
+          "exit_code": 0,
+          "seconds": 1.88,
+          "log_sha256": "94491c3fda930c37b535f112cf1899f84e99c525535407364e6fa047cb660b0a"
+        }
+      ]
+    },
+    "default": {
+      "profiles": {
+        "CARGO_PROFILE_DEV_STRIP": "symbols",
+        "CARGO_PROFILE_TEST_STRIP": "symbols",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_BUILD_JOBS": "2"
+      },
+      "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "source_after": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "worktree_after": "",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 452.91,
+      "groups": 423,
+      "passed": 5248,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "40e1787315eed2015c5abe57bc49fc20359b0081df32af2c70a700d1c6c62bb6",
+      "failures": [],
+      "reclaimed_cache_files": 409,
+      "reclaimed_cache_bytes": 17771424512
+    },
+    "reference": {
+      "profiles": {
+        "CARGO_PROFILE_DEV_STRIP": "symbols",
+        "CARGO_PROFILE_TEST_STRIP": "symbols",
+        "CARGO_PROFILE_DEV_DEBUG": "0",
+        "CARGO_PROFILE_TEST_DEBUG": "0",
+        "CARGO_BUILD_JOBS": "2"
+      },
+      "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "source_after": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+      "worktree_after": "",
+      "command": [
+        "cargo",
+        "test",
+        "--locked",
+        "--workspace",
+        "--no-fail-fast",
+        "--no-default-features"
+      ],
+      "exit_code": 0,
+      "status": "Pass",
+      "elapsed_seconds": 377.23,
+      "groups": 423,
+      "passed": 5136,
+      "failed": 0,
+      "ignored": 0,
+      "log_sha256": "89661d68cbb8941f162dd68e1e8cdde6324b415cab89f0603bdb155a2b02807b",
+      "failures": [],
+      "reclaimed_cache_files": 409,
+      "reclaimed_cache_bytes": 16983466624
+    },
+    "text_reference": {
+      "passed": 70,
+      "failed": 0
+    },
+    "native_consumer": {
+      "status": "Pass",
+      "builds": 16,
+      "executions": 128,
+      "injected_failures": 56,
+      "summary_sha256": "5c060386ea0a2886eea3bdfd30789eeba89708d7b5b4aea293c48daaccf5a107"
+    }
+  },
+  "source_readback": {
+    "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+    "method": "Downloaded actual GitHub source ZIP; read every tracked blob and matched Git object bytes",
+    "files_verified": 3713,
+    "zip_sha256": "9aa6ce8fbc14a62c7c3743b767f9b111b49a1e7b9aa7251252d80be09a4315a1",
+    "zip_bytes": 7656976,
+    "status": "Pass"
+  },
+  "toolchain_and_contract_identity": {
+    "source": "2b603607dacf07273ccc3b741f309a29ab7e33b9",
+    "rust": "rustc 1.99.1 (58cf8f9c3 2026-10-13)\nbinary: rustc\ncommit-hash: 58cf8f9c35b355199727627d07ae34a4e2846d67\ncommit-date: 2026-10-13\nhost: x86_64-unknown-linux-gnu\nrelease: 1.99.1\nLLVM version: 23.1.1",
+    "clang": "clang version 23.1.4 (https://github.com/llvm/llvm-project 7a941dfb2877a0b8cf30323fefa85ad019e0b0f5)",
+    "normative_hash": "3ab4527931b892608548c96cb068e30015946658b37062ad8968284bff3c0944",
+    "product_gates_sha256": "e9829d6efca138bfdb17152b252047929b72c64fa2e26186217dea1f00d33311",
+    "schema_interfaces_sha256": "eb548436883d1f38a20913ceb383d9660b40ca696fa08dc1e69fd24180b8cdb7"
+  },
+  "first_failed_run": {
+    "source": "51ecf1b73a30352980434201131aefe17a102d55",
+    "passed": 5204,
+    "failed": 44,
+    "failed_targets": 8,
+    "log_sha256": "b0b183e49c0704d807454a45057def5f09bf9f79e732ce5998e266e44be0a3fd",
+    "status": "Fail; retained, superseded by full exact-candidate rerun",
+    "causes": [
+      "Runtime fixture root and subdirectory locators",
+      "Generated foreign identifiers containing hyphens",
+      "Stale C include marker in a test adapter",
+      "Filename prefix used to select the existing exit-code oracle"
+    ],
+    "focused_followup": {
+      "source": "d287839628cf0e7607408f4c2cda2296b6f04cdf",
+      "passed": 53,
+      "failed": 2,
+      "profile": "driver default features (reference)",
+      "remaining_causes": [
+        "Oracle still selecting ordinal filenames",
+        "Explicit graph omitted the valid root filename alias"
+      ]
+    },
+    "resolved_on": "2b603607dacf07273ccc3b741f309a29ab7e33b9"
+  },
+  "preserved_inputs": {
+    "live_provenance_records_checked": 50,
+    "moved_zil_wire_c_blobs_checked_identical": 1152,
+    "rust_test_declarations": 5221,
+    "rust_assert_call_sites_before": 14090,
+    "rust_assert_call_sites_after": 14092,
+    "added_assertion_purpose": "Check valid source entry stem before constructing the same root alias as filesystem discovery; no original assertion removed."
+  },
+  "goal_board_blob": "6e12ba73754b23b4f768432d9f3a48f35c32e7cf",
+  "retired_worktrees": {
+    "clean_detached_worktrees": 55,
+    "source_ancestry_verified_in_remote_archive": true,
+    "historical_dirty_worktrees_preserved": 5,
+    "no_reset_or_clean": true
+  }
+}
