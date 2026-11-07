@@ -116,6 +116,75 @@ fn mutable_holder_cross_module_reborrows_real_exclusive_target() {
 }
 
 #[test]
+fn exclusive_constructor_retains_its_target_without_slot_replacement() {
+    let mut module = fixture::mutable_holder();
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .all(|i| !matches!(
+                i.kind,
+                InstructionKind::StoreStoredBorrow { .. }
+                    | InstructionKind::LoadStoredBorrow {
+                        mode: zil_ir::StoredBorrowLoad::Take,
+                        ..
+                    }
+            ))
+    );
+    let make = &mut module.functions[0];
+    let address = make.values[0].clone();
+    make.values.extend([address, Type::I64]);
+    make.blocks[0].instructions.splice(
+        0..0,
+        [
+            fixture::instruction(Some(2), InstructionKind::Load(LocalId(0))),
+            fixture::instruction(
+                Some(3),
+                InstructionKind::ReadAddress {
+                    address: ValueId(2),
+                },
+            ),
+        ],
+    );
+    // This reborrow ends before the exclusive address is moved into the holder.
+    let mut plan = accept(&module);
+    let code = &mut module.functions[0].blocks[0].instructions;
+    let peek: Vec<_> = code.drain(0..2).collect();
+    code.extend(peek);
+    // The returned holder is still live when the same target is borrowed again.
+    // All values and initialization claims are unchanged by the relocation.
+    plan.module_fingerprint = module.fingerprint();
+    let errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        errors
+            .iter()
+            .any(|d| d.message.contains("simultaneously live access overlaps")),
+        "{errors:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    for errors in [
+        zil_verify::verify_module(module.clone(), plan, &module.target, &Limits::default())
+            .unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.message.contains("actual target intersects")),
+            "{errors:?}"
+        );
+        assert!(
+            errors
+                .iter()
+                .all(|d| !d.message.contains("no stable loan site")),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn mutable_holder_raw_and_wire_keep_physical_mode_and_parent_loan() {
     let module = fixture::mutable_holder();
     let plan = accept(&module);

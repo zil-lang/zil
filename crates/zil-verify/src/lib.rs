@@ -368,6 +368,10 @@ struct Budget {
     stored_package_instance: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
+    // The paid physical slot walk enables inspection of actual constructor results.
+    stored_exclusive_shapes: bool,
+    // Constructor retention needs stable sites even without a slot update.
+    stored_constructor_sites: bool,
     generic_mutex: bool,
     guard_return_sources: Vec<BTreeSet<u32>>,
     // Eligibility only; pure reads and values still prove their actual shape.
@@ -413,6 +417,8 @@ impl Budget {
             stored_borrows: false,
             stored_package_instance: false,
             stored_slot_updates: false,
+            stored_exclusive_shapes: false,
+            stored_constructor_sites: false,
             generic_mutex: false,
             guard_return_sources: Vec::new(),
             pure_nominal: false,
@@ -837,6 +843,21 @@ fn check_module(
                             ..
                         }
                 );
+                if budget.stored_exclusive_shapes
+                    && matches!(
+                        instruction.kind,
+                        InstructionKind::MakeAggregate { .. } | InstructionKind::MakePackage { .. }
+                    )
+                    && let Some(result) = instruction.result
+                    && let Some(Type::BorrowedStorage { life, .. }) =
+                        function.values.get(result.0 as usize)
+                {
+                    budget.spend(life.slots.len())?;
+                    budget.stored_constructor_sites |= life
+                        .slots
+                        .iter()
+                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress);
+                }
                 match &instruction.kind {
                     InstructionKind::ReservePlaceLocal { path, .. }
                     | InstructionKind::ReservePlaceAddress { path, .. }
