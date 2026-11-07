@@ -176,7 +176,7 @@ impl<'a> Expander<'a> {
             .iter()
             .filter_map(|item| {
                 if let s::ItemKind::Aggregate(a) = &item.kind {
-                    Some((a.name.as_str(), a))
+                    Some((a.name.as_str(), (a, item.public)))
                 } else {
                     None
                 }
@@ -184,9 +184,10 @@ impl<'a> Expander<'a> {
             .collect();
         let fields: BTreeMap<_, BTreeSet<_>> = locals
             .iter()
-            .map(|(name, a)| (*name, a.fields.iter().map(|f| f.name.as_str()).collect()))
+            .map(|(name, (a, _))| (*name, a.fields.iter().map(|f| f.name.as_str()).collect()))
             .collect();
         let mut declared = BTreeSet::new();
+        let mut public_traits = BTreeSet::new();
         for item in &module.items {
             let s::ItemKind::Trait(t) = &item.kind else {
                 continue;
@@ -199,6 +200,9 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
+            if item.public {
+                public_traits.insert(t.name.as_str());
+            }
             self.collect_trait_declaration(item, &mut work);
             if t.name.starts_with("$module") {
                 self.project_trait_work = self.project_trait_work.saturating_add(t.name.len());
@@ -209,7 +213,7 @@ impl<'a> Expander<'a> {
         // A single ordinary function name is the machine target in this slice.
         // Reject unresolved collisions, never silently pick the first impl.
         let mut methods: BTreeMap<(String, String), usize> = BTreeMap::new();
-        for a in locals.values() {
+        for (a, _) in locals.values() {
             for member in &a.methods {
                 if let s::ItemKind::Function(f) = &member.kind {
                     *methods.entry((a.name.clone(), f.name.clone())).or_default() += 1;
@@ -286,7 +290,7 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
-            let Some(host) = locals.get(host_name).filter(|a| {
+            let Some((host, public_host)) = locals.get(host_name).filter(|(a, _)| {
                 matches!(
                     a.kind,
                     s::AggregateKind::Struct | s::AggregateKind::Resource
@@ -310,6 +314,9 @@ impl<'a> Expander<'a> {
                 .traits
                 .get(trait_name)
                 .expect("collected local declaration");
+            let private_export = !public_host
+                && (public_traits.contains(trait_name)
+                    || self.imported_public_traits.contains(trait_name));
             let mut instance_reference = None;
             let Some(left) = work.checked_sub(declaration.members.len()) else {
                 self.diagnostics.push(Diagnostic::limit(
@@ -320,7 +327,8 @@ impl<'a> Expander<'a> {
                 return;
             };
             work = left;
-            if !declaration.generics.is_empty()
+            if private_export
+                || !declaration.generics.is_empty()
                 || declaration
                     .members
                     .iter()
@@ -647,9 +655,10 @@ impl<'a> Expander<'a> {
                                 ..limits.clone()
                             };
                             let mut meter = TraitBudget::new(&selected);
-                            let result = trait_instances::method_name(
+                            let result = trait_instances::method_name_with(
                                 reference,
                                 &method.name,
+                                private_export,
                                 &mut meter,
                                 member.span,
                             );
@@ -658,6 +667,16 @@ impl<'a> Expander<'a> {
                             project_nodes = left.max_nodes;
                             match result {
                                 Ok(target) => {
+                                    if private_export
+                                        && reference.arguments.is_empty()
+                                        && method.generics.is_empty()
+                                        && methods.get(&(host_name.into(), method.name.clone()))
+                                            == Some(&1)
+                                        && !fields[host_name].contains(method.name.as_str())
+                                    {
+                                        self.private_trait_aliases
+                                            .insert((item_ordinal, member_ordinal));
+                                    }
                                     self.trait_method_names
                                         .insert((item_ordinal, member_ordinal), target);
                                 }

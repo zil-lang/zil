@@ -23,6 +23,7 @@ pub(super) struct Index<'a> {
     declarations: BTreeMap<&'a str, (&'a Item, &'a TraitDecl)>,
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
+    pub(super) private_hosts: trait_instances::PrivateHosts,
     pub(super) has_defaults: bool,
     has_supertraits: bool,
     pub(super) has_associated: bool,
@@ -222,6 +223,7 @@ impl<'a> Index<'a> {
             nominals,
             instantiated_copy_shapes: BTreeMap::new(),
             has_instances,
+            private_hosts: std::rc::Rc::new(BTreeMap::new()),
             has_defaults,
             has_supertraits,
             has_associated,
@@ -378,6 +380,18 @@ impl<'a> Index<'a> {
                 && index.declarations.contains_key(name)
             {
                 let reference = index.reference(application, budget)?;
+                if index.declarations[name].0.public
+                    && index.nominals.get(host).is_some_and(|owner| !owner.public)
+                {
+                    budget.text(name, item.span)?;
+                    budget.text(host, item.span)?;
+                    budget.node(item.span, 0)?;
+                    std::rc::Rc::make_mut(&mut index.private_hosts)
+                        .entry(name.to_owned())
+                        .or_default()
+                        .insert(host.to_owned());
+                    index.has_instances = true;
+                }
                 let key = trait_instances::copy_key(&reference.key, budget, item.span)?;
                 let generic_instance = !key.arguments.is_empty();
                 if index.implementations.insert((key, host)) && generic_instance {
@@ -1190,9 +1204,37 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                let private_host = self
+                    .private_hosts
+                    .get(&reference.key.name)
+                    .is_some_and(|hosts| hosts.contains(host));
+                let target = trait_instances::method_name_with(
+                    &reference,
+                    &method.name,
+                    private_host,
+                    budget,
+                    span,
+                )?;
                 if method.name != name && target != name {
                     continue;
+                }
+                if private_host && name == method.name {
+                    let owner = self.nominals[host];
+                    let foreign = if self.origins.is_some() {
+                        let origin = self.origin(owner, budget)?.ok_or_else(|| {
+                            error(span, "private method host lost its source declaration")
+                        })?;
+                        budget.context.origin.is_none_or(|caller| {
+                            caller.declaration.module != origin.declaration.module
+                        })
+                    } else {
+                        owner.span.file != span.file
+                    };
+                    if foreign {
+                        // Only an actual bound-call record can have selected
+                        // the internal target before ordinary member lookup.
+                        continue;
+                    }
                 }
                 if local_collision {
                     return Err(error(
