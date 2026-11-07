@@ -612,6 +612,7 @@ pub(super) fn inventory(
             ));
         };
         physical(&instance.ty, b)?;
+        b.stored_packages |= matches!(storage, Type::Package { .. });
         fee(b, module.life_declarations.len())?;
         let decl = module
             .life_declarations
@@ -1201,6 +1202,11 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 None,
             )]);
         }
+        // Only the new owning or disjoint exclusive holders need narrower
+        // inline-slot windows. Shared-only and single exclusive legacy holders
+        // retain their whole-carrier access and incur no projection work.
+        b.stored_projected_slots |= matches!(storage, Type::Package { .. })
+            || (*mode == StoredBorrowMode::ExclusiveAddress && life.slots.len() > 1);
         ordered(b, seen.len(), 0)?;
         if seen.insert(decl.binder) {
             if decl.binder != next {
@@ -2561,27 +2567,31 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    // The physical pointer slot is an inline field. A sibling
-                    // mutable slot remains accessible while its child is live;
-                    // the carrier's parent loans still accompany this access.
-                    let mut slot = Permission {
-                        targets: BTreeSet::new(),
-                        loans: pointer(*storage)?.loans.clone(),
-                    };
-                    for root in &pointer(*storage)?.targets {
-                        fee(
-                            b,
-                            root.stored
-                                .len()
-                                .saturating_add(root.place.len())
-                                .saturating_add(path.len()),
-                        )?;
-                        let mut target = root.clone();
-                        target.place.extend(path);
-                        ordered(b, slot.targets.len(), target.place.len())?;
-                        slot.targets.insert(target);
+                    if !b.stored_projected_slots {
+                        use_permission(pointer(*storage)?, exclusive, &current, loans, apart, b)?;
+                    } else {
+                        // The physical pointer slot is an inline field. A sibling
+                        // mutable slot remains accessible while its child is live;
+                        // the carrier's parent loans still accompany this access.
+                        let mut slot = Permission {
+                            targets: BTreeSet::new(),
+                            loans: pointer(*storage)?.loans.clone(),
+                        };
+                        for root in &pointer(*storage)?.targets {
+                            fee(
+                                b,
+                                root.stored
+                                    .len()
+                                    .saturating_add(root.place.len())
+                                    .saturating_add(path.len()),
+                            )?;
+                            let mut target = root.clone();
+                            target.place.extend(path);
+                            ordered(b, slot.targets.len(), target.place.len())?;
+                            slot.targets.insert(target);
+                        }
+                        use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     }
-                    use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     let actual = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
@@ -3060,32 +3070,14 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    // A qualified owning Package carries its resource ledger in the ordinary
-    // resource proof. The older Fixed-capture profile applies only when an
-    // actual qualified closure environment owns a captured resource.
-    fee(
-        b,
-        module
-            .life_instances
-            .len()
-            .saturating_add(module.closures.len()),
-    )?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
-    let fixed_owner = module.closures.iter().any(|closure| {
-        closure.storage_life.is_some()
-            && closure
-                .captures
-                .iter()
-                .any(|capture| matches!(capture, Type::Managed(_) | Type::Package { .. }))
-    });
-    b.stored_owned_fixed = if b.composition_stored.is_empty() && (!mixed_package || fixed_owner) {
-        owned::profile(module, b)?
-    } else {
-        false
-    };
+    // Raw paid inventories classify new owning holders and Fixed captures.
+    // Preserve the established Fixed profile without rescanning either table.
+    b.stored_owned_fixed =
+        if b.composition_stored.is_empty() && (!b.stored_packages || b.stored_fixed_owner) {
+            owned::profile(module, b)?
+        } else {
+            false
+        };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
@@ -3133,7 +3125,7 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
-            let mixed_resource = if mixed_package {
+            let mixed_resource = if b.stored_packages {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
