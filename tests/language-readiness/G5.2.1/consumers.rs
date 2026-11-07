@@ -173,47 +173,17 @@ fn g521_explicit_local_coercion_and_live_receiver_conflicts() {
 }
 
 fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let dir = directory("candidate");
-    let report = compile(
-        INPUT,
-        &CompileOptions {
-            semantic_cache: Some(dir.clone()),
-            ..CompileOptions::default()
-        },
-    );
-    assert_eq!(
-        report.status,
-        ResultCategory::Success,
-        "{}",
-        report.to_json()
-    );
-    let store = dir.join("semantic-v4");
-    for entry in fs::read_dir(&store).unwrap() {
-        let path = entry.unwrap().path();
-        if path.extension().is_none_or(|e| e != "candidate") {
-            continue;
-        }
-        let key =
-            zil_base::Fingerprint::from_hex(path.file_stem().unwrap().to_str().unwrap()).unwrap();
-        let zil_db::CacheRead::Candidate(payload) =
-            zil_db::ArtifactCache::with_limit(&store, Limits::default().max_source_bytes)
-                .inspect_candidate(key)
-                .unwrap()
-        else {
-            continue;
-        };
-        if &payload[..8] != b"ZILSEM04" {
-            continue;
-        }
-        let length = u32::from_le_bytes(payload[8..12].try_into().unwrap()) as usize;
-        let value =
-            zil_ir::wire::decode_module_candidate(&payload[12..12 + length], &Limits::default())
-                .unwrap();
-        if value.0.dyn_vtables.len() == 2 {
-            return value;
-        }
-    }
-    panic!("no actual Source-derived dyn candidate");
+    // This fixture has no CT expressions. Parse its real Source and retain the
+    // actual producer output; semantic cache intentionally excludes Dyn types.
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "g521.zil", INPUT);
+    let syntax = zil_syntax::parse(&unit).into_result().unwrap();
+    let core = zil_expand::expand(&unit, &syntax).unwrap();
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let module = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    (module, plan)
 }
 
 fn rejected(
