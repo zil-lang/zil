@@ -3,6 +3,10 @@
 use super::*;
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
 use zil_ir::{PlaceProjection, ReservationId};
+pub(crate) mod actual;
+#[cfg(test)]
+#[path="../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+pub(crate) mod fixture;
 
 #[derive(Clone)]
 pub(super) enum Origin {
@@ -195,6 +199,9 @@ impl Inventory {
                                 "commit requires an exact complete new owner and no SSA result",
                             ));
                         }
+                    }
+                    InstructionKind::TaskYield|InstructionKind::SuspendCall{..} if !prepared.is_empty()=>{
+                        return Err(unsupported("prepared replacement cannot suspend without a saved pin/abort protocol",Some(i.span)));
                     }
                     InstructionKind::AbortPlaceReservation { reservation } => {
                         self.get(*reservation, b)?;
