@@ -338,7 +338,7 @@ fn undefined_foreign_symbol_still_fails_and_never_publishes_partial_native_code(
         "main.zil",
         "import broken\nfn main()->i32 { return broken.call(); }",
     );
-    d.write("broken.zil","extern \"C\" fn zil-codegen-work-budget_absent_foreign()->i32; pub fn call()->i32 { unsafe { return zil-codegen-work-budget_absent_foreign(); } }");
+    d.write("broken.zil","extern \"C\" fn zil_codegen_work_budget_absent_foreign()->i32; pub fn call()->i32 { unsafe { return zil_codegen_work_budget_absent_foreign(); } }");
     for opt in [Optimization::O0, Optimization::O2] {
         for units in [1, 8] {
             let report = compile_path(&d.0.join("main.zil"), &options(&d.0, units, 4, opt));
