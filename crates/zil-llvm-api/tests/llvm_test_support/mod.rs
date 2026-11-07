@@ -24,7 +24,7 @@ pub fn f(name: &str, params: Vec<Param>, result: Ty, blocks: Vec<Block>) -> Func
 pub fn m(items: Vec<Item>) -> Module {
     Module {
         triple: "x86_64-unknown-linux-gnu".into(),
-        fingerprint: "test-210".into(),
+        fingerprint: "llvm-api-test".into(),
         items,
     }
 }

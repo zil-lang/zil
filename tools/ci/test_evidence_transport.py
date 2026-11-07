@@ -109,6 +109,17 @@ class EvidenceTransportTests(unittest.TestCase):
             with self.subTest(members=members), self.assertRaises(ValueError):
                 transport.verify(self.raw_archive(index, members))
 
+    def test_historical_consumer_root_restores_without_path_rewrite(self):
+        payload = b'{"status":"Pass"}\n'
+        digest = hashlib.sha256(payload).hexdigest()
+        index = {"format": transport.FORMAT, "roots": ["consumer209"], "files": [
+            {"path": "consumer209/summary.json", "bytes": len(payload),
+             "mode": 0o644, "sha256": digest}]}
+        archive = self.raw_archive(index, [("objects/" + digest, payload)])
+        restored = self.root / "historical-restored"
+        transport.verify(archive, restored)
+        self.assertEqual((restored / "consumer209/summary.json").read_bytes(), payload)
+
     def test_unsafe_paths_and_file_directory_conflicts_rejected(self):
         digest = hashlib.sha256(b"").hexdigest()
         for name in ("../outside", "/absolute", "a/../b", "a//b", ".", "a\\b", "a\0b"):
