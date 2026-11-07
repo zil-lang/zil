@@ -545,6 +545,7 @@ impl Builder<'_, '_> {
             ty,
             Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
         ) || array_field_supported(&ty)
+            || owned_shapes::sum(&ty)
         {
             let prepared = self.stage_argument(value, &ty, rhs.span)?;
             self.emit(
