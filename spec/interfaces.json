@@ -1917,5 +1917,21 @@
     },
     "identity": "Typed/Type/LifeInventory V46 and Wire46 reject prior envelopes; CT schema unchanged.",
     "trust": "Actual input cleanup, lock invariant, once-only unlock, guard-child loans, head retention and thread capability are reconstructed independently. Public transport is not source or machine acceptance."
+  },
+  "threaded_foreign_registration": {
+    "source": "_zil_design.md §12.3.3; spec/threaded-foreign-registration.md",
+    "schema_version": 46,
+    "wire_version": 46,
+    "roles": {
+      "6": "ThreadAsyncRegister",
+      "7": "ThreadAsyncRequestClose",
+      "8": "ThreadAsyncPollDrain"
+    },
+    "representation": "Existing AsyncRegistration<F> and closing operations; immutable per-site thunk prefix preserves actual mode across helpers. No owner Transfer/Share.",
+    "generic_premises": "CoreCallableParameter.transfer and thread_callable have false defaults and preserve explicit sealed premises. Neither grants concrete environment or entry permission. FnMut, ClosedEnvironment, Transfer and ThreadCallable are separate obligations.",
+    "consumer": "Each concrete thread Start independently proves actual role family/ABI, complete closed transferable environment, admitted execution graph, and synchronous final cleanup in Types, Analyze and Verify.",
+    "machine": "Threaded site uses atomic combined admission/invocation gate and a driver covering provider calls and final cleanup; publication and invocation/cleanup use acquire/release. Same-thread sites retain their original non-atomic path.",
+    "reclamation": "ClosingIdle is insufficient. Provider no-future/drain must include every raw pre-entry/rejected/retained user and provider access; only complete drain and driver ownership allow one environment cleanup, then Closed, then finish free. Failed registration must synchronously withdraw and drain before returning null.",
+    "trust": "Transport, premise bools, same-named declarations and active=0 are never proofs. Unsupported environments or graphs fail closed; runtime white-box self-close/reentry controls do not grant source owner access."
   }
 }

@@ -957,6 +957,12 @@ Analyze 和 Verify 各自重建实际根、真实 Poll 结果与其状态代次�
 
 `async_registration_finish_destroy_checked(give owner)` 消费已独立证明 Closed 的同一真实拥有根，使用 opcode140；旧显式 finish_destroy 保持运行时 CLOSED 检查语义。强制退出、伪 Pending、丢弃拥有根或 abort 不替代正常排空。真实外部 no-future/drain、活回调、晚 raw 入口和一次清理仍沿既有合同。Source/CT 重建、模块、公开接口及指纹保留完整协议表，未知 effects 字符串不得产生状态权限。联合 Typed/Wire44 传递函数合同及新指令，旧 envelope 拒绝。
 
+### 12.3.3 跨线程登记与独立调用前提
+
+跨线程 AsyncRegistration 复用拥有头和逐结果关闭协议，通过实际同族 ThreadAsyncRegister/RequestClose/PollDrain（角色6–8）及不可变 site thunk 保存运行模式；不授 owner Transfer/Share，也不改变旧同线程非原子路径。完整准入、发布、raw 持有者、no-future、driver 和一次清理合同见 [`spec/threaded-foreign-registration.md`](spec/threaded-foreign-registration.md)。active=0 或关闭准入均不等于可回收。
+
+FnMut、ClosedEnvironment、Transfer 和编译器密封 ThreadCallable 分别核验。ThreadCallable 只界定满足签名及 receiver 前提时，entry 完整实际执行图（含 helper、回调及调用期临时清理）在该协议线程上的调用资格；不等同环境移动、共享、并发/重入或最终环境同步清理。未调用泛型定义也须有显式前提，Core bool 不作为实际权限；具体 Start 的两个核独立重建完整图。当前密封 profile 不接未知 FFI/TLS/间接调用、借入环境、用户 Drop 或异步清理。公共角色和声明不替代源、独立 raw/Wire、真实线程与精确源码验收。
+
 ### 12.4 设备与 FFI
 
 CPU release/acquire 只解决相应 CPU 同步；DMA map/unmap、方向、cache 和设备屏障由平台适配器保证。 任意原始设备字节必须经过初始化/类型有效性转换才能成为 bool、enum、引用。
