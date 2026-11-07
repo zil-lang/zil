@@ -44,6 +44,15 @@ pub(super) fn self_contained(
                 Type::Package { .. } => {
                     dynamic_store::captured_package(module, capture, budget)?;
                 }
+                ty @ (Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })
+                    if budget.ordinary_store_sum_capture(id, ty)? =>
+                {
+                    if !resources::sums::admit(module, ty, budget)? {
+                        return Err(bad(
+                            "callback State owning Sum lacks an ordinary Store leaf",
+                        ));
+                    }
+                }
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(vec![Diagnostic::unsupported(

@@ -1035,15 +1035,15 @@ impl Plan {
             edit(&mut t, budget)?.missing = true;
             facts.values.insert(ValueId(v as u32), t);
         }
-        if budget.has_sum_shapes()
-            && let Some(id) = f.environment
+        if let Some(id) = f.environment
+            && budget.has_ordinary_store_sum_capture(id)
         {
             let closure = module
                 .closures
                 .get(id.0 as usize)
                 .ok_or_else(|| error("Sum entry environment absent"))?;
             for (index, ty) in closure.captures.iter().enumerate() {
-                if !budget.sum_type(ty)? {
+                if !budget.ordinary_store_sum_capture(id, ty)? {
                     continue;
                 }
                 budget.spend(1, "actual Sum capture root inventory")?;
@@ -1251,7 +1251,7 @@ impl Plan {
                 if matches!(
                     ty,
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) && budget.sum_type(ty)?
+                ) && budget.ordinary_store_sum_capture(f.environment.unwrap(), ty)?
                 {
                     if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(ty) {
                         return Err(error("TakeCapture Sum result type differs"));
@@ -1280,7 +1280,7 @@ impl Plan {
                 if matches!(
                     ty,
                     Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                ) && budget.sum_type(ty)?
+                ) && budget.ordinary_store_sum_capture(f.environment.unwrap(), ty)?
                 {
                     if f.values.get(value.0 as usize) != Some(ty) {
                         return Err(error("WriteCapture Sum source type differs"));
