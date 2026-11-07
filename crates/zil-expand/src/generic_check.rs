@@ -475,13 +475,17 @@ pub(super) fn validate_parametric_with_bounds<'l>(
                 ));
             }
             state.store_results.insert(id);
-        } else if parameter.give && !check.concrete_helper_resource(&parameter.ty) {
+        } else if parameter.give
+            && !check.concrete_helper_resource(&parameter.ty)
+            && !stores::explicit_task_result(&parameter.ty)
+        {
             return Err(unsupported(
                 parameter.span,
                 "generic give parameter requires a direct Store carrier or a concrete resource in a callable helper",
             ));
         } else if parameter.give
-            && (check.two_input_state_constructor()
+            && (stores::explicit_task_result(&parameter.ty)
+                || check.two_input_state_constructor()
                 || check
                     .callable
                     .as_ref()
@@ -2011,7 +2015,9 @@ impl Check<'_, '_, '_> {
         }
         if let ExprKind::Name(name) = &direct.kind
             && let Some(local) = state.locals.get(name)
-            && (local.declaration_resource || self.concrete_helper_resource(&local.ty))
+            && (local.declaration_resource
+                || self.concrete_helper_resource(&local.ty)
+                || stores::explicit_task_result(&local.ty))
             && (local.owned_resource
                 || self.two_input_state_constructor()
                 || self
