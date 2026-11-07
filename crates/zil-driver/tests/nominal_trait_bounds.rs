@@ -1364,6 +1364,33 @@ fn independent_key_value_and_two_callable_binders_reach_native() {
 }
 
 #[test]
+fn generic_hash_map_combines_borrowed_package_storage_and_two_callbacks() {
+    let program = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/callback-hash-map.zil"
+    );
+    let report = check(program);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&[("main", program)]);
+
+    let forbidden = "package Map<K:Copy+StoreElement>{manages keys:Store<K>}\
+        fn bad<K:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i64>(map:&Map<K>,key:K,eq:&E,hash:&H){\
+        store_push(map.keys,key);eq(key,key);hash(key)}fn main(){}";
+    let rejected = check(forbidden);
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    assert_eq!(rejected.phase, Phase::Expand, "{}", rejected.to_json());
+}
+
+#[test]
 fn enum_payloads_use_only_declared_copy_associated_projections() {
     for source in [
         include_str!(

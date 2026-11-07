@@ -968,6 +968,7 @@ pub(super) fn check_module(
             }
             let ty = &f.locals[local.0 as usize].ty;
             if !ty.is_copy_value()
+                && !ty.is_package_address()
                 && !(budget.stored_borrows
                     && (matches!(ty, Type::BorrowedStorage { .. })
                         || matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{..}))))

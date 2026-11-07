@@ -1146,6 +1146,7 @@ fn limit(message: impl Into<String>, span: Span) -> Diagnostic {
 pub(super) type Variable = usize;
 pub(super) fn signature_parameter(ty: &Type) -> bool {
     ty.is_copy_value()
+        || ty.is_package_address()
         || ty.is_shared_sync_cell_address()
         || stored::shared_address(ty)
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee() || owned_shapes::tuple(inner) || owned_shapes::enumeration(inner) || errors::owned(inner))
