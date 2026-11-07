@@ -785,7 +785,10 @@ pub(super) fn check_resource_instruction(
                         "capture take requires an actual Managed field or owned Closure field",
                     ));
                 }
-                if definition.kind != CallableKind::FnOnce {
+                if definition.kind != CallableKind::FnOnce
+                    && !(definition.kind == CallableKind::FnMut
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                {
                     return Err(reject(
                         "E-VERIFY-CLOSURE-CALL",
                         span,

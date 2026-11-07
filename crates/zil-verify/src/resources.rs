@@ -1750,6 +1750,36 @@ impl Transfer<'_> {
                     fresh_result = Some(INPUT);
                     state.debt[debt] = MOVED;
                 }
+                InstructionKind::WriteCapture { index, value }
+                    if self.f.environment.is_some_and(|id| {
+                        matches!(
+                            self.module.closures[id.0 as usize].captures[*index as usize],
+                            Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                        )
+                    }) && dynamic_store::inline_sum_capture(
+                        &self.module.closures
+                            [self.f.environment.expect("capture entry").0 as usize]
+                            .captures[*index as usize],
+                        budget,
+                    )? =>
+                {
+                    let debt = slots.capture_debt[*index as usize]
+                        .ok_or_else(|| bad(span, "owning Sum capture has no actual debt slot"))?;
+                    if validate && state.debt[debt] != MOVED {
+                        return Err(bad(
+                            span,
+                            "owning Sum capture refill requires its consumed empty slot",
+                        ));
+                    }
+                    let source = slots.managed_value[value.0 as usize]
+                        .ok_or_else(|| bad(span, "capture refill has no actual owner source"))?;
+                    let fresh = state.fresh[source];
+                    self.consume(state, *value, span, validate)?;
+                    state.debt[debt] = LIVE;
+                    state.fresh[debt] = fresh;
+                    budget.spend(written.len().saturating_add(1))?;
+                    written.insert(Root::OwnedCapture(*index));
+                }
                 InstructionKind::ByteBufferReserve { buffer: desc, .. }
                 | InstructionKind::ByteBufferTruncate { buffer: desc, .. }
                 | InstructionKind::ByteBufferPush { buffer: desc, .. }
