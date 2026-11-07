@@ -1,0 +1,21 @@
+# 开发、复核与集成工作流
+
+## 接续与派工
+
+先核 main 与 goal 的实际远端 SHA、worktree、未提交和未跟踪源码。看 [goal.md](goal.md) 当前范围与依赖，再读 main 的 [正式语言设计](https://github.com/zil-lang/zil/blob/main/_zil_design.md)、[阶段接口](https://github.com/zil-lang/zil/blob/main/spec/interfaces.json) 和实际受影响模块。每项确定基线、写集、成功例、最近反例、消费者、风险和退出条件。一任务一分支一 worktree；相交公共 schema、根 Cargo/锁和正式门由 root 单写协调。
+
+施工和常规独审用 sol high，疑难语义才交 Astra。Analyze 与 Verify 独立实现和复核，不用一方结果替另一方求证。当前四核环境同一时间只开一个重构建窗口；其他人员继续阅读、实现或轻量检查。并行工作先核不相交写集、target/临时输出与磁盘余量。
+
+任务分支可用 `.task/<ID>.md` 保存基线、父合同、写集、方案、测试和交付条件。合入 main 前将生效规则、接口、真实输入与必要精简验收归入语义路径，移除 `.task`；不在 main 保留当前排期或施工过程。编号只作任务/历史身份，永久文件、模块、测试和工具以能力或不变量命名。迁名必须覆盖 Rust mod/include、Cargo target、fixture、测试选择、脚本、CI、打包和 Markdown；输入字节、断言集合和规范条件不能因清理减少。
+
+## 验证与记录
+
+先验证实际 Source、raw/Wire、真实机器行为及最近身份/来源反例，按风险选择限定检查或正式门。成功必须有非零选择、执行和断言，完整返回值与清理顺序要可核；Unsupported、超时、缺字段、基础设施失败或零执行都不能 Pass。保留首次失败与修复后不同运行身份。新运行的原始日志写唯一 `out/runs/`，goal 的 [records/](records/README.md) 仅存精简索引：候选 SHA、工具链、命令/范围、计数/失败、原始证据位置和未测边界。精确语言接受收据随源码交付，不以看板文字代替。
+
+生产源码与必要测试冻结后，非作者按精确候选 SHA 独审；只因源码差异、真实失败或未闭合风险扩大重跑。根集成者统一处理公共表示、资源窗口、组合、正式门和验收裁决。父任务按全部退出条件验收，子项完成不自动关闭父项。公共字段、提案、聊天、测试数量和多分支通过数不替代实际消费者。
+
+## 推送、恢复与更新
+
+源码分支和 goal 独立提交、推送，goal 永不合入 main。更新 goal 前 fetch 核远端 SHA，只改相关任务与必要链接；拒绝后重读和重放不冲突增量，不强推。推送后核完整远端 SHA，并读回 `goal.md` blob。状态增量报告任务 ID、读取的 goal SHA、原→新状态、源码 SHA、证据和阻塞。
+
+阶段 WIP 和退役分支仅用固定 [`archive/source-history`](https://github.com/zil-lang/zil/tree/archive/source-history) 保全，manifest 记录原 ref、源码/暂存/工作树提交及可达关系。确认远端真实 SHA、完整对象和无唯一修改后才能退役旧 ref。归档不等于验收；正在构建的工作树不切分支，禁止 reset/clean。细节见 [交付与恢复](coordination/delivery.md)。
