@@ -2644,9 +2644,14 @@ impl Flow<'_> {
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                     if let Some(s) = self.shapes.get(&Place::Local(*local)) {
                         if check && s.owned {
+                            let discharged_error = matches!(&f.locals[local.0 as usize].ty,
+                                Type::ErrorUnion { error, .. }
+                                    if crate::ownership_store::pod_owned(error))
+                                && state.sums.no_live_owner(*local, budget)?;
                             if copied(state, Place::Local(*local), budget)?
                                 .life
                                 .contains(&Life::Available)
+                                && !discharged_error
                             {
                                 return Err(error("storage boundary discards an owned carrier"));
                             }
