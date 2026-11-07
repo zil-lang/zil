@@ -602,13 +602,13 @@ impl Builder<'_, '_> {
         let (local, ty) = if let CoreExprKind::Name(name) = &object.kind
             && let Some(local) = self.lookup(name)
             && matches!(
-                self.function.locals[local.0 as usize].ty,
+                stored::physical(&self.function.locals[local.0 as usize].ty),
                 Type::Package { .. }
             ) {
             (local, self.function.locals[local.0 as usize].ty.clone())
         } else {
             let (value, ty) = self.transfer_expr(object, None)?;
-            if !matches!(ty, Type::Package { .. }) {
+            if !matches!(stored::physical(&ty), Type::Package { .. }) {
                 return Err(error(
                     "E-FIELD-TYPE",
                     span,

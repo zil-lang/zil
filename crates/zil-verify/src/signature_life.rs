@@ -308,8 +308,10 @@ fn relation_inner(
         };
         match actual {
             Type::BorrowedStorage { storage, life } => {
-                if (!matches!(storage.as_ref(), Type::Tuple(_) | Type::Record { .. })
-                    || !life.retained.is_empty())
+                if (!matches!(
+                    storage.as_ref(),
+                    Type::Tuple(_) | Type::Record { .. } | Type::Package { .. }
+                ) || !life.retained.is_empty())
                     && !pure_nominal_value(actual)
                     && !super::stored_flow::option_address::signature(actual)
                 {

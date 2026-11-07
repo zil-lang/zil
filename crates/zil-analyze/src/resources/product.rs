@@ -11,8 +11,8 @@ pub(super) type Leaves = BTreeMap<Vec<u32>, BTreeSet<Birth>>;
 pub(super) type Origins = BTreeMap<Carrier, Leaves>;
 
 pub(crate) fn nested(ty: &Type) -> bool {
-    matches!(ty, Type::Package { fields, .. }
-        if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })))
+    matches!(package_storage(ty), Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(package_storage(field), Type::Package { .. })))
 }
 
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
@@ -35,14 +35,14 @@ pub(crate) fn admit_owned(
 ) -> CompileResult<bool> {
     let has_stores = admit_shape(ty, budget, true, Some(module), false)?;
     fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
-        let Type::Package { fields, .. } = ty else {
+        let Type::Package { fields, .. } = package_storage(ty) else {
             unreachable!("admitted Product")
         };
         budget.spend(fields.len(), "ordinary Product Store field scan")?;
         for (_, field) in fields {
             if dynamic_store::is_owned_carrier(field) {
                 crate::ownership_store::ordinary_owned(module, field, budget)?;
-            } else if matches!(field, Type::Package { .. }) {
+            } else if matches!(package_storage(field), Type::Package { .. }) {
                 stores(module, field, budget)?;
             }
         }
@@ -73,10 +73,12 @@ fn admit_shape(
         module: Option<&TypedModule>,
         borrowed: bool,
     ) -> CompileResult<bool> {
+        let qualified = matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }));
         let Type::Package {
             name,
             fields: entries,
-        } = ty
+        } = package_storage(ty)
         else {
             return Err(error("Product child must be a Package"));
         };
@@ -102,7 +104,7 @@ fn admit_shape(
             if name.is_empty() || !names.insert(name) {
                 return Err(error("Product field identity is empty or duplicated"));
             }
-            match ty {
+            match package_storage(ty) {
                 Type::Managed(payload)
                     if (stores && dynamic_store::is_owned_carrier(ty))
                         || **payload == Type::ByteBuffer
@@ -133,6 +135,10 @@ fn admit_shape(
                     has_stores = true;
                     owned = true;
                 }
+                // A qualified borrowed leaf has no cleanup debt. It is not
+                // Copy: stored-flow separately proves its target, exclusivity
+                // and carrier lifetime on every actual operation.
+                Type::Address { .. } if qualified => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     if borrowed {
@@ -162,12 +168,15 @@ fn visit(
     budget: &mut Budget,
     action: &mut impl FnMut(&[u32], &mut Budget) -> CompileResult<()>,
 ) -> CompileResult<()> {
-    let Type::Package { fields, .. } = ty else {
+    let Type::Package { fields, .. } = package_storage(ty) else {
         return Err(error("Product leaf traversal requires a complete Package"));
     };
     budget.spend(fields.len(), "Product subtree fields")?;
     for (index, (_, child)) in fields.iter().enumerate() {
-        if matches!(child, Type::Managed(_) | Type::Package { .. }) {
+        if matches!(
+            package_storage(child),
+            Type::Managed(_) | Type::Package { .. }
+        ) {
             budget.spend(path.len().saturating_add(1), "Product path growth")?;
             path.push(index as u32);
             if matches!(child, Type::Managed(_)) {

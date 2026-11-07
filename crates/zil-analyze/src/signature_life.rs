@@ -298,8 +298,10 @@ fn relation_inner(
                 (ty, false)
             };
             if let Type::BorrowedStorage { storage, life } = target {
-                if (!matches!(storage.as_ref(), Type::Record { .. } | Type::Tuple(_))
-                    || !life.retained.is_empty())
+                if (!matches!(
+                    storage.as_ref(),
+                    Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
+                ) || !life.retained.is_empty())
                     && !pure_nominal_value(target)
                     && !super::stored_flow::option_address::signature(target)
                 {

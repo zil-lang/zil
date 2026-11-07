@@ -414,7 +414,10 @@ pub(super) fn qualification(
     shape_work(ty, limits, b)?;
     physical(ty, b)?;
     let (storage, _) = carrier(ty).ok_or_else(|| failure("expected a qualified carrier"))?;
-    if matches!(storage, Type::Record { .. } | Type::Enum { .. }) {
+    if matches!(
+        storage,
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+    ) {
         fee(b, module.life_instances.len())?;
         let mut present = false;
         for instance in &module.life_instances {
@@ -618,6 +621,7 @@ pub(super) fn inventory(
         if !matches!(
             (decl.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             return Err(vec![Diagnostic::unsupported(
@@ -1014,7 +1018,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     }
     if !matches!(
         storage,
-        Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
+        Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
     ) || (!life.retained.is_empty() && !life.slots.is_empty())
         || (matches!(storage, Type::Enum { .. })
             && (!life.slots.is_empty() || !retained::pure(storage, b)?))
@@ -1031,6 +1035,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         path: &mut Path,
         out: &mut Vec<(Path, StoredBorrowMode)>,
         b: &mut Budget,
+        owning: bool,
     ) -> CompileResult<()> {
         fee(b, 1)?;
         match ty {
@@ -1051,7 +1056,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     },
                 ));
             }
-            Type::Record { name, fields } => {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
                 fee(b, name.len())?;
                 if name.is_empty() {
                     return Err(failure("stored physical record has empty nominal identity"));
@@ -1066,7 +1071,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     }
                     fee(b, 1)?;
                     path.push(PlaceProjection::Field(i as u32));
-                    walk(t, path, out, b)?;
+                    walk(t, path, out, b, owning)?;
                     path.pop();
                 }
             }
@@ -1074,7 +1079,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 for (i, t) in fields.iter().enumerate() {
                     fee(b, 1)?;
                     path.push(PlaceProjection::Field(i as u32));
-                    walk(t, path, out, b)?;
+                    walk(t, path, out, b, owning)?;
                     path.pop();
                 }
             }
@@ -1101,7 +1106,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                             variant: variant as u32,
                             index: index as u32,
                         }));
-                        walk(field, path, out, b)?;
+                        walk(field, path, out, b, owning)?;
                         path.pop();
                     }
                 }
@@ -1112,12 +1117,23 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                         "stored Array contains an address or ownership leaf",
                     ));
                 }
-                walk(element, path, out, b)?;
+                walk(element, path, out, b, owning)?;
             }
             Type::BorrowedStorage { .. } => {
                 if !retained::pure(ty, b)? {
                     return Err(failure(
                         "retained physical leaf needs a real borrowing consumer",
+                    ));
+                }
+            }
+            Type::Managed(payload) if owning => {
+                b.type_work(payload, true, "stored Package actual owning resource")?;
+                if !matches!(
+                    payload.as_ref(),
+                    Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }
+                ) {
+                    return Err(failure(
+                        "stored Package owning leaf is outside the actual finite resource profile",
                     ));
                 }
             }
@@ -1134,7 +1150,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         }
         Ok(())
     }
-    walk(storage, &mut Vec::new(), &mut actual, b)?;
+    walk(
+        storage,
+        &mut Vec::new(),
+        &mut actual,
+        b,
+        matches!(storage, Type::Package { .. }),
+    )?;
     if actual.len() != life.slots.len()
         || (actual.is_empty() && life.nominal_arguments.is_empty() && life.retained.is_empty())
     {
@@ -1169,14 +1191,13 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. })
-                || life.slots.len() != 1
+            && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
                 || !life.retained.is_empty()
                 || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
-                "exclusive stored holder requires one direct Record slot",
+                "exclusive stored holder requires direct nominal address slots",
                 None,
             )]);
         }
@@ -1590,7 +1611,9 @@ fn transfer(
         }
         InstructionKind::TakeLocal { local } => {
             ordered(b, state.locals.len(), 0)?;
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+                || carrier(&f.locals[local.0 as usize].ty).is_some()
+            {
                 out = snapshot(
                     state
                         .locals
@@ -1662,7 +1685,7 @@ fn transfer(
             union(&mut out.pointer, &get(*address)?.pointer, b)?;
             environment_merge(&mut out, get(*address)?, b)?;
         }
-        InstructionKind::MakeAggregate { fields } => {
+        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
             let ty = value_type(
                 f,
                 i.result.ok_or_else(|| failure("aggregate lacks result"))?,
@@ -1921,6 +1944,39 @@ fn transfer(
         }
         InstructionKind::DropManaged { local } if b.stored_owned_fixed => {
             state.locals.remove(local);
+        }
+        InstructionKind::DropPackage { local }
+            if carrier(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+        }
+        InstructionKind::ByteBufferNew
+        | InstructionKind::DescribeAddress { .. }
+        | InstructionKind::DropManaged { .. } => {
+            // The resource proof owns these effects. None creates a stored
+            // pointer or changes an existing stored target.
+        }
+        InstructionKind::ByteBufferPush { .. } => {
+            // A push can relocate ByteBuffer payload bytes. Until that
+            // invalidation has a common projected source, refuse every
+            // possible stored byte pointer in this function.
+            for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+                if let Some((storage, life)) = carrier(ty) {
+                    fee(b, life.slots.len())?;
+                    for row in &life.slots {
+                        if matches!(slot(storage, &row.path, b)?, Type::Address { inner, .. }
+                            if inner.as_ref() == &Type::U8)
+                        {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "ByteBuffer relocation needs projected stored byte target invalidation",
+                                Some(i.span),
+                            )]);
+                        }
+                    }
+                }
+            }
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
         _ if option_transfer.is_some() => {
@@ -2265,7 +2321,8 @@ fn reverse(
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
-            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) =>
+            if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
+                || carrier(&f.locals[local.0 as usize].ty).is_some() =>
         {
             live[f.values.len() + local.0 as usize] = true
         }
@@ -2460,7 +2517,27 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    use_permission(pointer(*storage)?, exclusive, &current, loans, apart, b)?;
+                    // The physical pointer slot is an inline field. A sibling
+                    // mutable slot remains accessible while its child is live;
+                    // the carrier's parent loans still accompany this access.
+                    let mut slot = Permission {
+                        targets: BTreeSet::new(),
+                        loans: pointer(*storage)?.loans.clone(),
+                    };
+                    for root in &pointer(*storage)?.targets {
+                        fee(
+                            b,
+                            root.stored
+                                .len()
+                                .saturating_add(root.place.len())
+                                .saturating_add(path.len()),
+                        )?;
+                        let mut target = root.clone();
+                        target.place.extend(path);
+                        ordered(b, slot.targets.len(), target.place.len())?;
+                        slot.targets.insert(target);
+                    }
+                    use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     let actual = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
@@ -2939,7 +3016,28 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    b.stored_owned_fixed = if b.composition_stored.is_empty() {
+    // A qualified owning Package carries its resource ledger in the ordinary
+    // resource proof. The older Fixed-capture profile applies only when an
+    // actual qualified closure environment owns a captured resource.
+    fee(
+        b,
+        module
+            .life_instances
+            .len()
+            .saturating_add(module.closures.len()),
+    )?;
+    let mixed_package = module.life_instances.iter().any(|instance| {
+        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+    });
+    let fixed_owner = module.closures.iter().any(|closure| {
+        closure.storage_life.is_some()
+            && closure
+                .captures
+                .iter()
+                .any(|capture| matches!(capture, Type::Managed(_) | Type::Package { .. }))
+    });
+    b.stored_owned_fixed = if b.composition_stored.is_empty() && (!mixed_package || fixed_owner) {
         owned::profile(module, b)?
     } else {
         false
@@ -2991,12 +3089,23 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
+            let mixed_resource = if mixed_package {
+                fee(b, module.resources.len())?;
+                matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+                    if module.resources.iter().any(|definition| definition.payload == **payload))
+                    || matches!(ty, Type::Address { inner, .. }
+                        if matches!(inner.as_ref(), Type::Managed(payload)
+                            if module.resources.iter().any(|definition| definition.payload == **payload)))
+            } else {
+                false
+            };
             if !(super::stored_callables::value(module, ty)
                 || carrier(ty).is_some()
                 || pointed_carrier(ty).is_some()
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || b.stored_owned_fixed && owned::data(ty, b)?
+                || mixed_resource
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -3111,6 +3220,13 @@ fn actual_instructions(
                         | InstructionKind::WriteAddress { .. }
                         | InstructionKind::SliceLength { .. }
                         | InstructionKind::MakeAggregate { .. }
+                        | InstructionKind::MakePackage { .. }
+                        | InstructionKind::ByteBufferNew
+                        | InstructionKind::ByteBufferPush { .. }
+                        | InstructionKind::DescribeAddress { .. }
+                        | InstructionKind::DropPackage { .. }
+                        | InstructionKind::DropManaged { .. }
+                        | InstructionKind::TakeLocal { .. }
                         | InstructionKind::ExtractField { .. }
                         | InstructionKind::Call { .. }
                         | InstructionKind::ForeignCall { .. }
@@ -3285,7 +3401,9 @@ fn actual_instructions(
                     };
                     let inner = carrier(inner).map_or(inner.as_ref(), |(storage, _)| storage);
                     let child = match inner {
-                        Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                            fields.get(*index as usize).map(|(_, t)| t)
+                        }
                         Type::Tuple(fs) => fs.get(*index as usize),
                         _ => None,
                     }
@@ -3296,6 +3414,8 @@ fn actual_instructions(
                     if !child.is_copy_value()
                         && !pure_read(module, child, b)?
                         && !pure_inline(module, child, b)?
+                        && !matches!(child, Type::Managed(payload)
+                            if module.resources.iter().any(|definition| definition.payload == **payload))
                     {
                         return Err(failure(
                             "stored borrowed leaf must use actual slot-load protocol",
@@ -3381,14 +3501,15 @@ fn actual_instructions(
                 | InstructionKind::StoreStoredBorrow { .. } => {
                     super::stored_borrows::instruction(f, i, b)?
                 }
-                InstructionKind::MakeAggregate { fields } => {
+                InstructionKind::MakeAggregate { fields }
+                | InstructionKind::MakePackage { fields } => {
                     let ty = value_type(
                         f,
                         i.result.ok_or_else(|| failure("aggregate lacks result"))?,
                     )?;
                     let ty = carrier(ty).map_or(ty, |(storage, _)| storage);
                     let count = match ty {
-                        Type::Record { fields, .. } => fields.len(),
+                        Type::Record { fields, .. } | Type::Package { fields, .. } => fields.len(),
                         Type::Tuple(fs) => fs.len(),
                         Type::Array { length, .. } => *length as usize,
                         _ => return Err(failure("aggregate has no actual inline layout")),
@@ -3398,7 +3519,9 @@ fn actual_instructions(
                     }
                     for (position, v) in fields.iter().enumerate() {
                         let expected = match ty {
-                            Type::Record { fields, .. } => &fields[position].1,
+                            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                                &fields[position].1
+                            }
                             Type::Tuple(fs) => &fs[position],
                             Type::Array { element, .. } => element.as_ref(),
                             _ => unreachable!(),

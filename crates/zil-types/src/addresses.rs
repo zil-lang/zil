@@ -4,6 +4,11 @@ impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
             Type::Package { .. } => true,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. }) =>
+            {
+                true
+            }
             Type::Tuple(_) => owned_shapes::tuple(ty),
             Type::ErrorUnion { .. } => errors::owned(ty),
             Type::Enum { .. } => owned_shapes::enumeration(ty),

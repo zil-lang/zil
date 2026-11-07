@@ -96,8 +96,9 @@ impl Catalog {
                 for instance in &self.instances {
                     budget.node(source.span, depth)?;
                     if let Type::BorrowedStorage { storage, .. } = &instance.instance.ty
-                        && let Type::Record { name, .. } | Type::Enum { name, .. } =
-                            storage.as_ref()
+                        && let Type::Record { name, .. }
+                        | Type::Package { name, .. }
+                        | Type::Enum { name, .. } = storage.as_ref()
                     {
                         budget.text(name, source.span)?;
                         budget.text(&path[0], source.span)?;
@@ -201,7 +202,7 @@ impl Catalog {
                 ));
             };
             let owner_span = match storage.as_ref() {
-                Type::Record { name, fields } => {
+                Type::Record { name, fields } | Type::Package { name, fields } => {
                     for aggregate in &core.aggregates {
                         budget.text(&aggregate.name, aggregate.span)?;
                         budget.text(name, aggregate.span)?;
@@ -389,7 +390,7 @@ pub(super) fn pay_type(
             pay_type(storage, budget, span, depth + 1)
         }
         Type::Named(name) | Type::Unsupported(name) => budget.text(name, span),
-        Type::Record { name, fields } => {
+        Type::Record { name, fields } | Type::Package { name, fields } => {
             budget.text(name, span)?;
             for (name, ty) in fields {
                 budget.text(name, span)?;
@@ -1011,7 +1012,9 @@ fn contains_unresolved(ty: &Type) -> bool {
     match ty {
         Type::Unsupported(_) => true,
         Type::BorrowedStorage { storage, .. } => contains_unresolved(storage),
-        Type::Record { fields, .. } => fields.iter().any(|(_, field)| contains_unresolved(field)),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().any(|(_, field)| contains_unresolved(field))
+        }
         Type::Enum { variants, .. } => variants
             .iter()
             .any(|(_, fields)| fields.iter().any(contains_unresolved)),
@@ -1043,7 +1046,11 @@ pub(super) fn instantiate_joint_with_fields(
     budget: &mut generics::Budget<'_>,
     span: Span,
 ) -> R<Instance> {
-    if aggregate.kind != s::AggregateKind::Struct || declaration.kind != LifeNominalKind::Record {
+    if !matches!(
+        (aggregate.kind, declaration.kind),
+        (s::AggregateKind::Struct, LifeNominalKind::Record)
+            | (s::AggregateKind::Package, LifeNominalKind::Package)
+    ) {
         return Err(Diagnostic::unsupported(
             Phase::Expand,
             "stored nominal ownership shape requires its consumer",
@@ -1178,6 +1185,21 @@ pub(super) fn instantiate_joint_with_fields(
             &mut vec![LifeTypeProjection::Place(PlaceProjection::Field(index))],
             0,
         )?;
+        let ty = if field.manages {
+            match ty {
+                Type::Desc(payload) => Type::Managed(payload),
+                Type::Named(_) => Type::Managed(Box::new(ty)),
+                Type::Managed(_) => ty,
+                _ => {
+                    return Err(invalid(
+                        field.span,
+                        "stored package manages field lacks a resource type",
+                    ));
+                }
+            }
+        } else {
+            ty
+        };
         fields.push((field.name.clone(), ty));
     }
     let mut nominal_arguments = Vec::new();
@@ -1203,9 +1225,16 @@ pub(super) fn instantiate_joint_with_fields(
     let binder_count =
         u32::try_from(shape.classes.len()).map_err(|_| invalid(span, "life class overflow"))?;
     let ty = Type::BorrowedStorage {
-        storage: Box::new(Type::Record {
-            name: aggregate.name.clone(),
-            fields,
+        storage: Box::new(if aggregate.kind == s::AggregateKind::Package {
+            Type::Package {
+                name: aggregate.name.clone(),
+                fields,
+            }
+        } else {
+            Type::Record {
+                name: aggregate.name.clone(),
+                fields,
+            }
         }),
         life: StorageLifeShape {
             binder_count,

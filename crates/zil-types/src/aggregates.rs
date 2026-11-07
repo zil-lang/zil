@@ -223,7 +223,7 @@ fn project_stored_declaration(core: &CoreModule, name: &str, remaining: &mut usi
             continue;
         };
         let actual = match storage.as_ref() {
-            Type::Record { name, .. } => {
+            Type::Record { name, .. } | Type::Package { name, .. } => {
                 &stored::aggregate(&core.aggregates, core.module_id, name, remaining)?.name
             }
             Type::Enum { name, .. } => {
@@ -528,7 +528,9 @@ fn resolve_indexed(
                 continue;
             };
             let name = match storage.as_ref() {
-                Type::Record { name, .. } | Type::Enum { name, .. } => name,
+                Type::Record { name, .. }
+                | Type::Package { name, .. }
+                | Type::Enum { name, .. } => name,
                 _ => continue,
             };
             aggregate_templates::spend(
@@ -540,10 +542,12 @@ fn resolve_indexed(
             )
             .map_err(|e| vec![e])?;
             let actual_name = match storage.as_ref() {
-                Type::Record { .. } => stored::aggregate(aggregates, module, name, remaining)
-                    .map_err(|e| vec![e])?
-                    .name
-                    .as_str(),
+                Type::Record { .. } | Type::Package { .. } => {
+                    stored::aggregate(aggregates, module, name, remaining)
+                        .map_err(|e| vec![e])?
+                        .name
+                        .as_str()
+                }
                 Type::Enum { .. } => stored::enum_from(enums, module, name, remaining)
                     .map_err(|e| vec![e])?
                     .name
@@ -785,13 +789,15 @@ fn resolve_indexed(
             unreachable!("checked stored inventory");
         };
         let name = match storage.as_ref() {
-            Type::Record { name, .. } | Type::Enum { name, .. } => name,
+            Type::Record { name, .. } | Type::Package { name, .. } | Type::Enum { name, .. } => {
+                name
+            }
             _ => unreachable!("checked stored inventory"),
         };
         aggregate_templates::spend(&mut resolver.remaining, name.len(), Span::default())
             .map_err(|e| vec![e])?;
         let actual_name = match storage.as_ref() {
-            Type::Record { .. } => stored::aggregate(
+            Type::Record { .. } | Type::Package { .. } => stored::aggregate(
                 &core.aggregates,
                 core.module_id,
                 name,
@@ -1262,7 +1268,28 @@ impl Resolver<'_> {
                         "package requires at least one manages field or complete owning child",
                     ));
                 }
-                ty
+                if let Some(instance) = stored_instance {
+                    let Type::BorrowedStorage { life, .. } = &instance.ty else {
+                        unreachable!()
+                    };
+                    let work = inference::type_snapshot_work(
+                        &instance.ty,
+                        span,
+                        &Limits {
+                            max_analysis_steps: self.remaining,
+                            ..self.generic_limits.clone()
+                        },
+                    )?;
+                    aggregate_templates::spend(&mut self.remaining, work, span)?;
+                    let qualified = Type::BorrowedStorage {
+                        storage: Box::new(ty),
+                        life: life.clone(),
+                    };
+                    stored::shape(&qualified, &mut self.remaining, self.depth_limit, span)?;
+                    qualified
+                } else {
+                    ty
+                }
             } else {
                 let payload = Type::Record { name, fields };
                 if d.kind == AggregateKind::Resource {
@@ -2383,7 +2410,7 @@ impl<'a> Builder<'a, '_> {
                     "duplicate record field",
                 ));
             }
-            slots[i as usize] = Some(if matches!(ty, Type::Package { .. }) {
+            slots[i as usize] = Some(if matches!(stored::physical(ty), Type::Package { .. }) {
                 let (prepared, actual) = if matches!(t, Type::Closure(_)) {
                     self.check_owned_array_closure(&t, 1, value.span)?;
                     self.owned_array_input(value, Some(&t))?
@@ -2404,7 +2431,7 @@ impl<'a> Builder<'a, '_> {
                 "record constructor is missing required fields",
             ));
         }
-        let fields = if matches!(ty, Type::Package { .. }) {
+        let fields = if matches!(stored::physical(ty), Type::Package { .. }) {
             self.commit_arguments(
                 slots
                     .into_iter()
@@ -2425,7 +2452,7 @@ impl<'a> Builder<'a, '_> {
             self.value(
                 if matches!(ty, Type::Managed(_)) {
                     InstructionKind::MakeManaged { fields }
-                } else if matches!(ty, Type::Package { .. }) {
+                } else if matches!(stored::physical(ty), Type::Package { .. }) {
                     InstructionKind::MakePackage { fields }
                 } else {
                     InstructionKind::MakeAggregate { fields }
@@ -2503,6 +2530,15 @@ impl<'a> Builder<'a, '_> {
         if self.known_type_is(object, |ty| {
             stored::shared_value(ty) || stored::shared_address(ty)
         }) {
+            if self.known_type_is(object, |ty| matches!(ty,
+                Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Package { fields, .. }
+                        if fields.iter().any(|(name, field)| name == member && matches!(field, Type::Managed(_))))))
+                && !self.indirect_place(e)
+                && self.method_signature(object, member).is_none()
+            {
+                return self.package_field(object, member, owner.as_ref(), e.span);
+            }
             let exclusive = self.known_type_is(object, |ty| {
                 let ty = match ty {
                     Type::Address { inner, .. } => inner.as_ref(),
@@ -2550,6 +2586,35 @@ impl<'a> Builder<'a, '_> {
                         e.span,
                     )?,
                     ty,
+                ));
+            }
+            if matches!(ty, Type::Managed(_))
+                && matches!(stored::physical(inner), Type::Package { .. })
+            {
+                let field_address = self.value(
+                    InstructionKind::AddressField {
+                        address: storage,
+                        index,
+                    },
+                    Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(ty.clone()),
+                    },
+                    e.span,
+                )?;
+                let Type::Managed(payload) = ty else {
+                    unreachable!()
+                };
+                let description = Type::Desc(payload.clone());
+                return Ok((
+                    self.value(
+                        InstructionKind::DescribeAddress {
+                            address: field_address,
+                        },
+                        description.clone(),
+                        e.span,
+                    )?,
+                    description,
                 ));
             }
             if !ty.is_copy_value()
