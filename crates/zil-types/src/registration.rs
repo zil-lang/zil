@@ -605,6 +605,12 @@ fn closed_environment_for(
                 | Type::CWideString
                 | Type::ByteBuffer
                 | Type::TaskI32 => {}
+                Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                    return Err(unsupported(
+                        span,
+                        "mutex capture needs a complete thread and cleanup contract",
+                    ));
+                }
             }
         }
         state.snapshot(before - work, span)?;

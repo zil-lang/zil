@@ -116,6 +116,13 @@ fn closed(
         while let Some(t) = types.pop() {
             budget.spend(1, "registration stored environment shape")?;
             match t {
+                Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Analyze,
+                        "mutex registration capture lacks a complete thread contract",
+                        Some(span),
+                    )]);
+                }
                 Type::AsyncRegistration { .. } => {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Analyze,

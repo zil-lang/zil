@@ -2273,6 +2273,16 @@ fn check_instruction(
         | InstructionKind::SyncI32CompareExchange { .. } => {
             scoped_thread::sync_instruction(module, function, instruction, budget)?
         }
+        InstructionKind::MutexCreate { .. }
+        | InstructionKind::MutexLock { .. }
+        | InstructionKind::MutexValue { .. }
+        | InstructionKind::MutexUnlock { .. }
+        | InstructionKind::DropMutexGuard { .. } => {
+            return Err(unsupported(
+                "generic mutex verification is not implemented",
+                span,
+            ));
+        }
         InstructionKind::WithForeignCallback { .. } => {
             scoped_callback::instruction(module, function, instruction, budget)?
         }
@@ -3506,6 +3516,12 @@ fn binary_result(op: BinaryOp, left: &Type, right: &Type, span: Option<Span>) ->
 
 fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (prefix, rest): ([Option<ValueId>; 2], &[ValueId]) = match instruction {
+        InstructionKind::MutexCreate { value } => ([Some(*value), None], &[]),
+        InstructionKind::MutexLock { mutex } => ([Some(*mutex), None], &[]),
+        InstructionKind::MutexValue { guard } | InstructionKind::MutexUnlock { guard } => {
+            ([Some(*guard), None], &[])
+        }
+        InstructionKind::DropMutexGuard { .. } => ([None, None], &[]),
         InstructionKind::AsyncRegistrationStart { callback, .. } => ([Some(*callback), None], &[]),
         InstructionKind::AsyncRegistrationValid { registration }
         | InstructionKind::AsyncRegistrationRequestClose { registration }

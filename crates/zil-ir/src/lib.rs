@@ -429,6 +429,17 @@ pub enum Type {
     ForeignHandle,
     /// Opaque native payload, only available behind a checked shared address.
     SyncCell(SyncCellKind),
+    /// Stable owned mutex payload. A Desc names the head; only a checked guard
+    /// may access the protected value. The payload type alone grants no Share.
+    Mutex {
+        payload: Box<Type>,
+    },
+    /// Affine inline unlock obligation tied to one actual mutex head. The
+    /// retained class records the parent lifetime, not execution authority.
+    MutexGuard {
+        payload: Box<Type>,
+        retained_life: RetainedLifeShape,
+    },
     /// Stable retained callback payload; only an exact Managed/Desc wrapper is legal.
     /// The actual environment must independently resolve to a self-contained Closure.
     Registration {
@@ -1993,6 +2004,27 @@ pub enum InstructionKind {
         success: AtomicOrdering,
         failure: AtomicOrdering,
     },
+    /// Consumes a complete value on every path. Allocation/init failure
+    /// synchronously cleans the value and returns an Allocation error.
+    MutexCreate {
+        value: ValueId,
+    },
+    /// Lock borrows the actual stable head until the guard is consumed.
+    MutexLock {
+        mutex: ValueId,
+    },
+    /// Project an exclusive child address from a live guard, tied to its debt.
+    MutexValue {
+        guard: ValueId,
+    },
+    /// Consume the unique unlock debt after all projected children end.
+    MutexUnlock {
+        guard: ValueId,
+    },
+    /// Conditional implicit unlock for a live guard local on scope exit.
+    DropMutexGuard {
+        local: LocalId,
+    },
     /// Explicit allocation/execution root for a verified scalar Suspend worker.
     TaskStart {
         worker: FunctionId,
@@ -3011,6 +3043,18 @@ fn encode_type(b: &mut impl FingerprintSink, t: &Type) {
             b.push(30);
             b.push(*kind as u8);
         }
+        Type::Mutex { payload } => {
+            b.push(38);
+            encode_type(b, payload);
+        }
+        Type::MutexGuard {
+            payload,
+            retained_life,
+        } => {
+            b.push(39);
+            encode_retained_shape(b, retained_life);
+            encode_type(b, payload);
+        }
         Type::CWideString => b.push(21),
         Type::ForeignCallback { parameters, result } => {
             b.push(22);
@@ -3680,6 +3724,26 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             encode_u32(b, desired.0);
             b.push(*success as u8);
             b.push(*failure as u8);
+        }
+        InstructionKind::MutexCreate { value } => {
+            b.push(141);
+            encode_u32(b, value.0);
+        }
+        InstructionKind::MutexLock { mutex } => {
+            b.push(142);
+            encode_u32(b, mutex.0);
+        }
+        InstructionKind::MutexValue { guard } => {
+            b.push(143);
+            encode_u32(b, guard.0);
+        }
+        InstructionKind::MutexUnlock { guard } => {
+            b.push(144);
+            encode_u32(b, guard.0);
+        }
+        InstructionKind::DropMutexGuard { local } => {
+            b.push(145);
+            encode_u32(b, local.0);
         }
         InstructionKind::TaskStart { worker, argument } => {
             b.push(99);

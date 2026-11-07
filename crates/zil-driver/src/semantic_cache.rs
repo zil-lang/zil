@@ -473,7 +473,11 @@ fn charge_type(
         Some(())
     }
     match ty {
-        Type::AsyncRegistration { .. } | Type::BorrowedStorage { .. } | Type::Dyn { .. } => {
+        Type::AsyncRegistration { .. }
+        | Type::BorrowedStorage { .. }
+        | Type::Dyn { .. }
+        | Type::Mutex { .. }
+        | Type::MutexGuard { .. } => {
             return None;
         }
         Type::Named(name) | Type::Unsupported(name) => text(bytes, name)?,

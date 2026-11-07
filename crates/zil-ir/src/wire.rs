@@ -747,6 +747,18 @@ impl<'a> Writer<'a> {
                     self.u8(30)?;
                     self.u8(*kind as u8)?;
                 }
+                Type::Mutex { payload } => {
+                    self.u8(38)?;
+                    pending.push(Task::Type(payload, depth + 1));
+                }
+                Type::MutexGuard {
+                    payload,
+                    retained_life,
+                } => {
+                    self.u8(39)?;
+                    self.retained_shape(retained_life, depth)?;
+                    pending.push(Task::Type(payload, depth + 1));
+                }
                 Type::CWideString => self.u8(21)?,
                 Type::Tuple(types) => {
                     self.u8(4)?;
@@ -1547,6 +1559,26 @@ impl<'a> Writer<'a> {
                 self.u32(desired.0)?;
                 self.u8(*success as u8)?;
                 self.u8(*failure as u8)?;
+            }
+            InstructionKind::MutexCreate { value } => {
+                self.u8(141)?;
+                self.u32(value.0)?;
+            }
+            InstructionKind::MutexLock { mutex } => {
+                self.u8(142)?;
+                self.u32(mutex.0)?;
+            }
+            InstructionKind::MutexValue { guard } => {
+                self.u8(143)?;
+                self.u32(guard.0)?;
+            }
+            InstructionKind::MutexUnlock { guard } => {
+                self.u8(144)?;
+                self.u32(guard.0)?;
+            }
+            InstructionKind::DropMutexGuard { local } => {
+                self.u8(145)?;
+                self.u32(local.0)?;
             }
             InstructionKind::TaskStart { worker, argument } => {
                 self.u8(99)?;
@@ -2742,6 +2774,7 @@ impl<'a> Reader<'a> {
             Array,
             BorrowedStorage(StorageLifeShape),
             RetainedFrame(RetainedLifeShape),
+            RetainedGuard(RetainedLifeShape),
             Unary(u8),
             Address(bool),
             Opaque(NodeId),
@@ -2868,6 +2901,14 @@ impl<'a> Reader<'a> {
                     });
                     continue;
                 }
+                Task::RetainedGuard(retained_life) => {
+                    let payload = Box::new(values.pop().expect("read guard payload type"));
+                    values.push(Type::MutexGuard {
+                        payload,
+                        retained_life,
+                    });
+                    continue;
+                }
                 Task::Unary(tag) => {
                     let inner = Box::new(values.pop().expect("read unary type child"));
                     values.push(match tag {
@@ -2877,6 +2918,7 @@ impl<'a> Reader<'a> {
                         25 => Type::OwnedStore { element: inner },
                         32 => Type::Registration { environment: inner },
                         37 => Type::AsyncRegistration { environment: inner },
+                        38 => Type::Mutex { payload: inner },
                         _ => unreachable!("scheduled unary type tag"),
                     });
                     continue;
@@ -2927,6 +2969,12 @@ impl<'a> Reader<'a> {
                 34 => {
                     let retained_life = self.retained_shape(depth)?;
                     pending.push(Task::RetainedFrame(retained_life));
+                    pending.push(Task::Type(depth + 1));
+                    continue;
+                }
+                39 => {
+                    let retained_life = self.retained_shape(depth)?;
+                    pending.push(Task::RetainedGuard(retained_life));
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
@@ -3007,7 +3055,7 @@ impl<'a> Reader<'a> {
                     pending.push(Task::Type(depth + 1));
                     continue;
                 }
-                7 | 8 | 23 | 25 | 32 | 37 => {
+                7 | 8 | 23 | 25 | 32 | 37 | 38 => {
                     pending.push(Task::Unary(tag));
                     pending.push(Task::Type(depth + 1));
                     continue;
@@ -4273,6 +4321,21 @@ impl<'a> Reader<'a> {
                 desired: ValueId(self.u32()?),
                 success: self.atomic_ordering()?,
                 failure: self.atomic_ordering()?,
+            },
+            141 => InstructionKind::MutexCreate {
+                value: ValueId(self.u32()?),
+            },
+            142 => InstructionKind::MutexLock {
+                mutex: ValueId(self.u32()?),
+            },
+            143 => InstructionKind::MutexValue {
+                guard: ValueId(self.u32()?),
+            },
+            144 => InstructionKind::MutexUnlock {
+                guard: ValueId(self.u32()?),
+            },
+            145 => InstructionKind::DropMutexGuard {
+                local: LocalId(self.u32()?),
             },
             99 => InstructionKind::TaskStart {
                 worker: FunctionId(self.u32()?),

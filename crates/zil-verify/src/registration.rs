@@ -209,6 +209,12 @@ fn closed(
                 | Type::CWideString
                 | Type::ByteBuffer
                 | Type::TaskI32 => {}
+                Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                    return Err(unsupported(
+                        "mutex capture needs a complete thread and cleanup contract",
+                        span,
+                    ));
+                }
             }
         }
     }

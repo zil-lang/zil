@@ -2,6 +2,56 @@ use super::*;
 use zil_base::ResultCategory;
 
 #[test]
+fn mutex_candidate_transport_preserves_payload_life_and_operands() {
+    let limits = Limits::default();
+    let payload = Type::Package {
+        name: "@test:Payload".into(),
+        fields: vec![("count".into(), Type::I64)],
+    };
+    let types = [
+        Type::Mutex {
+            payload: Box::new(payload.clone()),
+        },
+        Type::MutexGuard {
+            payload: Box::new(payload),
+            retained_life: RetainedLifeShape {
+                binder_count: 1,
+                ports: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        },
+    ];
+    assert_ne!(types[0].fingerprint(), types[1].fingerprint());
+    for ty in types {
+        let mut writer = Writer::new(&limits);
+        writer.ty(&ty, 0).unwrap();
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.ty(0).unwrap(), ty);
+        reader.finish().unwrap();
+    }
+    let kinds = [
+        InstructionKind::MutexCreate { value: ValueId(1) },
+        InstructionKind::MutexLock { mutex: ValueId(2) },
+        InstructionKind::MutexValue { guard: ValueId(3) },
+        InstructionKind::MutexUnlock { guard: ValueId(3) },
+        InstructionKind::DropMutexGuard { local: LocalId(4) },
+    ];
+    for kind in kinds {
+        let instruction = Instruction {
+            result: None,
+            kind,
+            span: Span::default(),
+        };
+        let mut writer = Writer::new(&limits);
+        writer.instruction(&instruction).unwrap();
+        let mut reader = Reader::new(&writer.output, &limits).unwrap();
+        assert_eq!(reader.instruction().unwrap(), instruction);
+        reader.finish().unwrap();
+    }
+}
+
+#[test]
 fn async_registration_raw_operations_preserve_every_field_without_admission() {
     use InstructionKind as I;
     let limits = Limits::default();

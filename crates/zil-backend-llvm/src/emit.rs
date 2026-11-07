@@ -2712,6 +2712,16 @@ impl FunctionEmitter<'_> {
             InstructionKind::Unsupported(feature) => {
                 return unsupported(feature.clone(), Some(instruction.span));
             }
+            InstructionKind::MutexCreate { .. }
+            | InstructionKind::MutexLock { .. }
+            | InstructionKind::MutexValue { .. }
+            | InstructionKind::MutexUnlock { .. }
+            | InstructionKind::DropMutexGuard { .. } => {
+                return unsupported(
+                    "generic mutex code generation is not implemented",
+                    Some(instruction.span),
+                );
+            }
         }
         Ok(())
     }

@@ -642,6 +642,8 @@ pub(super) fn hint_type(
         | Type::CWideString
         | Type::Closure(_)
         | Type::SyncCell(_)
+        | Type::Mutex { .. }
+        | Type::MutexGuard { .. }
         | Type::TaskI32 => Ok(false),
     }
 }
