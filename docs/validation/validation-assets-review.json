@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "scope": "Independent static lineage and path-resolution review of G10.7.3 asset migration only; no Cargo, native execution, language or product acceptance.",
+  "verdict": "Pass",
+  "reviewed_commit": "427b1a263064f5184d51371dbc22c211860c329a",
+  "base_commit": "1b03caaa87a162c3f1841c66726485997a524d11",
+  "historical_asset_source_commit": "15b9e09d83aeea9be1cc9ea4b4bdd9f5a5f9fa71",
+  "independent_of_author": true,
+  "methods": [
+    "Enumerated all 55 validation/asset-provenance.json mappings and recomputed historical bytes with git show at source commit plus current file SHA256: 55/55 match both recorded hashes and preservation flags; 53 byte-identical, two Rust test modules modified only for three relative include_str paths.",
+    "Resolved all 20 include_str occurrences in the two moved Rust modules at both old and new paths and compared expanded input bytes: 20/20 equal. crates/zil-driver/tests/aggregates.rs changes only two #[path] module locations, both existing.",
+    "Confirmed the G9.6.1 ZUI audit receipt is byte-identical to pre-migration parent; all 25 historical source references retain source_sha256 matching the moved current bytes. Old status and replay commands remain historical.",
+    "Verified two original qualified-lending source hashes against afaa8b44dd13611ee9cf7401c71c2d162d5678c5 and confirmed current revisions differ; old-lending-control.zil is absent from the current tracked tree and is explicitly marked unlocated, with no replay claim.",
+    "Checked semantic target paths, document locator changes and git diff --check. No active non-Markdown task asset was omitted: source commit has 56 non-.md entries, of which 55 are mapped assets and the remaining .task/README is legacy textual guidance covered by documentation migration."
+  ],
+  "findings": [],
+  "limitations": [
+    "Cargo test discovery and execution of the moved Rust modules remain pending parent integration; this review establishes static paths and bytes only.",
+    "Historical receipts retain their original compiler/source/status and old commands; any run from new paths requires a new result record.",
+    "The old .task tree and _zil_goal.md remain until parent G10.7 performs final cleanup and downstream reference checks."
+  ]
+}

@@ -22,7 +22,7 @@ cargo test --offline --locked --workspace --no-default-features
 cargo clippy --offline --locked --workspace --all-targets --no-default-features -- -D warnings
 ```
 
-正式组合测试、原生回归和产品门由集成者按受影响范围与冻结提交执行，保留实际选择/执行/断言数、工具链和失败字段；见 [工作流](docs/WORKFLOW.md)。当前静态合同和验收协议位于 `spec/`、`validation/`、`conformance/`；旧主树 `.task/` 在迁移与检查器解耦期间保留，不能作为实时计划。每轮产品证据对照见 [Rust 四目标](docs/RUST-GOALS.md)。
+正式组合测试、原生回归和产品门由集成者按受影响范围与冻结提交执行，保留实际选择/执行/断言数、工具链和失败字段；见 [工作流](docs/WORKFLOW.md)。当前静态合同和验收协议位于 `spec/`、`validation/`、`conformance/`；任务工单仅在任务分支保留；main 不保存 `.task/` 或实时计划副本。每轮产品证据对照见 [Rust 四目标](docs/RUST-GOALS.md)。
 
 ## 源码与恢复
 

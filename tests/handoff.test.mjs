@@ -546,7 +546,7 @@ function readFormalContracts(root) {
 
 scenario('handoff-030', '静态合同不读取主树Goal实施说明', t => {
   const f = fixture(t);
-  put(f.root, '.task/G8.3.md', fs.readFileSync(path.join(project, '.task/G8.3.md'), 'utf8'));
+  put(f.root, '.task/G8.3.md', '# Task-branch note\n\n```json\n{"id":"G8.3","status":"Done","evidence":["missing.json"]}\n```\n');
   put(f.root, '.task/G8.3.1.md', '# G8.3.1 implementation note\nNo formal status or acceptance record.\n');
   put(f.root, '.task/G10.0.md', '# G10.0 已有合法Goal ID\nImplementation note only.\n');
   put(f.root, '.task/G10.0.0.md', '# G10.0.0 zero subsegments are canonical.\n');

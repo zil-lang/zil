@@ -14,7 +14,7 @@
 
 ## 直接交给 Codex 的做法
 
-选择私有 `zil-lang/zil`，从main创建独立分支，例如`research/identity-codex`或`impl/owned-container`。先读`AGENTS.md`、`_zil_goal.md`、`_zil_design.md`、`docs/research/EXTERNAL-CODEX-HANDOFF.md`以及本文件。其他模型同时工作时约定写集、基线和任务目标；通过Git提交、分支、PR及证据文件共享信息，聊天和进程内记忆不会自动共享。研究应报告实际commit、完整命令、功能/额度/增长/性能的原始结果及失败，不只发结论。
+选择私有 `zil-lang/zil`，从main创建独立分支，例如`research/identity-codex`或`impl/owned-container`。先读 `AGENTS.md`、独立 `goal:goal.md`、`_zil_design.md` 与 `docs/WORKFLOW.md`；下列初始化身份和研究记录只按各自历史提交解释。其他模型同时工作时约定写集、基线和任务目标；通过Git提交、分支、PR及证据文件共享信息，聊天和进程内记忆不会自动共享。研究应报告实际commit、完整命令、功能/额度/增长/性能的原始结果及失败，不只发结论。
 
 源码可直接使用仓库锁定Rust工具链构建：`cargo test --locked --workspace`；原生测试还需与`tools/toolchain-profile.json`一致的Clang/LLVM。缺工具链、未执行、Unsupported、ResourceLimit不得记为Pass。正式性能计时应使用独占窗口，完整候选与基线保持相同工具链、目标和固定场景权重。
 
