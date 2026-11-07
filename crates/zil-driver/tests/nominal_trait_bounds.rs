@@ -1174,6 +1174,8 @@ fn independent_copy_and_store_element_bounds_prove_generic_entry_storage() {
             "struct Entry<K:Copy,V:Copy>{key:K;value:V}",
             "struct Entry<K:Copy,V:Copy>{key:K;value:V;zero:[i32;0]}",
         ),
+        program.replace("+Hash,V:Copy+StoreElement", ",V:Copy+StoreElement"),
+        program.replace("impl Hash for Key{fn hash()->i64{return i64(.n)}}", ""),
     ] {
         let report = check(&invalid);
         assert_eq!(

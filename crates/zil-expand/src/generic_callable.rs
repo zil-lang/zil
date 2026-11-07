@@ -613,29 +613,30 @@ fn template_with_state(
             "owning callable factories require one direct callable type and no ordinary type parameter",
         ));
     }
-    if function
-        .generics
-        .iter()
-        .filter(|p| !matches!(p.kind, GenericParamKind::Lifetime))
-        .count()
-        > callables.len() + 1
-        || !function.where_clause.is_empty()
-    {
+    if !function.where_clause.is_empty() {
         return Err(unsupported(
             function.span,
-            "callable types and at most one ordinary Copy type with direct bounds are implemented",
+            "callable helper where clauses require their semantic solver",
         ));
     }
-    for ordinary in function.generics.iter().filter(|p| {
-        !matches!(p.kind, GenericParamKind::Lifetime)
-            && !callables.iter().any(|(_, c)| c.name == p.name)
-    }) {
+    let ordinary = function
+        .generics
+        .iter()
+        .filter(|p| {
+            !matches!(p.kind, GenericParamKind::Lifetime)
+                && !callables.iter().any(|(_, c)| c.name == p.name)
+        })
+        .collect::<Vec<_>>();
+    for ordinary in &ordinary {
         if !matches!(&ordinary.kind, GenericParamKind::Type(bounds)
-            if matches!(bounds.as_slice(), [bound] if copy::is_bound(bound)))
+            if bounds.iter().any(copy::is_bound)
+                && bounds.iter().all(|bound| copy::is_bound(bound)
+                    || stores::is_bound(bound)
+                    || trait_instances::head(bound).is_some()))
         {
             return Err(unsupported(
                 ordinary.span,
-                "ordinary parameters beside callable types require one direct Copy bound",
+                "ordinary parameters beside callable types require Copy and independently checked direct bounds",
             ));
         }
     }
@@ -931,6 +932,12 @@ fn template_with_state(
                 "two callable State constructors require two distinct direct declared inputs",
             ));
         }
+    }
+    if ordinary.len() > 1 && (owned_state || dual) {
+        return Err(unsupported(
+            function.span,
+            "owning or dual callable helpers retain one ordinary Copy parameter",
+        ));
     }
     if roles.len() > 2 {
         hrtb::pay(
