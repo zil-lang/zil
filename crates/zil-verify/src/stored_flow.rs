@@ -655,6 +655,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 "actual physical stored path or mode differs from declared leaf",
             ));
         }
+        b.stored_exclusive_shapes |= *mode == StoredBorrowMode::ExclusiveAddress;
         if let Some((boundary, class)) = child_class {
             if !shape.retained.iter().any(|entry| {
                 &entry.path == boundary && entry.class == *class && entry.binder == row.binder
@@ -1845,7 +1846,7 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
-    if !b.stored_slot_updates {
+    if !b.stored_slot_updates && !b.stored_constructor_sites {
         return Ok(sites);
     }
     b.spend(f.blocks.len())?;
