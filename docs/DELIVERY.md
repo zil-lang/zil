@@ -28,7 +28,22 @@ python3 tools/package_check.py --companions ../delivery
 
 ## 构建与恢复
 
-准备 `rust-toolchain.toml` 要求的 Rust、受支持 LLVM/clang 及与 `Cargo.lock` 匹配的依赖缓存；首次依赖获取可能需要网络。源码构建不依赖审计 ZIP 或 Git 历史：
+当前默认 LLVM API 后端在 Linux x86_64 宿主使用 `rust-toolchain.toml` 固定的 Rust 1.99.1 和 `tools/llvm/version.txt`、`tools/toolchain-profile.json` 固定的 LLVM/Clang/LLD 23.1.4。完整安装边界、官方包摘要与 LLVM 动态库说明见 [LLVM API 工具链](LLVM-API.md)；`tools/llvm/install.py` 将官方固定包安装到新的绝对前缀并生成收据。Ubuntu 24.04 参考前置与安装入口如下，前缀必须尚不存在：
+
+```sh
+sudo apt-get update
+sudo apt-get install -y g++ zstd binutils libzstd1 libxml2 zlib1g
+rustup toolchain install 1.99.1 --profile minimal --component rustfmt --component clippy
+mkdir -p out
+python3 tools/llvm/install.py --prefix "$PWD/out/llvm-23.1.4"
+export ZIL_LLVM_LIB_DIR="$PWD/out/llvm-23.1.4/lib"
+export ZIL_CLANG="$PWD/out/llvm-23.1.4/bin/clang"
+export PATH="$PWD/out/llvm-23.1.4/bin:$PATH"
+export LD_LIBRARY_PATH="$ZIL_LLVM_LIB_DIR${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+python3 tools/llvm/check_toolchain.py
+```
+
+安装器需 Python 3.11+、tar、curl 和网络或经摘要校验的本地官方 archive；它不作系统级安装。checker 报告真实工具路径、版本和字节摘要；失败不能用系统其他 LLVM 版本顶替。`Cargo.lock` 的依赖首次获取可能需要网络，之后可用匹配缓存离线构建。源码构建不依赖审计 ZIP 或 Git 历史：
 
 ```sh
 cargo fetch --locked
@@ -37,6 +52,8 @@ cargo run --offline --locked -p zil-cli -- run examples/modules/main.zil --entry
 ```
 
 干净源码克隆在已备好工具链/依赖缓存的环境执行治理检查和适用构建/测试，验证不依赖旧绝对路径或未跟踪本地文件。它不等于空机器从零下载 LLVM、Cargo 依赖或恢复旧运行环境；这些前置与未执行项在收据中单列为 NotRun/Blocked，不伪报 Pass。
+
+当前 Linux x86_64 原生行为可按相应 profile 验证。Win64 已有对象和 PE 交叉链接证据，但本说明不宣称 Windows 宿主安装、Windows 本机运行或完整平台验收；目标支持范围以 `docs/LLVM-API.md`、`docs/LANGUAGE-DRAFT.md` 和当轮收据为准。
 
 若交付包含 `PACKAGE.json` 指定的历史 bundle，从实际附件路径恢复；勿重新 `git init` 冒充原提交：
 
