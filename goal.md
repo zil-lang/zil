@@ -117,7 +117,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 已合入 | — | — | [PR48 验收][e-pr48]：原始源码、两核 raw/Wire、连续 next/失效及四配置原生完整输出42；合法life遮蔽和原位置拒绝回退已修复。机器首片限thin shared Address，一般lending另缺。 |
-| G3.4.2 | 借入与拥有 Package、可变 holder 的实际来源、转借、返回及失败清理 | 进行中 | P0 | sol high · storage | 基线 `2b603607d`；task/G3.4.2。先固定载体和来源范围，贯通真实跨模块 API；两核独立验证失效/独占/责任，O0/O2 精确清理。不据此开放任意载体。 |
+| G3.4.2 | 可变 holder 的实际来源、重借与失效；借入/拥有 Package 后续组合 | 进行中 | P0 | sol high · storage | 基线 `2b603607d`；task/G3.4.2。首片可变 Record holder，贯通真实跨模块 API；两核独立验证实际叶与父 loan，O0/O2 验证。借入/拥有 Package 仍需扩展名义库存，不由此首片宣布完成。 |
 
 </details>
 
@@ -221,7 +221,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G6.1.1 | 有限逐结果状态转换：成功关闭、失败保留状态及别名/跨模块上界 | 进行中 | P0 | sol high · protocol | 基线 `2b603607d`；task/G6.1.1。复用既有协议/State 表示，先核定源入口与逐结果关系，再以可失败资源 API 和独立核反例交付；通用 Guard 接续。 |
+| G6.1.1 | 已有登记协议的逐结果静态核验：Closing/Closed、真实 Poll 结果及受检关闭 | 进行中 | P0 | sol high · protocol | 基线 `2b603607d`；task/G6.1.1。采用现有 AsyncRegistration 三态原语，由真实 Poll 的 Pending/Ready 推导状态，旧运行时受检关闭保持；新增静态合同首片与跨 helper 核验。一般自定义协议仍待实现，通用 Guard 接续。 |
 
 </details>
 
