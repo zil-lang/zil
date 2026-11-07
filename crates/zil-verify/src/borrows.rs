@@ -793,7 +793,9 @@ fn reconstruct(
                             }
                             InstructionKind::DescribeAddress { address }
                             | InstructionKind::ReborrowAddress { address, .. }
-                            | InstructionKind::MakeDynBorrow { source: address, .. }
+                            | InstructionKind::MakeDynBorrow {
+                                source: address, ..
+                            }
                             | InstructionKind::AddressSlice { address, .. }
                             | InstructionKind::AddressIndex { address, .. } => {
                                 roots_join(&mut row, &values[address.0 as usize], budget)?;

@@ -245,7 +245,9 @@ fn reconstruct(
                                 join(&mut parents, &flow.values[address.0 as usize], budget)?;
                             }
                             InstructionKind::ReborrowAddress { address, .. }
-                            | InstructionKind::MakeDynBorrow { source: address, .. } => {
+                            | InstructionKind::MakeDynBorrow {
+                                source: address, ..
+                            } => {
                                 row.insert(id);
                                 let source = &flow.values[address.0 as usize];
                                 if flow.environment[id] {
@@ -1280,7 +1282,9 @@ pub(super) fn check(
                 | InstructionKind::ReadAddress { address }
                 | InstructionKind::SliceLength { address }
                 | InstructionKind::WriteAddress { address, .. }
-                | InstructionKind::MakeDynBorrow { source: address, .. }
+                | InstructionKind::MakeDynBorrow {
+                    source: address, ..
+                }
                 | InstructionKind::ReborrowAddress { address, .. } => {
                     let write = matches!(
                         instruction.kind,
