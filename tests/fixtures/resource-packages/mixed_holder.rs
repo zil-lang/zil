@@ -224,6 +224,76 @@ fn nested_child_transfer_rejects_reusing_removed_field_or_parent() {
 }
 
 #[test]
+fn nested_child_transfer_raw_and_wire_reject_duplicate_consumption() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source(
+        "nested-qualified-child-move.zil",
+        NESTED_QUALIFIED_CHILD_MOVE,
+    );
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let main = raw.functions.iter_mut().find(|f| f.name == "main").unwrap();
+    let (block, at) = main
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(b, block)| {
+            block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, zil_ir::InstructionKind::TakePackageField { .. }))
+                .map(|at| (b, at))
+        })
+        .unwrap();
+    let mut duplicate = main.blocks[block].instructions[at].clone();
+    let result = duplicate.result.unwrap();
+    let new_result = zil_ir::ValueId(main.values.len() as u32);
+    main.values.push(main.values[result.0 as usize].clone());
+    duplicate.result = Some(new_result);
+    main.blocks[block].instructions.insert(at + 1, duplicate);
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyzed = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        analyzed
+            .iter()
+            .any(|d| d.message.contains("field") || d.message.contains("stored")),
+        "{analyzed:?}"
+    );
+    let verified =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        verified
+            .iter()
+            .any(|d| d.message.contains("field") || d.message.contains("stored")),
+        "{verified:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error
+            .iter()
+            .any(|d| d.message.contains("field") || d.message.contains("stored")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
 fn raw_take_forgery_requires_refill_before_helper_exit() {
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
