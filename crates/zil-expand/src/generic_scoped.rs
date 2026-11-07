@@ -91,12 +91,6 @@ impl Check<'_, '_, '_> {
                     ));
                 }
             }
-            if threaded {
-                return Err(unsupported(
-                    span,
-                    "generic threaded registration requires a declared thread-call capability; ClosedEnvironment and Transfer do not prove the callback entry",
-                ));
-            }
             let ty = self.expr(&callback.value, state, None, false)?;
             let bound = self
                 .callable
@@ -111,14 +105,14 @@ impl Check<'_, '_, '_> {
                         "generic registration requires its actual declared concrete callable input",
                     )
                 })?;
-            if (threaded && !bound.transfer)
+            if (threaded && (!bound.transfer || !bound.thread_callable))
                 || !bound.closed_environment
                 || bound.kind != zil_ir::CallableKind::FnMut
                 || bound.parameters.len() != 1
             {
                 return Err(error(
                     callback.span,
-                    "registration requires explicit FnMut(i32)->i32 + ClosedEnvironment",
+                    "registration requires FnMut(i32)->i32 + ClosedEnvironment; a threaded provider additionally requires Transfer + ThreadCallable",
                 ));
             }
             same(&bound.parameters[0], &named("i32", span), span, self.budget)?;

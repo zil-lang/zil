@@ -931,6 +931,11 @@ impl Builder<'_, '_> {
                 .snapshot(self.closures.thread_transfers.len().saturating_add(1), span)?;
             self.closures.thread_transfers.insert(closure);
         }
+        if bound.thread_callable {
+            self.closures
+                .snapshot(self.closures.thread_entries.len().saturating_add(1), span)?;
+            self.closures.thread_entries.insert(closure);
+        }
         if bound.closed_environment {
             registration::closed_environment(self.closures, closure, span)?;
         }
@@ -1963,6 +1968,7 @@ mod origin_classification_tests {
                 source_life: None,
                 closed_environment: false,
                 transfer: false,
+                thread_callable: false,
             })
             .collect()
     }
