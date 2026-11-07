@@ -1480,6 +1480,39 @@ fn select(
     Ok(out)
 }
 
+fn projection_only_load(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    storage: ValueId,
+    b: &mut Budget,
+) -> CompileResult<Option<LocalId>> {
+    let mut adjacent = None;
+    let mut uses = 0usize;
+    for block in &f.blocks {
+        for (index, actual) in block.instructions.iter().enumerate() {
+            fee(b, 1)?;
+            if std::ptr::eq(actual, instruction)
+                && index > 0
+                && block.instructions[index - 1].result == Some(storage)
+                && let InstructionKind::Load(local) = block.instructions[index - 1].kind
+                && pointed_carrier(&f.locals[local.0 as usize].ty).is_some()
+            {
+                adjacent = Some(local);
+            }
+            for operand in resources::uses(&actual.kind) {
+                fee(b, 1)?;
+                uses += usize::from(operand == storage);
+            }
+        }
+        fee(b, 1)?;
+        uses += usize::from(matches!(block.terminator,
+            Terminator::Return(Some(value)) if value == storage));
+        uses += usize::from(matches!(block.terminator,
+            Terminator::Branch { condition, .. } if condition == storage));
+    }
+    Ok((uses == 1).then_some(adjacent).flatten())
+}
+
 fn roots(value: &Value, b: &mut Budget) -> CompileResult<Targets> {
     let mut permission = Permission::default();
     union(&mut permission, &value.pointer, b)?;
@@ -1741,9 +1774,20 @@ fn transfer(
             mode: StoredBorrowLoad::Reborrow { mutable: true },
         } => {
             out.pointer = select(state, &get(*storage)?.pointer, path, b)?;
-            for parent in &get(*storage)?.pointer.loans {
+            let parents = if let Some(local) = projection_only_load(f, i, *storage, b)? {
+                state
+                    .locals
+                    .get(&local)
+                    .ok_or_else(|| failure("projection parent local is unavailable"))?
+                    .pointer
+                    .loans
+                    .clone()
+            } else {
+                get(*storage)?.pointer.loans.clone()
+            };
+            for parent in parents {
                 fee(b, 1)?;
-                out.pointer.loans.insert(*parent);
+                out.pointer.loans.insert(parent);
             }
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {

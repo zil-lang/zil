@@ -1372,6 +1372,38 @@ fn select(
     }
     Ok(result)
 }
+fn projection_only_load(
+    f: &TypedFunction,
+    instruction: &Instruction,
+    storage: ValueId,
+    b: &mut Budget,
+) -> Check<Option<LocalId>> {
+    let mut adjacent = None;
+    let mut uses = 0usize;
+    for block in &f.blocks {
+        for (index, actual) in block.instructions.iter().enumerate() {
+            b.spend(1)?;
+            if std::ptr::eq(actual, instruction)
+                && index > 0
+                && block.instructions[index - 1].result == Some(storage)
+                && let InstructionKind::Load(local) = block.instructions[index - 1].kind
+                && addressed(&f.locals[local.0 as usize].ty).is_some()
+            {
+                adjacent = Some(local);
+            }
+            for operand in instruction_operands(&actual.kind) {
+                b.spend(1)?;
+                uses += usize::from(operand == storage);
+            }
+        }
+        b.spend(1)?;
+        uses += usize::from(matches!(block.terminator,
+            Terminator::Return(Some(value)) if value == storage));
+        uses += usize::from(matches!(block.terminator,
+            Terminator::Branch { condition, .. } if condition == storage));
+    }
+    Ok((uses == 1).then_some(adjacent).flatten())
+}
 fn instantiate(
     source: &Source,
     args: &[ValueId],
@@ -1700,7 +1732,12 @@ fn step(
             mode: StoredBorrowLoad::Reborrow { mutable: true },
         } => {
             out.address = select(state, &val(*storage)?.address, path, b)?;
-            add_loans(&mut out.address.loans, &val(*storage)?.address.loans, b)?;
+            let parents = if let Some(local) = projection_only_load(f, i, *storage, b)? {
+                state.locals[local.0 as usize].address.loans.clone()
+            } else {
+                val(*storage)?.address.loans.clone()
+            };
+            add_loans(&mut out.address.loans, &parents, b)?;
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             return Err(unsupported(
