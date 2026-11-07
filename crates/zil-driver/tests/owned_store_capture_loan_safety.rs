@@ -25,7 +25,7 @@ const ORIGINALS: [(&str, &str); 4] = [
     (
         "original02",
         include_str!(
-            "owned_store_leaf_capture_review_fixtures/02_original201_package_store_capture.zil"
+            "owned_store_leaf_capture_review_fixtures/02_package_store_callback_capture.zil"
         ),
     ),
     (

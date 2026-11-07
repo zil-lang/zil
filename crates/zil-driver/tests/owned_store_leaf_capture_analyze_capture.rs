@@ -11,7 +11,7 @@ use zil_ir::{CandidatePlan, InstructionKind as I, Type, TypedModule};
 const ORIGINALS: [&str; 4] = [
     include_str!("owned_store_leaf_capture_fixtures/00_package_owned_control.zil"),
     include_str!("owned_store_leaf_capture_fixtures/01_direct_store_capture.zil"),
-    include_str!("owned_store_leaf_capture_fixtures/02_original201_package_store_capture.zil"),
+    include_str!("owned_store_leaf_capture_fixtures/02_package_store_callback_capture.zil"),
     include_str!("owned_store_leaf_capture_fixtures/03_mutating_store_capture.zil"),
 ];
 const TWO: &str = r#"

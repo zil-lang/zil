@@ -11,7 +11,7 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 const INPUTS: &[(&str, &str)] = &[
     (
         "original120",
-        include_str!("inline_product_children_fixtures/00_original120.zil"),
+        include_str!("inline_product_children_fixtures/00_nested_owned_product_control.zil"),
     ),
     (
         "child-only",

@@ -9,7 +9,7 @@
   "fixtures": [
     {
       "name": "00_original120",
-      "file": "00_original120.zil",
+      "file": "00_nested_owned_product_control.zil",
       "bytes": 120,
       "sha256": "8f82dcba19831acf7417ee2fd4c852b8086d2dc377c8fc470131f87a603d2dba",
       "kind": "accept",

@@ -391,7 +391,7 @@ fn forged_self_containment_and_borrowed_modes_are_not_authority() {
 fn original_package_store_capture_is_owned_since() {
     assert_eq!(
         PACKAGE_STORE_CAPTURE,
-        include_str!("owned_store_leaf_capture_fixtures/02_original201_package_store_capture.zil")
+        include_str!("owned_store_leaf_capture_fixtures/02_package_store_callback_capture.zil")
     );
     let case = Case::new("original-package-store-capture", PACKAGE_STORE_CAPTURE);
     let unit = SourceUnit::new(

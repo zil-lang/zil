@@ -1,7 +1,8 @@
 //! Author checks for the public source-only Product identity contract.
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_ir::*;
-const ORIGINAL: &str = include_str!("generic_defer_obligations_fixtures/original235.zil");
+const ORIGINAL: &str =
+    include_str!("generic_defer_obligations_fixtures/product_store_replacement_cleanup.zil");
 fn core(text: &str) -> CoreModule {
     let u = SourceUnit::new(FileId(0), ModuleId(0), "types237.zil", text);
     let ast = zil_syntax::parse(&u).into_result().unwrap();
@@ -180,7 +181,12 @@ fn preserved_source_executes_at_both_optimization_levels() {
         fs::create_dir_all(&d).unwrap();
         let executable = d.join("program");
         let r = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "original235.zil", ORIGINAL),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product_store_replacement_cleanup.zil",
+                ORIGINAL,
+            ),
             &CompileOptions {
                 backend,
                 stop_after: Stage::Build,
