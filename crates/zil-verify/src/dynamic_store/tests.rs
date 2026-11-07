@@ -688,6 +688,38 @@ fn pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
     (m, plan)
 }
 
+// Legal ordinary owning metadata uses the same explicit root lifetime as the
+// existing Store push/pop fixture. The extra owner types below may be unused,
+// but their function still has a real managed local and cleanup obligation.
+fn scoped_pod_fixture(element: Type) -> (TypedModule, CandidatePlan) {
+    let (mut module, plan) = pod_fixture(element);
+    let function = &mut module.functions[0];
+    let span = function.span;
+    let op = |kind| Instruction {
+        result: None,
+        kind,
+        span,
+    };
+    let original = std::mem::take(&mut function.blocks[0].instructions);
+    let mut instructions = vec![
+        op(InstructionKind::ScopeEnter { scope: ScopeId(0) }),
+        op(InstructionKind::StorageLive(LocalId(0))),
+    ];
+    for instruction in original {
+        let dropped = matches!(instruction.kind, InstructionKind::DropManaged { .. });
+        instructions.push(instruction);
+        if dropped {
+            instructions.push(op(InstructionKind::StorageDead(LocalId(0))));
+        }
+    }
+    instructions.push(op(InstructionKind::ScopeExit {
+        scope: ScopeId(0),
+        kind: CleanupExitKind::Return,
+    }));
+    function.blocks[0].instructions = instructions;
+    (module, plan)
+}
+
 fn pod_plan(m: &TypedModule, roots: Vec<Vec<HoldRoot>>) -> CandidatePlan {
     let mut plan = CandidatePlan::empty_for(m);
     plan.functions.push(FunctionPlan {
@@ -1656,7 +1688,7 @@ fn store935_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
             result: Box::new(store.clone()),
         },
     ] {
-        let (mut malformed, plan) = pod_fixture(Type::I32);
+        let (mut malformed, plan) = scoped_pod_fixture(Type::I32);
         let span = malformed.functions[0].span;
         malformed.functions[0].locals.push(LocalDecl {
             id: LocalId(1),
@@ -1790,7 +1822,7 @@ fn store935_mutable_product_parent_address_qualifies_without_shared_address_perm
         },
     ] {
         for mutable in [true, false] {
-            let (mut candidate, plan) = pod_fixture(Type::I32);
+            let (mut candidate, plan) = scoped_pod_fixture(Type::I32);
             let span = candidate.functions[0].span;
             candidate.functions[0].locals.push(LocalDecl {
                 id: LocalId(1),
@@ -1815,7 +1847,7 @@ fn store935_mutable_product_parent_address_qualifies_without_shared_address_perm
 
 #[test]
 fn store935_raw_wire_unused_owner_has_exact_fresh_budget_and_same_size_forgery_rejects() {
-    let (mut module, plan) = pod_fixture(Type::I32);
+    let (mut module, plan) = scoped_pod_fixture(Type::I32);
     let store = module.functions[0].locals[0].ty.clone();
     let span = module.functions[0].span;
     module.functions[0].locals.push(LocalDecl {
@@ -2086,10 +2118,10 @@ fn pod932_complete_copy_push_pop_protocols_and_no_element_debt_are_raw_and_wire_
 }
 
 #[test]
-fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership() {
+fn store935_unused_package_and_recursive_product_gain_qualified_pod_store_ownership() {
     let limits = Limits::default();
     for nested in [false, true] {
-        let (mut m, plan) = pod_fixture(pod(vec![("n", Type::I64)]));
+        let (mut m, plan) = scoped_pod_fixture(pod(vec![("n", Type::I64)]));
         let leaf = Type::Package {
             name: "Bag932".into(),
             fields: vec![("items".into(), m.functions[0].locals[0].ty.clone())],
@@ -2102,9 +2134,7 @@ fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership()
         } else {
             leaf
         };
-        assert!(
-            packages::check_ordinary_type(&m, &owner, None, &mut Budget::new(&limits)).is_err()
-        );
+        packages::check_ordinary_type(&m, &owner, None, &mut Budget::new(&limits)).unwrap();
         let span = m.functions[0].span;
         m.functions[0].locals.push(LocalDecl {
             id: LocalId(1),
@@ -2114,11 +2144,10 @@ fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership()
             span,
         });
         for result in pod_both(&m, &plan, &limits) {
-            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+            result.unwrap();
         }
     }
-    // This scope restriction is specific to the new POD element family. The
-    // previous complete owning Package Store field remains admitted unchanged.
+    // The previous complete owning Package Store field remains admitted.
     let (old_store, resource) = captured_leaf_store();
     let mut m = module(vec![]);
     m.resources.push(resource);
@@ -2138,19 +2167,17 @@ fn pod932_unused_package_and_recursive_product_cannot_gain_pod_store_ownership()
         packages::check_ordinary_type(&m, &owner, None, &mut Budget::new(&limits)).unwrap();
     }
     let (m, _) = pod_fixture(pod(vec![("n", Type::I64)]));
-    assert!(
-        check_owned_capture(
-            &m,
-            &m.functions[0].locals[0].ty,
-            Some(&limits),
-            &mut Budget::new(&limits)
-        )
-        .is_err()
-    );
+    check_owned_capture(
+        &m,
+        &m.functions[0].locals[0].ty,
+        Some(&limits),
+        &mut Budget::new(&limits),
+    )
+    .unwrap();
 }
 
 #[test]
-fn pod932_new_head_family_does_not_inherit_owning_sum_containers() {
+fn store935_new_head_family_enters_qualified_owning_sum_containers() {
     let limits = Limits::default();
     let (old_store, old_resource) = captured_leaf_store();
     let wrap = |store: Type| {
@@ -2176,8 +2203,8 @@ fn pod932_new_head_family_does_not_inherit_owning_sum_containers() {
     resources::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
     sums::check_type_for(&m, &store, None, &mut Budget::new(&limits)).unwrap();
     for container in wrap(store) {
-        assert!(sums::check_type_for(&m, &container, None, &mut Budget::new(&limits)).is_err());
-        let (mut candidate, plan) = pod_fixture(pod(vec![("n", Type::I64)]));
+        sums::check_type_for(&m, &container, None, &mut Budget::new(&limits)).unwrap();
+        let (mut candidate, plan) = scoped_pod_fixture(pod(vec![("n", Type::I64)]));
         let span = candidate.functions[0].span;
         candidate.functions[0].locals.push(LocalDecl {
             id: LocalId(1),
@@ -2187,7 +2214,7 @@ fn pod932_new_head_family_does_not_inherit_owning_sum_containers() {
             span,
         });
         for result in pod_both(&candidate, &plan, &limits) {
-            assert_eq!(result.unwrap_err()[0].code, "E-UNSUPPORTED");
+            result.unwrap();
         }
     }
 }
