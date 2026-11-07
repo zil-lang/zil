@@ -1696,6 +1696,13 @@ impl Transfer<'_> {
                             },
                         ));
                     }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|value| slots.desc_value[value.0 as usize])
+                    {
+                        budget.spend(1)?;
+                        state.desc[row] = BTreeSet::from([Root::Local(*local)]);
+                    }
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }

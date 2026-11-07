@@ -7,6 +7,7 @@ use zil_driver::{
 const PROGRAM: &str = include_str!("mixed-owned-borrowed-package.zil");
 const TWO_LEAF: &str = include_str!("two-leaf-stored-borrow.zil");
 const OWNED_STORE_HEAD: &str = include_str!("owned-store-package-head.zil");
+const LOCAL_EXCLUSIVE_SLOT: &str = include_str!("local-exclusive-package-slot.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -25,6 +26,7 @@ fn mixed_package_source_raw_and_wire() {
         ("mixed-owned-borrowed-package.zil", PROGRAM),
         ("two-leaf-stored-borrow.zil", TWO_LEAF),
         ("owned-store-package-head.zil", OWNED_STORE_HEAD),
+        ("local-exclusive-package-slot.zil", LOCAL_EXCLUSIVE_SLOT),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -78,6 +80,11 @@ fn mixed_package_native_both_optimizations() {
             "owned-store-package-head.zil",
             OWNED_STORE_HEAD,
             b"1\n".as_slice(),
+        ),
+        (
+            "local-exclusive-package-slot.zil",
+            LOCAL_EXCLUSIVE_SLOT,
+            b"0\n".as_slice(),
         ),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {
@@ -183,4 +190,26 @@ fn same_stored_leaf_and_same_exclusive_input_reject() {
             report.to_json()
         );
     }
+    let overlapping = LOCAL_EXCLUSIVE_SLOT
+        .replace(
+            "let pointer=session.pointer",
+            "let pointer=session.pointer\n        let second=session.pointer",
+        )
+        .replace(
+            "*pointer=*pointer+1",
+            "*pointer=*pointer+1\n        *second=*second+1",
+        );
+    let report = compile_source(
+        &source("overlapping-local-package-slot.zil", &overlapping),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
 }

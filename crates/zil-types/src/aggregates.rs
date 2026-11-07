@@ -2556,7 +2556,7 @@ impl<'a> Builder<'a, '_> {
                     Type::Address { inner, .. } => inner.as_ref(),
                     _ => ty,
                 };
-                matches!(stored::physical(ty), Type::Record { fields, .. }
+                matches!(stored::physical(ty), Type::Record { fields, .. } | Type::Package { fields, .. }
                     if fields.iter().any(|(_, field)| matches!(field, Type::Address { mutable: true, .. })))
             });
             let (storage, address_ty) = self.projection_base(object, exclusive)?;
