@@ -15,6 +15,12 @@ and cannot be supplied by a later convenient instantiation. Existing owning
 Package element qualification remains a separate responsibility rule.
 
 The canonical Store resource is derived from the complete actual element type.
+New Tuple and Array roots use `@builtin:OwnedStore<tuple:HEX>` and
+`@builtin:OwnedStore<array:HEX>`, where HEX is the lowercase complete
+`Type::fingerprint()` digest. Existing Record/scalar names remain unchanged.
+Each checker charges the complete bounded type before hashing, then checks
+exact resource payload equality and rejects duplicate canonical names. A
+digest only locates a candidate; it does not equate different actual types.
 Tuple order, array length, scalar kind and every nominal field identity remain
 in equality, fingerprints, helper keys and ABI. Equal byte size cannot equate
 a tuple, array or nominal Record. Ordinary aliases resolve to their actual
