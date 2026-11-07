@@ -69,6 +69,9 @@ pub(super) struct Budget {
     pub(super) task_pointer_roots: Vec<Vec<Vec<zil_ir::HoldRoot>>>,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
+    // Current function's actual loan arena, including reserved exclusive sites.
+    // Reset for each facts solve; false skips only read/read constructor checks.
+    pub(super) stored_exclusive_loans: bool,
     // Empty for the established single-lane profiles. A mixed module has one
     // paid, actual-function partition; neither lane may infer the other lane.
     pub(super) composition_stored: Vec<bool>,
@@ -142,6 +145,7 @@ impl Budget {
             task_pointer_roots: Vec::new(),
             stored_borrows: false,
             stored_slot_updates: false,
+            stored_exclusive_loans: false,
             composition_stored: Vec::new(),
             pure_nominal: false,
             capture_relations: false,

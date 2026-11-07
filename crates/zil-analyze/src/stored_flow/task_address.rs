@@ -115,6 +115,7 @@ pub(super) fn seed(
             parents: Loans::new(),
             mutable: port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress,
         });
+        b.stored_exclusive_loans |= port.mode == zil_ir::StoredBorrowMode::ExclusiveAddress;
         value.task_ports.insert(
             key(&path, ordinal as u32),
             Permission {
