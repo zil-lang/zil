@@ -481,8 +481,13 @@ impl Slots {
         let mut borrowed_closures = Vec::with_capacity(module.closures.len());
         for closure in &module.closures {
             budget.spend(closure.captures.len().saturating_mul(2))?;
+            let mut inline_sum_owner = false;
+            for ty in &closure.captures {
+                inline_sum_owner |= dynamic_store::inline_sum_capture(ty, budget)?;
+            }
             owned_closures.push(
                 closure.kind == CallableKind::FnOnce
+                    || inline_sum_owner
                     || closure.captures.iter().any(|ty| {
                         matches!(
                             ty,
@@ -610,20 +615,22 @@ impl Slots {
         let capture_debt = captures
             .iter()
             .enumerate()
-            .map(|(index, ty)| {
-                if matches!(ty, Type::Managed(_) | Type::Closure(_)) {
+            .map(|(index, ty)| -> Check<Option<usize>> {
+                if matches!(ty, Type::Managed(_) | Type::Closure(_))
+                    || dynamic_store::inline_sum_capture(ty, budget)?
+                {
                     let next = debt_count;
                     debt_count += 1;
-                    Some(next)
+                    Ok(Some(next))
                 } else if matches!(ty, Type::Package { .. }) {
                     let local =
                         views.by_capture[index].expect("independently checked Package binding");
-                    managed_local[local.0 as usize]
+                    Ok(managed_local[local.0 as usize])
                 } else {
-                    None
+                    Ok(None)
                 }
             })
-            .collect();
+            .collect::<Check<Vec<_>>>()?;
         let mut retained_debt = Vec::new();
         if !views.by_local.is_empty() {
             budget.spend(

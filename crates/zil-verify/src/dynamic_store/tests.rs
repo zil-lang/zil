@@ -1789,6 +1789,10 @@ fn store935_product_capture_rechecks_store_behind_each_owned_sum_constructor() {
             result: Box::new(Type::Unit),
         },
     ] {
+        let mut direct_budget = Budget::new(&limits);
+        check_type_shape(&child, &module.target, &limits, &mut direct_budget).unwrap();
+        assert!(inline_sum_capture(&child, &mut direct_budget).unwrap());
+        check_owned_capture(&module, &child, Some(&limits), &mut direct_budget).unwrap();
         let parent = Type::Package {
             name: "Capture935".into(),
             fields: vec![("child".into(), child)],

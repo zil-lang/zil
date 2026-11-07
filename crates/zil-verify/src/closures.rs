@@ -222,11 +222,18 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
+            let inline_store_capture = budget.pod_stores
+                && matches!(
+                    ty,
+                    Type::Package { .. }
+                        | Type::Tuple(_)
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
+                )
+                && dynamic_store::owned_capture_store(ty, budget)?;
             if dynamic_store::is_carrier(ty)
                 || packages::has_store_fields(ty)
-                || (budget.pod_stores
-                    && matches!(ty, Type::Package { .. })
-                    && dynamic_store::owned_capture_store(ty, budget)?)
+                || inline_store_capture
             {
                 dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
@@ -244,14 +251,14 @@ pub(super) fn check_definitions(
             }
             if budget.sums && matches!(ty, Type::Enum { .. }) {
                 resources::charge_payload(ty, budget)?;
-                if sums::owned_enum(ty) {
+                if sums::owned_enum(ty) && !inline_store_capture {
                     return Err(unsupported(
                         "owning Enum capture is outside the finite closure profile",
                         None,
                     ));
                 }
             }
-            if errors::owned(ty, budget.sums) {
+            if errors::owned(ty, budget.sums) && !inline_store_capture {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",
                     None,
@@ -664,6 +671,9 @@ pub(super) fn self_contained(
             match ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
+                ty if dynamic_store::inline_sum_capture(ty, budget)? => {
+                    dynamic_store::check_owned_capture(module, ty, None, budget)?;
+                }
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
@@ -685,6 +695,11 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     };
     let definition = definition(module, *id, None)?;
     budget.spend(definition.captures.len().saturating_add(1))?;
+    for capture in &definition.captures {
+        if dynamic_store::inline_sum_capture(capture, budget)? {
+            return Ok(true);
+        }
+    }
     Ok(definition.kind == CallableKind::FnOnce
         || definition.captures.iter().any(|ty| {
             matches!(
@@ -718,7 +733,8 @@ pub(super) fn check_resource_instruction(
                     "capture borrow requires an actual environment field",
                 ));
             };
-            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_))) {
+            let inline_sum = dynamic_store::inline_sum_capture(ty, budget)?;
+            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_)) || inline_sum) {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -760,7 +776,9 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
-                if !matches!(ty, Type::Managed(_) | Type::Closure(_)) {
+                if !matches!(ty, Type::Managed(_) | Type::Closure(_))
+                    && !dynamic_store::inline_sum_capture(ty, budget)?
+                {
                     return Err(reject(
                         "E-VERIFY-CAPTURE",
                         span,
