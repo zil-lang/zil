@@ -51,11 +51,11 @@ with sync_playwright() as pw:
  p.wait_for_timeout(1800);p.screenshot(path=str(R/'evidence/desktop.png'),full_page=False)
  with p.expect_download() as info:p.locator('.top-download').click()
  dl=info.value;dl.save_as(R/'evidence/downloaded-design.md');ck('download is byte-identical current spec',(R/'evidence/downloaded-design.md').read_bytes()==(R/'_zil_design.md').read_bytes())
- for page,phrase in [('goal','施工总计划'),('workflow','每类信息只有一个定义源'),('syntax','文法产生式'),('changes','审查'),('sources','资料'),('guide','阅读')]:
+ for page,phrase in [('workflow','goal.md'),('syntax','文法产生式'),('changes','审查'),('sources','资料'),('guide','阅读')]:
   nav(p,'#docs/'+page+'?langs=zil,rust');ck('documentation '+page,phrase in p.locator('#main').inner_text())
- nav(p,'#docs/goal?langs=zil,rust')
+ nav(p,'#docs/workflow?langs=zil,rust')
  with p.expect_download() as info:p.locator('[data-action=download-doc]').click()
- info.value.save_as(R/'evidence/downloaded-goal.md');ck('goal download exact',(R/'evidence/downloaded-goal.md').read_bytes()==(R/'_zil_goal.md').read_bytes())
+ info.value.save_as(R/'evidence/downloaded-workflow.md');ck('workflow download exact',(R/'evidence/downloaded-workflow.md').read_bytes()==(R/'docs/WORKFLOW.md').read_bytes())
  # Navigation/render for every current normative chapter. These are UI checks, not ZIL execution.
  allids=p.evaluate('DesignAtlas.specChapters.map(c=>c.id)')
  for c in allids:
