@@ -1618,6 +1618,7 @@ impl Graph {
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
                 || owned_shapes::tuple(ty)
+                || owned_shapes::sum(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
