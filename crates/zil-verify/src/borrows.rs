@@ -5,6 +5,7 @@ use super::*;
 mod buffer_effects;
 mod captures;
 mod loans;
+mod port_facts;
 mod roots;
 use roots::{Root, contains_overlap, field_root, overlaps};
 use std::collections::BTreeMap;
@@ -1160,18 +1161,6 @@ fn reconstruct_module(
                     budget.spend(1)?;
                     if *reachable && let Terminator::Return(Some(value)) = block.terminator {
                         let roots = &facts.values[value.0 as usize];
-                        budget.spend(block.instructions.len())?;
-                        let explicit_error = roots.is_empty()
-                            && block
-                                .instructions
-                                .iter()
-                                .find(|i| i.result == Some(value))
-                                .is_some_and(|i| {
-                                    matches!(
-                                        i.kind,
-                                        InstructionKind::MakeErrorUnion { is_error: true, .. }
-                                    )
-                                });
                         if matches!(function.return_type, Type::MutexGuard { .. })
                             && (roots.is_empty() || roots.iter().any(|root| {
                                 let HoldRoot::Parameter(index) = root.coarse() else { return true };
@@ -1182,20 +1171,6 @@ fn reconstruct_module(
                             }))
                         {
                             return Err(reject("E-VERIFY-MUTEX", Some(function.span), "guard return has no actual mutex head input"));
-                        }
-                        if retained_task_value(&function.return_type)
-                            && !matches!(function.return_type, Type::MutexGuard { .. })
-                            && !explicit_error
-                            && (roots.is_empty()
-                                || roots
-                                    .iter()
-                                    .any(|root| !matches!(root.coarse(), HoldRoot::Parameter(0))))
-                        {
-                            return Err(reject(
-                                "E-VERIFY-TASK",
-                                Some(function.span),
-                                "borrowed Task return has no actual shared input root",
-                            ));
                         }
                         budget.spend(roots.len())?;
                         let incoming: Vec<_> = roots
@@ -1270,6 +1245,7 @@ fn check_module_mask(
     mask: Option<&[bool]>,
     budget: &mut Budget,
 ) -> Check<()> {
+    let port_facts = port_facts::solve(module, graphs, budget)?;
     let descriptor_origins = descriptor_origins(module, budget)?;
     let facts = reconstruct_module(module, graphs, descriptor_origins, mask, budget)?;
     if budget.invocation_callbacks {
@@ -1581,6 +1557,7 @@ fn check_module_mask(
             function,
             graph,
             facts,
+            &port_facts[function_index],
             has_buffers.then(|| captures::Context {
                 module,
                 function,
