@@ -86,7 +86,13 @@ pub fn discover_tests(path: &Path, options: &CompileOptions) -> CompileResult<Ve
         )],
         paths: BTreeMap::new(),
     };
-    load_sources(&mut project, path, options, &CompilationSession::default())?;
+    let mut discovery_options = options.clone();
+    load_sources(
+        &mut project,
+        path,
+        &mut discovery_options,
+        &CompilationSession::default(),
+    )?;
     let parsed = zil_syntax::parse_with_limits(&project.modules[0], &options.limits);
     if !parsed.diagnostics.is_empty() {
         return Err(parsed.diagnostics);
@@ -310,7 +316,7 @@ impl CompilationSession {
             input.extend_from_slice(&manifest.fingerprint.0);
             effective_options.build_inputs = Fingerprint::of(&input);
         }
-        let options = &effective_options;
+        let options = &mut effective_options;
         // Discovery may borrow immutable syntax from the previous request.
         // Request-end eviction bounds retained raw owners, including the syntax
         // indexes owned by complete projects. Borrowing grants no authority.
@@ -327,10 +333,19 @@ impl CompilationSession {
         // Parse is a syntax-only stop for the requested file. Import discovery
         // belongs to expansion and must not read or reject dependencies yet.
         let loaded = if options.stop_after == Stage::Parse {
-            read_source(path, options).map(|source| {
-                project.modules[0] = source;
-                LoadedProject::Parsed(Vec::new())
-            })
+            let accepted = if let Some(manifest) = &options.project {
+                manifest
+                    .check_lock()
+                    .and_then(|_| manifest.check_entry(path))
+            } else {
+                Ok(path.to_path_buf())
+            };
+            accepted
+                .and_then(|accepted| read_source(&accepted, options))
+                .map(|source| {
+                    project.modules[0] = source;
+                    LoadedProject::Parsed(Vec::new())
+                })
         } else {
             load_sources(&mut project, path, options, self)
         };
@@ -602,12 +617,41 @@ impl CompilationSession {
             return Ok(());
         }
         let syntax_modules = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
+        let mut syntax_paths = project.paths.clone();
+        if let (Some(lock), Some(scoped)) = (&options.syntax_lock, &options.scoped_imports) {
+            for entry in &lock.entries {
+                for ((_, path), module) in scoped.iter() {
+                    if path != &entry.path {
+                        continue;
+                    }
+                    if syntax_paths
+                        .insert(entry.path.clone(), *module)
+                        .is_some_and(|previous| previous != *module)
+                    {
+                        return Err(reject(
+                            "E-SYNTAX-LOCK-AMBIGUOUS",
+                            None,
+                            format!(
+                                "syntax provider {} resolves to different project modules",
+                                entry.path.join(".")
+                            ),
+                        ));
+                    }
+                }
+            }
+        }
         let locked = options
             .syntax_lock
             .as_ref()
-            .map(|lock| lock.resolve(&project.modules, &syntax_modules, &project.paths))
+            .map(|lock| lock.resolve(&project.modules, &syntax_modules, &syntax_paths))
             .transpose()?;
-        let imports = resolve_imports(project, &parsed, &options.limits, locked.as_ref())?;
+        let imports = resolve_imports(
+            project,
+            &parsed,
+            &options.limits,
+            locked.as_ref(),
+            options.scoped_imports.as_deref(),
+        )?;
         // Finite #if/#for declaration selection is part of Expand even for a
         // Core stop. Ordinary value #(...) remains a Core CT expression and
         // is only executed in the later Ct stage.
@@ -657,8 +701,8 @@ impl CompilationSession {
                     let mut remaining = selected.as_ref().map_or_else(|| Ok(options.limits.clone()),
                         |selected| selected.receipt.remaining(&options.limits))?;
                     remaining.max_ct_steps = remaining.max_ct_steps.min(options.limits.max_ct_steps);
-                    Some(super::ct_artifact::materialize(
-                        &project.modules, &parsed, selected_syntax, &project.paths, &imports,
+                    Some(super::ct_artifact::materialize_scoped(
+                        &project.modules, &parsed, selected_syntax, &project.paths, options.scoped_imports.as_deref(), &imports,
                         project.root, fingerprint, &options.target, &remaining, locked.as_ref(),
                         selected.is_none(),
                     )?)
@@ -692,10 +736,12 @@ impl CompilationSession {
                             continue;
                         }
                         module_imports.retain(|import| reachable.contains(&import.module));
+                        let importer = result.modules[index].id;
                         result.retain_items(index, |item| match &item.kind {
                             ast::ItemKind::Import(import) => {
                                 if import.syntax || matches!(import.path.as_slice(), [a,b] if a == "std" && (b == "meta" || b == "syntax")) { return false; }
-                                project.paths.get(&import.path).is_none_or(|target| reachable.contains(target))
+                                options.scoped_imports.as_ref().and_then(|paths| paths.get(&(importer, import.path.clone())))
+                                    .or_else(|| project.paths.get(&import.path)).is_none_or(|target| reachable.contains(target))
                             }
                             _ => true,
                         })?;
@@ -1121,8 +1167,14 @@ fn resolve_imports(
     parsed: &[Arc<ParseResult>],
     limits: &Limits,
     locked: Option<&zil_ir::ct_artifact::CtLockedProviderRegistry>,
+    scoped: Option<&BTreeMap<(ModuleId, Vec<String>), ModuleId>>,
 ) -> CompileResult<Vec<Vec<CoreImport>>> {
     let mut remaining = limits.max_nodes;
+    let known = project
+        .modules
+        .iter()
+        .map(|source| source.module_id)
+        .collect::<BTreeSet<_>>();
     let mut graph = Vec::new();
     for module in parsed {
         let mut imports = Vec::new();
@@ -1159,13 +1211,25 @@ fn resolve_imports(
                     "syntax provider use needs an explicit lock",
                 ));
             }
-            let id = project.paths.get(&import.path).copied().ok_or_else(|| {
-                reject(
+            let id = scoped
+                .filter(|_| import.path.first().is_none_or(|part| part != "std"))
+                .and_then(|paths| paths.get(&(module.module.id, import.path.clone())))
+                .or_else(|| project.paths.get(&import.path))
+                .copied()
+                .ok_or_else(|| {
+                    reject(
+                        "E-MODULE-NOT-FOUND",
+                        Some(item.span),
+                        format!("module {} was not supplied", import.path.join(".")),
+                    )
+                })?;
+            if !known.contains(&id) {
+                return Err(reject(
                     "E-MODULE-NOT-FOUND",
                     Some(item.span),
-                    format!("module {} was not supplied", import.path.join(".")),
-                )
-            })?;
+                    "scoped import target is absent from the source graph",
+                ));
+            }
             let alias = import
                 .alias
                 .clone()
@@ -1420,7 +1484,7 @@ fn exact_discovered_semantic(
 fn load_sources(
     project: &mut ProjectSources,
     path: &Path,
-    options: &CompileOptions,
+    options: &mut CompileOptions,
     session: &CompilationSession,
 ) -> CompileResult<LoadedProject> {
     options
@@ -1431,13 +1495,7 @@ fn load_sources(
         .map_err(|e| infra("E-SOURCE-READ", format!("{}: {e}", path.display())))?;
     if let Some(manifest) = &options.project {
         manifest.check_lock()?;
-        if root_path != manifest.entry && !manifest.tests.contains(&root_path) {
-            return Err(reject(
-                "E-PROJECT-PATH",
-                None,
-                "entry is not the declared root or a listed test source",
-            ));
-        }
+        manifest.check_entry(&root_path)?;
     }
     let directory = root_path
         .parent()
@@ -1515,6 +1573,9 @@ fn load_sources(
         // has separately charged source bytes; per-file token/node quotas and
         // every other query axis must still match, including source identity.
         let mut query_options = options.clone();
+        // The scoped map is discovery output, not a parse-query input. Avoid
+        // cloning its growing Arc on the next import insertion.
+        query_options.scoped_imports = None;
         query_options.limits.max_tokens = parse_limits.max_tokens;
         query_options.limits.max_nodes = remaining.max_nodes;
         let (_, cached) = session.project_parse_input(
@@ -1634,6 +1695,9 @@ fn load_sources(
                         })
                         .collect::<Vec<_>>()
                 })?;
+                if let Some(manifest) = &options.project {
+                    manifest.check_source(&source)?;
+                }
                 take(
                     &mut remaining.max_source_bytes,
                     source.text.len(),
@@ -1652,7 +1716,37 @@ fn load_sources(
                 project.modules.push(source);
                 ModuleId(number)
             };
-            if let Some(previous) = project.paths.insert(import.path.clone(), id) {
+            if let Some(manifest) = &options.project
+                && import.path.first().is_some_and(|part| part != "std")
+            {
+                let importer = project.modules[index].module_id;
+                let scoped = options
+                    .scoped_imports
+                    .get_or_insert_with(|| Arc::new(BTreeMap::new()));
+                if let Some(previous) =
+                    Arc::make_mut(scoped).insert((importer, import.path.clone()), id)
+                {
+                    if previous != id {
+                        return Err(reject(
+                            "E-MODULE-IDENTITY",
+                            Some(item.span),
+                            "an import resolved to two distinct modules",
+                        ));
+                    }
+                }
+                let owner = manifest.owner(Path::new(&project.modules[index].path))?;
+                let mut identity_path = vec![format!("__zil_pkg{owner}")];
+                identity_path.extend(import.path.iter().cloned());
+                if let Some(previous) = project.paths.insert(identity_path, id) {
+                    if previous != id {
+                        return Err(reject(
+                            "E-MODULE-IDENTITY",
+                            Some(item.span),
+                            "canonical package module identity conflicts",
+                        ));
+                    }
+                }
+            } else if let Some(previous) = project.paths.insert(import.path.clone(), id) {
                 if previous != id {
                     return Err(reject(
                         "E-MODULE-IDENTITY",

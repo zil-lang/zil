@@ -544,17 +544,13 @@ impl Materializer<'_, '_> {
                 if name != alias || import.syntax {
                     continue;
                 }
-                for (key, id) in self.paths {
-                    self.environment.budget.reserve_analysis_work(
-                        key.iter().map(|p| p.len() as u64 + 1).sum::<u64>()
-                            + import.path.iter().map(|p| p.len() as u64 + 1).sum::<u64>()
-                            + 1,
-                    )?;
-                    if key == &import.path {
-                        target = Some(*id);
-                        break;
-                    }
-                }
+                self.environment.budget.reserve_analysis_work(
+                    (self.paths.len() + self.environment.scoped.map_or(0, |paths| paths.len()))
+                        as u64
+                        + import.path.iter().map(|p| p.len() as u64 + 1).sum::<u64>()
+                        + 1,
+                )?;
+                target = self.environment.resolve_path(module.id, &import.path);
                 break;
             }
             let Some(target) = target else { continue };

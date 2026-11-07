@@ -11,6 +11,8 @@ mod ct_selection;
 mod project;
 mod project_manifest;
 pub use project_manifest::ProjectManifest;
+/// Explicit module import destinations keyed by the source module that imports.
+pub type ScopedImports = BTreeMap<(ModuleId, Vec<String>), ModuleId>;
 mod semantic_cache;
 mod session;
 mod stable_source_identity;
@@ -72,6 +74,10 @@ pub struct CompileOptions {
     pub test_harness: bool,
     /// Explicit local project graph. No ambient manifest is loaded by the driver.
     pub project: Option<std::sync::Arc<ProjectManifest>>,
+    /// Filesystem project import resolution, keyed by the importing module.
+    /// Populated by discovery; explicit ProjectSources keep using `paths`.
+    #[doc(hidden)]
+    pub scoped_imports: Option<std::sync::Arc<ScopedImports>>,
     pub cache_dir: Option<PathBuf>,
     /// Explicitly trusted local raw TypedProgram cache; never stores Verified.
     pub semantic_cache: Option<PathBuf>,
@@ -106,6 +112,7 @@ impl Default for CompileOptions {
             entry: None,
             test_harness: false,
             project: None,
+            scoped_imports: None,
             cache_dir: None,
             semantic_cache: None,
             object_cache: None,

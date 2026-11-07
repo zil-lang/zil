@@ -1147,7 +1147,7 @@ impl Expander<'_> {
     ) {
         // `test` is inert declaration metadata consumed by the driver test
         // runner. It does not alter the program's signature or body.
-        if matches!(item.kind, s::ItemKind::Function(_)) {
+        if prefix.is_none() && host.is_none() && matches!(item.kind, s::ItemKind::Function(_)) {
             let unhandled = item
                 .attributes
                 .iter()
