@@ -26,7 +26,7 @@ pub(super) fn supported(ty: &Type) -> bool {
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))
                 && resources::supported(result))
             || (*error.as_ref() == super::dyn_dispatch::create_error()
-                && matches!(result.as_ref(), Type::OwnedDyn { .. })))
+                && matches!(result.as_ref(), Type::OwnedDyn { .. }))))
         || dynamic_store::product_protocol(ty)
         || owned_shapes::error_union(ty)
 }

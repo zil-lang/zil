@@ -380,6 +380,68 @@ fn owned_erasure_rejects_live_concrete_byte_views() {
 }
 
 #[test]
+fn raw_erasure_cannot_move_a_concrete_view_read_past_owner_transfer() {
+    let source = "trait Read{fn read(self:&Self)->i32;}package P{manages data:ByteBuffer;pub n:i32}impl Read for P{fn read(self:&Self)->i32{return self.n}}fn main()->DynCreateError!i32{let p=P{data:bytes_new(),n:1};let before=bytes_view(p.data);let n=before.len();let made=owned_dyn::<dyn Read>(p);return i32(n)}";
+    let (module, plan) = source_candidate_for(source);
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, I::SliceLength { .. }))
+    );
+    let mut altered = module.clone();
+    let block = altered
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::SliceLength { .. }))
+                && b.instructions
+                    .iter()
+                    .any(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        })
+        .unwrap();
+    let before = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::SliceLength { .. }))
+        .unwrap();
+    let output = block.instructions[before].result.unwrap();
+    let store = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::Store { value, .. } if value == output))
+        .unwrap();
+    let store = block.instructions.remove(store);
+    let read = block.instructions.remove(before);
+    let after = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        .unwrap();
+    block.instructions.insert(after + 1, read);
+    block.instructions.insert(after + 2, store);
+    assert!(zil_analyze::analyze(&altered, &Limits::default()).is_err());
+    let mut plan = plan;
+    plan.module_fingerprint = altered.fingerprint();
+    let target = altered.target.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&altered, &plan, &Limits::default()).unwrap();
+    for errors in [
+        zil_verify::verify_module(altered, plan, &target, &Limits::default()).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(|e| e.code == "E-BORROW-CONFLICT"),
+            "{errors:?}"
+        );
+    }
+}
+
+#[test]
 fn interface_only_owner_parameter_still_has_affine_debt() {
     let source = format!(
         "{OWNED_PACKAGE}\nfn relay(owner:OwnedDyn<dyn Read>)->OwnedDyn<dyn Read>{{return owner}}"
@@ -495,6 +557,42 @@ fn interface_only_owner_parameter_still_has_affine_debt() {
     );
     assert!(
         zil_verify::verify_module_bytes(&wire, &without_table.target, &Limits::default()).is_err()
+    );
+}
+
+#[test]
+fn raw_closure_cannot_hide_an_owned_dyn_capture() {
+    let source =
+        format!("{OWNED_PACKAGE}\nfn closure_test(x:i32)->i32{{let f=move()->i32=>x;return f()}}");
+    let (mut module, mut plan) = source_candidate_for(&source);
+    assert!(!module.closures.is_empty());
+    assert!(!module.closures[0].captures.is_empty());
+    module.closures[0].captures[0] = Type::OwnedDyn {
+        interface: module.dyn_interfaces[0].id,
+    };
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    plan.module_fingerprint = module.fingerprint();
+    let target = module.target.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module(module, plan, &target, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+    let captured = format!(
+        "{OWNED_PACKAGE}\nfn captured()->DynCreateError!i32{{let owner=owned_dyn::<dyn Read>(A{{data:bytes_new(),n:7}})?;let f=move()->i32=>owner.read();return f()}}"
+    );
+    let report = compile(&captured, &CompileOptions::default());
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        matches!(
+            report.phase,
+            Phase::Expand | Phase::Types | Phase::Analyze | Phase::Verify
+        ),
+        "{}",
+        report.to_json()
     );
 }
 #[test]
