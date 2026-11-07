@@ -4,7 +4,7 @@ ZIL 是开发中的系统语言与编译器。当前可执行范围、限制和�
 
 ## 构建与运行
 
-按 `rust-toolchain.toml` 准备 Rust，以及 [交付说明](docs/DELIVERY.md)所列的 LLVM/clang 工具链和锁文件依赖。在已准备好依赖缓存的环境中：
+当前默认后端的宿主范围是 Linux x86_64。按 `rust-toolchain.toml` 准备 Rust 1.99.1，按 [LLVM API 工具链说明](docs/LLVM-API.md)安装并配置 `tools/llvm/version.txt` 固定的 LLVM/Clang/LLD 23.1.4，再运行 `python3 tools/llvm/check_toolchain.py`。安装命令及依赖缓存说明见 [交付说明](docs/DELIVERY.md)。已有 Win64 对象/链接验证不等于 Windows 主机原生验收。在工具链与依赖已准备好的环境中：
 
 ```sh
 cargo build --offline --locked -p zil-cli
