@@ -970,6 +970,69 @@ impl<'a> Engine<'a> {
                 let bounds = engine
                     .traits
                     .parameter_bounds(&a.generics, &mut engine.budget)?;
+                // Ordinary nominal bounds prove members, not a field's Copy
+                // layout or its owning cleanup. This finite record profile
+                // needs that layout proof even when no instance is requested.
+                let nominal_fields = bounds
+                    .values()
+                    .flatten()
+                    .any(|bound| matches!(bound, trait_bounds::Bound::Nominal(_)));
+                if a.kind == AggregateKind::Struct && nominal_fields {
+                    for field in &a.fields {
+                        if let Err(diagnostic) = copy::require(
+                            &field.ty,
+                            &engine.nominals,
+                            &bounds,
+                            &variables,
+                            &mut engine.budget,
+                        ) {
+                            if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                                return Err(diagnostic);
+                            }
+                            return Err(unsupported(
+                                field.span,
+                                "generic nominal-bound record needs a complete Copy field layout; general owning fields require their Value cleanup profile",
+                            ));
+                        }
+                    }
+                }
+                // A Copy-only Package has no owning leaf in the current
+                // Product profile. An unused template cannot erase that
+                // definition requirement before Types sees a declaration.
+                let constrained_package = a.kind == AggregateKind::Package
+                    && bounds.values().flatten().any(|bound| {
+                        matches!(
+                            bound,
+                            trait_bounds::Bound::Copy | trait_bounds::Bound::Nominal(_)
+                        )
+                    });
+                if constrained_package && !a.fields.iter().any(|field| field.manages) {
+                    let mut copy_only = true;
+                    for field in &a.fields {
+                        match copy::require(
+                            &field.ty,
+                            &engine.nominals,
+                            &bounds,
+                            &variables,
+                            &mut engine.budget,
+                        ) {
+                            Ok(()) => {}
+                            Err(diagnostic)
+                                if diagnostic.category
+                                    == zil_base::ResultCategory::ResourceLimit =>
+                            {
+                                return Err(diagnostic);
+                            }
+                            Err(_) => copy_only = false,
+                        }
+                    }
+                    if copy_only {
+                        return Err(unsupported(
+                            item.span,
+                            "generic Package requires a manages field or complete owning child in the current Product profile",
+                        ));
+                    }
+                }
                 for field in &a.fields {
                     if field.manages
                         && stores::element(&field.ty).is_none()

@@ -1309,7 +1309,10 @@ impl<'a> Index<'a> {
                     }) = self.nominals.get(&path.join("."))
                     {
                         if declaration.generics.len() != args.len()
-                            && declaration.kind == AggregateKind::Struct
+                            && matches!(
+                                declaration.kind,
+                                AggregateKind::Struct | AggregateKind::Package
+                            )
                             && declaration.generics.iter().any(|parameter| {
                                 matches!(&parameter.kind, GenericParamKind::Type(bounds)
                                     if bounds.iter().any(copy::is_bound))
@@ -1317,9 +1320,39 @@ impl<'a> Index<'a> {
                         {
                             return Err(error(ty.span, "Copy record type argument arity mismatch"));
                         }
+                        // Check written nominal obligations in signatures as
+                        // well as at constructors. An unused outer template
+                        // must not hide a missing bound of its field family.
+                        if declaration.generics.iter().any(|parameter| {
+                            matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                                if bounds.iter().any(|bound| !copy::is_bound(bound) && !stores::is_bound(bound)))
+                        }) {
+                            if declaration.generics.len() != args.len() {
+                                return Err(error(ty.span, "nominal record type argument arity mismatch"));
+                            }
+                            let mut found = BTreeMap::new();
+                            for (parameter, argument) in declaration.generics.iter().zip(args) {
+                                budget.node(parameter.span, 0)?;
+                                budget.text(&parameter.name, parameter.span)?;
+                                if let GenericArg::Type(actual) = argument {
+                                    budget.ty(actual)?;
+                                    found.insert(parameter.name.clone(), actual.clone());
+                                }
+                            }
+                            self.check_arguments(
+                                &declaration.generics,
+                                &found,
+                                (available, variables, callback),
+                                budget,
+                                ty.span,
+                                None,
+                            )?;
+                        }
                         for (parameter, argument) in declaration.generics.iter().zip(args) {
-                            if declaration.kind == AggregateKind::Struct
-                                && let GenericParamKind::Type(bounds) = &parameter.kind
+                            if matches!(
+                                declaration.kind,
+                                AggregateKind::Struct | AggregateKind::Package
+                            ) && let GenericParamKind::Type(bounds) = &parameter.kind
                                 && bounds.iter().any(copy::is_bound)
                             {
                                 let GenericArg::Type(actual) = argument else {
