@@ -9,6 +9,7 @@ pub(super) mod option_address;
 mod retained;
 
 type Path = Vec<PlaceProjection>;
+type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 struct Source {
     base: HoldRoot,
@@ -55,6 +56,7 @@ struct Solution {
     outputs: Vec<Frame>,
     entry: Frame,
     loans: Vec<Loan>,
+    sites: WriteSites,
 }
 
 fn err(text: &str) -> Diagnostic {
@@ -1434,14 +1436,16 @@ fn instantiate(
         permission_work(&v.address, b)?;
         v.address.clone()
     } else if !v.leaves.is_empty()
-        && matches!(v.address.sources.as_slice(), [root]
-        if root.leaf.is_empty()
-            && root.inline.is_empty()
-            && match root.base {
-                HoldRoot::Local(local) => state.locals.get(local.0 as usize).is_some(),
-                HoldRoot::Parameter(index) => state.external.get(index as usize).is_some(),
-                HoldRoot::Static | HoldRoot::Capture(_) => false,
-            })
+        && !v.address.sources.is_empty()
+        && v.address.sources.iter().all(|root| {
+            root.leaf.is_empty()
+                && root.inline.is_empty()
+                && match root.base {
+                    HoldRoot::Local(local) => state.locals.get(local.0 as usize).is_some(),
+                    HoldRoot::Parameter(index) => state.external.get(index as usize).is_some(),
+                    HoldRoot::Static | HoldRoot::Capture(_) => false,
+                }
+        })
     {
         // A mutable carrier's current slot comes from the frame. The loaded
         // SSA payload can predate an earlier call or field replacement.
@@ -1459,6 +1463,83 @@ fn instantiate(
     Ok(p)
 }
 
+fn write_sites(
+    module: &TypedModule,
+    f: &TypedFunction,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> Check<WriteSites> {
+    let mut sites = Vec::new();
+    for block in &f.blocks {
+        for i in &block.instructions {
+            let site = i as *const Instruction as usize;
+            let mut add = |parameter: u32, path: &Path, exclusive: bool| -> Check<()> {
+                b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
+                let id = loans.len();
+                loans.push(Loan::default());
+                sites.push((site, parameter, path.clone(), id, exclusive));
+                Ok(())
+            };
+            match &i.kind {
+                InstructionKind::StoreStoredBorrow { path, .. } => add(u32::MAX, path, true)?,
+                InstructionKind::Call { function, .. } => {
+                    let callee = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| err("stored call target is absent"))?;
+                    for (position, local) in callee.parameters.iter().enumerate() {
+                        if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
+                            && let Some((_, shape)) = qualified(inner)
+                        {
+                            for slot in &shape.slots {
+                                add(
+                                    position as u32,
+                                    &slot.path,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(sites)
+}
+
+fn retain_written_slot(
+    source: &Permission,
+    i: &Instruction,
+    parameter: u32,
+    path: &Path,
+    sites: &WriteSites,
+    loans: &mut [Loan],
+    b: &mut Budget,
+) -> Check<Permission> {
+    let site = i as *const Instruction as usize;
+    b.spend(sites.len().saturating_mul(path.len().saturating_add(1)))?;
+    let (_, _, _, id, exclusive) = sites
+        .iter()
+        .find(|(at, p, selected, _, _)| *at == site && *p == parameter && selected == path)
+        .ok_or_else(|| err("stored write has no stable loan site"))?;
+    let row = loans
+        .get_mut(*id)
+        .ok_or_else(|| err("stored write loan exceeds actual arena"))?;
+    add_sources(&mut row.sources, &source.sources, b)?;
+    add_loans(&mut row.parents, &source.loans, b)?;
+    row.parents.retain(|parent| parent != id);
+    row.exclusive = *exclusive;
+    permission_work(source, b)?;
+    Ok(Permission {
+        sources: source.sources.clone(),
+        loans: vec![*id],
+    })
+}
+
 #[allow(clippy::too_many_arguments)]
 fn step(
     module: &TypedModule,
@@ -1467,6 +1548,7 @@ fn step(
     state: &mut Frame,
     values: &[Payload],
     summaries: &[Summary],
+    sites: &WriteSites,
     loans: &mut [Loan],
     b: &mut Budget,
 ) -> Check<Payload> {
@@ -1767,7 +1849,8 @@ fn step(
                     "replacement carrier crosses an inline or target boundary",
                 ));
             }
-            let new = copy_payload(val(*value)?, b)?.address;
+            let new =
+                retain_written_slot(&val(*value)?.address, i, u32::MAX, path, sites, loans, b)?;
             if new.sources.is_empty() {
                 return Err(err("replacement value has no actual source"));
             }
@@ -1890,6 +1973,8 @@ fn step(
                     return Err(err("external update has no grounded replacement source"));
                 }
                 b.spend(path.len().saturating_add(permission.sources.len()))?;
+                let permission =
+                    retain_written_slot(&permission, i, *parameter, path, sites, loans, b)?;
                 updates.push((root.clone(), path.clone(), permission));
             }
             for (root, path, permission) in updates {
@@ -2095,6 +2180,7 @@ fn solve(
     b.spend(amount(count, 4)?)?;
     let mut loans = vec![Loan::default(); count];
     let entry = seed(module, f, &mut loans, b)?;
+    let sites = write_sites(module, f, &mut loans, b)?;
     let mut values = vec![Payload::default(); f.values.len()];
     let mut outputs = Vec::new();
     for _ in &f.blocks {
@@ -2123,7 +2209,9 @@ fn solve(
                 }
             }
             for i in &f.blocks[bi].instructions {
-                let out = step(module, f, i, &mut state, &values, summaries, &mut loans, b)?;
+                let out = step(
+                    module, f, i, &mut state, &values, summaries, &sites, &mut loans, b,
+                )?;
                 if let Some(v) = i.result {
                     changed |= join_payload(&mut values[v.0 as usize], &out, b)?;
                 }
@@ -2145,6 +2233,7 @@ fn solve(
         outputs,
         entry,
         loans,
+        sites,
     })
 }
 
@@ -2528,7 +2617,11 @@ fn windows(
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, exclusive, &active, &solution.loans, requirements, b)?;
                 }
-                InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                InstructionKind::StoreStoredBorrow {
+                    storage,
+                    path,
+                    value,
+                } => {
                     let base = pointer(*storage)?;
                     b.spend(
                         base.sources
@@ -2550,6 +2643,14 @@ fn windows(
                     access(&slot, true, &active, &solution.loans, requirements, b)?;
                     let previous = select(&state, base, path, b)?;
                     access(&previous, true, &active, &solution.loans, requirements, b)?;
+                    access(
+                        pointer(*value)?,
+                        true,
+                        &active,
+                        &solution.loans,
+                        requirements,
+                        b,
+                    )?;
                 }
                 InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::CallClosure { arguments, .. }
@@ -2702,6 +2803,7 @@ fn windows(
                 &mut state,
                 &solution.values,
                 summaries,
+                &solution.sites,
                 &mut solution.loans,
                 b,
             )?;

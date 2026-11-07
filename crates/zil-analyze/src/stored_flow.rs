@@ -21,6 +21,7 @@ pub(super) struct Target {
 type Targets = BTreeSet<Target>;
 type Loans = BTreeSet<usize>;
 type Path = Vec<PlaceProjection>;
+type SlotLoanIds = BTreeMap<(usize, u32, Path), (usize, bool)>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
     targets: Targets,
@@ -1579,8 +1580,8 @@ fn substitute(
         }
         out
     } else if !value.slots.is_empty()
-        && value.pointer.targets.len() == 1
-        && value.pointer.targets.iter().next().is_some_and(|root| {
+        && !value.pointer.targets.is_empty()
+        && value.pointer.targets.iter().all(|root| {
             root.stored.is_empty()
                 && root.place.is_empty()
                 && match root.base {
@@ -1631,6 +1632,94 @@ fn substitute(
     Ok(result)
 }
 
+fn slot_loan_ids(
+    module: &TypedModule,
+    f: &TypedFunction,
+    loans: &mut Vec<Loan>,
+    b: &mut Budget,
+) -> CompileResult<SlotLoanIds> {
+    let mut ids = SlotLoanIds::new();
+    for block in &f.blocks {
+        for instruction in &block.instructions {
+            let site = instruction as *const Instruction as usize;
+            let mut add = |parameter: u32, path: &Path, mutable: bool| -> CompileResult<()> {
+                fee(b, path.len().saturating_add(2))?;
+                ordered(b, ids.len(), path.len())?;
+                let id = loans.len();
+                loans.push(Loan::default());
+                if ids
+                    .insert((site, parameter, path.clone()), (id, mutable))
+                    .is_some()
+                {
+                    return Err(failure("duplicate actual stored write site"));
+                }
+                Ok(())
+            };
+            match &instruction.kind {
+                InstructionKind::StoreStoredBorrow { path, .. } => {
+                    add(u32::MAX, path, true)?;
+                }
+                InstructionKind::Call { function, .. } => {
+                    let callee = module
+                        .functions
+                        .get(function.0 as usize)
+                        .ok_or_else(|| failure("stored call target is absent"))?;
+                    for (position, local) in callee.parameters.iter().enumerate() {
+                        if let Type::Address {
+                            mutable: true,
+                            inner,
+                        } = &callee.locals[local.0 as usize].ty
+                            && let Some((_, shape)) = carrier(inner)
+                        {
+                            for slot in &shape.slots {
+                                add(
+                                    position as u32,
+                                    &slot.path,
+                                    slot.mode == StoredBorrowMode::ExclusiveAddress,
+                                )?;
+                            }
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+    }
+    Ok(ids)
+}
+
+fn retain_slot(
+    source: &Permission,
+    i: &Instruction,
+    parameter: u32,
+    path: &Path,
+    ids: &SlotLoanIds,
+    loans: &mut [Loan],
+    b: &mut Budget,
+) -> CompileResult<Permission> {
+    let (id, mutable) = ids
+        .get(&(i as *const Instruction as usize, parameter, path.clone()))
+        .ok_or_else(|| failure("stored write has no stable loan site"))?;
+    let loan = loans
+        .get_mut(*id)
+        .ok_or_else(|| failure("stored write loan exceeds its actual arena"))?;
+    let mut joined = Permission {
+        targets: std::mem::take(&mut loan.targets),
+        loans: std::mem::take(&mut loan.parents),
+    };
+    union(&mut joined, source, b)?;
+    joined.loans.remove(id);
+    loan.targets = joined.targets;
+    loan.parents = joined.loans;
+    loan.mutable = *mutable;
+    let mut result = Permission::default();
+    union(&mut result, source, b)?;
+    result.loans.clear();
+    fee(b, 1)?;
+    result.loans.insert(*id);
+    Ok(result)
+}
+
 #[allow(clippy::too_many_arguments)]
 fn transfer(
     module: &TypedModule,
@@ -1639,6 +1728,7 @@ fn transfer(
     state: &mut State,
     values: &[Value],
     summaries: &[Facts],
+    slot_ids: &SlotLoanIds,
     loans: &mut [Loan],
     b: &mut Budget,
 ) -> CompileResult<Value> {
@@ -1835,7 +1925,7 @@ fn transfer(
                     "replacement carrier requires one exact inline root",
                 ));
             }
-            let new = get(*value)?.pointer.clone();
+            let new = retain_slot(&get(*value)?.pointer, i, u32::MAX, path, slot_ids, loans, b)?;
             if new.targets.is_empty() {
                 return Err(failure("replacement value has no actual target"));
             }
@@ -1967,6 +2057,7 @@ fn transfer(
                     ));
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
+                let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
                 updates.push((root.clone(), path.clone(), permission));
             }
             for (root, path, permission) in updates {
@@ -2588,6 +2679,7 @@ fn windows(
     entry: &State,
     outputs: &[State],
     values: &[Value],
+    slot_ids: &SlotLoanIds,
     loans: &mut [Loan],
     summaries: &[Facts],
     apart: &mut BTreeSet<(Target, Target)>,
@@ -2728,7 +2820,11 @@ fn windows(
                     let actual = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
-                InstructionKind::StoreStoredBorrow { storage, path, .. } => {
+                InstructionKind::StoreStoredBorrow {
+                    storage,
+                    path,
+                    value,
+                } => {
                     let mut slot = Permission {
                         targets: BTreeSet::new(),
                         loans: pointer(*storage)?.loans.clone(),
@@ -2749,6 +2845,7 @@ fn windows(
                     use_permission(&slot, true, &current, loans, apart, b)?;
                     let previous = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&previous, true, &current, loans, apart, b)?;
+                    use_permission(pointer(*value)?, true, &current, loans, apart, b)?;
                 }
                 InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress {
@@ -2939,7 +3036,9 @@ fn windows(
                 }
                 _ => {}
             }
-            transfer(module, f, i, &mut state, values, summaries, loans, b)?;
+            transfer(
+                module, f, i, &mut state, values, summaries, slot_ids, loans, b,
+            )?;
         }
     }
     Ok(())
@@ -2989,6 +3088,7 @@ fn derive_cfg(
             fee(b, loan_count.saturating_mul(4))?;
             let mut loans = vec![Loan::default(); loan_count];
             let entry = seed(module, f, &mut loans, b)?;
+            let slot_ids = slot_loan_ids(module, f, &mut loans, b)?;
             let mut values = vec![Value::default(); f.values.len()];
             let mut outputs = vec![State::default(); f.blocks.len()];
             loop {
@@ -3017,6 +3117,7 @@ fn derive_cfg(
                             &mut state,
                             &values,
                             &summaries,
+                            &slot_ids,
                             &mut loans,
                             b,
                         )?;
@@ -3244,6 +3345,7 @@ fn derive_cfg(
                     &entry,
                     &outputs,
                     &values,
+                    &slot_ids,
                     &mut loans,
                     &summaries,
                     &mut actual.apart,
