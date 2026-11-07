@@ -47,6 +47,40 @@ use zil_verify::VerifiedModule;
 
 use crate::{EmitOptions, EntryPoint};
 
+#[cfg(test)]
+fn no_dyn_test_module(
+    target: TargetProfile,
+    functions: &[TypedFunction],
+    closures: &[ClosureDefinition],
+    resources: &[ResourceDefinition],
+) -> zil_ir::TypedModule {
+    assert!(
+        functions
+            .iter()
+            .all(|f| f.blocks.iter().all(|b| b.instructions.iter().all(|i| {
+                !matches!(
+                    &i.kind,
+                    InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. }
+                )
+            })))
+    );
+    zil_ir::TypedModule {
+        dyn_declarations: Vec::new(),
+        dyn_interfaces: Vec::new(),
+        dyn_vtables: Vec::new(),
+        life_declarations: Vec::new(),
+        life_instances: Vec::new(),
+        schema_version: SCHEMA_VERSION,
+        module_id: zil_base::ModuleId(0),
+        source_fingerprint: zil_base::Fingerprint::ZERO,
+        target,
+        functions: functions.to_vec(),
+        closures: closures.to_vec(),
+        resources: resources.to_vec(),
+        unsupported: Vec::new(),
+    }
+}
+
 /// Emit a module without an executable entry wrapper. Use `emit_with_options`
 /// when an executable or the full-return-value harness is required.
 pub fn emit(verified: &VerifiedModule, lir: &LirModule) -> CompileResult<String> {
