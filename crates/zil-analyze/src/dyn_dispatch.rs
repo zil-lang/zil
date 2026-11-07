@@ -10,6 +10,13 @@ use crate::{bad, budget::Budget};
 
 const WORK: &str = "finite shared dyn admission";
 
+pub(super) fn create_error() -> Type {
+    Type::Enum {
+        name: "@std.dyn:v1:DynCreateError".into(),
+        variants: vec![("Allocation".into(), vec![])],
+    }
+}
+
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
@@ -24,6 +31,90 @@ fn scalar(ty: &Type) -> bool {
             | Type::U8
             | Type::U16
     )
+}
+
+fn closed_owner_shape(
+    ty: &Type,
+    module: &TypedModule,
+    budget: &mut Budget,
+    depth: usize,
+) -> CompileResult<Option<usize>> {
+    if depth > budget.partial_depth {
+        return Err(vec![zil_base::Diagnostic::limit(
+            zil_base::Phase::Analyze,
+            "owned dyn shape depth exceeded",
+            None,
+        )]);
+    }
+    budget.spend(1, WORK)?;
+    if ty.is_b0_scalar() || *ty == Type::Unit {
+        return Ok(Some(0));
+    }
+    let mut owners = 0usize;
+    match ty {
+        Type::Managed(payload) if payload.as_ref() == &Type::ByteBuffer => {
+            budget.spend(module.resources.len(), WORK)?;
+            return Ok(module
+                .resources
+                .iter()
+                .any(|r| {
+                    r.name == zil_ir::BYTE_BUFFER_RESOURCE_NAME
+                        && r.payload == Type::ByteBuffer
+                        && r.teardown.is_none()
+                })
+                .then_some(1));
+        }
+        Type::Record { fields, .. } => {
+            for (_, field) in fields {
+                if closed_owner_shape(field, module, budget, depth + 1)? != Some(0) {
+                    return Ok(None);
+                }
+            }
+        }
+        Type::Tuple(fields) => {
+            for field in fields {
+                if closed_owner_shape(field, module, budget, depth + 1)? != Some(0) {
+                    return Ok(None);
+                }
+            }
+        }
+        Type::Enum { variants, .. } => {
+            for (_, fields) in variants {
+                for field in fields {
+                    if closed_owner_shape(field, module, budget, depth + 1)? != Some(0) {
+                        return Ok(None);
+                    }
+                }
+            }
+        }
+        Type::Array { element, length }
+            if *length > 0 && (*length as usize) <= budget.helper_nodes =>
+        {
+            budget.spend(*length as usize, WORK)?;
+            if closed_owner_shape(element, module, budget, depth + 1)? != Some(0) {
+                return Ok(None);
+            }
+        }
+        Type::Package { fields, .. } => {
+            for (_, field) in fields {
+                let Some(n) = closed_owner_shape(field, module, budget, depth + 1)? else {
+                    return Ok(None);
+                };
+                owners = owners.checked_add(n).ok_or_else(|| {
+                    vec![zil_base::Diagnostic::limit(
+                        zil_base::Phase::Analyze,
+                        "owned dyn owner count exceeded",
+                        None,
+                    )]
+                })?;
+            }
+            if owners == 0 {
+                return Ok(None);
+            }
+        }
+        _ => return Ok(None),
+    }
+    Ok(Some(owners))
 }
 
 fn shared(ty: &Type, pointee: &Type) -> bool {
@@ -346,8 +437,9 @@ fn body(
                 InstructionKind::AddressField { address, index }
                     if receiver_values.contains(address) =>
                 {
-                    let Type::Record { fields, .. } = receiver else {
-                        return Err(bad("dyn Self is not a finite record"));
+                    let fields = match receiver {
+                        Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
+                        _ => return Err(bad("dyn Self is not a finite provider")),
                     };
                     let field = fields
                         .get(*index as usize)
@@ -501,8 +593,10 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             .iter()
             .find(|i| i.id == table.interface)
             .ok_or_else(|| bad("dyn vtable interface is absent"))?;
-        let Type::Record { name, fields } = &table.self_type else {
-            return Err(bad("dyn table Self is not a concrete record"));
+        let (name, fields, owning_package) = match &table.self_type {
+            Type::Record { name, fields } => (name, fields, false),
+            Type::Package { name, fields } => (name, fields, true),
+            _ => return Err(bad("dyn table Self is not a concrete provider")),
         };
         budget.spend(
             name.len().saturating_add(fields.len()).saturating_add(1),
@@ -515,9 +609,23 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
         for (field, ty) in fields {
             budget.spend(field.len().saturating_add(1), WORK)?;
             budget.lookup(names.len(), WORK)?;
-            if field.is_empty() || !scalar(ty) || !names.insert(field) {
-                return Err(bad("dyn table Self has an invalid scalar field"));
+            budget.spend(module.resources.len(), WORK)?;
+            let admissible = if owning_package {
+                closed_owner_shape(ty, module, budget, 1)?.is_some()
+            } else {
+                scalar(ty)
+            };
+            if field.is_empty() || !admissible || !names.insert(field) {
+                return Err(bad("dyn table Self has an invalid field"));
             }
+        }
+        if owning_package
+            && (table.owned_storage != Some(DynOwnedStorage::Heap)
+                || closed_owner_shape(&table.self_type, module, budget, 0)?.is_none())
+        {
+            return Err(bad(
+                "owning dyn Package lacks Heap route or real resource debt",
+            ));
         }
         if !module
             .dyn_declarations
@@ -951,6 +1059,7 @@ mod tests {
                     function: FunctionId(0),
                 }],
                 cleanup: None,
+                owned_storage: None,
             }],
             life_declarations: vec![],
             life_instances: vec![],

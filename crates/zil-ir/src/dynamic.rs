@@ -123,6 +123,9 @@ pub struct CoreDynVtable {
     pub ports: Vec<RetainedPortBinding>,
     pub entries: Vec<CoreDynEntry>,
     pub cleanup: Option<CoreDynEntry>,
+    /// Explicit storage route for an owning erased payload. Ordinary cleanup
+    /// entries are not owning destructor glue.
+    pub owned_storage: Option<DynOwnedStorage>,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct DynVtable {
@@ -134,6 +137,11 @@ pub struct DynVtable {
     pub ports: Vec<RetainedPortBinding>,
     pub entries: Vec<DynEntry>,
     pub cleanup: Option<DynEntry>,
+    pub owned_storage: Option<DynOwnedStorage>,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum DynOwnedStorage {
+    Heap,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DynRequirement {

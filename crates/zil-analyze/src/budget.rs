@@ -275,7 +275,7 @@ impl Budget {
         self.spend(2 + usize::from(copy_check), context)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
-            Type::Dyn { interface } => {
+            Type::Dyn { interface } | Type::OwnedDyn { interface } => {
                 self.lookup(self.dyn_interfaces.len(), "dyn type interface lookup")?;
                 if !self.dyn_interfaces.contains(interface) {
                     return Err(bad("dyn type lacks a checked interface"));
@@ -547,6 +547,21 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::OwnedDyn { interface } = ty {
+        budget.lookup(budget.dyn_interfaces.len(), "owned dyn interface")?;
+        if !budget.dyn_interfaces.contains(interface) {
+            return Err(bad("owned dyn lacks an admitted interface"));
+        }
+        return Ok(false);
+    }
+    if let Type::ErrorUnion { error, result } = ty
+        && matches!(result.as_ref(), Type::OwnedDyn { .. })
+    {
+        if *error.as_ref() != crate::dyn_dispatch::create_error() {
+            return Err(bad("owned dyn creation has a forged error type"));
+        }
+        return local_value(result, span, module, budget);
+    }
     if let Type::Address { inner, .. } = ty
         && matches!(inner.as_ref(), Type::Dyn { .. })
     {

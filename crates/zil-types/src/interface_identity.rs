@@ -274,6 +274,10 @@ pub(super) fn encode(
                     Type::Dyn { interface } => {
                         dyn_type(*interface, dyn_declarations, dyn_interfaces, bytes, left)?;
                     }
+                    Type::OwnedDyn { interface } => {
+                        bytes.push(40);
+                        dyn_type(*interface, dyn_declarations, dyn_interfaces, bytes, left)?;
+                    }
                     Type::Named(_) | Type::Opaque { .. } | Type::Unsupported(_) => {
                         return Err(unsupported(
                             Span::default(),

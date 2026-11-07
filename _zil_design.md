@@ -716,6 +716,14 @@ opaque 返回只隐藏具体类型名；Hold、Call、Cleanup、Resume、来源�
 
 后续有限扩展允许 `&mut dyn Trait` 的固定标量和 Unit 槽：实际 Copy struct receiver 的独占借用随 fat address 保留，已证明的标量字段写入及其可观察返回进入调用合同；共享 dyn 不能调用可变槽，也不能生成独占 dyn。直接 helper 和默认包装入口须把同一真实 receiver 传给实际定义。算术及其他可能 Panic 的正文若未在合同中保留该效果，仍拒绝。此扩展仍不开放消费 dyn、拥有擦除存储、借入结果、一般关联或泛型槽、捕获／返回 dyn 载体、Transfer/Share 或异步。Lower 和机器阶段只消费当前 Verified 绑定，表地址和间接调用须在分区／缓存后仍绑定真实目标。公共 schema/Wire 和默认预算不变；原样运行期选择、跨模块默认实现、最近 raw/Wire 反例、预算边界及双后端 O0/O2 共同验收后才能报告本片已实现。
 
+#### 显式拥有 dyn 存储
+
+`OwnedDyn<dyn Trait>` 是非 Copy 的完整拥有载体；`dyn Trait` 本身仍是无尺寸借入目标。显式 `owned_dyn::<dyn Trait>(package)` 将一个完整自含、已核的具体 provider 消费一次，按公开的 `Heap` route 分配恰好该 provider 的布局，成功返回 `DynCreateError!OwnedDyn<dyn Trait>` 的成功支。`DynCreateError` 唯一变体为 `Allocation`。失败支同步清理已消费的真实 provider 恰一次，不产生拥有 dyn；创建前的实参准备失败仍按原调用准备顺序清理。没有从描述、共享地址或借入 `dyn` 升级为所有权的转换，也不隐式装箱。
+
+拥有载体的机器 ABI 是 `{payload pointer, immutable vtable pointer}`。表完整保留实际 Self 和 impl 身份，并明确 `owned_storage=Heap`；缺失、错 route 或错 provider 的表不可用于拥有构造。`DynVtable.cleanup` 的普通函数入口不能充当拥有析构。拥有析构胶由编译器按已核的完整具体 Self、真实资源定义、密封 ByteBuffer 清理定义和结构化清理计划生成；独立内核均从这些实际定义重建，不信任表上的类型声称。先撤销唯一 live 责任，再按真实 Self 完整清理 payload，最后按同一 Heap route 释放分配；析构中不得在释放后读写原 payload。移动和跨模块返回只转交这一个责任与两个指针；原位置失效。共享或独占重借必须来自实际仍活的拥有位置，保留该 owner，窗口结束前不能移动、销毁或重借冲突。`&dyn Trait` 不能调用可变槽或制造 `&mut dyn Trait`。
+
+首片只容纳至少一个真实 Managed<ByteBuffer> 叶的完整自含普通 Package；其它伴随字段可递归为无借入的有限 Copy 标量、Record、Tuple、Enum、固定 Array，或自身同样满足本规则的嵌套 Package，以及已核固定 Unit/标量槽。ByteBuffer 必须使用唯一密封定义且无用户 teardown；其它 Managed、用户 Drop、Store、Desc、Address、借入限定字段、异步关闭及未知清理均拒绝。provider 可有不同布局和不同真实析构；运行时选择两个 provider 后调用与清理必须按本次真实表，不得按相同名称、尺寸或散列合并。接口的调用合同和每个实际 body 的前置、访问、效果、来源与清理保持完整；未知分量仍为未知。slot 的 DynContract.cleanup 只界定普通调用，不能充当整个 OwnedDyn 的析构效果上界。若将来开放用户 Drop 或其它 Managed，必须在接口／拥有载体上新增独立的整 owner 清理合同，显式列出效果、访问位置和来源上界，并逐表证明真实 concrete Drop 在该上界内；没有该合同就是 Unknown，不得按空效果执行。当前 ByteBuffer 密封清理不调用用户代码，故该上界为编译器可独立证明的空用户效果。拥有 route 不授予 StoreElement、Transfer、Share、借入逃逸、retained borrows、异步关闭、Guard 或隐式 allocator。Types、Analyze、独立 Verify、raw/Wire、Lower、LLVM/Clang O0/O2 分别核 Source、类型、真实来源与责任、各次释放和实际 ABI；新表、类型、opcode 与生成胶的预算在分配或展开前预付，旧路径及默认限额不变。schema/Wire45 的新字段仅是无权威的候选，验收仍需原样源码、跨模块运行时双 provider、失败分配及一次释放观察和最近反例。
+
 ### 9.4.1 单一自含 callable 的公共拥有工厂
 
 普通自由函数允许一个直接 `F:Fn(...) -> R`、`F:FnMut(...) -> R` 或 `F:FnOnce(...) -> R` 类型绑定，可将一个按值 `f:F` 转入新的自含闭包，并通过 `-> impl Fn...` 返回该新环境。其余普通参数复用既有有限普通工厂的 Copy、直接 Managed 和完整可捕获 Package 准入；不得通过伴随 Package/State 再隐藏 F/G 输入。不新增普通类型参数、State 参数、borrowed F、多个 F、receiver、foreign 或动态擦除。F 及返回 callable 的参数限既有有限 Copy 或同步 Copy/slice 地址参数，结果限有限 Copy/Unit；新 profile 不开放环境 lending、callable 参数/结果或 retained 地址。

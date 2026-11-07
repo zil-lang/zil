@@ -248,6 +248,7 @@ impl Rewriter<'_> {
             // Internal projection was rewritten before entering this nested scope.
             CoreExprKind::Member { member, .. } if member == FIELD => {}
             CoreExprKind::MakeDynBorrow { source: value, .. }
+            | CoreExprKind::MakeDynOwned { source: value, .. }
             | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::NumericConvert { value, .. }
@@ -512,6 +513,7 @@ impl BindingScan {
         self.charge(1, d, e.span)?;
         match &e.kind {
             CoreExprKind::MakeDynBorrow { source: value, .. }
+            | CoreExprKind::MakeDynOwned { source: value, .. }
             | CoreExprKind::Ascribed { value, .. }
             | CoreExprKind::IntegerConvert { value, .. }
             | CoreExprKind::NumericConvert { value, .. }

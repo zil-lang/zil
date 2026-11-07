@@ -163,7 +163,7 @@ fn package_address(ty: &Type) -> bool {
 pub(super) fn owned_error(ty: &Type) -> bool {
     matches!(package_storage(ty), Type::ErrorUnion { error, result }
         if matches!(package_storage(error.as_ref()), Type::Package { .. }) || sums::owned(error)
-            || matches!(package_storage(result.as_ref()), Type::Package { .. } | Type::Managed(_)) || sums::owned(result))
+            || matches!(package_storage(result.as_ref()), Type::Package { .. } | Type::Managed(_) | Type::OwnedDyn { .. }) || sums::owned(result))
 }
 
 fn managed_success(ty: &Type) -> bool {
@@ -336,7 +336,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
-        Type::Managed(_) | Type::Package { .. } => Shape {
+        Type::Managed(_) | Type::Package { .. } | Type::OwnedDyn { .. } => Shape {
             owned: true,
             description: false,
         },
@@ -345,6 +345,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             description: true,
         },
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }) => Shape {
+            owned: false,
+            description: true,
+        },
+        Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }) => Shape {
             owned: false,
             description: true,
         },
@@ -561,7 +565,11 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             (Some(*registration), None, &[])
         }
-        InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
+        InstructionKind::MakeDynBorrow { source, .. }
+        | InstructionKind::MakeDynOwned { source, .. } => (Some(*source), None, &[]),
+        InstructionKind::BorrowDynOwned { .. } | InstructionKind::DropDynOwned { .. } => {
+            (None, None, &[])
+        }
         InstructionKind::CallDynSlot {
             callee, arguments, ..
         } => (Some(*callee), None, arguments),
@@ -1355,6 +1363,28 @@ impl Flow<'_> {
                         life: BTreeSet::from([Life::Available]),
                         birth: BTreeSet::from([Birth::Created]),
                         sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::MakeDynOwned { source, .. } => {
+                    self.consume(state, *source, check, budget)?;
+                    produced = Some(Fact {
+                        life: BTreeSet::from([Life::Available]),
+                        birth: BTreeSet::from([Birth::Created]),
+                        sources: BTreeSet::new(),
+                    });
+                }
+                InstructionKind::BorrowDynOwned { local, .. } => {
+                    if check
+                        && !exact(
+                            &copied(state, Place::Local(*local), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("dyn owner borrow requires one live owner"));
+                    }
+                    produced = Some(Fact {
+                        sources: BTreeSet::from([Source::Head(*local)]),
+                        ..Fact::default()
                     });
                 }
                 InstructionKind::MutexLock { mutex } => {
@@ -2833,6 +2863,7 @@ impl Flow<'_> {
                 InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::DropErrorUnion { local }

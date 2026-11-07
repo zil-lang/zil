@@ -158,7 +158,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
     let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
-    dyn_dispatch::reserve(verified.module(), &mut remaining_work)?;
+    dyn_dispatch::reserve(verified.module(), verified.limits(), &mut remaining_work)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_emission(
@@ -299,7 +299,11 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
-    text.append(dyn_dispatch::tables(verified.module(), &copy_plans)?);
+    text.append(dyn_dispatch::tables(
+        verified.module(),
+        &copy_plans,
+        lir.resources,
+    )?);
     text.append(task_cleanup_helpers);
     if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
@@ -379,6 +383,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     text.append(scoped_thread::runtime(lir)?);
     text.append(generic_mutex::runtime(lir)?);
+    text.append(dyn_dispatch::runtime(lir)?);
     text.append(tasks::runtime(
         lir,
         verified.uses_scalar_tasks(),
@@ -936,6 +941,7 @@ fn bind_lir(
             || stored_borrows::representation_type(&function.return_type)
             || function.return_type.is_scalar_or_address()
             || matches!(function.return_type, Type::MutexGuard { .. })
+            || matches!(function.return_type, Type::OwnedDyn { .. })
             || drop_plan::sum_address(&function.return_type, lir.resources)
             || resources::supported_type(&function.return_type, lir.resources)
             || packages::supported_value_type(&function.return_type, lir.resources)
@@ -949,6 +955,7 @@ fn bind_lir(
                     || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
                     || matches!(ty, Type::MutexGuard { .. })
+                    || matches!(ty, Type::OwnedDyn { .. })
                     || resource_head_address(ty)
                     || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
@@ -974,6 +981,7 @@ fn bind_lir(
                 && !drop_plan::sum_address(ty, lir.resources)
                 && !matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
                 && !matches!(ty, Type::MutexGuard { .. })
+                && !matches!(ty, Type::OwnedDyn { .. })
                 && !matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
                 && !resource_head_address(ty)
                 && !ty.is_exclusive_task_head_address()
@@ -1730,6 +1738,16 @@ impl FunctionEmitter<'_> {
             } => {
                 self.make_dyn_borrow(instruction, *interface, *vtable, *source, *mutable)?;
             }
+            InstructionKind::MakeDynOwned {
+                interface,
+                vtable,
+                source,
+                route,
+            } => self.make_dyn_owned(instruction, *interface, *vtable, *source, *route)?,
+            InstructionKind::BorrowDynOwned { local, mutable } => {
+                self.borrow_dyn_owned(instruction, *local, *mutable)?
+            }
+            InstructionKind::DropDynOwned { local } => self.drop_dyn_owned(instruction, *local)?,
             InstructionKind::CallDynSlot {
                 callee,
                 interface,
@@ -3643,7 +3661,9 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         ])),
         Type::Closure(id) => Ok(environment_type(*id)),
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
-        ty if dyn_dispatch::address(ty) => Ok(dyn_dispatch::pair()),
+        ty if dyn_dispatch::address(ty) || matches!(ty, Type::OwnedDyn { .. }) => {
+            Ok(dyn_dispatch::pair())
+        }
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }
@@ -3862,7 +3882,8 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
         Type::Unit | Type::Bool => Ok(1),
         Type::U8 => Ok(1),
         Type::U16 => Ok(2),
-        Type::ByteBuffer
+        Type::OwnedDyn { .. }
+        | Type::ByteBuffer
         | Type::Mutex { .. }
         | Type::MutexGuard { .. }
         | Type::Task { .. }

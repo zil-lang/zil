@@ -593,11 +593,13 @@ impl Slots {
             if (managed && package_storage(ty).is_some())
                 || matches!(
                     (ty, managed),
-                    (Type::Managed(_) | Type::MutexGuard { .. }, true)
+                    (Type::Managed(_) | Type::MutexGuard { .. } | Type::OwnedDyn { .. }, true)
                         | (Type::Desc(_) | Type::MutexGuard { .. }, false)
                 )
                 || (!managed && matches!(ty, Type::Address { inner, .. }
                     if matches!(inner.as_ref(), Type::MutexGuard { .. })))
+                || (!managed && matches!(ty, Type::Address { inner, .. }
+                    if matches!(inner.as_ref(), Type::Dyn { .. })))
                 || (managed
                 && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
@@ -1249,6 +1251,22 @@ impl Transfer<'_> {
                     }
                     self.consume(state, *value, span, validate)?;
                     fresh_result = Some(FRESH);
+                }
+                InstructionKind::MakeDynOwned { source, .. } => {
+                    self.consume(state, *source, span, validate)?;
+                    fresh_result = Some(FRESH);
+                }
+                InstructionKind::BorrowDynOwned { local, .. } => {
+                    let owner = slots.managed_local[local.0 as usize]
+                        .ok_or_else(|| bad(span, "owned dyn borrow lacks real owner debt"))?;
+                    if validate && state.debt[owner] != LIVE {
+                        return Err(bad(span, "owned dyn borrow requires live owner"));
+                    }
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .ok_or_else(|| bad(span, "owned dyn borrow has no description slot"))?;
+                    state.desc[dst] = BTreeSet::from([Root::Local(*local)]);
                 }
                 InstructionKind::MutexLock { mutex } => {
                     let src = slots.desc_value[mutex.0 as usize]
@@ -2164,6 +2182,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropDynOwned { local }
                 | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }

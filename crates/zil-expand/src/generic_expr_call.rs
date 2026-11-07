@@ -163,6 +163,39 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        if let ExprKind::TypeApply {
+            callee: base,
+            arguments: type_args,
+        } = &mut callee.kind
+            && matches!(&base.kind, ExprKind::Name(name) if name == "owned_dyn")
+        {
+            let [GenericArg::Type(target)] = type_args.as_mut_slice() else {
+                return Err(error(e.span, "owned_dyn needs one dyn interface type"));
+            };
+            self.ty(target, depth + 1)?;
+            if !matches!(grouped(target).kind, TypeKind::Dyn { .. }) || arguments.len() != 1 {
+                return Err(error(
+                    e.span,
+                    "owned_dyn needs one dyn interface and one provider",
+                ));
+            }
+            self.expr_expected(&mut arguments[0].value, env, None, depth + 1)?;
+            let mut result = TypeRef {
+                span: e.span,
+                kind: TypeKind::Error {
+                    error: Box::new(named("DynCreateError", e.span)),
+                    result: Box::new(TypeRef {
+                        span: e.span,
+                        kind: TypeKind::Named {
+                            path: vec!["OwnedDyn".into()],
+                            args: vec![GenericArg::Type(target.clone())],
+                        },
+                    }),
+                },
+            };
+            self.ty(&mut result, depth + 1)?;
+            return Ok(Some(Some(result)));
+        }
         if crate::foreign::bare_name(callee).is_some_and(|name| {
             name == "async_registration_poll_close"
                 && !env.contains_key(name)

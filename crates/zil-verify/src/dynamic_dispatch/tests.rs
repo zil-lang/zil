@@ -129,6 +129,7 @@ fn fixture() -> TypedModule {
             function: FunctionId(1),
         }],
         cleanup: None,
+        owned_storage: None,
     }];
     module.functions.push(TypedFunction {
         storage_life: None,

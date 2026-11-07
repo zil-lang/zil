@@ -488,6 +488,9 @@ impl References<'_, '_> {
             CoreExprKind::MakeDynBorrow {
                 source: operand, ..
             }
+            | CoreExprKind::MakeDynOwned {
+                source: operand, ..
+            }
             | CoreExprKind::Unary { operand, .. }
             | CoreExprKind::Try(operand)
             | CoreExprKind::CompileTime(operand) => {
