@@ -1456,6 +1456,7 @@ impl FunctionEmitter<'_> {
         }));
         self.event(m::Event::Label("entry".into()));
         self.copy_allocations();
+        self.owned_dyn_scratch_allocations()?;
         let mut address_taken = BTreeSet::new();
         let mut package_views = BTreeMap::new();
         for instruction in self
