@@ -1383,7 +1383,15 @@ fn check_module_mask(
                         }
                         for root in roots {
                             let actual = match root {
-                                Root::Local(local) => &function.locals[local.0 as usize].ty,
+                                Root::Local(local)
+                                | Root::Field(local, _)
+                                | Root::Projection(local, ..) => {
+                                    // A precise inline child still belongs to
+                                    // its actual ordinary local carrier. Check
+                                    // that entire carrier below; Store windows
+                                    // have separate roots and gain no authority.
+                                    &function.locals[local.0 as usize].ty
+                                }
                                 Root::Parameter(index) => {
                                     let local = function.parameters[*index as usize];
                                     let Type::Address { mutable, inner } =
