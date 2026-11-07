@@ -425,6 +425,87 @@ fn main()->i32{return observe(make())}
 }
 
 #[test]
+fn trait_default_and_impl_recipe_keep_symbolic_error_arm_at_equal_instance() {
+    let source = r#"
+trait DefaultChoice<E:Copy,T:Copy>{
+ fn default_pick(self:&Self,failure:E,success:T,fail:bool)->E!T{
+  if fail{return failure}
+  return success
+ }
+}
+trait RecipeChoice<E:Copy,T:Copy>{
+ fn recipe_pick(self:&Self,failure:E,success:T,fail:bool)->E!T;
+}
+struct Box<U:Copy>{value:U}
+impl DefaultChoice<i32,i32> for Box<i32>{}
+impl<E:Copy,T:Copy,U:Copy> RecipeChoice<E,T> for Box<U>{
+ fn recipe_pick(failure:E,success:T,fail:bool)->E!T{
+  if fail{return failure}
+  return success
+ }
+}
+fn recipe<E:Copy,T:Copy,X:RecipeChoice<E,T>>(x:&X,failure:E,success:T,flag:bool)->E!T{
+ return x.recipe_pick(failure,success,flag)
+}
+fn observe(value:i32!i32)->i32{match value{.ok(v)=>{return v},.err(v)=>{return -v}}}
+fn main()->i32{
+ let x=Box::<i32>{value:1};
+ let a=observe(x.default_pick(7,42,false));
+ let b=observe(x.default_pick(7,42,true));
+ let c=observe(recipe::<i32,i32,Box<i32>>(&x,7,42,false));
+ let d=observe(recipe::<i32,i32,Box<i32>>(&x,7,42,true));
+ return a+b+c+d-70
+}
+"#;
+    let temp = Temp::new();
+    let input = temp.0.join("trait-equal-error.zil");
+    fs::write(&input, source).unwrap();
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let report = compile_path(
+            &input,
+            &CompileOptions {
+                stop_after: Stage::Build,
+                optimization,
+                output: Some(temp.0.join(format!("trait-{optimization:?}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        run(&report.artifacts["executable"], b"", 0, "");
+    }
+    for (name, source) in [
+        (
+            "trait-ambiguous-formal",
+            "trait Ambiguous<T:Copy>{fn value(self:&Self,x:T)->T!T{return x}}struct Host{}impl Ambiguous<i32> for Host{}fn main()->i32{return 0}",
+        ),
+        (
+            "trait-wrong-explicit-arm",
+            "trait Wrong<E:Copy,T:Copy>{fn value(self:&Self,x:E)->E!T{return error_ok::<E,T>(x)}}struct Host{}impl Wrong<i32,bool> for Host{}fn main()->i32{return 0}",
+        ),
+    ] {
+        let report = compile_source(
+            &SourceUnit::new(FileId(0), ModuleId(0), name, source),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 0, "{}", report.to_json());
+    }
+}
+
+#[test]
 fn source_nested_copy_errors_and_void_entry_execute_without_unwind() {
     for (name, source, code) in [
         ("unit-ok", "fn main()->bool!void{return ()}", 0),
