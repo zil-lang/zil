@@ -204,6 +204,7 @@ impl Builder<'_, '_> {
         self.closures.snapshot(work.saturating_mul(2), span)?;
         let shared_owned = !mutable
             && (packages::product::supported(&field)
+                || packages::product::owned_supported(&field)
                 || matches!(&field, Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
         if !field.is_copy_value() && !matches!(field, Type::Closure(_)) && !shared_owned {
@@ -451,6 +452,7 @@ impl Builder<'_, '_> {
                 let borrowed_owned = (matches!(&field, Type::Managed(_))
                     && resources::supported(&field))
                     || packages::product::supported(&field)
+                    || packages::product::owned_supported(&field)
                     || !mutable
                         && matches!(&field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value());
