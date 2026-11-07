@@ -7,6 +7,94 @@ fn take(b: &mut Body, local: LocalId, index: u32) -> ValueId {
     b.value(owned(), InstructionKind::TakePackageField { local, index })
 }
 
+fn package_child() -> Type {
+    Type::Package {
+        name: "Child".into(),
+        fields: vec![("token".into(), owned())],
+    }
+}
+
+fn package_parent() -> Type {
+    Type::Package {
+        name: "Parent".into(),
+        fields: vec![("child".into(), package_child())],
+    }
+}
+
+fn package_borrow_both(
+    module: TypedModule,
+    local: LocalId,
+    borrowed: ValueId,
+) -> [CompileResult<VerifiedModule>; 2] {
+    let mut plan = resource_tests::plan(&module);
+    plan.functions[0].holds[borrowed.0 as usize].roots = vec![HoldRoot::Local(local)];
+    let target = module.target.clone();
+    let limits = Limits::default();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    [
+        verify_module(module, plan, &target, &limits),
+        verify_module_bytes(&wire, &target, &limits),
+    ]
+}
+
+#[test]
+fn package_child_borrow_has_live_description_in_raw_and_wire() {
+    let mut b = Body::new(Type::Unit);
+    let local = b.parameter(package_parent());
+    let borrowed = b.value(
+        Type::Address {
+            mutable: false,
+            inner: Box::new(package_child()),
+        },
+        InstructionKind::BorrowPackageField {
+            local,
+            index: 0,
+            mutable: false,
+        },
+    );
+    b.op(InstructionKind::DropPackage { local });
+    for result in package_borrow_both(
+        module(b.finish(None, CleanupExitKind::Return)),
+        local,
+        borrowed,
+    ) {
+        result.unwrap();
+    }
+}
+
+#[test]
+fn moved_package_child_cannot_be_borrowed_in_raw_or_wire() {
+    let mut b = Body::new(Type::Unit);
+    let local = b.parameter(package_parent());
+    b.value(
+        package_child(),
+        InstructionKind::TakePackageField { local, index: 0 },
+    );
+    let borrowed = b.value(
+        Type::Address {
+            mutable: false,
+            inner: Box::new(package_child()),
+        },
+        InstructionKind::BorrowPackageField {
+            local,
+            index: 0,
+            mutable: false,
+        },
+    );
+    b.op(InstructionKind::DropPackage { local });
+    for result in package_borrow_both(
+        module(b.finish(None, CleanupExitKind::Return)),
+        local,
+        borrowed,
+    ) {
+        let errors = result.unwrap_err();
+        assert!(
+            format!("{errors:?}").contains("field borrow requires"),
+            "{errors:?}"
+        );
+    }
+}
+
 fn dispose(b: &mut Body, value: ValueId) {
     let local = b.storage(owned());
     b.op(InstructionKind::Store { local, value });

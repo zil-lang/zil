@@ -61,6 +61,18 @@ impl Builder<'_, '_> {
             &mut self.match_work_left,
             self.limits.max_call_depth,
         )?;
+        if matches!(
+            pattern.kind,
+            CorePatternKind::Record {
+                ty: Type::Package { .. },
+                ..
+            }
+        ) || matches!(pattern.kind, CorePatternKind::Record { .. })
+            && (matches!(expected, Some(Type::Package { .. }))
+                || matches!(self.known_type(initializer), Some(Type::Package { .. })))
+        {
+            return self.partial_pattern_binding(pattern, mutable, expected, initializer);
+        }
         if reference_patterns::has_reference(pattern)
             && let CoreExprKind::Name(name) = &initializer.kind
             && let Some(local) = self.lookup(name)

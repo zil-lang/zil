@@ -30,6 +30,7 @@ impl Builder<'_, '_> {
     pub(super) fn partial_pattern_needed(&self, p: &CorePattern, ty: &Type) -> bool {
         matches!(ty, Type::ErrorUnion { .. })
             || owned_shapes::tuple(ty)
+            || matches!(ty, Type::Package { .. })
             || owned_shapes::enumeration(ty)
                 && (reference_patterns::has_reference(p) || has_owned_tuple(p, ty))
     }
@@ -256,6 +257,27 @@ impl Builder<'_, '_> {
                 }
                 Ok(())
             }
+            CorePatternKind::Record {
+                ty: declared,
+                fields,
+            } => {
+                self.closures.snapshot(
+                    fields
+                        .len()
+                        .saturating_mul(fields.len())
+                        .saturating_add(fields.iter().map(|(name, _)| name.len()).sum::<usize>()),
+                    p.span,
+                )?;
+                let ordered = enums::record_pattern_fields(declared, fields, ty, p.span)?;
+                for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
+                    path.push(PlaceProjection::Field(index as u32));
+                    self.owner_pattern_walk(
+                        field, root, path, field_ty, root_ty, fail, bind, consume, out,
+                    )?;
+                    path.pop();
+                }
+                Ok(())
+            }
             CorePatternKind::Variant { fields, .. } => {
                 let variant = self.pattern_variant_index(p, ty)?;
                 if !bind {
@@ -363,6 +385,12 @@ impl Builder<'_, '_> {
                                 local: root,
                                 path: path.clone(),
                             },
+                            Type::Package { .. } if path.len() == 1 => {
+                                let PlaceProjection::Field(index) = path[0] else {
+                                    unreachable!("Package field path")
+                                };
+                                InstructionKind::TakePackageField { local: root, index }
+                            }
                             Type::Enum { .. } | Type::ErrorUnion { .. } => {
                                 InstructionKind::TakeVariantField {
                                     local: root,
