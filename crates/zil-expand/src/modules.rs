@@ -1105,6 +1105,15 @@ impl Visitor<'_, '_, '_> {
                     } else {
                         *path = vec![name];
                     }
+                } else if path.len() >= 2 {
+                    // `Host.Member` and `module.Host.Member` carry the actual
+                    // nominal host identity through associated projection.
+                    let count = path.len();
+                    if let Some(host) =
+                        self.symbol(&path[..count - 1], types, &Names::new(), ty.span, true)?
+                    {
+                        *path = vec![host, path[count - 1].clone()];
+                    }
                 }
                 for (position, arg) in args.iter_mut().enumerate() {
                     self.const_arg(
@@ -1317,6 +1326,13 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::Aggregate(a) => {
                 self.declaration_name(&mut a.name, top, item.span)?;
+                for parameter in &mut a.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            self.ty(bound, &types, depth + 1)?;
+                        }
+                    }
+                }
                 let previous_nominal = self.default_nominal.take();
                 if a.fields.iter().any(|field| field.default.is_some()) {
                     self.budget.text(&a.name, item.span)?;
@@ -1335,6 +1351,13 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::Enum(e) => {
                 self.declaration_name(&mut e.name, top, item.span)?;
+                for parameter in &mut e.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            self.ty(bound, &types, depth + 1)?;
+                        }
+                    }
+                }
                 for v in &mut e.variants {
                     match &mut v.fields {
                         VariantFields::Tuple(ts) => {
@@ -1353,6 +1376,13 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::TypeAlias(a) => {
                 self.declaration_name(&mut a.name, top, item.span)?;
+                for parameter in &mut a.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            self.ty(bound, &types, depth + 1)?;
+                        }
+                    }
+                }
                 for bound in &mut a.bounds {
                     self.ty(bound, &types, depth + 1)?;
                 }
@@ -1406,6 +1436,13 @@ impl Visitor<'_, '_, '_> {
             }
             ItemKind::Trait(t) => {
                 self.declaration_name(&mut t.name, top, item.span)?;
+                for parameter in &mut t.generics {
+                    if let GenericParamKind::Type(bounds) = &mut parameter.kind {
+                        for bound in bounds {
+                            self.ty(bound, &types, depth + 1)?;
+                        }
+                    }
+                }
                 for bound in &mut t.bounds {
                     self.ty(bound, &types, depth + 1)?;
                 }
