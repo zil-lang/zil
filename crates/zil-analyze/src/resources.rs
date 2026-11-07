@@ -384,7 +384,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
     })
 }
 fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
-    if matches!(ty, Type::Enum { .. } | Type::ErrorUnion { .. }) {
+    if matches!(
+        ty,
+        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+    ) {
         if budget.sum_functions.is_empty() {
             return Ok(false);
         }
