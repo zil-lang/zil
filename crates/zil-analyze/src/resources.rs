@@ -334,6 +334,14 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             owned: true,
             description: false,
         },
+        Type::Address { inner, .. }
+            if budget.ordinary_store_sum_address(ty)? && sums::admit(module, inner, budget)? =>
+        {
+            Shape {
+                owned: false,
+                description: true,
+            }
+        }
         Type::Address { .. }
             if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
         {
@@ -2340,6 +2348,65 @@ impl Flow<'_> {
                     {
                         return Err(error("cannot borrow an empty owning Sum capture"));
                     }
+                    if out_shape.is_some_and(|s| s.description)
+                        && let Some(id) = f.environment
+                        && let Some(ty) = self
+                            .module
+                            .closures
+                            .get(id.0 as usize)
+                            .and_then(|closure| closure.captures.get(*index as usize))
+                        && budget.ordinary_store_sum_capture(id, ty)?
+                    {
+                        budget.type_work(ty, true, "borrowed Sum capture address identity")?;
+                        let expected = Type::Address {
+                            mutable: matches!(
+                                i.kind,
+                                InstructionKind::BorrowCapture { mutable: true, .. }
+                            ),
+                            inner: Box::new(ty.clone()),
+                        };
+                        if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                            return Err(error("borrowed Sum capture address type differs"));
+                        }
+                        produced = Some(Fact {
+                            sources: BTreeSet::from([Source::OwnedField(*index)]),
+                            ..Fact::default()
+                        });
+                    }
+                }
+                InstructionKind::BorrowPlaceAddress {
+                    address,
+                    path,
+                    mutable,
+                } if out_shape.is_some_and(|s| s.description) => {
+                    let (available, endpoint) =
+                        mixed_address_sums::endpoint(f, *address, path, budget)?;
+                    if !ownership_store::pod_owned(endpoint) || (*mutable && !available) {
+                        return Err(error(
+                            "borrowed Sum Store field is not an actual owning leaf",
+                        ));
+                    }
+                    budget.type_work(
+                        endpoint,
+                        true,
+                        "borrowed Sum Store field address identity",
+                    )?;
+                    let expected = Type::Address {
+                        mutable: *mutable,
+                        inner: Box::new(endpoint.clone()),
+                    };
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(&expected) {
+                        return Err(error("borrowed Sum Store field address type differs"));
+                    }
+                    ownership_store::ordinary_owned(self.module, endpoint, budget)?;
+                    let source = copied(state, Place::Value(*address), budget)?;
+                    if check {
+                        live_sources(state, &source, budget)?;
+                    }
+                    produced = Some(Fact {
+                        sources: source.sources,
+                        ..Fact::default()
+                    });
                 }
                 InstructionKind::DescribeCapture { index } => {
                     if f.environment
@@ -3167,7 +3234,11 @@ impl Flow<'_> {
                 | InstructionKind::BorrowLocalMut { local } = i.kind
                 && matches!(
                     f.locals[local.0 as usize].ty,
-                    Type::Package { .. } | Type::Managed(_)
+                    Type::Package { .. }
+                        | Type::Managed(_)
+                        | Type::Tuple(_)
+                        | Type::Enum { .. }
+                        | Type::ErrorUnion { .. }
                 )
             {
                 produced = Some(Fact {

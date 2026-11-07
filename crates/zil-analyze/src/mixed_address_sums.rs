@@ -51,7 +51,7 @@ impl State {
 fn bad_path() -> Vec<Diagnostic> {
     bad("addressed mixed Sum payload has no current actual tag authority")
 }
-fn endpoint<'a>(
+pub(super) fn endpoint<'a>(
     f: &'a TypedFunction,
     address: ValueId,
     path: &[zil_ir::PlaceProjection],

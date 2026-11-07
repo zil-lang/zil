@@ -63,6 +63,7 @@ pub(super) struct Budget {
     // Exact owning inline-Store Sum capture roots found by the paid raw walk.
     // Empty on old Sum profiles, including owning ByteBuffer Enums.
     ordinary_store_sum_captures: Vec<BTreeSet<usize>>,
+    ordinary_store_sum_addresses: BTreeSet<usize>,
     ordinary_pod_store_roots: BTreeSet<usize>,
 }
 
@@ -111,6 +112,7 @@ impl Budget {
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
             ordinary_store_sum_captures: Vec::new(),
+            ordinary_store_sum_addresses: BTreeSet::new(),
             ordinary_pod_store_roots: BTreeSet::new(),
         }
     }
@@ -143,6 +145,19 @@ impl Budget {
         }
         self.lookup(len, "actual ordinary Store Sum capture root")?;
         Ok(self.ordinary_store_sum_captures[id.0 as usize].contains(&(ty as *const Type as usize)))
+    }
+
+    pub(super) fn ordinary_store_sum_address(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.ordinary_store_sum_addresses.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.ordinary_store_sum_addresses.len(),
+            "actual ordinary Store Sum address root",
+        )?;
+        Ok(self
+            .ordinary_store_sum_addresses
+            .contains(&(ty as *const Type as usize)))
     }
 
     pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
@@ -1093,6 +1108,17 @@ pub(super) fn preflight(
             budget.lookup(budget.sum_roots.len(), "ordinary Sum root insertion")?;
             budget.spend(1, "ordinary Sum root allocation")?;
             budget.sum_roots.insert(root);
+        }
+        if new_sum
+            && new_ordinary_pod_store
+            && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}|Type::Package{..}))
+        {
+            budget.lookup(
+                budget.ordinary_store_sum_addresses.len(),
+                "ordinary Store Sum address insertion",
+            )?;
+            budget.spend(1, "ordinary Store Sum address root allocation")?;
+            budget.ordinary_store_sum_addresses.insert(root);
         }
         if new_sum
             && new_ordinary_pod_store
