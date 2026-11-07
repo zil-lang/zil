@@ -57,6 +57,7 @@ pub(super) struct Budget {
     pub(super) async_registrations: bool,
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
+    pub(super) stored_enum_addresses: bool,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
     // Empty for the established single-lane profiles. A mixed module has one
@@ -125,6 +126,7 @@ impl Budget {
             async_registrations: false,
             protocol_contracts: false,
             protocol_checked: false,
+            stored_enum_addresses: false,
             stored_borrows: false,
             stored_slot_updates: false,
             composition_stored: Vec::new(),
@@ -558,6 +560,13 @@ fn local_value(
         } else {
             Err(bad("stored nominal type lacks its instance inventory"))
         };
+    }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && super::stored_flow::enum_address::signature(ty)
+    {
+        super::stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(false);
     }
     if let Type::Address { inner, .. } = ty
         && matches!(

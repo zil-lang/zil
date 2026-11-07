@@ -197,7 +197,7 @@ pub(super) fn transfer(
 
 // The sealed profile matches Types' finite ordinary data domain, including
 // inactive payloads. General is_address_pointee also admits dyn and code values.
-fn closed_pointee(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
+pub(super) fn closed_pointee(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
     fee(b, 1)?;
     if depth > b.partial_depth {
         return Err(failure("Option pointee exceeds actual depth limit"));

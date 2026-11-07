@@ -1,5 +1,25 @@
 //! Ordinary Sum admission is distinct from capture/array/StoreElement profiles.
 use super::*;
+// Physical classification only, under the immutable Verify capability. The
+// complete type/metadata copy walks are charged by `borrowed` below.
+fn shared_sum(ty: &Type) -> bool {
+    match ty {
+        Type::BorrowedStorage { storage, life } => {
+            matches!(storage.as_ref(), Type::Enum { .. })
+                && !life.slots.is_empty()
+                && life
+                    .slots
+                    .iter()
+                    .all(|s| s.mode == zil_ir::StoredBorrowMode::SharedAddress)
+        }
+        Type::ErrorUnion { error, result } => {
+            (shared_sum(error) || shared_sum(result))
+                && (error.is_copy_value() || shared_sum(error))
+                && (result.is_copy_value() || shared_sum(result))
+        }
+        _ => false,
+    }
+}
 pub(super) struct Budget<'a> {
     limits: &'a zil_base::Limits,
     nodes: usize,
@@ -204,6 +224,16 @@ impl<'a> Budget<'a> {
     /// neither derives nor grants stored target permissions.
     pub(super) fn borrowed(&mut self, ty: &Type, depth: usize) -> CompileResult<bool> {
         match ty {
+            Type::ErrorUnion { error, result } if shared_sum(ty) => {
+                self.pay(ty, depth)?;
+                for arm in [error.as_ref(), result.as_ref()] {
+                    if !self.borrowed(arm, depth + 1)? {
+                        self.pay(arm, depth + 1)?;
+                        self.copy_work(arm, depth + 2)?;
+                    }
+                }
+                Ok(true)
+            }
             Type::BorrowedStorage { storage, life } => {
                 self.pay(ty, depth)?;
                 self.stored_shape(life)?;

@@ -718,6 +718,47 @@ impl<'a> Engine<'a> {
                 type_path.pop();
                 answer
             }
+            TypeKind::Error {
+                error: failure,
+                result,
+            } if self.budget.has_shared_enum_addresses() => {
+                let source = TypeRef {
+                    span: ty.span,
+                    kind: TypeKind::Error {
+                        error: failure.clone(),
+                        result: result.clone(),
+                    },
+                };
+                let before = occurrences.len();
+                for (arm, child) in [(true, failure.as_mut()), (false, result.as_mut())] {
+                    path.push(zil_ir::ContractProjection::Place(
+                        zil_ir::PlaceProjection::ErrorArm(arm),
+                    ));
+                    type_path.push(zil_ir::LifeTypeProjection::Place(
+                        zil_ir::PlaceProjection::ErrorArm(arm),
+                    ));
+                    self.storage_header(
+                        child,
+                        base,
+                        path,
+                        type_path,
+                        occurrences,
+                        stored,
+                        next_elided,
+                        depth + 1,
+                    )?;
+                    path.pop();
+                    type_path.pop();
+                }
+                if matches!(base, zil_ir::StorageBase::Result)
+                    && type_path.is_empty()
+                    && occurrences.len() != before
+                {
+                    self.budget.ty(&source)?;
+                    self.source_enum_return = Some(source);
+                }
+                Ok(false)
+            }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
@@ -1036,10 +1077,27 @@ impl<'a> Engine<'a> {
                         if matches!(actual.ty, zil_ir::Type::Address { .. })
                             && template != options::TEMPLATE
                         {
-                            return Err(unsupported(
-                                ty.span,
-                                "address Type actual needs an independently authenticated formal occurrence",
-                            ));
+                            let ItemKind::Enum(declaration) = &item.kind else {
+                                return Err(unsupported(
+                                    ty.span,
+                                    "address Type actual needs its physical nominal consumer",
+                                ));
+                            };
+                            let mut occurrence = false;
+                            for variant in &declaration.variants {
+                                for field in
+                                    enums::fields(declaration, &variant.name, variant.span)?
+                                {
+                                    self.budget.ty(&field.ty)?;
+                                    occurrence |= matches!(&grouped(&field.ty).kind, TypeKind::Named { path, args } if path.as_slice() == [formal.name.as_str()] && args.is_empty());
+                                }
+                            }
+                            if !occurrence {
+                                return Err(unsupported(
+                                    ty.span,
+                                    "Enum Address actual needs its complete direct formal occurrence",
+                                ));
+                            }
                         }
                         let class_key =
                             self.joint_class_key(&actual.classes, &mut local_classes, span)?;
@@ -1326,6 +1384,32 @@ impl<'a> Engine<'a> {
         let classes = produced.classes;
         self.record_inherent_instance(&generated, template, &substitution, span)?;
         if existing.is_none() {
+            if let ItemKind::Enum(physical) = &instance.kind
+                && !produced.instance.declaration.compiler
+                && matches!(&produced.instance.ty, zil_ir::Type::BorrowedStorage { life, .. } if !life.slots.is_empty())
+            {
+                self.stored_lookup_fee(self.stored_enum_layouts.len(), generated.len(), span)?;
+                self.budget.text(&generated, span)?;
+                self.budget.text(template, span)?;
+                let mut variants = Vec::new();
+                for variant in &physical.variants {
+                    self.budget.text(&variant.name, variant.span)?;
+                    let mut fields = Vec::new();
+                    for field in enums::fields(physical, &variant.name, variant.span)? {
+                        self.budget.ty(&field.ty)?;
+                        fields.push(field.ty.clone());
+                    }
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<(String, Vec<TypeRef>)>().saturating_add(
+                            fields.len().saturating_mul(std::mem::size_of::<TypeRef>()),
+                        ),
+                        variant.span,
+                    )?;
+                    variants.push((variant.name.clone(), fields));
+                }
+                self.stored_enum_layouts
+                    .insert(generated.clone(), (template.to_owned(), variants));
+            }
             if let ItemKind::Aggregate(physical) = &instance.kind {
                 self.stored_lookup_fee(self.stored_record_fields.len(), generated.len(), span)?;
                 self.budget.text(&generated, span)?;

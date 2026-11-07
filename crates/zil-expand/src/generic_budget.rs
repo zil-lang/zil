@@ -21,6 +21,7 @@ pub(crate) struct Budget<'a> {
     dynamic_interfaces: bool,
     stored_lifetimes: bool,
     source_identity: bool,
+    shared_enum_addresses: bool,
 }
 impl<'a> Budget<'a> {
     pub(crate) fn new(limits: &'a Limits) -> Self {
@@ -43,6 +44,7 @@ impl<'a> Budget<'a> {
             dynamic_interfaces: false,
             stored_lifetimes: false,
             source_identity: false,
+            shared_enum_addresses: false,
         }
     }
     pub(crate) fn has_dynamic(&self) -> bool {
@@ -62,6 +64,12 @@ impl<'a> Budget<'a> {
     }
     pub(crate) fn note_source_identity(&mut self) {
         self.source_identity = true;
+    }
+    pub(crate) fn has_shared_enum_addresses(&self) -> bool {
+        self.shared_enum_addresses
+    }
+    pub(crate) fn note_shared_enum_addresses(&mut self) {
+        self.shared_enum_addresses = true;
     }
     pub(crate) fn has_generic_methods(&self) -> bool {
         self.generic_methods
@@ -410,6 +418,19 @@ impl<'a> Budget<'a> {
                     self.text(name, ty.span)?;
                 }
                 for arg in args {
+                    // A real shared Address type actual can qualify an ordinary
+                    // nominal even when its declaration has only Type formals.
+                    // Capture lineage before project flattening; this grants no
+                    // permission. The sealed Option keeps its compiler identity.
+                    if matches!(&ty.kind, TypeKind::Named { .. })
+                        && path.as_slice() != ["Option"]
+                        && matches!(arg, GenericArg::Type(t)
+                            if matches!(t.kind, TypeKind::Reference {
+                                mutable: false, lifetime: Some(_), .. }))
+                    {
+                        self.note_source_identity();
+                        self.shared_enum_addresses = true;
+                    }
                     self.arg(arg, depth + 1, substitutions)?;
                 }
             }

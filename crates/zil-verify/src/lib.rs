@@ -358,6 +358,7 @@ struct Budget {
     invocation_callbacks: bool,
     owning_address_captures: bool,
     head_descriptions: bool,
+    stored_enum_addresses: bool,
     stored_borrows: bool,
     stored_package_instance: bool,
     // Derived only from the existing paid raw-instruction inventory.
@@ -402,6 +403,7 @@ impl Budget {
             invocation_callbacks: false,
             owning_address_captures: false,
             head_descriptions: false,
+            stored_enum_addresses: false,
             stored_borrows: false,
             stored_package_instance: false,
             stored_slot_updates: false,
@@ -1536,6 +1538,13 @@ fn check_function_signature_type(
             ))
         };
     }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && stored_flow::enum_address::signature(ty)
+    {
+        stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(());
+    }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
     }
@@ -1603,6 +1612,13 @@ fn check_local_type(
                 "stored nominal type lacks its instance inventory",
             ))
         };
+    }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && stored_flow::enum_address::signature(ty)
+    {
+        stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(false);
     }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(false);
@@ -2339,7 +2355,10 @@ fn check_instruction(
                     "ReadErrorUnion requires an error-union value",
                 ));
             };
-            if !source.is_copy_value() {
+            if !source.is_copy_value()
+                && !(budget.stored_enum_addresses
+                    && stored_flow::enum_address::ordinary(module, source, budget)?)
+            {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,

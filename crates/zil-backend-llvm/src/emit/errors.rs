@@ -4,11 +4,12 @@
 use super::*;
 
 pub(super) fn owned(ty: &Type) -> bool {
-    matches!(ty, Type::ErrorUnion { .. }) && !ty.is_copy_value()
+    matches!(ty, Type::ErrorUnion { .. }) && !ty.is_copy_value() && !stored_borrows::shared_sum(ty)
 }
 
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    matches!(ty, Type::ErrorUnion { error, result }
+    (matches!(ty, Type::ErrorUnion { .. }) && stored_borrows::shared_sum(ty))
+        || matches!(ty, Type::ErrorUnion { error, result }
         if ((error.is_copy_value() || packages::supported_type(error, resources))
             && (result.is_copy_value() || packages::supported_type(result, resources)))
             || (error.is_copy_value() && matches!(result.as_ref(), Type::Managed(_))

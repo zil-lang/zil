@@ -56,6 +56,13 @@ fn array_classes(
                 out.push((path.clone(), class));
             }
         }
+        Type::ErrorUnion { error, result } => {
+            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(arm)));
+                array_classes(child, path, out);
+                path.pop();
+            }
+        }
         Type::Array { element, .. } => {
             path.push(LifeTypeProjection::Element);
             array_classes(element, path, out);
@@ -401,6 +408,7 @@ fn relation_inner(
                 ) || (!life.retained.is_empty()
                     && !matches!(storage.as_ref(), Type::Package { .. })))
                     && !pure_nominal_value(target)
+                    && !super::stored_flow::enum_address::signature(target)
                     && !super::stored_flow::option_address::signature(target)
                 {
                     return Err(vec![Diagnostic::unsupported(
@@ -437,7 +445,10 @@ fn relation_inner(
                         capture || !self.captured && self.inputs.is_none(),
                     )?;
                 }
-            } else if pure_array_value(target) {
+            } else if pure_array_value(target)
+                || (matches!(target, Type::ErrorUnion { .. })
+                    && super::stored_flow::enum_address::signature(target))
+            {
                 let mut path = if pointed {
                     vec![LifeTypeProjection::Pointee]
                 } else {

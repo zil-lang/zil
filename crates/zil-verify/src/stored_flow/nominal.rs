@@ -77,6 +77,7 @@ fn walk(
         return Ok(Vec::new());
     }
     physical_instances(module, storage, limits, b)?;
+    enum_address::arguments(instance, limits, b)?;
     let mut expected = Vec::new();
     // All direct lifetimes precede recursive Type actuals, regardless of their ordinal.
     for (ordinal, (formal, actual)) in decl.parameters.iter().zip(&instance.arguments).enumerate() {
@@ -117,6 +118,11 @@ fn walk(
             continue;
         };
         type_work(ty, limits, b)?;
+        if enum_address::candidate(&instance.ty)
+            && matches!(ty, Type::Address { mutable: false, .. })
+        {
+            continue;
+        }
         if !matches!(ty, Type::BorrowedStorage { .. }) {
             if !context_free_copy(ty, b)? {
                 return Err(err(
