@@ -1595,6 +1595,7 @@ fn seed_payload(
             parents: Vec::new(),
             exclusive: *mutable,
         });
+        b.stored_exclusive_loans |= *mutable;
         p.address = Permission {
             sources: vec![source],
             loans: vec![id],
@@ -1618,6 +1619,7 @@ fn seed_payload(
                 parents: Vec::new(),
                 exclusive: mode == StoredBorrowMode::ExclusiveAddress,
             });
+            b.stored_exclusive_loans |= mode == StoredBorrowMode::ExclusiveAddress;
             add_leaf(
                 &mut p,
                 &path,
@@ -1644,6 +1646,7 @@ fn seed_payload(
                 parents: Vec::new(),
                 exclusive: slot.mode == StoredBorrowMode::ExclusiveAddress,
             });
+            b.stored_exclusive_loans |= slot.mode == StoredBorrowMode::ExclusiveAddress;
             p.leaves.push((
                 slot.path.clone(),
                 Permission {
@@ -1903,6 +1906,7 @@ fn write_sites(
                 b.spend(path.len().saturating_add(sites.len()).saturating_add(2))?;
                 let id = loans.len();
                 loans.push(Loan::default());
+                b.stored_exclusive_loans |= exclusive;
                 sites.push((site, parameter, path.clone(), id, exclusive));
                 Ok(())
             };
@@ -1975,6 +1979,7 @@ fn retain_written_slot(
     add_loans(&mut row.parents, &source.loans, b)?;
     row.parents.retain(|parent| parent != id);
     row.exclusive = *exclusive;
+    b.stored_exclusive_loans |= row.exclusive;
     permission_work(source, b)?;
     Ok(Permission {
         sources: source.sources.clone(),
@@ -2688,6 +2693,7 @@ fn step(
         add_sources(&mut row.sources, &out.address.sources, b)?;
         add_loans(&mut row.parents, &out.address.loans, b)?;
         row.exclusive = matches!(vt(f, id)?, Type::Address { mutable: true, .. });
+        b.stored_exclusive_loans |= row.exclusive;
         b.spend(1)?;
         out.address.loans = vec![id.0 as usize];
     }
@@ -2699,6 +2705,7 @@ fn step(
         add_sources(&mut row.sources, &out.address.sources, b)?;
         add_loans(&mut row.parents, &out.address.loans, b)?;
         row.exclusive = true;
+        b.stored_exclusive_loans = true;
         b.spend(1)?;
         out.address.loans = vec![id.0 as usize];
     }
@@ -2732,6 +2739,7 @@ fn step(
                 add_sources(&mut row.sources, &p.sources, b)?;
                 add_loans(&mut row.parents, &p.loans, b)?;
                 row.exclusive = declaration.mode == StoredBorrowMode::ExclusiveAddress;
+                b.stored_exclusive_loans |= row.exclusive;
                 b.spend(1)?;
                 p.loans = vec![loan_id];
             }
@@ -2750,6 +2758,10 @@ fn solve(
     summaries: &[Summary],
     b: &mut Budget,
 ) -> Check<Solution> {
+    // Each reverse-batch solve creates a new function-local loan arena.
+    // Its paid seed/site/step writes record every possible exclusive loan,
+    // including constructor sites that are not currently active.
+    b.stored_exclusive_loans = false;
     b.spend(
         f.values
             .len()
@@ -3125,7 +3137,9 @@ fn windows(
             };
             match &i.kind {
                 InstructionKind::MakeAggregate { fields }
-                | InstructionKind::MakePackage { fields } => {
+                | InstructionKind::MakePackage { fields }
+                    if b.stored_exclusive_loans =>
+                {
                     let result = i.result.ok_or_else(|| err("aggregate lacks result"))?;
                     if let Some((_, shape)) = qualified(vt(f, result)?) {
                         for (index, slot) in shape.slots.iter().enumerate() {

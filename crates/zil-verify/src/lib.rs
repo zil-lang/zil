@@ -374,6 +374,9 @@ struct Budget {
     stored_exclusive_shapes: bool,
     // Constructor retention needs stable sites even without a slot update.
     stored_constructor_sites: bool,
+    // Reconstructed from this function's actual arena and reserved loan sites.
+    // No candidate or analyzer flag participates in this read/read fast path.
+    stored_exclusive_loans: bool,
     generic_mutex: bool,
     guard_return_sources: Vec<BTreeSet<u32>>,
     // Eligibility only; pure reads and values still prove their actual shape.
@@ -423,6 +426,7 @@ impl Budget {
             stored_slot_updates: false,
             stored_exclusive_shapes: false,
             stored_constructor_sites: false,
+            stored_exclusive_loans: false,
             generic_mutex: false,
             guard_return_sources: Vec::new(),
             pure_nominal: false,

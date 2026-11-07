@@ -133,6 +133,7 @@ pub(super) fn seed(
             parents: vec![],
             exclusive: port.mode == StoredBorrowMode::ExclusiveAddress,
         });
+        b.stored_exclusive_loans |= port.mode == StoredBorrowMode::ExclusiveAddress;
         insert(
             out,
             &port_path(&leaf, ordinal as u32),
