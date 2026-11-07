@@ -458,7 +458,7 @@ fn g4461_actual_core_nested_type_metadata_controls() {
 #[test]
 fn g4461_actual_nested_type_nominal_source_raw_wire() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+        "../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
     )
     .replace("life a,T:Copy", "life a,life b,T:Copy")
     .replace("Phantom<'s,i32,42>", "Phantom<'s,'s,i32,42>");

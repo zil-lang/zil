@@ -1,9 +1,12 @@
 # ZIL 实施入口
 
-1. 先读独立 `goal:goal.md`：`git fetch origin refs/heads/goal:refs/remotes/origin/goal`，再 `git show refs/remotes/origin/goal:goal.md`。离线版本须注明 SHA 与时点。`node tools/handoff.mjs --check` 只检查工程/交付记录和 Git 关系，不读取实时看板，也不证明语言正确性；缺 Git 的恢复见 `docs/DELIVERY.md`。
-2. 语言行为、安全边界、拒绝条件只以 `_zil_design.md` 及具名附件为准；阶段接口、策略和验收协议分别见 `spec/`、`policy/`、`validation/`。`validation/engineering-contracts.json` 承接原 14 份正式工程合同的静态义务。迁移期间旧 main `.task/` 暂作比对来源；迁移和工具检查完成后由集成者清除。当前任务状态只读 goal，任务分支 `.task/` 保存过程合同，当前长期决定见 `docs/decisions/`。
-3. 一任务一分支一工作树，先固定规范、源码基线、依赖、写集与交付门。相交写集串行集成；公共 schema、根 Cargo/锁与正式门由集成者单写。施工方跑限定测试，正式全量和性能门由集成者协调。独立审核者不兼任作者，审核绑定精确候选提交。
-4. 提交真实源码正例、最近反例、阶段接口/产物、失败清理与实际命令。模型、手填 IR、手写 C、预期案例和聊天不能冒充生产源码及原生行为。零选择、零执行、缺字段、超时、Unsupported、基础设施错误和失败字段都不能判 Pass。失败和修复使用不同 RunId，旧失败保留。
-5. 生成器只产生未核代码；属性不制造权限；独立 Verify 不调用 Analyze/Types 求证。不可借宿主 Rust 借用检查器代替 ZIL 安全核，也不可因编译失败隐式引入 RC、锁或堆盒。依赖边见 `policy/dependencies.json`，设计理由见 `docs/decisions/compiler-boundaries.md`。
-6. 接受性、ABI、错误/清理顺序、预算变更先列差异与最近反例，同步规范、接口、案例和验收。未采纳提案仍是提案；发现冲突只暂停受影响工作。每轮交付按 `docs/RUST-GOALS.md` 简表区分实证、未测和未完成；阈值只引用 `validation/product-gates.json`。
-7. 通用派工、独审、合入与收据格式见 `docs/WORKFLOW.md`；历史恢复见 `docs/DELIVERY.md`。goal 永不合入 main，任务分支不合入 goal；禁止在编译中的工作树切换分支。推送后读回远端精确 SHA，不能把本地提交或待上传包称为已交付。
+1. 冷启动先读独立 `goal` 分支的 `goal.md`：`git fetch origin refs/heads/goal:refs/remotes/origin/goal` 后 `git show refs/remotes/origin/goal:goal.md`；离线只读已保存版本并注明SHA。再运行 `node tools/handoff.mjs --check` 定位工程主树；该工具不读取实时看板、不检查全部开发分支。精简源码ZIP可以构建，恢复计划还须携带goal引用；缺Git按`docs/DELIVERY.md`恢复，不能把无Git检查当Pass。
+2. 语言与架构只读 `_zil_design.md` 及其具名附件。当前目标、优先级、分配、工作状态只在 `goal:goal.md`；实施说明维护于各自开发分支的 `.task/<ID>.md` 或 `.task/impl/<号>.md`。main既有工单保留为工程合同/交付记录，其状态不是实时待办；重要决策、复核和验收随源码交付。详见`.agent/goal-branch.md`。
+3. 每单一个分支和worktree，先核goal任务ID、实际派工、父合同、规范摘要、基线、依赖与写集。开发分支.task不复制实时看板；旧工单状态按原提交解释。切片合入不替代父任务Done；缺前置只报告具体阻塞，不猜测。
+4. 施工方不合入、不改正式性能门、不自行跑正式全量；限定测试允许。独立审核绑定精确交付提交，审核者不兼任施工者。正式验收、工程合同、Cargo.lock和公共schema由集成方管理；实时进度按任务ID归并到goal。
+5. 不把ZIL转Rust后调用宿主借用检查器作为安全核；不恢复通用gen/open/lease；不因编译失败隐式加入RC、锁、堆盒或全局表。
+6. 生成器只产生未核代码；属性不制造权限；verify不得调用analyze/types的求证函数。依赖边见policy/dependencies.json。
+7. 提交真实源码正例、最近反例、阶段IR/接口、机器表示、失败清理、实际命令与证据。手填IR、手写C和模型只能按对应等级报告；聊天和未跟踪文件不算交付。
+8. 任何接受性、ABI、错误/清理顺序或预算变更先写changes提案，不在实现中暗改。发现规范冲突只暂停相应工作，引用具体ID。
+9. 通用协作流程见docs/WORKFLOW.md；当前长期决策在`.agent/`，源码事实在Git，实施往来随任务分支保存。goal永不合入main，开发分支不合入goal，禁止在编译中的工作树切换到goal；只正常快进推送并核回远端SHA。模块只增加本模块接口与命令，不复制语言规则。
+10. 每轮交付前按docs/RUST-GOALS.md简表反思Rust四目标及至少一项突破，区分实证、未测和未完成；不得以测试数量或更短语法代替产品结论。只引用既有product-gates条件，不增加长审批链。
