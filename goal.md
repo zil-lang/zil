@@ -189,7 +189,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | 冻结合同后已分三路实施：生产端/Types、Analyze、Verify；root 补 Lower/LLVM 和共同消费者。保留真实合同推导、实际根与 provider 身份，未验收。 |
+| G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 进行中 | P0 | Codex · 本会话 | 生产端/Types、CT、两核及 Lower/LLVM 已集成；单模块双后端 O0/O2 已运行，跨模块默认包装、原样输入与 raw/Wire 正在共同复测。未验收。 |
 
 <details>
 <summary>G5.2.1 · 子任务</summary>
@@ -198,7 +198,8 @@
 | --- | --- | --- | --- | --- | --- |
 | G5.2.1.1 | Source/coercion、Types 和真实 provider 合同 | 进行中 | P0 | dyn_source521 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
 | G5.2.1.2 | Analyze 实际 dyn 根与目标合同核验 | 进行中 | P0 | dyn_analyze521 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G5.2.1.3 | Verify 独立 dyn 合同与 raw/Wire | 进行中 | P0 | dyn_verify521 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
+| G5.2.1.3 | Verify 独立 dyn 合同与 raw/Wire | 进行中 | P0 | dyn_verify521 · sol high | 已接真实共享 receiver、默认包装及受限直接调用链；共同复测中。 |
+| G5.2.1.4 | CT 保留真实 dyn inventory 与运行期表达式 | 进行中 | P0 | dyn_ct521 · sol high | 已集成；CT 不执行 dyn，不把未知合同默认置空，随父任务验收。 |
 
 </details>
 
@@ -253,7 +254,7 @@
 | G9.3.2 | 普通 POD 动态集合与真实借入视图 | 已合入 | — | — | [PR49 验收][e-pr49]：普通 Record 的 std.store、reserve/push/pop/shared view 和大 Copy 协议；默认5124/0、参考5012/0、文本70/0及工程门通过。原262144字节源码默认栈 O0/O2通过；一般元素/可变片/拥有组合仍另缺。 |
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
-| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | 冻结合同后已分三路实施：Types/清理、Analyze、Verify；root 集成 Source/raw/Wire/native 和共同验收。两任务源基线 f59929378 已推送，未验收。 |
+| G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 进行中 | P0 | Codex · 本会话 | Types/清理、两核与完整 Source 消费者已集成；普通字段模型、捕获、替换失败及 sibling 字段窗口正在共同复测。源码持续推送 task/G9.3.5；未验收。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
@@ -262,7 +263,8 @@
 | --- | --- | --- | --- | --- | --- |
 | G9.3.5.1 | Source/Types 完整拥有组合及 Store 机器清理 | 进行中 | P0 | store_types935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
 | G9.3.5.2 | Analyze 实际根、责任和捕获独立核验 | 进行中 | P0 | store_analyze935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
-| G9.3.5.3 | Verify 独立责任、窗口与 raw/Wire | 进行中 | P0 | store_verify935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
+| G9.3.5.3 | Verify 独立责任、窗口与 raw/Wire | 进行中 | P0 | store_verify935 · sol high | 独立拥有组合和清理已集成；Source/raw/Wire 共同复测中。 |
+| G9.3.5.4 | 原样数据模型、捕获、失败分配及最近反例消费者 | 进行中 | P0 | store_consumers935 · sol high | 沿既有目标覆盖双后端 O0/O2；同字段、父壳移动和清理反例保留，随父任务验收。 |
 
 </details>
 
