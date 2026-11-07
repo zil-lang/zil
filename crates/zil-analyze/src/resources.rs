@@ -2025,18 +2025,7 @@ impl Flow<'_> {
                             && (matches!(package_storage(ty), Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                         if shared_owned && matches!(package_storage(ty), Type::Package { .. }) {
-                            let direct_store = if budget.pod_stores {
-                                let Type::Package { fields, .. } = package_storage(ty) else {
-                                    unreachable!()
-                                };
-                                budget.spend(fields.len(), "borrowed ordinary Store field scan")?;
-                                fields
-                                    .iter()
-                                    .any(|(_, field)| crate::ownership_store::pod_owned(field))
-                            } else {
-                                false
-                            };
-                            if direct_store
+                            if product::has_owned_store(ty, budget)?
                                 || matches!(ty, Type::BorrowedStorage { .. })
                                 || budget.ordinary_pod_store_type(ty)?
                             {
@@ -2242,6 +2231,7 @@ impl Flow<'_> {
                 {
                     let ty = &f.locals[local.0 as usize].ty;
                     if matches!(ty, Type::BorrowedStorage { .. })
+                        || product::has_owned_store(ty, budget)?
                         || budget.ordinary_pod_store_type(ty)?
                     {
                         product::admit_owned(self.module, ty, budget)?;

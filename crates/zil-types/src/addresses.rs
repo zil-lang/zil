@@ -324,7 +324,8 @@ impl Builder<'_, '_> {
                         // inspecting its complete children; old accepted
                         // Product heads retain their exact previous fee.
                         self.closures.snapshot(work.saturating_mul(4), e.span)?;
-                        if !dynamic_store::contains_inline_carrier(&decl.ty)
+                        if !(dynamic_store::contains_inline_carrier(&decl.ty)
+                            || packages::has_store_fields(&decl.ty))
                             || !packages::product::owned_supported(&decl.ty)
                         {
                             return Err(unsupported(

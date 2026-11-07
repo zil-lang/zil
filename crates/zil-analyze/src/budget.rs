@@ -521,16 +521,22 @@ fn local_value(
         return super::resources::sums::admit(module, ty, budget);
     }
     if let Type::Address { inner, .. } = ty
-        && super::resources::product::nested(inner)
+        && (super::resources::product::nested(inner)
+            || (matches!(inner.as_ref(), Type::Package { .. })
+                && super::resources::product::has_owned_store(inner, budget)?))
     {
-        return if budget.ordinary_pod_store_type(inner)? {
+        return if budget.ordinary_pod_store_type(inner)?
+            || super::resources::product::has_owned_store(inner, budget)?
+        {
             super::resources::product::admit_owned(module, inner, budget)
         } else {
             super::resources::product::admit_borrowed(inner, budget).map(|_| false)
         };
     }
     if super::resources::product::nested(ty)
-        || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
+        || (matches!(ty, Type::Package { .. })
+            && (budget.ordinary_pod_store_type(ty)?
+                || super::resources::product::has_owned_store(ty, budget)?))
     {
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {

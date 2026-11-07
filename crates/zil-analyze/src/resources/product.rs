@@ -15,6 +15,21 @@ pub(crate) fn nested(ty: &Type) -> bool {
         if fields.iter().any(|(_, field)| matches!(package_storage(field), Type::Package { .. })))
 }
 
+pub(crate) fn has_owned_store(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1, "ordinary Package owned Store scan")?;
+        if dynamic_store::is_owned_carrier(ty) {
+            return Ok(true);
+        }
+        if let Type::Package { fields, .. } = package_storage(ty) {
+            budget.spend(fields.len(), "ordinary Package owned Store fields")?;
+            pending.extend(fields.iter().map(|(_, field)| field));
+        }
+    }
+    Ok(false)
+}
+
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
     admit_shape(ty, budget, false, None, false).map(|_| ())
 }
