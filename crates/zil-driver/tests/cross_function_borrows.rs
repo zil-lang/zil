@@ -37,6 +37,9 @@ mod utf8_literals;
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/analyze.rs"]
 mod trait_shared_lending_analyze;
 
+#[path = "../../../tests/language-readiness/store-lending/consumers.rs"]
+mod store_lending;
+
 static NEXT: AtomicU64 = AtomicU64::new(0);
 struct Temp(PathBuf);
 impl Temp {

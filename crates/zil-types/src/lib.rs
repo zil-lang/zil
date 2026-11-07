@@ -936,7 +936,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                     .saturating_add(self.function.values.len()),
                 body.span,
             )?;
-            if self
+            // A shared Copy leaf may return from an actual Store window. The
+            // shape alone grants no source: Analyze and Verify each check the
+            // returned root, then the caller keeps the manager loan live.
+            if !matches!(&self.function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+                && self
                 .function
                 .locals
                 .iter()
