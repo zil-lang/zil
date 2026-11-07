@@ -14,6 +14,7 @@ mod callable_fields;
 mod closures;
 mod conditions;
 mod deferred;
+mod dyn_dispatch;
 mod dynamic_store;
 mod enums;
 mod errors;
@@ -429,6 +430,17 @@ pub fn check(
     let inferred = aggregates::resolve(infer_source_closures(core, limits)?, limits)?;
     let core = &inferred;
     let mut signatures = signatures(core, limits, 0, None)?;
+    let dyn_vtables = dyn_dispatch::inventory(core, &signatures, limits).map_err(|e| vec![e])?;
+    if core.dyn_interfaces.iter().any(|interface| {
+        !dyn_vtables
+            .iter()
+            .any(|table| table.interface == interface.id)
+    }) {
+        return Err(vec![unsupported(
+            Span::default(),
+            "dyn interface has no actual provider table",
+        )]);
+    }
     let mut resource_definitions =
         resources::definitions(core, &signatures).map_err(|e| vec![e])?;
     let mut enum_work = limits.max_analysis_steps;
@@ -499,6 +511,9 @@ pub fn check(
         )
         .and_then(|mut b| {
             b.enums = Some(&enum_types);
+            b.dyn_declarations = &core.dyn_declarations;
+            b.dyn_interfaces = &core.dyn_interfaces;
+            b.dyn_vtables = &dyn_vtables;
             b.finish(&f.body)
         }) {
             Ok(typed) => {
@@ -554,9 +569,9 @@ pub fn check(
     let mut module = TypedModule {
         life_declarations,
         life_instances,
-        dyn_declarations: Vec::new(),
-        dyn_interfaces: Vec::new(),
-        dyn_vtables: Vec::new(),
+        dyn_declarations: core.dyn_declarations.clone(),
+        dyn_interfaces: core.dyn_interfaces.clone(),
+        dyn_vtables,
         resources: resource_definitions,
         schema_version: SCHEMA_VERSION,
         module_id: core.module_id,
@@ -579,6 +594,9 @@ struct Builder<'a, 'c> {
     state_uses: Option<state_origins::Uses>,
     factory_bound: Option<CoreCallableReturn>,
     signatures: &'a BTreeMap<String, Signature>,
+    dyn_declarations: &'a [DynDeclaration],
+    dyn_interfaces: &'a [DynInterface],
+    dyn_vtables: &'a [DynVtable],
     imports: Option<&'a program::Imports<'a>>,
     enums: Option<&'a BTreeMap<String, Type>>,
     limits: &'a Limits,
@@ -670,6 +688,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             state_uses: None,
             factory_bound: f.callable_return.clone(),
             signatures,
+            dyn_declarations: &[],
+            dyn_interfaces: &[],
+            dyn_vtables: &[],
             imports: None,
             enums: None,
             limits,
@@ -1740,9 +1761,18 @@ impl<'a, 'c> Builder<'a, 'c> {
     #[inline(never)]
     fn expr_non_call_value(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
         match &e.kind {
-            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => Err(
-                unsupported(e.span, "dyn expression consumer is not yet implemented"),
-            ),
+            CoreExprKind::MakeDynBorrow {
+                interface,
+                vtable,
+                source,
+                mutable,
+            } => self.dyn_make_borrow(*interface, *vtable, source, *mutable, e.span),
+            CoreExprKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } => self.dyn_call(callee, *interface, *slot, arguments, e.span),
             CoreExprKind::Literal(_)
             | CoreExprKind::Float(_)
             | CoreExprKind::Integer(_)
@@ -1980,6 +2010,21 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if let Some((ty, variant)) = self.enum_constructor(callee)? {
                 return self.make_variant(ty, variant, arguments, expected, e.span);
+            }
+            if let CoreExprKind::Member {
+                object,
+                member,
+                owner,
+            } = &callee.kind
+                && let Some((interface, slot)) = self.dyn_method_slot(object, member)
+            {
+                if owner.is_some() {
+                    return Err(unsupported(
+                        e.span,
+                        "dyn member qualification needs exact slot application",
+                    ));
+                }
+                return self.dyn_call(object, interface, slot, arguments, e.span);
             }
             if let CoreExprKind::Member {
                 object,

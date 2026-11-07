@@ -131,6 +131,9 @@ impl Builder<'_, '_> {
                 "a shared address cannot grant exclusive access",
             ));
         }
+        if let Type::Dyn { interface } = inner {
+            return self.dyn_coerce(address, &actual_inner, *interface, e.span);
+        }
         self.same(inner, &actual_inner, e.span)?;
         Ok((
             self.value(

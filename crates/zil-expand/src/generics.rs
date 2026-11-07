@@ -3059,8 +3059,24 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
             "()".into()
         }
-        TypeKind::Named { path, args } => {
-            let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
+        TypeKind::Named { path, args }
+        | TypeKind::Dyn {
+            path,
+            args,
+            bindings: _,
+        } => {
+            if matches!(&ty.kind, TypeKind::Dyn { bindings, .. } if !bindings.is_empty()) {
+                return Err(unsupported(
+                    ty.span,
+                    "dyn binding needs its canonical identity consumer",
+                ));
+            }
+            let prefix = if matches!(&ty.kind, TypeKind::Dyn { .. }) {
+                'D'
+            } else {
+                'N'
+            };
+            let mut key = format!("{prefix}{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
                     GenericArg::Lifetime(_) => {

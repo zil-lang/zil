@@ -929,12 +929,9 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
     budget.node(depth, span)?;
     tasks::require_closed_context(ty, span)?;
     match ty {
-        Type::Dyn { .. } => {
-            return Err(unsupported(
-                span,
-                "dyn type consumer is not yet implemented",
-            ));
-        }
+        // The concrete interface ID is checked against the complete inventory
+        // by the dyn admission pass after ordinary type resolution.
+        Type::Dyn { .. } => {}
         Type::BorrowedStorage { storage, life } => {
             for slot in &life.slots {
                 budget.node(depth + 1, span)?;
@@ -1228,15 +1225,6 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
-    if matches!(
-        e.kind,
-        CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. }
-    ) {
-        return Err(unsupported(
-            e.span,
-            "dyn expression consumer is not yet implemented",
-        ));
-    }
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(_)) => {
@@ -1250,13 +1238,16 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
         CoreExprKind::Closure { .. } => {
             expression_has_closure_closure(e, depth, budget, direct_type_callee)
         }
-        CoreExprKind::Unary { .. } | CoreExprKind::CompileTime(..) | CoreExprKind::Try(..) => {
+        CoreExprKind::MakeDynBorrow { .. }
+        | CoreExprKind::Unary { .. }
+        | CoreExprKind::CompileTime(..)
+        | CoreExprKind::Try(..) => {
             expression_has_closure_unary(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::Binary { .. } => {
             expression_has_closure_binary(e, depth, budget, direct_type_callee)
         }
-        CoreExprKind::Call { .. } => {
+        CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => {
             expression_has_closure_call(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::TypeApply { .. } => {
@@ -1370,7 +1361,10 @@ fn expression_has_closure_unary(
 ) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Unary { operand, .. }
+        CoreExprKind::MakeDynBorrow {
+            source: operand, ..
+        }
+        | CoreExprKind::Unary { operand, .. }
         | CoreExprKind::CompileTime(operand)
         | CoreExprKind::Try(operand) => {
             found |= expression_has_closure(operand, depth + 1, budget)?;
@@ -1405,7 +1399,10 @@ fn expression_has_closure_call(
 ) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Call { callee, arguments } => {
+        CoreExprKind::Call { callee, arguments }
+        | CoreExprKind::CallDynSlot {
+            callee, arguments, ..
+        } => {
             {
                 let previous = budget.direct_type_callee;
                 budget.direct_type_callee = true;
@@ -5594,15 +5591,15 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 }
 
-/// Initial39 boundary: nonempty new data must reach a real bounded consumer.
+/// Dyn inventory is consumed by the bounded admission pass after concrete
+/// signature resolution. An orphan raw table cannot enter inference.
 pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
-    if !core.dyn_declarations.is_empty()
-        || !core.dyn_interfaces.is_empty()
-        || !core.dyn_vtables.is_empty()
+    if core.dyn_interfaces.is_empty()
+        && (!core.dyn_declarations.is_empty() || !core.dyn_vtables.is_empty())
     {
         return Err(unsupported(
             Span::default(),
-            "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
+            "dyn declarations or tables have no interface consumer",
         ));
     }
     Ok(())
