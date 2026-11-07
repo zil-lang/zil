@@ -157,7 +157,17 @@ impl Engine<'_> {
                     &application,
                     &mut self.budget,
                 )?;
-                self.check_default(declaration, member, &reference, true)?;
+                let (_, selected) = self.check_default(declaration, member, &reference, true)?;
+                if selected.expression.is_some() || !selected.statements.is_empty() {
+                    self.budget.text(&reference.key.name, member.span)?;
+                    self.budget.text(&method.name, member.span)?;
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<((String, String), error_injection::Choices)>(),
+                        member.span,
+                    )?;
+                    self.default_error_arms
+                        .insert((reference.key.name.clone(), method.name.clone()), selected);
+                }
             }
         }
         Ok(())
@@ -169,7 +179,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<trait_instances::CallTargets> {
+    ) -> R<(trait_instances::CallTargets, error_injection::Choices)> {
         let (owner, _) = self.traits.declaration_item(reference);
         let origin = self.template_origin(owner)?;
         self.with_origin(origin, |engine| {
@@ -182,7 +192,7 @@ impl Engine<'_> {
         member: &Item,
         reference: &trait_instances::Reference,
         symbolic_arguments: bool,
-    ) -> R<trait_instances::CallTargets> {
+    ) -> R<(trait_instances::CallTargets, error_injection::Choices)> {
         self.budget.item(member)?;
         let ItemKind::Function(mut function) = member.kind.clone() else {
             return Err(error(member.span, "default body is not a method"));
@@ -261,7 +271,7 @@ impl Engine<'_> {
         let mut calls = trait_instances::Calls::new();
         let checked =
             consts::definition(&function, &mut self.budget, self.traits.has_instances, None)?;
-        check::validate_parametric_with_bounds(
+        let selected = check::validate_parametric_with_bounds(
             &checked,
             check::ParametricTables {
                 ct_types: None,
@@ -280,7 +290,7 @@ impl Engine<'_> {
             &mut calls,
             Some(bounds),
         )?;
-        Ok(calls.remove(&function.name).unwrap_or_default())
+        Ok((calls.remove(&function.name).unwrap_or_default(), selected))
     }
 
     fn check_default_reference_result(
@@ -434,8 +444,15 @@ impl Engine<'_> {
             }
             self.budget.substituted_item(member, &substitutions)?;
             let mut body = member.clone();
+            if let ItemKind::Function(function) = &mut body.kind
+                && let Some(selected) = self
+                    .default_error_arms
+                    .get(&(reference.key.name.clone(), method.name.clone()))
+            {
+                error_injection::apply(function, selected, &mut self.budget)?;
+            }
             substitute_item(&mut body, &substitutions)?;
-            let calls = self.check_default(declaration, &body, &reference, false)?;
+            let (calls, _) = self.check_default(declaration, &body, &reference, false)?;
             self.budget.text("Self", span)?;
             self.budget.ty(&implementation.target)?;
             substitutions.clear();

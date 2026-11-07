@@ -531,7 +531,7 @@ impl<'a> Engine<'a> {
                     source_ids,
                 )?;
                 let mut calls = trait_instances::Calls::new();
-                check::validate_parametric_with_bounds(
+                let selected = check::validate_parametric_with_bounds(
                     &checked,
                     check::ParametricTables {
                         ct_types: None,
@@ -555,6 +555,14 @@ impl<'a> Engine<'a> {
                         None => bounds.clone(),
                     }),
                 )?;
+                if selected.expression.is_some() || !selected.statements.is_empty() {
+                    self.budget.node(member.span, 0)?;
+                    self.budget.lineage_bytes(
+                        std::mem::size_of::<((usize, usize), error_injection::Choices)>(),
+                        member.span,
+                    )?;
+                    self.impl_error_arms.insert((recipe, ordinal), selected);
+                }
                 if let Some(calls) = calls.remove(&function.name) {
                     self.budget.node(member.span, 0)?;
                     self.impl_calls.insert((recipe, ordinal), calls);
@@ -724,6 +732,14 @@ impl<'a> Engine<'a> {
                     &witness.substitutions,
                     &mut self.budget,
                 )?;
+            }
+            if let ItemKind::Function(function) = &mut member.kind
+                && let Some(selected) = self.impl_error_arms.get(&(witness.recipe, ordinal))
+            {
+                let moved = error_injection::apply(function, selected, &mut self.budget)?;
+                if let Some(anchors) = anchors.as_mut() {
+                    anchors.relocate(&moved, &mut self.budget, member.span)?;
+                }
             }
             self.budget.substituted_item(member, &self_substitution)?;
             substitute_item(member, &self_substitution)?;

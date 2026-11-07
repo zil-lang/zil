@@ -35,9 +35,12 @@ pub(super) fn statement_ids(
         budget,
         ids: BTreeMap::new(),
     };
-    if let FunctionBody::Block(block) = body {
-        visitor.block(block, 0).map_err(|mut e| e.remove(0))?;
+    match body {
+        FunctionBody::Block(block) => visitor.block(block, 0),
+        FunctionBody::Expression(value) => visitor.expression(value, 0),
+        FunctionBody::Declaration => Ok(()),
     }
+    .map_err(|mut e| e.remove(0))?;
     Ok(visitor.ids)
 }
 
@@ -225,10 +228,13 @@ fn rewrite_statement(
         }
     }
     match &mut statement.kind {
-        StmtKind::Binding { value, .. }
-        | StmtKind::Return(Some(value))
-        | StmtKind::Expression(value)
-        | StmtKind::Yield(value) => {
+        StmtKind::Binding { ty, value, .. } => {
+            if let Some(ty) = ty {
+                rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
+            }
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
+        }
+        StmtKind::Return(Some(value)) | StmtKind::Expression(value) | StmtKind::Yield(value) => {
             rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
         }
         StmtKind::Assign { target, value, .. } => {
@@ -345,6 +351,10 @@ fn rewrite_expr(
     moved_sites: &mut BTreeMap<usize, usize>,
 ) -> R<()> {
     match &mut value.kind {
+        ExprKind::Ascribed { ty, value } => {
+            rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
+        }
         ExprKind::Group(inner)
         | ExprKind::Try(inner)
         | ExprKind::MetaEval(inner)
@@ -365,15 +375,16 @@ fn rewrite_expr(
             rewrite_expr(left, choices, return_pair, next, budget, moved_sites)?;
             rewrite_expr(right, choices, return_pair, next, budget, moved_sites)?;
         }
-        ExprKind::Member { object, .. } => {
-            rewrite_expr(object, choices, return_pair, next, budget, moved_sites)?
+        ExprKind::Member { object, member } => {
+            rewrite_expr(object, choices, return_pair, next, budget, moved_sites)?;
+            if let MemberName::Constrained { owner, .. } = member {
+                rewrite_type(owner, choices, return_pair, next, budget, moved_sites)?;
+            }
         }
         ExprKind::TypeApply { callee, arguments } => {
             rewrite_expr(callee, choices, return_pair, next, budget, moved_sites)?;
             for argument in arguments {
-                if let GenericArg::Const(value) = argument {
-                    rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
-                }
+                rewrite_arg(argument, choices, return_pair, next, budget, moved_sites)?;
             }
         }
         ExprKind::Call { callee, arguments } => {
@@ -409,7 +420,20 @@ fn rewrite_expr(
                 }
             }
         }
-        ExprKind::Closure { body, .. } => {
+        ExprKind::Closure {
+            params,
+            return_type,
+            body,
+            ..
+        } => {
+            for param in params {
+                if let Some(ty) = &mut param.ty {
+                    rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
+                }
+            }
+            if let Some(ty) = return_type {
+                rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
+            }
             rewrite_arrow(body, choices, return_pair, next, budget, moved_sites)?
         }
         ExprKind::If {
@@ -439,4 +463,164 @@ fn rewrite_expr(
         _ => {}
     }
     Ok(())
+}
+
+fn rewrite_arg(
+    argument: &mut GenericArg,
+    choices: &Choices,
+    return_pair: &Option<(TypeRef, TypeRef)>,
+    next: &mut usize,
+    budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
+) -> R<()> {
+    match argument {
+        GenericArg::Type(ty) => rewrite_type(ty, choices, return_pair, next, budget, moved_sites),
+        GenericArg::Const(value) => {
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)
+        }
+        GenericArg::Lifetime(_) => Ok(()),
+    }
+}
+
+fn rewrite_type(
+    ty: &mut TypeRef,
+    choices: &Choices,
+    return_pair: &Option<(TypeRef, TypeRef)>,
+    next: &mut usize,
+    budget: &mut Budget<'_>,
+    moved_sites: &mut BTreeMap<usize, usize>,
+) -> R<()> {
+    if let TypeKind::Dyn { bindings, .. } = &mut ty.kind {
+        for binding in bindings {
+            match &mut binding.kind {
+                DynBindingKind::Type { value, .. } => {
+                    rewrite_type(value, choices, return_pair, next, budget, moved_sites)?
+                }
+                DynBindingKind::Constant { ty, value, .. } => {
+                    rewrite_type(ty, choices, return_pair, next, budget, moved_sites)?;
+                    rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
+                }
+                DynBindingKind::Method { arguments, .. } => {
+                    for argument in arguments {
+                        rewrite_arg(argument, choices, return_pair, next, budget, moved_sites)?;
+                    }
+                }
+            }
+        }
+    }
+    match &mut ty.kind {
+        TypeKind::Named { args, .. } | TypeKind::Dyn { args, .. } => {
+            for argument in args {
+                rewrite_arg(argument, choices, return_pair, next, budget, moved_sites)?;
+            }
+        }
+        TypeKind::Reference { inner, .. }
+        | TypeKind::Group(inner)
+        | TypeKind::Optional(inner)
+        | TypeKind::ForLifetime { inner, .. } => {
+            rewrite_type(inner, choices, return_pair, next, budget, moved_sites)?;
+        }
+        TypeKind::Tuple(items) | TypeKind::Union(items) | TypeKind::Impl(items) => {
+            for item in items {
+                rewrite_type(item, choices, return_pair, next, budget, moved_sites)?;
+            }
+        }
+        TypeKind::Array { element, length } => {
+            rewrite_type(element, choices, return_pair, next, budget, moved_sites)?;
+            if let Some(length) = length {
+                rewrite_expr(length, choices, return_pair, next, budget, moved_sites)?;
+            }
+        }
+        TypeKind::Function { params, result }
+        | TypeKind::ForeignFunction { params, result, .. } => {
+            for param in params {
+                rewrite_type(param, choices, return_pair, next, budget, moved_sites)?;
+            }
+            rewrite_type(result, choices, return_pair, next, budget, moved_sites)?;
+        }
+        TypeKind::Error { error, result } => {
+            rewrite_type(error, choices, return_pair, next, budget, moved_sites)?;
+            rewrite_type(result, choices, return_pair, next, budget, moved_sites)?;
+        }
+        TypeKind::MetaEval(value) | TypeKind::MetaSplice(value) => {
+            rewrite_expr(value, choices, return_pair, next, budget, moved_sites)?;
+        }
+        TypeKind::MetaBlock(block) => {
+            rewrite_block(block, choices, return_pair, next, budget, moved_sites)?
+        }
+    }
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use zil_base::{FileId, ModuleId, SourceUnit};
+
+    #[test]
+    fn generated_ascription_and_type_meta_sites_precede_selected_return() {
+        let input = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "generated-ascription.zil",
+            "fn choose<E:Copy,T:Copy>(value:T)->E!T{let marker=()=>{let n=1;return n};return value}",
+        );
+        let mut syntax = zil_syntax::parse(&input).into_result().unwrap();
+        let ItemKind::Function(function) = &mut syntax.items[0].kind else {
+            unreachable!()
+        };
+        let FunctionBody::Block(body) = &mut function.body else {
+            unreachable!()
+        };
+        let StmtKind::Binding { value, .. } = &mut body.statements[0].kind else {
+            unreachable!()
+        };
+        let span = value.span;
+        let nested = Stmt {
+            kind: StmtKind::Expression(Expr {
+                kind: ExprKind::Literal(Literal::Integer("0".into())),
+                span,
+            }),
+            span,
+        };
+        let closure = value.clone();
+        value.kind = ExprKind::Ascribed {
+            ty: TypeRef {
+                kind: TypeKind::MetaBlock(Block {
+                    statements: vec![nested],
+                    span,
+                }),
+                span,
+            },
+            value: Box::new(closure),
+        };
+        let return_site = &body.statements[1];
+        let return_pointer = return_site as *const Stmt as usize;
+        let return_span = return_site.span;
+        let limits = Limits::default();
+        let mut budget = Budget::new(&limits);
+        let ids = statement_ids(&function.body, &mut budget).unwrap();
+        let ordinal = ids[&return_pointer];
+        assert_eq!(
+            ordinal, 4,
+            "type meta and ascribed closure bodies are real earlier sites"
+        );
+        let mut choices = Choices::default();
+        choices.statements.insert(ordinal, (return_span, false));
+        apply(function, &choices, &mut budget).unwrap();
+        let FunctionBody::Block(body) = &function.body else {
+            unreachable!()
+        };
+        let StmtKind::Return(Some(Expr {
+            kind: ExprKind::Call { callee, .. },
+            ..
+        })) = &body.statements[1].kind
+        else {
+            panic!("selected return was not rewritten")
+        };
+        let ExprKind::TypeApply { callee, .. } = &callee.kind else {
+            unreachable!()
+        };
+        assert!(matches!(&callee.kind, ExprKind::Name(name) if name == "error_ok"));
+    }
 }
