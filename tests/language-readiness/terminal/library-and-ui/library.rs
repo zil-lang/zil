@@ -441,6 +441,40 @@ fn ordinary_string_unicode_encoding_and_owner_edits_are_native() {
                 "{backend:?}/{optimization:?}: {out:?}"
             );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
+
+            let scalar_dir =
+                directory(&format!("string-scalar-index-{backend:?}-{optimization:?}"));
+            fs::write(
+                scalar_dir.join("main.zil"),
+                include_str!("string_scalar_index.zil"),
+            )
+            .unwrap();
+            let scalar_report = CompilationSession::default().compile_path(
+                &scalar_dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(scalar_dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                scalar_report.status,
+                ResultCategory::Success,
+                "{}",
+                scalar_report.to_json()
+            );
+            assert_eq!(scalar_report.verification_runs, 1);
+            let scalar_out = Command::new(&scalar_report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                scalar_out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {scalar_out:?}"
+            );
+            assert!(scalar_out.stdout.is_empty() && scalar_out.stderr.is_empty());
         }
     }
 }
