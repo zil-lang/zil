@@ -239,8 +239,7 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
     let mut seen = BTreeSet::new();
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeMap::new();
-    let mut read_values = BTreeSet::new();
-    let mut saw_read = false;
+    let mut value_results = BTreeSet::new();
     let mut saw_return = false;
     while let Some(id) = queue.pop_front() {
         budget.lookup(seen.len(), WORK)?;
@@ -305,8 +304,18 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
                     if value(f, result, budget)? != field_values.get(address).unwrap() {
                         return Err(bad("dyn field read result differs from actual field"));
                     }
-                    read_values.insert(result);
-                    saw_read = true;
+                    value_results.insert(result);
+                }
+                InstructionKind::Constant(constant) if scalar(&constant.ty()) => {
+                    // A body need not exercise the slot's shared Read upper
+                    // bound. A literal proves an empty actual access set.
+                    let result = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn scalar literal lacks result"))?;
+                    if value(f, result, budget)? != &constant.ty() {
+                        return Err(bad("dyn scalar literal actual type differs"));
+                    }
+                    value_results.insert(result);
                 }
                 InstructionKind::ScopeEnter { .. }
                 | InstructionKind::ScopeExit { .. }
@@ -321,9 +330,7 @@ fn body(f: &TypedFunction, receiver: &Type, budget: &mut Budget) -> CompileResul
         }
         match &block.terminator {
             Terminator::Return(Some(result))
-                if read_values.contains(result)
-                    && scalar(value(f, *result, budget)?)
-                    && saw_read =>
+                if value_results.contains(result) && scalar(value(f, *result, budget)?) =>
             {
                 saw_return = true
             }
@@ -836,6 +843,28 @@ mod tests {
         assert!(admitted(&m).is_err());
         let mut m = fixture();
         m.dyn_interfaces[0].slots[0].contract.effects = None;
+        assert!(admitted(&m).is_err());
+    }
+
+    #[test]
+    fn literal_body_has_empty_actual_access_but_unknown_call_and_wrong_slot_fail() {
+        let mut m = fixture();
+        m.functions[0].blocks[0].instructions =
+            vec![inst(Some(2), InstructionKind::Constant(Constant::I32(17)))];
+        admitted(&m).unwrap();
+        m.functions[0].blocks[0].instructions.insert(
+            0,
+            inst(
+                None,
+                InstructionKind::Call {
+                    function: FunctionId(0),
+                    arguments: vec![],
+                },
+            ),
+        );
+        assert!(admitted(&m).is_err());
+        let mut m = fixture();
+        m.dyn_vtables[0].entries[0].slot = 1;
         assert!(admitted(&m).is_err());
     }
 
