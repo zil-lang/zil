@@ -328,18 +328,41 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             if function.id != entry.function {
                 return Err(bad("dyn entry function identity differs", None));
             }
-            entry_body(function, &item.self_type, &iface.slots[ordinal], budget)?;
+            entry_body(
+                module,
+                function,
+                &item.self_type,
+                &iface.slots[ordinal],
+                budget,
+                &mut BTreeSet::new(),
+                0,
+            )?;
         }
     }
     Ok(())
 }
 
 fn entry_body(
+    module: &TypedModule,
     function: &TypedFunction,
     self_type: &Type,
     slot: &DynSlot,
     budget: &mut Budget,
+    active: &mut BTreeSet<FunctionId>,
+    depth: usize,
 ) -> Check<()> {
+    if depth > budget.limits.max_call_depth {
+        return Err(limit(
+            "dyn direct provider chain exceeds verification depth",
+        ));
+    }
+    budget.spend(active.len().saturating_add(1))?;
+    if !active.insert(function.id) {
+        return Err(bad(
+            "recursive dyn provider chain has unknown effects",
+            Some(function.span),
+        ));
+    }
     budget.spend(
         function
             .parameters
@@ -392,6 +415,7 @@ fn entry_body(
     };
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeSet::new();
+    let mut direct_result = None;
     for block in &function.blocks {
         budget.spend(block.instructions.len().saturating_add(1))?;
         for instruction in &block.instructions {
@@ -423,6 +447,35 @@ fn entry_body(
                             Some(instruction.span),
                         ));
                     }
+                }
+                InstructionKind::Call {
+                    function: target,
+                    arguments,
+                } => {
+                    if direct_result.is_some()
+                        || !slot.parameters.is_empty()
+                        || arguments.len() != 1
+                        || !receiver_values.contains(&arguments[0])
+                        || instruction.result.is_none()
+                        || slot.result == Type::Unit
+                    {
+                        return Err(bad(
+                            "dyn default wrapper does not pass its exact receiver once",
+                            Some(instruction.span),
+                        ));
+                    }
+                    let callee = module
+                        .functions
+                        .get(target.0 as usize)
+                        .filter(|callee| callee.id == *target)
+                        .ok_or_else(|| {
+                            bad(
+                                "dyn default target FunctionId is absent",
+                                Some(instruction.span),
+                            )
+                        })?;
+                    entry_body(module, callee, self_type, slot, budget, active, depth + 1)?;
+                    direct_result = instruction.result;
                 }
                 InstructionKind::Constant(_)
                 | InstructionKind::ScopeEnter { .. }
@@ -470,7 +523,16 @@ fn entry_body(
                 Some(function.span),
             ));
         }
+        if let Some(result) = direct_result
+            && !matches!(block.terminator, Terminator::Return(Some(value)) if value == result)
+        {
+            return Err(bad(
+                "dyn default wrapper return differs from its checked target",
+                Some(function.span),
+            ));
+        }
     }
+    active.remove(&function.id);
     Ok(())
 }
 

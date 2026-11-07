@@ -400,6 +400,64 @@ fn accepts_real_shared_receiver_body_and_constant_upper_bound() {
 }
 
 #[test]
+fn follows_actual_default_wrapper_to_finite_literal_target() {
+    let mut module = fixture();
+    let mut hidden = module.functions[1].clone();
+    hidden.id = FunctionId(2);
+    hidden.name = "literal_default".into();
+    hidden.values = vec![Type::I32];
+    hidden.blocks[0].instructions = vec![Instruction {
+        result: Some(ValueId(0)),
+        kind: InstructionKind::Constant(Constant::I32(9)),
+        span: span(),
+    }];
+    hidden.blocks[0].terminator = Terminator::Return(Some(ValueId(0)));
+    module.functions.push(hidden);
+    let receiver = module.functions[1].locals[0].ty.clone();
+    module.functions[1].values = vec![receiver, Type::I32];
+    module.functions[1].blocks[0].instructions = vec![
+        Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::Load(LocalId(0)),
+            span: span(),
+        },
+        Instruction {
+            result: Some(ValueId(1)),
+            kind: InstructionKind::Call {
+                function: FunctionId(2),
+                arguments: vec![ValueId(0)],
+            },
+            span: span(),
+        },
+        Instruction {
+            result: None,
+            kind: InstructionKind::StorageDead(LocalId(0)),
+            span: span(),
+        },
+    ];
+    module.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    check(&module).unwrap();
+    module.functions[2].values = vec![module.functions[2].locals[0].ty.clone(), Type::I32];
+    module.functions[2].blocks[0].instructions = vec![
+        Instruction {
+            result: Some(ValueId(0)),
+            kind: InstructionKind::Load(LocalId(0)),
+            span: span(),
+        },
+        Instruction {
+            result: Some(ValueId(1)),
+            kind: InstructionKind::Call {
+                function: FunctionId(1),
+                arguments: vec![ValueId(0)],
+            },
+            span: span(),
+        },
+    ];
+    module.functions[2].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+    assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+}
+
+#[test]
 fn rejects_same_layout_wrong_self_and_unknown_effects() {
     let mut module = fixture();
     module.dyn_vtables[0].self_type = Type::Record {
@@ -410,6 +468,62 @@ fn rejects_same_layout_wrong_self_and_unknown_effects() {
     let mut module = fixture();
     module.dyn_interfaces[0].slots[0].contract.effects = None;
     assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+}
+
+#[test]
+fn rejects_wrong_entry_body_interface_and_call_slot() {
+    let mut module = fixture();
+    module.functions[1].blocks[0].instructions[2].kind = InstructionKind::WriteAddress {
+        address: ValueId(1),
+        value: ValueId(2),
+    };
+    assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+    let mut module = fixture();
+    module.dyn_vtables[0].interface.index = 1;
+    assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+    let (mut module, mut plan) = call_candidate();
+    let last = module.functions[0].blocks[0]
+        .instructions
+        .last_mut()
+        .unwrap();
+    let InstructionKind::CallDynSlot { slot, .. } = &mut last.kind else {
+        unreachable!()
+    };
+    *slot = 1;
+    plan.module_fingerprint = module.fingerprint();
+    assert_eq!(
+        verify_module(
+            module,
+            plan,
+            &TargetProfile::host_llvm(),
+            &Limits::default()
+        )
+        .unwrap_err()[0]
+            .code,
+        "E-VERIFY-DYN"
+    );
+}
+
+#[test]
+fn rejects_dyn_make_from_unrelated_scalar_operand() {
+    let (mut module, mut plan) = call_candidate();
+    let make = &mut module.functions[0].blocks[0].instructions[4];
+    let InstructionKind::MakeDynBorrow { source, .. } = &mut make.kind else {
+        unreachable!()
+    };
+    *source = ValueId(0);
+    plan.module_fingerprint = module.fingerprint();
+    assert_eq!(
+        verify_module(
+            module,
+            plan,
+            &TargetProfile::host_llvm(),
+            &Limits::default()
+        )
+        .unwrap_err()[0]
+            .code,
+        "E-VERIFY-DYN"
+    );
 }
 
 #[test]
