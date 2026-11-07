@@ -777,6 +777,39 @@ fn ordinary_unicode_string_map_insert_lookup_and_remove_are_native() {
                 "{backend:?}/{optimization:?}: {out:?}"
             );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
+
+            let indexed = directory(&format!("string-map-index-{backend:?}-{optimization:?}"));
+            fs::write(
+                indexed.join("main.zil"),
+                include_str!("string_map_index.zil"),
+            )
+            .unwrap();
+            let index_report = CompilationSession::default().compile_path(
+                &indexed.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(indexed.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                index_report.status,
+                ResultCategory::Success,
+                "{}",
+                index_report.to_json()
+            );
+            assert_eq!(index_report.verification_runs, 1);
+            let index_out = Command::new(&index_report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                index_out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {index_out:?}"
+            );
+            assert!(index_out.stdout.is_empty() && index_out.stderr.is_empty());
         }
     }
 }
