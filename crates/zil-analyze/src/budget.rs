@@ -786,6 +786,19 @@ pub(super) fn preflight(
                         ..SumContext::default()
                     };
                 }
+                Type::Address { inner, .. }
+                    if depth == 0
+                        && matches!(inner.as_ref(), Type::Package { .. })
+                        && store_element.is_none()
+                        && capture_owner.is_none()
+                        && !resource_head =>
+                {
+                    // A concrete borrowed Package receiver still contains its
+                    // actual owning fields. The address itself grants no Store
+                    // ownership; field admission and live-loan checks run on
+                    // the complete underlying Package and its real source.
+                    child = SumContext::default();
+                }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
                 | Type::Address { .. }
