@@ -828,6 +828,25 @@ fn bind_lir(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
+        let captures_supported = closure.captures.iter().try_fold(true, |all, ty| {
+            Ok::<_, Vec<Diagnostic>>(all
+                && (ty.is_copy_value()
+                    || matches!(ty, Type::Closure(_))
+                    || ty.is_shared_sync_cell_address()
+                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
+                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                    || sum_capture_address(ty)
+                    || ty.is_package_address()
+                    || (resources::supported_type(ty, lir.resources)
+                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
+                    || packages::supported_capture_type(ty, lir.resources)
+                    || inline_store_sum_capture(
+                        ty,
+                        lir.resources,
+                        verified.limits(),
+                        remaining_work,
+                    )?))
+        })?;
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
@@ -836,23 +855,7 @@ fn bind_lir(
                 && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
                 && matches!(&closure.result, Type::Address { inner, mutable: false }
                     if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
-            || !closure.captures.iter().all(|ty| {
-                ty.is_copy_value()
-                    || matches!(ty, Type::Closure(_))
-                    || ty.is_shared_sync_cell_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
-            || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-                    || sum_capture_address(ty)
-                    // The exact capability/LIR comparison above already binds
-                    // origin admission; use the existing pointer field layout.
-                    || ty.is_package_address()
-                    // The exact VerifiedModule binding above carries the
-                    // independently checked owning Store capture contract.
-                    // Borrowed descriptions do not gain an owning ABI here.
-                    || (resources::supported_type(ty, lir.resources)
-                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || packages::supported_capture_type(ty, lir.resources)
-            })
+            || !captures_supported
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
@@ -3538,6 +3541,127 @@ fn aggregate_field_type(ty: &Type) -> CompileResult<m::Ty> {
 fn sum_capture_address(ty: &Type) -> bool {
     matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
 }
+
+/// Admit a complete direct owning Sum only when its actual finite tree contains
+/// an inline Store owner bound to the sealed resource definition. This is a
+/// machine representation check after exact VerifiedModule/LIR binding; the
+/// independent capture and debt checks remain with Verify.
+fn inline_store_sum_capture(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    work: &mut usize,
+) -> CompileResult<bool> {
+    if !drop_plan::owned_sum(ty) {
+        return Ok(false);
+    }
+    // This branch is reached only after all older capture profiles failed.
+    // Reserve the full source tree, repeated resource comparisons, name work,
+    // and machine layout before either recursive predicate runs.
+    let before = *work;
+    copy_aggregates::reserve_enum_metadata(ty, work, 0, limits)?;
+    let shape = before - *work;
+    let mut definitions = 0usize;
+    for resource in resources {
+        let before = *work;
+        copy_aggregates::reserve_enum_metadata(&resource.payload, work, 0, limits)?;
+        definitions = definitions.saturating_add(before - *work);
+        definitions = definitions.saturating_add(resource.name.len().saturating_add(1));
+    }
+    let fee = shape
+        .saturating_add(definitions)
+        .saturating_mul(shape.saturating_add(4))
+        .saturating_add(64);
+    *work = work.checked_sub(fee).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "inline Store Sum capture representation budget exceeded",
+            None,
+        )]
+    })?;
+
+    fn complete(ty: &Type, resources: &[ResourceDefinition]) -> (bool, bool) {
+        match ty {
+            Type::Managed(payload) => {
+                if let Type::OwnedStore { element } = payload.as_ref() {
+                    let element_name = match element.as_ref() {
+                        Type::Record { name, .. } => name.as_str(),
+                        Type::Bool => "bool",
+                        Type::U8 => "u8",
+                        Type::U16 => "u16",
+                        Type::I32 => "i32",
+                        Type::I64 => "i64",
+                        Type::U64 => "u64",
+                        Type::Usize => "usize",
+                        Type::F32 => "f32",
+                        Type::F64 => "f64",
+                        _ => return (false, true),
+                    };
+                    let canonical = format!("@builtin:OwnedStore<{element_name}>");
+                    return (
+                        dynamic_store::inline_protocol_element(element)
+                            && resources.iter().any(|r| {
+                                r.name == canonical
+                                    && r.payload == **payload
+                                    && r.teardown.is_none()
+                            }),
+                        true,
+                    );
+                }
+                (
+                    !matches!(
+                        payload.as_ref(),
+                        Type::Registration { .. } | Type::AsyncRegistration { .. }
+                    ) && resources::supported_type(ty, resources),
+                    false,
+                )
+            }
+            Type::Package { fields, .. } => fields.iter().fold((true, false), |acc, (_, field)| {
+                let child = complete(field, resources);
+                (acc.0 && child.0, acc.1 || child.1)
+            }),
+            Type::Tuple(fields) => fields.iter().fold((true, false), |acc, field| {
+                let child = complete(field, resources);
+                (acc.0 && child.0, acc.1 || child.1)
+            }),
+            Type::Enum { variants, .. } => {
+                variants
+                    .iter()
+                    .flat_map(|(_, fields)| fields)
+                    .fold((true, false), |acc, field| {
+                        let child = complete(field, resources);
+                        (acc.0 && child.0, acc.1 || child.1)
+                    })
+            }
+            Type::ErrorUnion { error, result } => {
+                let left = complete(error, resources);
+                let right = complete(result, resources);
+                (left.0 && right.0, left.1 || right.1)
+            }
+            // A borrowed description, Array, Record, dyn, callback container,
+            // or other opaque owner never acquires the direct Sum ABI.
+            Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64 => (true, false),
+            _ => (false, false),
+        }
+    }
+    let (valid, owns_store) = complete(ty, resources);
+    if valid && owns_store {
+        // The concrete closure field uses this same LLVM type. Rebuild and
+        // bound its physical layout here, including Enum active-payload space.
+        let machine = llvm_type(ty)?;
+        let _ = copy_aggregates::layout(&machine)?;
+    }
+    Ok(valid && owns_store)
+}
 fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
     match ty {
         Type::Unit => Ok("i8".into()),
@@ -3551,7 +3675,8 @@ fn capture_type(ty: &Type) -> CompileResult<m::Ty> {
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.is_copy_value())
             || matches!(ty, Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
             || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
-            || matches!(ty, Type::Package { .. }) =>
+            || matches!(ty, Type::Package { .. })
+            || drop_plan::owned_sum(ty) =>
         {
             llvm_type(ty)
         }
@@ -3648,6 +3773,7 @@ fn alignment(ty: &Type, closures: &BTreeMap<ClosureId, &ClosureDefinition>) -> C
                     && !matches!(field,Type::Managed(payload) | Type::Desc(payload) if payload.as_ref() == &Type::ByteBuffer)
                     && !matches!(field, Type::Managed(payload) if matches!(payload.as_ref(), Type::OwnedStore { .. }))
                     && !matches!(field, Type::Package { .. })
+                    && !drop_plan::owned_sum(field)
                 {
                     return unsupported("unsupported closure field alignment", None);
                 }
