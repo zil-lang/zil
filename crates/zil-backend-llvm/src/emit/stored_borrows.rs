@@ -68,6 +68,9 @@ fn type_work(t: &Type, work: &mut usize, limits: &Limits, depth: usize) -> Compi
         return Err(exhausted());
     }
     match t {
+        Type::Mutex { payload } | Type::MutexGuard { payload, .. } => {
+            type_work(payload, work, limits, depth + 1)?;
+        }
         Type::BorrowedStorage { storage, life } => {
             shape(life, work)?;
             type_work(storage, work, limits, depth + 1)?;

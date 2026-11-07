@@ -257,6 +257,13 @@ impl<C: FnMut(usize) -> CompileResult<()>> CtLayoutPreflight<'_, C> {
     fn ty(&mut self, ty: &Type, depth: usize, slice_pointee: bool) -> CompileResult<()> {
         self.node(depth)?;
         match ty {
+            Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Ct,
+                    "mutex CT layout is not implemented",
+                    None,
+                )]);
+            }
             Type::AsyncRegistration { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Ct,

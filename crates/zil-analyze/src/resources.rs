@@ -514,6 +514,12 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
 }
 pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_ {
     let (a, b, rest): (Option<ValueId>, Option<ValueId>, &[ValueId]) = match kind {
+        InstructionKind::MutexCreate { value } => (Some(*value), None, &[]),
+        InstructionKind::MutexLock { mutex } => (Some(*mutex), None, &[]),
+        InstructionKind::MutexValue { guard } | InstructionKind::MutexUnlock { guard } => {
+            (Some(*guard), None, &[])
+        }
+        InstructionKind::DropMutexGuard { .. } => (None, None, &[]),
         InstructionKind::AsyncRegistrationStart { callback, .. } => (Some(*callback), None, &[]),
         InstructionKind::AsyncRegistrationValid { registration }
         | InstructionKind::AsyncRegistrationRequestClose { registration }

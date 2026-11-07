@@ -207,6 +207,9 @@ impl Builder<'_> {
             | Type::Task { .. }
             | Type::TaskI32
             | Type::SyncCell(_) => Err(reject("type has no completed CT shape")),
+            Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                Err(reject("mutex type has no CT shape"))
+            }
         }
     }
 }

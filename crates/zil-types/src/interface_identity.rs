@@ -93,6 +93,16 @@ pub(super) fn encode(
                             SyncCellKind::AtomicI32 => 1,
                         },
                     ]),
+                    Type::Mutex { payload: inner } | Type::MutexGuard { payload: inner, .. } => {
+                        fee(left, 64)?;
+                        bytes.push(if matches!(ty, Type::Mutex { .. }) {
+                            38
+                        } else {
+                            39
+                        });
+                        bytes.extend_from_slice(&ty.fingerprint().0);
+                        pending.push(Event::Type(inner, child_depth));
+                    }
                     Type::AsyncRegistration { environment: inner }
                     | Type::Registration { environment: inner }
                     | Type::OwnedStore { element: inner }

@@ -781,6 +781,13 @@ pub(crate) fn member_owner_type_cost(
     fn core_shape(v: &mut dyn Visitor, ty: &Type, span: Span, depth: usize) -> CompileResult<()> {
         v.node(span, depth)?;
         match ty {
+            Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                return Err(vec![Diagnostic::unsupported(
+                    Phase::Expand,
+                    "mutex CT selection is not implemented",
+                    Some(span),
+                )]);
+            }
             Type::Dyn { .. } => {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Expand,

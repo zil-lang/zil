@@ -782,6 +782,12 @@ pub(super) fn reserve_function(
             )]);
         }
         match t {
+            Type::Mutex { .. } | Type::MutexGuard { .. } => {
+                return unsupported(
+                    "mutex registration environment requires a complete cleanup contract",
+                    None,
+                );
+            }
             Type::AsyncRegistration { .. } => {
                 return unsupported(
                     "pollable registration environment consumer is not implemented",

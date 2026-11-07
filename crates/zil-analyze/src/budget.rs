@@ -336,6 +336,9 @@ impl Budget {
             Type::TaskI32 => {
                 self.tasks = true;
             }
+            Type::Mutex { payload } | Type::MutexGuard { payload, .. } => {
+                self.type_work(payload, copy_check, context)?;
+            }
             Type::ByteBuffer
             | Type::SyncCell(_)
             | Type::Unit
