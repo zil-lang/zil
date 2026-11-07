@@ -488,6 +488,47 @@ fn ordinary_string_search_and_store_composition_are_native() {
 }
 
 #[test]
+fn ordinary_signed_decimal_boundaries_are_native() {
+    let input = include_str!("int.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("signed-decimal-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
 fn ordinary_utf8_stream_search_is_native() {
     use std::{io::Write, process::Stdio};
     let input = include_str!("text_stream.zil");
