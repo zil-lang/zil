@@ -1705,7 +1705,9 @@ pub(super) fn check(
                 _ => {}
             }
             local_transfer(&mut locals, instruction, &flow.values, budget)?;
-            super::port_facts::owner_transfer(f, instruction, &mut retained_owners, budget)?;
+            if budget.borrowed_task_ports {
+                super::port_facts::owner_transfer(f, instruction, &mut retained_owners, budget)?;
+            }
             if let Some(capture) = capture {
                 captures::local_transfer(
                     &mut capture_locals,
