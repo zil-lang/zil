@@ -589,13 +589,10 @@ impl Index<'_> {
                         "impl associated type requires an equation",
                     ));
                 }
-                if !alias.generics.is_empty()
-                    || !alias.bounds.is_empty()
-                    || !member.attributes.is_empty()
-                {
+                if !alias.generics.is_empty() || !member.attributes.is_empty() {
                     return Err(unsupported(
                         member.span,
-                        "generic, bounded or attributed impl associated type",
+                        "generic or attributed impl associated type",
                     ));
                 }
             }

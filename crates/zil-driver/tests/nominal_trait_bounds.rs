@@ -778,6 +778,91 @@ fn owned_replacement_associated_types_remain_bound_supported_in_unused_definitio
 }
 
 #[test]
+fn impl_associated_bounds_are_proved_at_definition_and_relay_across_modules() {
+    let main = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-bounds/project/main.zil"
+    );
+    let api = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-bounds/project/api.zil"
+    );
+    let provider = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-bounds/project/provider.zil"
+    );
+    let consumer = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-bounds/project/consumer.zil"
+    );
+    let files = [
+        ("main", main),
+        ("api", api),
+        ("provider", provider),
+        ("consumer", consumer),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert!(report.verification_runs >= 1, "{}", report.to_json());
+    native_both(&files);
+
+    // Number satisfies Marker at the only concrete call, but the recipe's T
+    // cannot use that later instance as evidence for its own equation.
+    for (label, invalid, diagnostic) in [
+        (
+            "unproved symbolic bound",
+            provider.replace("T:Copy+api.Marker<T>", "T:Copy"),
+            "nominal obligation is not among the declared bounds",
+        ),
+        (
+            "wrong nominal provider",
+            provider.replace("T:Copy+api.Marker<T>", "T:Copy+api.Marker<i32>"),
+            "nominal obligation is not among the declared bounds",
+        ),
+        (
+            "active equation cycle",
+            provider.replace(
+                "type Item:api.Marker<T>=T",
+                "type Item:api.Marker<T>=Self.Item",
+            ),
+            "active associated type equation cycle",
+        ),
+        (
+            "overlapping implementation head",
+            format!(
+                "{provider}\nimpl<T:Copy+api.Marker<T>> api.Read<i32> for Box<T>{{type Item=T;fn read()->T{{return .value}}}}"
+            ),
+            "overlapping nominal implementation heads",
+        ),
+    ] {
+        assert_ne!(invalid, provider, "{label}");
+        let altered = [
+            ("main", "fn main(){}"),
+            ("api", api),
+            ("provider", invalid.as_str()),
+            ("consumer", consumer),
+        ];
+        let report = compile_project(&project(&altered), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{label}: {}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{label}: {}", report.to_json());
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|d| d.code == "E-GENERIC-ARGUMENT" && d.message.contains(diagnostic)),
+            "{label}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
 fn owned_replacement_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!(
