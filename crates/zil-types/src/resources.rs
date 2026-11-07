@@ -98,11 +98,11 @@ impl Builder<'_, '_> {
     }
     pub(super) fn resource_give(&mut self, operand: &CoreExpr, span: Span) -> R<(ValueId, Type)> {
         if let Some((local, index, ty)) = self.package_place(operand)? {
-            if !matches!(ty, Type::Managed(_)) {
+            if !matches!(ty, Type::Managed(_)) && !packages::product::owned_supported(&ty) {
                 return Err(error(
                     "E-GIVE-TYPE",
                     span,
-                    "give requires a Managed package field",
+                    "give requires an actual complete owning package field",
                 ));
             }
             return Ok((

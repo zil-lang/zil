@@ -348,6 +348,33 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
     Ok(ty)
 }
 
+fn take_package_field_slots(
+    holder: &mut Value,
+    index: u32,
+    b: &mut Budget,
+) -> CompileResult<BTreeMap<Path, Permission>> {
+    fee(b, holder.slots.len())?;
+    let prefix = PlaceProjection::Field(index);
+    let mut paths = Vec::new();
+    for path in holder.slots.keys() {
+        fee(b, path.len().saturating_add(1))?;
+        if path.first() == Some(&prefix) {
+            paths.push(path.clone());
+        }
+    }
+    let mut extracted = BTreeMap::new();
+    for path in paths {
+        let permission = holder
+            .slots
+            .remove(&path)
+            .ok_or_else(|| failure("selected package field slot disappeared"))?;
+        let relative = path[1..].to_vec();
+        ordered(b, extracted.len(), relative.len())?;
+        extracted.insert(relative, permission);
+    }
+    Ok(extracted)
+}
+
 pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<()> {
     fee(b, 1)?;
     let mut pending = vec![(ty, 0usize)];
@@ -1918,6 +1945,37 @@ fn transfer(
             }
             state.locals.remove(local);
         }
+        InstructionKind::TakePackageField { local, index } => {
+            ordered(b, state.locals.len(), 0)?;
+            let holder = state
+                .locals
+                .get_mut(local)
+                .ok_or_else(|| failure("taken Package field has no live local shell"))?;
+            out.slots = take_package_field_slots(holder, *index, b)?;
+        }
+        InstructionKind::DropPackageField { local, index } => {
+            ordered(b, state.locals.len(), 0)?;
+            if let Some(holder) = state.locals.get_mut(local) {
+                take_package_field_slots(holder, *index, b)?;
+            }
+        }
+        InstructionKind::StorePackageField {
+            local,
+            index,
+            value,
+        } => {
+            let source = snapshot(get(*value)?, b)?;
+            ordered(b, state.locals.len(), 0)?;
+            let holder = state.locals.entry(*local).or_default();
+            take_package_field_slots(holder, *index, b)?;
+            for (path, permission) in source.slots {
+                fee(b, path.len().saturating_add(1))?;
+                let mut complete = vec![PlaceProjection::Field(*index)];
+                complete.extend(path);
+                ordered(b, holder.slots.len(), complete.len())?;
+                holder.slots.insert(complete, permission);
+            }
+        }
         InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
         | InstructionKind::DropClosure { local } => {
@@ -2756,6 +2814,9 @@ fn reverse(
             live[f.values.len() + local.0 as usize] = true
         }
         InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
@@ -2893,6 +2954,20 @@ fn windows(
                     .ok_or_else(|| failure("access operand outside values"))
             };
             match &i.kind {
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: vec![PlaceProjection::Field(*index)],
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    fee(b, 1)?;
+                    use_permission(&actual, true, &current, loans, apart, b)?;
+                }
                 InstructionKind::Load(local)
                     if matches!(
                         f.locals[local.0 as usize].ty,
@@ -3841,6 +3916,9 @@ fn actual_instructions(
                         | InstructionKind::DescribeLocal { .. }
                         | InstructionKind::DescribeCapture { .. }
                         | InstructionKind::DropPackage { .. }
+                        | InstructionKind::TakePackageField { .. }
+                        | InstructionKind::DropPackageField { .. }
+                        | InstructionKind::StorePackageField { .. }
                         | InstructionKind::DropManaged { .. }
                         | InstructionKind::TakeLocal { .. }
                         | InstructionKind::ExtractField { .. }
@@ -4168,6 +4246,38 @@ fn actual_instructions(
                         if value_type(f, *v)? != expected {
                             return Err(failure("constructed field differs from actual full type"));
                         }
+                    }
+                }
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let parent = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| failure("package field local is absent"))?
+                        .ty;
+                    let parent = carrier(parent).map_or(parent, |(storage, _)| storage);
+                    let Type::Package { fields, .. } = parent else {
+                        return Err(failure("package field operation lacks actual shell"));
+                    };
+                    let field = &fields
+                        .get(*index as usize)
+                        .ok_or_else(|| failure("package field index is absent"))?
+                        .1;
+                    b.type_work(field, true, "package field operation actual child")?;
+                    match &i.kind {
+                        InstructionKind::TakePackageField { .. } => result(field, b)?,
+                        InstructionKind::StorePackageField { value, .. } => {
+                            if i.result.is_some() || value_type(f, *value)? != field {
+                                return Err(failure(
+                                    "stored Package field differs from its complete child type",
+                                ));
+                            }
+                        }
+                        InstructionKind::DropPackageField { .. } if i.result.is_some() => {
+                            return Err(failure("Package field drop fabricates a result"));
+                        }
+                        _ => {}
                     }
                 }
                 InstructionKind::Call {

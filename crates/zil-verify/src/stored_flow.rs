@@ -189,6 +189,21 @@ fn add_leaf(
         Ok(true)
     }
 }
+fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -> Check<Payload> {
+    b.spend(holder.leaves.len())?;
+    let mut result = Payload::default();
+    let mut retained = Vec::new();
+    for (path, permission) in std::mem::take(&mut holder.leaves) {
+        b.spend(path.len().saturating_add(1))?;
+        if path.first() == Some(&PlaceProjection::Field(index)) {
+            result.leaves.push((path[1..].to_vec(), permission));
+        } else {
+            retained.push((path, permission));
+        }
+    }
+    holder.leaves = retained;
+    Ok(result)
+}
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
@@ -721,6 +736,9 @@ pub(super) fn qualifications(
                             | InstructionKind::DescribeLocal { .. }
                             | InstructionKind::DescribeCapture { .. }
                             | InstructionKind::DropPackage { .. }
+                            | InstructionKind::TakePackageField { .. }
+                            | InstructionKind::DropPackageField { .. }
+                            | InstructionKind::StorePackageField { .. }
                             | InstructionKind::DropManaged { .. }
                             | InstructionKind::TakeLocal { .. }
                             | InstructionKind::ExtractField { .. }
@@ -776,6 +794,15 @@ pub(super) fn qualifications(
                         ));
                     }
                     pure_copy::types(f, i, b)?;
+                }
+                if let InstructionKind::TakePackageField { local, .. }
+                | InstructionKind::DropPackageField { local, .. }
+                | InstructionKind::StorePackageField { local, .. } = &i.kind
+                    && f.locals
+                        .get(local.0 as usize)
+                        .is_some_and(|local| qualified(&local.ty).is_some())
+                {
+                    super::packages::check_instruction(module, f, i, b)?;
                 }
             }
         }
@@ -1745,6 +1772,38 @@ fn step(
         InstructionKind::Store { local, value } => {
             state.locals[local.0 as usize] = copy_payload(val(*value)?, b)?
         }
+        InstructionKind::TakePackageField { local, index } => {
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("taken Package field local is absent"))?;
+            out = take_package_field_leaves(holder, *index, b)?;
+        }
+        InstructionKind::DropPackageField { local, index } => {
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("dropped Package field local is absent"))?;
+            take_package_field_leaves(holder, *index, b)?;
+        }
+        InstructionKind::StorePackageField {
+            local,
+            index,
+            value,
+        } => {
+            let source = copy_payload(val(*value)?, b)?;
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("stored Package field local is absent"))?;
+            take_package_field_leaves(holder, *index, b)?;
+            for (path, permission) in &source.leaves {
+                b.spend(path.len().saturating_add(1))?;
+                let mut complete = vec![PlaceProjection::Field(*index)];
+                complete.extend(path);
+                add_leaf(holder, &complete, permission, b)?;
+            }
+        }
         InstructionKind::StorageLive(l)
         | InstructionKind::StorageDead(l)
         | InstructionKind::DropClosure { local: l } => {
@@ -2440,6 +2499,9 @@ fn reverse(
             live[f.values.len() + local.0 as usize] = true
         }
         InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
             if qualified(&f.locals[local.0 as usize].ty).is_some() =>
         {
             live[f.values.len() + local.0 as usize] = true;
@@ -2694,6 +2756,20 @@ fn windows(
                     .ok_or_else(|| err("address operand absent"))
             };
             match &i.kind {
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let actual = Permission {
+                        sources: vec![Source {
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: vec![PlaceProjection::Field(*index)],
+                        }],
+                        loans: Vec::new(),
+                    };
+                    b.spend(1)?;
+                    access(&actual, true, &active, &solution.loans, requirements, b)?;
+                }
                 InstructionKind::Load(local)
                     if matches!(
                         f.locals[local.0 as usize].ty,
