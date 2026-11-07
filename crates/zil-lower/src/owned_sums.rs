@@ -98,6 +98,37 @@ impl<'a> Budget<'a> {
         }
         Ok(())
     }
+    pub(super) fn dyn_tables(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
+        if module.dyn_interfaces.is_empty() && module.dyn_vtables.is_empty() {
+            return Ok(());
+        }
+        self.metadata(
+            module
+                .dyn_interfaces
+                .len()
+                .saturating_add(module.dyn_vtables.len()),
+        )?;
+        for interface in &module.dyn_interfaces {
+            self.metadata(interface.slots.len())?;
+            for slot in &interface.slots {
+                self.metadata(slot.parameters.len().saturating_add(2))?;
+                if slot.receiver.mutable
+                    || !slot.result.is_b0_scalar()
+                    || !slot.parameters.iter().all(Type::is_b0_scalar)
+                {
+                    return Err(vec![Diagnostic::unsupported(
+                        Phase::Lower,
+                        "shared dyn lowering requires a shared receiver and scalar slots",
+                        None,
+                    )]);
+                }
+            }
+        }
+        for table in &module.dyn_vtables {
+            self.metadata(table.entries.len())?;
+        }
+        Ok(())
+    }
     pub(super) fn callable_metadata(&mut self, module: &zil_ir::TypedModule) -> CompileResult<()> {
         self.metadata(
             module

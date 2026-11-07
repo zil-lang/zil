@@ -4,6 +4,7 @@ mod constant_divisors;
 mod copy_aggregates;
 mod copy_slots;
 mod drop_plan;
+mod dyn_dispatch;
 mod dynamic_store;
 mod enums;
 mod floating;
@@ -122,6 +123,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
         stored_borrows::reserve_binding(verified.module(), verified.limits(), &mut remaining_work)?;
     }
     let sum_helpers = bind_lir(verified, lir, options.entry, &mut remaining_work)?;
+    dyn_dispatch::reserve(verified.module(), &mut remaining_work)?;
     let mut copy_plans = copy_aggregates::plan(lir, verified.limits(), remaining_work)?;
     if verified.uses_stored_borrows() {
         stored_borrows::reserve_emission(
@@ -262,6 +264,7 @@ pub(crate) fn lower_view_with_closed_scalar_policy_and_jobs(
     )?);
     let mut text = m::Code::new();
     text.append(sum_helpers);
+    text.append(dyn_dispatch::tables(verified.module(), &copy_plans)?);
     text.append(task_cleanup_helpers);
     if copy_plans.needs_helpers() {
         text.append(copy_aggregates::declarations());
@@ -589,6 +592,7 @@ fn lower_function_batch(
         tasks::reserve_owner_actions(function, verified.task_ownership(function.id), task_meter)?;
         replacements::reserve(function, lir.resources, verified.limits(), task_meter)?;
         let emitted = FunctionEmitter {
+            dyn_module: verified.module(),
             task_ownership: verified.task_ownership(function.id),
             function,
             target: lir.target,
@@ -1246,6 +1250,7 @@ fn entry_wrapper(
 }
 
 struct FunctionEmitter<'a> {
+    dyn_module: &'a zil_ir::TypedModule,
     task_ownership: Option<&'a zil_verify::TaskOwnership>,
     function: &'a TypedFunction,
     target: &'a TargetProfile,
@@ -1596,11 +1601,21 @@ impl FunctionEmitter<'_> {
             | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
                 self.async_registration_instruction(instruction)?;
             }
-            InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
-                return unsupported(
-                    "dynamic interface instruction lowering is not yet implemented",
-                    Some(instruction.span),
-                );
+            InstructionKind::MakeDynBorrow {
+                interface,
+                vtable,
+                source,
+                mutable,
+            } => {
+                self.make_dyn_borrow(instruction, *interface, *vtable, *source, *mutable)?;
+            }
+            InstructionKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } => {
+                self.call_dyn_slot(instruction, *callee, *interface, *slot, arguments)?;
             }
             InstructionKind::LoadStoredBorrow {
                 storage,
@@ -3460,6 +3475,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         ])),
         Type::Closure(id) => Ok(environment_type(*id)),
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
+        ty if dyn_dispatch::address(ty) => Ok(dyn_dispatch::pair()),
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }

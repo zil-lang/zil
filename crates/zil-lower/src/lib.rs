@@ -54,16 +54,6 @@ fn lower_view_with_budget(
 ) -> CompileResult<(LirView<'_>, owned_sums::Budget<'_>)> {
     let module = verified.module();
     let target = &module.target;
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Lower,
-            "dynamic interface lowering is not yet implemented",
-            None,
-        )]);
-    }
     if module.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
             Phase::Lower,
@@ -84,6 +74,7 @@ fn lower_view_with_budget(
     // Reserve the complete new callable relation before LIR retains/clones it.
     // This budget is also consumed by ordinary owning/stored lowering below.
     sum_budget.callable_metadata(module)?;
+    sum_budget.dyn_tables(module)?;
     for closure in &module.closures {
         for ty in &closure.captures {
             if matches!(ty,Type::Address{inner,..} if matches!(inner.as_ref(),Type::Tuple(_) | Type::Enum{..} | Type::ErrorUnion{..}))
@@ -379,6 +370,15 @@ fn clone_function(
                 .map(|instruction| {
                     if let zil_ir::InstructionKind::StaticUtf8 { bytes } = &instruction.kind {
                         budget.static_bytes(bytes.len())?;
+                    }
+                    if let zil_ir::InstructionKind::CallDynSlot { arguments, .. } =
+                        &instruction.kind
+                    {
+                        budget.static_bytes(
+                            arguments
+                                .len()
+                                .saturating_mul(std::mem::size_of::<zil_ir::ValueId>()),
+                        )?;
                     }
                     Ok(instruction.clone())
                 })
