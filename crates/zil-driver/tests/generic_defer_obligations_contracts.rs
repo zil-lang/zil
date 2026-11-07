@@ -573,6 +573,7 @@ fn insert(map:&mut Map<Item,Item>,entry:Entry<Item,Item>)->Entry<Item,Item>!void
  if !store_reserve(map.items,store_len(map.items)+1){return entry}
  return store_push(map.items,entry)
 }
+
 fn main()->i32{
  let items:Store<Entry<Item,Item>>=store_new();
  var map=Map::<Item,Item>{items:give items};
@@ -591,6 +592,60 @@ fn contains(map:&Map<Item,Item>,code:i32)->bool{
 "#,
         "",
     );
+}
+
+#[test]
+fn ordinary_store_helper_borrows_actual_generic_package_field() {
+    let source = r#"
+import std.store
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+package Map<K:StoreElement,V:StoreElement>{manages items:Store<Entry<K,V>>}
+fn remove_at<K:StoreElement,V:StoreElement>(map:&mut Map<K,V>,index:i64)->void!Entry<K,V>{
+ return store.remove::<Entry<K,V>>(map.items,index)
+}
+fn main()->i32{
+ let items:Store<Entry<Item,Managed<Ticket>>>=store_new();
+ var map=Map::<Item,Managed<Ticket>>{items:give items};
+ if !store_reserve(map.items,1){return 1}
+ store_push(map.items,Entry::<Item,Managed<Ticket>>{key:Item{ticket:Ticket{code:65}},value:Ticket{code:66}});
+ match remove_at(&mut map,0){.err(_)=>{return 1},.ok(old)=>{return old.key.ticket.code+old.value.code-131}}
+}
+"#;
+    let project = |text: &str| ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(FileId(0), ModuleId(0), "main.zil", text),
+            SourceUnit::new(FileId(1), ModuleId(1), "std/store.zil", include_str!("../../../lib/std/store.zil")),
+        ],
+        paths: [(vec!["std".into(), "store".into()], ModuleId(1))].into(),
+    };
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let out = dir("ordinary-store-remove-generic-map-field");
+        let report = compile_project(&project(source), &CompileOptions {
+            stop_after: Stage::Build,
+            backend: if cfg!(feature = "llvm-api") { NativeBackend::LlvmApi } else { NativeBackend::Clang },
+            optimization,
+            output: Some(out.join("program")),
+            ..CompileOptions::default()
+        });
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        let run = Command::new(&report.artifacts["executable"]).output().unwrap();
+        assert_eq!(run.status.code(), Some(0), "{run:?}");
+        assert_eq!(run.stdout, b"AB");
+    }
+    let shared = source.replace("map:&mut Map<K,V>", "map:&Map<K,V>");
+    let report = compile_project(&project(&shared), &CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    });
+    assert_eq!(report.status, ResultCategory::SafeReject, "{}", report.to_json());
+    assert!(report.diagnostics.iter().any(|diagnostic|
+        diagnostic.phase == Phase::Expand && diagnostic.message.contains("shared Package reference cannot write its Store field")),
+        "{}", report.to_json());
 }
 
 #[test]
