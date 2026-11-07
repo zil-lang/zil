@@ -154,6 +154,10 @@ fn named_owned_package_pattern_drops_each_field_once() {
         "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages a:R;manages b:R}fn result()->i32{let p=P{a:R{n:65},b:R{n:66}};let P{a:moved,b:_}=p;return moved.n}",
         "AB65\n",
     );
+    native_stdout(
+        "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:65},n:7},side:R{n:66}};let Parent{child:Child{r:moved,n:_},side:_}=p;return moved.n}",
+        "AB65\n",
+    );
 }
 
 #[test]
@@ -196,6 +200,10 @@ fn named_owned_package_patterns_reject_invalid_owner_and_partial_parent_use() {
     reject(
         "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:m,n:_},side:_}=p;let whole=p;return whole.child.n}",
         "E-ANALYZE-IR",
+    );
+    reject(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:Child{r:m,r:again},side:_}=p;return m.n}",
+        "E-MATCH-FIELD",
     );
 }
 
