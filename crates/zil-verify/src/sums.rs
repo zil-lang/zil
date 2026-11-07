@@ -1996,8 +1996,8 @@ fn run_with_replacements(
         values.push(Arc::new(content(ty, None, &mut Vec::new(), true, budget)?));
     }
     let mut captures = Vec::new();
-    if budget.pod_stores
-        && let Some(environment) = f.environment
+    if let Some(environment) = f.environment
+        && budget.direct_sum_capture_closures.contains(&environment.0)
     {
         let definition = &module.closures[environment.0 as usize];
         budget.spend(definition.captures.len())?;

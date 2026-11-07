@@ -336,6 +336,9 @@ struct Budget {
     task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
     limits: Limits,
     sum_functions: Vec<bool>,
+    // Filled by the already paid closure-definition walk only for newly
+    // admitted direct owning Sum capture roots.
+    direct_sum_capture_closures: BTreeSet<u32>,
     function_count: usize,
     current_function: Option<usize>,
     private_slot_functions: Option<Vec<bool>>,
@@ -368,6 +371,7 @@ impl Budget {
             task_ownership: std::collections::BTreeMap::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
+            direct_sum_capture_closures: BTreeSet::new(),
             function_count: 0,
             current_function: None,
             private_slot_functions: None,

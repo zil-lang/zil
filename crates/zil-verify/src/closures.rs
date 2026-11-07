@@ -231,6 +231,16 @@ pub(super) fn check_definitions(
                         | Type::ErrorUnion { .. }
                 )
                 && dynamic_store::owned_capture_store(ty, budget)?;
+            if inline_store_capture
+                && matches!(
+                    ty,
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                )
+                && !budget.direct_sum_capture_closures.contains(&closure.id.0)
+            {
+                budget.spend(budget.direct_sum_capture_closures.len().saturating_add(1))?;
+                budget.direct_sum_capture_closures.insert(closure.id.0);
+            }
             if dynamic_store::is_carrier(ty)
                 || packages::has_store_fields(ty)
                 || inline_store_capture
