@@ -10,7 +10,7 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 const OLD_BYTES: &str = "fn make()->impl Fn()->i32{let b=bytes_new();return move()=>i32(bytes_len(b))}fn main()->i32{let callback=make();return callback()}";
 const DIRECT: &str = include_str!("owned_store_leaf_capture_fixtures/01_direct_store_capture.zil");
 const PACKAGE: &str =
-    include_str!("owned_store_leaf_capture_fixtures/02_original201_package_store_capture.zil");
+    include_str!("owned_store_leaf_capture_fixtures/02_package_store_callback_capture.zil");
 const MUTATING: &str =
     include_str!("owned_store_leaf_capture_fixtures/03_mutating_store_capture.zil");
 

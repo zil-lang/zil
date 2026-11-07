@@ -15,7 +15,8 @@ use zil_driver::{
 };
 use zil_ir::*;
 
-const ORIGINAL: &str = include_str!("generic_defer_obligation_fixtures/original235.zil");
+const ORIGINAL: &str =
+    include_str!("generic_defer_obligation_fixtures/product_store_replacement_cleanup.zil");
 const SIMPLE: &str = r#"
 resource Ticket{code:i32}
 package Item{manages ticket:Ticket;value:i32}

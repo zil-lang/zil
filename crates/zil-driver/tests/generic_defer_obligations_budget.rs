@@ -2,7 +2,8 @@
 //! previously frozen Types418 / Analyze8673 / Verify10398 minima.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
-const NEW: &str = include_str!("generic_defer_obligations_fixtures/original235.zil");
+const NEW: &str =
+    include_str!("generic_defer_obligations_fixtures/product_store_replacement_cleanup.zil");
 const OLD: &str = "resource R{n:i32}package P{pad:i32;manages old:R;wide:[i32;2];manages fresh:R}fn origin(give old:R)->R contract{result(create)}{let p=P{pad:7,old:give old,wide:[11,13],fresh:R{n:29}};let q=p;return give q.fresh}fn main(){}";
 fn bounded<T>(r: Result<T, Vec<zil_base::Diagnostic>>) -> bool {
     match r {

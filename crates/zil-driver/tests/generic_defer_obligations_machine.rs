@@ -9,7 +9,8 @@ use std::{
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
-const SOURCE: &str = include_str!("generic_defer_obligations_fixtures/original235.zil");
+const SOURCE: &str =
+    include_str!("generic_defer_obligations_fixtures/product_store_replacement_cleanup.zil");
 fn quote(p: &Path) -> String {
     format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"))
 }
