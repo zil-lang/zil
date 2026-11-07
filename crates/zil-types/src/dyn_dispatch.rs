@@ -37,6 +37,18 @@ fn scalar_contract() -> DynContract {
     }
 }
 
+fn shared_slot_life() -> StorageLifeContract {
+    StorageLifeContract {
+        fixed_binder_count: 0,
+        invocation_binder_count: 1,
+        bindings: vec![StorageLifeBinding {
+            position: receiver_position(),
+            binder: StorageBinder::Invocation(0),
+        }],
+        classes: Vec::new(),
+    }
+}
+
 pub(super) fn inventory(
     core: &CoreModule,
     signatures: &BTreeMap<String, Signature>,
@@ -74,6 +86,14 @@ pub(super) fn inventory(
         spend(&mut left, 1 + interface.slots.len())?;
         if !interfaces.insert(interface.id)
             || !declarations.contains(&interface.application.declaration)
+            || core
+                .dyn_declarations
+                .iter()
+                .find(|d| d.id == interface.application.declaration)
+                .is_none_or(|declaration| {
+                    declaration.kind != DynDeclarationKind::Trait
+                        || !declaration.parameters.is_empty()
+                })
             || !interface.application.actuals.is_empty()
             || !interface.inherited.is_empty()
             || interface.slots.is_empty()
@@ -100,7 +120,14 @@ pub(super) fn inventory(
                     .iter()
                     .any(|mode| *mode != PassingMode::Infer)
                 || slot.call_kind != CallKind::Direct
-                || slot.storage_life.is_none()
+                || slot.storage_life.as_ref() != Some(&shared_slot_life())
+                || slot.member.application != interface.application
+                || core
+                    .dyn_declarations
+                    .iter()
+                    .find(|d| d.id == slot.member.application.declaration)
+                    .and_then(|d| d.members.get(slot.member.ordinal as usize))
+                    .is_none_or(|member| !matches!(member.kind, DynMemberKind::Method(_)))
             {
                 return Err(unsupported(
                     Span::default(),
@@ -128,6 +155,12 @@ pub(super) fn inventory(
             || table.entries.len() != interface.slots.len()
             || table.cleanup.is_some()
             || !table.ports.is_empty()
+            || !table.actuals.is_empty()
+            || core
+                .dyn_declarations
+                .iter()
+                .find(|d| d.id == table.implementation)
+                .is_none_or(|declaration| declaration.kind != DynDeclarationKind::Impl)
         {
             return Err(unsupported(
                 Span::default(),
@@ -265,6 +298,12 @@ pub(super) fn inventory_program(
             .all(|module| module.core.dyn_vtables.is_empty())
     {
         return Ok((declarations, interfaces, Vec::new()));
+    }
+    if interfaces.is_empty() {
+        return Err(unsupported(
+            Span::default(),
+            "dyn project declaration has no actual interface",
+        ));
     }
     let mut tables = Vec::new();
     for module in &program.modules {
