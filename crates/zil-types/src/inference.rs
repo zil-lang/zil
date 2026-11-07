@@ -3947,12 +3947,38 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     _ => self.known_term(&Type::I64, span),
                 };
             }
-            let Term::Resource(variable, _) = first else {
-                return Err(error(
-                    "E-OWNED-STORE-TYPE",
-                    span,
-                    "Store primitive requires a resource description",
-                ));
+            let variable = match first {
+                Term::Resource(variable, _) => variable,
+                Term::Address(head, _) => {
+                    let Some(Type::Managed(payload)) = self.graph.ty(head)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    validate_type(&payload, 0, span, self.budget)?;
+                    if !matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                    {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    }
+                    let variable = self.fresh(VALUE, false, span)?;
+                    self.bind(variable, &payload, span)?;
+                    variable
+                }
+                _ => {
+                    return Err(error(
+                        "E-OWNED-STORE-TYPE",
+                        span,
+                        "Store primitive requires a resource description",
+                    ));
+                }
             };
             let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
                 return Err(error(

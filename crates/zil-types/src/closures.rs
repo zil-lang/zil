@@ -3915,12 +3915,44 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return self.known(&dynamic_store::result_type(name, element), span);
             }
             let first = self.expr(&arguments[0], depth + 1)?;
-            let LocalType::Resource(variable, _) = first else {
-                return Err(error(
-                    "E-OWNED-STORE-TYPE",
-                    span,
-                    "Store primitive requires a resource description",
-                ));
+            let variable = match first {
+                LocalType::Resource(variable, _) => variable,
+                LocalType::Address(head, _) => {
+                    let Some(Type::Managed(payload)) = self.graph.ty(head)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    inference::charge_type_snapshot(
+                        &payload,
+                        span,
+                        self.limits,
+                        self.work_left,
+                        2,
+                    )?;
+                    if !matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                    {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    }
+                    let variable = self.graph.fresh(VALUE, false);
+                    self.graph.bind(variable, &payload, span)?;
+                    variable
+                }
+                _ => {
+                    return Err(error(
+                        "E-OWNED-STORE-TYPE",
+                        span,
+                        "Store primitive requires a resource description",
+                    ));
+                }
             };
             let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
                 return Err(error(
