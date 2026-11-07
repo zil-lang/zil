@@ -891,4 +891,19 @@ mod tests {
             .insert(2, inst(None, InstructionKind::StorageDead(LocalId(0))));
         assert!(crate::analyze(&m, &Limits::default()).is_err());
     }
+
+    #[test]
+    fn fresh_dyn_budget_has_exact_n_and_n_minus_one_boundary() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        let baseline = Limits::default();
+        let mut budget = Budget::new(&baseline);
+        crate::analyze_budgeted(&m, &baseline, &mut budget, None).unwrap();
+        let spent = baseline.max_analysis_steps - budget.remaining();
+        let mut exact = baseline.clone();
+        exact.max_analysis_steps = spent;
+        crate::analyze(&m, &exact).unwrap();
+        exact.max_analysis_steps -= 1;
+        assert!(crate::analyze(&m, &exact).is_err());
+    }
 }
