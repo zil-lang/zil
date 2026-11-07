@@ -105,5 +105,6 @@
     "These are Source-through-Verify checks, not new native machine/capture/raw-Wire or performance acceptance.",
     "Initial probe author syntax errors were corrected: record keyword replaced by struct and expression-bodied relay terminated; those parser failures are not language ownership findings.",
     "Referenced conversation preview is truncated during the first proposal. Unseen later proposals were not reviewed."
-  ]
+  ],
+  "follow_up_review": "Full text was later pasted by the user and reviewed in docs/reviews/CHAT9-REVIEW.md; this baseline retains its original measurement scope."
 }
