@@ -186,16 +186,17 @@ fn wide_atomic_raw_width_and_order_are_rejected_by_both_kernels() {
             .iter_mut()
             .flat_map(|f| &mut f.blocks)
             .flat_map(|b| &mut b.instructions)
-            .find(|i| match (case, &i.kind) {
-                (
-                    0 | 1 | 2,
-                    I::SyncInteger {
-                        op: SyncIntegerOp::Load,
-                        ..
-                    },
-                ) => true,
-                (3, I::SyncIntegerCompareExchange { .. }) => true,
-                _ => false,
+            .find(|i| {
+                matches!(
+                    (case, &i.kind),
+                    (
+                        0..=2,
+                        I::SyncInteger {
+                            op: SyncIntegerOp::Load,
+                            ..
+                        }
+                    ) | (3, I::SyncIntegerCompareExchange { .. })
+                )
             })
             .unwrap();
         match (&mut instruction.kind, case) {

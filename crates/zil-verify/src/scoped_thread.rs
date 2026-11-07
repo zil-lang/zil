@@ -34,10 +34,10 @@ fn wide_integer(kind: zil_ir::SyncCellKind) -> Option<Type> {
     }
 }
 fn mutex_head(ty: &Type) -> Option<&Type> {
-    if let Type::Desc(inner) = ty {
-        if let Type::Mutex { payload } = inner.as_ref() {
-            return Some(payload);
-        }
+    if let Type::Desc(inner) = ty
+        && let Type::Mutex { payload } = inner.as_ref()
+    {
+        return Some(payload);
     }
     None
 }
