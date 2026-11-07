@@ -300,7 +300,9 @@ impl Builder<'_, '_> {
                     p.span,
                 )?;
                 let ordered = enums::record_pattern_fields(declared, fields, &ty, p.span)?;
-                let Type::Record { fields: actual, .. } = stored::physical(&ty) else {
+                let (Type::Record { fields: actual, .. } | Type::Package { fields: actual, .. }) =
+                    stored::physical(&ty)
+                else {
                     unreachable!("checked record pattern")
                 };
                 for (index, (field, field_ty)) in ordered.into_iter().enumerate() {
@@ -339,7 +341,7 @@ impl Builder<'_, '_> {
     }
     pub(super) fn condition_uses_place(&self, p: &CorePattern, e: &CoreExpr) -> bool {
         has_reference(p)
-            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..}))
+            || matches!(self.known_type(e), Some(ref t) if owned_shapes::enumeration(t) || matches!(t,Type::ErrorUnion{..} | Type::Package{..}))
             || matches!(
                 &e.kind,
                 CoreExprKind::Unary {
@@ -363,11 +365,9 @@ impl Builder<'_, '_> {
                 op: UnaryOp::Dereference,
                 ..
             }
-        ) && self
-            .known_type(e)
-            .as_ref()
-            .is_some_and(|ty| owned_shapes::sum(ty) || matches!(ty, Type::ErrorUnion { .. }))
-        {
+        ) && self.known_type(e).as_ref().is_some_and(|ty| {
+            owned_shapes::sum(ty) || matches!(ty, Type::ErrorUnion { .. } | Type::Package { .. })
+        }) {
             return self.partial_pattern_condition(p, e, fail);
         }
         let mut bindings = Vec::new();

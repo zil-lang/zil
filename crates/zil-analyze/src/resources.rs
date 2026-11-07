@@ -2116,6 +2116,14 @@ impl Flow<'_> {
                                 ));
                             }
                         }
+                        if out_shape.is_some_and(|shape| shape.description) {
+                            produced = Some(Fact {
+                                sources: BTreeSet::from([
+                                    self.package_source(*local, *index, budget)?
+                                ]),
+                                ..Fact::default()
+                            });
+                        }
                     } else if let InstructionKind::StorePackageField { value, .. } = i.kind {
                         let owns_field = package_owned_field(ty, budget)?;
                         budget.type_work(ty, !owns_field, "package field store type checks")?;

@@ -1543,6 +1543,15 @@ impl Transfer<'_> {
                             "callback field borrow requires a live field on every path",
                         ));
                     }
+                    if let Some(row) = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                    {
+                        state.desc[row] = BTreeSet::from([Root::PackageField {
+                            local: *local,
+                            index: *index,
+                        }]);
+                    }
                 }
                 InstructionKind::BorrowOwnedArrayElement { local, index, .. } => {
                     self.package_shell(state, *local, span, validate)?;
