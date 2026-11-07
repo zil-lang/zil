@@ -77,7 +77,7 @@ def attached_construction_number(part):
             continue
         if normalized == "sha" and int(digits) in {256, 512}:
             continue
-        if normalized == "m" and not digits.startswith("0") and int(digits) <= 511:
+        if normalized == "m" and not digits.startswith("0"):
             continue
         return True
     return False
