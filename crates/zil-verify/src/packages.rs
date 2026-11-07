@@ -266,7 +266,14 @@ pub(super) fn check_product_type(
                 }
             }
         }
-        if !owns {
+        // A nested Package with only finite Copy fields still carries one
+        // affine Value token, but it has no cleanup debt of its own. The
+        // containing Product must retain a real owner leaf.
+        if !owns
+            && !(depth > 1
+                && !fields.is_empty()
+                && fields.iter().all(|(_, field)| field.is_copy_value()))
+        {
             return Err(unsupported(
                 "each Product Package requires a transitive explicit manages leaf",
                 span,

@@ -20,29 +20,42 @@ pub(crate) fn owned_supported(ty: &Type) -> bool {
     shape(ty, true)
 }
 
+fn copy_children_only(ty: &Type) -> bool {
+    matches!(ty, Type::Package { name, fields }
+        if !name.is_empty() && !fields.is_empty()
+            && fields.iter().all(|(name, field)| !name.is_empty() && field.is_copy_value()))
+}
+
 fn shape(ty: &Type, stores: bool) -> bool {
     let qualified = matches!(ty, Type::BorrowedStorage { .. });
     let Type::Package { name, fields } = crate::stored::physical(ty) else {
         return false;
     };
+    let mut owns = false;
     !name.is_empty()
-        && fields.iter().any(|(_, field)| {
-            matches!(
-                crate::stored::physical(field),
-                Type::Managed(_) | Type::Package { .. }
-            )
-        }) && fields.iter().all(|(name, field)| {
-        !name.is_empty()
-            && (field.is_copy_value()
+        && fields.iter().all(|(name, field)| {
+            if name.is_empty() {
+                return false;
+            }
+            if field.is_copy_value()
                 || (qualified
                     && matches!(field, Type::Address { inner, .. } if inner.is_address_pointee()))
-                || matches!(field, Type::Managed(payload)
+            {
+                return true;
+            }
+            if matches!(field, Type::Managed(payload)
                         if (stores && dynamic_store::is_carrier(field))
                             || **payload == Type::ByteBuffer
                             || (matches!(payload.as_ref(), Type::Record { .. })
                                 && payload.is_copy_value()))
-                || shape(field, stores))
-    })
+                || shape(field, stores)
+            {
+                owns = true;
+                return true;
+            }
+            copy_children_only(field)
+        })
+        && owns
 }
 
 pub(crate) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
