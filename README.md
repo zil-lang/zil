@@ -49,3 +49,9 @@
 ## 2026-11-06 分支整理
 
 旧 backup、已结束的 task/review 分支已集中到 [source-history 归档](https://github.com/zil-lang/zil/tree/archive/source-history)。归档的 `manifest.json` 保存原分支名、实际提交和未提交源码快照；源码通过 Git 父提交保全，不能据此视为已验收。按清单中的 SHA 执行 `git branch 恢复名称 SHA` 可恢复；旧清单可沿归档第一父提交查看。历史工作区保留文件，已解除过期分支绑定。后续只维护活跃任务分支与这个固定归档入口，不再批量创建 backup 分支。
+
+## 本批源码与分支退役快照
+
+[main `dd766f513`](https://github.com/zil-lang/zil/tree/dd766f513bd8022e4d2c703f51a9343824150da8) 已合入 PR52 的有限普通拥有/共享动态派发及 PR53 的首批文档、合同与资产整理。当前任务只读 goal.md，本段只保存固定恢复身份。
+
+固定 `archive/source-history` 已推进到 [`7a05dad7c`](https://github.com/zil-lang/zil/tree/7a05dad7cc357bd0de5ae876a8af4ee2d165bef3)，216 个实际源码 tip 与远端 manifest 字节已核。随后退役本批 14 个已交付分支和对应干净工作树；5 个旧 dirty 工作区保留原文件及暂存状态。没有新增 backup 分支。main、goal、固定归档和继续整理用的 task/G10.7 保留。
