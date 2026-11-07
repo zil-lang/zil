@@ -14,6 +14,11 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
         ("ordinary-pair-baseline", include_str!("ordinary-pair-baseline.zil"), b"18446744073709551611\n".as_slice(), false),
         ("ordinary-prepare-failure", include_str!("ordinary-prepare-failure.zil"), b"18446744073709551612\n".as_slice(), false),
         ("ordinary-parent-two-views", include_str!("ordinary-parent-two-views.zil"), b"18446744073709551613\n".as_slice(), false),
+        ("ordinary-error-side", include_str!("ordinary-error-side.zil"), b"18446744073709551610\n".as_slice(), false),
+        ("ordinary-tuple-field", include_str!("ordinary-tuple-field.zil"), b"18446744073709551611\n".as_slice(), false),
+        ("ordinary-enum-field", include_str!("ordinary-enum-field.zil"), b"18446744073709551612\n".as_slice(), false),
+        ("ordinary-error-field", include_str!("ordinary-error-field.zil"), b"18446744073709551613\n".as_slice(), false),
+        ("ordinary-sum-capture", include_str!("ordinary-sum-capture.zil"), b"18446744073709551614\n".as_slice(), false),
     ] {
         super::g933_consumers::native_entry_all_backends(label, source, expected, imported, Some("result"));
     }
