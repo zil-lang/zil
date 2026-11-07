@@ -358,11 +358,18 @@ fn relation_inner(
             possible |= matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
                 && outer(c, StorageBase::Parameter(i as u32)) == upper;
         }
-        if !mutable {
-            possible |= c.classes.iter().any(|r| {
-                matches!(r.position.base, StorageBase::Parameter(_)) && Some(r.binder) == upper
-            });
-        }
+        possible |= c.classes.iter().any(|r| {
+            let StorageBase::Parameter(i) = r.position.base else {
+                return false;
+            };
+            Some(r.binder) == upper
+                && (!mutable
+                    || matches!(
+                        parameters.get(i as usize),
+                        Some(Type::Address { mutable: true, .. })
+                    ))
+                && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
+        });
         if !possible {
             return Err(invalid());
         }

@@ -371,6 +371,108 @@ pub(super) fn exclusive_returns(overlap: bool) -> TypedModule {
     m
 }
 
+pub(super) fn mutable_holder() -> TypedModule {
+    let mut m = module();
+    let address = address(Type::I64, true);
+    let Type::BorrowedStorage { storage, life } = &mut m.life_instances[0].ty else {
+        unreachable!()
+    };
+    let Type::Record { fields, .. } = storage.as_mut() else {
+        unreachable!()
+    };
+    fields[0].1 = address.clone();
+    life.slots[0].mode = StoredBorrowMode::ExclusiveAddress;
+    let holder = m.life_instances[0].ty.clone();
+    let receiver = self::address(holder.clone(), true);
+
+    let make = &mut m.functions[0];
+    make.locals[0].ty = address.clone();
+    make.return_type = holder.clone();
+    make.values = vec![address.clone(), holder.clone()];
+    make.blocks[0].instructions = vec![
+        instruction(Some(0), InstructionKind::Load(LocalId(0))),
+        instruction(
+            Some(1),
+            InstructionKind::MakeAggregate {
+                fields: vec![ValueId(0)],
+            },
+        ),
+    ];
+    make.blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+
+    let get = &mut m.functions[1];
+    get.locals[0].ty = receiver.clone();
+    get.return_type = address.clone();
+    get.values = vec![receiver.clone(), address.clone()];
+    get.blocks[0].instructions[1].kind = InstructionKind::LoadStoredBorrow {
+        storage: ValueId(0),
+        path: vec![PlaceProjection::Field(0)],
+        mode: StoredBorrowLoad::Reborrow { mutable: true },
+    };
+    let relay = &mut m.functions[2];
+    relay.locals[0].ty = receiver.clone();
+    relay.return_type = address.clone();
+    relay.values = vec![receiver.clone(), address.clone()];
+    let main = &mut m.functions[3];
+    main.locals[1].ty = holder.clone();
+    main.values[1] = address.clone();
+    main.values[2] = holder;
+    main.values[3] = receiver;
+    main.values[4] = address;
+    main.blocks[0].instructions[2].kind = InstructionKind::BorrowLocalMut { local: LocalId(0) };
+    main.blocks[0].instructions[5].kind = InstructionKind::BorrowLocalMut { local: LocalId(1) };
+    main.blocks[0].instructions.swap(7, 8);
+    m
+}
+
+pub(super) fn replace_carrier(module: &mut TypedModule, old: &Type, new: &Type) {
+    fn replace(ty: &mut Type, old: &Type, new: &Type) {
+        if ty == old {
+            *ty = new.clone();
+        } else if let Type::Address { inner, .. } = ty {
+            replace(inner, old, new);
+        }
+    }
+    for function in &mut module.functions {
+        replace(&mut function.return_type, old, new);
+        for local in &mut function.locals {
+            replace(&mut local.ty, old, new);
+        }
+        for value in &mut function.values {
+            replace(value, old, new);
+        }
+    }
+    for instance in &mut module.life_instances {
+        replace(&mut instance.ty, old, new);
+    }
+}
+
+pub(super) fn shared_two_slots() -> TypedModule {
+    let mut module = self::module();
+    let old = module.life_instances[0].ty.clone();
+    let mut new = old.clone();
+    let Type::BorrowedStorage { storage, life } = &mut new else {
+        unreachable!()
+    };
+    let Type::Record { fields, .. } = storage.as_mut() else {
+        unreachable!()
+    };
+    fields.push(("other".into(), address(Type::I64, false)));
+    life.slots.push(StorageLifeSlot {
+        path: vec![PlaceProjection::Field(1)],
+        binder: 0,
+        mode: StoredBorrowMode::SharedAddress,
+    });
+    replace_carrier(&mut module, &old, &new);
+    let InstructionKind::MakeAggregate { fields } =
+        &mut module.functions[0].blocks[0].instructions[2].kind
+    else {
+        unreachable!()
+    };
+    fields.push(ValueId(1));
+    module
+}
+
 #[allow(dead_code)] // Shared raw builder is used by the driver subset only.
 pub(super) fn phantom() -> TypedModule {
     let mut m = module();

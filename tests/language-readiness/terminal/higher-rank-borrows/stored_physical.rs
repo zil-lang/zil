@@ -1,7 +1,7 @@
 //! Raw executable/Wire controls for the first actual physical stored-leaf proof.
 //! Source/Types/native coverage is recorded separately; this fixture is hand IR.
 use super::*;
-use zil_ir::{CandidatePlan, Terminator, Type, ValueId};
+use zil_ir::{CandidatePlan, StoredBorrowMode, Terminator, Type, ValueId};
 mod fixture {
     include!("stored_flow_fixture.rs");
 }
@@ -61,6 +61,125 @@ fn ordinary_stored_view_source_has_an_inline_pointer_and_native_load() {
             );
         }
     }
+}
+
+#[test]
+fn mutable_holder_cross_module_reborrows_real_exclusive_target() {
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/higher-rank-borrows");
+    let positive = dir.join("mutable_holder_client.zil");
+    let negatives = [
+        "mutable_holder_overlap.zil",
+        "mutable_holder_double.zil",
+        "mutable_holder_parent.zil",
+    ];
+    let temp = Temp::new();
+    let mut backends = vec![zil_driver::NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(zil_driver::NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+            let report = zil_driver::compile_path(
+                &positive,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join("mutable-holder")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            execute(&report.artifacts["executable"], 42);
+        }
+    }
+    for name in negatives {
+        let rejected = zil_driver::compile_path(&dir.join(name), &CompileOptions::default());
+        assert_eq!(
+            rejected.status,
+            ResultCategory::SafeReject,
+            "{}",
+            rejected.to_json()
+        );
+    }
+}
+
+#[test]
+fn mutable_holder_raw_and_wire_keep_physical_mode_and_parent_loan() {
+    let module = fixture::mutable_holder();
+    let plan = accept(&module);
+    let mut early_end = module.clone();
+    early_end.functions[3].blocks[0].instructions.swap(7, 8);
+    reject(
+        &early_end,
+        plan.clone(),
+        "returned child retains its mutable holder parent",
+    );
+    let mut wrong_mode = module.clone();
+    if let Type::BorrowedStorage { life, .. } = &mut wrong_mode.life_instances[0].ty {
+        life.slots[0].mode = StoredBorrowMode::SharedAddress;
+    }
+    reject(
+        &wrong_mode,
+        plan.clone(),
+        "exclusive physical field cannot claim shared mode",
+    );
+    let mut wrong_load = module;
+    wrong_load.functions[1].blocks[0].instructions[1].kind = InstructionKind::LoadStoredBorrow {
+        storage: ValueId(0),
+        path: vec![zil_ir::PlaceProjection::Field(0)],
+        mode: zil_ir::StoredBorrowLoad::CopyShared,
+    };
+    reject(
+        &wrong_load,
+        plan,
+        "exclusive leaf cannot be copied as shared",
+    );
+}
+
+#[test]
+fn shared_multi_slot_remains_valid_but_exclusive_tuple_or_multi_slot_is_closed() {
+    let shared = fixture::shared_two_slots();
+    let plan = accept(&shared);
+    let old = shared.life_instances[0].ty.clone();
+    let mut new = old.clone();
+    let Type::BorrowedStorage { storage, life } = &mut new else {
+        unreachable!()
+    };
+    let Type::Record { fields, .. } = storage.as_mut() else {
+        unreachable!()
+    };
+    fields[1].1 = fixture::address(Type::I64, true);
+    life.slots[1].mode = StoredBorrowMode::ExclusiveAddress;
+    let mut multiple = shared;
+    fixture::replace_carrier(&mut multiple, &old, &new);
+    reject(
+        &multiple,
+        plan,
+        "a second borrowed slot cannot enter the finite exclusive holder",
+    );
+
+    let mut tuple = fixture::mutable_holder();
+    let old = tuple.life_instances[0].ty.clone();
+    let mut new = old.clone();
+    let Type::BorrowedStorage { storage, .. } = &mut new else {
+        unreachable!()
+    };
+    *storage = Box::new(Type::Tuple(vec![fixture::address(Type::I64, true)]));
+    fixture::replace_carrier(&mut tuple, &old, &new);
+    let candidate = fixture::mutable_holder();
+    reject(
+        &tuple,
+        accept(&candidate),
+        "exclusive Tuple lacks a nominal Record holder",
+    );
 }
 
 fn candidate(module: &TypedModule) -> CandidatePlan {

@@ -1,0 +1,7 @@
+# Mutable stored holder
+
+A finite nominal `Record` with exactly one direct `&mut T` borrowed slot carries a `StorageLifeShape` slot with `ExclusiveAddress` mode. `T` must satisfy the existing finite address pointee rule. The slot names the physical field, its actual declared lifetime class and its exclusive mode; neither the nominal name nor the lifetime label grants a target or permission. The existing complete nominal instance and signature relation checks apply across modules.
+
+Constructing the holder transfers the actual exclusive address into its slot. A mutable borrow of the holder may reborrow that initialized slot through `LoadStoredBorrow(Reborrow { mutable: true })`. Analyze and Verify independently recover the stored target and the carrier loan as parents of the new loan. A live child prevents another exclusive reborrow, conflicting access to the original target, or early retirement of the carrier. A returned mutable child retains its carrier parent across direct calls. Each caller uses its own actual argument, not a callee parameter label, to instantiate the result.
+
+The machine loads the pointer from the verified inline field and writes through the resulting address. This finite capability does not grant whole-holder Copy, stored slot replacement, Take, mutable capture, borrowed Package fields, or arbitrary holder shapes. Ordinary stored shared reads retain their existing detached CopyShared behavior.
