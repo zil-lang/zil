@@ -43,7 +43,7 @@ fn reject(c: &CoreModule) {
     }
 }
 #[test]
-fn original235_generic_wrapper_reaches_types() {
+fn original_generic_wrapper_reaches_types() {
     accepted(ORIGINAL);
 }
 #[test]

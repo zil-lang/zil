@@ -112,7 +112,8 @@ fn check_category(label: &str, p: &CoreProgram, limits: &Limits, category: Resul
 }
 
 #[test]
-fn ct205_preserves_one_or_two_fields_and_separate_replacement_in_both_orders() {
+fn state_replacement_compile_time_preserves_one_or_two_fields_and_separate_replacement_in_both_orders()
+ {
     for reverse in [false, true] {
         for count in [1, 2] {
             for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
@@ -134,7 +135,8 @@ fn ct205_preserves_one_or_two_fields_and_separate_replacement_in_both_orders() {
 }
 
 #[test]
-fn ct205_unused_mixed_headers_reject_wrong_roles_signatures_return_and_selectors() {
+fn state_replacement_compile_time_unused_mixed_headers_reject_wrong_roles_signatures_return_and_selectors()
+ {
     for attack in 0..21 {
         let mut p = mixed(false, 2, CallableKind::FnOnce);
         let f = &mut p.modules[0].core.functions[0];
@@ -193,7 +195,7 @@ fn ct205_unused_mixed_headers_reject_wrong_roles_signatures_return_and_selectors
 }
 
 #[test]
-fn ct205_both_heads_are_bounded_before_deep_signature_equality() {
+fn state_replacement_compile_time_both_heads_are_bounded_before_deep_signature_equality() {
     for direct in [false, true] {
         for large in 0..3 {
             let mut p = mixed(false, 2, CallableKind::Fn);
@@ -242,7 +244,7 @@ fn ct205_both_heads_are_bounded_before_deep_signature_equality() {
 }
 
 #[test]
-fn ct205_exact_metadata_node_budget_recovers_on_fresh_retry() {
+fn state_replacement_compile_time_exact_metadata_node_budget_recovers_on_fresh_retry() {
     let p = mixed(true, 2, CallableKind::FnOnce);
     let core = &p.modules[0].core;
     let target = TargetProfile::default();
@@ -276,7 +278,7 @@ fn ct205_exact_metadata_node_budget_recovers_on_fresh_retry() {
 }
 
 #[test]
-fn ct205_mixed_templates_and_wrappers_never_execute_in_ct() {
+fn state_replacement_compile_time_mixed_templates_and_wrappers_never_execute_in_ct() {
     let mut p = program("fn identity()->i32{return 42}fn wrapper()->i32{return identity()}");
     let target = TargetProfile::default();
     let query = |name: &str| CoreExpr {

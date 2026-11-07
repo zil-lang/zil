@@ -185,7 +185,7 @@ fn binaries(temp: &Path, stem: &str, source_files: usize) -> Vec<PathBuf> {
 }
 
 #[test]
-fn retained070_native_factories_survive_return_move_events_and_cleanup() {
+fn returned_factory_native_factories_survive_return_move_events_and_cleanup() {
     let temp = Temp::new();
     let mut cases: Vec<(Vec<u8>, i32, String)> = [
         ("s", 0, "2121B"),

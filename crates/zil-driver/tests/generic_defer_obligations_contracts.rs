@@ -15,7 +15,7 @@ use zil_driver::{
 };
 use zil_ir::*;
 
-const ORIGINAL: &str = include_str!("review237_fixtures/original235.zil");
+const ORIGINAL: &str = include_str!("generic_defer_obligation_fixtures/original235.zil");
 const SIMPLE: &str = r#"
 resource Ticket{code:i32}
 package Item{manages ticket:Ticket;value:i32}
@@ -173,7 +173,7 @@ fn native(label: &str, text: &str, expected: &str) {
 }
 
 #[test]
-fn original235_success_obligation_is_preserved_byte_for_byte_and_executes() {
+fn original_success_obligation_is_preserved_byte_for_byte_and_executes() {
     native("original235", ORIGINAL, "AZ")
 }
 

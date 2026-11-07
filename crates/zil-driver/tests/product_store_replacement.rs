@@ -127,7 +127,7 @@ fn raw_reject(label: &str, m: zil_ir::TypedModule, mut p: zil_ir::CandidatePlan)
     }
 }
 #[test]
-fn original206_inner_store_is_promoted_without_rewriting() {
+fn original_inner_store_is_promoted_without_rewriting() {
     source(
         "original206",
         include_str!("inline_product_children_independent_fixtures/22_inner_store.zil"),

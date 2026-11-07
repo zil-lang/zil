@@ -94,7 +94,7 @@ fn typed(text: &str) -> zil_ir::TypedModule {
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()
 }
 #[test]
-fn enum029_01_unit_and_tuple_payloads_cross_function_native() {
+fn tagged_union_unit_and_tuple_payloads_cross_function_native() {
     let text = include_str!("../../../examples/enum-packet-matching/main.zil")
         .replace("fn answer()", "fn result()")
         .replace("answer() ==", "result() ==");
@@ -104,14 +104,14 @@ fn enum029_01_unit_and_tuple_payloads_cross_function_native() {
     assert!(!llvm.contains(" undef"));
 }
 #[test]
-fn enum029_02_nested_enum_tuple_bool_and_integer_matrix() {
+fn tagged_union_nested_enum_tuple_bool_and_integer_matrix() {
     native(
         "enum Inner { None, Some(i32) } enum Outer { Missing, Present(Inner), Pair((bool, Inner)) } fn score(v: Outer) -> i32 { match v { Outer.Missing() => { return 0 }, Outer.Present(Inner.None()) => { return 1 }, Outer.Present(Inner.Some(n)) => { return n }, Outer.Pair((true, Inner.Some(n))) => { return n + 100 }, Outer.Pair((_, _)) => { return 200 } } } fn result() -> i32 { return score(Outer.Missing) + score(Outer.Present(Inner.None)) + score(Outer.Present(Inner.Some(42))) + score(Outer.Pair((true, Inner.Some(9)))) + score(Outer.Pair((false, Inner.None))) }",
         Some(352),
     );
 }
 #[test]
-fn enum029_03_unit_zero_array_and_record_padding_payloads() {
+fn tagged_union_unit_zero_array_and_record_padding_payloads() {
     let llvm = native(
         "struct Bits { unit: (); flag: bool; n: i64; tail: (); } enum Data { Unit(()), Empty([i64; 0]), Mixed(Bits, [(); 2], (bool, i64)) } fn score(v: Data) -> i64 { match v { Data.Unit(u) => { u; return 1 }, Data.Empty(empty) => { return 2 }, Data.Mixed(bits, units, pair) => { units[0]; if bits.flag { return bits.n + pair.1 } return 0 } } } fn result() -> i64 { return score(Data.Unit(())) + score(Data.Empty([])) + score(Data.Mixed(Bits { unit: (), flag: true, n: 39, tail: () }, [(), ()], (true, 3))) }",
         Some(45),
@@ -121,14 +121,14 @@ fn enum029_03_unit_zero_array_and_record_padding_payloads() {
     assert!(!llvm.contains(" undef"));
 }
 #[test]
-fn enum029_04_array_record_update_and_copy_return() {
+fn tagged_union_array_record_update_and_copy_return() {
     native(
         "enum Item { Empty, Number(i64), Flag(bool) } struct Holder { item: Item; n: i64; } fn id(v: Item) -> Item { return v } fn score(v: Item) -> i64 { match v { Item.Empty() => { return 0 }, Item.Number(n) => { return n }, Item.Flag(true) => { return 1 }, Item.Flag(false) => { return 2 } } } fn result() -> i64 { var values = [Item.Number(10), Item.Empty, Item.Flag(false)]; values[1] = Item.Number(30); var h = Holder { item: id(values[0]), n: 7 }; let copy = h; h.item = Item.Flag(true); var total: i64 = 0; for i in 0..3 { total += score(values[i]) } return total + score(h.item) + score(copy.item) + h.n }",
         Some(60),
     );
 }
 #[test]
-fn enum029_05_variant_replacement_in_loop_uses_fixed_scratch() {
+fn tagged_union_variant_replacement_in_loop_uses_fixed_scratch() {
     let llvm = native(
         "enum State { Off, On(i64) } fn value(v: State) -> i64 { match v { State.Off() => { return 0 }, State.On(n) => { return n } } } fn result() -> i64 { var state = State.Off; var i: i64 = 0; while i < 10000 { state = State.On(i); i += 1 } return value(state) }",
         Some(9999),
@@ -140,14 +140,14 @@ fn enum029_05_variant_replacement_in_loop_uses_fixed_scratch() {
     }
 }
 #[test]
-fn enum029_06_scalar_match_ct_and_constructor_ct_context() {
+fn tagged_union_scalar_match_ct_and_constructor_ct_context() {
     native(
         "enum E { N(i64) } fn pick(b: bool) -> i64 { match b { true => { return 40 }, false => { return 2 } } } fn result() -> i64 { let v = E.N(#(5000000000)); match v { E.N(n) => { return n + #(pick(true) + pick(false)) } } }",
         Some(5000000042),
     );
 }
 #[test]
-fn enum029_07_match_input_emits_one_call() {
+fn tagged_union_match_input_emits_one_call() {
     let text = "enum E { A(i32), B } fn make() -> E { return E.A(42) } fn result() -> i32 { match make() { E.A(n) => { return n }, E.B() => { return 0 } } }";
     native(text, Some(42));
     let module = typed(text);
@@ -166,7 +166,7 @@ fn enum029_07_match_input_emits_one_call() {
     );
 }
 #[test]
-fn enum029_08_nonexhaustive_and_shadowed_arms_reject() {
+fn tagged_union_nonexhaustive_and_shadowed_arms_reject() {
     for (text, code) in [
         (
             "enum E { A, B } fn result() -> i32 { match E.A { E.A() => { return 1 } } }",
@@ -201,7 +201,7 @@ fn enum029_08_nonexhaustive_and_shadowed_arms_reject() {
     }
 }
 #[test]
-fn enum029_09_pattern_arity_names_nominality_and_infinite_layout_reject() {
+fn tagged_union_pattern_arity_names_nominality_and_infinite_layout_reject() {
     for (text, code) in [
         (
             "enum E { A(i32) } fn result() -> i32 { let e = E.A(); return 0 }",
@@ -296,7 +296,7 @@ fn raw_native(verified: &zil_verify::VerifiedModule, expected: Option<i64>) -> S
 }
 const RAW_ENUM: &str = "enum E { A(i64), B(i64) } fn result() -> i64 { let value = E.A(42); match value { E.A(n) => { return n }, E.B(n) => { return n } } }";
 #[test]
-fn enum029_10_wire_and_forged_variant_types_indices_reverify() {
+fn tagged_union_wire_and_forged_variant_types_indices_reverify() {
     let module = typed(RAW_ENUM);
     let limits = Limits::default();
     let plan = zil_analyze::analyze(&module, &limits).unwrap();
@@ -343,7 +343,7 @@ fn enum029_10_wire_and_forged_variant_types_indices_reverify() {
     }
 }
 #[test]
-fn enum029_11_checked_raw_payload_mismatch_traps_at_o0_and_o2() {
+fn tagged_union_checked_raw_payload_mismatch_traps_at_o0_and_o2() {
     let mut module = typed(RAW_ENUM);
     for instruction in module.functions[0]
         .blocks
@@ -364,7 +364,7 @@ fn enum029_11_checked_raw_payload_mismatch_traps_at_o0_and_o2() {
     assert!(llvm.contains("call void @llvm.trap()"));
 }
 #[test]
-fn enum029_12_explicit_trap_is_ct_error_and_unreachable_still_rejects() {
+fn tagged_union_explicit_trap_is_ct_error_and_unreachable_still_rejects() {
     let mut module = typed("fn result() -> i64 { return 0 }");
     // Trap aborts with its active root; it must not retain a normal-return promise.
     module.functions[0].blocks[0].instructions.retain(|i| {
@@ -400,7 +400,7 @@ fn enum029_12_explicit_trap_is_ct_error_and_unreachable_still_rejects() {
     );
 }
 #[test]
-fn enum029_13_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime() {
+fn tagged_union_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime() {
     let module = typed(RAW_ENUM);
     let target = module.target.clone();
     let limits = Limits::default();
@@ -434,7 +434,7 @@ fn enum029_13_copy_enum_ct_evaluates_and_runtime_pattern_name_stays_runtime() {
     assert_eq!(report.diagnostics[0].code, "E-CT-RUNTIME");
 }
 #[test]
-fn enum029_14_union_uses_max_payload_instead_of_all_variants() {
+fn tagged_union_union_uses_max_payload_instead_of_all_variants() {
     let llvm = native(
         "enum E { A(i64,i64), B(i32,i32,i32), C(bool), D(()) } fn score(e:E) -> i64 { match e { E.A(a,b) => { return a+b }, E.B(a,b,c) => { return 3 }, E.C(true) => { return 1 }, E.C(false) => { return 0 }, E.D(u) => { u; return 2 } } } fn result() -> i64 { return score(E.A(10,20)) + score(E.B(1,2,3)) + score(E.C(true)) + score(E.D(())) }",
         Some(36),
@@ -443,14 +443,14 @@ fn enum029_14_union_uses_max_payload_instead_of_all_variants() {
     assert!(!llvm.contains("{ i32, [3 x i64] }"));
 }
 #[test]
-fn enum029_15_match_break_continue_join_and_shared_result_contract_compose() {
+fn tagged_union_match_break_continue_join_and_shared_result_contract_compose() {
     native(
         "enum Step { Skip, Add(i64), Stop } fn step(i:i64) -> Step { if i == 9 { return Step.Stop } if i % 2 == 0 { return Step.Skip } return Step.Add(i) } fn choose(a:&i64,b:&i64,flag:bool)->&i64 { match flag { true => { return a }, false => { return b } } } fn result()->i64 { var total:i64=0; let end:i64=20; for i in 0..end { match step(i) { Step.Skip() => { continue }, Step.Stop() => { break }, Step.Add(n) => { total += n } } } var x:i64=40; var y:i64=2; let p=choose(&x,&y,false); let saved=*p; x=100; y=200; return total+saved+x+y }",
         Some(318),
     );
 }
 #[test]
-fn enum029_16_type_name_shadow_and_budget_fail_closed() {
+fn tagged_union_type_name_shadow_and_budget_fail_closed() {
     native(
         "enum E { A(i32) } struct Value { A:i32; } fn result()->i32 { let E=Value { A:42 }; return E.A }",
         Some(42),

@@ -163,7 +163,7 @@ fn binaries(temp: &Path, stem: &str, source_files: usize) -> Vec<PathBuf> {
 }
 
 #[test]
-fn packages074_component_updates_preserve_sibling_descriptions_and_whole_abi() {
+fn owning_package_component_updates_preserve_sibling_descriptions_and_whole_abi() {
     let temp = Temp::new();
     let mut cases: Vec<(Vec<u8>, i32, String)> = [
         ("", 0, "0\n#1\nMSU"),
@@ -190,7 +190,7 @@ fn packages074_component_updates_preserve_sibling_descriptions_and_whole_abi() {
 }
 
 #[test]
-fn packages074_field_preparation_failures_partial_exits_and_refills_drop_once() {
+fn owning_package_field_preparation_failures_partial_exits_and_refills_drop_once() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "lifecycle", 3) {
         for (input, code, output) in [
@@ -211,7 +211,7 @@ fn packages074_field_preparation_failures_partial_exits_and_refills_drop_once() 
 }
 
 #[test]
-fn packages074_real_descriptors_close_after_replacement_move_and_partial_cleanup() {
+fn owning_package_real_descriptors_close_after_replacement_move_and_partial_cleanup() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "fd", 1) {
         run(&binary, b"", 0, "F");
@@ -219,7 +219,7 @@ fn packages074_real_descriptors_close_after_replacement_move_and_partial_cleanup
 }
 
 #[test]
-fn packages074_new_field_operations_cannot_escape_ct_or_verified_lir_binding() {
+fn owning_package_new_field_operations_cannot_escape_ct_or_verified_lir_binding() {
     use zil_base::{FileId, Limits, ModuleId, Phase, SourceUnit, TargetProfile};
     use zil_ir::{CtProgram, InstructionKind};
     let limits = Limits::default();

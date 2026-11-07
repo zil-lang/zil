@@ -10,7 +10,12 @@ use zil_ir::{Instruction, InstructionKind, Type, TypedModule, ValueId};
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review042.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "exclusive_address_source_and_raw_controls.zil",
+        text,
+    )
 }
 fn raw(text: &str) -> TypedModule {
     let s = source(text);
@@ -31,7 +36,7 @@ fn rejected(text: &str, code: &str) {
 }
 fn native(text: &str, expected: i64) {
     let root = std::env::temp_dir().join(format!(
-        "zil-review042-{}-{}",
+        "zil-exclusive_address_source_and_raw_controls-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

@@ -1,7 +1,7 @@
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, compile_source};
 #[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/loans.rs"]
-mod terminal342_loans;
+mod owned_error_loans;
 fn source(s: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review.zil", s)
 }
@@ -133,7 +133,7 @@ fn unused_generic_control_flow_is_checked_before_template_removal() {
 }
 
 #[test]
-fn generic_injection_295_frozen_pending_sources_are_accepted() {
+fn generic_context_injection_frozen_pending_sources_are_accepted() {
     let mut failures = Vec::new();
     for text in [
         include_str!("../../../tests/generic-error-enum/pending/unique-binding-value.zil"),
@@ -148,7 +148,7 @@ fn generic_injection_295_frozen_pending_sources_are_accepted() {
 }
 
 #[test]
-fn generic_injection_295_native_contexts_preserve_value_and_order() {
+fn generic_context_injection_native_contexts_preserve_value_and_order() {
     use std::{
         fs,
         process::Command,
@@ -269,7 +269,7 @@ fn generic_injection_295_native_contexts_preserve_value_and_order() {
 }
 
 #[test]
-fn generic_injection_295_context_identity_and_unused_controls() {
+fn generic_context_injection_context_identity_and_unused_controls() {
     let positives = [
         "enum Choice<T>{None,Some(T)} type Problem=Choice<i32>;fn run<F:Fn()->i32>(f:F)->Problem!i32{let v:Problem!i32=(((Choice.None)));return v}fn main(){let f=()->i32=>1;run(f)}",
         "enum Choice<T>{None,Some(T)} fn keep(v:Choice<i32>!i32)->Choice<i32>!i32{return v}fn run<F:Fn()->i32>(f:F,v:Choice<i32>!i32)->Choice<i32>!i32{return keep(v)}fn main(){let f=()->i32=>1;run(f,7)}",
@@ -287,7 +287,7 @@ fn generic_injection_295_context_identity_and_unused_controls() {
 }
 
 #[test]
-fn generic_injection_295_ambiguous_and_wrong_nominal_controls_reject() {
+fn generic_context_injection_ambiguous_and_wrong_nominal_controls_reject() {
     let negatives = [
         "enum Fault{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!Fault=Fault.Bad;return 0}fn main(){}",
         "enum Fault{Bad} enum Other{Bad} fn run<F:Fn()->i32>(f:F)->i32{let x:Fault!i32=Other.Bad;return 0}fn main(){}",
@@ -322,7 +322,7 @@ fn generic_injection_295_ambiguous_and_wrong_nominal_controls_reject() {
 }
 
 #[cfg(target_os = "linux")]
-fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
+fn replacement_recovery_project(entry: &str) -> zil_driver::ProjectSources {
     use std::{collections::BTreeMap, fs, path::PathBuf};
     let root =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/component-language-prerequisites");
@@ -374,9 +374,11 @@ fn ordinary_package_address_call_inside_closure_keeps_contextual_signature() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn recovery317_component_source_and_nearest_rejections() {
-    let report =
-        zil_driver::compile_project(&recovery317_project("main"), &CompileOptions::default());
+fn replacement_recovery_component_source_and_nearest_rejections() {
+    let report = zil_driver::compile_project(
+        &replacement_recovery_project("main"),
+        &CompileOptions::default(),
+    );
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -385,8 +387,10 @@ fn recovery317_component_source_and_nearest_rejections() {
     );
     assert_eq!(report.verification_runs, 1);
     for entry in ["controls/shared_window_end", "controls/callback_alias_end"] {
-        let report =
-            zil_driver::compile_project(&recovery317_project(entry), &CompileOptions::default());
+        let report = zil_driver::compile_project(
+            &replacement_recovery_project(entry),
+            &CompileOptions::default(),
+        );
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -425,7 +429,7 @@ fn recovery317_component_source_and_nearest_rejections() {
             0,
         ),
     ] {
-        let input = recovery317_project(&format!("negative/{entry}"));
+        let input = replacement_recovery_project(&format!("negative/{entry}"));
         let report = zil_driver::compile_project(&input, &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -461,7 +465,7 @@ fn recovery317_component_source_and_nearest_rejections() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn recovery317_component_native_success_error_and_null_cleanup() {
+fn replacement_recovery_component_native_success_error_and_null_cleanup() {
     use std::{
         fs,
         io::Write,
@@ -514,7 +518,7 @@ fn recovery317_component_native_success_error_and_null_cleanup() {
             )).unwrap();
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
             let report = zil_driver::compile_project(
-                &recovery317_project("main"),
+                &replacement_recovery_project("main"),
                 &CompileOptions {
                     backend,
                     optimization,
@@ -592,15 +596,12 @@ fn recovery317_component_native_success_error_and_null_cleanup() {
 }
 
 #[cfg(target_os = "linux")]
-const THREAD325_RETURN_FACTORY: &str = "fn worker(n:i32)->i32{return n+1}fn make()->impl Fn()->i32{let result=thread_scope(worker,7,()->i32=>1);let x=result.1;return move()->i32=>x}fn main()->i32{let f=make();return f()-8}";
+const THREAD_RETURNED_FACTORY: &str = "fn worker(n:i32)->i32{return n+1}fn make()->impl Fn()->i32{let result=thread_scope(worker,7,()->i32=>1);let x=result.1;return move()->i32=>x}fn main()->i32{let f=make();return f()-8}";
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread325_review_direct_factory_scalar_graph_and_once_body() {
-    let report = compile_source(
-        &source(THREAD325_RETURN_FACTORY),
-        &CompileOptions::default(),
-    );
+fn thread_local_parent_review_direct_factory_scalar_graph_and_once_body() {
+    let report = compile_source(&source(THREAD_RETURNED_FACTORY), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -608,7 +609,7 @@ fn thread325_review_direct_factory_scalar_graph_and_once_body() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    let src = source(THREAD325_RETURN_FACTORY);
+    let src = source(THREAD_RETURNED_FACTORY);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
     let typed = zil_types::check(
@@ -661,13 +662,13 @@ fn thread325_review_direct_factory_scalar_graph_and_once_body() {
 }
 
 #[cfg(target_os = "linux")]
-fn thread325_root() -> std::path::PathBuf {
+fn thread_local_parent_root() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
         .join("../../examples/mainline/concurrency")
 }
 
 #[cfg(target_os = "linux")]
-fn thread325_project() -> zil_driver::ProjectSources {
+fn thread_local_parent_project() -> zil_driver::ProjectSources {
     use std::collections::BTreeMap;
     let mut paths = BTreeMap::new();
     let modules = ["main", "worker", "observer", "component"]
@@ -675,7 +676,7 @@ fn thread325_project() -> zil_driver::ProjectSources {
         .enumerate()
         .map(|(index, name)| {
             let index = index as u32;
-            let path = thread325_root().join(format!("{name}.zil"));
+            let path = thread_local_parent_root().join(format!("{name}.zil"));
             if index != 0 {
                 paths.insert(vec![(*name).into()], ModuleId(index));
             }
@@ -696,8 +697,9 @@ fn thread325_project() -> zil_driver::ProjectSources {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread325_source_and_worker_boundaries() {
-    let report = zil_driver::compile_project(&thread325_project(), &CompileOptions::default());
+fn thread_local_parent_source_and_worker_boundaries() {
+    let report =
+        zil_driver::compile_project(&thread_local_parent_project(), &CompileOptions::default());
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -705,7 +707,7 @@ fn thread325_source_and_worker_boundaries() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    let mut private = thread325_project();
+    let mut private = thread_local_parent_project();
     private.modules[0].text = private.modules[0]
         .text
         .replace("worker.compute", "worker.step");
@@ -725,7 +727,8 @@ fn thread325_source_and_worker_boundaries() {
         report.to_json()
     );
     let text =
-        std::fs::read_to_string(thread325_root().join("controls/parent_borrow.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("controls/parent_borrow.zil"))
+            .unwrap();
     let report = compile_source(&source(&text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -755,7 +758,7 @@ fn thread325_source_and_worker_boundaries() {
         ),
         ("ct_thread", zil_base::Phase::Ct, "E-CT-FORBIDDEN"),
     ] {
-        let path = thread325_root().join(format!("negative/{name}.zil"));
+        let path = thread_local_parent_root().join(format!("negative/{name}.zil"));
         let input = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -781,7 +784,8 @@ fn thread325_source_and_worker_boundaries() {
     }
     // 332 promotes this exact historical source; the path and bytes stay fixed.
     let text =
-        std::fs::read_to_string(thread325_root().join("pending/parent_closure.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("pending/parent_closure.zil"))
+            .unwrap();
     let report = compile_source(&source(&text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -791,7 +795,8 @@ fn thread325_source_and_worker_boundaries() {
     );
     assert_eq!(report.verification_runs, 1);
     let text =
-        std::fs::read_to_string(thread325_root().join("pending/callable_wrapper.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("pending/callable_wrapper.zil"))
+            .unwrap();
     let report = compile_source(&source(&text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -806,7 +811,7 @@ fn thread325_source_and_worker_boundaries() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread325_raw_wire_worker_identity_and_once_body() {
+fn thread_local_parent_raw_wire_worker_identity_and_once_body() {
     use zil_ir::InstructionKind;
     let src = source(
         "resource Mark{code:i32} impl Drop for Mark{fn drop(self:Self){}} fn worker(value:i32)->i32{return value+1} fn main()->i32{let a=Mark{code:4};let b=Mark{code:7};let first=move()->i32=>a.code;let second=move()->i32=>b.code;let x=thread_scope(worker,3,first);let y=thread_scope(worker,5,second);return x.1+y.2}",
@@ -987,25 +992,25 @@ fn thread325_raw_wire_worker_identity_and_once_body() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread325_native_os_join_parent_cleanup_and_failure() {
+fn thread_local_parent_native_os_join_parent_cleanup_and_failure() {
     thread_native_parent_observer("direct");
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_native_concrete_parent_cleanup_and_failure() {
+fn thread_parent_native_concrete_parent_cleanup_and_failure() {
     thread_native_parent_observer("owned");
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_native_nested_roots_and_failures() {
+fn thread_parent_native_nested_roots_and_failures() {
     thread_native_parent_observer("nested");
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread339_native_shared_pointer_load_cleanup_and_failure() {
+fn thread_parent_cleanup_native_shared_pointer_load_cleanup_and_failure() {
     thread_native_parent_observer("shared");
 }
 
@@ -1051,7 +1056,7 @@ fn thread_native_parent_observer(profile: &str) {
             let observer = directory.join("observer.o");
             let compiled = Command::new(&clang)
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
-                .arg(thread325_root().join(if shared {
+                .arg(thread_local_parent_root().join(if shared {
                     "shared339/observer.c"
                 } else if nested {
                     "parent332/nested_observer.c"
@@ -1073,13 +1078,13 @@ fn thread_native_parent_observer(profile: &str) {
                 } else {
                     1
                 };
-            let mut project = thread325_project();
+            let mut project = thread_local_parent_project();
             if shared {
                 project.modules = ["native_main", "native_worker"]
                     .iter()
                     .enumerate()
                     .map(|(index, name)| {
-                        let path = thread325_root().join(format!("shared339/{name}.zil"));
+                        let path = thread_local_parent_root().join(format!("shared339/{name}.zil"));
                         SourceUnit::new(
                             FileId(index as u32),
                             ModuleId(index as u32),
@@ -1092,7 +1097,7 @@ fn thread_native_parent_observer(profile: &str) {
                 project.paths.insert(vec!["worker".into()], ModuleId(1));
             }
             if concrete_parent {
-                let path = thread325_root().join(if nested {
+                let path = thread_local_parent_root().join(if nested {
                     "parent332/nested_owned.zil"
                 } else {
                     "parent332/owned_main.zil"
@@ -1230,20 +1235,24 @@ fn thread_native_parent_observer(profile: &str) {
             };
             for control in controls {
                 let text = if shared {
-                    fs::read_to_string(thread325_root().join(format!("shared339/{control}.zil")))
-                        .unwrap()
+                    fs::read_to_string(
+                        thread_local_parent_root().join(format!("shared339/{control}.zil")),
+                    )
+                    .unwrap()
                 } else if concrete_parent {
                     let path = if *control == "parent_closure" {
                         "pending/parent_closure.zil".to_owned()
                     } else {
                         format!("parent332/{control}.zil")
                     };
-                    fs::read_to_string(thread325_root().join(path)).unwrap()
+                    fs::read_to_string(thread_local_parent_root().join(path)).unwrap()
                 } else if *control == "return_factory" {
-                    THREAD325_RETURN_FACTORY.to_owned()
+                    THREAD_RETURNED_FACTORY.to_owned()
                 } else {
-                    fs::read_to_string(thread325_root().join(format!("controls/{control}.zil")))
-                        .unwrap()
+                    fs::read_to_string(
+                        thread_local_parent_root().join(format!("controls/{control}.zil")),
+                    )
+                    .unwrap()
                 };
                 let report = compile_source(
                     &source(&text),
@@ -1285,13 +1294,15 @@ fn thread_native_parent_observer(profile: &str) {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_concrete_parent_kinds_and_nested_source() {
+fn thread_parent_concrete_parent_kinds_and_nested_source() {
     use zil_ir::{CallableKind, InstructionKind};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     for name in ["kinds", "nested", "borrow"] {
-        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("parent332/{name}.zil")),
+        )
+        .unwrap();
         let src = source(&text);
         let ast = zil_syntax::parse(&src).into_result().unwrap();
         let core = zil_expand::expand(&src, &ast).unwrap();
@@ -1318,7 +1329,7 @@ fn thread332_concrete_parent_kinds_and_nested_source() {
         }
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
         if name == "kinds" {
-            thread332_budget(&typed, &plan);
+            thread_parent_budget(&typed, &plan);
             // Forcing a shared entry must not copy the parent's owned body.
             let mut forged = typed.clone();
             let once = forged
@@ -1348,7 +1359,7 @@ fn thread332_concrete_parent_kinds_and_nested_source() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_parent_boundaries() {
+fn thread_parent_parent_boundaries() {
     for (name, phase, code) in [
         ("once_reuse", zil_base::Phase::Analyze, "E-UNINITIALIZED"),
         ("thin_body", zil_base::Phase::Types, "E-THREAD-BODY"),
@@ -1360,8 +1371,10 @@ fn thread332_parent_boundaries() {
             "E-BORROW-CONFLICT",
         ),
     ] {
-        let text = std::fs::read_to_string(thread325_root().join(format!("parent332/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("parent332/{name}.zil")),
+        )
+        .unwrap();
         let report = compile_source(&source(&text), &CompileOptions::default());
         assert_eq!(
             report.status,
@@ -1390,11 +1403,11 @@ fn thread332_parent_boundaries() {
     }
 }
 
-const REVIEW332_CAPTURED_BODY: &str = "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn worker(value:i32)->i32{return value+1}fn main()->i32{let token=Token{value:42};let body=move()->i32=>token.value;let other=(offset:i32)->i32=>offset;let parent=move(offset:i32)->i32=>{let flag=true;let result=thread_scope(worker,offset,(body));if !flag{return 1}return result.1+result.2};return parent(5)-48}";
+const THREAD_PARENT_CAPTURED_BODY: &str = "resource Token{value:i32}impl Drop for Token{fn drop(self:Self){}}fn worker(value:i32)->i32{return value+1}fn main()->i32{let token=Token{value:42};let body=move()->i32=>token.value;let other=(offset:i32)->i32=>offset;let parent=move(offset:i32)->i32=>{let flag=true;let result=thread_scope(worker,offset,(body));if !flag{return 1}return result.1+result.2};return parent(5)-48}";
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_reviewer_types_work_is_shared_across_names_and_parent_entries() {
+fn thread_parent_reviewer_types_work_is_shared_across_names_and_parent_entries() {
     fn program(worker: &str, capture: &str, count: usize, dummy_captures: usize) -> String {
         let mut text = format!(
             "resource Token{{value:i32}}impl Drop for Token{{fn drop(self:Self){{}}}}fn {worker}(value:i32)->i32{{return value+1}}fn main()->i32{{var total=0;"
@@ -1526,8 +1539,8 @@ fn thread332_reviewer_types_work_is_shared_across_names_and_parent_entries() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
-    let src = source(REVIEW332_CAPTURED_BODY);
+fn thread_parent_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
+    let src = source(THREAD_PARENT_CAPTURED_BODY);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
     let target = zil_base::TargetProfile::default();
@@ -1555,7 +1568,7 @@ fn thread332_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
     );
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed, plan, &target, &limits).unwrap();
-    let reused = REVIEW332_CAPTURED_BODY.replace(
+    let reused = THREAD_PARENT_CAPTURED_BODY.replace(
         "return parent(5)-48",
         "let first=parent(5);return first+parent(6)-97",
     );
@@ -1574,7 +1587,8 @@ fn thread332_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
     );
     assert_eq!(report.diagnostics[0].code, "E-UNINITIALIZED");
     let helper =
-        std::fs::read_to_string(thread325_root().join("pending/callable_wrapper.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("pending/callable_wrapper.zil"))
+            .unwrap();
     let report = compile_source(&source(&helper), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -1653,11 +1667,11 @@ fn thread332_reviewer_real_owned_body_forces_parent_once_before_actual_entry() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs() {
+fn thread_parent_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs() {
     use zil_ir::{
         CallableKind, ClosureId, FunctionId, InstructionKind, LocalId, PassingMode, Type,
     };
-    let src = source(REVIEW332_CAPTURED_BODY);
+    let src = source(THREAD_PARENT_CAPTURED_BODY);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
     let target = zil_base::TargetProfile::default();
@@ -1763,7 +1777,7 @@ fn thread332_reviewer_raw_parent_metadata_and_shared_once_claims_are_not_proofs(
 }
 
 #[cfg(target_os = "linux")]
-fn thread332_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
+fn thread_parent_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     for verify in [false, true] {
@@ -1814,7 +1828,7 @@ fn thread332_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePlan) {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread339_shared_source_and_independent_windows() {
+fn thread_parent_cleanup_shared_source_and_independent_windows() {
     let target = zil_base::TargetProfile::default();
     let limits = Limits::default();
     for name in [
@@ -1832,8 +1846,10 @@ fn thread339_shared_source_and_independent_windows() {
         "parent_capture",
         "scalar_control",
     ] {
-        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+        )
+        .unwrap();
         let src = source(&text);
         let report = compile_source(&src, &CompileOptions::default());
         assert_eq!(
@@ -1851,7 +1867,7 @@ fn thread339_shared_source_and_independent_windows() {
         let verified = zil_verify::verify_module(raw, claim, &target, &limits).unwrap();
         zil_lower::lower(&verified).unwrap();
         if name == "disjoint_write" {
-            thread332_budget(&typed, &plan);
+            thread_parent_budget(&typed, &plan);
             // Substitute the child argument with a shared reborrow of the
             // body's actual exclusive y capture. No source producer approves it.
             let mut forged = typed.clone();
@@ -1968,8 +1984,10 @@ fn thread339_shared_source_and_independent_windows() {
             "E-UNSUPPORTED",
         ),
     ] {
-        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+        )
+        .unwrap();
         let report = compile_source(&source(&text), &CompileOptions::default());
         assert_eq!(report.status, category, "{name}: {}", report.to_json());
         assert!(
@@ -1982,7 +2000,7 @@ fn thread339_shared_source_and_independent_windows() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread339_raw_dynamic_origin_is_unsupported_before_lowering() {
+fn thread_parent_cleanup_raw_dynamic_origin_is_unsupported_before_lowering() {
     use zil_ir::InstructionKind;
     let src = source(
         "struct Item{value:i32}fn read(input:&i32)->i32{return *input}fn scalar(input:i32)->i32{return input}fn main()->i32{let item=Item{value:9};let pointer=&item.value;let body=()->i32=>0;let result=thread_scope(scalar,5,body);let observed=read(pointer);return result.1+observed}",
@@ -2045,7 +2063,7 @@ fn thread339_raw_dynamic_origin_is_unsupported_before_lowering() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread339_types_shared_budget_and_scalar_control() {
+fn thread_parent_cleanup_types_shared_budget_and_scalar_control() {
     let target = zil_base::TargetProfile::default();
     let limits = Limits::default();
     for name in [
@@ -2056,8 +2074,10 @@ fn thread339_types_shared_budget_and_scalar_control() {
         "two_scopes",
         "nested_shared",
     ] {
-        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+        )
+        .unwrap();
         let src = source(&text);
         let ast = zil_syntax::parse(&src).into_result().unwrap();
         let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2109,19 +2129,20 @@ fn thread339_types_shared_budget_and_scalar_control() {
         .contains(&name)
         {
             eprintln!("thread339 {name} kernel budgets follow");
-            thread332_budget(&expected, &plan);
+            thread_parent_budget(&expected, &plan);
         }
     }
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn thread339_helper_return_mutable_roots_are_joint_in_both_kernels() {
+fn thread_parent_cleanup_helper_return_mutable_roots_are_joint_in_both_kernels() {
     use zil_ir::InstructionKind;
     let target = zil_base::TargetProfile::default();
     let limits = Limits::default();
     let text =
-        std::fs::read_to_string(thread325_root().join("shared339/helper_disjoint.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("shared339/helper_disjoint.zil"))
+            .unwrap();
     let src = source(&text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2170,7 +2191,8 @@ fn thread339_helper_return_mutable_roots_are_joint_in_both_kernels() {
         "{errors:?}"
     );
     let text =
-        std::fs::read_to_string(thread325_root().join("shared339/helper_writer.zil")).unwrap();
+        std::fs::read_to_string(thread_local_parent_root().join("shared339/helper_writer.zil"))
+            .unwrap();
     let src = source(&text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2184,7 +2206,7 @@ fn thread339_helper_return_mutable_roots_are_joint_in_both_kernels() {
 
 #[test]
 #[cfg(all(target_os = "linux", feature = "llvm-api"))]
-fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
+fn thread_parent_cleanup_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let dir = std::env::temp_dir().join(format!("thread339-cache-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
@@ -2192,8 +2214,10 @@ fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
         .iter()
         .enumerate()
     {
-        let text = std::fs::read_to_string(thread325_root().join(format!("shared339/{name}.zil")))
-            .unwrap();
+        let text = std::fs::read_to_string(
+            thread_local_parent_root().join(format!("shared339/{name}.zil")),
+        )
+        .unwrap();
         let report = compile_source(
             &source(&text),
             &CompileOptions {
@@ -2235,7 +2259,7 @@ fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
 }
 
 #[test]
-fn terminal343_sealed_sync_scope_source_reaches_independent_kernel() {
+fn async_registration_sealed_sync_scope_source_reaches_independent_kernel() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"),
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"),
@@ -2255,7 +2279,7 @@ fn terminal343_sealed_sync_scope_source_reaches_independent_kernel() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn terminal343_sealed_sync_native_contention() {
+fn async_registration_sealed_sync_native_contention() {
     use std::{
         fs,
         process::Command,
@@ -2317,7 +2341,7 @@ fn terminal343_sealed_sync_native_contention() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn terminal343_sealed_sync_source_and_raw_boundaries() {
+fn async_registration_sealed_sync_source_and_raw_boundaries() {
     use zil_ir::{
         AtomicOrdering as O, InstructionKind as I, SyncCellKind as K, SyncI32Op as P, Type,
     };
@@ -2455,12 +2479,12 @@ fn terminal343_sealed_sync_source_and_raw_boundaries() {
             );
         }
     }
-    thread332_budget(&typed, &plan);
+    thread_parent_budget(&typed, &plan);
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
+fn async_registration_mutex_native_failures_and_owned_body_cleanup() {
     use std::{
         fs,
         os::unix::{fs::PermissionsExt, process::ExitStatusExt},
@@ -2555,7 +2579,7 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
 }
 
 #[test]
-fn task343_source_to_persistent_native_frame() {
+fn async_registration_source_to_persistent_native_frame() {
     let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -2568,7 +2592,7 @@ fn task343_source_to_persistent_native_frame() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn task343_native_yields_resume_once() {
+fn async_registration_native_yields_resume_once() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for text in [
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"),
@@ -2623,7 +2647,7 @@ fn task343_native_yields_resume_once() {
 }
 
 #[test]
-fn task343_source_rejects_direct_paths_and_overlapping_heads() {
+fn async_registration_source_rejects_direct_paths_and_overlapping_heads() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-reject-foreign-ref.zil"),
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
@@ -2646,7 +2670,7 @@ fn task343_source_rejects_direct_paths_and_overlapping_heads() {
 }
 
 #[test]
-fn task343_raw_wire_and_exact_kernel_budgets() {
+fn task_poll_raw_wire_and_exact_kernel_budgets() {
     use zil_ir::{InstructionKind as I, Type};
     let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
     let src = source(text);
@@ -2833,7 +2857,7 @@ fn task343_raw_wire_and_exact_kernel_budgets() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn task343_native_allocation_failure_drop_and_closed_destroy() {
+fn async_registration_native_allocation_failure_drop_and_closed_destroy() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -2948,7 +2972,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
     }
 }
 
-fn task343_export_program() -> zil_ir::TypedProgram {
+fn async_registration_export_program() -> zil_ir::TypedProgram {
     let src = source(include_str!(
         "../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil"
     ));
@@ -2977,10 +3001,10 @@ fn task343_export_program() -> zil_ir::TypedProgram {
 }
 
 #[test]
-fn task343_public_semantics_are_independently_bound() {
+fn async_registration_public_semantics_are_independently_bound() {
     use std::sync::Arc;
     use zil_ir::{PassingMode, ScalarFunction, Type};
-    let typed = task343_export_program();
+    let typed = async_registration_export_program();
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     assert_eq!(typed.task_interfaces.len(), 1);
@@ -3139,18 +3163,18 @@ fn task343_public_semantics_are_independently_bound() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn task343_external_five_entry_sabi_and_physical_layout() {
-    task343_run_external_sabi(false);
+fn async_registration_external_five_entry_sabi_and_physical_layout() {
+    async_registration_run_external_sabi(false);
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn child343_external_child_sabi_and_physical_layout() {
-    task343_run_external_sabi(true);
+fn async_child_external_child_sabi_and_physical_layout() {
+    async_registration_run_external_sabi(true);
 }
 
 #[cfg(target_os = "linux")]
-fn task343_run_external_sabi(child: bool) {
+fn async_registration_run_external_sabi(child: bool) {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -3413,7 +3437,7 @@ fn task343_run_external_sabi(child: bool) {
 }
 
 #[test]
-fn registration343_returned_generic_owner_reaches_both_kernels() {
+fn async_registration_returned_generic_owner_reaches_both_kernels() {
     let text =
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let report = compile_source(&source(text), &CompileOptions::default());
@@ -3427,7 +3451,7 @@ fn registration343_returned_generic_owner_reaches_both_kernels() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn registration343_returned_stable_owner_native_and_failures() {
+fn async_registration_returned_stable_owner_native_and_failures() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -3542,7 +3566,7 @@ fn registration343_returned_stable_owner_native_and_failures() {
 }
 
 #[test]
-fn registration343_source_definition_moves_and_closed_environment_rejects() {
+fn async_registration_source_definition_moves_and_closed_environment_rejects() {
     let original =
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let unused = original.split("fn main").next().unwrap().to_owned() + "fn main() {}";
@@ -3580,7 +3604,7 @@ fn registration343_source_definition_moves_and_closed_environment_rejects() {
 }
 
 #[test]
-fn registration343_raw_wire_and_exact_kernel_budgets() {
+fn returned_registration_raw_wire_and_exact_kernel_budgets() {
     use zil_ir::{InstructionKind as I, Type};
     let src = source(include_str!(
         "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
@@ -3862,7 +3886,7 @@ fn registration343_raw_wire_and_exact_kernel_budgets() {
 }
 
 #[test]
-fn registration343_copy_instances_and_return_branch_neighbors() {
+fn async_registration_copy_instances_and_return_branch_neighbors() {
     let original =
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let declarations = original.split("fn install").next().unwrap();
@@ -3882,7 +3906,7 @@ fn registration343_copy_instances_and_return_branch_neighbors() {
 }
 
 #[test]
-fn registration343_source_library_preserves_actual_returned_environment() {
+fn async_registration_source_library_preserves_actual_returned_environment() {
     let original =
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let helper = original
@@ -3923,7 +3947,7 @@ fn registration343_source_library_preserves_actual_returned_environment() {
 }
 
 #[test]
-fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries() {
+fn async_registration_composed_code_capture_keeps_actual_data_and_life_boundaries() {
     let positive =
         include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-composed.zil");
     let report = compile_source(&source(positive), &CompileOptions::default());
@@ -3984,7 +4008,7 @@ fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries()
 
 #[test]
 #[cfg(target_os = "linux")]
-fn child343_native_static_frames_resume_and_cancel() {
+fn async_child_native_static_frames_resume_and_cancel() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let original = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil");
     let prefix = original.split("fn main").next().unwrap();
@@ -4060,7 +4084,7 @@ fn main()->i32 {var t=task_start(worker,7);let direct=plain(7);let (s,v)=task_po
 }
 
 #[test]
-fn child343_source_and_raw_effect_boundaries() {
+fn async_child_source_and_raw_effect_boundaries() {
     use zil_ir::{CallKind, InstructionKind as I, Type};
     for text in [
         "fn worker(x:i32)->i32 contract{effects()} {task_yield();return x} fn main(){}",
@@ -4199,7 +4223,7 @@ fn child343_source_and_raw_effect_boundaries() {
 }
 
 #[test]
-fn child343_life_transport_is_not_silently_admitted() {
+fn async_child_life_transport_is_not_silently_admitted() {
     use zil_ir::{FunctionLifeContract, StorageLifeContract};
     let src = source(
         "fn apply<F:Fn(i32)->i32>(f:F,x:i32)->i32 {return f(x)} fn main()->i32 {let f=(x:i32)->i32=>x+1;return apply(f,7)}",
@@ -4241,7 +4265,7 @@ fn child343_life_transport_is_not_silently_admitted() {
 }
 
 #[test]
-fn child343_effect_free_suspend_interface_and_incremental_identity() {
+fn async_child_effect_free_suspend_interface_and_incremental_identity() {
     use zil_ir::{CallKind, CoreProgram, ProgramModule};
     let src =
         source("pub fn worker(x:i32)->i32 {let a=x+1;let b=a+2;let c=b+3;return c} fn main(){}");
@@ -4323,7 +4347,7 @@ fn child343_effect_free_suspend_interface_and_incremental_identity() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn child343_native_allocation_failure_and_embedded_cleanup() {
+fn async_child_native_allocation_failure_and_embedded_cleanup() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -4418,7 +4442,7 @@ let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
 }
 
 #[test]
-fn terminal343_scalar_library_helpers_keep_sealed_identity() {
+fn async_registration_scalar_library_helpers_keep_sealed_identity() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let main = source(include_str!(
         "../../../tests/language-readiness/terminal/concurrency-and-registration/sync-probes/library/main.zil"
@@ -4509,13 +4533,13 @@ fn terminal343_scalar_library_helpers_keep_sealed_identity() {
 }
 
 #[path = "../../../tests/language-readiness/terminal/concurrency-and-registration/task_general.rs"]
-mod general_task343;
+mod general_async_registration;
 
 #[path = "../../../tests/language-readiness/task-composition/verified-source-consumers/verify_frames.rs"]
 mod task_verify_frame_verify_frames;
 
 #[path = "../../../tests/language-readiness/terminal/concurrency-and-registration/cas.rs"]
-mod cas343;
+mod cas;
 
 #[test]
 fn terminal_life_values_life_values_keep_default_worker_stack() {
@@ -4850,7 +4874,7 @@ fn async_registration_explicit_source_smoke() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn async_registration841_task_queued_cancel_native() {
+fn async_registration_task_queued_cancel_native() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -5471,7 +5495,7 @@ fn async_registration_raw_wire_and_exact_budgets() {
 }
 
 #[test]
-fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wire() {
+fn async_registration_legacy_task_start_cannot_hide_pollable_worker_raw_or_wire() {
     use zil_ir::{
         BasicBlock, BlockId, Constant, Instruction, InstructionKind as I, Terminator, Type, ValueId,
     };
@@ -5598,7 +5622,7 @@ fn async_registration841_legacy_task_start_cannot_hide_pollable_worker_raw_or_wi
 }
 
 #[test]
-fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin() {
+fn async_registration_actual_task_carrier_cleanup_requires_synchronous_origin() {
     let queued =
         include_str!("../../../tests/language-readiness/async-registration/queued-cancel.zil");
     let prefix = queued.split("fn drive(").next().unwrap();
@@ -5722,7 +5746,7 @@ fn async_registration841_actual_task_carrier_cleanup_requires_synchronous_origin
 }
 
 #[test]
-fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
+fn task_origin_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
     let text = "fn unused(give task:Task<i32>){}fn main(){}";
     let input = source(text);
     let limits = Limits::default();

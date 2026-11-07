@@ -339,7 +339,7 @@ fn self_associated_constant_self_associated_identity_budgets_and_machine_values(
 }
 
 #[test]
-fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both_providers() {
+fn owned_replacement_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both_providers() {
     let files = [
         (
             "main",
@@ -409,7 +409,7 @@ fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both
 }
 
 #[test]
-fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
+fn owned_replacement_method_receiver_origins_survive_type_and_const_substitution() {
     let original = include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-substitution-growth.zil"
     );
@@ -465,7 +465,7 @@ fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
 }
 
 #[test]
-fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances() {
+fn owned_replacement_generic_methods_keep_provider_modules_and_exact_trait_instances() {
     native_both(&[(
         "main",
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-method-no-outer.zil"),
@@ -537,7 +537,7 @@ fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances()
 }
 
 #[test]
-fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
+fn owned_replacement_associated_constant_member_ordinals_survive_shared_spans() {
     use zil_syntax::ast::ItemKind;
     let unit = source(include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"
@@ -588,7 +588,7 @@ fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
 }
 
 #[test]
-fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
+fn owned_replacement_associated_constants_keep_declared_types_and_committed_values() {
     for width in [32, 64] {
         let target = zil_base::TargetProfile {
             pointer_width: width,
@@ -699,7 +699,7 @@ fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
 }
 
 #[test]
-fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
+fn owned_replacement_associated_types_remain_bound_supported_in_unused_definitions() {
     for text in [
         include_str!(
             "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-instances.zil"
@@ -765,7 +765,7 @@ fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
 }
 
 #[test]
-fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
+fn owned_replacement_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil"),
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=P{};return get::<i32,P>(&p)-7}",
@@ -798,7 +798,7 @@ fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
 }
 
 #[test]
-fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
+fn owned_replacement_generic_method_ordinals_reach_raw_wire_and_native() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-substitution-growth.zil"
@@ -883,7 +883,7 @@ fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
 }
 
 #[test]
-fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_code() {
+fn owned_replacement_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_code() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/trait-call-shared-spans.zil"
@@ -961,7 +961,7 @@ fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_c
 }
 
 #[test]
-fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
+fn owned_replacement_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil"),
         "fn id(x:i32)->i32{return x}trait Read{fn read(self:&Self)->i32;}struct Box<F:Copy>{value:F}impl<T:Copy> Read for Box<fn(T)->i32>{fn read()->i32{return 7}}fn main()->i32{let p=Box::<fn(i32)->i32>{value:id};return p.read()-7}",
@@ -1019,7 +1019,7 @@ fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
 }
 
 #[test]
-fn terminal341_impl_growth_is_bounded_and_declared_applied_premises_are_symbolic() {
+fn owned_replacement_impl_growth_is_bounded_and_declared_applied_premises_are_symbolic() {
     let report = compile_source(
         &source(
             "trait Grow{}struct Box<T:Copy>{value:T}impl<T:Copy> Grow for Box<T> where Box<Box<T>>:Grow{}fn consume<T:Grow>(p:&T){}fn main(){let p=Box::<i32>{value:3};consume(&p)}",
@@ -1069,7 +1069,7 @@ fn terminal341_impl_growth_is_bounded_and_declared_applied_premises_are_symbolic
 }
 
 #[test]
-fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
+fn owned_replacement_supertrait_evidence_is_committed_after_inherited_obligations() {
     for text in [
         "trait Base{fn base(self:&Self)->i32;}trait Child:Base{fn child(self:&Self)->i32;}struct P{n:i32}impl Base for P{fn base()->i32{return .n}}impl Child for P{fn child()->i32{return .n}}fn consume<T:Child>(p:&T)->i32{return p.base()+p.child()}fn main()->i32{let p=P{n:7};return consume(&p)-14}",
         "trait Base{fn base(self:&Self)->i32;}trait Child:Base{}trait Top:Child{}struct P{n:i32}impl Top for P{}impl Child for P{}impl Base for P{fn base()->i32{return .n}}fn consume<T:Top>(p:&T)->i32{return p.base()}fn main()->i32{let p=P{n:7};return consume(&p)-7}",
@@ -1123,7 +1123,7 @@ fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
 }
 
 #[test]
-fn terminal341_const_module_namespaces_and_forwarding_preserve_actual_binders() {
+fn owned_replacement_const_module_namespaces_and_forwarding_preserve_actual_binders() {
     let files = [
         (
             "main",
@@ -1157,7 +1157,7 @@ fn terminal341_const_module_namespaces_and_forwarding_preserve_actual_binders() 
 }
 
 #[test]
-fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
+fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
     let super_source =
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/supertraits.zil");
@@ -1613,7 +1613,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
 }
 
 #[test]
-fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
+fn trait_default_unused_and_instantiated_reference_defaults_keep_the_same_boundary() {
     let cases = [
         (
             "local-address",
@@ -1703,7 +1703,7 @@ fn reviewer330_unused_and_instantiated_reference_defaults_keep_the_same_boundary
 }
 
 #[test]
-fn reviewer330_receiver_shadow_is_rejected_before_an_instance_is_selected() {
+fn trait_default_receiver_shadow_is_rejected_before_an_instance_is_selected() {
     for suffix in [
         "fn main(){}",
         "struct P{}impl Shadow for P{}fn main()->i32{let p=P{};return p.read()}",
@@ -1724,7 +1724,7 @@ fn reviewer330_receiver_shadow_is_rejected_before_an_instance_is_selected() {
 }
 
 #[test]
-fn reviewer330_real_reference_forwarding_and_parameter_shadow_keep_native_meaning() {
+fn trait_default_real_reference_forwarding_and_parameter_shadow_keep_native_meaning() {
     native_both(&[(
         "main",
         "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}fn shadow(self:&Self,value:i32)->i32{let value=value+1;return value}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{return &self.n}}fn main()->i32{let p=P{n:41};let q=p.forward();return *q+p.shadow(0)-42}",
@@ -1750,7 +1750,7 @@ fn reviewer330_real_reference_forwarding_and_parameter_shadow_keep_native_meanin
 }
 
 #[test]
-fn reviewer330_required_body_escape_cannot_gain_a_verify_proof() {
+fn trait_default_required_body_escape_cannot_gain_a_verify_proof() {
     let unit = source(
         "trait Borrow{fn required(self:&Self)->&i32;fn forward(self:&Self)->&i32{return self.required()}}struct P{n:i32}impl Borrow for P{fn required(self:&Self)->&i32{let local=7;let view=&local;let consumed=*view;return &self.n}}fn main()->i32{let p=P{n:7};return *p.forward()-7}",
     );
@@ -1811,7 +1811,7 @@ fn reviewer330_required_body_escape_cannot_gain_a_verify_proof() {
 }
 
 #[test]
-fn trait330_original_pending_sources() {
+fn trait_default_original_pending_sources() {
     // Original Unsupported/Types baseline remains in commit 43bcafbd0; preserve source bytes.
     for text in [
         include_str!("../../../tests/language-readiness/pending/default-trait-method.zil"),
@@ -1829,7 +1829,7 @@ fn trait330_original_pending_sources() {
 }
 
 #[test]
-fn trait330_default_delegation_and_instance_override_are_native() {
+fn trait_default_default_delegation_and_instance_override_are_native() {
     native_both(&[(
         "main",
         include_str!("../../../tests/language-readiness/recovery/pending/trait-default-method.zil"),
@@ -1855,7 +1855,7 @@ fn main()->i32{let p=Point{value:7};if narrow(&p)!=7{return 1}if wide(&p)!=29{re
 }
 
 #[test]
-fn trait330_same_self_two_default_instances_keep_ordered_phantom_identity() {
+fn trait_default_same_self_two_default_instances_keep_ordered_phantom_identity() {
     native_both(&[(
         "main",
         r#"
@@ -1874,7 +1874,7 @@ fn main()->i32{let p=Point{};if first(&p)!=17{return 1}if second(&p)!=29{return 
 }
 
 #[test]
-fn trait330_default_body_keeps_private_helper_module_and_actual_host_dependencies() {
+fn trait_default_default_body_keeps_private_helper_module_and_actual_host_dependencies() {
     native_both(&[
         (
             "main",
@@ -1892,7 +1892,7 @@ fn trait330_default_body_keeps_private_helper_module_and_actual_host_dependencie
 }
 
 #[test]
-fn trait336_original_global_function_value_reaches_both_native_backends() {
+fn trait_owned_helper_original_global_function_value_reaches_both_native_backends() {
     native_both(&[(
         "main",
         include_str!(
@@ -1902,7 +1902,7 @@ fn trait336_original_global_function_value_reaches_both_native_backends() {
 }
 
 #[test]
-fn trait336_private_function_values_keep_trait_module_and_full_signature() {
+fn trait_owned_helper_private_function_values_keep_trait_module_and_full_signature() {
     native_both(&[
         (
             "main",
@@ -1922,7 +1922,7 @@ fn trait336_private_function_values_keep_trait_module_and_full_signature() {
 }
 
 #[test]
-fn trait336_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() {
+fn trait_owned_helper_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() {
     native_both(&[(
         "main",
         include_str!("../../../tests/language-readiness/function-pointer-shadowing/local-shadow.zil"),
@@ -1930,7 +1930,7 @@ fn trait336_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() 
 }
 
 #[test]
-fn trait336_unused_and_overridden_function_values_keep_complete_symbolic_identity() {
+fn trait_owned_helper_unused_and_overridden_function_values_keep_complete_symbolic_identity() {
     for text in [
         "fn identity(value:i32)->i32{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
         "fn identity(value:i32)->i32{return value}trait Factory<R:Copy>{fn handler(self:&Self)->fn(i32)->i32{return identity}}struct P{}impl Factory<bool> for P{fn handler()->fn(i32)->i32{return identity}}fn main(){}",
@@ -1999,7 +1999,8 @@ fn trait336_unused_and_overridden_function_values_keep_complete_symbolic_identit
 }
 
 #[test]
-fn trait336_foreign_generic_inferred_and_noncopy_function_values_stay_explicitly_unsupported() {
+fn trait_owned_helper_foreign_generic_inferred_and_noncopy_function_values_stay_explicitly_unsupported()
+ {
     for text in [
         "fn identity<T:Copy>(value:T)->T{return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
         "fn identity(value:i32){return value}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}fn main(){}",
@@ -2027,7 +2028,7 @@ fn trait336_foreign_generic_inferred_and_noncopy_function_values_stay_explicitly
 }
 
 #[test]
-fn trait336_function_value_lookup_keeps_private_names_and_unknown_names_closed() {
+fn trait_owned_helper_function_value_lookup_keeps_private_names_and_unknown_names_closed() {
     let report = compile_project(
         &project(&[
             (
@@ -2094,7 +2095,7 @@ fn trait336_function_value_lookup_keeps_private_names_and_unknown_names_closed()
 }
 
 #[test]
-fn trait336_cached_default_values_recheck_the_actual_global_signature() {
+fn trait_owned_helper_cached_default_values_recheck_the_actual_global_signature() {
     use zil_driver::CompilationSession;
     let valid = "fn identity(value:i32)->i32{return 7}trait Factory{fn handler(self:&Self)->fn(i32)->i32{return identity}}struct P{}impl Factory for P{}fn main(){}";
     let invalid = valid.replace("value:i32", "value:i64");
@@ -2128,7 +2129,7 @@ fn trait336_cached_default_values_recheck_the_actual_global_signature() {
 }
 
 #[test]
-fn trait336_default_function_value_request_budgets_are_exact_across_cache_replay() {
+fn trait_owned_helper_default_function_value_request_budgets_are_exact_across_cache_replay() {
     use zil_driver::CompilationSession;
     let unit = source(include_str!(
         "../../../tests/language-readiness/function-pointer-gaps/default-global-fnptr-known-incomplete.zil"
@@ -2190,7 +2191,7 @@ fn trait336_default_function_value_request_budgets_are_exact_across_cache_replay
 }
 
 #[test]
-fn trait330_recursive_default_is_a_static_call_edge() {
+fn trait_default_recursive_default_is_a_static_call_edge() {
     native_both(&[(
         "main",
         r#"
@@ -2203,7 +2204,7 @@ fn main()->i32{let p=P{};return p.down(4)}
 }
 
 #[test]
-fn trait330_default_substitutes_trait_arguments_through_record_bodies_and_signatures() {
+fn trait_default_default_substitutes_trait_arguments_through_record_bodies_and_signatures() {
     native_both(&[(
         "main",
         r#"
@@ -2218,7 +2219,7 @@ fn main()->i32{let p=P{};return wrapped(&p).value-7}
 }
 
 #[test]
-fn trait330_direct_reference_inputs_and_required_borrow_delegation_are_native() {
+fn trait_default_direct_reference_inputs_and_required_borrow_delegation_are_native() {
     native_both(&[(
         "main",
         r#"
@@ -2235,7 +2236,7 @@ fn main()->i32{let p=P{n:7};let same=p.same();let raw=p.delegated();if same.n!=7
 }
 
 #[test]
-fn trait330_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
+fn trait_default_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
     for (text, phase, code) in [
         (
             "trait Read{fn required(self:&Self)->i32;fn delegated(self:&Self)->i32{return self.required()}}struct P{}impl Read for P{}fn main(){}",
@@ -2276,7 +2277,7 @@ fn trait330_missing_wrong_override_duplicate_and_ambiguous_targets_reject() {
 }
 
 #[test]
-fn trait330_default_request_budgets_are_exact_across_cache_replay() {
+fn trait_default_default_request_budgets_are_exact_across_cache_replay() {
     use zil_driver::CompilationSession;
     let unit = source(
         "trait Tag<A:Copy,B:Copy>{fn base(self:&Self)->i32;fn delegated(self:&Self)->i32{return self.base()}}struct P{}impl Tag<i32,bool> for P{fn base()->i32{return 17}}impl Tag<bool,i32> for P{fn base()->i32{return 29}}fn a<T:Tag<i32,bool>>(x:&T)->i32{return x.delegated()}fn b<T:Tag<bool,i32>>(x:&T)->i32{return x.delegated()}fn main()->i32{let p=P{};return a(&p)+b(&p)-46}",
@@ -2330,7 +2331,7 @@ fn trait330_default_request_budgets_are_exact_across_cache_replay() {
 }
 
 #[test]
-fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
+fn trait_default_unused_and_overridden_defaults_check_symbolic_permissions() {
     for (text, category, code) in [
         (
             "trait Read{fn read(self:&Self)->&i32{let x=7;return &x}}fn main(){}",
@@ -2420,7 +2421,7 @@ fn trait330_unused_and_overridden_defaults_check_symbolic_permissions() {
     }
 }
 #[test]
-fn review327_generic_trait_declaration_and_ordered_argument_identity() {
+fn record_update_generic_trait_declaration_and_ordered_argument_identity() {
     native(&[
         (
             "main",
@@ -2454,7 +2455,7 @@ fn main()->i32{let p=P{};if first(&p)!=17{return 1}if second(&p)!=29{return 2}re
 }
 
 #[test]
-fn review327_unused_trait_obligations_and_alias_coherence() {
+fn record_update_unused_trait_obligations_and_alias_coherence() {
     let declaration = "struct Box<T:Copy>{value:T}struct Wrap<T:Copy>{value:T}trait Read<R>{fn read(self:&Self)->Wrap<Box<R>>;}fn main(){}";
     let bad = check(declaration);
     assert_eq!(bad.status, ResultCategory::SafeReject, "{}", bad.to_json());

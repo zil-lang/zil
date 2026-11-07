@@ -89,18 +89,18 @@ fn native(text: &str, expected: &str) -> (String, String) {
 }
 
 #[test]
-fn closure051_01_resource_and_unrelated_copy_closure_coexist_native() {
+fn resource_closure_resource_and_unrelated_copy_closure_coexist_native() {
     native(include_str!("../../../examples/callback-capture-modes/coexist.zil"), "A");
 }
 
 #[test]
-fn closure051_02_resource_context_keeps_i64_array_literals() {
+fn resource_closure_resource_context_keeps_i64_array_literals() {
     let text = "resource Block{cells:[i64;2]} fn main()->i32{let block=Block{cells:[3,4]};let identity=(n:i64)=>n;if identity(block.cells[1])==4{return 0}return 1}";
     success(&source_report(text, Stage::Verify));
 }
 
 #[test]
-fn closure051_03_descriptor_reads_each_call_and_target_write_is_shared_native() {
+fn resource_closure_descriptor_reads_each_call_and_target_write_is_shared_native() {
     native(
         include_str!("../../../examples/callback-capture-modes/descriptor.zil"),
         "C",
@@ -108,7 +108,7 @@ fn closure051_03_descriptor_reads_each_call_and_target_write_is_shared_native() 
 }
 
 #[test]
-fn closure051_04_owned_shared_can_repeat_and_environment_transfer_is_unique_native() {
+fn resource_closure_owned_shared_can_repeat_and_environment_transfer_is_unique_native() {
     let (typed, _) = native(
         include_str!("../../../examples/callback-capture-modes/owned_shared.zil"),
         "A",
@@ -117,7 +117,7 @@ fn closure051_04_owned_shared_can_repeat_and_environment_transfer_is_unique_nati
 }
 
 #[test]
-fn closure051_05_owned_mutation_through_descriptor_alias_is_exclusive_native() {
+fn resource_closure_owned_mutation_through_descriptor_alias_is_exclusive_native() {
     native(
         include_str!("../../../examples/callback-capture-modes/owned_exclusive.zil"),
         "C",
@@ -125,19 +125,19 @@ fn closure051_05_owned_mutation_through_descriptor_alias_is_exclusive_native() {
 }
 
 #[test]
-fn closure051_06_body_give_owns_at_creation_and_conditional_consume_cleans_rest_native() {
+fn resource_closure_body_give_owns_at_creation_and_conditional_consume_cleans_rest_native() {
     let (typed, _) = native(include_str!("../../../examples/callback-capture-modes/consume.zil"), "ABC");
     assert!(typed.contains("TakeCapture"));
     assert!(typed.contains("CallClosureOnce"));
 }
 
 #[test]
-fn closure051_07_uncalled_owned_environments_clean_in_capture_order_native() {
+fn resource_closure_uncalled_owned_environments_clean_in_capture_order_native() {
     native(include_str!("../../../examples/callback-capture-modes/unused.zil"), "ABC");
 }
 
 #[test]
-fn closure051_08_early_return_loop_exits_and_temporary_environments_cleanup_native() {
+fn resource_closure_early_return_loop_exits_and_temporary_environments_cleanup_native() {
     native(
         include_str!("../../../examples/callback-capture-modes/control.zil"),
         "BACDEF",
@@ -147,7 +147,7 @@ fn closure051_08_early_return_loop_exits_and_temporary_environments_cleanup_nati
 const PRELUDE: &str = "resource Token{code:i32} fn consume(give token:Token){} ";
 
 #[test]
-fn closure051_09_owned_write_requires_mutable_closure_position() {
+fn resource_closure_owned_write_requires_mutable_closure_position() {
     let text = format!(
         "{PRELUDE} fn main()->i32{{let token=Token{{code:65}};let f=move ()=>{{token.code+=1}};f();return 0}}"
     );
@@ -169,7 +169,7 @@ fn closure051_09_owned_write_requires_mutable_closure_position() {
 }
 
 #[test]
-fn closure051_10_descriptor_capture_cannot_acquire_give_authority() {
+fn resource_closure_descriptor_capture_cannot_acquire_give_authority() {
     let text = format!(
         "{PRELUDE} fn main()->i32{{let token=Token{{code:65}};let alias=token;let f=()=>consume(give alias);return 0}}"
     );
@@ -191,7 +191,7 @@ fn closure051_10_descriptor_capture_cannot_acquire_give_authority() {
 }
 
 #[test]
-fn closure051_11_source_move_and_capture_liveness_are_independently_rejected() {
+fn resource_closure_source_move_and_capture_liveness_are_independently_rejected() {
     let bodies = [
         "let token=Token{code:65};let f=move ()=>token.code;consume(give token);return 0",
         "let token=Token{code:65};let f=()=>consume(give token);f();f();return 0",
@@ -217,14 +217,14 @@ fn closure051_11_source_move_and_capture_liveness_are_independently_rejected() {
 }
 
 #[test]
-fn closure051_12_pure_helper_stays_shared_and_recursive_write_helper_is_exclusive_native() {
+fn resource_closure_pure_helper_stays_shared_and_recursive_write_helper_is_exclusive_native() {
     native(include_str!("../../../examples/callback-capture-modes/effects.zil"), "AC");
 }
 
 const OBSERVABLE: &str = "extern \"C\" fn putchar(code:i32)->i32; resource Token{code:i32} impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}} fn consume(give token:Token){} ";
 
 #[test]
-fn closure051_13_mixed_address_and_owner_capture_ends_loan_after_once_native() {
+fn resource_closure_mixed_address_and_owner_capture_ends_loan_after_once_native() {
     let text = format!(
         "{OBSERVABLE} fn main()->i32{{var n=7;let token=Token{{code:65}};let once=()=>{{consume(give token);n}};let observed=once();n=8;if observed==7 && n==8{{return 0}}return 1}}"
     );
@@ -232,7 +232,7 @@ fn closure051_13_mixed_address_and_owner_capture_ends_loan_after_once_native() {
 }
 
 #[test]
-fn closure051_14_owned_environment_moves_through_both_conditional_edges_native() {
+fn resource_closure_owned_environment_moves_through_both_conditional_edges_native() {
     let text = format!(
         "{OBSERVABLE} fn choose(flag:bool,code:i32)->i32{{let token=Token{{code}};let read=move ()=>token.code;let picked=if flag{{read}}else{{read}};if picked()!=code{{return 1}}return 0}} fn main()->i32{{if choose(true,65)!=0{{return 1}}if choose(false,66)!=0{{return 2}}return 0}}"
     );
@@ -240,7 +240,7 @@ fn closure051_14_owned_environment_moves_through_both_conditional_edges_native()
 }
 
 #[test]
-fn closure051_15_shared_owned_entry_cleans_its_fresh_resource_each_call_native() {
+fn resource_closure_shared_owned_entry_cleans_its_fresh_resource_each_call_native() {
     let text = format!(
         "{OBSERVABLE} fn main()->i32{{let token=Token{{code:65}};let read=move ()=>{{let fresh=Token{{code:66}};token.code+fresh.code}};if read()!=131 || read()!=131{{return 1}}return 0}}"
     );
@@ -248,7 +248,7 @@ fn closure051_15_shared_owned_entry_cleans_its_fresh_resource_each_call_native()
 }
 
 #[test]
-fn closure051_16_mutating_a_copy_payload_snapshot_keeps_owned_call_shared_native() {
+fn resource_closure_mutating_a_copy_payload_snapshot_keeps_owned_call_shared_native() {
     let text = "extern \"C\" fn putchar(code:i32)->i32; resource Token{code:i32;pair:(i32,i32)} impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}} fn copy_edit(token:Token)->i32{var pair=token.pair;pair.0+=1;return pair.0} fn main()->i32{let token=Token{code:65,pair:(10,20)};let read=move ()=>copy_edit(token);if read()!=11 || read()!=11{return 1}return 0}";
     native(text, "A");
 }

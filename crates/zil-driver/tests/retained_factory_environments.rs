@@ -43,7 +43,7 @@ fn rejected(text: &str, phase: Phase, code: &str) {
 }
 
 #[test]
-fn retained069_copy_snapshot_factory_before_and_after_caller() {
+fn retained_factory_copy_snapshot_factory_before_and_after_caller() {
     let factory = "fn make(n:i32)->impl Fn(i32)->i32{return move (x)=>n+x}";
     let caller = "fn main()->i32{let f=make(20);let first=f(1);return first+f(1)-42}";
     checked(&format!("{factory} {caller}"));
@@ -51,56 +51,56 @@ fn retained069_copy_snapshot_factory_before_and_after_caller() {
 }
 
 #[test]
-fn retained069_owned_fn_zero_multiple_and_move_calls() {
+fn retained_factory_owned_fn_zero_multiple_and_move_calls() {
     checked(
         "resource R{n:i32} fn make(give r:R)->impl Fn()->i32{return move ()=>r.n} fn main()->i32{let unused=make(R{n:1});let f=make(R{n:21});let n=f();let g=f;return n+g()-42}",
     );
 }
 
 #[test]
-fn retained069_fnmut_survives_an_event_loop() {
+fn retained_factory_fnmut_survives_an_event_loop() {
     checked(
         "fn make(n:i32)->impl FnMut()->i32{var count=n;return move ()=>{count+=1;return count}} fn main()->i32{var f=make(0);var events=0;var sum=0;while events<3{sum+=f();events+=1}return sum-6}",
     );
 }
 
 #[test]
-fn retained069_owned_fnmut_updates_retained_resource() {
+fn retained_factory_owned_fnmut_updates_retained_resource() {
     checked(
         "resource R{n:i32} fn make(n:i32)->impl FnMut()->i32{let r=R{n:n};return move ()=>{r.n+=1;return r.n}} fn main()->i32{var f=make(19);let first=f();return first+f()-41}",
     );
 }
 
 #[test]
-fn retained069_owned_fnonce_consumes_once() {
+fn retained_factory_owned_fnonce_consumes_once() {
     checked(
         "resource R{n:i32} fn consume(give r:R)->i32{return r.n} fn make(n:i32)->impl FnOnce()->i32{let r=R{n:n};return move ()=>consume(give r)} fn main()->i32{let f=make(42);return f()-42}",
     );
 }
 
 #[test]
-fn retained069_public_factory_result_can_enter_a_public_helper() {
+fn retained_factory_public_factory_result_can_enter_a_public_helper() {
     checked(
         "fn twice<F:Fn(i32)->i32>(f:&F,n:i32)->i32{return f(n)+f(n)} fn main()->i32{let f=make(20);return twice(&f,1)-42} fn make(n:i32)->impl Fn(i32)->i32{return move (n2)=>n+n2}",
     );
 }
 
 #[test]
-fn retained069_factory_result_and_local_closure_share_source_inference() {
+fn retained_factory_factory_result_and_local_closure_share_source_inference() {
     checked(
         "fn make(n:i32)->impl Fn(i32)->i32{return move (x)=>n+x} fn main()->i32{let f=make(20);let local=(x)=>x+1;return f(local(20))-41}",
     );
 }
 
 #[test]
-fn retained069_return_same_local_on_multiple_paths_and_unrelated_closure() {
+fn retained_factory_return_same_local_on_multiple_paths_and_unrelated_closure() {
     checked(
         "fn make(n:i32,yes:bool)->impl Fn(i32)->i32{let local=(x:i32)=>x+1;let ignored=local(0);let f=move (x:i32)=>x+n;if yes{return f}return f} fn main()->i32{let f=make(41,true);return f(1)-42}",
     );
 }
 
 #[test]
-fn retained069_returned_error_callback_and_early_cleanup() {
+fn retained_factory_returned_error_callback_and_early_cleanup() {
     checked(
         "resource R{n:i32} fn make(n:i32)->impl Fn()->bool!i32{let r=R{n:n};return move ()=>{if r.n<0{return true}return r.n}} fn main()->bool!i32{let f=make(21);let first=f()?;return first+f()?-42}",
     );
@@ -124,7 +124,7 @@ fn project(main: &str, factory: &str) -> CompileReport {
 }
 
 #[test]
-fn retained069_cross_module_factory_publishes_actual_return_contract() {
+fn retained_factory_cross_module_factory_publishes_actual_return_contract() {
     let report = project(
         "import factory;fn main()->i32{let f=factory.make(21);return f()+f()-42}",
         "resource R{n:i32} pub fn make(n:i32)->impl Fn()->i32{let r=R{n:n};return move ()=>r.n}",
@@ -156,7 +156,7 @@ fn retained069_cross_module_factory_publishes_actual_return_contract() {
 }
 
 #[test]
-fn retained069_nearest_source_boundaries_fail_closed() {
+fn retained_factory_nearest_source_boundaries_fail_closed() {
     checked(
         "fn inner()->impl Fn()->i32{return move ()=>1} fn make()->impl Fn()->i32{return inner()} fn main()->i32{return 0}",
     );
@@ -177,7 +177,7 @@ fn retained069_nearest_source_boundaries_fail_closed() {
 }
 
 #[test]
-fn retained069_managed_use_after_move_and_once_reuse_rejected() {
+fn retained_factory_managed_use_after_move_and_once_reuse_rejected() {
     for text in [
         "resource R{n:i32} fn make()->impl Fn()->i32{let r=R{n:1};return move ()=>r.n} fn main()->i32{let f=make();let g=f;return f()+g()}",
         "resource R{n:i32} fn consume(give r:R)->i32{return r.n} fn make()->impl FnOnce()->i32{let r=R{n:1};return move ()=>consume(give r)} fn main()->i32{let f=make();return f()+f()}",
@@ -198,7 +198,7 @@ fn retained069_managed_use_after_move_and_once_reuse_rejected() {
 }
 
 #[test]
-fn retained069_hidden_fields_do_not_become_caller_projection_rights() {
+fn retained_factory_hidden_fields_do_not_become_caller_projection_rights() {
     let report = project(
         "import factory;fn main()->i32{let f=factory.make(1);return f.n}",
         "resource R{n:i32} pub fn make(n:i32)->impl Fn()->i32{let r=R{n:n};return move ()=>r.n}",
@@ -217,7 +217,7 @@ fn retained069_hidden_fields_do_not_become_caller_projection_rights() {
 }
 
 #[test]
-fn retained069_new_raw_metadata_is_bounded_before_cloning() {
+fn retained_factory_new_raw_metadata_is_bounded_before_cloning() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -246,7 +246,7 @@ fn retained069_new_raw_metadata_is_bounded_before_cloning() {
 }
 
 #[test]
-fn retained069_return_is_a_direct_call_with_environment_not_body_substitution() {
+fn retained_factory_return_is_a_direct_call_with_environment_not_body_substitution() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -276,7 +276,7 @@ fn retained069_return_is_a_direct_call_with_environment_not_body_substitution() 
 }
 
 #[test]
-fn retained069_analyze_reconstructs_cleanup_and_rejects_missing_contract() {
+fn retained_factory_analyze_reconstructs_cleanup_and_rejects_missing_contract() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
@@ -315,7 +315,7 @@ fn retained069_analyze_reconstructs_cleanup_and_rejects_missing_contract() {
 }
 
 #[test]
-fn retained069_cross_module_same_name_factories_and_module_order() {
+fn retained_factory_cross_module_same_name_factories_and_module_order() {
     let mut inputs = ProjectSources {
         root: ModuleId(10),
         modules: vec![
@@ -372,7 +372,7 @@ fn retained069_cross_module_same_name_factories_and_module_order() {
 }
 
 #[test]
-fn retained069_mixed_capture_cleanup_indices_and_owned_return_paths() {
+fn retained_factory_mixed_capture_cleanup_indices_and_owned_return_paths() {
     let report = project(
         "import factory;fn main()->i32{let f=factory.make(true);return f()-42}",
         "resource R{n:i32} pub fn make(yes:bool)->impl Fn()->i32{let first=R{n:20};let extra=2;let last=R{n:20};let f=move ()=>first.n+extra+last.n;if yes{return f}return f}",

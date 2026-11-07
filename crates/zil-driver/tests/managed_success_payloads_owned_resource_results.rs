@@ -111,7 +111,7 @@ enum E{Fail}
 "#;
 
 #[test]
-fn original159_direct_bytebuffer_success_probe_is_accepted_without_rewriting() {
+fn original_direct_bytebuffer_success_probe_is_accepted_without_rewriting() {
     let source = "enum E{Fail} fn make()->E!ByteBuffer contract{result(give)}{return bytes_new()} fn main(){}";
     let report = check("original159", source);
     assert_eq!(

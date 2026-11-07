@@ -214,7 +214,7 @@ fn terminal_stored_core_requires_matching_actual_nominal_inventory() {
 }
 
 #[test]
-fn terminal341_retained_declaration_rows_survive_ct_removal() {
+fn owned_replacement_retained_declaration_rows_survive_ct_removal() {
     let scalar = "fn scalar(marker:Type,n:i32)->i32{return n}";
     let view = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}";
     let main = "fn main()->i32{return #(scalar(i32,0))}";
@@ -265,7 +265,7 @@ fn terminal341_retained_declaration_rows_survive_ct_removal() {
 }
 
 #[test]
-fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
+fn owned_replacement_driver_declaration_context_preserves_original_and_closes_unknown_lineage() {
     let text = "struct View<life a>{p:&'a i64}fn make<life a>(p:&'a i64)->View<'a>{return View::<'a>{p:p}}fn main(){}";
     let directory = std::env::temp_dir().join(format!(
         "zil-context341-{}-{}",
@@ -337,7 +337,7 @@ fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_
 }
 
 #[test]
-fn terminal341_generic_methods_specialize_ordinary_calls() {
+fn owned_replacement_generic_methods_specialize_ordinary_calls() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
         "struct P{}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item{return x}}impl Echo for P{type Item=i32;}fn main()->i32{let p=P{};return p.echo::<bool>(7)-7}",
@@ -361,7 +361,7 @@ fn terminal341_generic_methods_specialize_ordinary_calls() {
 }
 
 #[test]
-fn terminal341_generic_methods_reject_unused_invalid_contracts() {
+fn owned_replacement_generic_methods_reject_unused_invalid_contracts() {
     for text in [
         "trait Echo{fn bad<T:Copy>(self:&Self,x:T)->T{return x+1}}fn main(){}",
         "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T;}impl Echo for P{fn echo<U:Copy>(x:U)->U{return x}}fn main(){}",
@@ -407,7 +407,7 @@ fn terminal341_generic_methods_reject_unused_invalid_contracts() {
 }
 
 #[test]
-fn terminal341_unsigned_const_domains_keep_full_target_bits() {
+fn owned_replacement_unsigned_const_domains_keep_full_target_bits() {
     let positive =
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil");
     for text in [
@@ -500,7 +500,7 @@ fn terminal341_unsigned_const_domains_keep_full_target_bits() {
 }
 
 #[test]
-fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
+fn owned_replacement_ct_generic_type_return_record_reflection_and_syntax() {
     for text in [
         include_str!("../../../tests/language-readiness/pending/ct-type-generic-function.zil"),
         include_str!("../../../tests/language-readiness/pending/ct-type-generic-record.zil"),
@@ -536,7 +536,7 @@ fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
 }
 
 #[test]
-fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_values() {
+fn owned_replacement_const_scalar_functions_check_unused_definitions_and_substitute_values() {
     for text in [
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-functions.zil"),
         "fn constant<#N:i32>()->i32{return N}fn main()->i32{return constant::<7>()-7}",
@@ -589,7 +589,7 @@ fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_va
 }
 
 #[test]
-fn terminal341_const_instances_reach_wire_native_and_exact_budget() {
+fn owned_replacement_const_instances_reach_wire_native_and_exact_budget() {
     use zil_base::{Limits, TargetProfile};
     let text =
         include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-array-machine.zil");
@@ -639,7 +639,7 @@ fn terminal341_const_instances_reach_wire_native_and_exact_budget() {
 }
 
 #[test]
-fn terminal341_const_generated_binders_use_declaration_ordinals_with_shared_spans() {
+fn owned_replacement_const_generated_binders_use_declaration_ordinals_with_shared_spans() {
     let src =
         source("fn pair<#A:i32,#B:i32>()->i32{return A+B}fn main()->i32{return pair::<3,4>()-7}");
     let mut ast = zil_syntax::parse(&src).into_result().unwrap();
@@ -796,7 +796,7 @@ fn generic_enum_error_injection_preserves_native_error_and_success_arms() {
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
-fn review318_copy_record_binders_and_nested_unused_obligations() {
+fn tuple_ownership_copy_record_binders_and_nested_unused_obligations() {
     for text in [
         "struct Box<T:Copy>{value:T} fn identity<Box>(value:Box)->Box{return value} fn result()->i32{return identity(17)}",
         "struct Box<T:Copy>{value:T} struct Holder<Box>{value:Box} fn result()->i32{return 0}",
@@ -853,7 +853,7 @@ fn copy_record_bound_runtime_nested_and_phantom_arguments() {
 }
 
 #[test]
-fn common320_record_enum_phantom_cannot_hide_a_missing_struct_copy_obligation() {
+fn copy_record_record_enum_phantom_cannot_hide_a_missing_struct_copy_obligation() {
     let prefix = "enum Ghost<T:Copy>{Empty{n:i32}}struct Box<T:Copy>{value:T}";
     let bad = compile_source(
         &source(&format!(
@@ -881,7 +881,7 @@ fn common320_record_enum_phantom_cannot_hide_a_missing_struct_copy_obligation() 
 }
 
 #[test]
-fn common320_primitive_type_binder_keeps_copy_obligations_and_concrete_neighbors() {
+fn copy_record_primitive_type_binder_keeps_copy_obligations_and_concrete_neighbors() {
     let declaration = "struct Cell<i32:Copy>{value:i32}";
     for (text, category, code) in [
         (

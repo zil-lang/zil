@@ -4,7 +4,7 @@ use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::*;
 
 #[path = "readonly_product_capture_fixture_support/mod.rs"]
-mod fixture232;
+mod product_default_capture;
 
 const DEFINITIONS: &str = "resource R{n:i32} package P{manages a:R,manages b:R,n:i32} fn make()->P{return P{a:R{n:20},b:R{n:21},n:1}} fn consume(give r:R)->i32{return r.n} fn keep(give r:R,n:i32)->R contract{result(give)}{return give r} fn step(ok:bool)->bool!i32{if ok{return 0}return true} fn bump(r:R){r.n+=1}";
 
@@ -64,7 +64,7 @@ fn rejected(body: &str, phase: Phase) {
 const READER: &str = "fn factory(p:P)->impl Fn()->i32{return move ()=>p.a.n+p.n}fn main()->i32{let f=factory(make());let moved=f;return moved()+moved()-42}";
 
 #[test]
-fn captures077_factory_owns_package_and_shared_calls_do_not_copy_it() {
+fn package_capture_factory_owns_package_and_shared_calls_do_not_copy_it() {
     let module = checked(READER, CallableKind::Fn);
     let factory = module
         .functions
@@ -93,7 +93,7 @@ fn captures077_factory_owns_package_and_shared_calls_do_not_copy_it() {
 }
 
 #[test]
-fn captures077_copy_payload_and_descriptor_helper_writes_are_fnmut() {
+fn package_capture_copy_payload_and_descriptor_helper_writes_are_fnmut() {
     for body in [
         "fn main()->i32{var p=make();var f=move ()=>{p.n+=1;return p.n};return f()+f()-5}",
         "fn main()->i32{let p=make();var f=move ()=>{p.a.n+=1;return p.a.n};return f()+f()-43}",
@@ -105,7 +105,7 @@ fn captures077_copy_payload_and_descriptor_helper_writes_are_fnmut() {
 }
 
 #[test]
-fn captures077_refill_after_take_and_conditional_take_is_repeatable() {
+fn package_capture_refill_after_take_and_conditional_take_is_repeatable() {
     for body in [
         "fn main()->i32{var p=make();var f=move ()=>{p.a=give p.a;return p.a.n};return f()+f()-40}",
         "fn main()->i32{var p=make();var f=move ()=>{let old=give p.a;p.a=R{n:old.n+1};return p.a.n};return f()+f()-43}",
@@ -117,7 +117,7 @@ fn captures077_refill_after_take_and_conditional_take_is_repeatable() {
 }
 
 #[test]
-fn captures077_loop_break_continue_and_lexical_shadowing_preserve_slots() {
+fn package_capture_loop_break_continue_and_lexical_shadowing_preserve_slots() {
     for body in [
         "fn main()->i32{var p=make();var f=move ()=>{for i in 0..3{let old=give p.a;p.a=R{n:old.n+1};if i==1{continue}}return p.a.n};return f()+f()-49}",
         "fn main()->i32{var p=make();var f=move ()=>{while true{let old=give p.a;p.a=R{n:old.n+1};break}return p.a.n};return f()+f()-43}",
@@ -131,7 +131,7 @@ fn captures077_loop_break_continue_and_lexical_shadowing_preserve_slots() {
 }
 
 #[test]
-fn captures077_error_edges_choose_once_only_when_responsibility_is_missing() {
+fn package_capture_error_edges_choose_once_only_when_responsibility_is_missing() {
     checked(
         "fn factory()->impl FnMut(bool)->bool!i32{var p=make();return move (ok)=>{p.a=R{n:step(ok)?};return p.a.n}}fn main()->bool!i32{var f=factory();let failed=f(false);return f(true)?}",
         CallableKind::FnMut,
@@ -147,7 +147,7 @@ fn captures077_error_edges_choose_once_only_when_responsibility_is_missing() {
 }
 
 #[test]
-fn captures077_partial_whole_and_early_return_use_once() {
+fn package_capture_partial_whole_and_early_return_use_once() {
     for body in [
         "fn main()->i32{let p=make();let f=move ()=>{let old=give p.a;return old.n+p.b.n-41};return f()}",
         "fn main()->i32{let p=make();let f=move ()=>{let whole=p;return whole.n-1};return f()}",
@@ -159,7 +159,7 @@ fn captures077_partial_whole_and_early_return_use_once() {
 }
 
 #[test]
-fn captures077_original_default_read_borrows_the_actual_package() {
+fn package_capture_original_default_read_borrows_the_actual_package() {
     // Original rejection input, including its return value, is unchanged.
     let body = "fn main()->i32{let p=make();let f=()=>p.a.n;return f()}";
     let module = typed(body);
@@ -200,8 +200,8 @@ fn captures077_original_default_read_borrows_the_actual_package() {
         i.result == Some(address)
             && matches!(i.kind, InstructionKind::BorrowLocal { local } if local == owner.id)
     }));
-    fixture232::verified("077-shared-original", &unit(body), &module);
-    fixture232::native("077-shared-original", &unit(body), 20);
+    product_default_capture::verified("077-shared-original", &unit(body), &module);
+    product_default_capture::native("077-shared-original", &unit(body), 20);
 
     for (label, invalid) in [
         (
@@ -219,7 +219,7 @@ fn captures077_original_default_read_borrows_the_actual_package() {
         ),
     ] {
         assert_ne!(invalid, body);
-        fixture232::rejected(
+        product_default_capture::rejected(
             label,
             &unit(&invalid),
             ResultCategory::SafeReject,
@@ -228,16 +228,16 @@ fn captures077_original_default_read_borrows_the_actual_package() {
         );
     }
     let finished = body.replace("return f()", "let value=f();let moved=p;return value");
-    fixture232::verified(
+    product_default_capture::verified(
         "077-move-after-last-use",
         &unit(&finished),
         &typed(&finished),
     );
-    fixture232::native("077-move-after-last-use", &unit(&finished), 20);
+    product_default_capture::native("077-move-after-last-use", &unit(&finished), 20);
     let mutable = body
         .replace("let p=make()", "var p=make()")
         .replace("let f=()=>p.a.n", "var f=()=>{p.n+=1;return p.n}");
-    let report = fixture232::rejected(
+    let report = product_default_capture::rejected(
         "077-default-mutable",
         &unit(&mutable),
         ResultCategory::Unsupported,
@@ -253,7 +253,7 @@ fn captures077_original_default_read_borrows_the_actual_package() {
 }
 
 #[test]
-fn captures077_nearest_source_rejections_do_not_weaken_other_modes() {
+fn package_capture_nearest_source_rejections_do_not_weaken_other_modes() {
     rejected(
         "fn main()->i32{var p=make();let f=move ()=>{p.n+=1;return p.n};return f()}",
         Phase::Types,
@@ -292,7 +292,7 @@ fn raw_rejected(label: &str, mutation: impl FnOnce(&mut TypedModule)) {
 }
 
 #[test]
-fn captures077_analyze_rebuilds_binding_and_activation_boundaries() {
+fn package_capture_analyze_rebuilds_binding_and_activation_boundaries() {
     raw_rejected("duplicate bind", |module| {
         let entry = entry_index(module);
         let duplicate = module.functions[entry].blocks[0].instructions[1].clone();
@@ -360,7 +360,7 @@ fn captures077_analyze_rebuilds_binding_and_activation_boundaries() {
 }
 
 #[test]
-fn captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut() {
+fn package_capture_analyze_rejects_shared_alias_write_and_unrestored_fnmut() {
     // The scalar-only READER now uses address projections, so use an explicit
     // descriptor to keep this particular raw mutation real and reproducible.
     let original = typed(
@@ -416,7 +416,7 @@ fn captures077_analyze_rejects_shared_alias_write_and_unrestored_fnmut() {
 }
 
 #[test]
-fn captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary() {
+fn package_capture_type_and_analyze_work_limits_fail_closed_at_exact_boundary() {
     let body = "fn main()->i32{var p=make();var f=move ()=>{for i in 0..3{let old=give p.a;p.a=R{n:old.n+1}}return p.a.n};return f()+f()-49}";
     let core = core(body);
     for stage in ["types", "analyze"] {
@@ -459,7 +459,7 @@ fn captures077_type_and_analyze_work_limits_fail_closed_at_exact_boundary() {
 }
 
 #[test]
-fn captures077_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation() {
+fn package_capture_repeatable_restoration_is_a_return_obligation_not_a_trap_obligation() {
     let mut module = typed(READER);
     let mut entry = module.functions[entry_index(&module)].clone();
     let mut local = entry.locals[view(&module).0 as usize].clone();

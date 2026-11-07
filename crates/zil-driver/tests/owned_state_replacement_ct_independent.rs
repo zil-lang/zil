@@ -124,7 +124,7 @@ fn scalar_call_argument<'a>(core: &'a CoreModule, function: &str) -> &'a str {
 }
 
 #[test]
-fn independent205_ct_reversed_nonadjacent_roles_preserve_actual_scalar_context() {
+fn state_replacement_ct_reversed_nonadjacent_roles_preserve_actual_scalar_context() {
     for kind in [CallableKind::Fn, CallableKind::FnMut, CallableKind::FnOnce] {
         let mut core = module(
             0,
@@ -199,7 +199,7 @@ fn query(p: &CoreProgram, name: &str) -> CoreExpr {
     }
 }
 #[test]
-fn independent205_ct_imported_wrapper_cannot_execute_either_mixed_role() {
+fn state_replacement_ct_imported_wrapper_cannot_execute_either_mixed_role() {
     let root = module(
         0,
         "fn wrapper()->i32{return child.pure()}fn main()->i32{return wrapper()}",
@@ -268,7 +268,7 @@ impl SourceCompiler for Observer {
     }
 }
 #[test]
-fn independent205_ct_both_matching_heads_are_prepaid_before_query_preparation() {
+fn state_replacement_ct_both_matching_heads_are_prepaid_before_query_preparation() {
     let mut original = module(
         0,
         "fn revise()->i32{return 0}fn pure()->i32{return 42}fn marker()->i32{return #(pure())}",
@@ -343,7 +343,7 @@ fn independent205_ct_both_matching_heads_are_prepaid_before_query_preparation() 
 }
 
 #[test]
-fn independent205_ct_complete_reversed_metadata_has_exact_fresh_node_budget() {
+fn state_replacement_ct_complete_reversed_metadata_has_exact_fresh_node_budget() {
     let mut core = module(0, "fn revise()->i32{return 0}fn main(){}");
     mixed(&mut core.functions[0], CallableKind::FnOnce);
     let target = TargetProfile::host_llvm();

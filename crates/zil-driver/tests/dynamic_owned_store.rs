@@ -226,7 +226,7 @@ fn source_guards_reject_missing_context_and_capture() {
 }
 
 #[test]
-fn original_owned_store_capture_is_supported_since_204() {
+fn original_owned_store_capture_is_supported_since() {
     let source = format!(
         "{PACKAGE} fn main()->i32{{let s=empty();let f=move ()=>i32(store_len(s));return f()}}"
     );
@@ -243,7 +243,7 @@ fn original_owned_store_capture_is_supported_since_204() {
 }
 
 #[test]
-fn original_array_of_owned_store_captures_composes_since_204() {
+fn original_array_of_owned_store_captures_composes_since() {
     let source = format!(
         "{PACKAGE} fn main()->i32{{let s=empty();let callbacks=[move ()=>i32(store_len(s))];return 0}}"
     );

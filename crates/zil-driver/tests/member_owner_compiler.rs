@@ -1180,7 +1180,7 @@ fn multiple_generic_queries_share_request_budget_on_cold_and_warm_sessions() {
 }
 
 #[test]
-fn review319_lexical_alias_and_phantom_result_types_reach_real_consumers() {
+fn copy_record_lexical_alias_and_phantom_result_types_reach_real_consumers() {
     use zil_driver::{CompileOptions, Stage, compile_source};
     for (name, text) in [
         (
@@ -1215,7 +1215,7 @@ fn review319_lexical_alias_and_phantom_result_types_reach_real_consumers() {
 }
 
 #[test]
-fn review319_generic_binders_shadow_ct_domain_names() {
+fn copy_record_generic_binders_shadow_ct_domain_names() {
     use zil_driver::{CompileOptions, Stage, compile_source};
     let mut failures = Vec::new();
     for name in ["Type", "Text", "Ident", "Syntax"] {

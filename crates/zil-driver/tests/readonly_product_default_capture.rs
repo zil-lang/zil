@@ -377,7 +377,7 @@ fn raw_and_wire_same_type_other_owner_does_not_inherit_loan_permission() {
 }
 
 #[test]
-fn raw_and_wire_same_type_explicit226_control() {
+fn raw_and_wire_same_type_explicit_control() {
     let text = format!(
         "{MODEL} fn main()->i32{{let first={FIRST};let second={SECOND};let view=&first;let callback=()=>view.child.value;let moved=second;return callback()-7}}"
     );

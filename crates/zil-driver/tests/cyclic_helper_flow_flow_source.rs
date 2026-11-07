@@ -211,7 +211,7 @@ fn main()->i32{{let n=input();var count=0;var f=move()=>{{count+=1;emit(64+count
 }
 
 #[test]
-fn mutable_for_keeps_the189_current_explicit_address_across_calls() {
+fn mutable_for_keeps_the_current_explicit_address_across_calls() {
     let source = format!(
         r#"{INPUT}
 fn run<F:FnMut(&mut i32)->i32>(f:&mut F,p:&mut i32,n:i32)->i32{{var total=0;for index in 0..n{{total+=f(p)}}return total}}

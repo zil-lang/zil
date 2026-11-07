@@ -145,7 +145,7 @@ fn reject(text: &str, code: &str) {
 }
 
 #[test]
-fn resource047_01_factory_describe_give_and_cleanup_native() {
+fn resource_cleanup_factory_describe_give_and_cleanup_native() {
     let (typed, llvm) = native(
         &[("main", include_str!("../../../examples/resource-token-lifecycle/main.zil"))],
         "CB",
@@ -168,7 +168,7 @@ fn resource047_01_factory_describe_give_and_cleanup_native() {
     );
 }
 #[test]
-fn resource047_02_all_normal_exits_and_conditional_transfer_native() {
+fn resource_cleanup_all_normal_exits_and_conditional_transfer_native() {
     native(
         &[(
             "main",
@@ -178,7 +178,7 @@ fn resource047_02_all_normal_exits_and_conditional_transfer_native() {
     );
 }
 #[test]
-fn resource047_03_temporaries_short_circuit_and_conditional_results_native() {
+fn resource_cleanup_temporaries_short_circuit_and_conditional_results_native() {
     let text = format!(
         r#"{PRELUDE}
 fn yes(token:Token)->bool {{return token.code>0}}
@@ -196,7 +196,7 @@ fn main()->i32 {{
     native(&[("main", &text)], "IACBEH");
 }
 #[test]
-fn resource047_04_pattern_conditions_end_temporary_scope_native() {
+fn resource_cleanup_pattern_conditions_end_temporary_scope_native() {
     let text = format!(
         r#"{PRELUDE}
 enum Maybe {{Some(i32),None}}
@@ -222,7 +222,7 @@ fn main()->i32 {{
     native(&[("main", &text)], "JKLMLNLOP");
 }
 #[test]
-fn resource047_05_explicit_descriptor_and_default_cleanup_native() {
+fn resource_cleanup_explicit_descriptor_and_default_cleanup_native() {
     let text = r#"
 resource Plain {value:i32}
 fn make()->Plain contract {result(create)} {return Plain{value:42}}
@@ -232,7 +232,7 @@ fn main()->i32 {let x:Plain=make();let y=x;return read(y)-42}
     native(&[("main", text)], "");
 }
 #[test]
-fn resource047_06_source_transfer_errors_reject() {
+fn resource_cleanup_source_transfer_errors_reject() {
     reject(
         &format!(
             "{PRELUDE}\nfn main()->i32{{let x=make(65);let alias=x;consume(give alias);return 0}}"
@@ -253,7 +253,7 @@ fn resource047_06_source_transfer_errors_reject() {
     );
 }
 #[test]
-fn resource047_07_malformed_drop_and_result_contracts_reject() {
+fn resource_cleanup_malformed_drop_and_result_contracts_reject() {
     for text in [
         "resource R{x:i32} impl Drop for R{fn drop(give self:Self){}}",
         "resource R{x:i32} impl Drop for R{fn drop(self:&Self){}}",
@@ -281,7 +281,7 @@ pub fn change(token:Token,code:i32){token.code=code}
 pub fn forward(give token:Token)->Token contract{result(give)}{return give token}
 "#;
 #[test]
-fn resource047_08_exported_opaque_factory_and_hidden_drop_native() {
+fn resource_cleanup_exported_opaque_factory_and_hidden_drop_native() {
     let main = "import model\nfn main()->i32{let x:model.Token=model.make(65);model.change(x,66);let y=model.forward(give x);return model.read(y)-66}";
     native(&[("main", main), ("model", LIBRARY)], "B");
     for body in [
@@ -311,7 +311,7 @@ fn resource047_08_exported_opaque_factory_and_hidden_drop_native() {
     }
 }
 #[test]
-fn resource047_09_result_mode_is_exported_and_invalidates_signature() {
+fn resource_cleanup_result_mode_is_exported_and_invalidates_signature() {
     let mut fingerprints = Vec::new();
     for (word, mode) in [("create", PassingMode::Create), ("give", PassingMode::Give)] {
         let library = format!(
@@ -341,7 +341,7 @@ fn resource047_09_result_mode_is_exported_and_invalidates_signature() {
 }
 
 #[test]
-fn resource047_10_old_descriptions_and_incoming_create_reject_independently() {
+fn resource_cleanup_old_descriptions_and_incoming_create_reject_independently() {
     let reject_resource = |text: &str| {
         success(&source_report(text, Stage::Types));
         let report = source_report(text, Stage::Verify);
@@ -375,7 +375,7 @@ fn resource047_10_old_descriptions_and_incoming_create_reject_independently() {
 }
 
 #[test]
-fn resource047_11_unimplemented_resource_shapes_have_explicit_boundaries() {
+fn resource_cleanup_unimplemented_resource_shapes_have_explicit_boundaries() {
     for text in [
         "resource R{x:i32} fn escape(x:R)->R{return x}",
         "resource R{x:i32} struct Outer{inner:R}",
@@ -419,7 +419,7 @@ fn resource047_11_unimplemented_resource_shapes_have_explicit_boundaries() {
 }
 
 #[test]
-fn resource047_12_resource_pipeline_and_range_endpoint_temps_native() {
+fn resource_cleanup_resource_pipeline_and_range_endpoint_temps_native() {
     let text = format!(
         r#"{PRELUDE}
 fn offset(token:Token)->i32 {{return token.code-84}}
@@ -436,7 +436,7 @@ fn main()->i32 {{
 }
 
 #[test]
-fn resource047_13_factory_temps_end_before_new_local_owns_result_native() {
+fn resource_cleanup_factory_temps_end_before_new_local_owns_result_native() {
     let text = format!(
         r#"{PRELUDE}
 fn main()->i32 {{
@@ -451,7 +451,7 @@ fn main()->i32 {{
 }
 
 #[test]
-fn resource047_14_i64_resource_field_context_native() {
+fn resource_cleanup_i64_resource_field_context_native() {
     let text = r#"
 extern "C" fn putchar(value:i32)->i32;
 resource Wide {value:i64}
@@ -473,7 +473,7 @@ fn main()->i32 {
 }
 
 #[test]
-fn resource047_15_array_resource_field_context_native() {
+fn resource_cleanup_array_resource_field_context_native() {
     let text = r#"
 extern "C" fn putchar(value:i32)->i32;
 resource Block {cells:[i64;2]}

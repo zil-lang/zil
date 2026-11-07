@@ -183,7 +183,8 @@ fn binaries(temp: &Path, stem: &str, source_files: usize) -> Vec<PathBuf> {
 }
 
 #[test]
-fn captures079_returned_component_repeats_updates_without_losing_environment_flags() {
+fn persistent_package_capture_returned_component_repeats_updates_without_losing_environment_flags()
+{
     let temp = Temp::new();
     let mut cases: Vec<(Vec<u8>, i32, String)> = [
         ("", 0, "0\n#1\nMSU"),
@@ -210,7 +211,7 @@ fn captures079_returned_component_repeats_updates_without_losing_environment_fla
 }
 
 #[test]
-fn captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order() {
+fn persistent_package_capture_complete_and_partial_env_exits_match_exact_fixed_cleanup_order() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "lifecycle", 3) {
         for (input, code, output) in [
@@ -231,7 +232,7 @@ fn captures079_complete_and_partial_env_exits_match_exact_fixed_cleanup_order() 
 }
 
 #[test]
-fn captures079_real_fd_ownership_survives_return_replacement_and_repeated_calls() {
+fn persistent_package_capture_real_fd_ownership_survives_return_replacement_and_repeated_calls() {
     let temp = Temp::new();
     for binary in binaries(&temp.0, "fd", 1) {
         run(&binary, b"", 0, "F");
@@ -239,7 +240,7 @@ fn captures079_real_fd_ownership_survives_return_replacement_and_repeated_calls(
 }
 
 #[test]
-fn captures079_views_are_not_ct_capabilities_or_forgeable_lir_authority() {
+fn persistent_package_capture_views_are_not_ct_capabilities_or_forgeable_lir_authority() {
     use zil_base::{FileId, Limits, ModuleId, Phase, SourceUnit, TargetProfile};
     use zil_ir::{CtProgram, InstructionKind};
     let limits = Limits::default();

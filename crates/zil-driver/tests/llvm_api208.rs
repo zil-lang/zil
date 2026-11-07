@@ -163,7 +163,7 @@ fn function_value_target_and_caller_in_different_units() {
     }
 }
 #[test]
-fn current_177_state_store_callback_and_field_exit() {
+fn current_state_store_callback_and_field_exit() {
     let d = Dir::new();
     let root =
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui-language-store-fields");

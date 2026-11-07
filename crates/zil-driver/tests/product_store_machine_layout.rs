@@ -112,7 +112,7 @@ fn execute(
 
 #[test]
 fn failed_push_keeps_the_complete_product_through_two_return_edges() {
-    let source = include_str!("review223_fixtures/entry_error.zil");
+    let source = include_str!("product_store_wire_replay_fixtures/entry_error.zil");
     for optimization in [Optimization::O0, Optimization::O2] {
         let (dir, program) = compile("entry-error", source, optimization, false);
         let result = execute(&program, None, None, &dir, "run");
@@ -124,7 +124,7 @@ fn failed_push_keeps_the_complete_product_through_two_return_edges() {
 
 #[test]
 fn mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts() {
-    let source = include_str!("review223_fixtures/heterogeneous.zil");
+    let source = include_str!("product_store_wire_replay_fixtures/heterogeneous.zil");
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));

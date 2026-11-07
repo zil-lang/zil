@@ -152,7 +152,7 @@ fn complete_type_instances_have_exact_work_local_and_function_boundaries() {
 }
 
 #[test]
-fn pre202_callback_store_paths_keep_their_recorded_types_boundaries() {
+fn pre_callback_store_paths_keep_their_recorded_types_boundaries() {
     const PAIR: &str = include_str!("callback_store_positions_fixtures/01_pair_store_mut.zil");
     let original = measure(
         "old-original02",

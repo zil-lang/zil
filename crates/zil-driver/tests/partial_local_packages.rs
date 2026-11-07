@@ -4,7 +4,7 @@ use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project, compile
 use zil_ir::{CallableKind, InstructionKind, Type, TypedModule};
 
 #[path = "readonly_product_capture_fixture_support/mod.rs"]
-mod fixture232;
+mod product_default_capture;
 
 const DEFINITIONS: &str = "resource R{n:i32} package P{manages a:R,manages b:R,n:i32} fn make()->P{return P{a:R{n:20},b:R{n:21},n:1}} fn relay(p:P)->P{return p} fn consume(give r:R)->i32{return r.n} fn keep(give r:R,n:i32)->R contract{result(give)}{return give r} fn step(ok:bool)->bool!i32{if ok{return 0}return true}";
 
@@ -63,7 +63,7 @@ fn typed(body: &str) -> TypedModule {
 }
 
 #[test]
-fn packages072_immutable_field_take_preserves_sibling_and_copy_fields() {
+fn partial_package_immutable_field_take_preserves_sibling_and_copy_fields() {
     checked(
         "fn main()->i32{let p=make();let a=give p.a;let n=p.b.n+p.n;return consume(give a)+n-42}",
     );
@@ -76,7 +76,7 @@ fn packages072_immutable_field_take_preserves_sibling_and_copy_fields() {
 }
 
 #[test]
-fn packages072_refill_restores_whole_transfer_and_returns() {
+fn partial_package_refill_restores_whole_transfer_and_returns() {
     checked(
         "fn update(p:P)->P{var q=p;let a=give q.a;q.n=2;q.a=R{n:a.n+1};return q} fn main()->i32{let p=relay(update(make()));return p.a.n+p.b.n+p.n-44}",
     );
@@ -86,14 +86,14 @@ fn packages072_refill_restores_whole_transfer_and_returns() {
 }
 
 #[test]
-fn packages072_active_replacement_and_rhs_self_take() {
+fn partial_package_active_replacement_and_rhs_self_take() {
     checked("fn main()->i32{var p=make();p.a=R{n:p.a.n+1};return p.a.n+p.b.n-42}");
     checked("fn main()->i32{var p=make();p.a=keep(give p.a,0);return p.a.n+p.b.n+p.n-42}");
     checked("fn main()->i32{var p=make();p.a=give p.a;return p.a.n+p.b.n+p.n-42}");
 }
 
 #[test]
-fn packages072_conditional_empty_slot_can_be_refilled_after_join() {
+fn partial_package_conditional_empty_slot_can_be_refilled_after_join() {
     checked(
         "fn update(yes:bool)->i32{var p=make();if yes{let a=give p.a}p.a=R{n:21};let q=relay(p);return q.a.n+q.b.n-42} fn main()->i32{return update(true)+update(false)}",
     );
@@ -103,7 +103,7 @@ fn packages072_conditional_empty_slot_can_be_refilled_after_join() {
 }
 
 #[test]
-fn packages072_loop_take_refill_reestablishes_whole_shape() {
+fn partial_package_loop_take_refill_reestablishes_whole_shape() {
     checked(
         "fn main()->i32{var p=make();var i=0;while i<3{let a=give p.a;p.a=R{n:a.n+1};i+=1}let q=relay(p);return q.a.n+q.b.n-44}",
     );
@@ -111,14 +111,14 @@ fn packages072_loop_take_refill_reestablishes_whole_shape() {
 }
 
 #[test]
-fn packages072_live_sibling_descriptor_and_finished_old_descriptor_are_allowed() {
+fn partial_package_live_sibling_descriptor_and_finished_old_descriptor_are_allowed() {
     checked("fn main()->i32{var p=make();let b=p.b;p.a=R{n:21};return b.n+p.a.n-42}");
     checked("fn main()->i32{var p=make();let a=p.a;let n=a.n;p.a=R{n:22};return n+p.a.n-42}");
     checked("fn main()->i32{var p=make();let b=p.b;let f=()=>b.n;p.a=R{n:21};return f()+p.a.n-42}");
 }
 
 #[test]
-fn packages072_replacement_preparation_can_fail_before_or_after_self_take() {
+fn partial_package_replacement_preparation_can_fail_before_or_after_self_take() {
     checked(
         "fn run(ok:bool)->bool!i32{var p=make();p.a=R{n:21+step(ok)?};return p.a.n+p.b.n-42} fn main()->bool!i32{return run(false)?}",
     );
@@ -131,14 +131,14 @@ fn packages072_replacement_preparation_can_fail_before_or_after_self_take() {
 }
 
 #[test]
-fn packages072_closure_body_owns_its_own_local_package() {
+fn partial_package_closure_body_owns_its_own_local_package() {
     checked(
         "fn main()->i32{let f=()=>{var p=make();let a=give p.a;p.a=R{n:a.n+1};return p.a.n+p.b.n-42};return f()}",
     );
 }
 
 #[test]
-fn packages072_immutable_shell_resource_payload_writes_match_inside_closures() {
+fn partial_package_immutable_shell_resource_payload_writes_match_inside_closures() {
     checked("fn main()->i32{let p=make();p.a.n+=1;return p.a.n+p.b.n-42}");
     checked("fn main()->i32{let f=()=>{let p=make();p.a.n+=1;return p.a.n+p.b.n-42};return f()}");
     checked(
@@ -154,7 +154,7 @@ fn packages072_immutable_shell_resource_payload_writes_match_inside_closures() {
 }
 
 #[test]
-fn packages072_prepared_owner_precedes_explicit_old_cleanup_and_commit() {
+fn partial_package_prepared_owner_precedes_explicit_old_cleanup_and_commit() {
     let module = typed("fn main()->i32{var p=make();p.a=R{n:21};return p.a.n+p.b.n-42}");
     zil_analyze::analyze(&module, &Limits::default()).unwrap();
     let main = module.functions.iter().find(|f| f.name == "main").unwrap();
@@ -192,7 +192,7 @@ fn packages072_prepared_owner_precedes_explicit_old_cleanup_and_commit() {
 }
 
 #[test]
-fn packages072_partial_whole_boundary_and_repeated_take_are_rejected() {
+fn partial_package_partial_whole_boundary_and_repeated_take_are_rejected() {
     for body in [
         "fn main()->i32{let p=make();let a=give p.a;let again=give p.a;return 0}",
         "fn main()->i32{let p=make();let a=give p.a;let q=p;return 0}",
@@ -206,7 +206,7 @@ fn packages072_partial_whole_boundary_and_repeated_take_are_rejected() {
 }
 
 #[test]
-fn packages072_maybe_missing_field_and_loop_missing_refill_are_rejected() {
+fn partial_package_maybe_missing_field_and_loop_missing_refill_are_rejected() {
     for body in [
         "fn broken(yes:bool)->i32{let p=make();if yes{let a=give p.a}return p.a.n} fn main()->i32{return broken(true)}",
         "fn broken(yes:bool)->P{let p=make();if yes{let a=give p.a}return p} fn main()->i32{return 0}",
@@ -217,7 +217,7 @@ fn packages072_maybe_missing_field_and_loop_missing_refill_are_rejected() {
 }
 
 #[test]
-fn packages072_live_old_descriptors_aliases_and_captures_block_invalidation() {
+fn partial_package_live_old_descriptors_aliases_and_captures_block_invalidation() {
     for body in [
         "fn main()->i32{var p=make();let a=p.a;p.a=R{n:22};return a.n}",
         "fn main()->i32{var p=make();let a=p.a;let alias=a;p.a=R{n:22};return alias.n}",
@@ -230,7 +230,7 @@ fn packages072_live_old_descriptors_aliases_and_captures_block_invalidation() {
 }
 
 #[test]
-fn packages072_rhs_moving_shell_cannot_commit_into_it() {
+fn partial_package_rhs_moving_shell_cannot_commit_into_it() {
     rejected(
         "fn extract(p:P)->R contract{result(give)}{return give p.a} fn main()->i32{var p=make();p.a=extract(p);return 0}",
         Phase::Analyze,
@@ -239,7 +239,7 @@ fn packages072_rhs_moving_shell_cannot_commit_into_it() {
 }
 
 #[test]
-fn packages072_mutability_exact_resource_type_and_ownership_are_preserved() {
+fn partial_package_mutability_exact_resource_type_and_ownership_are_preserved() {
     for body in [
         "fn main()->i32{let p=make();p.a=R{n:1};return 0}",
         "fn main()->i32{let p=make();let a=give p.a;p.a=give a;return 0}",
@@ -265,7 +265,7 @@ fn packages072_mutability_exact_resource_type_and_ownership_are_preserved() {
 }
 
 #[test]
-fn packages072_default_managed_take_captures_the_complete_package_once() {
+fn partial_package_default_managed_take_captures_the_complete_package_once() {
     // Original rejection input, including its return value, is unchanged.
     let body = "fn main()->i32{var p=make();let f=()=>consume(give p.a);return f()}";
     let source = |body: &str| {
@@ -301,15 +301,15 @@ fn packages072_default_managed_take_captures_the_complete_package_once() {
         i.result == Some(capture)
             && matches!(i.kind, InstructionKind::TakeLocal { local } if local == owner.id)
     }));
-    fixture232::verified("072-owned-original", &source(body), &module);
-    fixture232::native("072-owned-original", &source(body), 20);
+    product_default_capture::verified("072-owned-original", &source(body), &module);
+    product_default_capture::native("072-owned-original", &source(body), 20);
     for (label, replacement) in [
         ("072-owner-after-creation", "return p.n+f()"),
         ("072-second-call", "let first=f();return f()+first"),
     ] {
         let invalid = body.replace("return f()", replacement);
         assert_ne!(invalid, body);
-        fixture232::rejected(
+        product_default_capture::rejected(
             label,
             &source(&invalid),
             ResultCategory::SafeReject,
@@ -320,7 +320,7 @@ fn packages072_default_managed_take_captures_the_complete_package_once() {
 }
 
 #[test]
-fn packages072_raw_field_store_cannot_skip_old_cleanup_or_change_permissions() {
+fn partial_package_raw_field_store_cannot_skip_old_cleanup_or_change_permissions() {
     let valid = typed("fn main()->i32{var p=make();p.a=R{n:21};return p.a.n+p.b.n-42}");
     zil_analyze::analyze(&valid, &Limits::default()).unwrap();
     for mutation in 0..6 {
@@ -405,7 +405,7 @@ fn packages072_raw_field_store_cannot_skip_old_cleanup_or_change_permissions() {
 }
 
 #[test]
-fn packages072_direct_operations_keep_defining_module_field_privacy() {
+fn partial_package_direct_operations_keep_defining_module_field_privacy() {
     for body in ["let a=give p.a", "p.a=factory.fresh()", "p.n=2"] {
         let report = compile_project(
             &ProjectSources {

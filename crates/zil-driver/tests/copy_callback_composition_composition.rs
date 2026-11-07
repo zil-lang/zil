@@ -127,12 +127,12 @@ const MODULES: &[(&str, &str)] = &[
     ),
 ];
 
-const TUPLE_IDENTITY321: &str = "fn identity<T:Copy>(value:T)->T{let(x,_)=(value,());return x}fn result()->i32{return identity(42)}";
+const COPY_TUPLE_IDENTITY: &str = "fn identity<T:Copy>(value:T)->T{let(x,_)=(value,());return x}fn result()->i32{return identity(42)}";
 
 #[test]
 fn generic_tuple_binding_original_definition_reaches_verify_and_native() {
     let case = Case::new("tuple-original321");
-    let report = compile(&case, &[("main", TUPLE_IDENTITY321)], None);
+    let report = compile(&case, &[("main", COPY_TUPLE_IDENTITY)], None);
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -143,7 +143,7 @@ fn generic_tuple_binding_original_definition_reaches_verify_and_native() {
         "tuple-original321",
         &[(
             "main",
-            &format!("{TUPLE_IDENTITY321}fn main()->i32{{return result()-42}}"),
+            &format!("{COPY_TUPLE_IDENTITY}fn main()->i32{{return result()-42}}"),
         )],
         "",
     );
@@ -334,7 +334,7 @@ fn generic_tuple_binding_symbolic_work_has_exact_fresh_budget() {
         FileId(0),
         ModuleId(0),
         "tuple-budget321.zil",
-        TUPLE_IDENTITY321,
+        COPY_TUPLE_IDENTITY,
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let run = |n| {

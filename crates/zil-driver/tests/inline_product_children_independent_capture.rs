@@ -57,7 +57,7 @@ fn pair(records: &Records, label: &str, typed: &TypedModule, candidate: &Candida
 }
 
 #[test]
-fn frozen206_coordinated_product_capture_is_admitted_after_216() {
+fn frozen_coordinated_product_capture_is_admitted_after() {
     let records = Records::new();
     records.write("control.zil", CONTROL);
     let source = SourceUnit::new(FileId(0), ModuleId(0), "capture206.zil", CONTROL);

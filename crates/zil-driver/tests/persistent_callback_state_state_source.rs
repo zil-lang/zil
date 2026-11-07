@@ -449,7 +449,7 @@ fn constructor_arguments_prepare_once_and_only_acquired_values_clean_on_error() 
 }
 
 #[test]
-fn uncalled_dual_type_constructor_is_accepted_since_203() {
+fn uncalled_dual_type_constructor_is_accepted_since() {
     // Keep the original unused definition byte-for-byte. This checks its
     // declaration through Verify; it does not instantiate or execute pack.
     let source = "package State<F,G>{manages bytes:ByteBuffer;a:F;b:G}fn pack<F:Fn()->i32,G:Fn()->i32>(a:F,b:G)->State<F,G>{return State::<F,G>{bytes:bytes_new(),a:a,b:b}}fn main(){}";
@@ -467,7 +467,7 @@ fn uncalled_dual_type_constructor_is_accepted_since_203() {
 }
 
 #[test]
-fn uncalled_state_and_replacement_is_accepted_since_205() {
+fn uncalled_state_and_replacement_is_accepted_since() {
     // This is the exact former 138-byte input. Its unused definition is now
     // supported; execution and field cleanup are covered by owned_state_replacement_source.
     let source = "package State<F>{manages bytes:ByteBuffer;a:F;b:F}fn replace<F:Fn()->i32>(state:State<F>,replacement:F)->State<F>{return state}fn main(){}";

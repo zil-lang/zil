@@ -18,7 +18,7 @@ use zil_ir::{Constant, CtProgram, InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
 #[test]
-fn record_enum329_ct_values_and_generated_function_labels_survive() {
+fn record_enum_ct_values_and_generated_function_labels_survive() {
     native(
         r#"
 enum E{V{number:i64,flag:bool},Empty{}}
