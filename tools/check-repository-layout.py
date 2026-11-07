@@ -27,6 +27,9 @@ STABLE_CASE_ID = re.compile(r"(?:case[-_]?[0-9]+|PLAN-[A-Z][0-9]{1,2}-[0-9]{3})"
 PERFORMANCE_SIZE = re.compile(
     r"(?:chain[-_](?:forward|reverse)[-_][0-9]+|islands[-_][0-9]+[-_]plus[-_][0-9]+)", re.I
 )
+ATTACHED_NUMBER = re.compile(r"(?<![A-Za-z0-9])([A-Za-z][A-Za-z_]*?)([0-9]{3,})(?![A-Za-z0-9])")
+SEMANTIC_PATH_PREFIX = re.compile(r"(?:schema|wire|llvm|case)[_-]?v?$", re.I)
+SHA_PATH = re.compile(r"sha[-_][0-9a-f]{7,40}(?:\.[^.]+)?$", re.I)
 RESERVED_STATE = {".task", "_zil_goal"}
 RESERVED_FILES = {"_zil_goal.md", "goal.md"}
 RESERVED_DATA = {"data/handoff.json", "data/construction-progress.json", "data/task-index.json"}
@@ -62,6 +65,24 @@ def paths_from_nul(data):
     return {item.decode("utf-8", "surrogateescape") for item in data.split(b"\0") if item}
 
 
+def attached_construction_number(part):
+    if SHA_PATH.fullmatch(part):
+        return False
+    for match in ATTACHED_NUMBER.finditer(part):
+        prefix, digits = match.groups()
+        normalized = prefix.rstrip("_-").lower()
+        if SEMANTIC_PATH_PREFIX.fullmatch(normalized):
+            continue
+        if normalized in {"u", "i", "f"} and int(digits) in {128, 256}:
+            continue
+        if normalized == "sha" and int(digits) in {256, 512}:
+            continue
+        if normalized == "m" and not digits.startswith("0") and int(digits) <= 511:
+            continue
+        return True
+    return False
+
+
 def path_problems(path):
     """Check only path components; semantic version and case IDs remain valid."""
     parts = path.split("/")
@@ -76,6 +97,8 @@ def path_problems(path):
         problems.append("checkpoint ID")
     if any(NUMBERED_LABEL.search(part) for part in parts):
         problems.append("numbered construction label")
+    if any(attached_construction_number(part) for part in parts):
+        problems.append("attached construction number")
     if any(NUMBERED_DIRECTORY.fullmatch(part) for part in parts[:-1]):
         problems.append("number-only directory")
     leaf = parts[-1]

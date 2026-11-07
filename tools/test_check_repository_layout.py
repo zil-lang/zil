@@ -148,6 +148,37 @@ class RepositoryLayoutTests(unittest.TestCase):
             "tests/fixtures/01_2.zil",
         })
 
+    def test_attached_construction_numbers_in_paths_fail(self):
+        self.baseline("README.md")
+        paths = (
+            "crates/compiler/src/builder210.rs", "crates/compiler/src/allocation211.rs",
+            "crates/compiler/src/native211.rs", "crates/compiler/src/machine210.rs",
+            "crates/compiler/tests/llvm_api208.rs", "crates/compiler/src/object_cache212.rs",
+            "crates/compiler/tests/perf206_codegen.rs", "tests/fixtures/original235.zil",
+            "tests/fixtures/02_original201.zil", "tools/run338.py",
+            "validation/native339.json", "tests/perf/modules/m512.zil",
+            "tests/perf/modules/m001.zil", "tools/sha999.py",
+        )
+        for path in paths:
+            self.write(path)
+        _, failures, _ = layout.check(full=True, root=self.root)
+        self.assertEqual({path for path, _ in failures}, set(paths))
+
+    def test_attached_semantic_numbers_in_paths_survive(self):
+        self.baseline("README.md")
+        for path in (
+            "crates/compiler/src/sha256_stream.rs", "crates/compiler/src/u128_ops.rs",
+            "crates/compiler/src/f128_ops.rs",
+            "crates/compiler/src/schema100_wire.rs", "crates/compiler/src/wire_v100.rs",
+            "tools/llvm300/check.py", "tests/case344_record.zil",
+            "tests/perf/modules/m0.zil", "tests/perf/modules/m511.zil",
+            "tests/cases/PLAN-T01-003.json", "tests/perf/chain-reverse-256.zil",
+            "tests/fixtures/01_record.zil",
+        ):
+            self.write(path)
+        _, failures, _ = layout.check(full=True, root=self.root)
+        self.assertEqual(failures, [])
+
     def test_full_scans_existing_production_declarations(self):
         self.baseline("crates/compiler/src/lib.rs", "tools/check.py")
         (self.root / "crates/compiler/src/lib.rs").write_text(
