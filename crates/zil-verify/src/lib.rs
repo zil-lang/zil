@@ -1077,6 +1077,7 @@ fn check_type_shape(
             || (context & 2 != 0
                 && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
+            || (context & 2 != 0 && dynamic_store::inline_owner(ty))
         {
             budget.mark_sum(budget.current_function)?;
         }
@@ -1122,13 +1123,10 @@ fn check_type_shape(
                     && (matches!(element.as_ref(), Type::Record { .. })
                         || dynamic_store::direct_scalar(element))
                 {
-                    // The scalar extension also excludes an owning Store
-                    // nested in a plain Record or Array. Bit 128 is carried
-                    // during the existing bounded raw-tree walk; old Record
-                    // Store selection and request fees remain unchanged.
-                    if context & (4 | 64 | 1 | 2) != 0
-                        || (dynamic_store::direct_scalar(element) && context & 128 != 0)
-                    {
+                    // Ordinary owning Product/Sum positions retain the same
+                    // sealed Store identity and independent resource check.
+                    // Bit 128 still excludes plain Records and owning arrays.
+                    if context & 128 != 0 {
                         return Err(unsupported(
                             "POD Store ownership is not admitted inside owning aggregate fields",
                             None,

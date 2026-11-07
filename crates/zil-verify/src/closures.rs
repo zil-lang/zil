@@ -222,7 +222,12 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if dynamic_store::is_carrier(ty) || packages::has_store_fields(ty) {
+            if dynamic_store::is_carrier(ty)
+                || packages::has_store_fields(ty)
+                || (budget.pod_stores
+                    && matches!(ty, Type::Package { .. })
+                    && dynamic_store::nested_capture_store(ty, budget)?)
+            {
                 dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
             if packages::has_array_fields(ty) || packages::has_callable_fields(ty) {
@@ -547,31 +552,30 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
 
 fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, bool)> {
     let root = ty;
-    let mut pending = vec![ty];
+    let mut pending = vec![(ty, true)];
     let mut work = 0usize;
     let mut contains_store = false;
-    while let Some(ty) = pending.pop() {
+    while let Some((ty, owning)) = pending.pop() {
         budget.spend(1)?;
         work = work
             .checked_add(1)
             .ok_or_else(|| limit("inline type layout work overflow"))?;
-        if std::ptr::eq(ty, root) {
-            contains_store |= matches!(ty, Type::Managed(payload)
-                if matches!(payload.as_ref(), Type::OwnedStore { .. }));
-        }
+        contains_store |= owning
+            && matches!(ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { .. }));
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
-            | Type::Managed(element)
             | Type::Desc(element)
             | Type::Opaque {
                 hidden: element, ..
-            } => pending.push(element),
+            } => pending.push((element, false)),
+            Type::Managed(element) => pending.push((element, false)),
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
-                pending.extend(fields);
+                pending.extend(fields.iter().map(|field| (field, owning)));
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len())?;
@@ -581,19 +585,19 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
                         contains_store |= matches!(field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::OwnedStore { .. }));
                     }
-                    field
+                    (field, owning && matches!(ty, Type::Package { .. }))
                 }));
             }
             Type::Enum { variants, .. } => {
                 budget.spend(variants.len())?;
                 for (_, fields) in variants {
                     budget.spend(fields.len())?;
-                    pending.extend(fields);
+                    pending.extend(fields.iter().map(|field| (field, owning)));
                 }
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
-                pending.extend([error.as_ref(), result.as_ref()]);
+                pending.extend([(error.as_ref(), owning), (result.as_ref(), owning)]);
             }
             Type::FunctionPointer { parameters, result }
             | Type::BorrowedFunctionPointer {
@@ -601,8 +605,8 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
             }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_add(1))?;
-                pending.extend(parameters);
-                pending.push(result);
+                pending.extend(parameters.iter().map(|parameter| (parameter, false)));
+                pending.push((result, false));
             }
             _ => {}
         }

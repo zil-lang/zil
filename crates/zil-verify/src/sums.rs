@@ -156,7 +156,19 @@ pub(super) fn check_type_for(
                 budget.spend(2)?;
                 // Keep the existing resource-success profile. Ordinary Sum
                 // composition does not turn an owning error into a Copy error.
-                if matches!(result.as_ref(), Type::Managed(_)) {
+                if dynamic_store::inline_owner(error) || dynamic_store::inline_owner(result) {
+                    for payload in [error.as_ref(), result.as_ref()] {
+                        if !payload.is_copy_value()
+                            && !matches!(payload, Type::Package { .. } | Type::Enum { .. })
+                            && !dynamic_store::inline_owner(payload)
+                        {
+                            return Err(unsupported(
+                                "ordinary inline Store error-union arms require finite Copy, Product, Enum or sealed inline Store owners",
+                                span,
+                            ));
+                        }
+                    }
+                } else if matches!(result.as_ref(), Type::Managed(_)) {
                     resources::charge_payload(error, budget)?;
                     if !error.is_copy_value() {
                         return Err(unsupported(
