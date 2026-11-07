@@ -1661,6 +1661,33 @@ impl<'a, 'c> Builder<'a, 'c> {
         }
     }
     fn expr(&mut self, e: &CoreExpr, expected: Option<&Type>) -> R<(ValueId, Type)> {
+        if let Some(Type::Address {
+            mutable: false,
+            inner,
+        }) = expected
+            && let Type::Dyn { interface } = inner.as_ref()
+            && matches!(
+                &e.kind,
+                CoreExprKind::Unary {
+                    op: UnaryOp::Borrow,
+                    ..
+                }
+            )
+        {
+            let (source, actual) = self.expr_raw(e, None)?;
+            let Type::Address {
+                mutable: false,
+                inner: concrete,
+            } = actual
+            else {
+                return Err(error(
+                    "E-DYN-RECEIVER",
+                    e.span,
+                    "dyn coercion needs an actual shared address",
+                ));
+            };
+            return self.dyn_coerce(source, &concrete, *interface, e.span);
+        }
         if let Some(sum) = expected.filter(|ty| enums::anonymous(ty))
             && !matches!(
                 &e.kind,

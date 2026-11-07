@@ -324,7 +324,7 @@ pub(super) fn inventory_program(
             .ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "dyn project snapshot budget exceeded", None)
             })?;
-        let mut local = module.core.clone();
+        let mut local = inference::snapshot_context_module(&module.core, limits, &mut left)?;
         local.dyn_declarations = declarations.clone();
         local.dyn_interfaces = interfaces.clone();
         tables.extend(inventory(
