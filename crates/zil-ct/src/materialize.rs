@@ -229,6 +229,13 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
     for enumeration in &core.enums {
         observe(enumeration.id, enumeration.span)?;
     }
+    for declaration in &core.dyn_declarations {
+        if count >= limits.max_nodes {
+            return Err(quota(Span::default()));
+        }
+        count += 1;
+        observe(declaration.id.declaration, Span::default())?;
+    }
     for f in &core.functions {
         observe(f.id, f.span)?;
     }
@@ -341,7 +348,13 @@ pub(super) fn first_free_id(core: &CoreModule, limits: &Limits) -> CompileResult
                         pending.push((Visit::Expr(left), depth + 1));
                         pending.push((Visit::Expr(right), depth + 1));
                     }
-                    CoreExprKind::Call { callee, arguments } => {
+                    CoreExprKind::MakeDynBorrow { source, .. } => {
+                        pending.push((Visit::Expr(source), depth + 1));
+                    }
+                    CoreExprKind::CallDynSlot {
+                        callee, arguments, ..
+                    }
+                    | CoreExprKind::Call { callee, arguments } => {
                         pending.push((Visit::Expr(callee), depth + 1));
                         pending
                             .push((Visit::Children(Children::Expressions(arguments)), depth + 1));
