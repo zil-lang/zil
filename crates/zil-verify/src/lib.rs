@@ -1417,10 +1417,7 @@ fn check_function_signature_type(
         return Ok(());
     }
     match ty {
-        Type::Address {
-            mutable: true,
-            inner,
-        } if budget.pod_stores
+        Type::Address { inner, .. } if budget.pod_stores
             && matches!(inner.as_ref(), Type::Package { .. })
             && dynamic_store::package_inline_store(inner, budget)? =>
         {
@@ -1502,10 +1499,7 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
-        Type::Address {
-            mutable: true,
-            inner,
-        } if budget.pod_stores
+        Type::Address { inner, .. } if budget.pod_stores
             && matches!(inner.as_ref(), Type::Package { .. })
             && dynamic_store::package_inline_store(inner, budget)? =>
         {
@@ -2290,6 +2284,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if budget.pod_stores
+                && matches!(inner, Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)?
+            {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -2312,6 +2311,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if budget.pod_stores
+                && matches!(inner, Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)?
+            {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -2408,7 +2412,11 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if packages::shared_product_head(projected) {
+                    if budget.pod_stores
+                        && dynamic_store::package_inline_store(projected, budget)?
+                    {
+                        packages::check_ordinary_type(module, projected, span, budget)?;
+                    } else if packages::shared_product_head(projected) {
                         packages::check_shared_product_type(module, projected, span, budget)?;
                     } else {
                         dynamic_store::check_element(module, projected, span, budget)?;
@@ -2431,6 +2439,11 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
+            } else if budget.pod_stores
+                && matches!(field, Type::Package { .. })
+                && dynamic_store::package_inline_store(field, budget)?
+            {
+                packages::check_ordinary_type(module, field, span, budget)?;
             } else if budget.sums
                 && matches!(
                     field,
