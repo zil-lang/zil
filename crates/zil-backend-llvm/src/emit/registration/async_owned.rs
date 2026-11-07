@@ -1,6 +1,7 @@
 //! Same-thread stable external registration. No raw pointer is freed by request
 //! or Pending drain; the provider's successful drain covers ALL raw entries.
 use super::*;
+mod threaded;
 fn site(f: FunctionId, v: ValueId, role: &str) -> String {
     format!("zil.async_registration.{role}.{}.{}", f.0, v.0)
 }
