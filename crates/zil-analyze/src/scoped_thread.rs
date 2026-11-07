@@ -21,6 +21,190 @@ fn cas_pair(t: &Type) -> bool {
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
 }
+fn mutex_head(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Desc(inner) => match inner.as_ref() {
+            Type::Mutex { payload } => Some(payload),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+fn transferable(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1, "mutex thread complete Transfer payload")?;
+        match ty {
+            Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
+            | Type::F32
+            | Type::F64 => {}
+            Type::Managed(inner) if matches!(inner.as_ref(), Type::ByteBuffer) => {}
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Array { element, .. } => pending.push(element),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, ty)| ty))
+            }
+            Type::Enum { variants, .. } => {
+                pending.extend(variants.iter().flat_map(|(_, fields)| fields))
+            }
+            Type::ErrorUnion { error, result } => pending.extend([error.as_ref(), result.as_ref()]),
+            _ => return Ok(false),
+        }
+    }
+    Ok(true)
+}
+fn mutex_worker_type(ty: &Type, payload: &Type, budget: &mut Budget) -> CompileResult<bool> {
+    budget.spend(1, "mutex worker actual type")?;
+    if mutex_head(ty) == Some(payload)
+        || matches!(ty, Type::MutexGuard { payload: p, .. } if p.as_ref() == payload)
+    {
+        return Ok(true);
+    }
+    if let Type::Address { inner, .. } = ty {
+        if matches!(inner.as_ref(), Type::MutexGuard { payload: p, .. } if p.as_ref() == payload)
+            || inner.as_ref() == payload
+        {
+            return Ok(true);
+        }
+        return transferable(inner, budget);
+    }
+    transferable(ty, budget)
+}
+fn mutex_worker(
+    module: &TypedModule,
+    root: FunctionId,
+    payload: &Type,
+    budget: &mut Budget,
+    span: zil_base::Span,
+) -> CompileResult<()> {
+    if !transferable(payload, budget)? {
+        return Err(reject(
+            span,
+            "mutex payload lacks complete thread Transfer and cleanup closure",
+        ));
+    }
+    let mut pending = vec![root];
+    let mut seen = BTreeSet::new();
+    while let Some(id) = pending.pop() {
+        budget.lookup(seen.len(), "mutex worker call graph")?;
+        if !seen.insert(id) {
+            continue;
+        }
+        let f = module
+            .functions
+            .get(id.0 as usize)
+            .ok_or_else(|| reject(span, "mutex worker callee absent"))?;
+        budget.spend(
+            f.locals
+                .len()
+                .saturating_add(f.values.len())
+                .saturating_add(module.resources.len()),
+            "mutex worker actual inventory",
+        )?;
+        if f.foreign.is_some()
+            || f.environment.is_some()
+            || f.callable_contract.is_some()
+            || f.callable_return_contract.is_some()
+            || f.result_mode != PassingMode::Infer
+            || f.return_type != Type::I32
+            || f.locals.iter().try_fold(false, |bad, l| {
+                Ok::<_, Vec<Diagnostic>>(bad || !mutex_worker_type(&l.ty, payload, budget)?)
+            })?
+            || f.values.iter().try_fold(false, |bad, ty| {
+                Ok::<_, Vec<Diagnostic>>(bad || !mutex_worker_type(ty, payload, budget)?)
+            })?
+            || module.resources.iter().any(|r| r.teardown == Some(id))
+        {
+            return Err(reject(
+                f.span,
+                "mutex worker graph has nontransferable type or foreign cleanup dependency",
+            ));
+        }
+        if id == root
+            && (f.parameters.len() != 1
+                || f.locals
+                    .get(f.parameters[0].0 as usize)
+                    .is_none_or(|l| mutex_head(&l.ty) != Some(payload)))
+        {
+            return Err(reject(
+                span,
+                "mutex worker requires one actual shared mutex descriptor",
+            ));
+        }
+        for block in &f.blocks {
+            for i in &block.instructions {
+                budget.spend(1, "mutex worker instruction")?;
+                match &i.kind {
+                    InstructionKind::Call {
+                        function,
+                        arguments,
+                    } => {
+                        let callee = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| reject(i.span, "mutex worker callee absent"))?;
+                        budget.spend(
+                            arguments.len().saturating_add(callee.parameters.len()),
+                            "mutex worker actual call",
+                        )?;
+                        if arguments.len() != callee.parameters.len()
+                            || arguments.iter().zip(&callee.parameters).any(|(v, l)| {
+                                f.values.get(v.0 as usize)
+                                    != callee.locals.get(l.0 as usize).map(|local| &local.ty)
+                            })
+                        {
+                            return Err(reject(
+                                i.span,
+                                "mutex worker call changes actual parameter qualification",
+                            ));
+                        }
+                        pending.push(*function);
+                    }
+                    InstructionKind::MutexLock { .. }
+                    | InstructionKind::MutexValue { .. }
+                    | InstructionKind::MutexUnlock { .. }
+                    | InstructionKind::DropMutexGuard { .. }
+                    | InstructionKind::ReadAddress { .. }
+                    | InstructionKind::WriteAddress { .. }
+                    | InstructionKind::AddressField { .. }
+                    | InstructionKind::BorrowPlaceAddress { .. }
+                    | InstructionKind::ReborrowAddress { .. }
+                    | InstructionKind::BorrowLocal { .. }
+                    | InstructionKind::BorrowLocalMut { .. }
+                    | InstructionKind::DescribeAddress { .. }
+                    | InstructionKind::Load(_)
+                    | InstructionKind::TakeLocal { .. }
+                    | InstructionKind::Store { .. }
+                    | InstructionKind::StorageLive(_)
+                    | InstructionKind::StorageDead(_)
+                    | InstructionKind::ScopeEnter { .. }
+                    | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::Constant(_)
+                    | InstructionKind::Unary { .. }
+                    | InstructionKind::Binary { .. }
+                    | InstructionKind::ConvertInteger { .. }
+                    | InstructionKind::ConvertNumber { .. }
+                    | InstructionKind::ExtractField { .. }
+                    | InstructionKind::MakeAggregate { .. } => {}
+                    _ => {
+                        return Err(reject(
+                            i.span,
+                            "mutex worker instruction exceeds closed synchronous graph",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
 
 fn worker(
     module: &TypedModule,
@@ -383,7 +567,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 }
                 let payload = caller.values.get(argument.0 as usize);
                 let shared = payload.is_some_and(shared_i32);
-                if (payload != Some(&Type::I32) && !shared)
+                let generic_mutex = payload.and_then(mutex_head);
+                if (payload != Some(&Type::I32) && !shared && generic_mutex.is_none())
                     || instruction
                         .result
                         .and_then(|value| caller.values.get(value.0 as usize))
@@ -462,7 +647,11 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         "thread payload differs from exact worker parameter type",
                     ));
                 }
-                worker(module, entry, budget, instruction.span, shared)?;
+                if let Some(payload) = generic_mutex {
+                    mutex_worker(module, entry, payload, budget, instruction.span)?;
+                } else {
+                    worker(module, entry, budget, instruction.span, shared)?;
+                }
             }
         }
     }

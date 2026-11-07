@@ -92,6 +92,9 @@ fn payload(module: &TypedModule, ty: &Type, budget: &mut Budget, span: Span) -> 
 }
 
 pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<()> {
+    if !budget.generic_mutex {
+        return Ok(());
+    }
     let mut has_mutex = false;
     for resource in &module.resources {
         budget.spend(1, "mutex resource inventory")?;
@@ -103,6 +106,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 name.len().saturating_add(resource.name.len()),
                 "mutex resource identity",
             )?;
+            budget.spend(module.resources.len(), "mutex sealed identity lookup")?;
             if resource.name != name
                 || resource.teardown.is_some()
                 || module.resources.iter().filter(|r| r.name == name).count() != 1

@@ -1398,6 +1398,13 @@ impl Resolver<'_> {
                     retained_life: retained_life.clone(),
                 }
             }
+            Type::Mutex { payload } => Type::Mutex {
+                payload: Box::new(self.ty(payload, depth + 1, span)?),
+            },
+            Type::MutexGuard { payload, .. } => {
+                let payload = self.ty(payload, depth + 1, span)?;
+                generic_mutex::guard(&payload)
+            }
             Type::AsyncRegistration { environment } => Type::AsyncRegistration {
                 environment: Box::new(self.ty(environment, depth + 1, span)?),
             },
@@ -2874,6 +2881,8 @@ impl Resolver<'_> {
                 | Type::Desc(t)
                 | Type::Address { inner: t, .. }
                 | Type::OwnedStore { element: t }
+                | Type::Mutex { payload: t }
+                | Type::MutexGuard { payload: t, .. }
                 | Type::Array { element: t, .. }
                 | Type::Slice { element: t }
                 | Type::Opaque { hidden: t, .. } => {

@@ -44,6 +44,7 @@ pub(super) struct Budget {
     pub(super) forward_closures: BTreeSet<zil_ir::ClosureId>,
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
+    pub(super) generic_mutex: bool,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
     // Derived only by the complete paid raw-type preflight, never producer metadata.
@@ -103,6 +104,7 @@ impl Budget {
             forward_closures: BTreeSet::new(),
             scoped_foreign: false,
             scoped_threads: false,
+            generic_mutex: false,
             borrowed_function_pointers: false,
             tasks: false,
             task_origin_roots: false,
@@ -337,12 +339,14 @@ impl Budget {
                 self.tasks = true;
             }
             Type::Mutex { payload } => {
+                self.generic_mutex = true;
                 self.type_work(payload, copy_check, context)?;
             }
             Type::MutexGuard {
                 payload,
                 retained_life,
             } => {
+                self.generic_mutex = true;
                 self.spend(
                     retained_life
                         .ports
@@ -1773,6 +1777,7 @@ pub(super) fn preflight(
                     | InstructionKind::MutexValue { .. }
                     | InstructionKind::MutexUnlock { .. }
                     | InstructionKind::DropMutexGuard { .. } => {
+                        budget.generic_mutex = true;
                         budget.head_descriptions = true;
                     }
                     InstructionKind::WithScopedThread {
