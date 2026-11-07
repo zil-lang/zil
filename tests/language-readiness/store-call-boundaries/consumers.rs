@@ -16,13 +16,13 @@ fn all_scalar_values_mutate_and_roundtrip_full_error_payloads() {
         let text = format!(
             "extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{{let values:Store<{ty}>=store_new();if !store_reserve(values,1){{return 1}}store_push(values,{first});let view=store_at_mut(values,0);*view={second};if *view!={second}{{return 2}}match store_push(values,{first}){{.ok(())=>{{return 3}},.err(value)=>{{if value!={first}{{return 4}}}}}}match store_pop(values){{.ok(value)=>{{if value!={second}{{return 5}}}},.err(_)=>{{return 6}}}}if store_len(values)!=0{{return 7}}unsafe{{putchar(83);putchar(10)}}return 0}}"
         );
-        super::g933_consumers::native_all_backends(&format!("scalar-{ty}"), &text, b"S\n", false);
+        super::pod_collection_consumers::native_all_backends(&format!("scalar-{ty}"), &text, b"S\n", false);
     }
 }
 #[test]
 fn real_std_store_and_scalar_alias() {
     let text = "import std.store;extern \"C\" fn putchar(x:i32)->i32;type Number=i32;fn bump(p:&mut Number){*p+=1}fn main()->i32{let values:Store<Number>=store.new();if !store.reserve(values,1){return 1}store.push(values,41);let view=store_at_mut(values,0);bump(view);if *view!=42{return 2}match store.pop(values){.ok(value)=>{if value!=42{return 3}},.err(_)=>{return 4}}unsafe{putchar(83);putchar(84);putchar(68);putchar(83);putchar(10)}return 0}";
-    super::g933_consumers::native_all_backends("scalar-std", text, b"STDS\n", true);
+    super::pod_collection_consumers::native_all_backends("scalar-std", text, b"STDS\n", true);
 }
 #[test]
 fn scalar_windows_retain_actual_parent() {
@@ -53,7 +53,7 @@ fn scalar_windows_retain_actual_parent() {
 #[test]
 fn unsigned_value_above_signed_range_reaches_actual_stdout() {
     let text = "fn result()->u64{let values:Store<u64>=store_new();if !store_reserve(values,1){return 0u64}store_push(values,18446744073709551613u64);let view=store_at_mut(values,0);*view+=1u64;match store_pop(values){.ok(value)=>{return value},.err(_)=>{return 0u64}}}";
-    super::g933_consumers::native_entry_all_backends(
+    super::pod_collection_consumers::native_entry_all_backends(
         "scalar-full-u64",
         text,
         b"18446744073709551614\n",
@@ -63,7 +63,7 @@ fn unsigned_value_above_signed_range_reaches_actual_stdout() {
 }
 #[test]
 fn scalar_source_derived_raw_wire_parent_conflict() {
-    super::g933_consumers::source_derived_receiver_conflict(
+    super::pod_collection_consumers::source_derived_receiver_conflict(
         "fn main()->u64{let first:Store<u64>=store_new();let second:Store<u64>=store_new();store_reserve(first,1);store_reserve(second,1);store_push(first,20u64);store_push(second,22u64);let a=store_at_mut(first,0);let b=store_at_mut(second,0);*b=23u64;return *a+*b}",
     );
 }

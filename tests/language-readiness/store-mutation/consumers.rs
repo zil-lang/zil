@@ -17,7 +17,7 @@ pub(super) fn native_entry_all_backends(
     }
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = directory(&format!("g933-{label}-{backend:?}-{optimization:?}"));
+            let dir = directory(&format!("pod_collection-{label}-{backend:?}-{optimization:?}"));
             let input = dir.join("main.zil");
             fs::write(&input, source).unwrap();
             let exe = dir.join("program");
@@ -33,7 +33,7 @@ pub(super) fn native_entry_all_backends(
             let report = if imported {
                 zil_driver::compile_path(&input, &options)
             } else {
-                let unit = SourceUnit::new(FileId(0), ModuleId(0), "g933.zil", source);
+                let unit = SourceUnit::new(FileId(0), ModuleId(0), "pod_collection.zil", source);
                 compile_source(&unit, &options)
             };
             fs::write(dir.join("compile.json"), report.to_json()).unwrap();
@@ -107,7 +107,7 @@ fn live_same_root_windows_and_structural_changes_are_rejected() {
         ("drop", "store_at_mut(items,0)", "destroy(give items);"),
     ] {
         let baseline = format!("{PREFIX}let view={view};return view.value}}");
-        let accepted = check(&format!("g933-{label}-baseline"), &baseline, Stage::Verify);
+        let accepted = check(&format!("pod_collection-{label}-baseline"), &baseline, Stage::Verify);
         assert_eq!(
             accepted.status,
             ResultCategory::Success,
@@ -116,10 +116,10 @@ fn live_same_root_windows_and_structural_changes_are_rejected() {
         );
         assert!(accepted.verification_runs > 0);
         let source = format!("{PREFIX}let view={view};{change}return view.value}}");
-        let report = check(&format!("g933-{label}"), &source, Stage::Verify);
+        let report = check(&format!("pod_collection-{label}"), &source, Stage::Verify);
         let diagnosis = report.diagnostics.first();
         eprintln!(
-            "g933 {label}: status={:?} phase={:?} code={:?} message={:?}",
+            "pod_collection {label}: status={:?} phase={:?} code={:?} message={:?}",
             report.status,
             report.phase,
             diagnosis.map(|d| &d.code),

@@ -110,7 +110,7 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
             false,
         ),
     ] {
-        super::g933_consumers::native_entry_all_backends(
+        super::pod_collection_consumers::native_entry_all_backends(
             label,
             source,
             expected,

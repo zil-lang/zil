@@ -40,7 +40,7 @@ def main():
         raise RuntimeError("bounded acceptance requires a committed source checkout")
     selected = ["impl187_borrowed_bytes"]
     if args.adjacent:
-        selected += ["impl094_byte_buffers", "impl096_byte_buffer_native", "review096_byte_storage_boundaries", "impl099_owned_bytes_native", "impl182_capture_contracts", "impl065_helpers", "borrowed_closures", "impl168_retained_composition"]
+        selected += ["byte_buffer_provenance_byte_buffers", "impl096_byte_buffer_native", "byte_storage_byte_storage_boundaries", "impl099_owned_bytes_native", "impl182_capture_contracts", "impl065_helpers", "borrowed_closures", "impl168_retained_composition"]
     command = ["cargo", "test", "--offline", "--locked", "--no-fail-fast", "-j2", "-p", "zil-driver"]
     for test in selected:
         command += ["--test", test]

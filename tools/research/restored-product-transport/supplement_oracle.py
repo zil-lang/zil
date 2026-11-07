@@ -9,7 +9,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[3]
 SOURCES = ROOT / 'tests/callable-instance-forwarding'
 spec = importlib.util.spec_from_file_location(
-    'impl256_supplement_source_operations', SOURCES / 'frozen-prep/oracle.py')
+    'returned_callback_contracts_supplement_source_operations', SOURCES / 'frozen-prep/oracle.py')
 legacy = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = legacy
 spec.loader.exec_module(legacy)

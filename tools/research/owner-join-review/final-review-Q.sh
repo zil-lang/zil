@@ -25,12 +25,12 @@ rustc --version > "$report/rustc.txt"
 cargo --version > "$report/cargo.txt"
 clang --version > "$report/clang.txt"
 targets=(
-    impl244_consumer review239_generation review240_helper_sum
-    review240_match_exits review241_freshness review241_store_windows
-    review242_tag_edges review242_capture_profiles
-    impl166_owned_results impl183_owned_resource_results impl206_analyze
-    impl206_independent impl223_product_store impl235_product_store
-    review223_boundaries review235_contracts
+    finite_sum_consumer_consumer generated_owned_enums_generation helper_sum_ownership_helper_sum
+    helper_sum_ownership_match_exits value_return_freshness_freshness value_return_freshness_store_windows
+    transfer_source_verification_tag_edges transfer_source_verification_capture_profiles
+    impl166_owned_results managed_success_payloads_owned_resource_results inline_product_children_analyze
+    inline_product_children_independent impl223_product_store impl235_product_store
+    product_store_source_boundaries product_store_replacement_contracts
 )
 printf '%s\n' "${targets[@]}" > "$report/targets.txt"
 command=(cargo test -p zil-driver --features llvm-api)

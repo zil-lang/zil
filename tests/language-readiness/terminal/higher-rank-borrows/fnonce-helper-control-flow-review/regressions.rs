@@ -35,7 +35,7 @@ fn p0_g338_independent_source_and_raw_wire_path_mutations() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
@@ -159,7 +159,7 @@ fn p0_g338_independent_source_and_raw_wire_path_mutations() {
                 };
                 rejected(&errors, name);
                 eprintln!(
-                    "P0 G338 independent raw {name} wire={wire}: {}",
+                    "P0 HELPER_CFG_JOIN independent raw {name} wire={wire}: {}",
                     errors[0].message
                 );
             }
@@ -183,7 +183,7 @@ fn p0_g338_independent_dynamic_source_complete_values() {
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil-p0-g338-{}-{name}-{optimization:?}",
+                "zil-p0-helper_cfg_join-{}-{name}-{optimization:?}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&dir).unwrap();
@@ -216,7 +216,7 @@ fn p0_g338_independent_dynamic_source_complete_values() {
             assert_eq!(run.stdout, expected.as_bytes());
             assert!(run.stderr.is_empty());
             eprintln!(
-                "P0 G338 {name}/{backend:?}/{optimization:?}: stdout {expected:?}; Source {}",
+                "P0 HELPER_CFG_JOIN {name}/{backend:?}/{optimization:?}: stdout {expected:?}; Source {}",
                 report.input_fingerprint
             );
         }

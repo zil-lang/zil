@@ -34,7 +34,7 @@ fn actual_source_prebranch_diamonds_and_honest_raw_wire() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         assert_eq!(raw.closures[0].kind, CallableKind::FnOnce);
         assert!(matches!(raw.closures[0].captures[0], Type::Managed(_)));
         let f = raw
@@ -48,7 +48,7 @@ fn actual_source_prebranch_diamonds_and_honest_raw_wire() {
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
         eprintln!(
-            "G338 actual {case}: {} real blocks, honest Analyze/raw/Wire",
+            "HELPER_CFG_JOIN actual {case}: {} real blocks, honest Analyze/raw/Wire",
             f.blocks.len()
         );
         if case != "transfer" {
@@ -84,7 +84,7 @@ fn actual_source_prebranch_diamonds_and_honest_raw_wire() {
                     "V {name}/{wire}: {errors:?}"
                 );
                 eprintln!(
-                    "G338 full neighbor {name} wire={wire}: {}",
+                    "HELPER_CFG_JOIN full neighbor {name} wire={wire}: {}",
                     errors[0].message
                 );
             }
@@ -117,7 +117,7 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
             Some([53167, 51600, 51600]),
         ),
     ] {
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         for phase in [0, 1, 2] {
@@ -196,11 +196,11 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                         .any(|d| d.category == ResultCategory::ResourceLimit)
                 );
                 eprintln!(
-                    "G338 old-tail phase{phase} prior N={} now ResourceLimit; Origin +{physical_delta}, nominal graph +{nominal_delta}, retained scans +{retained_delta}",
+                    "HELPER_CFG_JOIN old-tail phase{phase} prior N={} now ResourceLimit; Origin +{physical_delta}, nominal graph +{nominal_delta}, retained scans +{retained_delta}",
                     known[phase],
                 );
             }
-            eprintln!("G338 {label} phase{phase} N={low}/N-1/fresh/retry");
+            eprintln!("HELPER_CFG_JOIN {label} phase{phase} N={low}/N-1/fresh/retry");
         }
     }
 }
@@ -215,7 +215,7 @@ fn actual_prebranch_dag_native_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g338-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-helper_cfg_join-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -248,7 +248,7 @@ fn actual_prebranch_dag_native_clang_api_o0_o2() {
                 assert_eq!(run.stdout, expected, "{case}/{backend:?}/{optimization:?}");
                 assert!(run.stderr.is_empty());
                 eprintln!(
-                    "G338 native {case}/{backend:?}/{optimization:?}: {:?} {}",
+                    "HELPER_CFG_JOIN native {case}/{backend:?}/{optimization:?}: {:?} {}",
                     String::from_utf8_lossy(&run.stdout),
                     dir.display()
                 );

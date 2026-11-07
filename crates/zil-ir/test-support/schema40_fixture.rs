@@ -31,7 +31,7 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
         "f193b557e3d4c2660f9a79e0a97671319ca30d0b694a28f0c3cab8dd8d6f745e",
         // crates/zil-analyze/tests/forward_call_wire_fixtures/v40/parent_valid_with_call_edge.wire
         "a20e2cb8c8750ee488b6d30a8350a4ce13ee2d629236abf6813283073bc46045",
-        // crates/zil-driver/tests/review223_fixtures/v40/mutable-product.wire
+        // crates/zil-driver/tests/product_store_wire_replay_fixtures/v40/mutable-product.wire
         "d3c496c8fc68d4135731791e7fbb052eb977475433c4646e3692f2deb1c0e14f",
         // tests/borrowed-callable-arguments/v40/control_callback_i32_argument.wire
         "c4f59db2ce30691888fa548b6100b608d82904c3809bc7469c5d7bb0ade9443d",

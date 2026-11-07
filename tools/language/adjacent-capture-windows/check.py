@@ -43,7 +43,7 @@ def main():
     if args.adjacent:
         selected += ["impl171_resource_heads", "impl180_store_mut", "impl179_field_precision", "shared_addresses", "impl065_helpers", "borrowed_closures", "impl161_nested_closures"]
     if args.integration_regressions:
-        selected += ["impl072_packages", "impl074_packages", "impl079_package_captures", "impl168_retained_composition", "review182_capture_boundaries"]
+        selected += ["impl072_packages", "impl074_packages", "impl079_package_captures", "impl168_retained_composition", "per_capture_resource_access_capture_boundaries"]
     command = ["cargo", "test", "--offline", "--locked", "--no-fail-fast", "-j2", "-p", "zil-driver"]
     for test in selected:
         command += ["--test", test]

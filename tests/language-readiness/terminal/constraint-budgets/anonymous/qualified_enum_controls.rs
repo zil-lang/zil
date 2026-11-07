@@ -7,7 +7,7 @@ const SOURCE: &str = "struct Phantom<life a>{n:i32}enum Bag<life a,T:Copy,#N:i32
 
 #[test]
 fn qualified_enum_array_source_raw_wire_and_nearest_forgery() {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "g4463-enum.zil", SOURCE);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "enum_member_controls-enum.zil", SOURCE);
     let options = CompileOptions {
         stop_after: Stage::Verify,
         ..CompileOptions::default()
@@ -206,7 +206,7 @@ fn array_signature_cannot_drop_its_complete_class_contract() {
         let text = format!(
             "struct Leaf<life a>{{n:i32}}fn keep<life a>(token:&'a i32,value:{parameter})->{result}{{{body}}}fn read<life s>(token:&'s i32)->i32{{let values=[Leaf::<'s>{{n:42}}];let returned=keep(token,{argument});return returned{observe}}}fn main()->i32{{let token=0;return read(&token)}}"
         );
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "g4463-contract.zil", text);
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "enum_member_controls-contract.zil", text);
         if addressed {
             // Root addresses used by array indexing are implemented; admitting
             // new addressed-array function parameters is a separate boundary.

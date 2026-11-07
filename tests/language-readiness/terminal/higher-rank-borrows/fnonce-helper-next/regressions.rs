@@ -26,7 +26,7 @@ fn actual_source_tail_and_raw_wire_hostile_neighbors() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let helper = raw
             .functions
             .iter()
@@ -76,7 +76,7 @@ fn actual_source_tail_and_raw_wire_hostile_neighbors() {
                     "Verify {name}/{wire}: {errors:?}"
                 );
                 eprintln!(
-                    "G337 raw neighbor {name} wire={wire}: {}",
+                    "HELPER_TAIL_RETURN raw neighbor {name} wire={wire}: {}",
                     errors[0].message
                 );
             }
@@ -99,7 +99,7 @@ fn actual_source_tail_and_raw_wire_hostile_neighbors() {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    let typed = zil_types::check(&g334_core(promoted), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(promoted), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
@@ -137,7 +137,7 @@ fn actual_source_tail_and_raw_wire_hostile_neighbors() {
 fn actual_source_whole_analyze_verify_work_boundaries() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let raw = zil_types::check(&g334_core(TRUE), &target, &limits).unwrap();
+    let raw = zil_types::check(&shared_helper_life_core(TRUE), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     for phase in [0, 1, 2] {
@@ -181,7 +181,7 @@ fn actual_source_whole_analyze_verify_work_boundaries() {
             }
         }
         eprintln!(
-            "G337 whole actual Source phase={phase} (Analyze/Verify/Wire) N={low}/N-1/fresh/retry"
+            "HELPER_TAIL_RETURN whole actual Source phase={phase} (Analyze/Verify/Wire) N={low}/N-1/fresh/retry"
         );
     }
 }
@@ -197,7 +197,7 @@ fn actual_source_native_tail_true_false_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g337-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-helper_tail_return-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -233,7 +233,7 @@ fn actual_source_native_tail_true_false_clang_api_o0_o2() {
                 assert_eq!(run.stdout, expected);
                 assert!(run.stderr.is_empty());
                 eprintln!(
-                    "G337 actual native {case}/{backend:?}/{optimization:?}: stdout {:?}; artifact {}",
+                    "HELPER_TAIL_RETURN actual native {case}/{backend:?}/{optimization:?}: stdout {:?}; artifact {}",
                     String::from_utf8_lossy(&run.stdout),
                     dir.display()
                 );

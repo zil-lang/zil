@@ -461,7 +461,7 @@ mod tests {
                 assert_ne!(paid(&changed, n).unwrap().0, identity);
             }
             growth.push(n);
-            eprintln!("cas343 machine identity operand_bytes={size} Codegen N={n}");
+            eprintln!("cas machine identity operand_bytes={size} Codegen N={n}");
         }
         assert!(growth[1] > growth[0] + 4096);
     }

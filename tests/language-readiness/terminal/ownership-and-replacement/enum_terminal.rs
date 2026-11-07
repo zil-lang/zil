@@ -11,7 +11,7 @@ const FROM_EMPTY: &str = include_str!("replace-enum-terminal-from-empty.zil");
 
 #[test]
 fn native_original_shell_cleanup_age_survives_new_rhs_birth() {
-    review329_native_entry_output(
+    record_enum_native_entry_output(
         &[("main", include_str!("replace-enum-terminal-shell-age.zil"))],
         "main",
         b"ACB266\n",
@@ -44,7 +44,7 @@ fn semantic_cache_rechecks_actual_tagged_candidates_after_change_and_reorder() {
     .into_iter()
     .enumerate()
     {
-        let report = session.compile_project(&review329_project(&[("main", text)]), &options);
+        let report = session.compile_project(&record_enum_project(&[("main", text)]), &options);
         assert_eq!(
             report.status,
             ResultCategory::Success,
@@ -464,7 +464,7 @@ fn native_runtime_tags_full_values_origins_and_preparation_failure() {
             ] {
                 let directory = Temp::new();
                 let report = zil_driver::compile_project(
-                    &review329_project(&[("main", text)]),
+                    &record_enum_project(&[("main", text)]),
                     &CompileOptions {
                         backend,
                         optimization,

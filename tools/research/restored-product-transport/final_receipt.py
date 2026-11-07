@@ -79,11 +79,11 @@ def collect(args):
     supplement = json.loads(source_files['tests/callable-instance-forwarding/supplement/ORACLE.json'])
     core_tool = args.validators / 'consumer256.py'
     supplement_tool = args.validators / 'consumer256_supplement.py'
-    core = load_validator(core_tool, 'impl256_final_core').verify(
+    core = load_validator(core_tool, 'returned_callback_contracts_final_core').verify(
         index['files'], data, oracle, source_files, 'native-evidence/',
         dict(backend='llvm-api', native_runs=256, consumer_native_runs=254,
              pair_native_runs=2, allocator_runs=190, actual_allocation_failures=90))
-    extra = load_validator(supplement_tool, 'impl256_final_supplement').verify(
+    extra = load_validator(supplement_tool, 'returned_callback_contracts_final_supplement').verify(
         index['files'], data, supplement, source_files, 'native-evidence/',
         dict(backend='llvm-api', native_runs=32, normal_runs=8,
              allocator_runs=24, actual_allocation_failures=8, verify_only_compiles=2))
@@ -91,7 +91,7 @@ def collect(args):
     suites = {}
     current = None
     for line in log.decode().splitlines():
-        match = re.search(r'Running tests/(impl256_\w+)\.rs ', line)
+        match = re.search(r'Running tests/(returned_callback_contracts_\w+)\.rs ', line)
         if match:
             current = match[1]
             assert current not in suites
@@ -106,8 +106,8 @@ def collect(args):
             if match:
                 suites[current]['counts'] = dict(zip(
                     ['passed', 'failed', 'ignored', 'measured', 'filtered'], map(int, match.groups())))
-    expected_suites = dict(impl256_consumer=16, impl256_boundaries=1,
-                          impl256_contracts=1, impl256_pair=1)
+    expected_suites = dict(returned_callback_contracts_consumer=16, returned_callback_contracts_boundaries=1,
+                          returned_callback_contracts_contracts=1, returned_callback_contracts_pair=1)
     assert set(suites) == set(expected_suites)
     for name, count in expected_suites.items():
         assert suites[name]['counts'] == dict(passed=count, failed=0, ignored=0, measured=0, filtered=0)

@@ -40,7 +40,7 @@ def main():
         raise RuntimeError("bounded acceptance requires a committed source checkout")
     selected = ["impl180_store_mut"]
     if args.adjacent:
-        selected += ["impl175_store_views", "review175_by176", "impl174_store_fields"]
+        selected += ["impl175_store_views", "store_subwindow_field_invalidation", "impl174_store_fields"]
     command = ["cargo", "test", "--offline", "--locked", "--no-fail-fast", "-j2", "-p", "zil-driver"]
     for test in selected:
         command += ["--test", test]

@@ -196,7 +196,7 @@ fn native_nonretiring_writes_and_new_instance_description_remain_usable() {
         (copy.as_str(), b"A107\n".as_slice()),
         (new_desc.as_str(), b"AB66\n".as_slice()),
     ] {
-        review329_native_entry_output(&[("main", text)], "main", expected);
+        record_enum_native_entry_output(&[("main", text)], "main", expected);
     }
 }
 

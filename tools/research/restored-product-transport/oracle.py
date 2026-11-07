@@ -132,7 +132,7 @@ def extensions(legacy):
 
 def build():
     preserved=json.loads((FROZEN/'ORACLE.json').read_text())
-    spec=importlib.util.spec_from_file_location('impl256_frozen_source_oracle',FROZEN/'oracle.py')
+    spec=importlib.util.spec_from_file_location('returned_callback_contracts_frozen_source_oracle',FROZEN/'oracle.py')
     module=importlib.util.module_from_spec(spec)
     sys.modules[spec.name]=module
     spec.loader.exec_module(module)

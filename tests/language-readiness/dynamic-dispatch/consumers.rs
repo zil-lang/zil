@@ -16,7 +16,7 @@ fn directory(label: &str) -> PathBuf {
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
     let path = base.join(format!(
-        "g521-{label}-{}-{}",
+        "shared_dynamic_dispatch-{label}-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));
@@ -26,7 +26,7 @@ fn directory(label: &str) -> PathBuf {
 
 fn compile(text: &str, options: &CompileOptions) -> CompileReport {
     compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "g521.zil", text),
+        &SourceUnit::new(FileId(0), ModuleId(0), "shared_dynamic_dispatch.zil", text),
         options,
     )
 }
@@ -259,7 +259,7 @@ fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     // This fixture has no CT expressions. Use the same closed-project identity
     // and program expansion entry as Driver, so the original trait/impl origins
     // survive specialization instead of manufacturing a raw Core inventory.
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "g521.zil", INPUT);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "shared_dynamic_dispatch.zil", INPUT);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
@@ -369,7 +369,7 @@ fn source_derived_raw_wire_contract_identity_and_slot_controls() {
 
 #[test]
 fn dyn_request_work_nodes_and_cache_recheck_current_verify() {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "g521-budget.zil", INPUT);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "shared_dynamic_dispatch-budget.zil", INPUT);
     let baseline = CompileOptions::default();
     let initial = CompilationSession::default().compile_source(&unit, &baseline);
     assert_eq!(

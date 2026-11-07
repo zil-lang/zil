@@ -80,7 +80,7 @@
     "--nocapture"
   ],
   "test_exit_code": 0,
-  "test_stdout": "\nrunning 3 tests\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-ADDRESS\nWire: E-VERIFY-ADDRESS\ntest review337_actual_shared_input_cannot_ground_mutable_return ... ok\nraw: E-VERIFY-RETURN\nWire: E-VERIFY-RETURN\ntest review337_declared_result_mode_is_verified_independently_of_candidate_analysis ... ok\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-LIFE\nWire: E-VERIFY-LIFE\ntest review337_mixed_upper_bound_cannot_replace_actual_return_origin ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s\n\n",
+  "test_stdout": "\nrunning 3 tests\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-ADDRESS\nWire: E-VERIFY-ADDRESS\ntest actual_shared_input_cannot_ground_mutable_return ... ok\nraw: E-VERIFY-RETURN\nWire: E-VERIFY-RETURN\ntest declared_result_mode_is_verified_independently_of_candidate_analysis ... ok\nAnalyze: E-LIFE-RETURN\nraw: E-VERIFY-LIFE\nWire: E-VERIFY-LIFE\ntest mixed_upper_bound_cannot_replace_actual_return_origin ... ok\n\ntest result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.01s\n\n",
   "test_stderr": "",
   "test_binary_sha256": "49ea0b9617a74b7feaaf57048a4c23aaec4db3ce9b439e38e75e7e2e5fe4bfcb"
 }

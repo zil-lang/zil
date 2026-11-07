@@ -27,7 +27,7 @@ fn runtime_source_project_native(text: &str, expected: &[u8]) {
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    review329_native_entry_output(&[("main", text)], "main", expected);
+    record_enum_native_entry_output(&[("main", text)], "main", expected);
 }
 
 #[test]
@@ -144,7 +144,7 @@ fn runtime_ct_generic_host_retains_existing_ordinary_boundary() {
 fn runtime_ct_instances_share_all_request_ledgers() {
     let input = include_str!("../ct6-runtime-multiple-instances.zil");
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let boundary = g44_source_request_boundary(input, ledger);
+        let boundary = static_member_source_request_boundary(input, ledger);
         eprintln!(
             "static member.7 runtime multiple instances {ledger} N={boundary}; N-1/cold/warm/fresh agree"
         );
@@ -171,7 +171,7 @@ fn runtime_ct_qualified_type_value_source_project_native() {
 fn runtime_ct_qualified_type_value_shares_all_request_ledgers() {
     let input = include_str!("../ct6-runtime-qualified-type-value.zil");
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let boundary = g44_source_request_boundary(input, ledger);
+        let boundary = static_member_source_request_boundary(input, ledger);
         eprintln!("static member.7 qualified Type value {ledger} N={boundary}; N-1/cold/warm/fresh agree");
     }
 }

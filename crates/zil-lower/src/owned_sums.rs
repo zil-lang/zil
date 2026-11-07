@@ -577,7 +577,7 @@ mod owned_sum_tests {
         };
         assert_eq!(life.nominal_arguments[0].argument, 0);
         assert_eq!(life.nominal_arguments[0].binder, 0);
-        eprintln!("g4463 Lower pure qualified Array workN={needed} nodesN={nodes}");
+        eprintln!("enum_member_controls Lower pure qualified Array workN={needed} nodesN={nodes}");
     }
 
     #[test]
@@ -639,7 +639,7 @@ mod owned_sum_tests {
                 unreachable!()
             };
             assert_eq!(*actual, mutable);
-            eprintln!("g4463 Lower index root mutable={mutable} workN={needed}");
+            eprintln!("enum_member_controls Lower index root mutable={mutable} workN={needed}");
         }
         let embedded = Type::Address {
             inner: Box::new(Type::Array {

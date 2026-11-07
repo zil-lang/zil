@@ -12,7 +12,7 @@ fn core_named_fields_and_actuals_get_resolved_physical_checks() {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
             zil_base::ModuleId(0),
-            "g4461-core-named.zil",
+            "nominal_member_controls-core-named.zil",
             text,
         );
         let options = CompileOptions {
@@ -136,7 +136,7 @@ fn same_child_distinct_outer_relations_coexist() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
         zil_base::ModuleId(0),
-        "g4461-relations.zil",
+        "nominal_member_controls-relations.zil",
         text,
     );
     let report = zil_driver::compile_source(
@@ -163,7 +163,7 @@ fn actual_pure_fields_retained_source_raw_wire() {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
             zil_base::ModuleId(0),
-            "g4461-fields.zil",
+            "nominal_member_controls-fields.zil",
             text,
         );
         let options = CompileOptions {
@@ -351,7 +351,7 @@ fn actual_core_nested_type_metadata_controls() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
         zil_base::ModuleId(0),
-        "g4461-core.zil",
+        "nominal_member_controls-core.zil",
         "struct Phantom<life a,life b,T:Copy,#N:i32>{n:i32}\nstruct Wrap<T:Copy>{n:i32}\nfn result<life s>(p:&'s i32)->i32{let value=Wrap::<Phantom<'s,'s,i32,42>>{n:42};return value.n}\nfn main()->i32{let n=0;return result(&n)}",
     );
     let limits = Limits::default();
@@ -465,7 +465,7 @@ fn actual_nested_type_nominal_source_raw_wire() {
     let directory = super::Temp::new();
     let cache = directory.0.join("cache");
     let report = zil_driver::compile_project(
-        &super::review329_project(&[("main", &text)]),
+        &super::record_enum_project(&[("main", &text)]),
         &CompileOptions {
             stop_after: Stage::Verify,
             semantic_cache: Some(cache.clone()),

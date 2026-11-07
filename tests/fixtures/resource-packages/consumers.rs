@@ -54,7 +54,7 @@ const INPUTS: &[(&str, &str, &[u8])] = &[
 ];
 
 fn input(name: &str, text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), format!("g10110-{name}.zil"), text)
+    SourceUnit::new(FileId(0), ModuleId(0), format!("parent_consumer-{name}.zil"), text)
 }
 
 fn source_and_honest_raw_wire(inputs: &[(&str, &str, &[u8])]) {
@@ -220,7 +220,7 @@ fn native_complete_consumers(inputs: &[(&str, &str, &[u8])]) {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let directory = std::env::temp_dir().join(format!(
-                    "zil-g10110-{}-{name}-{backend:?}-{optimization:?}",
+                    "zil-parent_consumer-{}-{name}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&directory).unwrap();
@@ -344,7 +344,7 @@ fn ct_ambient_type_preserves_outer_nominal_inventory() {
     let directory = super::Temp::new();
     let cache = directory.0.join("cache");
     let report = zil_driver::compile_project(
-        &super::review329_project(&[("main", text)]),
+        &super::record_enum_project(&[("main", text)]),
         &CompileOptions {
             stop_after: Stage::Build,
             backend: NativeBackend::Clang,

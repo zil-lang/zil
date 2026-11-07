@@ -12,7 +12,7 @@ fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     }
 }
 #[test]
-fn general_task343_native_ordinary_poll_and_once_ready() {
+fn general_async_registration_native_ordinary_poll_and_once_ready() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -67,7 +67,7 @@ fn general_task343_native_ordinary_poll_and_once_ready() {
     }
 }
 #[test]
-fn general_task343_raw_constructor_result_and_pc0_boundaries() {
+fn general_async_registration_raw_constructor_result_and_pc0_boundaries() {
     use zil_ir::{InstructionKind as I, Type};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -231,7 +231,7 @@ fn general_task343_raw_constructor_result_and_pc0_boundaries() {
 }
 
 #[test]
-fn general_task343_retained_context_cannot_enter_closed_frame_profile() {
+fn general_async_registration_retained_context_cannot_enter_closed_frame_profile() {
     use zil_ir::{
         LifeDeclarationId, NominalLifeArgument, RetainedBorrowPort, StorageRetainedBinding,
         StoredBorrowMode, Type,
@@ -303,7 +303,7 @@ fn general_task343_retained_context_cannot_enter_closed_frame_profile() {
 }
 
 #[test]
-fn general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result() {
+fn general_async_registration_borrowed_initial_frame_is_not_erased_by_scalar_result() {
     let original = include_str!("task-general-borrowed-pc0.zil");
     let report = compile_source(&source(original), &CompileOptions::default());
     assert!(
@@ -418,7 +418,7 @@ fn general_task343_borrowed_initial_frame_is_not_erased_by_scalar_result() {
     }
 }
 #[test]
-fn general_task343_native_creation_failure_and_default_cleanup() {
+fn general_async_registration_native_creation_failure_and_default_cleanup() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -511,7 +511,7 @@ fn general_task343_native_creation_failure_and_default_cleanup() {
 }
 
 #[test]
-fn general_task343_exact_kernel_work_boundary() {
+fn general_async_registration_exact_kernel_work_boundary() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     let core = expand(SOURCE, &limits).unwrap().core;
@@ -549,7 +549,7 @@ fn general_task343_exact_kernel_work_boundary() {
 }
 
 #[test]
-fn general_task343_user_poll_shape_does_not_replace_standard_identity() {
+fn general_async_registration_user_poll_shape_does_not_replace_standard_identity() {
     let source_text = include_str!("task-general-user-poll.zil");
     let wrong = source_text.replace(
         "let outcome = task_poll(task)?;",
@@ -567,7 +567,7 @@ fn general_task343_user_poll_shape_does_not_replace_standard_identity() {
 }
 
 #[test]
-fn general_task343_generated_ascribed_and_sequence_head_hints_preserve_types() {
+fn general_async_registration_generated_ascribed_and_sequence_head_hints_preserve_types() {
     use zil_ir::{CoreExprKind as E, CoreStatementKind as S, Type};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();

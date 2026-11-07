@@ -24,12 +24,12 @@ fn source_loop_origins_raw_wire() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
-        eprintln!("G339 {name}: actual Source/raw/Wire success");
+        eprintln!("HELPER_LIFE_COMPLETION {name}: actual Source/raw/Wire success");
     }
     let report = compile_source(
         &source(include_str!("loop-double.zil")),
@@ -78,12 +78,12 @@ fn multi_role_user_drop_and_managed_give_source_raw_wire() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&raw, &limits).unwrap();
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
-        eprintln!("G339 {name}: actual Source/raw/Wire success");
+        eprintln!("HELPER_LIFE_COMPLETION {name}: actual Source/raw/Wire success");
     }
 }
 
@@ -109,7 +109,7 @@ fn qualified_environment_lending_actual_source_raw_wire() {
             report.to_json()
         );
         assert_eq!(report.verification_runs, 1);
-        let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let typed = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         assert!(
             typed
                 .closures
@@ -120,7 +120,7 @@ fn qualified_environment_lending_actual_source_raw_wire() {
         zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
         let wire = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
-        eprintln!("G339 {name}: actual Source/raw/Wire success");
+        eprintln!("HELPER_LIFE_COMPLETION {name}: actual Source/raw/Wire success");
     }
 }
 
@@ -185,7 +185,7 @@ fn actual_completion_native_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g339-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-helper_life_completion-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -221,7 +221,7 @@ fn actual_completion_native_clang_api_o0_o2() {
                 );
                 assert!(run.stderr.is_empty());
                 eprintln!(
-                    "G339 native {case}/{backend:?}/{optimization:?}: {:?}",
+                    "HELPER_LIFE_COMPLETION native {case}/{backend:?}/{optimization:?}: {:?}",
                     String::from_utf8_lossy(&run.stdout)
                 );
             }
@@ -254,7 +254,7 @@ fn environment_lending_nearest_live_receiver_rejections() {
             "{name}: {}",
             report.to_json()
         );
-        eprintln!("G339 {name} nearest rejection: {}", report.to_json());
+        eprintln!("HELPER_LIFE_COMPLETION {name} nearest rejection: {}", report.to_json());
     }
 }
 
@@ -266,7 +266,7 @@ fn lending_field_claim_is_independent_of_copy_capture_type() {
     );
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(&text), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     let mut forged = typed.clone();
     let definition = forged
@@ -308,7 +308,7 @@ fn lending_field_claim_is_independent_of_copy_capture_type() {
             "{errors:?}"
         );
         eprintln!(
-            "G339 forged same-type lending field wire={wire_mode}: {}",
+            "HELPER_LIFE_COMPLETION forged same-type lending field wire={wire_mode}: {}",
             errors[0].message
         );
     }
@@ -332,7 +332,7 @@ fn completion_exact_two_kernel_budgets() {
         ("same-generic", include_str!("same-generic-qualified.zil")),
         ("once-adapt-managed", include_str!("once-adapt-managed.zil")),
     ] {
-        let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+        let typed = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let plan = zil_analyze::analyze(&typed, &limits).unwrap();
         let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
         for phase in [0, 1, 2] {
@@ -376,7 +376,7 @@ fn completion_exact_two_kernel_budgets() {
                 }
             }
             eprintln!(
-                "G339 {case}/phase{phase} exact N={low}; N-1 ResourceLimit, fresh retry success"
+                "HELPER_LIFE_COMPLETION {case}/phase{phase} exact N={low}; N-1 ResourceLimit, fresh retry success"
             );
         }
     }
@@ -400,7 +400,7 @@ fn merged_five_real_roles_mixed_cfg_drop_and_single_role_lending() {
     );
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
     assert!(typed.functions.iter().any(|f| {
         f.callable_contract
             .as_ref()
@@ -417,7 +417,7 @@ fn merged_five_real_roles_mixed_cfg_drop_and_single_role_lending() {
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
     eprintln!(
-        "G339 merged five qualified roles: mixed Fn/FnMut/FnOnce cyclic CFG + user Drop + separate single-role lending actual Source/raw/Wire success"
+        "HELPER_LIFE_COMPLETION merged five qualified roles: mixed Fn/FnMut/FnOnce cyclic CFG + user Drop + separate single-role lending actual Source/raw/Wire success"
     );
 }
 
@@ -439,7 +439,7 @@ fn nonconsuming_managed_capture_actual_repeat_and_lending() {
     );
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
     for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
         assert!(typed.closures.iter().any(|d| {
             d.kind == kind
@@ -454,7 +454,7 @@ fn nonconsuming_managed_capture_actual_repeat_and_lending() {
     let bytes = zil_ir::wire::encode_module_candidate(&typed, &plan, &limits).unwrap();
     zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
     eprintln!(
-        "G339 nonconsuming Managed Fn/FnMut actual Source/raw/Wire repeat + separate single-role lending success"
+        "HELPER_LIFE_COMPLETION nonconsuming Managed Fn/FnMut actual Source/raw/Wire repeat + separate single-role lending success"
     );
 }
 
@@ -463,7 +463,7 @@ fn nonconsuming_managed_entry_cannot_forge_capture_transfer() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let typed = zil_types::check(
-        &g334_core(include_str!("nonconsuming-managed.zil")),
+        &shared_helper_life_core(include_str!("nonconsuming-managed.zil")),
         &target,
         &limits,
     )
@@ -522,7 +522,7 @@ fn nonconsuming_managed_entry_cannot_forge_capture_transfer() {
                 "{errors:?}"
             );
             eprintln!(
-                "G339 actual {kind:?} forged owner transfer wire={wire_mode}: {}",
+                "HELPER_LIFE_COMPLETION actual {kind:?} forged owner transfer wire={wire_mode}: {}",
                 errors[0].message
             );
         }
@@ -534,7 +534,7 @@ fn lending_live_exclusive_call_is_rejected_independently_from_source_plan() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let good = zil_types::check(
-        &g334_core(include_str!("qualified-lending-mut.zil")),
+        &shared_helper_life_core(include_str!("qualified-lending-mut.zil")),
         &target,
         &limits,
     )
@@ -543,7 +543,7 @@ fn lending_live_exclusive_call_is_rejected_independently_from_source_plan() {
     // Use a real source-produced body with the first returned pointer live
     // across the second exclusive call. No Analyze result exists for this body.
     let bad = zil_types::check(
-        &g334_core(include_str!("lending-mut-live.zil")),
+        &shared_helper_life_core(include_str!("lending-mut-live.zil")),
         &target,
         &limits,
     )
@@ -570,7 +570,7 @@ fn lending_live_exclusive_call_is_rejected_independently_from_source_plan() {
             "{errors:?}"
         );
         eprintln!(
-            "G339 independent actual live receiver wire={wire_mode}: {}",
+            "HELPER_LIFE_COMPLETION independent actual live receiver wire={wire_mode}: {}",
             errors[0].message
         );
     }
@@ -581,7 +581,7 @@ fn actual_cycle_reentering_owner_consumption_is_rejected_by_both_kernels() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let typed = zil_types::check(
-        &g334_core(include_str!("loop-before.zil")),
+        &shared_helper_life_core(include_str!("loop-before.zil")),
         &target,
         &limits,
     )
@@ -632,7 +632,7 @@ fn actual_cycle_reentering_owner_consumption_is_rejected_by_both_kernels() {
             "{errors:?}"
         );
         eprintln!(
-            "G339 actual consuming backedge wire={wire_mode}: {}",
+            "HELPER_LIFE_COMPLETION actual consuming backedge wire={wire_mode}: {}",
             errors[0].message
         );
     }
@@ -646,7 +646,7 @@ fn scalar_foreign_actual_declaration_and_region_are_independent() {
         "{}\nextern \"C\" fn other(code:i32)->i32;\n",
         include_str!("two-role-user-drop.zil")
     );
-    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(&text), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     for lane in [
         "abi",
@@ -722,7 +722,7 @@ fn scalar_foreign_actual_declaration_and_region_are_independent() {
                 "{lane}: {errors:?}"
             );
             eprintln!(
-                "G339 scalar foreign {lane} independently rejected wire={wire_mode}: {}",
+                "HELPER_LIFE_COMPLETION scalar foreign {lane} independently rejected wire={wire_mode}: {}",
                 errors[0].message
             );
         }
@@ -764,7 +764,7 @@ fn same_generic_qualified_runtime_positions_source_raw_wire() {
         "{}",
         separate.to_json()
     );
-    let core = g334_core(text);
+    let core = shared_helper_life_core(text);
     let typed = zil_types::check(&core, &target, &limits).unwrap();
     let mut roles_seen = 0;
     for contract in typed
@@ -818,7 +818,7 @@ fn same_generic_qualified_runtime_positions_source_raw_wire() {
         rejected.to_json()
     );
     eprintln!(
-        "G339 qualified same-F mutable alias rejection: {}",
+        "HELPER_LIFE_COMPLETION qualified same-F mutable alias rejection: {}",
         rejected.to_json()
     );
 }
@@ -841,7 +841,7 @@ fn once_adaptation_retains_actual_owned_environment_cleanup() {
         "{}",
         report.to_json()
     );
-    let typed = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
     for kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
         assert!(typed.closures.iter().any(|d| {
             d.kind == kind
@@ -871,7 +871,7 @@ fn once_adaptation_retains_actual_owned_environment_cleanup() {
         rejected.to_json()
     );
     eprintln!(
-        "G339 adapted owning environment double call: {}",
+        "HELPER_LIFE_COMPLETION adapted owning environment double call: {}",
         rejected.to_json()
     );
 }
@@ -887,7 +887,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
         "if invoke{return f(x)}",
         "if invoke{let seen=f(x);return seen+0}",
     );
-    let typed = zil_types::check(&g334_core(&text), &target, &limits).unwrap();
+    let typed = zil_types::check(&shared_helper_life_core(&text), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&typed, &limits).unwrap();
     zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
     for actual_kind in [zil_ir::CallableKind::Fn, zil_ir::CallableKind::FnMut] {
@@ -966,7 +966,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
                 "{errors:?}"
             );
             eprintln!(
-                "G339 adapted {actual_kind:?} double={double} Analyze: {}",
+                "HELPER_LIFE_COMPLETION adapted {actual_kind:?} double={double} Analyze: {}",
                 errors[0].message
             );
             let mut claim = plan.clone();
@@ -993,7 +993,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
                     "must reach actual transfer/owner proof: {errors:?}"
                 );
                 eprintln!(
-                    "G339 adapted {actual_kind:?} double={double} wire={wire_mode}: {}",
+                    "HELPER_LIFE_COMPLETION adapted {actual_kind:?} double={double} wire={wire_mode}: {}",
                     errors[0].message
                 );
             }
@@ -1003,7 +1003,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
     // Replace the real caller's helper Call by a consuming call of its actual
     // inline lending environment; result is the same existing &i32 SSA slot.
     let lending = zil_types::check(
-        &g334_core(include_str!("qualified-lending.zil")),
+        &shared_helper_life_core(include_str!("qualified-lending.zil")),
         &target,
         &limits,
     )
@@ -1069,7 +1069,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
             .all(|d| d.category != ResultCategory::ResourceLimit),
         "{errors:?}"
     );
-    eprintln!("G339 actual lending Once Analyze: {}", errors[0].message);
+    eprintln!("HELPER_LIFE_COMPLETION actual lending Once Analyze: {}", errors[0].message);
     let mut claim = plan;
     claim.module_fingerprint = forged.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();
@@ -1094,7 +1094,7 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
             "{errors:?}"
         );
         eprintln!(
-            "G339 actual lending Once wire={wire_mode}: {}",
+            "HELPER_LIFE_COMPLETION actual lending Once wire={wire_mode}: {}",
             errors[0].message
         );
     }

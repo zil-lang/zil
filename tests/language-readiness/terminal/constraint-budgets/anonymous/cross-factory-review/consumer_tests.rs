@@ -62,7 +62,7 @@ fn p0_g445_independent_sources_keep_full_scalar_and_nominal_contracts() {
             report.to_json()
         );
     }
-    // This closed T -> Type path was supported before G445. It is a regression
+    // This closed T -> Type path was supported before CONTEXTUAL_RECORD_RELOCATION. It is a regression
     // control and is not evidence for life-bearing Type value construction.
     let report = compile_source(
         &source(include_str!("../lifetime-identity-review/type-result-nominal.zil")),
@@ -120,7 +120,7 @@ fn p0_g445_independent_native_values_preserve_width_sign_and_fraction() {
             assert_eq!(run.stdout, expected.as_bytes());
             assert!(run.stderr.is_empty());
             eprintln!(
-                "P0 G445 {name}/{backend:?}/{optimization:?} full stdout={expected:?}; input {}",
+                "P0 CONTEXTUAL_RECORD_RELOCATION {name}/{backend:?}/{optimization:?} full stdout={expected:?}; input {}",
                 report.input_fingerprint
             );
         }
