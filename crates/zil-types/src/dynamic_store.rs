@@ -497,6 +497,27 @@ pub(super) fn definition_name(element: &Type) -> String {
     format!("@builtin:OwnedStore<{name}>")
 }
 
+// Aggregate resolution already bounds each complete nominal tree. This
+// selector keeps the old Tuple/Enum-only requests off the new Store scan; the
+// selected full subtree is charged before any new pending entries are grown.
+fn contains_inline_carrier(ty: &Type) -> bool {
+    match ty {
+        Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
+            if inline_element(element) && supported_element(element)),
+        Type::Package { fields, .. } => fields
+            .iter()
+            .any(|(_, child)| contains_inline_carrier(child)),
+        Type::Tuple(fields) => fields.iter().any(contains_inline_carrier),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(contains_inline_carrier)),
+        Type::ErrorUnion { error, result } => {
+            contains_inline_carrier(error) || contains_inline_carrier(result)
+        }
+        _ => false,
+    }
+}
+
 pub(super) fn add_definitions(
     functions: &[TypedFunction],
     definitions: &mut Vec<ResourceDefinition>,
@@ -593,6 +614,20 @@ pub(super) fn add_definitions(
                     Type::Package { fields, .. } => {
                         work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
                         pending.extend(fields.iter().map(|(_, field)| field));
+                    }
+                    Type::Tuple(fields) if contains_inline_carrier(ty) => {
+                        inference::charge_type_snapshot(ty, function.span, limits, remaining, 2)?;
+                        work = work.checked_sub(fields.len()).ok_or_else(exhausted)?;
+                        pending.extend(fields);
+                    }
+                    Type::Enum { variants, .. } if contains_inline_carrier(ty) => {
+                        inference::charge_type_snapshot(ty, function.span, limits, remaining, 2)?;
+                        let children = variants
+                            .iter()
+                            .try_fold(0usize, |sum, (_, fields)| sum.checked_add(fields.len()))
+                            .ok_or_else(exhausted)?;
+                        work = work.checked_sub(children).ok_or_else(exhausted)?;
+                        pending.extend(variants.iter().flat_map(|(_, fields)| fields));
                     }
                     Type::Array { element, .. }
                     | Type::Opaque {
