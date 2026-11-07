@@ -754,17 +754,7 @@ fn bind_lir(
                 ) && !ty.is_copy_value()
             })
     });
-    let sum_helpers = drop_plan::functions(
-        lir,
-        verified.limits(),
-        verified.uses_owned_sum_extension() || callback_owned_data,
-        verified.uses_owned_sum_extension()
-            && lir.resources.iter().any(|r| {
-                matches!(&r.payload, Type::OwnedStore { element }
-                    if dynamic_store::inline_protocol_element(element))
-            }),
-        entry,
-    )?;
+    let mut capture_sum_roots = Vec::new();
     for closure in lir.closures {
         // Complete ordinary owning data travels through the same aggregate
         // argument/result ABI as a direct call. Keep capture qualification and
@@ -833,25 +823,37 @@ fn bind_lir(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
-        let captures_supported = closure.captures.iter().try_fold(true, |all, ty| {
-            Ok::<_, Vec<Diagnostic>>(all
-                && (ty.is_copy_value()
-                    || matches!(ty, Type::Closure(_))
-                    || ty.is_shared_sync_cell_address()
-                    || (captured_fixed_signature && shared_qualified_capture_address(ty))
-                    || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
-                    || sum_capture_address(ty)
-                    || ty.is_package_address()
-                    || (resources::supported_type(ty, lir.resources)
-                        && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
-                    || packages::supported_capture_type(ty, lir.resources)
-                    || inline_store_sum_capture(
-                        ty,
-                        lir.resources,
-                        verified.limits(),
-                        remaining_work,
-                    )?))
-        })?;
+        let mut captures_supported = true;
+        for ty in &closure.captures {
+            if !captures_supported {
+                break;
+            }
+            let legacy = ty.is_copy_value()
+                || matches!(ty, Type::Closure(_))
+                || ty.is_shared_sync_cell_address()
+                || (captured_fixed_signature && shared_qualified_capture_address(ty))
+                || matches!(ty, Type::Address { inner, .. } if inner.is_copy_value() || matches!(inner.as_ref(), Type::Closure(_)))
+                || sum_capture_address(ty)
+                || ty.is_package_address()
+                || (resources::supported_type(ty, lir.resources)
+                    && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })));
+            if legacy {
+                continue;
+            }
+            let (package, package_sum) =
+                packages::capture_admission(ty, lir.resources, verified.limits(), remaining_work)?;
+            if package {
+                if package_sum {
+                    capture_sum_roots.push(ty);
+                }
+                continue;
+            }
+            if inline_store_sum_capture(ty, lir.resources, verified.limits(), remaining_work)? {
+                capture_sum_roots.push(ty);
+            } else {
+                captures_supported = false;
+            }
+        }
         if !matches!(
             closure.kind,
             CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
@@ -872,6 +874,13 @@ fn bind_lir(
             return unsupported("LLVM finite resource closure representation", None);
         }
     }
+    let sum_helpers = drop_plan::functions(
+        lir,
+        verified.limits(),
+        verified.uses_owned_sum_extension() || callback_owned_data || !capture_sum_roots.is_empty(),
+        &capture_sum_roots,
+        entry,
+    )?;
     for function in lir.functions {
         if !forwarded_callable_signature(function) {
             return unsupported(

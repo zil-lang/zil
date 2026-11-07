@@ -561,7 +561,7 @@ pub(super) fn functions(
     lir: &LirView<'_>,
     limits: &zil_base::Limits,
     enabled: bool,
-    inline_store_sum_captures: bool,
+    capture_roots: &[&Type],
     entry: EntryPoint,
 ) -> CompileResult<m::Code> {
     if !enabled {
@@ -658,28 +658,15 @@ pub(super) fn functions(
             }
         }
     }
-    if inline_store_sum_captures {
+    if !capture_roots.is_empty() {
         // A captured Sum can be absent from every function local/value and
         // callable signature, yet closure teardown still calls its drop
         // symbol. Prepay each actual capture tree before classifying it, then
         // force the selected tree so an ErrorUnion with a direct Store arm and
         // every nested Package child Sum receive their concrete helpers.
-        // Modules without this inline Store family retain their prior fees.
-        for closure in lir.closures {
-            for ty in &closure.captures {
-                if matches!(
-                    ty,
-                    Type::Tuple(_)
-                        | Type::Package { .. }
-                        | Type::Enum { .. }
-                        | Type::ErrorUnion { .. }
-                ) {
-                    budget.tree(ty, 0)?;
-                    if owned_sum(ty) || new_shape(ty) {
-                        visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
-                    }
-                }
-            }
+        // Legacy captures never enter this list or pay this new traversal.
+        for ty in capture_roots {
+            visit(ty, &mut found, &mut seen, &mut budget, true, 0)?;
         }
     }
     // Entry error extraction, storage, typed cleanup GEPs and helper names

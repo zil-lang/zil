@@ -23,12 +23,44 @@ pub(super) fn supported_value_type(ty: &Type, resources: &[ResourceDefinition]) 
         || drop_plan::value_type(ty, resources)
 }
 
-pub(super) fn supported_capture_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    supported_type(ty, resources)
-        || product_type(ty, resources)
-        || (matches!(ty, Type::Package { .. })
-            && has_inline_store_owner(ty)
-            && drop_plan::value_type(ty, resources))
+/// Return admission and the new captured Package-with-Sum helper requirement.
+pub(super) fn capture_admission(
+    ty: &Type,
+    resources: &[ResourceDefinition],
+    limits: &zil_base::Limits,
+    work: &mut usize,
+) -> CompileResult<(bool, bool)> {
+    if supported_type(ty, resources) || product_type(ty, resources) {
+        return Ok((true, false));
+    }
+    if !matches!(ty, Type::Package { .. }) {
+        return Ok((false, false));
+    }
+    let before = *work;
+    copy_aggregates::reserve_enum_metadata(ty, work, 0, limits)?;
+    let shape = before - *work;
+    let mut definitions = 0usize;
+    for resource in resources {
+        let before = *work;
+        copy_aggregates::reserve_enum_metadata(&resource.payload, work, 0, limits)?;
+        definitions = definitions.saturating_add(before - *work);
+        definitions = definitions.saturating_add(resource.name.len().saturating_add(1));
+    }
+    let fee = shape
+        .saturating_add(definitions)
+        .saturating_mul(shape.saturating_add(4))
+        .saturating_add(16);
+    *work = work.checked_sub(fee).ok_or_else(|| {
+        vec![Diagnostic::limit(
+            Phase::Codegen,
+            "captured inline Store Product Sum scan budget exceeded",
+            None,
+        )]
+    })?;
+    if !has_inline_store_owner(ty) || !drop_plan::value_type(ty, resources) {
+        return Ok((false, false));
+    }
+    Ok((true, drop_plan::new_shape(ty)))
 }
 
 fn has_inline_store_owner(ty: &Type) -> bool {
