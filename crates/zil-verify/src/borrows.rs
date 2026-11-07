@@ -819,13 +819,17 @@ fn reconstruct(
                             }
                             InstructionKind::OwnedStoreBorrow { store, .. }
                             | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
-                                let precise = roots::store_element_roots(
-                                    f,
-                                    result,
-                                    &values[store.0 as usize],
-                                    budget,
-                                )?;
-                                roots_join(&mut row, &precise, budget)?;
+                                let source = &values[store.0 as usize];
+                                if source
+                                    .iter()
+                                    .any(|root| matches!(root, Root::Window(..)))
+                                {
+                                    let precise =
+                                        roots::store_element_roots(f, result, source, budget)?;
+                                    roots_join(&mut row, &precise, budget)?;
+                                } else {
+                                    roots_join(&mut row, source, budget)?;
+                                }
                             }
                             InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                                 row.push(Root::Local(*local));
