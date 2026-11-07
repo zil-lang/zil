@@ -2,6 +2,13 @@
 //! This is private lowering order only; Analyze and Verify prove responsibility.
 use super::*;
 
+#[derive(Clone, Default, PartialEq, Eq)]
+struct CaptureAge {
+    definite: std::collections::BTreeSet<LocalId>,
+    possible: std::collections::BTreeSet<LocalId>,
+    before: std::collections::BTreeSet<(LocalId, LocalId)>,
+}
+
 impl Builder<'_, '_> {
     fn capture_cleanup_age(&mut self, span: Span) -> R<Vec<LocalId>> {
         let target = self.current.expect("live capture exit").0 as usize;
@@ -48,16 +55,17 @@ impl Builder<'_, '_> {
                     && (matches!(local.ty, Type::Managed(_)) || self.affine_type(&local.ty)),
             );
         }
-        let mut states: Vec<Option<Vec<LocalId>>> = vec![None; blocks];
-        states[self.function.entry.0 as usize] = Some(Vec::new());
+        let mut states: Vec<Option<CaptureAge>> = vec![None; blocks];
+        states[self.function.entry.0 as usize] = Some(CaptureAge::default());
         let mut work = std::collections::VecDeque::from([self.function.entry.0 as usize]);
         let mut final_age = None;
         while let Some(block) = work.pop_front() {
+            let source = states[block].as_ref().expect("queued CFG state");
             self.closures.snapshot(
-                states[block].as_ref().expect("queued CFG state").len(),
+                source.definite.len() + source.possible.len() + source.before.len(),
                 span,
             )?;
-            let mut age = states[block].as_ref().expect("queued CFG state").clone();
+            let mut age = source.clone();
             let instructions = &self.function.blocks[block].instructions;
             self.closures
                 .snapshot(instructions.len().saturating_add(1), span)?;
@@ -81,12 +89,20 @@ impl Builder<'_, '_> {
                     _ => add,
                 };
                 if let Some(local) = remove {
-                    self.closures.snapshot(age.len(), span)?;
-                    age.retain(|item| *item != local);
+                    self.closures
+                        .snapshot(age.before.len().saturating_add(2), span)?;
+                    age.definite.remove(&local);
+                    age.possible.remove(&local);
+                    age.before.retain(|(a, b)| *a != local && *b != local);
                 }
                 if let Some(local) = add {
-                    self.closures.snapshot(age.len().saturating_add(1), span)?;
-                    age.push(local);
+                    self.closures
+                        .snapshot(age.possible.len().saturating_add(2), span)?;
+                    for previous in &age.possible {
+                        age.before.insert((*previous, local));
+                    }
+                    age.definite.insert(local);
+                    age.possible.insert(local);
                 }
             }
             if block == target {
@@ -107,29 +123,83 @@ impl Builder<'_, '_> {
                 if !can_reach[next] {
                     continue;
                 }
-                self.closures.snapshot(age.len().saturating_add(1), span)?;
+                self.closures.snapshot(
+                    age.definite.len() + age.possible.len() + age.before.len() + 1,
+                    span,
+                )?;
                 match &states[next] {
                     None => {
-                        self.closures.snapshot(age.len(), span)?;
+                        self.closures.snapshot(
+                            age.definite.len() + age.possible.len() + age.before.len(),
+                            span,
+                        )?;
                         states[next] = Some(age.clone());
                         work.push_back(next);
                     }
-                    Some(previous)
-                        if {
-                            self.closures
-                                .snapshot(previous.len().saturating_add(age.len()), span)?;
-                            previous == &age
-                        } => {}
-                    Some(_) => {
-                        return Err(unsupported(
+                    Some(previous) => {
+                        self.closures.snapshot(
+                            previous.definite.len()
+                                + previous.possible.len()
+                                + previous.before.len()
+                                + age.definite.len()
+                                + age.possible.len()
+                                + age.before.len(),
                             span,
-                            "owning Sum capture exit needs path-specific cleanup after differing initialization orders",
-                        ));
+                        )?;
+                        let mut joined = previous.clone();
+                        joined.definite.retain(|local| age.definite.contains(local));
+                        joined.possible.extend(&age.possible);
+                        joined.before.extend(&age.before);
+                        if &joined != previous {
+                            states[next] = Some(joined);
+                            self.closures.snapshot(1, span)?;
+                            work.push_back(next);
+                        }
                     }
                 }
             }
         }
-        final_age.ok_or_else(|| unsupported(span, "owning Sum capture exit has no actual path"))
+        let final_age = final_age
+            .ok_or_else(|| unsupported(span, "owning Sum capture exit has no actual path"))?;
+        self.closures
+            .snapshot(self.owned_sum_captures.len(), span)?;
+        for local in self.owned_sum_captures.keys() {
+            self.closures.snapshot(final_age.definite.len(), span)?;
+            if !final_age.definite.contains(local) {
+                return Err(error(
+                    "E-UNINITIALIZED",
+                    span,
+                    "owning Sum capture is not refilled on its returning path",
+                ));
+            }
+        }
+        let mut remaining = final_age.possible;
+        let mut before = final_age.before;
+        let mut ordered = Vec::new();
+        while !remaining.is_empty() {
+            self.closures.snapshot(
+                remaining
+                    .len()
+                    .saturating_mul(before.len().saturating_add(1))
+                    .saturating_add(before.len())
+                    .saturating_add(1),
+                span,
+            )?;
+            let next = remaining
+                .iter()
+                .copied()
+                .find(|candidate| !before.iter().any(|(_, later)| later == candidate))
+                .ok_or_else(|| {
+                    unsupported(
+                        span,
+                        "owning Sum capture exit needs path-specific cleanup after differing initialization orders",
+                    )
+                })?;
+            ordered.push(next);
+            remaining.remove(&next);
+            before.retain(|(earlier, _)| *earlier != next);
+        }
+        Ok(ordered)
     }
 
     pub(super) fn end_owned_sum_capture_scopes(

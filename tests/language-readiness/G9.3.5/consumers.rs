@@ -212,17 +212,19 @@ fn ordinary_ownership_does_not_admit_a_nested_store_element() {
 #[test]
 fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
     let source = include_str!("ordinary-direct-shape-captures.zil");
-    for (label, from, to, code) in [
+    for (label, from, to, phase, code) in [
         (
             "shared-takes-owner",
             "let (ref values,tag)=pair",
             "let previous=pair\n        let (values,tag)=previous",
+            Phase::Analyze,
             "E-ANALYZE-IR",
         ),
         (
             "mutable-return-unfilled",
             "choice=Choice.Value(make(18446744073709551612u64))",
             "if false { choice=Choice.Value(make(18446744073709551612u64)) }",
+            Phase::Types,
             "E-UNINITIALIZED",
         ),
     ] {
@@ -239,12 +241,7 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             "{label}: {}",
             report.to_json()
         );
-        assert_eq!(
-            report.phase,
-            Phase::Analyze,
-            "{label}: {}",
-            report.to_json()
-        );
+        assert_eq!(report.phase, phase, "{label}: {}", report.to_json());
         assert!(
             report.diagnostics.iter().any(|d| d.code == code),
             "{label}: {}",
@@ -597,6 +594,38 @@ fn ordinary_source_derived_two_sum_capture_debts_reject_raw_and_wire() {
 
     let mut shared_take = module.clone();
     shared_take.closures[definition_index].kind = zil_ir::CallableKind::Fn;
+    let closure = shared_take.closures[definition_index].id;
+    let mut claims = 0;
+    let mut calls = 0;
+    for function in &mut shared_take.functions {
+        if let Some(contract) = &mut function.callable_return_contract
+            && contract.closure == closure
+        {
+            assert_eq!(contract.kind, zil_ir::CallableKind::FnMut);
+            contract.kind = zil_ir::CallableKind::Fn;
+            claims += 1;
+        }
+        for instruction in function
+            .blocks
+            .iter_mut()
+            .flat_map(|block| &mut block.instructions)
+        {
+            if let I::CallClosureMut { callee, arguments } = &instruction.kind
+                && function.locals[callee.0 as usize].ty == Type::Closure(closure)
+            {
+                instruction.kind = I::CallClosureShared {
+                    callee: *callee,
+                    arguments: arguments.clone(),
+                };
+                calls += 1;
+            }
+        }
+    }
+    assert_eq!(
+        claims, 1,
+        "actual Source factory has one returned environment claim"
+    );
+    assert_eq!(calls, 2, "actual Source invokes its environment twice");
     reject_direct_sum_capture_candidate(
         "ordinary-shared-takes-owned-sum",
         shared_take,
