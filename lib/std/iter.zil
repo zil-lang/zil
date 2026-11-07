@@ -31,6 +31,46 @@ pub fn find<T:Copy,F:FnMut(T)->bool>(values:&[T],predicate:&mut F)->T? {
     return Option.None
 }
 
+// In-place heapsort for Copy slices. Equal elements may change order.
+// The caller's comparison must define a consistent strict order.
+pub fn sort_unstable_by<T:Copy,F:FnMut(T,T)->bool>(values:&mut [T],less:&mut F) {
+    let length=values.len()
+    if length<2 { return }
+    var start=length/2
+    while start>0 {
+        start-=1
+        var root=start
+        while root<=(length-2)/2 {
+            var child=root*2+1
+            if child+1<length && less(values[child],values[child+1]) {child+=1}
+            if !less(values[root],values[child]) {break}
+            let previous=values[root]
+            values[root]=values[child]
+            values[child]=previous
+            root=child
+        }
+    }
+    var end=length
+    while end>1 {
+        end-=1
+        let previous=values[0]
+        values[0]=values[end]
+        values[end]=previous
+        if end>1 {
+            var root:i64=0
+            while root<=(end-2)/2 {
+                var child=root*2+1
+                if child+1<end && less(values[child],values[child+1]) {child+=1}
+                if !less(values[root],values[child]) {break}
+                let parent=values[root]
+                values[root]=values[child]
+                values[child]=parent
+                root=child
+            }
+        }
+    }
+}
+
 // Each next result borrows this invocation of the receiver until its last use.
 pub trait LendingIterator {
     type Item:Copy;
