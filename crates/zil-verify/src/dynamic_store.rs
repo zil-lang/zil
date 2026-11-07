@@ -210,6 +210,12 @@ pub(super) fn is_carrier(ty: &Type) -> bool {
     element(ty).is_some()
 }
 
+/// A shape classifier for the new ordinary owning positions. Admission still
+/// requires check_carrier against the exact sealed resource table.
+pub(super) fn inline_owner(ty: &Type) -> bool {
+    matches!(ty, Type::Managed(_)) && element(ty).is_some_and(plain_element)
+}
+
 /// Find an actual owning Store field in a bounded ordinary Product capture.
 /// The raw type preflight precedes this walk; pay for each queue entry before
 /// growing it, and leave old modules without the POD family on their old fee.

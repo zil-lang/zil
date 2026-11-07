@@ -1077,6 +1077,7 @@ fn check_type_shape(
             || (context & 2 != 0
                 && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
+            || (context & 2 != 0 && dynamic_store::inline_owner(ty))
         {
             budget.mark_sum(budget.current_function)?;
         }

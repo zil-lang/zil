@@ -1647,6 +1647,14 @@ fn store935_unused_ordinary_owners_qualify_but_record_and_array_do_not() {
             error: Box::new(Type::Unit),
             result: Box::new(store.clone()),
         },
+        Type::ErrorUnion {
+            error: Box::new(store.clone()),
+            result: Box::new(Type::Unit),
+        },
+        Type::ErrorUnion {
+            error: Box::new(store.clone()),
+            result: Box::new(store.clone()),
+        },
     ] {
         let (mut malformed, plan) = pod_fixture(Type::I32);
         let span = malformed.functions[0].span;
