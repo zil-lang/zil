@@ -161,11 +161,19 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 "dyn declaration is outside finite ordinary method profile",
             ));
         }
+        let mut member_names = BTreeSet::new();
+        for member in &declaration.members {
+            budget.lookup(member_names.len(), WORK)?;
+            if member.name.is_empty() || !member_names.insert(member.name.as_str()) {
+                return Err(bad("dyn declaration has repeated or empty member identity"));
+            }
+        }
     }
     let mut interfaces = BTreeSet::new();
     for interface in &module.dyn_interfaces {
         budget.lookup(declarations.len(), WORK)?;
-        if !interfaces.insert(interface.id)
+        if interface.id.module != interface.application.declaration.module
+            || !interfaces.insert(interface.id)
             || !declarations
                 .get(&interface.application.declaration)
                 .is_some_and(|d| d.kind == DynDeclarationKind::Trait)
@@ -368,7 +376,9 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
     let mut tables = BTreeMap::new();
     for table in &module.dyn_vtables {
         budget.lookup(tables.len(), WORK)?;
-        if tables.insert(table.id, table).is_some() {
+        if table.id.module != table.implementation.module
+            || tables.insert(table.id, table).is_some()
+        {
             return Err(bad("dyn vtable identity is repeated"));
         }
         budget.spend(
