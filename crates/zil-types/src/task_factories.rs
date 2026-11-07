@@ -33,7 +33,7 @@ pub(super) fn signature_factory(signature: &Signature) -> bool {
         && shared_input(&signature.parameters[0])
 }
 
-fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
+pub(super) fn replace_task(ty: &mut Type, actual: &Type, span: Span) -> R<()> {
     match ty {
         Type::Task {
             result,

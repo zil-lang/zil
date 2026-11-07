@@ -372,6 +372,7 @@ pub(super) fn exclusive_returns(overlap: bool) -> TypedModule {
     m
 }
 
+#[allow(dead_code)] // This shared fixture is consumed by the driver subset.
 pub(super) fn mutable_holder() -> TypedModule {
     let mut m = module();
     let address = address(Type::I64, true);
@@ -426,6 +427,7 @@ pub(super) fn mutable_holder() -> TypedModule {
     m
 }
 
+#[allow(dead_code)] // This shared fixture is consumed by the driver subset.
 pub(super) fn replace_carrier(module: &mut TypedModule, old: &Type, new: &Type) {
     fn replace(ty: &mut Type, old: &Type, new: &Type) {
         if ty == old {
@@ -448,6 +450,7 @@ pub(super) fn replace_carrier(module: &mut TypedModule, old: &Type, new: &Type) 
     }
 }
 
+#[allow(dead_code)] // This shared fixture is consumed by the driver subset.
 pub(super) fn shared_two_slots() -> TypedModule {
     let mut module = self::module();
     let old = module.life_instances[0].ty.clone();

@@ -745,13 +745,25 @@ fn template_with_state(
                 continue;
             }
             let registration_input = borrowed_registration(&input.ty, &parameter.name);
-            if registration_input && (callables.len() != 1 || function.generics.len() != 1
-                || function.params.len() != 1 || !closed_environment
-                || kind != CallableKind::FnMut || life.is_some()
-                || !function.contract.iter().any(|c| c.name == "requires")) {
-                return Err(unsupported(input.span, "borrowed registration helper requires one closed FnMut binder, one exclusive carrier and an explicit state contract"));
+            if registration_input
+                && (callables.len() != 1
+                    || function.generics.len() != 1
+                    || function.params.len() != 1
+                    || !closed_environment
+                    || kind != CallableKind::FnMut
+                    || life.is_some()
+                    || !function.contract.iter().any(|c| c.name == "requires"))
+            {
+                return Err(unsupported(
+                    input.span,
+                    "borrowed registration helper requires one closed FnMut binder, one exclusive carrier and an explicit state contract",
+                ));
             }
-            let mode = if registration_input { Some(Some(true)) } else { parameter_mode(&input.ty, &parameter.name) };
+            let mode = if registration_input {
+                Some(Some(true))
+            } else {
+                parameter_mode(&input.ty, &parameter.name)
+            };
             if owned_factory && (count != 0 || mode != Some(None) || input.give) {
                 return Err(unsupported(
                     input.span,

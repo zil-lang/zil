@@ -1112,6 +1112,8 @@ fn context_signature(signature: &Signature, budget: &mut Budget<'_>, span: Span)
             || packages::ordinary(ty)
             || owned_shapes::sum(ty)
             || packages::owned_array_supported(ty)
+            || stored::exclusive_value(ty)
+            || stored::exclusive_address(ty)
     };
     if signature.type_parameter.is_none()
         && ((!admitted(&signature.result)
@@ -2148,6 +2150,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         } else if let Type::Address { mutable, inner } = ty {
             if !inner.is_address_pointee()
                 && !stored::shared_address(ty)
+                && !stored::exclusive_address(ty)
                 && !ty.is_shared_sync_cell_address()
                 && !ty.is_shared_resource_head_address()
                 && !ty.is_exclusive_task_head_address()

@@ -4268,25 +4268,39 @@ pub fn protocol_contract_fingerprint(contract: &FunctionProtocolContract) -> Fin
     Fingerprint::of(&bytes)
 }
 fn encode_protocol_contract(b: &mut impl FingerprintSink, c: &FunctionProtocolContract) {
-    b.push(match c.protocol { ProtocolKind::AsyncRegistrationV1 => 0 });
+    b.push(match c.protocol {
+        ProtocolKind::AsyncRegistrationV1 => 0,
+    });
     encode_u32(b, c.parameter);
     encode_len(b, c.entry.len());
-    for state in &c.entry { b.push(protocol_state_tag(*state)); }
+    for state in &c.entry {
+        b.push(protocol_state_tag(*state));
+    }
     encode_len(b, c.exits.len());
     for row in &c.exits {
         b.push(protocol_state_tag(row.input));
         b.push(protocol_exit_tag(row.exit));
         encode_len(b, row.output.len());
-        for state in &row.output { b.push(protocol_state_tag(*state)); }
+        for state in &row.output {
+            b.push(protocol_state_tag(*state));
+        }
     }
 }
 fn protocol_state_tag(s: ProtocolState) -> u8 {
-    match s { ProtocolState::Open => 0, ProtocolState::Closing => 1, ProtocolState::Closed => 2 }
+    match s {
+        ProtocolState::Open => 0,
+        ProtocolState::Closing => 1,
+        ProtocolState::Closed => 2,
+    }
 }
 fn protocol_exit_tag(s: ProtocolExit) -> u8 {
-    match s { ProtocolExit::Return => 0, ProtocolExit::ErrorOk => 1,
-        ProtocolExit::ErrorErr => 2, ProtocolExit::PollPending => 3,
-        ProtocolExit::PollReady => 4 }
+    match s {
+        ProtocolExit::Return => 0,
+        ProtocolExit::ErrorOk => 1,
+        ProtocolExit::ErrorErr => 2,
+        ProtocolExit::PollPending => 3,
+        ProtocolExit::PollReady => 4,
+    }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
     match c.source {

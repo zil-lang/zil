@@ -1097,16 +1097,22 @@ impl<'a> Writer<'a> {
         }
         self.boolean(function.protocol_contract.is_some())?;
         if let Some(contract) = &function.protocol_contract {
-            self.u8(match contract.protocol { ProtocolKind::AsyncRegistrationV1 => 0 })?;
+            self.u8(match contract.protocol {
+                ProtocolKind::AsyncRegistrationV1 => 0,
+            })?;
             self.u32(contract.parameter)?;
             self.count(contract.entry.len(), self.limits.max_nodes)?;
-            for state in &contract.entry { self.u8(protocol_state_tag(*state))?; }
+            for state in &contract.entry {
+                self.u8(protocol_state_tag(*state))?;
+            }
             self.count(contract.exits.len(), self.limits.max_nodes)?;
             for row in &contract.exits {
                 self.u8(protocol_state_tag(row.input))?;
                 self.u8(protocol_exit_tag(row.exit))?;
                 self.count(row.output.len(), self.limits.max_nodes)?;
-                for state in &row.output { self.u8(protocol_state_tag(*state))?; }
+                for state in &row.output {
+                    self.u8(protocol_state_tag(*state))?;
+                }
             }
         }
         self.u32(function.id.0)?;
@@ -3378,29 +3384,48 @@ impl<'a> Reader<'a> {
             None
         };
         let protocol_contract = if self.boolean()? {
-            let protocol = match self.u8()? { 0 => ProtocolKind::AsyncRegistrationV1,
-                _ => return Err(malformed("E-WIRE-TAG", "unknown protocol kind")) };
+            let protocol = match self.u8()? {
+                0 => ProtocolKind::AsyncRegistrationV1,
+                _ => return Err(malformed("E-WIRE-TAG", "unknown protocol kind")),
+            };
             let parameter = self.u32()?;
             let count = self.count(self.limits.max_nodes, 1)?;
             let mut entry = Vec::with_capacity(count);
-            for _ in 0..count { entry.push(self.protocol_state()?); }
+            for _ in 0..count {
+                entry.push(self.protocol_state()?);
+            }
             let count = self.count(self.limits.max_nodes, 3)?;
             let mut exits = Vec::with_capacity(count);
             for _ in 0..count {
                 let input = self.protocol_state()?;
                 let exit = match self.u8()? {
-                    0 => ProtocolExit::Return, 1 => ProtocolExit::ErrorOk,
-                    2 => ProtocolExit::ErrorErr, 3 => ProtocolExit::PollPending,
+                    0 => ProtocolExit::Return,
+                    1 => ProtocolExit::ErrorOk,
+                    2 => ProtocolExit::ErrorErr,
+                    3 => ProtocolExit::PollPending,
                     4 => ProtocolExit::PollReady,
                     _ => return Err(malformed("E-WIRE-TAG", "unknown protocol exit")),
                 };
                 let count = self.count(self.limits.max_nodes, 1)?;
                 let mut output = Vec::with_capacity(count);
-                for _ in 0..count { output.push(self.protocol_state()?); }
-                exits.push(ProtocolTransition { input, exit, output });
+                for _ in 0..count {
+                    output.push(self.protocol_state()?);
+                }
+                exits.push(ProtocolTransition {
+                    input,
+                    exit,
+                    output,
+                });
             }
-            Some(FunctionProtocolContract { protocol, parameter, entry, exits })
-        } else { None };
+            Some(FunctionProtocolContract {
+                protocol,
+                parameter,
+                entry,
+                exits,
+            })
+        } else {
+            None
+        };
         let id = FunctionId(self.u32()?);
         let name = self.text()?;
         let foreign = if self.boolean()? {

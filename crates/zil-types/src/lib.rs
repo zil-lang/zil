@@ -948,7 +948,7 @@ impl<'a, 'c> Builder<'a, 'c> {
                 | "async_registration_request_close"
                 | "async_registration_poll_close"
                 | "async_registration_finish_destroy"
-            | "async_registration_finish_destroy_checked"
+                | "async_registration_finish_destroy_checked"
         ) {
             return Err(error(
                 "E-REGISTRATION-NAME",
@@ -1298,11 +1298,33 @@ impl<'a, 'c> Builder<'a, 'c> {
                 // A resource annotation names the nominal type; create/give
                 // determines whether this binding holds the carrier or a description.
                 let store_constructor = matches!(&e.kind, CoreExprKind::Call { callee, .. } if dynamic_store::primitive(callee) == Some("store_new"));
-                let wanted = ty
-                    .as_ref()
-                    .filter(|t| !matches!(t, Type::Desc(_)) || store_constructor);
+                // Task<T> constrains T, not the inferred hidden frame context.
+                // Source closure inference can still hold the closed placeholder;
+                // the real initializer determines its complete retained shape.
+                let task_constraint = ty.as_ref().and_then(task_factories::result_task)
+                    .is_some_and(|t| matches!(t, Type::Task { retained_life, .. } if *retained_life == tasks::empty_context()));
+                let wanted = ty.as_ref().filter(|t| {
+                    (!matches!(t, Type::Desc(_)) || store_constructor) && !task_constraint
+                });
                 let (v, t) = self.transfer_expr(e, wanted)?;
-                if let Some(wanted) = ty
+                let mut task_annotation = None;
+                if task_constraint
+                    && let Some(actual) = task_factories::result_task(&t)
+                    && matches!(actual, Type::Task { retained_life, .. } if *retained_life != tasks::empty_context())
+                    && let Some(annotation) = ty
+                {
+                    let cost = inference::type_snapshot_work(annotation, s.span, self.limits)?
+                        .saturating_add(inference::type_snapshot_work(
+                            actual,
+                            s.span,
+                            self.limits,
+                        )?);
+                    self.closures.snapshot(cost, s.span)?;
+                    let mut complete = annotation.clone();
+                    task_factories::replace_task(&mut complete, actual, s.span)?;
+                    task_annotation = Some(complete);
+                }
+                if let Some(wanted) = task_annotation.as_ref().or(ty.as_ref())
                     && !matches!((&t, wanted), (Type::Managed(a), Type::Desc(b)) if a == b)
                 {
                     self.same(&t, wanted, s.span)?;

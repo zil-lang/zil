@@ -8,6 +8,32 @@ use zil_base::ModuleId;
 use zil_base::NodeId;
 use zil_ir::LifeDeclarationIdentity;
 
+/// Produced by the actual standard-declaration insertion, never inferred from names.
+#[derive(Clone, Copy, Debug, Default)]
+pub(super) struct CompilerPrelude {
+    pub(super) len: usize,
+    pub(super) option: Option<usize>,
+}
+impl CompilerPrelude {
+    fn option_only(inserted: bool) -> Self {
+        Self {
+            len: usize::from(inserted),
+            option: inserted.then_some(0),
+        }
+    }
+    fn origin(self, module: &Module, index: usize) -> R<Origin> {
+        let ordinal = if self.option == Some(index) {
+            0
+        } else {
+            index + 1
+        };
+        let mut origin = Origin::source(module.id, ordinal, module.span)?;
+        origin.compiler = true;
+        origin.declaration.compiler = true;
+        Ok(origin)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct DeclId {
     pub(crate) module: ModuleId,
@@ -106,18 +132,25 @@ impl Origins {
         inserted_option: bool,
         budget: &mut Budget<'_>,
     ) -> R<Self> {
+        Self::single_prepared(
+            module,
+            CompilerPrelude::option_only(inserted_option),
+            budget,
+        )
+    }
+    pub(super) fn single_prepared(
+        module: &Module,
+        prelude: CompilerPrelude,
+        budget: &mut Budget<'_>,
+    ) -> R<Self> {
         let mut entries = Vec::new();
         for (index, item) in module.items.iter().enumerate() {
             budget.node(item.span, 0)?;
-            let mut origin = Origin::source(
-                module.id,
-                index.saturating_sub(usize::from(inserted_option)),
-                item.span,
-            )?;
-            if inserted_option && index == 0 {
-                origin.compiler = true;
-                origin.declaration.compiler = true;
-            }
+            let origin = if index < prelude.len {
+                prelude.origin(module, index)?
+            } else {
+                Origin::source(module.id, index - prelude.len, item.span)?
+            };
             entries.push(origin);
         }
         Ok(Self {
@@ -126,17 +159,27 @@ impl Origins {
             modules: BTreeMap::new(),
         })
     }
-    pub(crate) fn insert_option(&mut self, module: &Module, budget: &mut Budget<'_>) -> R<()> {
-        if self.entries.len() + 1 != module.items.len() {
-            return Err(error(module.span, "Option provenance shape differs"));
+    pub(super) fn prepend_compiler_prelude(
+        &mut self,
+        module: &Module,
+        prelude: CompilerPrelude,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
+        if self.entries.len().checked_add(prelude.len) != Some(module.items.len()) {
+            return Err(error(
+                module.span,
+                "compiler prelude provenance shape differs",
+            ));
         }
-        for _ in 0..=self.entries.len() {
+        for _ in 0..module.items.len() {
             budget.node(module.span, 0)?;
         }
-        let mut origin = Origin::source(module.id, 0, module.span)?;
-        origin.compiler = true;
-        origin.declaration.compiler = true;
-        self.entries.insert(0, origin);
+        let mut entries = Vec::with_capacity(module.items.len());
+        for index in 0..prelude.len {
+            entries.push(prelude.origin(module, index)?);
+        }
+        entries.append(&mut self.entries);
+        self.entries = entries;
         Ok(())
     }
     pub(crate) fn aliases(&mut self, module: &Module, budget: &mut Budget<'_>) -> R<()> {
@@ -214,6 +257,20 @@ impl Origins {
         context: &ResolvedSourceIdentityContext<'_>,
         budget: &mut Budget<'_>,
     ) -> R<()> {
+        self.capture_prepared_identities(
+            module,
+            CompilerPrelude::option_only(inserted_option),
+            context,
+            budget,
+        )
+    }
+    pub(super) fn capture_prepared_identities(
+        &mut self,
+        module: &Module,
+        prelude: CompilerPrelude,
+        context: &ResolvedSourceIdentityContext<'_>,
+        budget: &mut Budget<'_>,
+    ) -> R<()> {
         if self.entries.len() != module.items.len() {
             return Err(error(
                 module.span,
@@ -241,9 +298,7 @@ impl Origins {
                 }
                 let actual = supplied
                     .ok_or_else(|| error(module.span, "declaration-origin module absent"))?;
-                if actual.items.len().checked_add(usize::from(inserted_option))
-                    != Some(module.items.len())
-                {
+                if actual.items.len().checked_add(prelude.len) != Some(module.items.len()) {
                     return Err(error(module.span, "declaration-origin item count differs"));
                 }
             }
@@ -265,7 +320,7 @@ impl Origins {
                 continue;
             }
             let ordinal = index
-                .checked_sub(usize::from(inserted_option))
+                .checked_sub(prelude.len)
                 .ok_or_else(|| error(item.span, "source declaration ordinal underflow"))?;
             let captured = if let Some(supplied) = supplied {
                 let captured = &supplied.items[ordinal];
@@ -889,6 +944,91 @@ mod retained_member_tests {
     use super::*;
     use crate::source_context::{RetainedMemberOrigins, SourceIdentityContext, capture_original};
     use zil_base::{FileId, Limits, SourceUnit};
+
+    #[test]
+    fn task_and_option_preludes_preserve_aligned_source_identities() {
+        for body in [
+            "fn main()->Task<i32>{return 0}",
+            "fn main()->Option<i32>{return Option.Some(42)}",
+            "fn item()->Option<i32>{return Option.Some(42)}fn main()->Task<i32>{return 0}",
+        ] {
+            let source = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "standard-prelude-lineage.zil",
+                format!("struct View<life a>{{value:&'a i32}}{body}"),
+            );
+            let parsed = zil_syntax::parse(&source);
+            assert!(parsed.diagnostics.is_empty(), "{:?}", parsed.diagnostics);
+            let limits = Limits::default();
+            let paths = BTreeMap::new();
+            let (rows, _) = capture_original(
+                std::slice::from_ref(&source),
+                &[&parsed.module],
+                SourceIdentityContext::ClosedSnapshot {
+                    root: ModuleId(0),
+                    aliases: &paths,
+                    declarations: DeclarationPlacement::Original,
+                },
+                &limits,
+            )
+            .unwrap();
+            let rows = rows.unwrap();
+            let (prepared, _) = options::prepare(&parsed.module, &limits).unwrap();
+            let prepared = prepared.unwrap();
+            let prefix = prepared.prelude.len;
+            assert_eq!(prepared.module.items.len(), parsed.module.items.len() + prefix);
+            assert!(prefix > 0);
+            if body.contains("Task") {
+                assert!(prefix > 1);
+            }
+            let mut budget = Budget::new(&limits);
+            let context = SourceIdentityContext::ClosedSnapshot {
+                root: ModuleId(0),
+                aliases: &paths,
+                declarations: DeclarationPlacement::Aligned(&rows),
+            };
+            let resolved = context.resolve(std::slice::from_ref(&source), &mut budget).unwrap();
+            let mut origins = Origins::single_prepared(
+                &prepared.module,
+                prepared.prelude,
+                &mut budget,
+            )
+            .unwrap();
+            origins.capture_prepared_identities(
+                &prepared.module,
+                prepared.prelude,
+                &resolved,
+                &mut budget,
+            ).unwrap();
+            let compiler_ids: BTreeSet<_> = origins.entries[..prefix]
+                .iter().map(|origin| {
+                    assert!(origin.compiler && origin.declaration.compiler);
+                    origin.declaration
+                }).collect();
+            assert_eq!(compiler_ids.len(), prefix);
+            if let Some(option) = prepared.prelude.option {
+                let item = &prepared.module.items[option];
+                options::storage_identity(item, origins.entries[option], &mut budget).unwrap();
+                assert_eq!(origins.entries[option].declaration.ordinal, 0);
+            }
+            for (ordinal, origin) in origins.entries[prefix..].iter().enumerate() {
+                assert!(!origin.compiler && !origin.declaration.compiler);
+                assert_eq!(origin.declaration.ordinal, ordinal as u32);
+                assert_eq!(
+                    origins.identity(origin.declaration, &mut budget, source.span()).unwrap(),
+                    &rows[0].items[ordinal],
+                );
+            }
+            // A wrong prefix cannot reinterpret source rows as compiler lineage.
+            let mut wrong = prepared.prelude;
+            wrong.len += 1;
+            let mut origins = Origins::single_prepared(&prepared.module, prepared.prelude, &mut budget).unwrap();
+            assert!(origins.capture_prepared_identities(
+                &prepared.module, wrong, &resolved, &mut budget,
+            ).is_err());
+        }
+    }
 
     #[test]
     fn aligned_member_shapes_and_source_lookup_are_bounded() {

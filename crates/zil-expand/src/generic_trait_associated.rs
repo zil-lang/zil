@@ -422,7 +422,15 @@ pub(crate) fn prepare(
                 if let Some(application) = &i.trait_type {
                     budget.ty(application)?;
                 }
-                i.trait_type.clone()
+                // Compiler structural hooks (notably resource Drop) are
+                // checked by their own consumer, not nominal trait equations.
+                i.trait_type
+                    .as_ref()
+                    .filter(|application| {
+                        trait_instances::head(application)
+                            .is_some_and(|name| !crate::static_traits::reserved_trait(name))
+                    })
+                    .cloned()
             }
             ItemKind::Trait(t) => {
                 budget.text(&t.name, item.span)?;

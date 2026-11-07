@@ -165,7 +165,15 @@ impl generated_spans::Visitor for Normalize<'_> {
     }
 }
 
-pub(super) fn prepare(module: &Module, limits: &Limits) -> CompileResult<(Option<Module>, Limits)> {
+#[derive(Debug)]
+pub(super) struct Prepared {
+    pub(super) module: Module,
+    pub(super) prelude: origins::CompilerPrelude,
+}
+pub(super) fn prepare(
+    module: &Module,
+    limits: &Limits,
+) -> CompileResult<(Option<Prepared>, Limits)> {
     let mut probe = Probe {
         budget: Budget::new(limits),
         present: false,
@@ -234,7 +242,10 @@ pub(super) fn prepare(module: &Module, limits: &Limits) -> CompileResult<(Option
             ],
         }),
     };
+    let mut prelude = origins::CompilerPrelude::default();
     if options {
+        prelude.len = 1;
+        prelude.option = Some(0);
         normal.budget.item(&item).map_err(|e| vec![e])?;
         output.items.insert(0, item);
     }
@@ -251,9 +262,17 @@ pub(super) fn prepare(module: &Module, limits: &Limits) -> CompileResult<(Option
         for item in task_declarations(span).into_iter().chain(aliases) {
             normal.budget.item(&item).map_err(|e| vec![e])?;
             output.items.insert(0, item);
+            prelude.len += 1;
+            prelude.option = prelude.option.map(|index| index + 1);
         }
     }
-    Ok((Some(output), normal.budget.remaining_limits()))
+    Ok((
+        Some(Prepared {
+            module: output,
+            prelude,
+        }),
+        normal.budget.remaining_limits(),
+    ))
 }
 
 fn task_declarations(span: Span) -> Vec<Item> {

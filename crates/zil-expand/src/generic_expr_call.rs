@@ -95,11 +95,12 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
-        if crate::foreign::bare_name(callee)
-            .is_some_and(|name| name == "async_registration_poll_close"
-                && !env.contains_key(name) && !self.signatures.contains_key(name)
-                && self.enums.contains_key(options::TASK_POLL))
-        {
+        if crate::foreign::bare_name(callee).is_some_and(|name| {
+            name == "async_registration_poll_close"
+                && !env.contains_key(name)
+                && !self.signatures.contains_key(name)
+                && self.enums.contains_key(options::TASK_POLL)
+        }) {
             // Carry the actual standard result into enum-pattern specialization.
             // This is only a type hint: Types and both kernels still validate
             // the primitive's real exclusive registration carrier and phase.

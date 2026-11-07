@@ -1649,6 +1649,14 @@ impl Graph {
                 || ty.is_copy_value()
                 || stored::shared_value(ty)
                 || stored::shared_address(ty)
+                || stored::exclusive_value(ty)
+                || stored::exclusive_address(ty)
+                // A pattern/value constraint can carry the complete owner
+                // head. Ownership, retained ports and capture remain checked
+                // by the ordinary resource and independent loan consumers.
+                || matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+                    if matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. })
+                        && tasks::resource(ty))
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
                 || owned_shapes::tuple(ty)

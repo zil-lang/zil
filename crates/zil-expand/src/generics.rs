@@ -187,13 +187,23 @@ pub(super) fn specialize_products_with_runtime<'a>(
 ) -> CompileResult<Cow<'a, Module>> {
     let (prepared, remaining) = options::prepare(module, limits)?;
     match prepared {
-        Some(prepared) => {
-            specialize_products_prepared(&prepared, &remaining, products, true, context, runtime_ct)
-                .map(|module| Cow::Owned(module.into_owned()))
-        }
-        None => {
-            specialize_products_prepared(module, &remaining, products, false, context, runtime_ct)
-        }
+        Some(prepared) => specialize_products_prepared(
+            &prepared.module,
+            &remaining,
+            products,
+            prepared.prelude,
+            context,
+            runtime_ct,
+        )
+        .map(|module| Cow::Owned(module.into_owned())),
+        None => specialize_products_prepared(
+            module,
+            &remaining,
+            products,
+            origins::CompilerPrelude::default(),
+            context,
+            runtime_ct,
+        ),
     }
 }
 
@@ -201,7 +211,7 @@ fn specialize_products_prepared<'a>(
     module: &'a Module,
     limits: &Limits,
     products: &mut products::Products,
-    inserted_option: bool,
+    prelude: origins::CompilerPrelude,
     context: Option<(
         &[zil_base::SourceUnit],
         super::source_context::SourceIdentityContext<'_>,
@@ -292,14 +302,14 @@ fn specialize_products_prepared<'a>(
     }
     if has_generic_methods || names_budget.needs_source_identity() {
         if let Some(origins) = &mut products.origins {
-            if inserted_option {
+            if prelude.len != 0 {
                 origins
-                    .insert_option(module, &mut names_budget)
+                    .prepend_compiler_prelude(module, prelude, &mut names_budget)
                     .map_err(|e| vec![e])?;
             }
         } else {
             products.origins = Some(
-                origins::Origins::single(module, inserted_option, &mut names_budget)
+                origins::Origins::single_prepared(module, prelude, &mut names_budget)
                     .map_err(|e| vec![e])?,
             );
         }
@@ -314,7 +324,7 @@ fn specialize_products_prepared<'a>(
             .origins
             .as_mut()
             .expect("dyn source ledger")
-            .capture_identities(module, inserted_option, &resolved, &mut names_budget)
+            .capture_prepared_identities(module, prelude, &resolved, &mut names_budget)
             .map_err(|e| vec![e])?;
     }
     if names_budget.has_primitive_binders() && !has_alias {
@@ -1886,7 +1896,13 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.complete_trait_defaults(i, item.span)?;
-                let source_target = if self.traits.has_associated {
+                let source_target = if self.traits.has_associated
+                    && !i
+                        .trait_type
+                        .as_ref()
+                        .and_then(trait_instances::head)
+                        .is_some_and(super::static_traits::reserved_trait)
+                {
                     self.budget.ty(&i.target)?;
                     self.budget.text("Self", item.span)?;
                     let substitutions = BTreeMap::from([("Self".into(), i.target.clone())]);

@@ -214,6 +214,35 @@ pub(super) fn project_symbol(name: &str) -> bool {
         || name.starts_with("$generic_$stdTaskPoll343_")
 }
 
+// Share an actual lifetime-bearing declaration through its complete inventory,
+// rather than recognizing a generated spelling as storage authority.
+fn project_stored_declaration(core: &CoreModule, name: &str, remaining: &mut usize) -> R<bool> {
+    for instance in &core.life_instances {
+        aggregate_templates::spend(remaining, 1, Span::default())?;
+        let Type::BorrowedStorage { storage, .. } = &instance.ty else {
+            continue;
+        };
+        let actual = match storage.as_ref() {
+            Type::Record { name, .. } => {
+                &stored::aggregate(&core.aggregates, core.module_id, name, remaining)?.name
+            }
+            Type::Enum { name, .. } => {
+                &stored::enum_from(&core.enums, core.module_id, name, remaining)?.name
+            }
+            _ => continue,
+        };
+        aggregate_templates::spend(
+            remaining,
+            actual.len().saturating_add(name.len()),
+            Span::default(),
+        )?;
+        if actual == name {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
 // Project specialization emits the sealed task prelude once, in its actual
 // declaration module. Other modules may reference this ordinary error type in
 // a public factory header. Import its complete declaration, not an unresolved
@@ -389,7 +418,10 @@ fn resolve_indexed(
                         Some(declaration.span),
                     )]
                 })?;
-            if project_symbol(&declaration.name) {
+            if project_symbol(&declaration.name)
+                || project_stored_declaration(module, &declaration.name, remaining)
+                    .map_err(|e| vec![e])?
+            {
                 if owners
                     .insert(declaration.name.clone(), module.module_id.0)
                     .is_some()
@@ -432,6 +464,8 @@ fn resolve_indexed(
             }
             if shared_task_error
                 || project_symbol(&declaration.name)
+                || project_stored_declaration(module, &declaration.name, remaining)
+                    .map_err(|e| vec![e])?
                 || stored::project_option_enum(module, declaration, remaining, limits)
                     .map_err(|e| vec![e])?
             {
@@ -1465,7 +1499,10 @@ impl Resolver<'_> {
                 let inner = match inner {
                     Type::Managed(payload) | Type::Desc(payload)
                         if *mutable
-                            && matches!(payload.as_ref(), Type::TaskI32 | Type::Task { .. } | Type::AsyncRegistration { .. }) =>
+                            && matches!(
+                                payload.as_ref(),
+                                Type::TaskI32 | Type::Task { .. } | Type::AsyncRegistration { .. }
+                            ) =>
                     {
                         Type::Managed(payload)
                     }

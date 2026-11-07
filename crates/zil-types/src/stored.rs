@@ -536,6 +536,32 @@ pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) 
         && matches!(ty, Type::Address { mutable: false, .. })
 }
 
+// Inference may carry this already-qualified type without granting Copy,
+// capture or a new loan. Actual layout/identity/permissions use shape + kernels.
+pub(super) fn exclusive_value(ty: &Type) -> bool {
+    let Type::BorrowedStorage { storage, life } = ty else {
+        return false;
+    };
+    let Type::Record { fields, .. } = storage.as_ref() else {
+        return false;
+    };
+    if !life.retained.is_empty() || life.slots.len() != 1 {
+        return false;
+    }
+    let slot = &life.slots[0];
+    let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
+        return false;
+    };
+    slot.mode == StoredBorrowMode::ExclusiveAddress
+        && matches!(
+            fields.get(*index as usize),
+            Some((_, Type::Address { mutable: true, .. }))
+        )
+}
+pub(super) fn exclusive_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { mutable: true, inner } if exclusive_value(inner))
+}
+
 pub(super) fn shared_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if shared_value(inner))
 }

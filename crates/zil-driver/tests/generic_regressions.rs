@@ -5171,10 +5171,18 @@ fn pollable_registration_phase_matches_actual_ready_owner() {
             .nth(1)
             .map(|body| format!("fn main{}", body))
             .unwrap()
-            .replace("close_once(&mut owner)", "async_registration_poll_close(&mut owner)")
+            .replace(
+                "close_once(&mut owner)",
+                "async_registration_poll_close(&mut owner)"
+            )
     );
     let direct_report = check("direct_poll", &direct);
-    assert_eq!(direct_report.status, ResultCategory::Success, "{}", direct_report.to_json());
+    assert_eq!(
+        direct_report.status,
+        ResultCategory::Success,
+        "{}",
+        direct_report.to_json()
+    );
     let missing_request = valid.replace("async_registration_request_close(&mut owner);", "");
     let missing_report = check("missing_request", &missing_request);
     assert_eq!(
