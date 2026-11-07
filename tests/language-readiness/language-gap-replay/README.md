@@ -9,9 +9,8 @@
 Unsupported/SafeReject登记为永久禁止。
 
 ```sh
-source /workspace/.zil-env/env.sh
 python3 tests/language-readiness/language-gap-replay/replay-frozen-baseline.py \
-  --zil /workspace/.zil-env/target-mainline-release/release/zil \
+  --zil /absolute/path/to/frozen-zil \
   --output /tmp/language-gaps-334-observations.json
 ```
 

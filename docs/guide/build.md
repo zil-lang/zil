@@ -1,11 +1,11 @@
-# LLVM API主路线（LLVM 23升级候选）
+# 构建与 LLVM API 路径
 
-## 目标与实际路径
+## 编译路径
 
-当前Wire21已实现语言统一走：已核LIR → 类型化机器IR → 结构化代码生成单元 → LLVMBuilder → LLVM结构核验 → 优化 → LLVM结构核验 → 对象字节 → 链接与发布。
+已核语言编译走：已核LIR → 类型化机器IR → 结构化代码生成单元 → LLVMBuilder → LLVM结构核验 → 优化 → LLVM结构核验 → 对象字节 → 链接与发布。
 标准CLI默认llvm-api；`--backend clang`保留基于同一机器IR的文本参考后端。没有直接Builder失败后的文本解析回退。
 
-209的文本解析API只由显式`zil-llvm-api/text-reference`测试feature开放。标准CLI没有`LLVMParseIRInContext`动态符号引用。完整`.ll`旁置文件仍为诊断和参考输出生成，API及分区不读取或扫描它；因此不能宣称整个请求零文本渲染成本。
+文本解析参考 API只由显式`zil-llvm-api/text-reference`测试feature开放。标准CLI没有`LLVMParseIRInContext`动态符号引用。完整`.ll`旁置文件仍为诊断和参考输出生成，API及分区不读取或扫描它；因此不能宣称整个请求零文本渲染成本。
 
 当前有限整数、数组、记录、枚举、错误联合、函数值、闭包、资源、Package、ByteBuffer、Store、切片和有限C ABI共用这条路径。未实现的语言能力继续明确拒绝，不能因后端切换扩大接受集。这是现有语言后端路径的完成，不等于整门语言、增量编译或产品门全部完成。
 
@@ -22,7 +22,7 @@ LLVM verifier只负责LLVM约束，不能替代每次请求的独立ZIL Verify�
 
 ## 安装与构建
 
-本分支的工具链目标为Linux x86_64宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。实际验证状态见[升级结果](https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/toolchain/llvm23/RESULT.md)。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
+支持的构建环境为 Linux x86_64 宿主、Rust 1.99.1、LLVM/Clang/LLD 23.1.4。动态库目录需有`libLLVM-23.so`及其真实动态库，运行时拒绝错误补丁版本。头文件、llvm-sys、Inkwell均不是本版构建依赖；Cargo依赖仅workspace。源码包不携带工具链。
 
 ```sh
 export ZIL_LLVM_LIB_DIR=/opt/llvm-23.1.4/lib
@@ -68,9 +68,9 @@ printf '3' | ./out/state
   -o out/state-o2 --clang "$ZIL_CLANG" --opt O2 --codegen-units 1
 ```
 
-206已观察到的O2多单元运行性能退化没有因为Builder接入而消失。默认并行参数和pipeline不在210改动范围。
+历史多 CGU O2 性能观察不因 Builder 路径而自动改善；性能需按冻结源码和当前工具链重新测量。
 
-## 显式对象复用（212）
+## 显式对象复用
 
 在上面的build/run命令追加`--object-cache .zil/native-objects`。首次构建仍生成对象，并在整次
 请求最终发布成功后原子保存；后续相同单元命中时运行当前Verify与机器预检，不再执行Builder、
@@ -79,7 +79,7 @@ LLVM优化及机器码生成，但仍执行Lower、诊断IR与链接。
 `native_codegen.object_cache`分别报告命中、缺失、损坏重建与写入失败；命中的对象记录为
 `input_kind="object-cache"`，明确`llvm_verification_this_request=false`，不伪装为新的LLVM核验。
 该路径依赖可信本机缓存和执行期间不可变的工具安装，不面向不可信/共享网络缓存。
-`--cache-dir`仅为既有未核源候选缓存，不隐式启用对象复用。细节见[212机制说明](https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/docs/research/native-object-cache/cache.md)。
+`--cache-dir`仅为既有未核源候选缓存，不隐式启用对象复用。细节见[冻结机制说明](https://github.com/zil-lang/zil/blob/28b3e37bb4d8a1fe8b146c72cf891fc99de32440/docs/research/native-object-cache/cache.md)。
 
 ## 回归和复现
 
@@ -95,7 +95,7 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 
 `--out`必须不存在；无Git源码快照用交付清单提供的提交身份，该身份不冒充现场Git查询。消费者探针包装的是API生成的对象，不把旁置`.ll`重新用Clang编译。
 
-`tools/research/compiler-differential/differential.py`对209/210的63个现有入口做O0/O2、单/多CGU原生差分。`no-parser.c`用于拦截旧解析API，有209触发失败作为正控制。`bench.py`冻结二进制和工作负载后测完整构建，首次负面结果和修正后的新窗口分别保留。
+`tools/research/compiler-differential/differential.py` 对登记的编译入口做 O0/O2、单/多 CGU 原生差分；`no-parser.c` 是旧文本解析路径的失败正控制。测完整构建时冻结二进制和工作负载，分别保留首次失败和修正后结果。
 
 ## 边界
 
@@ -103,5 +103,5 @@ python3 tools/research/native-api-validation/validate.py --repo . --cli target/r
 - 机器预检不使任意恶意IR成为可信输入，也不隔离LLVM本身的原生错误。原生unsafe仅在登记的适配边界；Verify继续禁止unsafe。
 - 取消是阶段间协作检查，不能立即打断LLVM pass或链接器。失败不会返回旧成功产物作为本次结果；崩溃时暂存目录可能残留。
 - LLVM前后结构核验、对象生成和链接均可失败，任何失败都停止发布。
-- 212提供显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
+- 显式可信本地对象缓存；稳定符号/匿名项身份、按项查询、ThinLTO仍属于后续专项。
 - 新性能结果仅适用于冻结场景、工具链和资源；没有完成产品级性能门、非作者独立审核或远端CI。

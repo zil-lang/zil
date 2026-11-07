@@ -51,84 +51,16 @@ C events, result and six zero-allocation counters equal the original mode-0 row;
 the original ten-mode source/oracle stays unchanged. Its native group is two
 additional runs per selected backend (O0/O2), separate from the original 66.
 
-The explicit body-captured Address<Closure> alias source currently fails an old
-capture-profile gate before this feature's alias kernel. It is retained as an
-uncovered gap, never counted as a semantic rejection Pass. The current local
-alias control instead keeps an ordinary shared f address live across exclusive
-publication without capturing that address in body; it reaches Analyze. Raw
-same-root rejection and distinct-root acceptance remain independent obligations.
 
-`project/local_body_main.zil` and `local_body_bridge.zil` are a second separate
-nearby control. The public wrapper has only an F parameter: it creates its own
-concrete, noncapturing body, then publishes the caller's actual FnMut location.
-The local body pumps two events; the caller checks the body result, cleared C
-roots and persistent callback count after close. `LOCAL_BODY_ORACLE.json` is
-generated independently by `tools/language/foreign-scoped-callback/local_body_oracle.py`
-from those source operations and the C protocol. It adds two native executions
-per backend, with no change to the original source/oracle matrix. The initial
-run rejected at Expand's existing generic-expression profile; this is a
-required legal combination, not a negative control. The first expanded input
-also imported two modules that redeclared the same C symbols; Verify correctly
-rejected that fixture with E-VERIFY-FOREIGN. The final nearby input has one
-self-contained bridge module and one declaration per foreign symbol.
-After exact frontend `9f4e5b9c` and independent Verify `abf642d5`, the local
-body source reaches independent verification and passes O0/O2 clang and LLVM
-API execution, including builder input, parse_ns=0 and LLVM verification.
-The complete functional target has five passing tests with zero ignored or
-filtered tests on each backend, including all 13 strict source rejection controls.
-The original group remains 66 executions per backend; disjoint and local-body
-groups each add two separately counted executions per backend.
+The body-captured `Address<Closure>` alias input remains a legal, unverified gap if an earlier capture-profile gate rejects it before the alias check. Do not count that early failure as a semantic rejection Pass. An ordinary shared f address live across exclusive publication reaches the actual alias check; same-root rejection and distinct-root acceptance remain independent obligations.
 
-The body factory takes its captured Event into a real body local, so its fresh
-implementation is genuinely FnOnce. The nested-body factory reads its owning
-Event and declares the actual Fn mode; the structured call still consumes that
-body once and cleans its remaining capture before close. These exercise both
-responsibility paths without changing the existing exact-kind factory rule or
-the original observable oracle.
+`project/local_body_main.zil` and `local_body_bridge.zil` test a public F-only wrapper that constructs a concrete noncapturing body, pumps two events, then checks the result, cleared C roots and persistent callback state. `LOCAL_BODY_ORACLE.json` is generated independently from source operations and the C protocol. The body factory moves its captured Event into a genuinely FnOnce local; the nested-body factory reads an owning Event and exposes its actual Fn mode. Both must clean remaining captures before close.
 
-Local checkpoint after exact producer `4db36c6e`, Verify `de5849cc` and Analyze
-`f7dd7a81`: the three-module source reaches independent verification, and all
-13 current source rejection controls match their required phase and code.
-The original frozen matrix passes clang and LLVM API at O0/O2: 66 executions
-per backend, including 34 actual allocator failures, 12 beyond-allocation
-controls and four abort controls. All 62 returning executions per backend
-match all six counters, including live=0. The disjoint borrowed-scalar nearby
-control passes two additional executions on each backend. These are bounded
-functional checks, not a full gate.
+Use the `foreign_scoped_callbacks` Rust target. The source-verification, rejection-control, oracle and nearby-control tests each select their explicit scenario; run the whole target to cover all of them. For LLVM API add `--features llvm-api`, and require builder input, `parse_ns=0`, LLVM verification and no fallback. The C driver and independent oracle must agree on full return value, callback/reentry counts, cleanup order and all six allocator counters. Recompute the oracle from Source; it must not read compiler reports.
 
-Commands use `source /workspace/.zil-env/env.sh`,
-`CARGO_TARGET_DIR=/workspace/.zil-env/target-270 CARGO_BUILD_JOBS=2` and
-`cargo test -p zil-driver --test foreign_scoped_callbacks NAME -- --exact --nocapture`.
-The exact names are `scoped_event_loop_source_reaches_independent_verification`,
-`scoped_callback_source_rejections_bind_the_actual_risk`,
-`scoped_event_loop_matches_source_oracle_at_o0_and_o2` and
-`scoped_body_can_borrow_a_disjoint_scalar_through_an_event_loop`.
-The new control is `scoped_f_only_wrapper_creates_its_own_concrete_body`.
-Final runs omit `NAME -- --exact` to run all five tests in this functional
-target; this does not run the workspace suite.
-For the API backend add `--features llvm-api` before `--test`; its native
-reports must identify builder input with parse_ns=0, verification before and
-after LLVM optimization and no fallback. The three existing positive tests
-were rerun together after the Analyze alias fix and these report assertions.
+```sh
+cargo test -p zil-driver --test foreign_scoped_callbacks
+cargo test -p zil-driver --features llvm-api --test foreign_scoped_callbacks
+```
 
-The first combined API positive replay passed the original matrix and source
-verification but failed the disjoint harness with BrokenPipe: that nearby
-program does not read stdin and can exit before the parent writes its byte.
-The harness now accepts only that write error and still checks the child's
-exact exit, output and six counters. The subsequent combined replay passes
-all three existing positive tests on both backends. The initial harness
-failure remains distinct from compiler or program failure.
-
-The first targeted API Clippy run failed in Types' helper-flow classifier
-with too_many_arguments. Frontend `9f4e5b9c` reorganizes those arguments; the
-final `cargo clippy -p zil-driver --features llvm-api --test foreign_scoped_callbacks
--- -D warnings` passes. The consumer Rust file passes rustfmt, both oracle
-files exactly match independent source-operation regeneration, and git diff
-passes whitespace checks.
-
-This slice adds real source-level composition and independently checked
-ownership/borrow controls toward Rust-like safety. Runtime evidence is limited
-to these native executions and allocator counters; no Rust runtime/RSS pairing,
-complete framework maintenance comparison or Rust compile-cost advantage was
-measured. The original default budgets and product gates remain unchanged;
-the four-goal product conjunction and full language remain incomplete.
+Frozen run counts and intermediate producer/Verify/Analyze checkpoints remain at the exact earlier Git commit `28b3e37bb4d8a1fe8b146c72cf891fc99de32440:tests/foreign-scoped-callback/README.md`. They describe their bound sources and tools, not the current main checkout. This finite consumer does not establish a complete language, Rust cost or product gate.
