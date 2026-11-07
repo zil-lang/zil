@@ -264,9 +264,6 @@ fn encode_type(b: &mut Vec<u8>, t: &Type) {
             b.push(12);
             encode_text(b, s);
         }
-        Type::Mutex { .. } | Type::MutexGuard { .. } => {
-            panic!("V34 identity reference cannot encode V45 mutex types")
-        }
     }
 }
 fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
