@@ -4,6 +4,7 @@
 struct Entry<K:Copy,V:Copy> { key:K; value:V }
 pub package PodHashMap<K:Copy+StoreElement,V:Copy+StoreElement> { manages entries:Store<Entry<K,V>>; manages buckets:Store<i64>; limit:i64 }
 pub enum Error { Capacity, Allocation, Internal }
+pub struct Pair<K:Copy,V:Copy> { pub key:K; pub value:V }
 struct Slot { found:bool; bucket:i64; entry:i64 }
 fn locate<K:Copy+StoreElement,V:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i64>(map:&PodHashMap<K,V>,key:K,equals:&E,hash:&H)->Slot {
     let count=store_len(map.buckets)
@@ -52,6 +53,12 @@ pub fn with_capacity<K:Copy+StoreElement,V:Copy+StoreElement>(limit:i64)->Error!
     return PodHashMap::<K,V>{entries:give entries,buckets:give buckets,limit:limit}
 }
 pub fn len<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>)->i64 {return store_len(map.entries)}
+// Dense insertion-order snapshot. Removal may move the last pair into a gap.
+pub fn at<K:Copy+StoreElement,V:Copy+StoreElement>(map:&PodHashMap<K,V>,index:i64)->Option<Pair<K,V>> {
+    if index<0 || index>=store_len(map.entries) {return Option::<Pair<K,V>>.None()}
+    let entry=*store_at(map.entries,index)
+    return Option::<Pair<K,V>>.Some(Pair::<K,V>{key:entry.key,value:entry.value})
+}
 pub fn get<K:Copy+StoreElement,V:Copy+StoreElement,E:Fn(K,K)->bool,H:Fn(K)->i64>(map:&PodHashMap<K,V>,key:K,equals:&E,hash:&H)->Option<V> {
     let found=locate(map,key,equals,hash)
     if !found.found {return Option::<V>.None()}
