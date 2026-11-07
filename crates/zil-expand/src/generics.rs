@@ -235,7 +235,7 @@ fn specialize_products_prepared<'a>(
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
-        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
+        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none() || trait_instances::head(&i.target).is_some_and(super::static_traits::scalar_self)));
         if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_none() && !i.generics.is_empty())
         {
             has_impl_recipes = true;
@@ -2037,7 +2037,13 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.complete_trait_defaults(i, item.span)?;
-                let source_target = if self.traits.has_associated
+                // Concrete scalar/enum Self is needed while checking the
+                // ordinary body (including enum patterns), before Core lowers
+                // receivers. No new premise is inferred from the host's shape.
+                let concrete_value_host = trait_instances::head(&i.target).is_some_and(|host| {
+                    super::static_traits::scalar_self(host) || self.enums.contains_key(host)
+                });
+                let source_target = if (self.traits.has_associated || concrete_value_host)
                     && !i
                         .trait_type
                         .as_ref()

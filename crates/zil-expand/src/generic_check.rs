@@ -2852,6 +2852,16 @@ impl Check<'_, '_, '_> {
             let (owner, _) = self.traits.declaration_item(&reference);
             method_origin = self.traits.origin(owner, self.budget)?;
             self.budget.text(name, object.span)?;
+            let scalar_host =
+                if self
+                    .traits
+                    .scalar_trait(&reference.key.name, self.budget, object.span)?
+                {
+                    self.budget.ty(host)?;
+                    Some(host.clone())
+                } else {
+                    None
+                };
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
@@ -2879,6 +2889,7 @@ impl Check<'_, '_, '_> {
                                 owners: std::rc::Rc::clone(&self.traits.private_hosts),
                             })
                         },
+                        scalar_host,
                     },
                 );
         }

@@ -428,6 +428,7 @@ fn normalize(
         index.imports.insert(module.id, aliases);
     }
     let mut static_hosts = Vec::new();
+    let mut scalar_traits = BTreeSet::new();
     let mut combined = Module {
         id: modules[0].id,
         span: modules[0].span,
@@ -478,6 +479,18 @@ fn normalize(
             }
             let mut item = source_item.clone();
             visitor.item(&mut item, &Names::new(), true, 0)?;
+            if let ItemKind::Impl(implementation) = &item.kind
+                && trait_instances::head(&implementation.target)
+                    .is_some_and(super::static_traits::scalar_self)
+                && let Some(name) = implementation
+                    .trait_type
+                    .as_ref()
+                    .and_then(trait_instances::head)
+            {
+                visitor.budget.text(name, item.span)?;
+                visitor.budget.node(item.span, 0)?;
+                scalar_traits.insert(name.to_owned());
+            }
             if let Some(origins) = &mut origins {
                 visitor.budget.node(item.span, 0)?;
                 origins.entries.push(generics::origins::Origin::source(
@@ -492,7 +505,8 @@ fn normalize(
     for item in &combined.items {
         if let ItemKind::Trait(t) = &item.kind {
             // This is the same paid member walk as features_with_methods.
-            // Record only declarations with no receiver; an impl may omit
+            // Record receiver-free declarations and actual scalar providers,
+            // whose calls normalize to direct functions. An impl may omit
             // `self` while inheriting a receiver from its trait signature.
             let mut defaults = false;
             let mut associated = false;
@@ -504,7 +518,8 @@ fn normalize(
                     methods |= !function.generics.is_empty();
                     defaults |= !matches!(function.body, FunctionBody::Declaration);
                     if function.generics.is_empty()
-                        && !function.params.first().is_some_and(|p| p.name == "self")
+                        && (!function.params.first().is_some_and(|p| p.name == "self")
+                            || scalar_traits.contains(&t.name))
                     {
                         budget.text(&t.name, item.span)?;
                         budget.text(&function.name, member.span)?;
@@ -526,7 +541,8 @@ fn normalize(
         }
         has_trait_instances |= matches!(&item.kind, ItemKind::Impl(i)
             if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty()
-                || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())));
+                || !matches!(&i.target.kind, TypeKind::Named { path, args } if path.len()==1 && args.is_empty())
+                || trait_instances::head(&i.target).is_some_and(super::static_traits::scalar_self)));
     }
     has_trait_instances |= budget.has_enum_profiles()
         || budget.has_primitive_binders()
@@ -682,10 +698,12 @@ fn normalize(
                 {
                     continue;
                 }
-                let target = if instanced {
-                    trait_instances::method_name(
+                let scalar = super::static_traits::scalar_self(host);
+                let target = if instanced || scalar {
+                    trait_instances::method_name_with(
                         &reference,
                         &method.name,
+                        scalar,
                         &mut budget,
                         member.span,
                     )?

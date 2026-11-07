@@ -74,6 +74,9 @@ pub(crate) struct CallTarget {
     /// The symbolic receiver and actual private implementation directory come
     /// from checked declarations, never from a generated member spelling.
     pub private_receiver: Option<PrivateReceiver>,
+    // A symbolic receiver retained only when this trait has actual scalar
+    // impls. Specialization chooses the exact trait-qualified scalar target.
+    pub scalar_host: Option<TypeRef>,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -754,6 +757,11 @@ pub(crate) fn resolve_generic_calls(
                         owners: std::rc::Rc::clone(&receiver.owners),
                     }
                 }),
+                scalar_host: target
+                    .scalar_host
+                    .as_ref()
+                    .map(|host| super::enums::substituted(host, substitutions, budget))
+                    .transpose()?,
             },
         );
     }
@@ -808,10 +816,16 @@ pub(crate) fn rewrite_calls_materialized(
         } else {
             false
         };
+        let scalar = if let Some(host) = &target.scalar_host {
+            let host = super::enums::substituted(host, host_actuals, budget)?;
+            head(&host).is_some_and(super::super::static_traits::scalar_self)
+        } else {
+            false
+        };
         let name = method_name_with(
             &reference,
             &target.member,
-            target.generic || private_receiver,
+            target.generic || scalar || private_receiver,
             budget,
             item.span,
         )?;

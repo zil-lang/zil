@@ -5,6 +5,8 @@ mod shared_dynamic_dispatch_consumers;
 mod static_associated_method_consumers;
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/consumers.rs"]
 mod trait_shared_lending_consumers;
+#[path = "../../../tests/language-readiness/trait-value-hosts/consumers.rs"]
+mod trait_value_hosts;
 use std::{
     collections::BTreeMap,
     fs,
