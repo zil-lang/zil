@@ -362,30 +362,38 @@ fn byte_buffer_owning_key_and_value_survive_map_round_trip() {
 
 #[test]
 fn key_without_actual_keyeq_provider_is_rejected() {
-    let source = project(COPY_VALUE.replace("impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}", "").as_str());
-    let report = compile_project(
-        &source,
-        &CompileOptions {
-            stop_after: Stage::Verify,
-            ..CompileOptions::default()
-        },
-    );
-    assert!(
-        matches!(
-            report.status,
-            ResultCategory::SafeReject | ResultCategory::Unsupported
-        ),
-        "{}",
-        report.to_json()
-    );
-    assert!(
-        report
-            .diagnostics
-            .iter()
-            .any(|diagnostic| diagnostic.message.contains("KeyEq")),
-        "{}",
-        report.to_json()
-    );
+    for implementation in [
+        "",
+        "trait KeyEq{fn same(self:&Self,other:&Self)->bool;} impl KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}",
+    ] {
+        let main = COPY_VALUE.replace(
+            "impl owning_map.KeyEq for Key{fn same(self:&Self,other:&Self)->bool{return self.id==other.id}}",
+            implementation,
+        );
+        let report = compile_project(
+            &project(&main),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert!(
+            matches!(
+                report.status,
+                ResultCategory::SafeReject | ResultCategory::Unsupported
+            ),
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report
+                .diagnostics
+                .iter()
+                .any(|diagnostic| diagnostic.message.contains("KeyEq")),
+            "{}",
+            report.to_json()
+        );
+    }
 }
 
 #[test]
