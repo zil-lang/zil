@@ -11,7 +11,7 @@ contract {provides(noescape(path));effects(ffi);};
 extern "C" fn creat(path:&u8,mode:i32)->i32
 contract {provides(noescape(path));effects(ffi);};
 
-pub enum Error { Duplicate, Open, InvalidPath, Allocation, Read, Write, NoProgress, InvalidResult }
+pub enum Error { Duplicate, Open, InvalidPath, Capacity, Allocation, Read, Write, NoProgress, InvalidResult }
 pub struct ReadResult { pub count:i64; pub eof:bool }
 pub resource File { fd:i32 }
 impl Drop for File {fn drop(self:Self){unsafe{close(.fd)}}}
@@ -82,6 +82,37 @@ pub fn read_chunk(file:&File,buffer:&mut [u8;64])->Error!ReadResult {
     if count<0 {return Error.Read}
     if count>64 {return Error.InvalidResult}
     return ReadResult{count:count,eof:count==0}
+}
+
+// Read to EOF with an explicit byte limit. A capacity or I/O error drops the
+// partial buffer; callers receive bytes only after a complete successful read.
+pub fn read_to_end(file:&File,byte_limit:i64)->Error!ByteBuffer contract {result(create)} {
+    if byte_limit<0 {return Error.Capacity}
+    let data=bytes_new()
+    var block=empty_buffer()
+    loop {
+        let result=read_chunk(file,&mut block)?
+        if result.eof {break}
+        let length=bytes_len(data)
+        if length>byte_limit-result.count {return Error.Capacity}
+        let needed=length+result.count
+        if needed>bytes_capacity(data) {
+            var next=bytes_capacity(data)
+            if next<64 {next=64}
+            while next<needed {
+                if next>byte_limit/2 {next=byte_limit;break}
+                next*=2
+            }
+            if next>byte_limit {next=byte_limit}
+            if !bytes_reserve(data,next) {return Error.Allocation}
+        }
+        var at:i64=0
+        while at<result.count {
+            if !bytes_push(data,block[at]) {return Error.InvalidResult}
+            at+=1
+        }
+    }
+    return give data
 }
 
 // Complete writes of arbitrary borrowed bytes using one fixed C ABI buffer.
