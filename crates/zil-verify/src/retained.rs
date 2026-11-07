@@ -153,10 +153,9 @@ pub(super) fn check_claim(
         budget.spend(f.parameters.len())?;
         for parameter in &f.parameters {
             let local = &f.locals[parameter.0 as usize];
-            if dynamic_store::is_carrier(&local.ty) {
-                dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
-            } else if budget.inline_store_root(&local.ty)?
-                && dynamic_store::inline_sum_capture(&local.ty, budget)?
+            if dynamic_store::is_carrier(&local.ty)
+                || (budget.inline_store_root(&local.ty)?
+                    && dynamic_store::inline_sum_capture(&local.ty, budget)?)
             {
                 dynamic_store::check_owned_capture(module, &local.ty, Some(limits), budget)?;
             } else if matches!(local.ty, Type::Package { .. }) {
