@@ -30,12 +30,14 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
         return Err(invalid());
     }
     let valid = match role {
-        ScopedCallbackRole::AsyncPollDrain => {
+        ScopedCallbackRole::AsyncPollDrain | ScopedCallbackRole::ThreadAsyncPollDrain => {
             function.parameters.len() == 1
                 && function.return_type == Type::I32
                 && local_type(function, function.parameters[0], span)? == &Type::ForeignHandle
         }
-        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
+        ScopedCallbackRole::Register
+        | ScopedCallbackRole::AsyncRegister
+        | ScopedCallbackRole::ThreadAsyncRegister => {
             if function.parameters.len() != 2 || function.return_type != Type::ForeignHandle {
                 false
             } else {
@@ -45,7 +47,9 @@ pub(super) fn declaration(function: &TypedFunction, budget: &mut Budget) -> Chec
                     && context == &Type::ForeignHandle
             }
         }
-        ScopedCallbackRole::Close | ScopedCallbackRole::AsyncRequestClose => {
+        ScopedCallbackRole::Close
+        | ScopedCallbackRole::AsyncRequestClose
+        | ScopedCallbackRole::ThreadAsyncRequestClose => {
             function.parameters.len() == 1
                 && function.return_type == Type::Unit
                 && local_type(function, function.parameters[0], span)? == &Type::ForeignHandle

@@ -304,6 +304,9 @@ fn async_registration_foreign_roles_have_distinct_identity_and_reject_unknown_ta
         Some(ScopedCallbackRole::AsyncRegister),
         Some(ScopedCallbackRole::AsyncRequestClose),
         Some(ScopedCallbackRole::AsyncPollDrain),
+        Some(ScopedCallbackRole::ThreadAsyncRegister),
+        Some(ScopedCallbackRole::ThreadAsyncRequestClose),
+        Some(ScopedCallbackRole::ThreadAsyncPollDrain),
     ]
     .into_iter()
     .enumerate()
@@ -332,7 +335,7 @@ fn async_registration_foreign_roles_have_distinct_identity_and_reject_unknown_ta
         .filter_map(|(i, (a, b))| (a != b).then_some(i))
         .collect();
     assert_eq!(differences.len(), 1);
-    for tag in [6, 255] {
+    for tag in [9, 255] {
         let mut bad = encoded[5].clone();
         bad[differences[0]] = tag;
         assert_eq!(

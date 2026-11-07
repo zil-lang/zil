@@ -46,19 +46,28 @@ pub(super) fn declaration(
         result: Box::new(Type::I64),
     };
     let expected = match role {
-        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister => {
+        ScopedCallbackRole::Register
+        | ScopedCallbackRole::AsyncRegister
+        | ScopedCallbackRole::ThreadAsyncRegister => {
             vec![callback, Type::ForeignHandle]
         }
         ScopedCallbackRole::Close
         | ScopedCallbackRole::AsyncRequestClose
-        | ScopedCallbackRole::AsyncPollDrain => vec![Type::ForeignHandle],
+        | ScopedCallbackRole::ThreadAsyncRequestClose
+        | ScopedCallbackRole::AsyncPollDrain
+        | ScopedCallbackRole::ThreadAsyncPollDrain => vec![Type::ForeignHandle],
     };
     let result = if matches!(
         role,
-        ScopedCallbackRole::Register | ScopedCallbackRole::AsyncRegister
+        ScopedCallbackRole::Register
+            | ScopedCallbackRole::AsyncRegister
+            | ScopedCallbackRole::ThreadAsyncRegister
     ) {
         Type::ForeignHandle
-    } else if role == ScopedCallbackRole::AsyncPollDrain {
+    } else if matches!(
+        role,
+        ScopedCallbackRole::AsyncPollDrain | ScopedCallbackRole::ThreadAsyncPollDrain
+    ) {
         Type::I32
     } else {
         Type::Unit

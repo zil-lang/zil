@@ -322,7 +322,10 @@ fn encode_function(b: &mut Vec<u8>, f: &TypedFunction, v32: bool) {
                 Some(
                     ScopedCallbackRole::AsyncRegister
                     | ScopedCallbackRole::AsyncRequestClose
-                    | ScopedCallbackRole::AsyncPollDrain,
+                    | ScopedCallbackRole::AsyncPollDrain
+                    | ScopedCallbackRole::ThreadAsyncRegister
+                    | ScopedCallbackRole::ThreadAsyncRequestClose
+                    | ScopedCallbackRole::ThreadAsyncPollDrain,
                 ) => panic!("pollable callback roles are outside this retained legacy oracle"),
             });
         } else {

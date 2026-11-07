@@ -101,6 +101,7 @@ fn mixed(f: &mut CoreFunction, kind: CallableKind) {
         source_life: None,
         life: None,
         closed_environment: false,
+        transfer: false,
         index: 0,
         generic_index: 0,
         generic_name: "F".into(),

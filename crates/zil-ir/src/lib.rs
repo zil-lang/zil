@@ -954,6 +954,8 @@ pub struct CoreCallableParameter {
     pub generic_name: String,
     /// Explicit sealed requirement; never a producer proof of actual captures.
     pub closed_environment: bool,
+    /// Explicit sealed Transfer premise; actual environment and code are rechecked.
+    pub transfer: bool,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,
@@ -1027,6 +1029,19 @@ pub enum ScopedCallbackRole {
     /// Candidate Direct C poll(token)->i32: 0 Pending, 1 complete raw/backend
     /// no-future, other tags violate the provider promise and grant no release.
     AsyncPollDrain,
+    /// Thread-capable registration. Publish initialized F before exposing the raw
+    /// pair. Failure must withdraw and synchronously drain every raw holder and
+    /// backend access, including pre-trampoline holders, with their writes visible
+    /// before returning null. This promise grants no capability to F or its owner.
+    ThreadAsyncRegister,
+    /// Close the provider's future admission after the runtime closes its gate;
+    /// request is Direct, persistent and idempotent, but establishes no drain.
+    ThreadAsyncRequestClose,
+    /// 0 Pending; 1 promises that, when this call returns, all raw holders and
+    /// backend userdata accesses (including rejected and pre-trampoline entries)
+    /// have synchronously ended, their writes are visible, and none can start.
+    /// Other tags violate the promise and never authorize cleanup or free.
+    ThreadAsyncPollDrain,
 }
 
 fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
@@ -1037,6 +1052,9 @@ fn scoped_callback_role_tag(role: Option<ScopedCallbackRole>) -> u8 {
         Some(ScopedCallbackRole::AsyncRegister) => 3,
         Some(ScopedCallbackRole::AsyncRequestClose) => 4,
         Some(ScopedCallbackRole::AsyncPollDrain) => 5,
+        Some(ScopedCallbackRole::ThreadAsyncRegister) => 6,
+        Some(ScopedCallbackRole::ThreadAsyncRequestClose) => 7,
+        Some(ScopedCallbackRole::ThreadAsyncPollDrain) => 8,
     }
 }
 

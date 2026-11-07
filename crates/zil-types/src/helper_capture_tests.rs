@@ -68,6 +68,7 @@ fn fixture(
             source_life: None,
             life: None,
             closed_environment: false,
+            transfer: false,
             index: index as u32,
             generic_index: index as u32,
             generic_name: format!("Role{index}"),

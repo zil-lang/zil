@@ -18,6 +18,7 @@ pub(crate) struct CallableTemplate {
     pub source_bound_ordinal: u32,
     pub generic_name: String,
     pub closed_environment: bool,
+    pub transfer: bool,
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
@@ -343,6 +344,10 @@ pub(crate) fn borrowed_registration(ty: &TypeRef, name: &str) -> bool {
 pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ClosedEnvironment"] && args.is_empty())
 }
+fn transfer_bound(ty: &TypeRef) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["Transfer"] && args.is_empty())
+}
+
 pub(crate) fn template(
     function: &Function,
     budget: &mut Budget<'_>,
@@ -653,14 +658,25 @@ fn template_with_state(
         if closed_environment > 1 {
             return Err(error(parameter.span, "duplicate ClosedEnvironment bound"));
         }
+        let transfer = bounds.iter().filter(|bound| transfer_bound(bound)).count();
+        if transfer > 1 {
+            return Err(error(parameter.span, "duplicate Transfer bound"));
+        }
+        let transfer = transfer == 1;
+        if transfer && closed_environment == 0 {
+            return Err(error(
+                parameter.span,
+                "callable Transfer requires explicit ClosedEnvironment",
+            ));
+        }
         let callable_bounds = bounds
             .iter()
-            .filter(|bound| !closed_bound(bound))
+            .filter(|bound| !closed_bound(bound) && !transfer_bound(bound))
             .collect::<Vec<_>>();
         let [callable_bound] = callable_bounds.as_slice() else {
             return Err(unsupported(
                 parameter.span,
-                "one callable bound and optional ClosedEnvironment are implemented",
+                "one callable bound with optional ClosedEnvironment and Transfer is implemented",
             ));
         };
         let TypeKind::Named { path, args } = &bound_inner(callable_bound).kind else {
@@ -867,9 +883,13 @@ fn template_with_state(
                 index,
                 generic_index: generic_index as u32,
                 source_generic_parameter: *source_generic_parameter as u32,
-                source_bound_ordinal: u32::from(closed_environment && closed_bound(&bounds[0])),
+                source_bound_ordinal: bounds
+                    .iter()
+                    .position(|bound| !closed_bound(bound) && !transfer_bound(bound))
+                    .unwrap() as u32,
                 generic_name: parameter.name.clone(),
                 closed_environment,
+                transfer,
                 kind,
                 parameters: parameters.clone(),
                 result: result.clone(),

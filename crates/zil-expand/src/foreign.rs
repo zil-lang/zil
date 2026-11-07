@@ -365,6 +365,12 @@ pub(super) fn noescape_contract(
                         Some(ScopedCallbackRole::AsyncRequestClose)
                     } else if term.path.as_slice() == ["async_callback_poll_drain"] {
                         Some(ScopedCallbackRole::AsyncPollDrain)
+                    } else if term.path.as_slice() == ["thread_async_callback_register"] {
+                        Some(ScopedCallbackRole::ThreadAsyncRegister)
+                    } else if term.path.as_slice() == ["thread_async_callback_request_close"] {
+                        Some(ScopedCallbackRole::ThreadAsyncRequestClose)
+                    } else if term.path.as_slice() == ["thread_async_callback_poll_drain"] {
+                        Some(ScopedCallbackRole::ThreadAsyncPollDrain)
                     } else {
                         None
                     };

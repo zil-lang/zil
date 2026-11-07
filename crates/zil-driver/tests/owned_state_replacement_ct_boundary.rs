@@ -84,6 +84,7 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
         source_life: None,
         life: None,
         closed_environment: false,
+        transfer: false,
         index: direct,
         generic_index: 0,
         generic_name: "F".into(),

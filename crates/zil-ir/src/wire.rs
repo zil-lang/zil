@@ -3551,6 +3551,9 @@ impl<'a> Reader<'a> {
                     3 => Some(ScopedCallbackRole::AsyncRegister),
                     4 => Some(ScopedCallbackRole::AsyncRequestClose),
                     5 => Some(ScopedCallbackRole::AsyncPollDrain),
+                    6 => Some(ScopedCallbackRole::ThreadAsyncRegister),
+                    7 => Some(ScopedCallbackRole::ThreadAsyncRequestClose),
+                    8 => Some(ScopedCallbackRole::ThreadAsyncPollDrain),
                     _ => return Err(malformed("E-WIRE-TAG", "unknown scoped callback role")),
                 },
             })
