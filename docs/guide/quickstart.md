@@ -2,7 +2,7 @@
 
 本页用仓库中的真实程序展示当前可尝试的 CLI 路径。当前支持矩阵和限制见 [语言初稿](supported-language.md)；语义、拒绝条件与安全边界以 [_zil_design.md](../../_zil_design.md) 及具名附件为准。示例可运行不等于完整语言或产品门通过。
 
-先按 [交付说明](build.md)准备 `rust-toolchain.toml`、受支持 LLVM/clang 和 `Cargo.lock` 对应依赖，再构建 CLI：
+先按 [构建说明](build.md)准备 `rust-toolchain.toml`、受支持 LLVM/clang 和 `Cargo.lock` 对应依赖，再构建 CLI：
 
 ```sh
 cargo build --offline --locked -p zil-cli

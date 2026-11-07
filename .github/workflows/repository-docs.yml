@@ -1,4 +1,4 @@
-name: Repository documentation
+name: Repository structure
 on:
   push:
     branches: [main]
@@ -7,7 +7,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: zil-docs-${{ github.ref }}
+  group: zil-structure-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   documentation:
@@ -19,14 +19,10 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
       - name: Check semantic names and delivery tree
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
         shell: bash
         run: |
           set -euo pipefail
-          base="$BASE_SHA"
-          if [ -z "$base" ] || [[ "$base" =~ ^0+$ ]]; then base=HEAD^; fi
-          python3 tools/check-repository-layout.py --base "$base" --delivery
+          python3 tools/check-repository-layout.py --full --delivery
           python3 -m unittest discover -s tools -p test_check_repository_layout.py
       - name: Check static language contracts and indexes
         shell: bash
