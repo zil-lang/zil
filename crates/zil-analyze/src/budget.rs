@@ -513,7 +513,11 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
         }
         Ok(())
     } else if matches!(ty, Type::Package { .. }) {
-        if package_fields_supported(ty, true) {
+        if package_fields_supported(ty, true)
+            || matches!(ty, Type::Package { name, fields }
+                if !name.is_empty() && !fields.is_empty()
+                    && fields.iter().all(|(name, field)| !name.is_empty() && field.is_copy_value()))
+        {
             Ok(())
         } else {
             Err(vec![Diagnostic::unsupported(

@@ -169,7 +169,9 @@ fn admit_shape(
                 }
             }
         }
-        if !owned {
+        if !owned
+            && (entries.is_empty() || !entries.iter().all(|(_, field)| field.is_copy_value()))
+        {
             return Err(error("Product has no transitive Managed leaf"));
         }
         Ok(has_stores)

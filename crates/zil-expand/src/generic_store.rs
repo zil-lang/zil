@@ -303,13 +303,11 @@ pub(super) fn concrete_element(
         shape.budget.ty(ty)?;
     }
     let mut callbacks = 0usize;
-    let mut owns = false;
     let mut storage = false;
     for field in &aggregate.fields {
         shape.budget.node(field.span, 0)?;
         let field_type = shape.substitute(&field.ty, &substitutions)?;
         if field.manages {
-            owns = true;
             storage |= shape.resource(&field_type)?;
         } else if callback.field(&field_type) {
             shape.budget.ty(&field_type)?;
@@ -319,11 +317,23 @@ pub(super) fn concrete_element(
             storage = true;
         } else if active && check::dependent(&field_type, variables) {
             copy::require(&field_type, nominals, available, variables, shape.budget)?;
+        } else if !active
+            && trait_bounds::plain(&field_type).is_some_and(|name| {
+                variables.contains(name)
+                    && available.get(name).is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+            })
+        {
+            // The declaration holds a complete opaque Value. Its concrete
+            // application decides whether that Value has any Drop debt.
+            storage = true;
+        } else if !active
+            && explicit_managed_value(&field_type, shape.nominals, shape.budget)?
+        {
+            storage = true;
         } else if !active && shape.package_name(&field_type) {
             // The actual nominal application was bounded by substitute. A
-            // child-only Product still owns its recursively declared leaves.
-            owns = true;
-            storage |= shape.product(&field_type, 1)?;
+            // child-only Product still carries its complete Value.
+            storage |= shape.product(&field_type, available, variables, 1)?;
         } else {
             storage |= shape.copy(&field_type)?;
         }
@@ -334,10 +344,10 @@ pub(super) fn concrete_element(
             "callback Store elements require one or two direct fields of declared callable types",
         ));
     }
-    if !owns || !storage {
+    if !storage {
         return Err(error(
             ty.span,
-            "StoreElement requires a nonzero complete Package with transitive managed leaves",
+            "StoreElement requires a nonzero complete Package Value",
         ));
     }
     Ok(())
@@ -467,30 +477,35 @@ impl<'n> Shape<'_, '_, 'n, '_> {
                 Some(Item { kind: ItemKind::Aggregate(a), .. }) if a.kind == AggregateKind::Package))
     }
 
-    fn product(&mut self, ty: &TypeRef, depth: usize) -> R<bool> {
+    fn product(
+        &mut self,
+        ty: &TypeRef,
+        available: &trait_bounds::Bounds,
+        variables: &BTreeSet<String>,
+        depth: usize,
+    ) -> R<bool> {
         // A recursive by-value application eventually reaches the same depth
         // bound as the source type resolver; no unbounded host recursion.
         self.budget.node(ty.span, depth)?;
         let (aggregate, substitutions) = self.aggregate(ty, AggregateKind::Package, false)?;
-        let (mut owns, mut storage) = (false, false);
+        let mut storage = false;
         for field in &aggregate.fields {
             self.budget.node(field.span, depth)?;
             let field_type = self.substitute(&field.ty, &substitutions)?;
             if field.manages {
-                owns = true;
                 storage |= self.resource(&field_type)?;
+            } else if trait_bounds::plain(&field_type).is_some_and(|name| {
+                variables.contains(name)
+                    && available.get(name).is_some_and(|bounds| bounds.iter().any(|bound| bound == BOUND))
+            }) {
+                storage = true;
+            } else if explicit_managed_value(&field_type, self.nominals, self.budget)? {
+                storage = true;
             } else if self.package_name(&field_type) {
-                owns = true;
-                storage |= self.product(&field_type, depth + 1)?;
+                storage |= self.product(&field_type, available, variables, depth + 1)?;
             } else {
                 storage |= self.copy(&field_type)?;
             }
-        }
-        if !owns {
-            return Err(error(
-                ty.span,
-                "Product Store child requires a transitive manages leaf",
-            ));
         }
         Ok(storage)
     }

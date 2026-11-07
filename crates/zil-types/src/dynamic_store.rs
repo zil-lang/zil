@@ -169,7 +169,10 @@ pub(super) fn pod_element(ty: &Type) -> bool {
             Type::U16 => (2, 2),
             Type::I32 | Type::F32 => (4, 4),
             Type::I64 | Type::U64 | Type::Usize | Type::F64 => (8, 8),
-            Type::Record { fields: ts, .. } => fields(ts.iter().map(|(_, t)| t))?,
+            Type::Record { fields: ts, .. } if ts.iter().all(|(_, ty)| ty.is_copy_value()) => {
+                fields(ts.iter().map(|(_, t)| t))?
+            }
+            Type::Package { fields: ts, .. } => fields(ts.iter().map(|(_, t)| t))?,
             Type::Tuple(ts) => fields(ts)?,
             Type::Array { element, length } => {
                 // Validate the element even when no runtime item is present.
@@ -179,13 +182,19 @@ pub(super) fn pod_element(ty: &Type) -> bool {
             _ => return None,
         })
     }
-    inline_element(ty) && layout(ty).is_some_and(|(size, _)| size > 0)
+    (inline_element(ty)
+        || matches!(ty, Type::Package { fields, .. }
+            if !fields.is_empty() && fields.iter().all(|(_, field)| field.is_copy_value())))
+        && layout(ty).is_some_and(|(size, _)| size > 0)
 }
 
 /// Extra work is exclusive to the inline Record/scalar family. Legacy Package receipts
 /// keep their exact charges. Call before the private POD predicate or new copy.
 pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
-    if inline_element(ty) {
+    if inline_element(ty)
+        || matches!(ty, Type::Package { fields, .. }
+            if !fields.is_empty() && fields.iter().all(|(_, field)| field.is_copy_value()))
+    {
         inference::charge_type_snapshot(ty, span, limits, remaining, 4)?;
         if matches!(ty, Type::Tuple(_) | Type::Array { .. }) {
             *remaining = remaining.checked_sub(96).ok_or_else(|| {

@@ -1077,6 +1077,26 @@ impl Resolver<'_> {
         if dynamic_store::supported_element(ty) {
             return Ok(true);
         }
+        if matches!(ty, Type::Managed(_)) && resources::supported(ty) {
+            return Ok(true);
+        }
+        if let Type::Package { fields, .. } = ty
+            && fields.iter().any(|(_, field)| {
+                matches!(field, Type::Named(name)
+                    if self.ordinary_parameter.as_ref() == Some(name)
+                        || self.aggregate_parameters.contains(name))
+            })
+        {
+            for (_, field) in fields {
+                self.charge(depth + 1, span)?;
+                if !field.is_copy_value()
+                    && !self.store_element_shape(field, depth + 1, span)?
+                {
+                    return Ok(false);
+                }
+            }
+            return Ok(true);
+        }
         let Type::Package { fields, .. } = ty else {
             return Ok(false);
         };
@@ -3390,11 +3410,11 @@ impl Resolver<'_> {
                 span: f.span,
             };
             let ty = self.field_type(&raw, depth + 1)?;
-            if !f.manages && matches!(ty, Type::Managed(_) | Type::Desc(_)) {
+            if !f.manages && matches!(ty, Type::Desc(_)) {
                 return Err(error(
                     "E-PRODUCT-TEMPLATE",
                     span,
-                    "generic Product Managed leaves require an explicit manages declaration",
+                    "generic Product cannot promote a borrowed description into an owned Value",
                 ));
             }
             fields.push((f.name.clone(), ty));
@@ -3444,7 +3464,18 @@ impl Resolver<'_> {
             self.generic.symbolic_names.insert(name.clone(), owner);
         }
         let ty = Type::Package { name, fields };
-        packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+        // Product identity remains affine even when an application has only
+        // Copy children. An unresolved StoreElement formal carries one opaque
+        // Value responsibility until the application is instantiated. Every
+        // concrete owning application still proves its actual recursive shape.
+        if let Type::Package { fields, .. } = &ty
+            && !fields.iter().all(|(_, field)| {
+                field.is_copy_value()
+                    || (matches!(field, Type::Named(_)) && args.contains(field))
+            })
+        {
+            packages::product::validate_owned(&ty, &mut self.remaining, self.depth_limit, span)?;
+        }
         self.generic_active.remove(&family);
         Ok(ty)
     }

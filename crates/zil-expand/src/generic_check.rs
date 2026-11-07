@@ -5394,18 +5394,24 @@ impl Check<'_, '_, '_> {
                     return Err(error(e.span, "managed Package field used after give"));
                 }
                 self.alias_read_place(e, state)?;
+                let opaque_value = !field.manages
+                    && products::parameters(aggregate).is_some()
+                    && trait_bounds::plain(&field.ty).is_some_and(|name| {
+                        aggregate.generics.iter().any(|formal| formal.name == name)
+                    })
+                    && !self.known_copy(&ty)?;
                 if let Some(local) = package
-                    && self.callable.as_ref().is_some_and(|bounds| {
+                    && (opaque_value || self.callable.as_ref().is_some_and(|bounds| {
                         bounds.bindings().any(|bound| {
                             callable::parameter_mode(&ty, &bound.generic_name) == Some(None)
                         })
-                    })
+                    }))
                 {
                     let slot = self.field_slot(local, member, e.span)?;
                     if state.moved.contains(&slot) {
                         return Err(error(
                             e.span,
-                            "callback field used after its environment was moved",
+                            "owning Package field used after its Value moved",
                         ));
                     }
                     if !borrowing {
