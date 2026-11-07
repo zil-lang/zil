@@ -462,7 +462,11 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             if matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) {
+            ) || (matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.sum_type(ty)?)
+            {
                 budget.lookup(result.len(), "resource capture insertion")?;
                 result.insert(
                     Place::Capture(index as u32),
@@ -2315,6 +2319,19 @@ impl Flow<'_> {
                             ));
                         }
                     }
+                    if let Some(ty) = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|closure| closure.captures.get(*index as usize))
+                        && budget.sum_type(ty)?
+                        && check
+                        && !exact(
+                            &copied(state, Place::Capture(*index), budget)?,
+                            Life::Available,
+                        )
+                    {
+                        return Err(error("cannot borrow an empty owning Sum capture"));
+                    }
                 }
                 InstructionKind::DescribeCapture { index } => {
                     if f.environment
@@ -2370,7 +2387,11 @@ impl Flow<'_> {
                     if matches!(
                         ty,
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-                    ) {
+                    ) || (matches!(
+                        ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.sum_type(ty)?)
+                    {
                         return Err(error(
                             "ReadCapture cannot copy an owned Managed or Package field",
                         ));
@@ -2386,15 +2407,27 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::TakeCapture { index } => {
-                    if f.environment
+                    let capture_ty = f
+                        .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
-                        .is_some_and(|ty| matches!(ty, Type::Package { .. }))
-                    {
+                        .ok_or_else(|| error("TakeCapture actual capture absent"))?;
+                    if matches!(capture_ty, Type::Package { .. }) {
                         return Err(error("Package capture movement requires its bound view"));
                     }
-                    if callable != Some(CallableKind::FnOnce) {
+                    let ordinary_sum = matches!(
+                        capture_ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.sum_type(capture_ty)?;
+                    if callable != Some(CallableKind::FnOnce)
+                        && !(ordinary_sum && callable == Some(CallableKind::FnMut))
+                    {
                         return Err(error("TakeCapture requires a consuming entry"));
+                    }
+                    if ordinary_sum
+                        && i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(capture_ty)
+                    {
+                        return Err(error("TakeCapture owning Sum result type differs"));
                     }
                     let place = Place::Capture(*index);
                     let mut fact = copied(state, place, budget)?;
@@ -2412,6 +2445,34 @@ impl Flow<'_> {
                     produced = Some(fact.clone());
                     fact.life = BTreeSet::from([Life::Transferred]);
                     replace(state, place, fact, budget)?;
+                }
+                InstructionKind::WriteCapture { index, value } => {
+                    let capture_ty = f
+                        .environment
+                        .and_then(|id| self.module.closures.get(id.0 as usize))
+                        .and_then(|closure| closure.captures.get(*index as usize))
+                        .ok_or_else(|| error("WriteCapture actual capture absent"))?;
+                    if matches!(
+                        capture_ty,
+                        Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                    ) && budget.sum_type(capture_ty)?
+                    {
+                        if callable != Some(CallableKind::FnMut)
+                            || f.values.get(value.0 as usize) != Some(capture_ty)
+                        {
+                            return Err(error("owning Sum refill requires FnMut and exact type"));
+                        }
+                        let slot = Place::Capture(*index);
+                        if check && !exact(&copied(state, slot, budget)?, Life::Transferred) {
+                            return Err(error("owning Sum refill requires an empty capture"));
+                        }
+                        let source = copied(state, Place::Value(*value), budget)?;
+                        if check && !exact(&source, Life::Available) {
+                            return Err(error("owning Sum refill requires one live value"));
+                        }
+                        self.consume(state, *value, check, budget)?;
+                        replace(state, slot, source, budget)?;
+                    }
                 }
                 InstructionKind::Load(local) | InstructionKind::TakeLocal { local } => {
                     if let Some(s) = self.shapes.get(&Place::Local(*local)) {
@@ -3160,6 +3221,16 @@ impl Flow<'_> {
                     if matches!(place, Place::Capture(_) | Place::CaptureField { .. }) {
                         if callable != Some(CallableKind::FnOnce) && !exact(fact, Life::Available) {
                             return Err(error("repeatable entry fails to restore owned fields"));
+                        }
+                        if callable != Some(CallableKind::FnOnce)
+                            && let Place::Capture(index) = place
+                            && let Some(ty) = f
+                                .environment
+                                .and_then(|id| self.module.closures.get(id.0 as usize))
+                                .and_then(|closure| closure.captures.get(*index as usize))
+                            && budget.sum_type(ty)?
+                        {
+                            state.sums.require_capture_complete(*index, budget)?;
                         }
                     } else if fact.life.contains(&Life::Available) {
                         return Err(error("normal return leaves a responsibility unpaid"));

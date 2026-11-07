@@ -525,6 +525,16 @@ pub(super) struct Facts {
     partial: Option<partial_places::State>,
 }
 impl Facts {
+    pub(super) fn require_capture_complete(
+        &self,
+        index: u32,
+        budget: &mut Budget,
+    ) -> CompileResult<()> {
+        if !self.capture(index, budget)?.complete(budget)? {
+            return Err(error("repeatable Sum capture is incomplete"));
+        }
+        Ok(())
+    }
     pub(super) fn no_live_owner(&self, local: LocalId, budget: &mut Budget) -> CompileResult<bool> {
         budget.lookup(self.locals.len(), "Sum discharged local lookup")?;
         self.locals
@@ -1215,6 +1225,70 @@ impl Plan {
                 )?
                 .missing = true;
                 facts.invalidate(*local, self, budget)?;
+            }
+            InstructionKind::TakeCapture { index } => {
+                let ty = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|closure| closure.captures.get(*index as usize))
+                    .ok_or_else(|| error("TakeCapture Sum environment absent"))?;
+                if matches!(
+                    ty,
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) && budget.sum_type(ty)?
+                {
+                    if i.result.and_then(|v| f.values.get(v.0 as usize)) != Some(ty) {
+                        return Err(error("TakeCapture Sum result type differs"));
+                    }
+                    let capture = facts.capture(*index, budget)?;
+                    if check && !capture.complete(budget)? {
+                        return Err(error("TakeCapture requires a complete Sum capture"));
+                    }
+                    output = Some(capture);
+                    edit(
+                        facts
+                            .captures
+                            .get_mut(index)
+                            .ok_or_else(|| error("TakeCapture Sum capture absent"))?,
+                        budget,
+                    )?
+                    .missing = true;
+                }
+            }
+            InstructionKind::WriteCapture { index, value } => {
+                let ty = f
+                    .environment
+                    .and_then(|id| module.closures.get(id.0 as usize))
+                    .and_then(|closure| closure.captures.get(*index as usize))
+                    .ok_or_else(|| error("WriteCapture Sum environment absent"))?;
+                if matches!(
+                    ty,
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                ) && budget.sum_type(ty)?
+                {
+                    if f.values.get(value.0 as usize) != Some(ty) {
+                        return Err(error("WriteCapture Sum source type differs"));
+                    }
+                    let incoming = facts.value(*value, budget)?;
+                    if check
+                        && (!facts.capture(*index, budget)?.missing
+                            || !incoming.complete(budget)?)
+                    {
+                        return Err(error(
+                            "WriteCapture requires an empty slot and complete Sum",
+                        ));
+                    }
+                    budget.lookup(facts.captures.len(), "Sum capture refill")?;
+                    facts.captures.insert(*index, incoming);
+                    edit(
+                        facts
+                            .values
+                            .get_mut(value)
+                            .ok_or_else(|| error("Sum capture refill value absent"))?,
+                        budget,
+                    )?
+                    .missing = true;
+                }
             }
             InstructionKind::BorrowLocalMut { local }
                 if matches!(f.locals[local.0 as usize].ty, Type::Enum { .. }) =>

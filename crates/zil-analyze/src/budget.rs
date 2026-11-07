@@ -1211,6 +1211,18 @@ pub(super) fn preflight(
                 budget.owning_address_captures = true;
                 continue;
             }
+            if matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.sum_type(ty)?
+            {
+                if !super::resources::sums::admit(module, ty, budget)? {
+                    return Err(bad(
+                        "owning Sum capture requires a complete ordinary Store leaf",
+                    ));
+                }
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -1459,6 +1471,14 @@ pub(super) fn preflight(
             .is_some_and(|id| id.0 as usize >= module.closures.len())
         {
             return Err(bad("function references an absent environment"));
+        }
+        if !budget.sum_roots.is_empty()
+            && let Some(id) = function.environment
+        {
+            for ty in &module.closures[id.0 as usize].captures {
+                budget.input(1, "entry Sum capture membership")?;
+                sum_function |= budget.sum_type(ty)?;
+            }
         }
         for (index, local) in function.locals.iter().enumerate() {
             budget.input(1, "local type preflight")?;
