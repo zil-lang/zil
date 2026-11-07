@@ -113,6 +113,10 @@ impl Budget {
         }
     }
 
+    pub(super) fn has_sum_shapes(&self) -> bool {
+        !self.sum_roots.is_empty()
+    }
+
     pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
         if self.sum_roots.is_empty() {
             return Ok(false);

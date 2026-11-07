@@ -1035,7 +1035,7 @@ impl Plan {
             edit(&mut t, budget)?.missing = true;
             facts.values.insert(ValueId(v as u32), t);
         }
-        if !budget.sum_roots.is_empty()
+        if budget.has_sum_shapes()
             && let Some(id) = f.environment
         {
             let closure = module
