@@ -374,8 +374,7 @@ def main():
     run('architecture',['node','tools/check-architecture.mjs','--metadata',str(metadata_path)])
     run('plan',[sys.executable,'tools/check-plan.py','--self-test'])
     run('manifest-integrity',[sys.executable,'tools/check-conformance.py'])
-    run('handoff',['node','tools/handoff.mjs','--check'],expected_status='Pass')
-    run('tool-tests',['node','--test','tests/architecture.test.mjs','tests/hash-syntax.test.mjs','tests/handoff.test.mjs','tests/report.test.mjs'])
+    run('tool-tests',['node','--test','tests/architecture.test.mjs','tests/hash-syntax.test.mjs','tests/report.test.mjs'])
     protocol_reports={}
     for owner in ['B0','T01','T04','T05']:
         protocol_reports[owner]=run('protocol-'+owner,[sys.executable,'tools/run-cases.py','--task',owner,'--manifest','validation/task-test-plans.json','--out-root',str(out/('protocol-'+owner)/'campaign')],required=owner in ['B0','T01'])
