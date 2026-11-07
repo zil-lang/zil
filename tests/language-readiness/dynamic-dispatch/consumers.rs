@@ -15,6 +15,7 @@ const MUTABLE_DEFAULT: &str = include_str!("dyn-mutable-default.zil");
 const OWNED_PACKAGE: &str = include_str!("dyn-owned-package.zil");
 const OWNED_MUTABLE: &str = include_str!("dyn-owned-mutable.zil");
 const OWNED_ALLOCATION: &str = include_str!("dyn-owned-allocation.zil");
+const OWNED_ALLOCATION_LOOP: &str = include_str!("dyn-owned-allocation-loop.zil");
 const MUTABLE_PREFIX: &str = "trait Change{fn set(self:&mut Self,value:i32)->();}struct A{n:i32}impl Change for A{fn set(self:&mut Self,value:i32)->(){self.n=value;return ()}}";
 
 fn directory(label: &str) -> PathBuf {
@@ -211,6 +212,7 @@ void *realloc(void *p, size_t n) {
     if (!p && n == 64) owned_buffer = result;
     return result;
 }
+
 void *malloc(size_t n) {
     if (owned_buffer && n == 32 && !failed) {
         failed = 1;
@@ -274,6 +276,227 @@ void free(void *p) {
     }
 }
 
+#[test]
+#[cfg(target_os = "linux")]
+fn repeated_owned_allocation_failure_uses_one_entry_scratch() {
+    let shim = r#"
+#include <stddef.h>
+#include <unistd.h>
+extern void *__libc_malloc(size_t);
+extern void *__libc_realloc(void *, size_t);
+extern void __libc_free(void *);
+static void *buffer;
+static int failed, freed;
+void *realloc(void *p, size_t n) {
+    void *r = __libc_realloc(p, n);
+    if (!p && n == 64) buffer = r;
+    return r;
+}
+
+void *malloc(size_t n) {
+    if (buffer && n == 32) { failed++; return 0; }
+    return __libc_malloc(n);
+}
+void free(void *p) {
+    if (p == buffer) { freed++; buffer = 0; }
+    __libc_free(p);
+}
+__attribute__((destructor)) static void result(void) {
+    write(2, failed == 400000 && freed == 400000 ? "P" : "F", 1);
+}
+"#;
+    let dir = directory("owned-loop-failure");
+    let source = dir.join("fail.c");
+    let interceptor = dir.join("fail.so");
+    fs::write(&source, shim).unwrap();
+    let clang = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());
+    let compiled = Command::new(clang)
+        .args(["-shared", "-fPIC", "-O0"])
+        .arg(&source)
+        .arg("-o")
+        .arg(&interceptor)
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    for backend in backends() {
+        let executable = dir.join(format!("program-{}", backend.name()));
+        let report = compile(
+            OWNED_ALLOCATION_LOOP,
+            &CompileOptions {
+                backend,
+                optimization: Optimization::O0,
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                output: Some(executable.clone()),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
+        assert!(llvm.contains("dyn.owner.scratch."));
+        for block in llvm.split(".failure:").skip(1) {
+            assert!(!block.split(".done:").next().unwrap().contains("alloca"));
+        }
+        let output = Command::new(&executable)
+            .env("LD_PRELOAD", &interceptor)
+            .output()
+            .unwrap();
+        assert_eq!(output.status.code(), Some(0), "{output:?}");
+        assert_eq!(output.stdout, b"400000\n");
+        assert_eq!(output.stderr, b"P");
+    }
+}
+#[test]
+fn owned_erasure_rejects_live_concrete_byte_views() {
+    let prefix = "trait Read{fn read(self:&Self)->i32;}package P{manages data:ByteBuffer;pub n:i32}impl Read for P{fn read(self:&Self)->i32{return self.n}}";
+    for (helper, view) in [
+        ("", "bytes_view(p.data)"),
+        (
+            "fn view(p:&P)->&[u8]{return bytes_view(p.data)}",
+            "view(&p)",
+        ),
+    ] {
+        let source = format!(
+            "{prefix}{helper}fn main()->DynCreateError!i32{{let p=P{{data:bytes_new(),n:1}};let before={view};let owner=owned_dyn::<dyn Read>(p)?;return i32(before.len())+owner.read()}}"
+        );
+        let report = compile(&source, &CompileOptions::default());
+        assert_ne!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            matches!(report.phase, Phase::Analyze | Phase::Verify),
+            "{}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+fn interface_only_owner_parameter_still_has_affine_debt() {
+    let source = format!(
+        "{OWNED_PACKAGE}\nfn relay(owner:OwnedDyn<dyn Read>)->OwnedDyn<dyn Read>{{return owner}}"
+    );
+    let (mut module, _) = source_candidate_for(&source);
+    let mut relay = module
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("relay"))
+        .unwrap()
+        .clone();
+    relay.id = zil_ir::FunctionId(0);
+    module.functions = vec![relay];
+    module.resources.clear();
+    module.dyn_vtables.clear();
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let verified = zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let lir = zil_lower::lower_view(&verified).unwrap().to_owned();
+    let llvm = zil_backend_llvm::emit(&verified, &lir).unwrap();
+    assert!(llvm.contains("define internal void @zil.dyn.owner.drop."));
+    assert!(llvm.contains("call void @free(ptr %payload)"));
+    assert!(module.resources.is_empty());
+    assert!(module.dyn_vtables.is_empty());
+    let check = |candidate: zil_ir::TypedModule| {
+        assert!(zil_analyze::analyze(&candidate, &Limits::default()).is_err());
+        let mut plan = plan.clone();
+        plan.module_fingerprint = candidate.fingerprint();
+        let target = candidate.target.clone();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&candidate, &plan, &Limits::default()).unwrap();
+        assert!(
+            zil_verify::verify_module(candidate.clone(), plan, &target, &Limits::default())
+                .is_err()
+        );
+        assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+    };
+    let mut doubled = module.clone();
+    let f = &mut doubled.functions[0];
+    let take = f
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, I::TakeLocal { .. }))
+        .unwrap()
+        .clone();
+    let mut second = take.clone();
+    second.result = Some(zil_ir::ValueId(f.values.len() as u32));
+    f.values.push(Type::OwnedDyn {
+        interface: module.dyn_interfaces[0].id,
+    });
+    let block = f
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::TakeLocal { .. }))
+        })
+        .unwrap();
+    let first = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::TakeLocal { .. }))
+        .unwrap();
+    block.instructions.insert(first + 1, second);
+    check(doubled);
+
+    let (mut without_table, _) = source_candidate_for(&source);
+    let mut consume = without_table
+        .functions
+        .iter()
+        .find(|f| f.name.ends_with("consume"))
+        .unwrap()
+        .clone();
+    consume.id = zil_ir::FunctionId(0);
+    without_table.functions = vec![consume];
+    without_table.resources.clear();
+    without_table.dyn_vtables.clear();
+    let mut consume_plan = zil_analyze::analyze(&without_table, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        without_table.clone(),
+        consume_plan.clone(),
+        &without_table.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let missing_drop = without_table.functions[0]
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::DropDynOwned { .. }))
+        .unwrap();
+    missing_drop.kind = I::StorageDead(zil_ir::LocalId(0));
+    assert!(zil_analyze::analyze(&without_table, &Limits::default()).is_err());
+    consume_plan.module_fingerprint = without_table.fingerprint();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&without_table, &consume_plan, &Limits::default())
+            .unwrap();
+    assert!(
+        zil_verify::verify_module(
+            without_table.clone(),
+            consume_plan,
+            &without_table.target,
+            &Limits::default()
+        )
+        .is_err()
+    );
+    assert!(
+        zil_verify::verify_module_bytes(&wire, &without_table.target, &Limits::default()).is_err()
+    );
+}
 #[test]
 fn runtime_input_selects_two_real_vtables_in_both_backends() {
     for backend in backends() {
@@ -697,6 +920,47 @@ fn owned_raw_wire_rejects_forged_route_provider_and_loan() {
     let mut no_route = module.clone();
     no_route.dyn_vtables[0].owned_storage = None;
     assert_rejected(no_route);
+    let mut duplicate_source = module.clone();
+    let function = duplicate_source
+        .functions
+        .iter_mut()
+        .find(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .any(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        })
+        .unwrap();
+    let original = function
+        .blocks
+        .iter()
+        .flat_map(|b| &b.instructions)
+        .find(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        .unwrap()
+        .clone();
+    let mut repeated = original.clone();
+    let original_result = original.result.unwrap();
+    repeated.result = Some(zil_ir::ValueId(function.values.len() as u32));
+    function
+        .values
+        .push(function.values[original_result.0 as usize].clone());
+    let block = function
+        .blocks
+        .iter_mut()
+        .find(|b| {
+            b.instructions
+                .iter()
+                .any(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        })
+        .unwrap();
+    let index = block
+        .instructions
+        .iter()
+        .position(|i| matches!(i.kind, I::MakeDynOwned { .. }))
+        .unwrap();
+    block.instructions.insert(index + 1, repeated);
+    assert!(zil_analyze::analyze(&duplicate_source, &Limits::default()).is_err());
+    assert_rejected(duplicate_source);
     let mut wrong_body = module.clone();
     wrong_body.dyn_vtables[0].entries[0].function = wrong_body.dyn_vtables[1].entries[0].function;
     assert_rejected(wrong_body);

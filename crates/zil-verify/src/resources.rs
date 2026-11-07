@@ -3068,7 +3068,10 @@ pub(super) fn check_module(
                 || closure.captures.iter().any(|ty| {
                     matches!(
                         ty,
-                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        Type::Managed(_)
+                            | Type::Package { .. }
+                            | Type::Closure(_)
+                            | Type::OwnedDyn { .. }
                     )
                 });
         }
@@ -3079,7 +3082,7 @@ pub(super) fn check_module(
                 .iter()
                 .map(|l| &l.ty)
                 .chain(&function.values)
-                .any(|ty| arrays::is_owned_type(ty) || package_storage(ty).is_some());
+                .any(|ty| arrays::is_owned_type(ty) || package_storage(ty).is_some() || matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. })));
         }
         if !owning_entry {
             return Ok(());

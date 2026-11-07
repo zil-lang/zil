@@ -412,7 +412,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 || c.captures.iter().any(|t| {
                     matches!(
                         package_storage(t),
-                        Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
+                        Type::Managed(_)
+                            | Type::Package { .. }
+                            | Type::Closure(_)
+                            | Type::OwnedDyn { .. }
                     )
                 });
             if budget.has_ordinary_store_sum_capture(*id)? {
@@ -4037,7 +4040,7 @@ pub(super) fn check_module(
                 .copied()
                 .unwrap_or(false);
             owning_entry |= function.locals.iter().map(|l| &l.ty).chain(&function.values)
-                .any(|ty| matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                .any(|ty| matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. })) || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
                     || matches!(package_storage(ty), Type::Array { element, .. } if matches!(package_storage(element.as_ref()), Type::Package { .. } | Type::Closure(_))));
         }
         if !owning_entry {

@@ -48,7 +48,14 @@ fn call(name: Option<String>, result: m::Ty, callee: m::Val, args: Vec<m::Arg>) 
 
 pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
     let owning = lir.functions.iter().any(|f| {
-        f.blocks.iter().flat_map(|b| &b.instructions).any(|i| {
+        let carrier = |ty: &Type| {
+            matches!(ty, Type::OwnedDyn { .. })
+                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+        };
+        carrier(&f.return_type)
+            || f.locals.iter().any(|l| carrier(&l.ty))
+            || f.values.iter().any(carrier)
+            || f.blocks.iter().flat_map(|b| &b.instructions).any(|i| {
             matches!(
                 i.kind,
                 InstructionKind::MakeDynOwned { .. } | InstructionKind::DropDynOwned { .. }
@@ -368,11 +375,21 @@ pub(super) fn tables(
         }));
     }
     for interface in &module.dyn_interfaces {
-        if !module
+        let owning_table = module
             .dyn_vtables
             .iter()
-            .any(|t| t.interface == interface.id && t.owned_storage == Some(DynOwnedStorage::Heap))
-        {
+            .any(|t| t.interface == interface.id && t.owned_storage == Some(DynOwnedStorage::Heap));
+        let owns = |ty: &Type| {
+            *ty == (Type::OwnedDyn {
+                interface: interface.id,
+            }) || matches!(ty, Type::ErrorUnion { result, .. } if result.as_ref() == &(Type::OwnedDyn { interface: interface.id }))
+        };
+        let owning_value = module.functions.iter().any(|f| {
+            owns(&f.return_type)
+                || f.locals.iter().any(|l| owns(&l.ty))
+                || f.values.iter().any(&owns)
+        });
+        if !owning_table && !owning_value {
             continue;
         }
         code.push(m::Event::Begin(m::Function {
@@ -435,6 +452,22 @@ pub(super) fn tables(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn owned_dyn_scratch_allocations(&mut self) -> CompileResult<()> {
+        for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::MakeDynOwned { source, .. } = instruction.kind {
+                let result = result(instruction)?;
+                let ty = self.value_type(source)?;
+                self.text.push(inst(
+                    Some(format!("dyn.owner.scratch.{}", result.0)),
+                    m::Op::Alloca {
+                        ty: llvm_type(ty)?,
+                        align: alignment(ty, self.closures)?,
+                    },
+                ));
+            }
+        }
+        Ok(())
+    }
     pub(super) fn make_dyn_owned(
         &mut self,
         instruction: &Instruction,
@@ -542,17 +575,10 @@ impl FunctionEmitter<'_> {
         self.event(inst(None, m::Op::Branch(name("done"))));
         self.event(m::Event::Label(name("failure")));
         self.event(inst(
-            Some(name("source")),
-            m::Op::Alloca {
-                ty: concrete.clone(),
-                align: alignment(&actual, self.closures)?,
-            },
-        ));
-        self.event(inst(
             None,
             m::Op::Store {
                 arg: m::Arg::new(concrete, m::val(value(source))),
-                ptr: m::local(name("source")),
+                ptr: m::local(format!("dyn.owner.scratch.{}", result.0)),
                 align: alignment(&actual, self.closures)?,
             },
         ));
@@ -560,7 +586,10 @@ impl FunctionEmitter<'_> {
             None,
             m::Ty::Void,
             m::global(payload_drop_symbol(vtable)),
-            vec![m::Arg::new(m::Ty::Ptr, m::local(name("source")))],
+            vec![m::Arg::new(
+                m::Ty::Ptr,
+                m::local(format!("dyn.owner.scratch.{}", result.0)),
+            )],
         ));
         self.event(inst(
             Some(name("error")),
