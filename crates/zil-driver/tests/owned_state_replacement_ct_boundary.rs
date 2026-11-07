@@ -85,6 +85,7 @@ fn mixed(reverse: bool, fields: usize, kind: CallableKind) -> CoreProgram {
         life: None,
         closed_environment: false,
         transfer: false,
+        thread_callable: false,
         index: direct,
         generic_index: 0,
         generic_name: "F".into(),
@@ -337,6 +338,18 @@ fn state_replacement_compile_time_does_not_erase_an_unsupported_transfer_premise
     input.modules[0].core.functions[0].callable_parameters[0].transfer = true;
     check_category(
         "transfer-premise",
+        &input,
+        &Limits::default(),
+        ResultCategory::Unsupported,
+    );
+}
+
+#[test]
+fn state_replacement_compile_time_does_not_erase_an_unsupported_thread_call_premise() {
+    let mut input = mixed(false, 1, CallableKind::FnMut);
+    input.modules[0].core.functions[0].callable_parameters[0].thread_callable = true;
+    check_category(
+        "thread-call-premise",
         &input,
         &Limits::default(),
         ResultCategory::Unsupported,

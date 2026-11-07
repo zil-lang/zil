@@ -959,6 +959,9 @@ pub struct CoreCallableParameter {
     /// Explicit sealed Transfer premise for the value and cleanup. Actual data
     /// is rechecked; this premise does not establish thread-call authority.
     pub transfer: bool,
+    /// Explicit sealed entry-call premise, independently checked for every F.
+    /// It grants neither environment Transfer/Share nor concurrent invocation.
+    pub thread_callable: bool,
     pub kind: CallableKind,
     pub parameters: Vec<Type>,
     pub result: Type,

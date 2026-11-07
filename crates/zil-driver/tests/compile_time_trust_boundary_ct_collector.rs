@@ -193,6 +193,7 @@ fn collector_bounds_retained_and_returned_callable_contracts() {
                 life: None,
                 closed_environment: false,
                 transfer: false,
+                thread_callable: false,
                 index: 0,
                 generic_index: 0,
                 generic_name: "F".into(),

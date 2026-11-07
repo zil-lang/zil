@@ -19,6 +19,7 @@ pub(crate) struct CallableTemplate {
     pub generic_name: String,
     pub closed_environment: bool,
     pub transfer: bool,
+    pub thread_callable: bool,
     pub kind: CallableKind,
     pub parameters: Vec<TypeRef>,
     pub result: TypeRef,
@@ -347,6 +348,9 @@ pub(crate) fn closed_bound(ty: &TypeRef) -> bool {
 fn transfer_bound(ty: &TypeRef) -> bool {
     matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["Transfer"] && args.is_empty())
 }
+fn thread_callable_bound(ty: &TypeRef) -> bool {
+    matches!(&grouped(ty).kind, TypeKind::Named{path,args} if path.as_slice()==["ThreadCallable"] && args.is_empty())
+}
 
 pub(crate) fn template(
     function: &Function,
@@ -669,14 +673,24 @@ fn template_with_state(
                 "callable Transfer requires explicit ClosedEnvironment",
             ));
         }
+        let thread_callable = bounds
+            .iter()
+            .filter(|bound| thread_callable_bound(bound))
+            .count();
+        if thread_callable > 1 {
+            return Err(error(parameter.span, "duplicate ThreadCallable bound"));
+        }
+        let thread_callable = thread_callable == 1;
         let callable_bounds = bounds
             .iter()
-            .filter(|bound| !closed_bound(bound) && !transfer_bound(bound))
+            .filter(|bound| {
+                !closed_bound(bound) && !transfer_bound(bound) && !thread_callable_bound(bound)
+            })
             .collect::<Vec<_>>();
         let [callable_bound] = callable_bounds.as_slice() else {
             return Err(unsupported(
                 parameter.span,
-                "one callable bound with optional ClosedEnvironment and Transfer is implemented",
+                "one callable bound with optional ClosedEnvironment, Transfer and ThreadCallable is implemented",
             ));
         };
         let TypeKind::Named { path, args } = &bound_inner(callable_bound).kind else {
@@ -731,10 +745,10 @@ fn template_with_state(
             .iter()
             .any(|p| is_state(&p.ty, &parameter.name, dual));
         let owning = returns_state || takes_state;
-        if closed_environment && owning {
+        if (closed_environment || thread_callable) && owning {
             return Err(unsupported(
                 parameter.span,
-                "ClosedEnvironment currently requires a direct callable input, not State binding metadata",
+                "ClosedEnvironment and ThreadCallable currently require direct callable inputs; State bindings do not carry these premises",
             ));
         }
         if owning && life.is_some() {
@@ -885,11 +899,16 @@ fn template_with_state(
                 source_generic_parameter: *source_generic_parameter as u32,
                 source_bound_ordinal: bounds
                     .iter()
-                    .position(|bound| !closed_bound(bound) && !transfer_bound(bound))
+                    .position(|bound| {
+                        !closed_bound(bound)
+                            && !transfer_bound(bound)
+                            && !thread_callable_bound(bound)
+                    })
                     .unwrap() as u32,
                 generic_name: parameter.name.clone(),
                 closed_environment,
                 transfer,
+                thread_callable,
                 kind,
                 parameters: parameters.clone(),
                 result: result.clone(),

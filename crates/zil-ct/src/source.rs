@@ -386,7 +386,11 @@ fn mixed_state_shape(function: &CoreFunction) -> CompileResult<()> {
     }
     let owner = &function.state_parameters[0];
     let direct = &function.callable_parameters[0];
-    if owner.bindings.len() != 1 || owner.index == direct.index || direct.transfer {
+    if owner.bindings.len() != 1
+        || owner.index == direct.index
+        || direct.transfer
+        || direct.thread_callable
+    {
         return Err(invalid());
     }
     for index in [owner.index, direct.index] {

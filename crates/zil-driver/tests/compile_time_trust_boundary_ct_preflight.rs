@@ -109,6 +109,7 @@ fn public_headers_are_bounded_before_any_type_clone() {
                     life: None,
                     closed_environment: false,
                     transfer: false,
+                    thread_callable: false,
                     index: 0,
                     generic_index: 0,
                     generic_name: "F".into(),

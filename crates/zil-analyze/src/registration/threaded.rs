@@ -162,6 +162,8 @@ pub(super) fn actual(
                     | InstructionKind::TakeLocal { .. }
                     | InstructionKind::StorageLive(_)
                     | InstructionKind::StorageDead(_)
+                    | InstructionKind::UnsafeEnter { .. }
+                    | InstructionKind::UnsafeExit { .. }
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::ReadCapture { .. }

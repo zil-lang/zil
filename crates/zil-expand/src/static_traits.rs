@@ -26,7 +26,16 @@ pub(super) fn reserved_trait(name: &str) -> bool {
         .map_or(name, |(_, source)| source);
     matches!(
         name,
-        "Copy" | "Transfer" | "Share" | "Send" | "Sync" | "Drop" | "Fn" | "FnMut" | "FnOnce"
+        "Copy"
+            | "Transfer"
+            | "Share"
+            | "Send"
+            | "Sync"
+            | "Drop"
+            | "Fn"
+            | "FnMut"
+            | "FnOnce"
+            | "ThreadCallable"
     )
 }
 pub(super) fn receiver_type(ty: &s::TypeRef) -> bool {

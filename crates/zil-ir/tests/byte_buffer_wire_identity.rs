@@ -274,8 +274,32 @@ fn scoped_foreign_callback_wire32_fields_and_boundaries() {
     assert_eq!(role_changes.len(), 1);
     let role = role_changes[0];
     assert_eq!((none[role], register[role], close[role]), (0, 1, 2));
+    // These are untrusted role declarations, not valid callback operations.
+    // The new roles retain their own byte and semantic identity independently
+    // of the legacy synchronous 0/1/2 values above.
+    let mut identities =
+        std::collections::BTreeSet::from([none_fp, register_fp, raw.fingerprint()]);
+    for (tag, declared) in [
+        (6, ScopedCallbackRole::ThreadAsyncRegister),
+        (7, ScopedCallbackRole::ThreadAsyncRequestClose),
+        (8, ScopedCallbackRole::ThreadAsyncPollDrain),
+    ] {
+        let mut threaded = raw.clone();
+        threaded.functions[0]
+            .foreign
+            .as_mut()
+            .unwrap()
+            .scoped_callback = Some(declared);
+        let bytes = encode(&threaded);
+        assert_eq!(bytes[role], tag);
+        assert!(identities.insert(threaded.fingerprint()));
+        assert_eq!(
+            wire::decode_module_candidate(&bytes, &limits).unwrap(),
+            (threaded, plan.clone())
+        );
+    }
     let mut bad_role = register.clone();
-    bad_role[role] = 6;
+    bad_role[role] = 9;
     assert_eq!(
         wire::decode_module_candidate(&bad_role, &limits).unwrap_err()[0].code,
         "E-WIRE-TAG"
