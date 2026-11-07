@@ -44,6 +44,50 @@ pub fn clear(value:&mut String) { bytes_truncate(value.data,0) }
 pub fn scalar_at(value:&String, byte_offset:i64)->utf8.Scalar { return utf8.decode(bytes_view(value.data),byte_offset) }
 
 pub fn is_empty(value:&String)->bool { return byte_len(value)==0 }
+// UTF-8 preserves Unicode scalar order in lexicographic byte order.
+// Return -1, 0, or 1; no normalization or locale collation is performed.
+pub fn compare(left:&String, right:&String)->i32 {
+    let a=bytes_view(left.data)
+    let b=bytes_view(right.data)
+    var at:i64=0
+    while at<a.len() && at<b.len() {
+        if a[at]<b[at] { return -1 }
+        if a[at]>b[at] { return 1 }
+        at+=1
+    }
+    if a.len()<b.len() { return -1 }
+    if a.len()>b.len() { return 1 }
+    return 0
+}
+
+// Return the scalar index of the first match at or after start, or -1.
+// The needle is fully validated even when the haystack is empty or start is
+// beyond its last possible match. Empty needles match at start, including end.
+pub fn find_from(value:&String, needle:&[u8], start:i64)->Error!i64 {
+    let checked=utf8.locate(needle,0,0)
+    if checked.error>=0 { return Error.InvalidUtf8 }
+    let haystack=bytes_view(value.data)
+    let bounds=utf8.locate(haystack,start,start)
+    if start<0 || bounds.first<0 { return Error.Range }
+    var at=bounds.first
+    var scalar=start
+    while at<=haystack.len() {
+        if needle.len()<=haystack.len()-at {
+            var part:i64=0
+            while part<needle.len() && haystack[at+part]==needle[part] { part+=1 }
+            if part==needle.len() { return scalar }
+        }
+        if at==haystack.len() { break }
+        let decoded=utf8.decode(haystack,at)
+        if decoded.status!=1 { return Error.Internal }
+        at=decoded.next
+        scalar+=1
+    }
+    return i64(-1)
+}
+pub fn find(value:&String, needle:&[u8])->Error!i64 {
+    return find_from(value,needle,0)
+}
 pub fn reserve(value:&mut String, capacity:i64, byte_limit:i64)->Error!void {
     if capacity<0 || byte_limit<0 || capacity>byte_limit { return Error.Capacity }
     if !bytes_reserve(value.data,capacity) { return Error.Allocation }

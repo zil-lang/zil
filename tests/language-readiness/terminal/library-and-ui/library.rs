@@ -445,6 +445,116 @@ fn ordinary_string_unicode_encoding_and_owner_edits_are_native() {
     }
 }
 
+#[test]
+fn ordinary_string_search_and_store_composition_are_native() {
+    let input = include_str!("string_search.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("string-search-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+        }
+    }
+}
+
+#[test]
+fn ordinary_standard_io_stream_is_native() {
+    use std::{io::Write, process::Stdio};
+    let input = include_str!("standard_io.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("standard-io-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            for bytes in [
+                Vec::new(),
+                b"hello, ZIL\n".to_vec(),
+                vec![0, 127, 128, 255, 228, 184, 173, 10],
+                vec![42; 129],
+            ] {
+                let mut child = Command::new(&report.artifacts["executable"])
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(&bytes).unwrap();
+                let out = child.wait_with_output().unwrap();
+                assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+                assert_eq!(out.stdout, bytes);
+                assert!(out.stderr.is_empty());
+            }
+        }
+    }
+}
+
+#[test]
+fn ordinary_standard_io_file_ownership_is_native() {
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("standard-file-{backend:?}-{optimization:?}"));
+            let data = dir.join("content.bin");
+            let input = include_str!("standard_io_file.zil")
+                .replace("FILEPATH", data.to_str().unwrap());
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+            assert_eq!(fs::read(data).unwrap(), "猫\0Z".as_bytes());
+        }
+    }
+}
+
 #[cfg(unix)]
 #[test]
 fn ordinary_store_insert_preserves_order_and_owned_failure_values() {

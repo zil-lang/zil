@@ -33,5 +33,25 @@ fn main()->i32 {
     let packets=[Packet{value:0u64,tag:1},Packet{value:18446744073709551615u64,tag:2}]
     var wide=(packet:Packet)=>packet.value>9223372036854775808u64
     match iter.find(&packets[..],&mut wide){Option.Some(packet)=>{if packet.tag!=2{return 16}},Option.None()=>{return 17}}
+    var shuffled=[7,1,5,3,5,2,9,0,8,4,6]
+    var comparisons=0
+    var ascending=(a:i32,b:i32)=>{comparisons+=1;return a<b}
+    iter.sort_unstable_by(&mut shuffled[..],&mut ascending)
+    var at:i64=1
+    while at<11 {
+        if shuffled[at-1]>shuffled[at] {return 19}
+        at+=1
+    }
+    if shuffled[0]!=0 || shuffled[10]!=9 || shuffled[5]!=5 || shuffled[6]!=5 {return 20}
+    var one=[42]
+    iter.sort_unstable_by(&mut one[..],&mut ascending)
+    if one[0]!=42 {return 21}
+    var empty_sort:[i32;0]=[]
+    iter.sort_unstable_by(&mut empty_sort[..],&mut ascending)
+    if comparisons==0 {return 18}
+    var records=[Packet{value:8u64,tag:1},Packet{value:3u64,tag:2},Packet{value:5u64,tag:3}]
+    var by_value=(a:Packet,b:Packet)=>a.value<b.value
+    iter.sort_unstable_by(&mut records[..],&mut by_value)
+    if records[0].value!=3u64 || records[1].value!=5u64 || records[2].value!=8u64 {return 22}
     return 0
 }
