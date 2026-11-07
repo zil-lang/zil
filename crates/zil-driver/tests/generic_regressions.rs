@@ -535,7 +535,7 @@ fn generic_mutex_allocation_failure_cleans_input_once() {
         .unwrap();
     assert!(built.status.success(), "{built:?}");
     let src = source(
-        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};extern \"C\" fn mallopt(param:i32,value:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}fn run()->MutexCreateError!i32{let token=Token{code:65};unsafe{mallopt(19777,1)};let cell=mutex_create(give token)?;return 2}fn main()->i32{match run(){.ok(_)=>{return 1},.err(_)=>{return 0}}}",
+        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};extern \"C\" fn mallopt(param:i32,value:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}package Payload{manages token:Token;count:i32}enum Choice{Data(Payload),Empty}fn run()->MutexCreateError!i32{let token=Token{code:65};unsafe{mallopt(19777,1)};let cell=mutex_create(Choice.Data(Payload{token:give token,count:7}))?;return 2}fn main()->i32{match run(){.ok(_)=>{return 1},.err(_)=>{return 0}}}",
     );
     for optimization in [Optimization::O0, Optimization::O2] {
         let report = compile_source(
