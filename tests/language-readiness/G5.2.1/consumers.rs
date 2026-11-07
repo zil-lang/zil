@@ -198,7 +198,7 @@ fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let aliases = BTreeMap::new();
     let expanded = zil_expand::expand_program_with_limits_target_context(
         std::slice::from_ref(&unit),
-        &[&syntax.module],
+        &[&syntax],
         &[Vec::new()],
         &limits,
         &target,
