@@ -217,9 +217,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .iter()
             .find(|d| d.id == item.application.declaration)
             .ok_or_else(|| bad("dyn trait declaration absent", None))?;
-        if declaration.kind != DynDeclarationKind::Trait || !declaration.parameters.is_empty() {
+        if item.id.module != declaration.id.module
+            || declaration.kind != DynDeclarationKind::Trait
+            || !declaration.parameters.is_empty()
+        {
             return Err(bad(
-                "dyn interface requires an ordinary nongeneric trait",
+                "dyn interface must belong to its ordinary nongeneric trait declaration module",
                 None,
             ));
         }
@@ -303,7 +306,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .iter()
             .find(|d| d.id == item.implementation)
             .ok_or_else(|| bad("dyn implementation declaration absent", None))?;
-        if implementation.kind != DynDeclarationKind::Impl
+        if item.id.module != implementation.id.module
+            || implementation.kind != DynDeclarationKind::Impl
             || !implementation.parameters.is_empty()
             || !item.actuals.is_empty()
             || !item.ports.is_empty()

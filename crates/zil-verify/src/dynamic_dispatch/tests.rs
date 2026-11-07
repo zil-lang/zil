@@ -551,3 +551,55 @@ fn rejects_unused_bad_table_and_refingerprinted_wire() {
         "E-VERIFY-DYN"
     );
 }
+
+fn reject_relocated_raw_and_wire(module: TypedModule, mut plan: CandidatePlan) {
+    plan.module_fingerprint = module.fingerprint();
+    let limits = Limits::default();
+    let target = module.target.clone();
+    assert_eq!(
+        verify_module(module.clone(), plan.clone(), &target, &limits).unwrap_err()[0].code,
+        "E-VERIFY-DYN"
+    );
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    assert_eq!(
+        verify_module_bytes(&bytes, &target, &limits).unwrap_err()[0].code,
+        "E-VERIFY-DYN"
+    );
+}
+
+#[test]
+fn rejects_relocated_interface_and_table_module_with_matching_raw_references() {
+    let (mut module, plan) = call_candidate();
+    module.dyn_interfaces[0].id.module = ModuleId(7);
+    module.dyn_vtables[0].interface.module = ModuleId(7);
+    let Type::Address { inner, .. } = &mut module.functions[0].values[3] else {
+        unreachable!()
+    };
+    let Type::Dyn { interface } = inner.as_mut() else {
+        unreachable!()
+    };
+    interface.module = ModuleId(7);
+    let InstructionKind::MakeDynBorrow { interface, .. } =
+        &mut module.functions[0].blocks[0].instructions[4].kind
+    else {
+        unreachable!()
+    };
+    interface.module = ModuleId(7);
+    let InstructionKind::CallDynSlot { interface, .. } =
+        &mut module.functions[0].blocks[0].instructions[5].kind
+    else {
+        unreachable!()
+    };
+    interface.module = ModuleId(7);
+    reject_relocated_raw_and_wire(module, plan);
+
+    let (mut module, plan) = call_candidate();
+    module.dyn_vtables[0].id.module = ModuleId(7);
+    let InstructionKind::MakeDynBorrow { vtable, .. } =
+        &mut module.functions[0].blocks[0].instructions[4].kind
+    else {
+        unreachable!()
+    };
+    vtable.module = ModuleId(7);
+    reject_relocated_raw_and_wire(module, plan);
+}
