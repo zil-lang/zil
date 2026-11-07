@@ -185,6 +185,10 @@ pub(super) fn check_ordinary_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
+    if matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+    {
+        return check_package_type(module, ty, span, budget, true);
+    }
     if sums::needs_shape(ty, budget)? {
         return sums::check_type_for(module, ty, span, budget);
     }
@@ -349,7 +353,22 @@ fn check_package_type(
     budget: &mut Budget,
     array_fields: bool,
 ) -> Check<()> {
-    let Type::Package { name, fields } = ty else {
+    let (physical, borrowed) = match ty {
+        Type::BorrowedStorage { storage, life }
+            if matches!(storage.as_ref(), Type::Package { .. }) =>
+        {
+            if !super::stored_flow::physical(ty, &budget.limits.clone(), budget)? {
+                return Err(reject(
+                    "E-VERIFY-PACKAGE",
+                    span,
+                    "qualified package has no physical stored proof",
+                ));
+            }
+            (storage.as_ref(), Some(life))
+        }
+        _ => (ty, None),
+    };
+    let Type::Package { name, fields } = physical else {
         return Err(reject(
             "E-VERIFY-PACKAGE",
             span,
@@ -360,19 +379,19 @@ fn check_package_type(
     if name.is_empty() {
         return Err(reject("E-VERIFY-PACKAGE", span, "empty package identity"));
     }
-    if has_array_fields(ty) {
+    if has_array_fields(physical) {
         if !array_fields {
             return Err(unsupported(
                 "owning array fields require direct-Managed and Copy Package elements",
                 span,
             ));
         }
-        let work = layout_work(ty, budget)?;
+        let work = layout_work(physical, budget)?;
         budget.spend(work)?;
     }
     let mut names = BTreeSet::new();
     let mut owns = false;
-    for (name, field) in fields {
+    for (index, (name, field)) in fields.iter().enumerate() {
         if name.is_empty() || !names.insert(name) {
             return Err(reject(
                 "E-VERIFY-PACKAGE",
@@ -417,6 +436,25 @@ fn check_package_type(
                 ));
             }
             check_package_type(module, element, span, budget, false)?;
+        } else if let (Some(life), Type::Address { mutable, .. }) = (borrowed, field) {
+            budget.spend(life.slots.len().saturating_mul(2))?;
+            let path = [PlaceProjection::Field(index as u32)];
+            let mode = if *mutable {
+                StoredBorrowMode::ExclusiveAddress
+            } else {
+                StoredBorrowMode::SharedAddress
+            };
+            if !life
+                .slots
+                .iter()
+                .any(|slot| slot.path == path && slot.mode == mode)
+            {
+                return Err(reject(
+                    "E-VERIFY-PACKAGE",
+                    span,
+                    "borrowed field lacks its actual declared storage slot",
+                ));
+            }
         } else {
             // This independent finite-Copy admission also rejects nested
             // packages, descriptions, addresses and owning environments.
@@ -471,9 +509,13 @@ pub(super) fn check_instruction(
                 .ok_or_else(|| bad("package construction requires a typed result"))?;
             let ty = value_type(function, result, span)?;
             check_ordinary_type(module, ty, span, budget)?;
+            let physical = match ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                _ => ty,
+            };
             let Type::Package {
                 fields: expected, ..
-            } = ty
+            } = physical
             else {
                 unreachable!()
             };
@@ -496,7 +538,12 @@ pub(super) fn check_instruction(
         | InstructionKind::DropPackageField { local, index }
         | InstructionKind::StorePackageField { local, index, .. }
         | InstructionKind::BorrowPackageField { local, index, .. } => {
-            let Type::Package { fields, .. } = local_type(function, *local, span)? else {
+            let local_ty = local_type(function, *local, span)?;
+            let physical = match local_ty {
+                Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+                _ => local_ty,
+            };
+            let Type::Package { fields, .. } = physical else {
                 return Err(bad("package projection requires a package local"));
             };
             let (_, ty) = fields
@@ -575,7 +622,10 @@ pub(super) fn check_instruction(
             }
         }
         InstructionKind::DropPackage { local } => {
-            if !matches!(local_type(function, *local, span)?, Type::Package { .. }) {
+            let ty = local_type(function, *local, span)?;
+            if !matches!(ty, Type::Package { .. })
+                && !matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+            {
                 return Err(bad("package cleanup requires a package local"));
             }
             Ok(None)

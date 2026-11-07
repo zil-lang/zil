@@ -2317,7 +2317,11 @@ fn check_instruction(
                     "an owned error union requires TakeLocal, never copying Load",
                 ));
             }
-            if matches!(ty, Type::Package { .. }) || resources::arrays::is_owned_type(ty) {
+            if matches!(ty, Type::Package { .. })
+                || matches!(ty, Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Package { .. }))
+                || resources::arrays::is_owned_type(ty)
+            {
                 return Err(reject(
                     "E-VERIFY-PACKAGE",
                     span,
@@ -2339,6 +2343,8 @@ fn check_instruction(
                 && !matches!(ty, Type::Closure(_))
                 && !matches!(ty, Type::Managed(_))
                 && !matches!(ty, Type::Package { .. })
+                && !matches!(ty, Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Package { .. }))
                 && !errors::owned(ty, budget.sums)
                 && !(budget.sums && sums::owned(ty))
                 && !resources::arrays::is_owned_type(ty)
@@ -2484,7 +2490,9 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if budget.inline_store_root(value_type(function, *address, span)?)?
+                    if matches!(inner.as_ref(), Type::BorrowedStorage { .. }) {
+                        packages::check_ordinary_type(module, inner, span, budget)?;
+                    } else if budget.inline_store_root(value_type(function, *address, span)?)?
                         && dynamic_store::package_inline_store(projected, budget)?
                     {
                         packages::check_ordinary_type(module, projected, span, budget)?;

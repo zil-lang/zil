@@ -320,7 +320,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     }
     if !matches!(
         storage,
-        Type::Record { .. } | Type::Tuple(_) | Type::Enum { .. }
+        Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
     ) || (!shape.retained.is_empty() && !shape.slots.is_empty())
         || (matches!(storage, Type::Enum { .. })
             && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
@@ -351,7 +351,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     },
                 ));
             }
-            Type::Record { name, fields } => {
+            Type::Record { name, fields } | Type::Package { name, fields } => {
                 b.spend(name.len())?;
                 if name.is_empty() {
                     return Err(err("stored record lacks actual nominal identity"));
@@ -426,6 +426,17 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     ));
                 }
             }
+            Type::Managed(payload) if matches!(storage, Type::Package { .. }) => {
+                type_work(payload, limits, b)?;
+                if !matches!(
+                    payload.as_ref(),
+                    Type::ByteBuffer | Type::Record { .. } | Type::OwnedStore { .. }
+                ) {
+                    return Err(err(
+                        "stored Package actual owner is outside finite resource profile",
+                    ));
+                }
+            }
             child => {
                 type_work(child, limits, b)?;
                 if !child.is_copy_value() {
@@ -470,13 +481,12 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!matches!(storage, Type::Record { .. })
-                || shape.slots.len() != 1
+            && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
                 || !shape.retained.is_empty()
                 || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
         {
             return Err(unsupported(
-                "exclusive stored holder requires one direct Record slot",
+                "exclusive stored holder requires direct nominal address slots",
                 None,
             ));
         }
@@ -513,7 +523,10 @@ pub(super) fn qualification(
     physical(ty, limits, b)?;
     let (storage, _) =
         qualified(ty).ok_or_else(|| err("expected an actual qualified stored type"))?;
-    if matches!(storage, Type::Record { .. } | Type::Enum { .. }) {
+    if matches!(
+        storage,
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+    ) {
         let mut matches = 0usize;
         b.spend(module.life_instances.len())?;
         for instance in &module.life_instances {
@@ -613,6 +626,11 @@ pub(super) fn qualifications(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    b.spend(module.life_instances.len())?;
+    let mixed_package = module.life_instances.iter().any(|instance| {
+        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+    });
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -622,7 +640,7 @@ pub(super) fn qualifications(
                 b.spend(1)?;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
-                    && !super::stored_owned::instruction(f, &i.kind)
+                    && !(!mixed_package && super::stored_owned::instruction(f, &i.kind))
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
@@ -642,6 +660,13 @@ pub(super) fn qualifications(
                             | InstructionKind::WriteAddress { .. }
                             | InstructionKind::SliceLength { .. }
                             | InstructionKind::MakeAggregate { .. }
+                            | InstructionKind::MakePackage { .. }
+                            | InstructionKind::ByteBufferNew
+                            | InstructionKind::ByteBufferPush { .. }
+                            | InstructionKind::DescribeAddress { .. }
+                            | InstructionKind::DropPackage { .. }
+                            | InstructionKind::DropManaged { .. }
+                            | InstructionKind::TakeLocal { .. }
                             | InstructionKind::ExtractField { .. }
                             | InstructionKind::Call { .. }
                             | InstructionKind::ForeignCall { .. }
@@ -665,7 +690,7 @@ pub(super) fn qualifications(
                         Some(i.span),
                     ));
                 }
-                if super::stored_owned::instruction(f, &i.kind) {
+                if !mixed_package && super::stored_owned::instruction(f, &i.kind) {
                     super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
@@ -799,6 +824,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
         if !matches!(
             (d.kind, storage),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
             return Err(unsupported(
@@ -1450,8 +1476,51 @@ fn step(
         InstructionKind::TakeCapture { .. }
         | InstructionKind::MakeManaged { .. }
         | InstructionKind::ReadDesc { .. } => {}
-        InstructionKind::DropManaged { local } => {
+        InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } => {
             state.locals[local.0 as usize] = Payload::default();
+        }
+        InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
+        InstructionKind::ByteBufferPush { .. } => {
+            // ByteBuffer growth may relocate bytes. This component must not
+            // silently preserve a stored pointer into that payload.
+            for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
+                let Some((storage, shape)) = qualified(ty) else {
+                    continue;
+                };
+                b.spend(shape.slots.len())?;
+                for row in &shape.slots {
+                    let mut field = storage;
+                    for step in &row.path {
+                        b.spend(1)?;
+                        field = match (field, step) {
+                            (
+                                Type::Record { fields, .. } | Type::Package { fields, .. },
+                                PlaceProjection::Field(index),
+                            ) => fields
+                                .get(*index as usize)
+                                .map(|(_, ty)| ty)
+                                .ok_or_else(|| err("stored field is absent"))?,
+                            (Type::Tuple(fields), PlaceProjection::Field(index)) => fields
+                                .get(*index as usize)
+                                .ok_or_else(|| err("stored tuple field is absent"))?,
+                            _ => {
+                                return Err(unsupported(
+                                    "ByteBuffer relocation needs projected stored byte target invalidation",
+                                    Some(i.span),
+                                ));
+                            }
+                        };
+                    }
+                    if matches!(field, Type::Address { inner, .. }
+                        if inner.as_ref() == &Type::U8)
+                    {
+                        return Err(unsupported(
+                            "ByteBuffer relocation needs projected stored byte target invalidation",
+                            Some(i.span),
+                        ));
+                    }
+                }
+            }
         }
         InstructionKind::TakeLocal { local } => {
             out = copy_payload(&state.locals[local.0 as usize], b)?;
@@ -1600,7 +1669,7 @@ fn step(
                 }
             }
         }
-        InstructionKind::MakeAggregate { fields } => {
+        InstructionKind::MakeAggregate { fields } | InstructionKind::MakePackage { fields } => {
             if let Some((_, shape)) = qualified(vt(
                 f,
                 i.result.ok_or_else(|| err("aggregate lacks result"))?,
@@ -1952,6 +2021,11 @@ fn reverse(
         | InstructionKind::BorrowLocalMut { local } => {
             live[f.values.len() + local.0 as usize] = true
         }
+        InstructionKind::TakeLocal { local }
+            if qualified(&f.locals[local.0 as usize].ty).is_some() =>
+        {
+            live[f.values.len() + local.0 as usize] = true;
+        }
         InstructionKind::CallClosureShared { callee, .. }
         | InstructionKind::CallClosureMut { callee, .. }
             if fixed_environment(module, &f.locals[callee.0 as usize].ty) =>
@@ -2278,14 +2352,27 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    access(
-                        pointer(*storage)?,
-                        exclusive,
-                        &active,
-                        &solution.loans,
-                        requirements,
-                        b,
+                    // Compare the actual inline slot, retaining the carrier
+                    // loans. Whole-carrier access would conflate sibling slots.
+                    let base = pointer(*storage)?;
+                    b.spend(
+                        base.sources
+                            .len()
+                            .saturating_mul(path.len().saturating_add(1)),
                     )?;
+                    let slot = Permission {
+                        sources: base
+                            .sources
+                            .iter()
+                            .map(|source| {
+                                let mut source = source.clone();
+                                source.inline.extend(path);
+                                source
+                            })
+                            .collect(),
+                        loans: base.loans.clone(),
+                    };
+                    access(&slot, exclusive, &active, &solution.loans, requirements, b)?;
                     let p = select(&state, pointer(*storage)?, path, b)?;
                     access(&p, exclusive, &active, &solution.loans, requirements, b)?;
                 }
@@ -2613,8 +2700,15 @@ fn check_with_mask(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
+    b.spend(module.life_instances.len())?;
+    let mixed_package = module.life_instances.iter().any(|instance| {
+        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+    });
     if mask.is_none() {
-        super::stored_owned::module(module, b)?;
+        if !mixed_package {
+            super::stored_owned::module(module, b)?;
+        }
         super::stored_callables::definitions(module, b)?;
     }
     for (index, f) in module.functions.iter().enumerate() {
@@ -2654,9 +2748,19 @@ fn check_with_mask(
             .chain(std::iter::once(&f.return_type))
         {
             type_work(ty, &b.limits.clone(), b)?;
-            if !module.resources.is_empty() {
+            if !module.resources.is_empty() && !mixed_package {
                 super::stored_owned::value_type(ty, b)?;
             }
+            let mixed_resource = if mixed_package {
+                b.spend(module.resources.len())?;
+                matches!(ty, Type::Managed(payload) | Type::Desc(payload)
+                    if module.resources.iter().any(|definition| definition.payload == **payload))
+                    || matches!(ty, Type::Address { inner, .. }
+                        if matches!(inner.as_ref(), Type::Managed(payload)
+                            if module.resources.iter().any(|definition| definition.payload == **payload)))
+            } else {
+                false
+            };
             if !(super::stored_callables::value(module, ty)
                 || qualified(ty).is_some()
                 || addressed(ty).is_some()
@@ -2664,6 +2768,7 @@ fn check_with_mask(
                 || ty.is_copy_value()
                 || super::stored_owned::owner(ty)
                 || super::stored_owned::description(ty)
+                || mixed_resource
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {

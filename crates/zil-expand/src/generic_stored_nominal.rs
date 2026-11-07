@@ -666,14 +666,15 @@ impl<'a> Engine<'a> {
                 for item in &self.products.storage.instances {
                     self.budget.node(ty.span, depth)?;
                     if let zil_ir::Type::BorrowedStorage { storage, .. } = &item.instance.ty
-                        && let zil_ir::Type::Record { name, .. } | zil_ir::Type::Enum { name, .. } =
-                            storage.as_ref()
+                        && let zil_ir::Type::Record { name, .. }
+                        | zil_ir::Type::Package { name, .. }
+                        | zil_ir::Type::Enum { name, .. } = storage.as_ref()
                     {
                         self.budget.text(name, ty.span)?;
                     }
                 }
                 let instance = self.products.storage.instances.iter().find(|item|
-                    matches!(&item.instance.ty, zil_ir::Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), zil_ir::Type::Record { name, .. } | zil_ir::Type::Enum { name, .. } if name == &generated)))
+                    matches!(&item.instance.ty, zil_ir::Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), zil_ir::Type::Record { name, .. } | zil_ir::Type::Package { name, .. } | zil_ir::Type::Enum { name, .. } if name == &generated)))
                     .ok_or_else(|| error(ty.span, "stored nominal instance output absent"))?;
                 let zil_ir::Type::BorrowedStorage { life, .. } = &instance.instance.ty else {
                     unreachable!()
@@ -1190,10 +1191,14 @@ impl<'a> Engine<'a> {
         let declaration = LifeNominalDeclaration {
             id: declaration_id,
             identity: stable_identity,
-            kind: if matches!(item.kind, ItemKind::Enum(_)) {
-                LifeNominalKind::Enum
-            } else {
-                LifeNominalKind::Record
+            kind: match &item.kind {
+                ItemKind::Enum(_) => LifeNominalKind::Enum,
+                ItemKind::Aggregate(aggregate)
+                    if aggregate.kind == zil_syntax::ast::AggregateKind::Package =>
+                {
+                    LifeNominalKind::Package
+                }
+                _ => LifeNominalKind::Record,
             },
             parameters,
         };
@@ -1330,6 +1335,7 @@ impl<'a> Engine<'a> {
                         self.budget.node(ty.span, depth)?;
                         if let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
                             && let zil_ir::Type::Record { name, .. }
+                            | zil_ir::Type::Package { name, .. }
                             | zil_ir::Type::Enum { name, .. } = storage.as_ref()
                         {
                             self.budget.text(name, ty.span)?;

@@ -192,6 +192,7 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
         }
         let name = match storage.as_ref() {
             Type::Record { name, .. } if declaration.kind == LifeNominalKind::Record => name,
+            Type::Package { name, .. } if declaration.kind == LifeNominalKind::Package => name,
             Type::Enum { name, .. } if declaration.kind == LifeNominalKind::Enum => name,
             _ => {
                 return Err(unsupported(
@@ -266,9 +267,15 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                     }
                 }
             }
-        } else if let Type::Record { fields, .. } = storage.as_ref() {
+        } else if let Type::Record { fields, .. } | Type::Package { fields, .. } = storage.as_ref()
+        {
             let actual = aggregate(&core.aggregates, core.module_id, name, left)?;
-            if actual.kind != AggregateKind::Struct || actual.fields.len() != fields.len() {
+            if !matches!(
+                (actual.kind, storage.as_ref()),
+                (AggregateKind::Struct, Type::Record { .. })
+                    | (AggregateKind::Package, Type::Package { .. })
+            ) || actual.fields.len() != fields.len()
+            {
                 return Err(error(
                     "E-STORED-TYPE",
                     actual.span,
@@ -292,7 +299,16 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
                     )?;
                     fee(left, cost, field.span)?;
                 }
-                if name != &field.name || ty != &field.ty {
+                let declared = if field.manages {
+                    match &field.ty {
+                        Type::Desc(payload) => Type::Managed(payload.clone()),
+                        Type::Managed(_) => field.ty.clone(),
+                        other => Type::Managed(Box::new(other.clone())),
+                    }
+                } else {
+                    field.ty.clone()
+                };
+                if name != &field.name || ty != &declared {
                     return Err(error(
                         "E-STORED-TYPE",
                         field.span,
@@ -542,21 +558,30 @@ pub(super) fn exclusive_value(ty: &Type) -> bool {
     let Type::BorrowedStorage { storage, life } = ty else {
         return false;
     };
-    let Type::Record { fields, .. } = storage.as_ref() else {
+    let (Type::Record { fields, .. } | Type::Package { fields, .. }) = storage.as_ref() else {
         return false;
     };
-    if !life.retained.is_empty() || life.slots.len() != 1 {
+    if !life.retained.is_empty() || life.slots.is_empty() {
         return false;
     }
-    let slot = &life.slots[0];
-    let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
-        return false;
-    };
-    slot.mode == StoredBorrowMode::ExclusiveAddress
-        && matches!(
-            fields.get(*index as usize),
-            Some((_, Type::Address { mutable: true, .. }))
-        )
+    life.slots
+        .iter()
+        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+        && life.slots.iter().all(|slot| {
+            let [PlaceProjection::Field(index)] = slot.path.as_slice() else {
+                return false;
+            };
+            matches!(
+                (slot.mode, fields.get(*index as usize)),
+                (
+                    StoredBorrowMode::ExclusiveAddress,
+                    Some((_, Type::Address { mutable: true, .. }))
+                ) | (
+                    StoredBorrowMode::SharedAddress,
+                    Some((_, Type::Address { mutable: false, .. }))
+                )
+            )
+        })
 }
 pub(super) fn exclusive_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: true, inner } if exclusive_value(inner))
@@ -579,8 +604,10 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
     if option_address::shape(ty, left, depth_limit, span, false)? {
         return Ok(());
     }
-    if !matches!(storage.as_ref(), Type::Record { .. } | Type::Enum { .. })
-        || (!life.retained.is_empty() && !life.slots.is_empty())
+    if !matches!(
+        storage.as_ref(),
+        Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
+    ) || (!life.retained.is_empty() && !life.slots.is_empty())
         || (matches!(storage.as_ref(), Type::Enum { .. })
             && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
     {
@@ -594,6 +621,8 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         limit: usize,
         span: Span,
         slots: Vec<(Vec<PlaceProjection>, StoredBorrowMode)>,
+        owning: bool,
+        owned_leaves: usize,
     }
     impl Walk<'_> {
         fn ty(&mut self, ty: &Type, path: &mut Vec<PlaceProjection>, depth: usize) -> R<()> {
@@ -627,7 +656,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         },
                     ));
                 }
-                Type::Record { name, fields } => {
+                Type::Record { name, fields } | Type::Package { name, fields } => {
                     fee(self.left, name.len(), self.span)?;
                     for (index, (name, field)) in fields.iter().enumerate() {
                         fee(self.left, name.len().saturating_add(1), self.span)?;
@@ -705,6 +734,15 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         ));
                     }
                 }
+                Type::Managed(_) if self.owning => {
+                    if !resources::supported(ty) {
+                        return Err(unsupported(
+                            self.span,
+                            "stored Package owning leaf lacks a supported Managed resource",
+                        ));
+                    }
+                    self.owned_leaves += 1;
+                }
                 other => {
                     if !closed_copy(other, self.left, depth + 1, self.limit, self.span)? {
                         return Err(unsupported(
@@ -722,8 +760,16 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         limit: depth_limit,
         span,
         slots: Vec::new(),
+        owning: matches!(storage.as_ref(), Type::Package { .. }),
+        owned_leaves: 0,
     };
     walk.ty(storage, &mut Vec::new(), 0)?;
+    if walk.owning && walk.owned_leaves == 0 {
+        return Err(unsupported(
+            span,
+            "stored Package requires an actual owning Managed leaf",
+        ));
+    }
     fee(
         walk.left,
         life.slots
@@ -774,14 +820,13 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (life.slots.len() != 1
-                || !life.retained.is_empty()
-                || !matches!(storage.as_ref(), Type::Record { .. })
+            && (!life.retained.is_empty()
+                || !matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. })
                 || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
         {
             return Err(unsupported(
                 span,
-                "exclusive stored holder requires one direct Record slot",
+                "exclusive stored holder requires direct nominal address slots",
             ));
         }
         if !classes.contains(&slot.binder) && slot.binder as usize != classes.len() {

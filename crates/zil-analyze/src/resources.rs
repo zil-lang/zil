@@ -141,10 +141,29 @@ struct Effect {
 type Shapes = BTreeMap<Place, Shape>;
 pub(super) type Live = BTreeSet<Place>;
 
+/// Project only the owning storage for this private responsibility ledger.
+/// The original qualified type remains authoritative for field/argument/result
+/// equality; stored-flow independently proves every borrowed leaf and lifetime.
+pub(crate) fn package_storage(ty: &Type) -> &Type {
+    match ty {
+        Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }) =>
+        {
+            storage
+        }
+        _ => ty,
+    }
+}
+
+fn package_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. }
+        if matches!(package_storage(inner), Type::Package { .. }))
+}
+
 pub(super) fn owned_error(ty: &Type) -> bool {
-    matches!(ty, Type::ErrorUnion { error, result }
-        if matches!(error.as_ref(), Type::Package { .. }) || sums::owned(error)
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_)) || sums::owned(result))
+    matches!(package_storage(ty), Type::ErrorUnion { error, result }
+        if matches!(package_storage(error.as_ref()), Type::Package { .. }) || sums::owned(error)
+            || matches!(package_storage(result.as_ref()), Type::Package { .. } | Type::Managed(_)) || sums::owned(result))
 }
 
 fn managed_success(ty: &Type) -> bool {
@@ -255,7 +274,7 @@ fn package_value_shapes(
     let mut fields = BTreeMap::new();
     let mut products = product::Origins::new();
     for (value, ty) in f.values.iter().enumerate() {
-        if let Type::Package { fields: types, .. } = ty {
+        if let Type::Package { fields: types, .. } = package_storage(ty) {
             budget.spend(types.len(), "Package SSA birth field scan")?;
             for (index, (_, ty)) in types.iter().enumerate() {
                 if matches!(ty, Type::Managed(_)) {
@@ -265,7 +284,7 @@ fn package_value_shapes(
                         (ValueId(value as u32), index as u32),
                         BTreeSet::from([Birth::Incoming]),
                     );
-                } else if matches!(ty, Type::Package { .. }) {
+                } else if matches!(package_storage(ty), Type::Package { .. }) {
                     product::add(
                         &mut products,
                         product::Carrier::Value(ValueId(value as u32)),
@@ -312,7 +331,7 @@ fn set_package_birth(
     Ok(())
 }
 fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<Shape> {
-    Ok(match ty {
+    Ok(match package_storage(ty) {
         ty if owned_error(ty) => Shape {
             owned: true,
             description: false,
@@ -323,7 +342,10 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
         },
         Type::Array { element, length }
             if *length > 0
-                && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)) =>
+                && matches!(
+                    package_storage(element.as_ref()),
+                    Type::Package { .. } | Type::Closure(_)
+                ) =>
         {
             Shape {
                 owned: true,
@@ -343,7 +365,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
         }
         Type::Address { .. }
-            if budget.head_descriptions && (head_address(ty) || ty.is_package_address()) =>
+            if budget.head_descriptions && (head_address(ty) || package_address(ty)) =>
         {
             Shape {
                 owned: false,
@@ -377,7 +399,7 @@ fn shape(ty: &Type, module: &TypedModule, budget: &mut Budget) -> CompileResult<
             let mut owned = c.kind == CallableKind::FnOnce
                 || c.captures.iter().any(|t| {
                     matches!(
-                        t,
+                        package_storage(t),
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
@@ -409,9 +431,9 @@ fn package_owned_field(ty: &Type, budget: &mut Budget) -> CompileResult<bool> {
         return Ok(sums::owned(ty));
     }
     Ok(matches!(
-        ty,
+        package_storage(ty),
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
-    ) || matches!(ty,Type::Array { element,length } if *length>0 && matches!(element.as_ref(),Type::Package { .. })))
+    ) || matches!(package_storage(ty),Type::Array { element,length } if *length>0 && matches!(package_storage(element.as_ref()),Type::Package { .. })))
 }
 
 fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> CompileResult<Shapes> {
@@ -428,7 +450,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             budget.lookup(result.len(), "resource shape insertion")?;
             result.insert(place, s);
         }
-        if let (Place::Local(local), Type::Package { fields, .. }) = (place, ty) {
+        if let (Place::Local(local), Type::Package { fields, .. }) = (place, package_storage(ty)) {
             budget.spend(fields.len(), "package field shapes")?;
             for (index, (_, field)) in fields.iter().enumerate() {
                 if package_owned_field(field, budget)? {
@@ -447,9 +469,12 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             }
         }
         if let (Place::Local(local), Type::Array { element, length }) = (place, ty)
-            && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
+            && matches!(
+                package_storage(element.as_ref()),
+                Type::Package { .. } | Type::Closure(_)
+            )
         {
-            let width = match element.as_ref() {
+            let width = match package_storage(element.as_ref()) {
                 Type::Package { fields, .. } => fields.len().saturating_add(1),
                 _ => 1,
             };
@@ -474,7 +499,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
         for (index, ty) in c.captures.iter().enumerate() {
             budget.spend(1, "resource capture shape")?;
             if matches!(
-                ty,
+                package_storage(ty),
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
             ) || (matches!(
                 ty,
@@ -490,7 +515,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
                     },
                 );
             }
-            if let Type::Package { fields, .. } = ty {
+            if let Type::Package { fields, .. } = package_storage(ty) {
                 budget.spend(fields.len(), "capture Package field shapes")?;
                 for (field, (_, ty)) in fields.iter().enumerate() {
                     if package_owned_field(ty, budget)? {
@@ -1060,10 +1085,17 @@ fn package_transition(
     check: bool,
     budget: &mut Budget,
 ) -> CompileResult<()> {
-    let (fields, count) = match f.locals.get(local.0 as usize).map(|l| &l.ty) {
+    let (fields, count) = match f
+        .locals
+        .get(local.0 as usize)
+        .map(|l| package_storage(&l.ty))
+    {
         Some(Type::Package { fields, .. }) => (Some(fields), fields.len()),
         Some(Type::Array { element, length })
-            if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_)) =>
+            if matches!(
+                package_storage(element.as_ref()),
+                Type::Package { .. } | Type::Closure(_)
+            ) =>
         {
             (None, *length as usize)
         }
@@ -1528,7 +1560,9 @@ impl Flow<'_> {
                         },
                         budget,
                     )?;
-                    let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                    let Type::Package { fields, .. } =
+                        package_storage(&f.locals[local.0 as usize].ty)
+                    else {
                         return Err(error("Package view binding type is not a Package"));
                     };
                     budget.spend(fields.len(), "Package capture binding fields")?;
@@ -1590,7 +1624,9 @@ impl Flow<'_> {
                         },
                         budget,
                     )?;
-                    let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
+                    let Type::Package { fields, .. } =
+                        package_storage(&f.locals[local.0 as usize].ty)
+                    else {
                         return Err(error("Package view end type is not a Package"));
                     };
                     budget.spend(fields.len(), "Package capture end fields")?;
@@ -1694,7 +1730,10 @@ impl Flow<'_> {
                 InstructionKind::MakePackage { fields } => {
                     let Some(Type::Package {
                         fields: expected, ..
-                    }) = i.result.and_then(|v| f.values.get(v.0 as usize))
+                    }) = i
+                        .result
+                        .and_then(|v| f.values.get(v.0 as usize))
+                        .map(package_storage)
                     else {
                         return Err(error("MakePackage requires a package result"));
                     };
@@ -1716,7 +1755,7 @@ impl Flow<'_> {
                                 birth,
                                 budget,
                             )?;
-                        } else if matches!(ty, Type::Package { .. }) {
+                        } else if matches!(package_storage(ty), Type::Package { .. }) {
                             product::transfer(
                                 state,
                                 (product::Carrier::Value(*value), &[]),
@@ -1745,7 +1784,10 @@ impl Flow<'_> {
                         return Err(error("owning array construction requires an array result"));
                     };
                     if *length == 0
-                        || !matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
+                        || !matches!(
+                            package_storage(element.as_ref()),
+                            Type::Package { .. } | Type::Closure(_)
+                        )
                         || elements.len() != *length as usize
                     {
                         return Err(error(
@@ -1779,7 +1821,7 @@ impl Flow<'_> {
                             "owning array element operation requires an array local",
                         ));
                     };
-                    let fields = match element.as_ref() {
+                    let fields = match package_storage(element.as_ref()) {
                         Type::Package { fields, .. } => Some(fields),
                         Type::Closure(_) => None,
                         _ => {
@@ -1961,7 +2003,7 @@ impl Flow<'_> {
                     let Some(decl) = f.locals.get(local.0 as usize) else {
                         return Err(error("package operation requires a declared local"));
                     };
-                    let Type::Package { fields, .. } = &decl.ty else {
+                    let Type::Package { fields, .. } = package_storage(&decl.ty) else {
                         return Err(error("field projection requires a package local"));
                     };
                     let Some((_, ty)) = fields.get(*index as usize) else {
@@ -1986,11 +2028,11 @@ impl Flow<'_> {
                     } else if let InstructionKind::BorrowPackageField { mutable, .. } = i.kind {
                         budget.type_work(ty, true, "package field address type checks")?;
                         let shared_owned = !mutable
-                            && (matches!(ty, Type::Package { .. })
+                            && (matches!(package_storage(ty), Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
-                        if shared_owned && matches!(ty, Type::Package { .. }) {
+                        if shared_owned && matches!(package_storage(ty), Type::Package { .. }) {
                             let direct_store = if budget.pod_stores {
-                                let Type::Package { fields, .. } = ty else {
+                                let Type::Package { fields, .. } = package_storage(ty) else {
                                     unreachable!()
                                 };
                                 budget.spend(fields.len(), "borrowed ordinary Store field scan")?;
@@ -2000,7 +2042,10 @@ impl Flow<'_> {
                             } else {
                                 false
                             };
-                            if direct_store || budget.ordinary_pod_store_type(ty)? {
+                            if direct_store
+                                || matches!(ty, Type::BorrowedStorage { .. })
+                                || budget.ordinary_pod_store_type(ty)?
+                            {
                                 product::admit_owned(self.module, ty, budget)?;
                             } else {
                                 product::admit(ty, budget)?;
@@ -2068,7 +2113,7 @@ impl Flow<'_> {
                             } else {
                                 BTreeSet::from([Birth::Incoming])
                             };
-                            if matches!(ty, Type::Package { .. }) {
+                            if matches!(package_storage(ty), Type::Package { .. }) {
                                 product::transfer(
                                     state,
                                     (product::Carrier::Value(value), &[]),
@@ -2148,7 +2193,7 @@ impl Flow<'_> {
                                         "package field take requires that field live on every path",
                                     ));
                                 }
-                                if matches!(ty, Type::Package { .. }) {
+                                if matches!(package_storage(ty), Type::Package { .. }) {
                                     product::transfer(
                                         state,
                                         (product::Carrier::Local(*local), &[*index]),
@@ -2196,15 +2241,20 @@ impl Flow<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
-                    if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
+                    if matches!(
+                        package_storage(&f.locals[local.0 as usize].ty),
+                        Type::Package { .. }
+                    ) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
-                    if budget.ordinary_pod_store_type(ty)? {
+                    if matches!(ty, Type::BorrowedStorage { .. })
+                        || budget.ordinary_pod_store_type(ty)?
+                    {
                         product::admit_owned(self.module, ty, budget)?;
                     } else {
                         product::admit(ty, budget)?;
                     }
-                    let Type::Package { fields, .. } = ty else {
+                    let Type::Package { fields, .. } = package_storage(ty) else {
                         unreachable!("Package borrow")
                     };
                     let mutable = matches!(i.kind, InstructionKind::BorrowLocalMut { .. });
@@ -2290,7 +2340,7 @@ impl Flow<'_> {
                         sources.insert(match source {
                             Source::Head(local)
                                 if matches!(
-                                    f.locals[local.0 as usize].ty,
+                                    package_storage(&f.locals[local.0 as usize].ty),
                                     Type::Package { .. }
                                 ) =>
                             {
@@ -2419,7 +2469,7 @@ impl Flow<'_> {
                     if f.environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
-                        .is_some_and(|ty| matches!(ty, Type::Package { .. }))
+                        .is_some_and(|ty| matches!(package_storage(ty), Type::Package { .. }))
                     {
                         return Err(error(
                             "Package capture description requires its precise view field",
@@ -2470,7 +2520,7 @@ impl Flow<'_> {
                         .get(*index as usize)
                         .ok_or_else(|| error("capture index is absent"))?;
                     if matches!(
-                        ty,
+                        package_storage(ty),
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     ) || (matches!(
                         ty,
@@ -2482,8 +2532,7 @@ impl Flow<'_> {
                         ));
                     }
                     if matches!(ty, Type::Desc(_))
-                        || (budget.head_descriptions
-                            && (head_address(ty) || ty.is_package_address()))
+                        || (budget.head_descriptions && (head_address(ty) || package_address(ty)))
                     {
                         produced = Some(Fact {
                             sources: BTreeSet::from([Source::BorrowedField(*index)]),
@@ -2500,7 +2549,7 @@ impl Flow<'_> {
                         .and_then(|id| self.module.closures.get(id.0 as usize))
                         .and_then(|capture| capture.captures.get(*index as usize))
                         .ok_or_else(|| error("TakeCapture actual capture absent"))?;
-                    if matches!(capture_ty, Type::Package { .. }) {
+                    if matches!(package_storage(capture_ty), Type::Package { .. }) {
                         return Err(error("Package capture movement requires its bound view"));
                     }
                     let ordinary_sum = matches!(
@@ -2583,7 +2632,9 @@ impl Flow<'_> {
                                     budget,
                                 )?;
                             }
-                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                            if let Type::Package { fields, .. } =
+                                package_storage(&f.locals[local.0 as usize].ty)
+                            {
                                 budget.spend(fields.len(), "whole Package birth transfer")?;
                                 for (index, (_, ty)) in fields.iter().enumerate() {
                                     if matches!(ty, Type::Managed(_)) {
@@ -2603,7 +2654,7 @@ impl Flow<'_> {
                                             birth,
                                             budget,
                                         )?;
-                                    } else if matches!(ty, Type::Package { .. }) {
+                                    } else if matches!(package_storage(ty), Type::Package { .. }) {
                                         product::transfer(
                                             state,
                                             (product::Carrier::Local(*local), &[index as u32]),
@@ -2680,7 +2731,9 @@ impl Flow<'_> {
                             }
                             source.life = BTreeSet::from([Life::Available]);
                             package_transition(f, state, *local, Life::Available, check, budget)?;
-                            if let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty {
+                            if let Type::Package { fields, .. } =
+                                package_storage(&f.locals[local.0 as usize].ty)
+                            {
                                 budget.spend(fields.len(), "whole Package birth store")?;
                                 for (index, (_, ty)) in fields.iter().enumerate() {
                                     if matches!(ty, Type::Managed(_)) {
@@ -2692,7 +2745,7 @@ impl Flow<'_> {
                                         field.birth =
                                             package_birth(state, *value, index as u32, budget)?;
                                         replace(state, place, field, budget)?;
-                                    } else if matches!(ty, Type::Package { .. }) {
+                                    } else if matches!(package_storage(ty), Type::Package { .. }) {
                                         product::transfer(
                                             state,
                                             (product::Carrier::Value(*value), &[index as u32]),
@@ -2724,7 +2777,9 @@ impl Flow<'_> {
                     }
                     if matches!(i.kind, InstructionKind::DropPackage { .. })
                         && !matches!(
-                            f.locals.get(local.0 as usize).map(|l| &l.ty),
+                            f.locals
+                                .get(local.0 as usize)
+                                .map(|l| package_storage(&l.ty)),
                             Some(Type::Package { .. })
                         )
                     {
@@ -2732,9 +2787,9 @@ impl Flow<'_> {
                     }
                     if matches!(i.kind, InstructionKind::DropOwnedArray { .. })
                         && !matches!(
-                            f.locals.get(local.0 as usize).map(|l| &l.ty),
+                            f.locals.get(local.0 as usize).map(|l| package_storage(&l.ty)),
                             Some(Type::Array { element, length })
-                                if *length > 0 && matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))
+                                if *length > 0 && matches!(package_storage(element.as_ref()), Type::Package { .. } | Type::Closure(_))
                         )
                     {
                         return Err(error("DropOwnedArray requires a finite owning array local"));
@@ -2804,7 +2859,7 @@ impl Flow<'_> {
                                 let new_store_sum = matches!(local_ty,
                                     Type::ErrorUnion { error, .. }
                                         if crate::ownership_store::pod_owned(error))
-                                    || (matches!(local_ty, Type::Package { .. })
+                                    || (matches!(package_storage(local_ty), Type::Package { .. })
                                         && budget.ordinary_pod_store_type(local_ty)?);
                                 if !new_store_sum || !state.sums.no_live_owner(*local, budget)? {
                                     return Err(error(
@@ -3241,7 +3296,7 @@ impl Flow<'_> {
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = i.kind
                 && matches!(
-                    f.locals[local.0 as usize].ty,
+                    package_storage(&f.locals[local.0 as usize].ty),
                     Type::Package { .. }
                         | Type::Managed(_)
                         | Type::Tuple(_)
@@ -3442,8 +3497,8 @@ fn analyze_function_program(
             });
         }
         if let Place::PackageField { local, index } = place
-            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
-            && let child @ Type::Package { .. } = &fields[*index as usize].1
+            && let Type::Package { fields, .. } = package_storage(&f.locals[local.0 as usize].ty)
+            && let child @ Type::Package { .. } = package_storage(&fields[*index as usize].1)
         {
             product::add(
                 &mut initial.product_births,
@@ -3858,7 +3913,7 @@ pub(super) fn check_module(
             owning_entry |= closure.kind == CallableKind::FnOnce
                 || closure.captures.iter().any(|ty| {
                     matches!(
-                        ty,
+                        package_storage(ty),
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
                 });
@@ -3874,7 +3929,8 @@ pub(super) fn check_module(
                 .copied()
                 .unwrap_or(false);
             owning_entry |= function.locals.iter().map(|l| &l.ty).chain(&function.values)
-                .any(|ty| matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. } | Type::Closure(_))));
+                .any(|ty| matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+                    || matches!(package_storage(ty), Type::Array { element, .. } if matches!(package_storage(element.as_ref()), Type::Package { .. } | Type::Closure(_))));
         }
         if !owning_entry {
             return Ok(());
@@ -3907,6 +3963,8 @@ pub(super) fn check_module(
 
 #[cfg(test)]
 mod frontier_tests;
+#[cfg(test)]
+mod qualified_package_tests;
 
 // Frozen pre-144 algorithm, used only as an executable transformation oracle.
 #[cfg(test)]
@@ -3954,8 +4012,8 @@ fn analyze_function_eager_reference(
             fact.birth.insert(Birth::Incoming);
         }
         if let Place::PackageField { local, index } = place
-            && let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty
-            && let child @ Type::Package { .. } = &fields[*index as usize].1
+            && let Type::Package { fields, .. } = package_storage(&f.locals[local.0 as usize].ty)
+            && let child @ Type::Package { .. } = package_storage(&fields[*index as usize].1)
         {
             product::add(
                 &mut initial.product_births,

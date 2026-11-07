@@ -70,6 +70,8 @@ impl Builder<'_, '_> {
                 let kind = if let Some(index) = self.stored_copy_captures.get(&local) {
                     InstructionKind::ReadCapture { index: *index }
                 } else if matches!(ty, Type::Package { .. })
+                    || matches!(&ty, Type::BorrowedStorage { storage, .. }
+                        if matches!(storage.as_ref(), Type::Package { .. }))
                     || packages::owned_array_supported(&ty)
                     || errors::owned(&ty)
                     || owned_shapes::sum(&ty)

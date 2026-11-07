@@ -44,6 +44,7 @@ fn walk(
         || !matches!(
             (decl.kind, storage.as_ref()),
             (LifeNominalKind::Record, Type::Record { .. })
+                | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         )
         || decl.parameters.len() != instance.arguments.len()

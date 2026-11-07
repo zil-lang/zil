@@ -458,6 +458,19 @@ struct Slots {
     retirement: bool,
 }
 
+// Resource accounting observes the physical owning Product. Full signature
+// and operand equality elsewhere retain the lifetime-qualified wrapper.
+fn package_storage(ty: &Type) -> Option<&[(String, Type)]> {
+    match ty {
+        Type::Package { fields, .. } => Some(fields),
+        Type::BorrowedStorage { storage, .. } => match storage.as_ref() {
+            Type::Package { fields, .. } => Some(fields),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 impl Slots {
     fn new(
         module: &TypedModule,
@@ -542,10 +555,9 @@ impl Slots {
             } else {
                 &mut desc_count
             };
-            if matches!(
-                (ty, managed),
-                (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || (managed
+            if (managed && package_storage(ty).is_some())
+                || matches!((ty, managed), (Type::Managed(_), true) | (Type::Desc(_), false))
+                || (managed
                 && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
@@ -553,7 +565,13 @@ impl Slots {
                 || matches!(ty, Type::Closure(id) if if managed {
                     owned_closures[id.0 as usize]
                 } else { borrowed_closures[id.0 as usize] })
-                || (!managed && head_descriptions && (head_address(ty) || ty.is_package_address()))
+                || (!managed
+                    && (head_descriptions || matches!(ty, Type::Address { inner, .. }
+                        if package_storage(inner).is_some()))
+                    && (head_address(ty)
+                        || ty.is_package_address()
+                        || matches!(ty, Type::Address { inner, .. }
+                            if package_storage(inner).is_some())))
                 // A projected Store head can be reached through an ordinary
                 // Sum address. Keep its actual address source through local
                 // copies until BorrowPlaceAddress selects the checked field.
@@ -578,7 +596,7 @@ impl Slots {
         let mut managed_local = Vec::with_capacity(f.locals.len());
         for (local, declaration) in f.locals.iter().enumerate() {
             managed_local.push(slot(&declaration.ty, true, false));
-            if let Type::Package { fields, .. } = &declaration.ty {
+            if let Some(fields) = package_storage(&declaration.ty) {
                 budget.spend(2)?;
                 package_declarations.push((local, fields));
             }
@@ -622,7 +640,7 @@ impl Slots {
         budget.spend(f.values.len())?;
         let mut package_widths = Vec::new();
         for (value, ty) in f.values.iter().enumerate() {
-            if let Type::Package { fields, .. } = ty {
+            if let Some(fields) = package_storage(ty) {
                 if package_widths.is_empty() {
                     budget.spend(f.values.len())?;
                     package_widths = vec![0; f.values.len()];
@@ -1595,9 +1613,8 @@ impl Transfer<'_> {
                         )?;
                     }
                     if !take && validate && state.debt[field] & LIVE != 0 {
-                        let Type::Package { fields, .. } = &f.locals[local.0 as usize].ty else {
-                            unreachable!("checked package")
-                        };
+                        let fields = package_storage(&f.locals[local.0 as usize].ty)
+                            .expect("checked package");
                         if tasks::needs_synchronous_proof(
                             self.module,
                             &fields[*index as usize].1,
@@ -1659,7 +1676,7 @@ impl Transfer<'_> {
                 }
                 InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local }
-                    if matches!(f.locals[local.0 as usize].ty, Type::Package { .. }) =>
+                    if package_storage(&f.locals[local.0 as usize].ty).is_some() =>
                 {
                     self.package_shell(state, *local, span, validate)?;
                     let fields = &slots.package_fields[local.0 as usize];
@@ -1722,16 +1739,15 @@ impl Transfer<'_> {
                     let dst = slots.desc_value
                         [instruction.result.expect("head projection").0 as usize]
                         .expect("head field slot");
-                    let src = slots.desc_value[address.0 as usize].expect("head parent slot");
+                    let src = slots.desc_value[address.0 as usize].ok_or_else(|| {
+                        bad(span, "projected head has no actual parent origin slot")
+                    })?;
                     budget.spend(state.desc[src].len())?;
                     state.desc[dst] = state.desc[src]
                         .iter()
                         .map(|root| match root {
                             Root::Local(local)
-                                if matches!(
-                                    f.locals[local.0 as usize].ty,
-                                    Type::Package { .. }
-                                ) =>
+                                if package_storage(&f.locals[local.0 as usize].ty).is_some() =>
                             {
                                 Root::PackageField {
                                     local: *local,
@@ -1950,8 +1966,7 @@ impl Transfer<'_> {
                                 budget,
                             )?;
                         }
-                        if let Type::Package { fields: types, .. } = &f.locals[local.0 as usize].ty
-                        {
+                        if let Some(types) = package_storage(&f.locals[local.0 as usize].ty) {
                             budget.spend(types.len())?;
                             let output = instruction.result.expect("checked Package move result");
                             for (position, (_, ty)) in types.iter().enumerate() {
@@ -2028,15 +2043,14 @@ impl Transfer<'_> {
                         for (position, field) in fields.iter().enumerate() {
                             if let Some(field) = field {
                                 state.debt[*field] = LIVE;
-                                state.fresh[*field] = if matches!(
-                                    &f.locals[local.0 as usize].ty,
-                                    Type::Package { fields: types, .. }
-                                        if matches!(types[position].1, Type::Managed(_))
-                                ) {
-                                    state.package_fresh[value.0 as usize][position]
-                                } else {
-                                    INPUT
-                                };
+                                state.fresh[*field] =
+                                    if package_storage(&f.locals[local.0 as usize].ty).is_some_and(
+                                        |types| matches!(types[position].1, Type::Managed(_)),
+                                    ) {
+                                        state.package_fresh[value.0 as usize][position]
+                                    } else {
+                                        INPUT
+                                    };
                             }
                         }
                     }
@@ -2407,10 +2421,8 @@ impl Transfer<'_> {
             if (budget.head_descriptions || self.replacements.is_some())
                 && let InstructionKind::BorrowLocal { local }
                 | InstructionKind::BorrowLocalMut { local } = instruction.kind
-                && matches!(
-                    f.locals[local.0 as usize].ty,
-                    Type::Package { .. } | Type::Managed(_)
-                )
+                && (package_storage(&f.locals[local.0 as usize].ty).is_some()
+                    || matches!(f.locals[local.0 as usize].ty, Type::Managed(_)))
                 && let Some(row) = instruction
                     .result
                     .and_then(|v| slots.desc_value[v.0 as usize])
@@ -2914,7 +2926,7 @@ pub(super) fn check_module(
                 .iter()
                 .map(|l| &l.ty)
                 .chain(&function.values)
-                .any(arrays::is_owned_type);
+                .any(|ty| arrays::is_owned_type(ty) || package_storage(ty).is_some());
         }
         if !owning_entry {
             return Ok(());
