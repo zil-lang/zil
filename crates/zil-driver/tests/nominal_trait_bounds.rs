@@ -28,12 +28,42 @@ fn task_two_actual_address_ports_keep_independent_modes() {
     *b=*b+n;
     return true;
 }
+
 fn main()->TaskCreateError!i32 {
     let a=4;
     var b=5;
     var task=task_create(worker,&a,&mut b)?;
     task_finish_destroy(give task);
     return b;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn retained_task_helper_moves_exact_input_frame() {
+    let source = r#"fn worker(a:&i32)->i32 { task_yield(); return *a; }
+fn relay<life a>(give task:Task<i32,&'a i32>)->Task<i32,&'a i32> contract{result(give)} {
+    return give task;
+}
+fn main()->TaskCreateError!i32 {
+    let a=41;
+    var task=task_create(worker,&a)?;
+    var moved=relay(give task);
+    task_finish_destroy(give moved);
+    return 0;
 }"#;
     let report = compile_project(
         &project(&[("main", source)]),
