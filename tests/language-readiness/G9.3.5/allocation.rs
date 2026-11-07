@@ -196,6 +196,12 @@ fn ordinary_sum_replacement_and_owned_captures_release_every_actual_store_once()
             6,
         ),
         (
+            "fnmut-error-capture",
+            include_str!("ordinary-fnmut-error-capture.zil"),
+            b"17\n".as_slice(),
+            3,
+        ),
+        (
             "parent-captures",
             include_str!("ordinary-captures.zil"),
             b"18446744073709551612\n".as_slice(),

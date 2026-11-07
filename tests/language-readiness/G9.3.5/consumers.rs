@@ -92,6 +92,12 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
             false,
         ),
         (
+            "ordinary-fnmut-error-capture",
+            include_str!("ordinary-fnmut-error-capture.zil"),
+            b"17\n".as_slice(),
+            false,
+        ),
+        (
             "ordinary-both-owned-error",
             include_str!("ordinary-both-owned-error.zil"),
             b"18446744073709551613\n".as_slice(),
@@ -213,12 +219,6 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             "if false { choice=Choice.Value(make(18446744073709551612u64)) }",
             "E-UNINITIALIZED",
         ),
-        (
-            "mutable-error-unfilled",
-            "choice=Choice.Value(make(18446744073709551612u64))",
-            "if store_len(make(1u64))==1 { return 0u64 }\n        choice=Choice.Value(make(18446744073709551612u64))",
-            "E-UNINITIALIZED",
-        ),
     ] {
         assert_eq!(
             source.matches(from).count(),
@@ -245,6 +245,30 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             report.to_json()
         );
     }
+    let error_source = include_str!("ordinary-fnmut-error-capture.zil");
+    let refill_then_error = "        choice=Choice.Value(make(12u64))\n        if store_len(make(1u64))==1 { return fail() }";
+    let error_then_refill = "        if store_len(make(1u64))==1 { return fail() }\n        choice=Choice.Value(make(12u64))";
+    assert_eq!(error_source.matches(refill_then_error).count(), 1);
+    let report = check(
+        "mutable-error-exit-unfilled",
+        &error_source.replacen(refill_then_error, error_then_refill, 1),
+        Stage::Verify,
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-UNINITIALIZED"),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -585,6 +609,64 @@ fn ordinary_source_derived_two_sum_capture_debts_reject_raw_and_wire() {
         plan,
         "E-VERIFY-SUM",
         "direct Sum capture refill would overwrite an active owner",
+    );
+}
+
+#[test]
+fn ordinary_source_derived_error_exit_must_refill_sum_capture_raw_and_wire() {
+    let (mut module, plan) = candidate(include_str!("ordinary-fnmut-error-capture.zil"));
+    let definition = module
+        .closures
+        .iter()
+        .find(|definition| {
+            definition.kind == zil_ir::CallableKind::FnMut
+                && definition.captures.len() == 1
+                && matches!(definition.captures[0], Type::Enum { .. })
+                && matches!(&definition.result, Type::ErrorUnion { error, result }
+                    if matches!(error.as_ref(), Type::I32)
+                        && matches!(result.as_ref(), Type::U64))
+        })
+        .expect("Source FnMut error entry with one actual owning Sum capture");
+    let entry_id = definition.function;
+    let environment = definition.id;
+    let failure = module
+        .functions
+        .iter()
+        .find(|function| {
+            function.environment.is_none()
+                && function.parameters.is_empty()
+                && matches!(&function.return_type, Type::ErrorUnion { error, result }
+                    if matches!(error.as_ref(), Type::I32)
+                        && matches!(result.as_ref(), Type::U64))
+        })
+        .expect("Source calls a real ErrorUnion producer")
+        .id;
+    let entry = module
+        .functions
+        .iter_mut()
+        .find(|function| function.id == entry_id && function.environment == Some(environment))
+        .expect("Source error closure entry relation");
+    let error_block = entry
+        .blocks
+        .iter_mut()
+        .find(|block| {
+            block.instructions.iter().any(|instruction| {
+                matches!(instruction.kind, I::Call { function, .. } if function == failure)
+            }) && block
+                .instructions
+                .iter()
+                .any(|instruction| matches!(instruction.kind, I::WriteCapture { index: 0, .. }))
+        })
+        .expect("actual error return path refills the owning capture");
+    error_block
+        .instructions
+        .retain(|instruction| !matches!(instruction.kind, I::WriteCapture { index: 0, .. }));
+    reject_direct_sum_capture_candidate(
+        "ordinary-error-exit-unfilled-capture",
+        module,
+        plan,
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
     );
 }
 
