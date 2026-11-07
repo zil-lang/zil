@@ -332,6 +332,7 @@ struct Budget {
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
     task_origin_roots: bool,
+    borrowed_task_ports: bool,
     registrations: bool,
     async_registrations: bool,
     replacements: bool,
@@ -370,6 +371,7 @@ impl Budget {
             sums: false,
             tasks: false,
             task_origin_roots: false,
+            borrowed_task_ports: false,
             registrations: false,
             async_registrations: false,
             replacements: false,
@@ -640,7 +642,9 @@ fn check_module(
     // Bound every aggregate shape before definitions, equality, cloning or
     // fingerprinting. Raw APIs receive no protection from a source producer.
     for (index, function) in module.functions.iter().enumerate() {
-        if function.storage_life.is_some() {
+        if function.storage_life.is_some()
+            && !tasks::borrowed_signature(module, function, &mut budget)?
+        {
             stored_flow::header(module, function, &mut budget)?;
             budget.stored_borrows = true;
         }
@@ -1080,6 +1084,8 @@ fn check_type_shape(
     while let Some((ty, depth, context)) = first.take().or_else(|| pending.pop()) {
         budget.spend(1)?;
         budget.task_origin_roots |= matches!(ty, Type::Task { .. });
+        budget.borrowed_task_ports |=
+            matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
         tasks::require_closed_context(ty, None)?;
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.

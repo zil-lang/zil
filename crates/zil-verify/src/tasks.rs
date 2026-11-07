@@ -16,11 +16,16 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
     }
 }
 pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
-    if let Type::Task { retained_life, .. } = ty
-        && (retained_life.binder_count != 0
-            || !retained_life.ports.is_empty()
-            || !retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty())
+    if let Type::Task {
+        result,
+        retained_life,
+    } = ty
+        && *retained_life != empty_context()
+        && !(result.as_ref() == &Type::I32
+            && retained_life.binder_count == 1
+            && retained_life.retained.is_empty()
+            && retained_life.nominal_arguments.is_empty()
+            && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort { leaf: Type::Address { mutable: false, inner }, mode: zil_ir::StoredBorrowMode::SharedAddress, binder: 0 }] if inner.as_ref() == &Type::I32))
     {
         return Err(unsupported(
             "borrowed Task retained classes require actual implemented frame port mappings",
@@ -37,7 +42,216 @@ fn task_payload(ty: &Type) -> Option<&Type> {
         _ => None,
     }
 }
-fn task_create_type(result: &Type) -> Type {
+fn borrowed_result(ty: &Type) -> bool {
+    match ty {
+        Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
+        Type::Managed(inner) | Type::Desc(inner) => {
+            matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
+        }
+        Type::ErrorUnion { result, .. } => {
+            matches!(result.as_ref(), Type::Managed(inner) if matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty()))
+        }
+        _ => false,
+    }
+}
+fn retained_parameter(ty: &Type, budget: &mut Budget) -> Check<bool> {
+    let mut pending = vec![ty];
+    while let Some(ty) = pending.pop() {
+        budget.spend(1)?;
+        match ty {
+            Type::Task {
+                result,
+                retained_life,
+            } => {
+                if !retained_life.ports.is_empty() {
+                    return Ok(true);
+                }
+                pending.push(result);
+            }
+            Type::BorrowedStorage { storage: child, .. }
+            | Type::OwnedStore { element: child }
+            | Type::Registration { environment: child }
+            | Type::AsyncRegistration { environment: child }
+            | Type::Array { element: child, .. }
+            | Type::Slice { element: child }
+            | Type::Address { inner: child, .. }
+            | Type::Managed(child)
+            | Type::Desc(child)
+            | Type::Opaque { hidden: child, .. } => pending.push(child),
+            Type::Tuple(fields) => pending.extend(fields),
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                pending.extend(fields.iter().map(|(_, t)| t))
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    pending.extend(fields);
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                pending.push(error);
+                pending.push(result);
+            }
+            Type::FunctionPointer { parameters, result }
+            | Type::BorrowedFunctionPointer {
+                parameters, result, ..
+            }
+            | Type::ForeignCallback { parameters, result } => {
+                pending.extend(parameters);
+                pending.push(result);
+            }
+            _ => {}
+        }
+    }
+    Ok(false)
+}
+fn direct_retained_carrier(ty: &Type) -> bool {
+    let task = |ty: &Type| matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
+    match ty {
+        ty if task(ty) => true,
+        Type::Managed(inner) | Type::Desc(inner) => task(inner),
+        Type::Address { inner, .. } => match inner.as_ref() {
+            ty if task(ty) => true,
+            Type::Managed(task_ty) | Type::Desc(task_ty) => task(task_ty),
+            _ => false,
+        },
+        Type::ErrorUnion { result, .. } => {
+            matches!(result.as_ref(), Type::Managed(inner) if task(inner))
+        }
+        _ => false,
+    }
+}
+fn reject_nested_transport(module: &TypedModule, budget: &mut Budget) -> Check<()> {
+    for closure in &module.closures {
+        budget.spend(
+            closure
+                .captures
+                .len()
+                .saturating_add(closure.parameters.len()),
+        )?;
+        for ty in closure.captures.iter().chain(&closure.parameters) {
+            if retained_parameter(ty, budget)? {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    None,
+                    "retained Task closure transport has no frame owner loan",
+                ));
+            }
+        }
+    }
+    for f in &module.functions {
+        budget.spend(f.locals.len().saturating_add(f.values.len()))?;
+        for ty in f.locals.iter().map(|l| &l.ty).chain(&f.values) {
+            if retained_parameter(ty, budget)? && !direct_retained_carrier(ty) {
+                return Err(reject(
+                    "E-VERIFY-TASK",
+                    Some(f.span),
+                    "nested retained Task transport has no complete frame owner loan",
+                ));
+            }
+        }
+        for block in &f.blocks {
+            for i in &block.instructions {
+                budget.spend(1)?;
+                let inputs: &[ValueId] = match &i.kind {
+                    InstructionKind::MakeClosure {
+                        captures: values, ..
+                    }
+                    | InstructionKind::MakePackage { fields: values }
+                    | InstructionKind::MakeAggregate { fields: values }
+                    | InstructionKind::MakeOwnedTuple { fields: values }
+                    | InstructionKind::MakeOwnedArray { elements: values }
+                    | InstructionKind::MakeVariant { fields: values, .. }
+                    | InstructionKind::CallIndirect {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallDynSlot {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::ForeignCall {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallClosure {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallClosureShared {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallClosureMut {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallClosureOnce {
+                        arguments: values, ..
+                    }
+                    | InstructionKind::CallClosureBorrowed {
+                        arguments: values, ..
+                    } => values,
+                    InstructionKind::StorePackageField { value, .. }
+                    | InstructionKind::StoreOwnedArrayElement { value, .. }
+                    | InstructionKind::StoreStoredBorrow { value, .. } => {
+                        std::slice::from_ref(value)
+                    }
+                    _ => &[],
+                };
+                budget.spend(inputs.len())?;
+                for value in inputs {
+                    let ty = f.values.get(value.0 as usize).ok_or_else(|| {
+                        reject(
+                            "E-VERIFY-TASK",
+                            Some(i.span),
+                            "Task transport operand absent",
+                        )
+                    })?;
+                    if retained_parameter(ty, budget)? {
+                        return Err(reject(
+                            "E-VERIFY-TASK",
+                            Some(i.span),
+                            "retained Task aggregate or indirect transport has no complete frame owner loan",
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    Ok(())
+}
+pub(super) fn borrowed_signature(
+    module: &TypedModule,
+    f: &TypedFunction,
+    budget: &mut Budget,
+) -> Check<bool> {
+    if !borrowed_result(&f.return_type) {
+        return Ok(false);
+    }
+    let Some(contract) = &f.storage_life else {
+        return Ok(false);
+    };
+    budget.spend(f.parameters.len().saturating_add(1))?;
+    let [parameter] = f.parameters.as_slice() else {
+        return Err(reject(
+            "E-VERIFY-TASK",
+            Some(f.span),
+            "borrowed Task signature requires its one actual source input",
+        ));
+    };
+    let input = f.locals.get(parameter.0 as usize).ok_or_else(|| {
+        reject(
+            "E-VERIFY-TASK",
+            Some(f.span),
+            "borrowed Task signature input absent",
+        )
+    })?;
+    super::signature_life::charge(contract, budget)?;
+    super::signature_life::function_relation(
+        module,
+        std::slice::from_ref(&input.ty),
+        &f.return_type,
+        contract,
+        Some(f.span),
+        false,
+    )?;
+    Ok(true)
+}
+fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
         error: Box::new(Type::Enum {
             name: "@std.task:v1:TaskCreateError".into(),
@@ -45,7 +259,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
-            retained_life: empty_context(),
+            retained_life,
         }))),
     }
 }
@@ -131,6 +345,7 @@ pub(super) fn instruction(
         InstructionKind::TaskCreate {
             worker,
             ref arguments,
+            ref port_bindings,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
             profile(module, worker, budget, span)?;
@@ -147,12 +362,49 @@ pub(super) fn instruction(
                     return Err(bad());
                 }
             }
+            let retained_life = if target.parameters.len() == 1
+                && matches!(local_type(target, target.parameters[0], span)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32)
+            {
+                if port_bindings.len() != 1
+                    || port_bindings[0].port != 0
+                    || port_bindings[0].source.base != zil_ir::StorageBase::Parameter(0)
+                    || !port_bindings[0].source.path.is_empty()
+                {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        span,
+                        "task retained port differs from actual shared input",
+                    ));
+                }
+                zil_ir::RetainedLifeShape {
+                    binder_count: 1,
+                    ports: vec![zil_ir::RetainedBorrowPort {
+                        leaf: Type::Address {
+                            mutable: false,
+                            inner: Box::new(Type::I32),
+                        },
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                        binder: 0,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                }
+            } else {
+                if !port_bindings.is_empty() {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        span,
+                        "task retained port has no actual borrowed worker input",
+                    ));
+                }
+                empty_context()
+            };
             for _ in 0..4 {
                 resources::charge_payload(&target.return_type, budget)?;
             }
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
-            let ty = task_create_type(&target.return_type);
+            let ty = task_create_type(&target.return_type, retained_life);
             let Type::ErrorUnion { result, .. } = &ty else {
                 unreachable!()
             };
@@ -469,6 +721,36 @@ fn profile(
 pub(super) fn module(module: &TypedModule, budget: &mut Budget) -> Check<()> {
     if !budget.tasks {
         return Ok(());
+    }
+    for f in &module.functions {
+        budget.spend(1)?;
+        if budget.borrowed_task_ports {
+            budget.spend(f.parameters.len())?;
+            for parameter in &f.parameters {
+                let ty = &f
+                    .locals
+                    .get(parameter.0 as usize)
+                    .ok_or_else(|| reject("E-VERIFY-TASK", Some(f.span), "Task parameter absent"))?
+                    .ty;
+                if retained_parameter(ty, budget)? {
+                    return Err(reject(
+                        "E-VERIFY-TASK",
+                        Some(f.span),
+                        "retained Task parameter has no complete incoming frame loan",
+                    ));
+                }
+            }
+        }
+        if borrowed_result(&f.return_type) && f.storage_life.is_none() {
+            return Err(reject(
+                "E-VERIFY-TASK",
+                Some(f.span),
+                "borrowed Task return lacks an actual retained input relation",
+            ));
+        }
+    }
+    if budget.borrowed_task_ports {
+        reject_nested_transport(module, budget)?;
     }
     budget.spend(module.functions.len())?;
     let mut modes = vec![false; module.functions.len()];

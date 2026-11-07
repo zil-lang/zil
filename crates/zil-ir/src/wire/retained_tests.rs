@@ -3,8 +3,8 @@ use crate::*;
 use zil_base::{Fingerprint, Limits, ModuleId, SCHEMA_VERSION, Span, TargetProfile};
 #[test]
 fn retained_context_and_ct_transport_preserves_context_and_budgets() {
-    assert_eq!(SCHEMA_VERSION, 43);
-    assert_eq!(wire::WIRE_VERSION, 43);
+    assert_eq!(SCHEMA_VERSION, 44);
+    assert_eq!(wire::WIRE_VERSION, 44);
     let shape = StorageLifeShape {
         binder_count: 1,
         slots: vec![StorageLifeSlot {
@@ -415,6 +415,7 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
             kind: InstructionKind::TaskCreate {
                 worker: FunctionId(0),
                 arguments: vec![ValueId(0), ValueId(1)],
+                port_bindings: vec![],
             },
             span: Span::default(),
         });
@@ -443,9 +444,13 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         };
         assert_ne!(changed.fingerprint(), task.fingerprint());
     }
-    for n in 0..3 {
+    for n in 0..4 {
         let mut changed = module.clone();
-        let InstructionKind::TaskCreate { worker, arguments } = &mut changed.functions[0].blocks[0]
+        let InstructionKind::TaskCreate {
+            worker,
+            arguments,
+            port_bindings,
+        } = &mut changed.functions[0].blocks[0]
             .instructions
             .last_mut()
             .unwrap()
@@ -456,9 +461,16 @@ fn retained_context_and_ct_transport_preserves_context_and_budgets() {
         match n {
             0 => *worker = FunctionId(1),
             1 => arguments.reverse(),
-            _ => {
+            2 => {
                 arguments.push(ValueId(0));
             }
+            _ => port_bindings.push(RetainedPortBinding {
+                port: 0,
+                source: StoragePosition {
+                    base: StorageBase::Parameter(0),
+                    path: vec![],
+                },
+            }),
         }
         assert_ne!(changed.fingerprint(), module.fingerprint());
     }

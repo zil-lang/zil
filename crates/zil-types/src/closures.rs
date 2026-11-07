@@ -4100,7 +4100,10 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     &if name == "task_await" {
                         signature.result
                     } else {
-                        tasks::create_type(&signature.result)
+                        tasks::create_type(
+                            &signature.result,
+                            tasks::borrowed_context(&signature.parameters),
+                        )
                     },
                     span,
                 );
