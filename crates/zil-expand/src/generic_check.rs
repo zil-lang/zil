@@ -5034,13 +5034,27 @@ impl Check<'_, '_, '_> {
                     "generic give parameter requires an actual Store create/give value",
                 ));
             }
-            let actual = self.argument(
-                &argument.value,
-                state,
-                &hint,
-                (!dependent(&hint, variables)).then_some(&hint),
-                index,
-            )?;
+            let actual = if !parameter.give && stores::element(&hint).is_some() {
+                // A Store<T> parameter receives a descriptor to its actual
+                // owner. Projecting that descriptor from an owned Package
+                // field is a borrow of the field, including ordinary static
+                // helpers such as std.store.remove. Until an effect summary
+                // proves a helper read-only, admit the port as a write:
+                // neither a shared parent nor a live aliased view may lend
+                // mutating authority to the callee.
+                self.store_field_write_permission(&argument.value, state)?;
+                let actual = self.expr(&argument.value, state, Some(&hint), true)?;
+                self.alias_replace_place(&argument.value, state)?;
+                actual
+            } else {
+                self.argument(
+                    &argument.value,
+                    state,
+                    &hint,
+                    (!dependent(&hint, variables)).then_some(&hint),
+                    index,
+                )?
+            };
             if !context_argument(
                 &parameter.ty,
                 &actual,
