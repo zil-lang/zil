@@ -359,6 +359,7 @@ struct Budget {
     owning_address_captures: bool,
     head_descriptions: bool,
     stored_borrows: bool,
+    stored_package_instance: bool,
     // Derived only from the existing paid raw-instruction inventory.
     stored_slot_updates: bool,
     generic_mutex: bool,
@@ -402,6 +403,7 @@ impl Budget {
             owning_address_captures: false,
             head_descriptions: false,
             stored_borrows: false,
+            stored_package_instance: false,
             stored_slot_updates: false,
             generic_mutex: false,
             guard_return_sources: Vec::new(),

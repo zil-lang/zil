@@ -653,11 +653,7 @@ pub(super) fn qualifications(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    b.spend(module.life_instances.len())?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
+    let mixed_package = b.stored_package_instance;
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -879,6 +875,7 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
                 None,
             ));
         }
+        b.stored_package_instance |= matches!(storage, Type::Package { .. });
         if d.parameters.len() != instance.arguments.len() {
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
@@ -2410,9 +2407,13 @@ fn live_loans(
             add_loans(&mut loans, &p.loans, b)?;
         }
     }
-    for holder in &state.external {
-        for (_, p) in &holder.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+    // Only an actual slot write can create a new external loan that is not
+    // already represented by the original parameter relation.
+    if b.stored_slot_updates {
+        for holder in &state.external {
+            for (_, p) in &holder.leaves {
+                add_loans(&mut loans, &p.loans, b)?;
+            }
         }
     }
     ancestry(&loans, &solution.loans, b)
@@ -2669,29 +2670,52 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    // Compare the actual inline slot, retaining the carrier
-                    // loans. Whole-carrier access would conflate sibling slots.
-                    let base = pointer(*storage)?;
-                    b.spend(
-                        base.sources
-                            .len()
-                            .saturating_mul(path.len().saturating_add(1)),
-                    )?;
-                    let slot = Permission {
-                        sources: base
-                            .sources
-                            .iter()
-                            .map(|source| {
-                                let mut source = source.clone();
-                                source.inline.extend(path);
-                                source
-                            })
-                            .collect(),
-                        loans: base.loans.clone(),
-                    };
-                    access(&slot, exclusive, &active, &solution.loans, requirements, b)?;
-                    let p = select(&state, pointer(*storage)?, path, b)?;
-                    access(&p, exclusive, &active, &solution.loans, requirements, b)?;
+                    // The established single shared slot has the same whole
+                    // carrier access as before mutable slot replacement was
+                    // introduced. Only a writer or multiple/exclusive slots
+                    // need the finer inline-window proof below.
+                    if !b.stored_slot_updates
+                        && matches!(mode, StoredBorrowLoad::CopyShared)
+                        && addressed(vt(f, *storage)?).is_some_and(|(_, shape)| {
+                            shape.slots.len() == 1
+                                && shape.slots[0].mode == StoredBorrowMode::SharedAddress
+                        })
+                    {
+                        access(
+                            pointer(*storage)?,
+                            false,
+                            &active,
+                            &solution.loans,
+                            requirements,
+                            b,
+                        )?;
+                        let p = select(&state, pointer(*storage)?, path, b)?;
+                        access(&p, false, &active, &solution.loans, requirements, b)?;
+                    } else {
+                        // Compare the actual inline slot, retaining the carrier
+                        // loans. Whole-carrier access would conflate sibling slots.
+                        let base = pointer(*storage)?;
+                        b.spend(
+                            base.sources
+                                .len()
+                                .saturating_mul(path.len().saturating_add(1)),
+                        )?;
+                        let slot = Permission {
+                            sources: base
+                                .sources
+                                .iter()
+                                .map(|source| {
+                                    let mut source = source.clone();
+                                    source.inline.extend(path);
+                                    source
+                                })
+                                .collect(),
+                            loans: base.loans.clone(),
+                        };
+                        access(&slot, exclusive, &active, &solution.loans, requirements, b)?;
+                        let p = select(&state, pointer(*storage)?, path, b)?;
+                        access(&p, exclusive, &active, &solution.loans, requirements, b)?;
+                    }
                 }
                 InstructionKind::StoreStoredBorrow {
                     storage,
@@ -3114,11 +3138,7 @@ fn check_with_mask(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    b.spend(module.life_instances.len())?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
+    let mixed_package = b.stored_package_instance;
     if mask.is_none() {
         if !mixed_package {
             super::stored_owned::module(module, b)?;
