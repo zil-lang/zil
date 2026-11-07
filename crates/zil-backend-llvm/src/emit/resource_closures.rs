@@ -7,7 +7,7 @@ pub(super) fn owns(definition: &ClosureDefinition) -> bool {
         matches!(
             ty,
             Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-        )
+        ) || drop_plan::owned_sum(ty)
     })
 }
 
@@ -22,10 +22,14 @@ pub(super) fn by_pointer(definition: &ClosureDefinition) -> bool {
 pub(super) fn flag_count(ty: &Type) -> usize {
     match ty {
         Type::Managed(_) | Type::Closure(_) => 1,
+        ty if drop_plan::owned_sum(ty) => 1,
         Type::Package { fields, .. } => {
             1 + fields
                 .iter()
-                .filter(|(_, ty)| matches!(ty, Type::Managed(_) | Type::Package { .. }))
+                .filter(|(_, ty)| {
+                    matches!(ty, Type::Managed(_) | Type::Package { .. })
+                        || drop_plan::owned_sum(ty)
+                })
                 .count()
         }
         _ => 0,
@@ -192,10 +196,40 @@ pub(super) fn drop_functions(
                         ]));
                     }
                 }
+                ty if drop_plan::owned_sum(ty) => {
+                    text.append(m::Code::from(vec![
+                        m::Event::Instruction(m::Inst::new(
+                            Some(format!("sum.payload.{index}")),
+                            m::Op::Gep {
+                                ty: env.clone(),
+                                ptr: m::local("env".into()),
+                                indices: vec![
+                                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                                    m::Arg::new(m::Ty::Int(32), m::val(index)),
+                                ],
+                            },
+                        )),
+                        m::Event::Instruction(m::Inst::new(
+                            None,
+                            m::Op::Call {
+                                result: m::Ty::Void,
+                                result_attrs: vec![],
+                                callee: m::global(drop_plan::symbol(ty)),
+                                args: vec![m::Arg::new(
+                                    m::Ty::Ptr,
+                                    m::local(format!("sum.payload.{index}")),
+                                )],
+                                vararg: None,
+                            },
+                        )),
+                    ]));
+                }
                 Type::Package { fields, .. } => {
                     let mut offset = 1;
                     for (field, (_, ty)) in fields.iter().enumerate() {
-                        if !matches!(ty, Type::Managed(_) | Type::Package { .. }) {
+                        if !matches!(ty, Type::Managed(_) | Type::Package { .. })
+                            && !drop_plan::owned_sum(ty)
+                        {
                             continue;
                         }
                         let field_flag = flag + offset;
@@ -303,6 +337,36 @@ pub(super) fn drop_functions(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn refill_owned_sum_capture(
+        &mut self,
+        environment: ClosureId,
+        index: u32,
+    ) -> CompileResult<()> {
+        let definition = self.closure_definition(environment)?;
+        let flag = flag_index(definition, index);
+        let pointer = self.temp();
+        self.event(m::Event::Instruction(m::Inst::new(
+            Some(m::name(pointer.clone())),
+            m::Op::Gep {
+                ty: environment_type(environment),
+                ptr: m::local("env".into()),
+                indices: vec![
+                    m::Arg::new(m::Ty::Int(32), m::Val::Int(0)),
+                    m::Arg::new(m::Ty::Int(32), m::val(flag)),
+                ],
+            },
+        )));
+        self.event(m::Event::Instruction(m::Inst::new(
+            None,
+            m::Op::Store {
+                arg: m::Arg::new(m::Ty::Int(1), m::Val::Bool(true)),
+                ptr: m::val(pointer),
+                align: 1,
+            },
+        )));
+        Ok(())
+    }
+
     pub(super) fn borrow_capture(
         &mut self,
         instruction: &Instruction,

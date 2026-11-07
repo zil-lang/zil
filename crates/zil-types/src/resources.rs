@@ -72,7 +72,7 @@ impl Builder<'_, '_> {
             Some(InstructionKind::DropTuple { local })
         } else if owned_shapes::enumeration(ty) {
             Some(InstructionKind::DropEnum { local })
-        } else if errors::owned(ty) {
+        } else if errors::owned(ty) || owned_shapes::sum(ty) {
             Some(InstructionKind::DropErrorUnion { local })
         } else if packages::owned_array_supported(ty) {
             Some(InstructionKind::DropOwnedArray { local })
@@ -224,6 +224,7 @@ impl Builder<'_, '_> {
             self.resource_descriptor(value, ty, span)?;
         } else if matches!(ty, Type::Package { .. })
             || errors::owned(&ty)
+            || owned_shapes::sum(&ty)
             || packages::owned_array_supported(&ty)
             || self.owned_closure(&ty)
         {

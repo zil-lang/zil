@@ -4740,6 +4740,43 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.mark_resource_write(variable, argument.span)?;
             }
             variable.bind(&mut self.graph, parameter, argument.span)?;
+            if matches!(
+                parameter,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && let CoreExprKind::Name(name) = &argument.kind
+                && self.lookup(name).is_none()
+            {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(
+                        self.captures
+                            .len()
+                            .saturating_mul(name.len().saturating_add(1)),
+                    )
+                    .ok_or_else(|| {
+                        limit("owned Sum capture transfer budget exceeded", argument.span)
+                    })?;
+                if let Some(capture) = self
+                    .captures
+                    .iter_mut()
+                    .find(|capture| capture.name == *name)
+                {
+                    inference::charge_type_snapshot(
+                        &capture.ty,
+                        argument.span,
+                        self.limits,
+                        self.work_left,
+                        2,
+                    )?;
+                    if owned_shapes::sum(&capture.ty)
+                        && dynamic_store::contains_inline_carrier(&capture.ty)
+                    {
+                        capture.moved = true;
+                        capture.borrowed = false;
+                        capture.consumed = true;
+                    }
+                }
+            }
         }
         if let Some(value) = nested_result {
             return Ok(value);
@@ -4755,7 +4792,27 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         };
         let mut fields = Vec::new();
         for item in items {
-            fields.push(self.expr(item, depth + 1)?.scalar(item.span)?);
+            let value = self.expr(item, depth + 1)?;
+            let field = if let LocalType::Resource(payload, true) = value {
+                if let Some(ty) = self.graph.ty(payload)?
+                    && matches!(&ty, Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                {
+                    let variable = self.graph.fresh(VALUE, false);
+                    self.graph
+                        .bind(variable, &Type::Managed(Box::new(ty)), item.span)?;
+                    variable
+                } else {
+                    return Err(unsupported(
+                        item.span,
+                        "ordinary Tuple capture requires a complete inline Store owner",
+                    ));
+                }
+            } else {
+                value.scalar(item.span)?
+            };
+            fields.push(field);
         }
         let result = self.graph.fresh(VALUE, false);
         self.graph.tuple(result, fields, span)?;
