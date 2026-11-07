@@ -8,6 +8,8 @@ use zil_ir::{InstructionKind as I, Type};
 
 const TWO: &str = include_str!("dyn-two-provider.zil");
 const INPUT: &str = include_str!("dyn-input.zil");
+const WIDE_ARGUMENT: &str = include_str!("dyn-wide-argument.zil");
+const UNIT_RESULT: &str = include_str!("dyn-unit-result.zil");
 
 fn directory(label: &str) -> PathBuf {
     let base = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -83,6 +85,72 @@ fn g521_runtime_input_selects_two_real_vtables_in_both_backends() {
             }
         }
     }
+}
+
+#[test]
+fn g521_indirect_scalar_argument_preserves_full_u64_result_in_both_backends() {
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("wide-argument");
+            let executable = dir.join("program");
+            let report = compile(
+                WIDE_ARGUMENT,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+            assert_eq!(typed.matches("MakeDynBorrow {").count(), 2);
+            assert!(typed.contains("CallDynSlot {") && typed.contains("arguments: ["));
+            for (input, expected) in [
+                (b"1\n".as_slice(), b"18446744073709551615\n".as_slice()),
+                (b"0\n", b"42\n"),
+            ] {
+                let mut child = Command::new(&executable)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(input).unwrap();
+                let result = child.wait_with_output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{result:?}");
+                assert_eq!(result.stdout, expected, "{result:?}");
+                assert!(result.stderr.is_empty(), "{result:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn g521_unit_result_slot_remains_outside_the_body_proven_profile() {
+    let report = compile(UNIT_RESULT, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Unsupported,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
+    assert!(report.commands.is_empty());
+    assert_eq!(report.verification_runs, 0);
 }
 
 fn project_files(main: &'static str) -> [(&'static str, &'static str); 3] {
