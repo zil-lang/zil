@@ -125,10 +125,11 @@ fn reconstruct(
         .parameters
         .iter()
         .filter(|(position, _)| {
-            position
-                .path
-                .iter()
-                .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
+            budget.task_borrowed_results && !position.path.is_empty()
+                || position
+                    .path
+                    .iter()
+                    .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
         })
         .collect();
     let mut parameter_loans = BTreeMap::new();
@@ -220,7 +221,14 @@ fn reconstruct(
         let loan = base + incoming.len() + offset;
         parameter_loans.insert((*position).clone(), loan);
         flow.mutable[loan] = **mode == StoredBorrowMode::ExclusiveAddress;
-        flow.roots[loan] = vec![Root::Parameter(parameter)];
+        flow.roots[loan] = vec![if budget.task_borrowed_results {
+            match position.path.as_slice() {
+                [ContractProjection::RetainedPort(port)] => Root::ParameterPort(parameter, *port),
+                _ => Root::Parameter(parameter),
+            }
+        } else {
+            Root::Parameter(parameter)
+        }];
         initial
             .entry(f.parameters[parameter as usize])
             .or_default()
@@ -510,6 +518,78 @@ fn reconstruct(
                                     }
                                 }
                             }
+                        }
+                    }
+                    if budget.task_borrowed_results {
+                        let checked = budget
+                            .task_stored_sources
+                            .as_ref()
+                            .and_then(|fs| fs.get(f.id.0 as usize))
+                            .and_then(|f| f.values.get(id))
+                            .ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK-SOURCES",
+                                    Some(instruction.span),
+                                    "Task result lacks complete actual source facts",
+                                )
+                            })?;
+                        let pointer = matches!(f.values[id], Type::Address { .. });
+                        let anchors = if pointer {
+                            &checked.pointer_parents
+                        } else {
+                            &checked.payload_parents
+                        };
+                        let work = anchors.iter().try_fold(anchors.len(), |n, anchor| {
+                            n.checked_add(match anchor {
+                                crate::stored_flow::TaskLoanAnchor::Input(position) => {
+                                    position.path.len()
+                                }
+                                crate::stored_flow::TaskLoanAnchor::Value(_) => 1,
+                            })
+                            .ok_or_else(|| limit("Task parent anchor work overflow"))
+                        })?;
+                        budget.spend(work)?;
+                        let checked = &budget.task_stored_sources.as_ref().unwrap()
+                            [f.id.0 as usize]
+                            .values[id];
+                        let anchors = if pointer {
+                            &checked.pointer_parents
+                        } else {
+                            &checked.payload_parents
+                        }
+                        .clone();
+                        let mut external = Loans::new();
+                        for anchor in &anchors {
+                            budget.spend(1)?;
+                            match anchor {
+                                crate::stored_flow::TaskLoanAnchor::Input(position) => {
+                                    let loan = parameter_loans.get(position).ok_or_else(|| {
+                                        reject(
+                                            "E-VERIFY-TASK-PORT",
+                                            Some(instruction.span),
+                                            "exported external source lacks its exact input loan",
+                                        )
+                                    })?;
+                                    external.insert(*loan);
+                                }
+                                crate::stored_flow::TaskLoanAnchor::Value(value) => {
+                                    if value.0 as usize != id {
+                                        join(
+                                            &mut external,
+                                            &flow.values[value.0 as usize],
+                                            budget,
+                                        )?;
+                                    }
+                                }
+                            }
+                        }
+                        if pointer && !external.is_empty() {
+                            row.clear();
+                            row.insert(id);
+                            parents.clear();
+                            join(&mut parents, &external, budget)?;
+                        } else if !pointer {
+                            join(&mut row, &external, budget)?;
                         }
                     }
                     changed |= join(&mut flow.values[id], &row, budget)?;
@@ -1019,7 +1099,8 @@ pub(super) fn check(
         };
         matches!(ty, Type::Closure(id) if !module.closures[id.0 as usize].lending_captures.is_empty())
     };
-    if !shared_thread
+    if !budget.task_borrowed_results
+        && !shared_thread
         && !descriptor_origins
         && !f
             .environment
@@ -1044,7 +1125,7 @@ pub(super) fn check(
     let replacements = replacement_schedule(module, f, graph, budget)?;
     let schedule = replacements.as_ref().map(|(_, s)| s);
     let apart = RefCell::new(Apart::new());
-    let apart_ref = capture.is_some().then_some(&apart);
+    let apart_ref = (capture.is_some() || budget.task_borrowed_results).then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
     let flow = reconstruct(module, f, graph, facts, ports, budget)?;
     let n = f.blocks.len();

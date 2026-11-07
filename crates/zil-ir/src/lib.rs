@@ -854,6 +854,8 @@ pub enum CoreAggregateTypeRecipe {
         result: Box<CoreAggregateTypeRecipe>,
         binder_count: u32,
         ports: Vec<CoreTaskPortRecipe>,
+        /// Complete result class mapping, checked independently of the ports.
+        retained: Vec<StorageRetainedBinding>,
     },
     Apply {
         module: ModuleId,

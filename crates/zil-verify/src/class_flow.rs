@@ -12,6 +12,7 @@ struct Ports {
     keys: Vec<(Vec<LifeTypeProjection>, u32)>,
     direct: bool,
     environment: bool,
+    task_ports: Vec<(Vec<zil_ir::ContractProjection>, usize)>,
 }
 fn pure_class_keys(
     ty: &Type,
@@ -218,6 +219,58 @@ impl Equations {
             };
             pure_class_keys(ty, &mut path, &mut keys, b)?;
         }
+        let mut task_ports = Vec::new();
+        if b.task_borrowed_results {
+            fn walk(
+                ty: &Type,
+                cp: Vec<LifeTypeProjection>,
+                bp: Vec<zil_ir::ContractProjection>,
+                keys: &mut Vec<(Vec<LifeTypeProjection>, u32)>,
+                rows: &mut Vec<(Vec<zil_ir::ContractProjection>, usize)>,
+                b: &mut Budget,
+            ) -> Check<()> {
+                b.spend(1)?;
+                match ty {
+                    Type::Task { retained_life, .. } => {
+                        super::tasks::require_closed_context(ty, None)?;
+                        for class in 0..retained_life.binder_count {
+                            keys.push((cp.clone(), class));
+                        }
+                        for (port, row) in retained_life.ports.iter().enumerate() {
+                            b.spend(1)?;
+                            let index = keys
+                                .iter()
+                                .position(|(p, c)| p == &cp && *c == row.binder)
+                                .ok_or_else(|| bad("Task port has no actual semantic class"))?;
+                            let mut path = bp.clone();
+                            path.push(zil_ir::ContractProjection::RetainedPort(port as u32));
+                            rows.push((path, index));
+                        }
+                    }
+                    Type::Managed(inner) | Type::Desc(inner) | Type::Address { inner, .. } => {
+                        let mut path = cp;
+                        path.push(LifeTypeProjection::Pointee);
+                        walk(inner, path, bp, keys, rows, b)?;
+                    }
+                    Type::ErrorUnion { result, .. } => {
+                        let step = PlaceProjection::ErrorArm(false);
+                        let mut a = cp;
+                        a.push(LifeTypeProjection::Place(step));
+                        let mut z = bp;
+                        z.push(zil_ir::ContractProjection::Place(step));
+                        walk(result, a, z, keys, rows, b)?;
+                    }
+                    _ => {}
+                }
+                Ok(())
+            }
+            let path = if outer.is_some() {
+                vec![LifeTypeProjection::Pointee]
+            } else {
+                vec![]
+            };
+            walk(ty, path, vec![], &mut keys, &mut task_ports, b)?;
+        }
         let count = keys.len();
         if !direct {
             b.spend(count)?;
@@ -232,6 +285,7 @@ impl Equations {
             keys,
             direct,
             environment,
+            task_ports,
         })
     }
     fn freeze(&mut self, fixed: &[usize], b: &mut Budget) -> Check<()> {
@@ -324,7 +378,9 @@ fn link_projection(
             .saturating_add(full_len.saturating_mul(3))
             .saturating_add(1);
         b.spend(lookup_work.saturating_sub(scan))?;
-        let tail = if path.first() == Some(&LifeTypeProjection::Pointee) {
+        let tail = if path.first() == Some(&LifeTypeProjection::Pointee)
+            && !(b.task_borrowed_results && !child.task_ports.is_empty() && child.outer.is_none())
+        {
             &path[1..]
         } else {
             path.as_slice()
@@ -391,6 +447,17 @@ fn bind(
     crate::signature_life::charge(c, b)?;
     for row in &c.bindings {
         if row.position.base == base {
+            if !row.position.path.is_empty() && b.task_borrowed_results {
+                b.spend(p.task_ports.len())?;
+                if let Some((_, index)) = p
+                    .task_ports
+                    .iter()
+                    .find(|(path, _)| path == &row.position.path)
+                {
+                    e.equal(p.classes[*index], select(v, row.binder)?, b)?;
+                    continue;
+                }
+            }
             if !row.position.path.is_empty() {
                 return Err(bad(
                     "class substitution cannot interpret physical/retained access paths",
@@ -651,6 +718,69 @@ fn check_with(
                 }
                 let out = i.result.map(|v| &values[v.0 as usize]);
                 match &i.kind {
+                    InstructionKind::TaskCreate {
+                        arguments,
+                        port_bindings,
+                        ..
+                    } if b.task_borrowed_results => {
+                        if let Some(out) = out {
+                            for row in port_bindings {
+                                b.spend(out.task_ports.len())?;
+                                let path = vec![
+                                    zil_ir::ContractProjection::Place(PlaceProjection::ErrorArm(
+                                        false,
+                                    )),
+                                    zil_ir::ContractProjection::RetainedPort(row.port),
+                                ];
+                                let index = out
+                                    .task_ports
+                                    .iter()
+                                    .find(|(p, _)| p == &path)
+                                    .map(|(_, i)| *i)
+                                    .ok_or_else(|| {
+                                        bad("Task constructor class omits actual port")
+                                    })?;
+                                let StorageBase::Parameter(input) = row.source.base else {
+                                    return Err(bad("Task port class has no actual input"));
+                                };
+                                let arg = arguments
+                                    .get(input as usize)
+                                    .ok_or_else(|| bad("Task class input is absent"))?;
+                                e.equal(
+                                    out.classes[index],
+                                    values[arg.0 as usize].outer.ok_or_else(|| {
+                                        bad("Task input has no outer Address class")
+                                    })?,
+                                    b,
+                                )?;
+                            }
+                        }
+                    }
+                    InstructionKind::TaskPoll { task } if b.task_borrowed_results => {
+                        if let Some(out) = out
+                            && !values[task.0 as usize].task_ports.is_empty()
+                        {
+                            let input = &values[task.0 as usize];
+                            let port = input
+                                .task_ports
+                                .iter()
+                                .find(|(p, _)| {
+                                    p == &vec![zil_ir::ContractProjection::RetainedPort(0)]
+                                })
+                                .ok_or_else(|| bad("TaskPoll has no actual retained class"))?
+                                .1;
+                            let result = out
+                                .keys
+                                .iter()
+                                .position(|(p, c)| {
+                                    p == &vec![LifeTypeProjection::Place(
+                                        PlaceProjection::ErrorArm(false),
+                                    )] && *c == 0
+                                })
+                                .ok_or_else(|| bad("TaskPoll has no actual Ready class"))?;
+                            e.equal(out.classes[result], input.classes[port], b)?;
+                        }
+                    }
                     InstructionKind::ReadCapture { index } if !captures.is_empty() => {
                         let source = captures
                             .get(*index as usize)
@@ -858,7 +988,9 @@ fn check_with(
                         if b.stored_enum_addresses =>
                     {
                         if let (Some(out), Some(id)) = (out, i.result)
-                            && super::stored_flow::enum_address::signature(&f.values[id.0 as usize])
+                            && (super::stored_flow::enum_address::signature(
+                                &f.values[id.0 as usize],
+                            ) || b.task_borrowed_results && !out.task_ports.is_empty())
                         {
                             link_projection(
                                 &f.values[id.0 as usize],

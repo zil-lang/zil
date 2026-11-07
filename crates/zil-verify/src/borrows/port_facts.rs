@@ -107,6 +107,21 @@ fn shape(ty: &Type, budget: &mut Budget) -> Check<BTreeMap<Path, StoredBorrowMod
                     pending.push((ty, selected));
                 }
             }
+            Type::Enum { variants, .. } if budget.task_borrowed_results => {
+                for (variant, (_, fields)) in variants.iter().enumerate() {
+                    budget.spend(fields.len())?;
+                    for (index, ty) in fields.iter().enumerate() {
+                        let mut selected = path.clone();
+                        selected.push(ContractProjection::Place(PlaceProjection::Variant(
+                            zil_ir::VariantProjection {
+                                variant: variant as u32,
+                                index: index as u32,
+                            },
+                        )));
+                        pending.push((ty, selected));
+                    }
+                }
+            }
             Type::Tuple(fields) => {
                 for (index, ty) in fields.iter().enumerate() {
                     let mut selected = path.clone();

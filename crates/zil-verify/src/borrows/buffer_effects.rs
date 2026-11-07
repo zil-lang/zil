@@ -16,6 +16,7 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
         Root::Capture(capture) => function
             .environment
             .is_some_and(|id| borrowed(&module.closures[id.0 as usize].captures[capture as usize])),
+        Root::ParameterPort(..) => true,
         Root::ParameterCapture(parameter, capture) => {
             let ty = &function.locals[function.parameters[parameter as usize].0 as usize].ty;
             helpers::parameter_type(ty).is_some_and(|(id, _)| {
@@ -68,8 +69,11 @@ pub(super) fn unknown_pairs(
             let disjoint_windows = matches!((*a, *b),
                 (Root::Window(origin, start, end), Root::Window(other, lo, hi))
                     if origin == other && (end <= lo || hi <= start));
+            let own_task_shell = matches!((*a,*b),
+                (Root::Parameter(p),Root::ParameterPort(q,_)) | (Root::ParameterPort(q,_),Root::Parameter(p)) if p==q);
             if a != b
                 && !disjoint_windows
+                && !own_task_shell
                 && external(module, function, *a)
                 && external(module, function, *b)
             {

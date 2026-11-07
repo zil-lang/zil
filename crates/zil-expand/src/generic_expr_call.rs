@@ -305,18 +305,23 @@ impl Engine<'_> {
                     && (args.len() == 1 || args.len() == 2)
                 {
                     self.budget.ty(payload)?;
+                    let poll_hint = if name == "task_poll" {
+                        self.task_poll_layout_hint(payload, e.span, depth + 1)?
+                    } else {
+                        None
+                    };
                     let mut result = match name.as_str() {
                         "task_poll" => TypeRef {
                             span: e.span,
                             kind: TypeKind::Error {
                                 error: Box::new(named(options::TASK_POLL_STATE, e.span)),
-                                result: Box::new(TypeRef {
+                                result: Box::new(poll_hint.unwrap_or_else(|| TypeRef {
                                     span: e.span,
                                     kind: TypeKind::Named {
                                         path: vec![options::TASK_POLL.into()],
                                         args: vec![GenericArg::Type(payload.clone())],
                                     },
-                                }),
+                                })),
                             },
                         },
                         "task_poll_close" => TypeRef {

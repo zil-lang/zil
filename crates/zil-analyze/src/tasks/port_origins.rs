@@ -265,6 +265,39 @@ fn transfer(
             }
             carrier
         }
+        InstructionKind::Load(local)
+        | InstructionKind::BorrowLocal { local }
+        | InstructionKind::BorrowLocalMut { local }
+        | InstructionKind::DescribeLocal { local }
+            if b.task_borrowed_results && output.is_some() =>
+        {
+            let carrier = state
+                .get(&Owner::Local(*local))
+                .ok_or_else(|| bad("Task borrowed view lost its actual local carrier"))?;
+            fee(
+                b,
+                carrier
+                    .ports
+                    .iter()
+                    .fold(1usize, |n, s| n.saturating_add(s.len())),
+            )?;
+            Some(carrier.clone())
+        }
+        InstructionKind::ReborrowAddress { address, .. }
+            if b.task_borrowed_results && output.is_some() =>
+        {
+            let carrier = state
+                .get(&Owner::Value(*address))
+                .ok_or_else(|| bad("Task reborrow lost its actual input carrier"))?;
+            fee(
+                b,
+                carrier
+                    .ports
+                    .iter()
+                    .fold(1usize, |n, s| n.saturating_add(s.len())),
+            )?;
+            Some(carrier.clone())
+        }
         InstructionKind::Store { local, value }
             if f.locals
                 .get(local.0 as usize)

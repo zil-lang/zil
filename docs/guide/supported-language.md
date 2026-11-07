@@ -15,7 +15,7 @@
 | trait 与泛型库 | 普通泛型 trait、关联类型/常量及字段/别名投影、共享逐调用 lending、静态关联函数、独立 K/V 与回调约束 | 定义期义务、真实 trait/provider 身份、私有消费者类型、完整 nominal/life 实参与双核/原生 | 更广 impl 宿主、owning 泛型/lending 及一般约束方程仍需各自完整证明 |
 | 普通程序组合 | 选定真实跨模块程序中的集合更新、错误传播、明确资源责任与短借用；holder 函数组件通过直接 `fn(i32)->i32` 与普通 callback/Task/登记组件组合 | 固定源文件/输入/完整 stdout、退出状态、失败清理、合法及最近反例；精确提交与 O0/O2 结果见共同收据 | 地址、holder、拥有值、环境及间接定义边不跨组件；同函数内存储载体与异步/拥有操作混合仍待统一证明 |
 | 可变借入存储 | 有限 Record/拥有 Package 的多个直接地址叶；槽替换、跨模块 helper 当前状态与嵌套 qualified 子 Package | 真实 Source、独立 raw/Wire、相交/生命周期反例、Clang/LLVM API O0/O2 与实际资源释放 | 通用 move_out/take-refill、可变捕获及跨异步载体运输尚未完整准入；拥有字段和借入资格分别守恒 |
-| 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；显式 Task<Result,Context> 的泛型 helper 转交 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、raw/Wire 与四机器配置 | 借用保留到真实 Destroy；借入结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放 |
+| 借入 Task | 多个共享/独占输入、有限标量/Record/Tuple/Array/Slice referent、普通闭合结果；单个共享输入的实际共享地址结果；显式 Task<Result,Context> helper 转交 | PC0、挂起、取消/关闭、逐端口实际父贷款、未再使用 SSA 的持有、raw/Wire 与四机器配置 | Ready 保留真实外部父 loan，Task Destroy 不撤销已导出的结果；多端口借入结果、frame-local 结果、嵌套 owner/capture 运输、线程迁移与外部 ABI 仍未开放 |
 | 线程与同步 | 结构化线程、实际 pthread Mutex<T>/affine Guard、拥有 Package/Tuple/Enum/Array payload、明确来源的多输入 helper；i64/u64/usize 原子及强 CAS | 实际共享线程、逐输入来源、顺序合法矩阵、双后端 O0/O2、malloc/init 失败与逐元素一次清理 | Guard 不自动获得线程迁移或跨挂起资格；资源结构须满足实际同步清理与 Transfer/Share 证明 |
 | 登记对象状态合同 | 单借入 `AsyncRegistration<F>` helper 的逐结果三态合同、跨模块调用、真实 Pending 重试和静态 checked finish | 未用定义期检查、独立两核来源/旧结果/预算反例、真实外部队列和双后端 O0/O2 | 模板定义期仅直线真实原语/别名/返回；一般用户协议、多角色/投影及跨线程关闭未开放；旧运行时受检 finish 保留 |
 | 项目使用 | 项目清单、路径依赖与锁、check/build/run/test、真实测试发现和失败状态 | 可复现依赖解析、每 importer 同名 helper、CT/缓存、Unit/Bool/I32 测试与最近失败反例 | 无集中注册表；空选择、失败编译、超时和失败测试不报 Pass |

@@ -2146,12 +2146,41 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 if ports.is_empty() {
                     return Type::Unsupported("Task retained context needs an actual port".into());
                 }
+                let mut retained = Vec::new();
+                if let s::TypeKind::Reference {
+                    lifetime: Some(life),
+                    mutable: false,
+                    ..
+                } = &result.kind
+                {
+                    let Some(binder) = classes.get(life) else {
+                        return Type::Unsupported(
+                            "Task result lifetime has no retained input class".into(),
+                        );
+                    };
+                    retained.push(zil_ir::StorageRetainedBinding {
+                        path: vec![zil_ir::LifeTypeProjection::Result],
+                        class: 0,
+                        binder: *binder,
+                    });
+                }
+                let actual_result = match &result.kind {
+                    s::TypeKind::Reference {
+                        lifetime: Some(_),
+                        mutable: false,
+                        inner,
+                    } if !retained.is_empty() => Type::Address {
+                        mutable: false,
+                        inner: Box::new(type_ref(inner)),
+                    },
+                    _ => type_ref(result),
+                };
                 Type::Desc(Box::new(Type::Task {
-                    result: Box::new(type_ref(result)),
+                    result: Box::new(actual_result),
                     retained_life: zil_ir::RetainedLifeShape {
                         binder_count: classes.len() as u32,
                         ports,
-                        retained: vec![],
+                        retained,
                         nominal_arguments: vec![],
                     },
                 }))
