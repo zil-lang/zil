@@ -567,7 +567,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         left: &'a mut usize,
         limit: usize,
         span: Span,
-        slots: Vec<Vec<PlaceProjection>>,
+        slots: Vec<(Vec<PlaceProjection>, StoredBorrowMode)>,
     }
     impl Walk<'_> {
         fn ty(&mut self, ty: &Type, path: &mut Vec<PlaceProjection>, depth: usize) -> R<()> {
@@ -580,10 +580,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 ));
             }
             match ty {
-                Type::Address {
-                    mutable: false,
-                    inner,
-                } => {
+                Type::Address { mutable, inner } => {
                     let pointee = match inner.as_ref() {
                         Type::Slice { element } => element.as_ref(),
                         other => other,
@@ -595,7 +592,11 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         ));
                     }
                     fee(self.left, path.len(), self.span)?;
-                    self.slots.push(path.clone());
+                    self.slots.push((path.clone(), if *mutable {
+                        StoredBorrowMode::ExclusiveAddress
+                    } else {
+                        StoredBorrowMode::SharedAddress
+                    }));
                 }
                 Type::Record { name, fields } => {
                     fee(self.left, name.len(), self.span)?;
@@ -727,7 +728,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         }
         classes.insert(row.binder);
     }
-    for (path, slot) in walk.slots.iter().zip(&life.slots) {
+    for ((path, mode), slot) in walk.slots.iter().zip(&life.slots) {
         fee(
             walk.left,
             path.len()
@@ -736,7 +737,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 .saturating_add(1),
             span,
         )?;
-        if path != &slot.path || slot.mode != StoredBorrowMode::SharedAddress {
+        if path != &slot.path || mode != &slot.mode {
             return Err(error(
                 "E-STORED-TYPE",
                 span,

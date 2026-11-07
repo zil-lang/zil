@@ -417,10 +417,12 @@ fn relation_inner(
         if !parameters.iter().enumerate().any(|(i, p)| {
             matches!(p,Type::Address{mutable:m,..}if !mutable||*m)
                 && outer(c, StorageBase::Parameter(i as u32)) == out
-        }) && (*mutable
-            || !c.classes.iter().any(|r| {
-                matches!(r.position.base, StorageBase::Parameter(_)) && Some(r.binder) == out
-            }))
+        }) && !c.classes.iter().any(|r| {
+            let StorageBase::Parameter(i) = r.position.base else { return false; };
+            Some(r.binder) == out
+                && (!mutable || matches!(parameters.get(i as usize), Some(Type::Address { mutable: true, .. })))
+                && (!mutable || r.position.path.contains(&LifeTypeProjection::Pointee))
+        })
         {
             return Err(bad(
                 "signature Address result has no eligible declared input",

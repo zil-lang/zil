@@ -1026,13 +1026,10 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         )]);
     }
     let mut actual = Vec::new();
-    fn walk(ty: &Type, path: &mut Path, out: &mut Vec<Path>, b: &mut Budget) -> CompileResult<()> {
+    fn walk(ty: &Type, path: &mut Path, out: &mut Vec<(Path, StoredBorrowMode)>, b: &mut Budget) -> CompileResult<()> {
         fee(b, 1)?;
         match ty {
-            Type::Address {
-                mutable: false,
-                inner,
-            } => {
+            Type::Address { mutable, inner } => {
                 b.type_work(inner, true, "stored shared actual pointee")?;
                 if !inner.is_address_pointee() {
                     return Err(failure(
@@ -1040,7 +1037,11 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     ));
                 }
                 fee(b, path.len().saturating_add(1))?;
-                out.push(path.clone());
+                out.push((path.clone(), if *mutable {
+                    StoredBorrowMode::ExclusiveAddress
+                } else {
+                    StoredBorrowMode::SharedAddress
+                }));
             }
             Type::Record { name, fields } => {
                 fee(b, name.len())?;
@@ -1152,10 +1153,10 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 .ok_or_else(|| failure("binder overflow"))?;
         }
     }
-    for (path, decl) in actual.iter().zip(&life.slots) {
+    for ((path, mode), decl) in actual.iter().zip(&life.slots) {
         fee(b, path.len().saturating_add(decl.path.len()))?;
         if path != &decl.path
-            || decl.mode != StoredBorrowMode::SharedAddress
+            || mode != &decl.mode
             || decl.binder >= life.binder_count
         {
             return Err(failure(
@@ -1321,7 +1322,7 @@ fn seed_value(
             loans.push(Loan {
                 targets: BTreeSet::from([target.clone()]),
                 parents: Loans::new(),
-                mutable: false,
+                mutable: decl.mode == StoredBorrowMode::ExclusiveAddress,
             });
             ordered(b, slots.len(), decl.path.len())?;
             slots.insert(
@@ -1669,10 +1670,11 @@ fn transfer(
                     }
                 }
                 if !matches!(
-                    slot(storage, &decl.path, b)?,
-                    Type::Address { mutable: false, .. }
+                    (slot(storage, &decl.path, b)?, decl.mode),
+                    (Type::Address { mutable: false, .. }, StoredBorrowMode::SharedAddress)
+                        | (Type::Address { mutable: true, .. }, StoredBorrowMode::ExclusiveAddress)
                 ) {
-                    return Err(failure("constructed stored field is not shared"));
+                    return Err(failure("constructed stored field mode differs from its actual address"));
                 }
                 ordered(b, out.slots.len(), decl.path.len())?;
                 fee(b, decl.path.len())?;
@@ -1685,6 +1687,17 @@ fn transfer(
             mode: StoredBorrowLoad::CopyShared,
         } => {
             out.pointer = select(state, &get(*storage)?.pointer, path, b)?;
+        }
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode: StoredBorrowLoad::Reborrow { .. },
+        } => {
+            out.pointer = select(state, &get(*storage)?.pointer, path, b)?;
+            for parent in &get(*storage)?.pointer.loans {
+                fee(b, 1)?;
+                out.pointer.loans.insert(*parent);
+            }
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             return Err(vec![Diagnostic::unsupported(
@@ -1725,6 +1738,20 @@ fn transfer(
                         &substitute(source, arguments, values, state, b)?,
                         b,
                     )?;
+                    if path.is_empty()
+                        && matches!(callee.return_type, Type::Address { mutable: true, .. })
+                        && !source.stored.is_empty()
+                        && let HoldRoot::Parameter(index) = source.base
+                    {
+                        let actual = arguments
+                            .get(index as usize)
+                            .and_then(|v| values.get(v.0 as usize))
+                            .ok_or_else(|| failure("stored result carrier parameter absent"))?;
+                        for loan in &actual.pointer.loans {
+                            fee(b, 1)?;
+                            permission.loans.insert(*loan);
+                        }
+                    }
                 }
                 if path.is_empty() {
                     out.pointer = permission;
@@ -1957,6 +1984,7 @@ fn transfer(
             InstructionKind::BorrowLocal { .. }
                 | InstructionKind::BorrowLocalMut { .. }
                 | InstructionKind::ReborrowAddress { .. }
+                | InstructionKind::LoadStoredBorrow { mode: StoredBorrowLoad::Reborrow { .. }, .. }
                 | InstructionKind::AddressField { .. }
                 | InstructionKind::AddressIndex { .. }
                 | InstructionKind::AddressSlice { .. }
@@ -2396,10 +2424,11 @@ fn windows(
                     });
                     use_permission(pointer(*address)?, write, &current, loans, apart, b)?;
                 }
-                InstructionKind::LoadStoredBorrow { storage, path, .. } => {
-                    use_permission(pointer(*storage)?, false, &current, loans, apart, b)?;
+                InstructionKind::LoadStoredBorrow { storage, path, mode } => {
+                    let exclusive = matches!(mode, StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take);
+                    use_permission(pointer(*storage)?, exclusive, &current, loans, apart, b)?;
                     let actual = select(&state, pointer(*storage)?, path, b)?;
-                    use_permission(&actual, false, &current, loans, apart, b)?;
+                    use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
                 InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress {
@@ -3039,7 +3068,7 @@ fn actual_instructions(
                         | InstructionKind::ScopeEnter { .. }
                         | InstructionKind::ScopeExit { .. }
                         | InstructionKind::LoadStoredBorrow {
-                            mode: StoredBorrowLoad::CopyShared,
+                            mode: StoredBorrowLoad::CopyShared | StoredBorrowLoad::Reborrow { .. },
                             ..
                         }
                 )
