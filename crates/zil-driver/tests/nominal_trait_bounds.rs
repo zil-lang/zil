@@ -1,4 +1,6 @@
 //! Ordinary nominal bounds are checked symbolically and at each instantiation.
+#[path = "../../../tests/language-readiness/owning-trait-hosts/consumers.rs"]
+mod owning_trait_hosts;
 #[path = "../../../tests/language-readiness/dynamic-dispatch/consumers.rs"]
 mod shared_dynamic_dispatch_consumers;
 #[path = "../../../tests/language-readiness/factory-interface-flow/consumers.rs"]

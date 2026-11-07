@@ -49,6 +49,35 @@ fn finite_method(f: &s::Function) -> bool {
     f.generics.is_empty() && f.where_clause.is_empty() && f.contract.is_empty()
 }
 
+fn shared_self(parameter: &s::Param) -> bool {
+    !parameter.give
+        && matches!(
+            &parameter.ty.kind,
+            s::TypeKind::Reference {
+                mutable: false,
+                inner,
+                ..
+            } if plain_name(inner) == Some("Self")
+        )
+}
+
+fn project_package_method(method: &s::Function) -> bool {
+    finite_method(method)
+        && method
+            .params
+            .first()
+            .is_some_and(|p| p.name == "self" && shared_self(p))
+        && method
+            .params
+            .iter()
+            .skip(1)
+            .all(|p| shared_self(p) || (!p.give && plain_name(&p.ty).is_some_and(scalar_self)))
+        && method
+            .return_type
+            .as_ref()
+            .is_none_or(|ty| plain_name(ty).is_some_and(scalar_self))
+}
+
 impl<'a> Expander<'a> {
     fn trait_error(&mut self, code: &str, span: Span, message: impl Into<String>) {
         self.diagnostics
@@ -483,6 +512,37 @@ impl<'a> Expander<'a> {
                 .traits
                 .get(trait_name)
                 .expect("collected local declaration");
+            if host.is_some_and(|(host, _)| host.kind == s::AggregateKind::Package) && project_impl
+            {
+                let signature_work = declaration.members.iter().fold(1usize, |cost, member| {
+                    cost.saturating_add(match &member.kind {
+                        s::ItemKind::Function(method) => method.params.len().saturating_add(1),
+                        _ => 1,
+                    })
+                });
+                let Some(left) = work.checked_sub(signature_work) else {
+                    self.diagnostics.push(Diagnostic::limit(
+                        Phase::Expand,
+                        "project Package trait signature budget exhausted",
+                        Some(item.span),
+                    ));
+                    return;
+                };
+                work = left;
+                if !declaration.generics.is_empty()
+                    || !declaration.bounds.is_empty()
+                    || declaration.members.iter().any(|member| match &member.kind {
+                        s::ItemKind::Function(method) => !project_package_method(method),
+                        _ => true,
+                    })
+                {
+                    self.unsupported(
+                        "project Package traits require fixed shared receivers and scalar results",
+                        item.span,
+                    );
+                    continue;
+                }
+            }
             if host.is_some_and(|(host, _)| host.kind == s::AggregateKind::Resource)
                 && declaration.members.iter().any(|member| match &member.kind {
                     s::ItemKind::Function(function) => !function.params.first().is_some_and(|parameter|
