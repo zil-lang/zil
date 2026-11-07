@@ -457,6 +457,162 @@ fn task_borrowed_result_cross_module_factory_relay_and_poll_preserve_the_input()
 }
 
 #[test]
+fn task_borrowed_result_coexists_with_exclusive_and_multiport_scalar_tasks() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/mixed-task-profiles.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "mixed-task-profiles.zil",
+            source,
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
+fn task_borrowed_result_mixed_profile_checks_each_scalar_task_hold() {
+    fn ports(ty: &Type) -> Option<usize> {
+        match ty {
+            Type::Task {
+                result,
+                retained_life,
+            } if **result == Type::I32 => Some(retained_life.ports.len()),
+            Type::Managed(inner) | Type::Address { inner, .. } => ports(inner),
+            _ => None,
+        }
+    }
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/task-borrow-results/mixed-task-profiles.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let function = module.functions.iter().find(|f| f.name == "main").unwrap();
+    for count in [0, 1, 2] {
+        for address in [false, true] {
+            let value = function
+                .values
+                .iter()
+                .enumerate()
+                .find_map(|(i, ty)| {
+                    (ports(ty) == Some(count) && matches!(ty, Type::Address { .. }) == address)
+                        .then_some(ValueId(i as u32))
+                })
+                .expect("mixed fixture must exercise each actual scalar Task owner and address");
+            assert!(
+                plan.functions[function.id.0 as usize].holds[value.0 as usize]
+                    .roots
+                    .len()
+                    >= count
+            );
+            assert_eq!(
+                plan.functions[function.id.0 as usize].holds[value.0 as usize]
+                    .roots
+                    .is_empty(),
+                count == 0 && !address
+            );
+            for forge in [false, true] {
+                // An owner with no retained inputs has a proved empty row.
+                if count == 0 && !address && !forge {
+                    continue;
+                }
+                let mut candidate = plan.clone();
+                candidate.functions[function.id.0 as usize].holds[value.0 as usize].roots = if forge
+                {
+                    vec![zil_ir::HoldRoot::Static]
+                } else {
+                    vec![]
+                };
+                reject(
+                    &format!("scalar-task-hold-{count}-{address}-{forge}"),
+                    module.clone(),
+                    candidate,
+                    "E-VERIFY-STORED",
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn task_borrowed_result_mixed_profile_preserves_exclusive_port_access() {
+    let source =
+        include_str!("../../../tests/fixtures/task-borrow-results/mixed-task-profiles.zil");
+    let valid = typed_stored(source);
+    let plan = zil_analyze::analyze(&valid, &Limits::default()).unwrap();
+    for (old, new, code) in [
+        (
+            "let safe_read=scalar_input",
+            "let safe_read=scalar_output",
+            "E-BORROW-CONFLICT",
+        ),
+        ("unrelated=13", "scalar_output=13", "E-VERIFY-STORED"),
+    ] {
+        let source = source.replace(old, new);
+        let invalid = typed_stored(&source);
+        let errors = zil_analyze::analyze(&invalid, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        reject(
+            "scalar-task-exclusive-input-access",
+            invalid,
+            plan.clone(),
+            code,
+        );
+    }
+    for reverse in [false, true] {
+        let mut invalid = valid.clone();
+        let instruction = invalid
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| {
+                matches!(&i.kind,
+                InstructionKind::TaskCreate { port_bindings, .. } if port_bindings.len()==2)
+            })
+            .unwrap();
+        let InstructionKind::TaskCreate { port_bindings, .. } = &mut instruction.kind else {
+            unreachable!()
+        };
+        if reverse {
+            port_bindings.reverse();
+        } else {
+            port_bindings[1].source.base = zil_ir::StorageBase::Parameter(0);
+        }
+        let errors = zil_analyze::analyze(&invalid, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Analyze && d.category == ResultCategory::SafeReject),
+            "{errors:?}"
+        );
+        reject(
+            "scalar-task-actual-port-selection",
+            invalid,
+            plan.clone(),
+            "E-VERIFY-TASK",
+        );
+    }
+}
+
+#[test]
 fn task_borrowed_result_native_outlives_the_destroyed_task() {
     native_borrowed_enum(&zil_driver::ProjectSources {
         root: ModuleId(0),

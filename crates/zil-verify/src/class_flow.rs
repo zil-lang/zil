@@ -756,7 +756,12 @@ fn check_with(
                             }
                         }
                     }
-                    InstructionKind::TaskPoll { task } if b.task_borrowed_results => {
+                    InstructionKind::TaskPoll { task }
+                        if b.task_borrowed_results
+                            && matches!(super::tasks::task_payload(&f.values[task.0 as usize]),
+                            Some(Type::Task { result, .. })
+                                if matches!(result.as_ref(), Type::Address { mutable: false, .. })) =>
+                    {
                         if let Some(out) = out
                             && !values[task.0 as usize].task_ports.is_empty()
                         {

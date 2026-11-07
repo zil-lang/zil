@@ -81,7 +81,7 @@ pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()>
     Ok(())
 }
 
-fn task_payload(ty: &Type) -> Option<&Type> {
+pub(super) fn task_payload(ty: &Type) -> Option<&Type> {
     match ty {
         Type::Managed(t) | Type::Desc(t) | Type::Address { inner: t, .. } => task_payload(t),
         Type::TaskI32 | Type::Task { .. } => Some(ty),
