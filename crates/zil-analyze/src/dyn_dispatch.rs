@@ -1,4 +1,4 @@
-//! Independent, finite shared-dyn admission. Raw tables and producer contracts
+//! Independent, finite borrowed-dyn admission. Raw tables and producer contracts
 //! are inventory only: entry signatures, body reads and borrow sources are
 //! reconstructed here before the ordinary Hold walk consumes the instructions.
 use std::collections::{BTreeMap, BTreeSet, VecDeque};
@@ -13,7 +13,8 @@ const WORK: &str = "finite shared dyn admission";
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Bool
+        Type::Unit
+            | Type::Bool
             | Type::I32
             | Type::I64
             | Type::U64
@@ -26,7 +27,7 @@ fn scalar(ty: &Type) -> bool {
 }
 
 fn shared(ty: &Type, pointee: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if inner.as_ref() == pointee)
+    matches!(ty, Type::Address { inner, .. } if inner.as_ref() == pointee)
 }
 
 fn position() -> StoragePosition {
@@ -36,15 +37,19 @@ fn position() -> StoragePosition {
     }
 }
 
-fn closed_contract() -> DynContract {
+fn closed_contract(mutable: bool) -> DynContract {
     let receiver = position();
     DynContract {
-        requires: Some(vec![DynRequirement::Read(receiver.clone())]),
+        requires: Some(vec![if mutable {
+            DynRequirement::Write(receiver.clone())
+        } else {
+            DynRequirement::Read(receiver.clone())
+        }]),
         guarantees: Some(Vec::new()),
         hold: Some(Vec::new()),
         call: Some(DynCallAccess {
-            reads: vec![receiver],
-            writes: Vec::new(),
+            reads: vec![receiver.clone()],
+            writes: if mutable { vec![receiver] } else { Vec::new() },
         }),
         result: Some(DynResultSource::Value),
         cleanup: Some(DynCleanupContract {
@@ -202,8 +207,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
             )?;
             if slot.member.application != interface.application
                 || !slot.actuals.is_empty()
-                || slot.receiver.mutable
-                || slot.receiver.mode != PassingMode::Borrow
+                || slot.receiver.mode
+                    != if slot.receiver.mutable {
+                        PassingMode::BorrowMut
+                    } else {
+                        PassingMode::Borrow
+                    }
                 || !slot.parameters.iter().all(scalar)
                 || slot.parameter_modes.iter().any(|m| !scalar_mode(*m))
                 || slot.parameters.len() != slot.parameter_modes.len()
@@ -211,7 +220,7 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
                 || !scalar_mode(slot.result_mode)
                 || slot.call_kind != CallKind::Direct
                 || slot.storage_life.as_ref() != Some(&receiver_life())
-                || slot.contract != closed_contract()
+                || slot.contract != closed_contract(slot.receiver.mutable)
             {
                 return Err(bad("dyn slot lacks a body-derived closed shared contract"));
             }
@@ -243,6 +252,7 @@ fn body(
     module: &TypedModule,
     f: &TypedFunction,
     receiver: &Type,
+    mutable: bool,
     result: &Type,
     visiting: &mut BTreeSet<FunctionId>,
     budget: &mut Budget,
@@ -264,11 +274,10 @@ fn body(
         return Err(bad("dyn entry is not a finite ordinary body"));
     }
     let first = f.parameters[0];
-    if !f
-        .locals
-        .get(first.0 as usize)
-        .is_some_and(|l| shared(&l.ty, receiver))
-    {
+    if !f.locals.get(first.0 as usize).is_some_and(|l| {
+        matches!(&l.ty, Type::Address { mutable: actual, inner }
+            if *actual == mutable && inner.as_ref() == receiver)
+    }) {
         return Err(bad("dyn entry actual Self differs from table Self"));
     }
     budget.spend(1, WORK)?;
@@ -278,6 +287,7 @@ fn body(
     let mut field_values = BTreeMap::new();
     let mut value_results = BTreeSet::new();
     let mut saw_return = false;
+    let mut saw_write = false;
     let mut called = false;
     while let Some(id) = queue.pop_front() {
         budget.lookup(seen.len(), WORK)?;
@@ -298,15 +308,33 @@ fn body(
                     let result = instruction
                         .result
                         .ok_or_else(|| bad("dyn receiver load lacks result"))?;
-                    if !shared(value(f, result, budget)?, receiver) {
+                    if !matches!(value(f, result, budget)?, Type::Address { mutable: actual, inner }
+                        if *actual == mutable && inner.as_ref() == receiver)
+                    {
                         return Err(bad("dyn receiver load type differs"));
                     }
                     receiver_values.insert(result);
                 }
+                InstructionKind::Load(local)
+                    if f.locals
+                        .get(local.0 as usize)
+                        .is_some_and(|l| scalar(&l.ty)) =>
+                {
+                    let result = instruction
+                        .result
+                        .ok_or_else(|| bad("dyn scalar load lacks result"))?;
+                    if value(f, result, budget)? != &f.locals[local.0 as usize].ty {
+                        return Err(bad("dyn scalar load type differs"));
+                    }
+                    value_results.insert(result);
+                }
                 InstructionKind::ReborrowAddress {
                     address,
-                    mutable: false,
+                    mutable: reborrow,
                 } if receiver_values.contains(address) => {
+                    if *reborrow != mutable {
+                        return Err(bad("dyn receiver reborrow changes access permission"));
+                    }
                     let result = instruction
                         .result
                         .ok_or_else(|| bad("dyn receiver reborrow lacks result"))?;
@@ -330,7 +358,9 @@ fn body(
                     let result = instruction
                         .result
                         .ok_or_else(|| bad("dyn field address lacks result"))?;
-                    if !shared(value(f, result, budget)?, &field.1) {
+                    if !matches!(value(f, result, budget)?, Type::Address { mutable: actual, inner }
+                        if *actual == mutable && inner.as_ref() == &field.1)
+                    {
                         return Err(bad("dyn field address type differs"));
                     }
                     field_values.insert(result, field.1.clone());
@@ -343,6 +373,15 @@ fn body(
                         return Err(bad("dyn field read result differs from actual field"));
                     }
                     value_results.insert(result);
+                }
+                InstructionKind::WriteAddress {
+                    address,
+                    value: written,
+                } if mutable && field_values.contains_key(address) => {
+                    if value(f, *written, budget)? != field_values.get(address).unwrap() {
+                        return Err(bad("dyn write value differs from actual scalar Self field"));
+                    }
+                    saw_write = true;
                 }
                 InstructionKind::Constant(constant) if scalar(&constant.ty()) => {
                     // A body need not exercise the slot's shared Read upper
@@ -374,25 +413,31 @@ fn body(
                         .functions
                         .get(function.0 as usize)
                         .ok_or_else(|| bad("dyn helper actual FunctionId is absent"))?;
-                    let output = instruction
-                        .result
-                        .ok_or_else(|| bad("dyn helper call lacks scalar result"))?;
                     if target.id != *function
                         || target.parameters.len() != 1
                         || target.return_type != f.return_type
                         || target.result_mode != f.result_mode
-                        || value(f, output, budget)? != &target.return_type
+                        || (result == &Type::Unit && instruction.result.is_some())
+                        || (result != &Type::Unit
+                            && !instruction.result.is_some_and(|output| {
+                                f.values.get(output.0 as usize) == Some(&target.return_type)
+                            }))
                         || !target.parameters.iter().all(|id| {
-                            target
-                                .locals
-                                .get(id.0 as usize)
-                                .is_some_and(|l| shared(&l.ty, receiver))
+                            target.locals.get(id.0 as usize).is_some_and(|l| {
+                                matches!(&l.ty, Type::Address { mutable: actual, inner }
+                                if *actual == mutable && inner.as_ref() == receiver)
+                            })
                         })
                     {
                         return Err(bad("dyn helper actual entry signature differs"));
                     }
-                    body(module, target, receiver, result, visiting, budget)?;
-                    value_results.insert(output);
+                    body(module, target, receiver, mutable, result, visiting, budget)?;
+                    if let Some(output) = instruction.result {
+                        value_results.insert(output);
+                    }
+                    if mutable {
+                        saw_write = true;
+                    }
                 }
                 InstructionKind::ScopeEnter { .. }
                 | InstructionKind::ScopeExit { .. }
@@ -406,6 +451,7 @@ fn body(
             }
         }
         match &block.terminator {
+            Terminator::Return(None) if *result == Type::Unit => saw_return = true,
             Terminator::Return(Some(result))
                 if value_results.contains(result) && scalar(value(f, *result, budget)?) =>
             {
@@ -422,7 +468,7 @@ fn body(
             }
         }
     }
-    if !saw_return {
+    if !saw_return || (mutable && !saw_write) {
         return Err(bad("dyn entry has no proven scalar receiver read return"));
     }
     visiting.remove(&f.id);
@@ -522,6 +568,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                 module,
                 f,
                 &table.self_type,
+                slot.receiver.mutable,
                 &slot.result,
                 &mut BTreeSet::new(),
                 budget,
@@ -558,15 +605,16 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                         let result = instruction
                             .result
                             .ok_or_else(|| bad("dyn borrow lacks result"))?;
-                        if *mutable
-                            || table.interface != *interface
+                        if table.interface != *interface
                             || !shared(value(f, *source, budget)?, &table.self_type)
+                            || !matches!(value(f, *source, budget)?, Type::Address { mutable: available, .. } if !*mutable || *available)
                             || !shared(
                                 value(f, result, budget)?,
                                 &Type::Dyn {
                                     interface: *interface,
                                 },
                             )
+                            || !matches!(value(f, result, budget)?, Type::Address { mutable: actual, .. } if actual == mutable)
                         {
                             return Err(bad("dyn borrow actual source, table or result differs"));
                         }
@@ -577,7 +625,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             definitions.get(source),
                             Some(
                                 InstructionKind::BorrowLocal { .. }
-                                    | InstructionKind::ReborrowAddress { mutable: false, .. }
+                                    | InstructionKind::BorrowLocalMut { .. }
+                                    | InstructionKind::ReborrowAddress { .. }
                             )
                         ) {
                             return Err(bad("dyn borrow source lacks an actual shared loan"));
@@ -596,20 +645,19 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             .find(|i| i.id == *interface)
                             .and_then(|i| i.slots.get(*slot as usize))
                             .ok_or_else(|| bad("dyn call slot absent"))?;
-                        if !shared(
-                            value(f, *callee, budget)?,
-                            &Type::Dyn {
-                                interface: *interface,
-                            },
-                        ) || arguments.len() != selected.parameters.len()
+                        if !matches!(value(f, *callee, budget)?, Type::Address { mutable, inner }
+                            if *mutable == selected.receiver.mutable && matches!(inner.as_ref(), Type::Dyn { interface: actual } if actual == interface))
+                            || arguments.len() != selected.parameters.len()
                             || !arguments
                                 .iter()
                                 .zip(&selected.parameters)
                                 .all(|(id, ty)| f.values.get(id.0 as usize) == Some(ty))
-                            || instruction
-                                .result
-                                .and_then(|id| f.values.get(id.0 as usize))
-                                != Some(&selected.result)
+                            || (selected.result != Type::Unit
+                                && instruction
+                                    .result
+                                    .and_then(|id| f.values.get(id.0 as usize))
+                                    != Some(&selected.result))
+                            || (selected.result == Type::Unit && instruction.result.is_some())
                         {
                             return Err(bad("dyn call actual callee, arguments or result differs"));
                         }
@@ -888,7 +936,7 @@ mod tests {
                     result_mode: PassingMode::Infer,
                     call_kind: CallKind::Direct,
                     storage_life: Some(receiver_life()),
-                    contract: closed_contract(),
+                    contract: closed_contract(false),
                 }],
             }],
             dyn_vtables: vec![DynVtable {

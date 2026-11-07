@@ -1,4 +1,4 @@
-//! Independent finite shared dyn checker. Raw tables and contracts grant no
+//! Independent finite borrowed dyn checker. Raw tables and contracts grant no
 //! authority: every used and unused entry is tied to a checked body.
 use super::*;
 use std::collections::BTreeSet;
@@ -44,9 +44,9 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
     let finite = c.requires.as_ref().is_some_and(|v| v.len() == 1)
         && c.guarantees.as_ref().is_some_and(Vec::is_empty)
         && c.hold.as_ref().is_some_and(Vec::is_empty)
-        && c.call
-            .as_ref()
-            .is_some_and(|v| v.reads.len() == 1 && v.writes.is_empty())
+        && c.call.as_ref().is_some_and(|v| {
+            v.reads.len() == 1 && v.writes.len() == usize::from(slot.receiver.mutable)
+        })
         && c.cleanup.as_ref().is_some_and(|v| {
             !v.environment
                 && v.positions.is_empty()
@@ -64,12 +64,20 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
     budget.spend(12)?;
     let position = receiver_position();
     let expected = DynContract {
-        requires: Some(vec![DynRequirement::Read(position.clone())]),
+        requires: Some(vec![if slot.receiver.mutable {
+            DynRequirement::Write(position.clone())
+        } else {
+            DynRequirement::Read(position.clone())
+        }]),
         guarantees: Some(vec![]),
         hold: Some(vec![]),
         call: Some(DynCallAccess {
-            reads: vec![position],
-            writes: vec![],
+            reads: vec![position.clone()],
+            writes: if slot.receiver.mutable {
+                vec![position]
+            } else {
+                vec![]
+            },
         }),
         result: Some(DynResultSource::Value),
         cleanup: Some(DynCleanupContract {
@@ -90,7 +98,7 @@ fn contract(slot: &DynSlot, budget: &mut Budget) -> Check<()> {
     };
     if slot.contract != expected {
         return Err(bad(
-            "dyn contract is unknown or differs from the independently derived finite read-only body contract",
+            "dyn contract is unknown or differs from the independently derived finite body contract",
             None,
         ));
     }
@@ -258,8 +266,12 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 || slot.member.application != item.application
                 || !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty())
                 || !slot.actuals.is_empty()
-                || slot.receiver.mutable
-                || !matches!(slot.receiver.mode, PassingMode::Borrow)
+                || slot.receiver.mode
+                    != if slot.receiver.mutable {
+                        PassingMode::BorrowMut
+                    } else {
+                        PassingMode::Borrow
+                    }
                 || slot.parameters.len() != slot.parameter_modes.len()
                 || !slot.parameters.iter().all(scalar)
                 || !slot
@@ -375,7 +387,7 @@ fn entry_body(
             .saturating_add(function.values.len())
             .saturating_add(function.locals.len()),
     )?;
-    let receiver_matches = |ty: &Type| matches!(ty, Type::Address { mutable: false, inner } if inner.as_ref() == self_type);
+    let receiver_matches = |ty: &Type| matches!(ty, Type::Address { mutable, inner } if *mutable == slot.receiver.mutable && inner.as_ref() == self_type);
     if function.foreign.is_some()
         || function.environment.is_some()
         || function.call_kind != CallKind::Direct
@@ -410,16 +422,17 @@ fn entry_body(
             Some(function.span),
         ));
     }
-    // The first lane accepts one real scalar field read through the exact
-    // receiver, with scalar-only local movement and arithmetic around it.
-    // Calls, mutation, ownership and unknown effects are rejected even if a
-    // public contract asserts an empty effect set.
+    // The finite lane accepts bounded scalar reads and writes through the
+    // exact receiver. Direct wrappers carry that receiver to a checked target.
+    // Ownership, unknown effects and unproved arithmetic remain rejected.
     let Type::Record { fields, .. } = self_type else {
         unreachable!()
     };
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeSet::new();
+    let mut saw_write = false;
     let mut direct_result = None;
+    let mut called = false;
     for block in &function.blocks {
         budget.spend(block.instructions.len().saturating_add(1))?;
         for instruction in &block.instructions {
@@ -429,11 +442,9 @@ fn entry_body(
                         receiver_values.insert(result);
                     }
                 }
-                InstructionKind::ReborrowAddress {
-                    address,
-                    mutable: false,
-                } => {
-                    if !receiver_values.contains(address)
+                InstructionKind::ReborrowAddress { address, mutable } => {
+                    if *mutable != slot.receiver.mutable
+                        || !receiver_values.contains(address)
                         || !instruction.result.is_some_and(|result| {
                             function
                                 .values
@@ -471,16 +482,30 @@ fn entry_body(
                         ));
                     }
                 }
+                InstructionKind::WriteAddress { address, value } if slot.receiver.mutable => {
+                    let address_ty = function.values.get(address.0 as usize);
+                    let value_ty = function.values.get(value.0 as usize);
+                    if !field_values.contains(address)
+                        || !matches!(address_ty, Some(Type::Address { mutable: true, inner })
+                            if inner.is_b0_scalar() && value_ty == Some(inner.as_ref()))
+                    {
+                        return Err(bad(
+                            "mutable dyn entry writes outside its actual scalar Self field",
+                            Some(instruction.span),
+                        ));
+                    }
+                    saw_write = true;
+                }
                 InstructionKind::Call {
                     function: target,
                     arguments,
                 } => {
-                    if direct_result.is_some()
+                    if called
                         || !slot.parameters.is_empty()
                         || arguments.len() != 1
                         || !receiver_values.contains(&arguments[0])
-                        || instruction.result.is_none()
-                        || slot.result == Type::Unit
+                        || (slot.result == Type::Unit && instruction.result.is_some())
+                        || (slot.result != Type::Unit && instruction.result.is_none())
                     {
                         return Err(bad(
                             "dyn default wrapper does not pass its exact receiver once",
@@ -498,7 +523,11 @@ fn entry_body(
                             )
                         })?;
                     entry_body(module, callee, self_type, slot, budget, active, depth + 1)?;
+                    called = true;
                     direct_result = instruction.result;
+                    if slot.receiver.mutable {
+                        saw_write = true;
+                    }
                 }
                 InstructionKind::Constant(_)
                 | InstructionKind::ScopeEnter { .. }
@@ -554,6 +583,21 @@ fn entry_body(
                 Some(function.span),
             ));
         }
+        if called
+            && slot.result == Type::Unit
+            && !matches!(block.terminator, Terminator::Return(None))
+        {
+            return Err(bad(
+                "dyn Unit wrapper has an unproved return",
+                Some(function.span),
+            ));
+        }
+    }
+    if slot.receiver.mutable && !saw_write {
+        return Err(bad(
+            "mutable dyn entry has no proven receiver write",
+            Some(function.span),
+        ));
     }
     active.remove(&function.id);
     Ok(())
@@ -565,11 +609,7 @@ pub(super) fn type_address(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    let Type::Address {
-        mutable: false,
-        inner,
-    } = ty
-    else {
+    let Type::Address { inner, .. } = ty else {
         return Err(bad("dyn must be a shared address", span));
     };
     let Type::Dyn { interface: id } = inner.as_ref() else {
@@ -595,17 +635,11 @@ pub(super) fn instruction(
             mutable,
         } => {
             budget.spend(3)?;
-            if *mutable {
-                return Err(bad(
-                    "mutable dyn construction is outside shared profile",
-                    span,
-                ));
-            }
             interface(module, *id)?;
             let table = table(module, *vtable)?;
             if table.interface != *id
                 || !matches!(value_type(function, *source, span)?,
-                Type::Address { mutable: false, inner } if inner.as_ref() == &table.self_type)
+                Type::Address { mutable: available, inner } if inner.as_ref() == &table.self_type && (!*mutable || *available))
             {
                 return Err(bad(
                     "dyn construction source, Self or table interface differs",
@@ -613,7 +647,7 @@ pub(super) fn instruction(
                 ));
             }
             Ok(Some(Type::Address {
-                mutable: false,
+                mutable: *mutable,
                 inner: Box::new(Type::Dyn { interface: *id }),
             }))
         }
@@ -629,8 +663,8 @@ pub(super) fn instruction(
                 .slots
                 .get(*slot as usize)
                 .ok_or_else(|| bad("dyn call slot absent", span))?;
-            if !matches!(value_type(function, *callee, span)?, Type::Address { mutable: false,
-                inner } if matches!(inner.as_ref(), Type::Dyn { interface } if interface == id))
+            if !matches!(value_type(function, *callee, span)?, Type::Address { mutable,
+                inner } if *mutable == selected.receiver.mutable && matches!(inner.as_ref(), Type::Dyn { interface } if interface == id))
                 || selected.parameters.len() != arguments.len()
             {
                 return Err(bad("dyn call receiver or arity differs", span));

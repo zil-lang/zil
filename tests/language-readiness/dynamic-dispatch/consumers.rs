@@ -10,6 +10,9 @@ const TWO: &str = include_str!("dyn-two-provider.zil");
 const INPUT: &str = include_str!("dyn-input.zil");
 const WIDE_ARGUMENT: &str = include_str!("dyn-wide-argument.zil");
 const UNIT_RESULT: &str = include_str!("dyn-unit-result.zil");
+const MUTABLE_RECEIVER: &str = include_str!("dyn-mutable-receiver.zil");
+const MUTABLE_DEFAULT: &str = include_str!("dyn-mutable-default.zil");
+const MUTABLE_PREFIX: &str = "trait Change{fn set(self:&mut Self,value:i32)->();}struct A{n:i32}impl Change for A{fn set(self:&mut Self,value:i32)->(){self.n=value;return ()}}";
 
 fn directory(label: &str) -> PathBuf {
     let base = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -140,17 +143,104 @@ fn indirect_scalar_argument_preserves_full_u64_result_in_both_backends() {
 }
 
 #[test]
-fn unit_result_slot_remains_outside_the_body_proven_profile() {
+fn unit_result_slot_calls_real_provider_body() {
     let report = compile(UNIT_RESULT, &CompileOptions::default());
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::Success,
         "{}",
         report.to_json()
     );
-    assert_eq!(report.phase, Phase::Types, "{}", report.to_json());
-    assert!(report.commands.is_empty());
-    assert_eq!(report.verification_runs, 0);
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn mutable_slot_updates_actual_runtime_selected_receiver() {
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("mutable-receiver");
+            let executable = dir.join("program");
+            let report = compile(
+                MUTABLE_RECEIVER,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
+            assert_eq!(typed.matches("MakeDynBorrow {").count(), 4);
+            assert!(typed.contains("mutable: true") && typed.contains("CallDynSlot {"));
+            for (input, expected) in [(b"1\n".as_slice(), b"82\n".as_slice()), (b"0\n", b"22\n")] {
+                let mut child = Command::new(&executable)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(input).unwrap();
+                let result = child.wait_with_output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{result:?}");
+                assert_eq!(result.stdout, expected);
+                assert!(result.stderr.is_empty(), "{result:?}");
+            }
+        }
+    }
+}
+
+#[test]
+fn mutable_default_wrapper_calls_actual_provider_once() {
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("mutable-default");
+            let executable = dir.join("program");
+            let report = compile(
+                MUTABLE_DEFAULT,
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    stop_after: Stage::Build,
+                    entry: Some("main".into()),
+                    output: Some(executable.clone()),
+                    emit_dir: Some(dir.join("phases")),
+                    ..CompileOptions::default()
+                },
+            );
+            fs::write(dir.join("report.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            for (input, expected) in [(b"1\n".as_slice(), b"22\n".as_slice()), (b"0\n", b"8\n")] {
+                let mut child = Command::new(&executable)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(input).unwrap();
+                let result = child.wait_with_output().unwrap();
+                assert_eq!(result.status.code(), Some(0), "{result:?}");
+                assert_eq!(result.stdout, expected);
+                assert!(result.stderr.is_empty(), "{result:?}");
+            }
+        }
+    }
 }
 
 fn project_files(main: &'static str) -> [(&'static str, &'static str); 3] {
@@ -159,6 +249,70 @@ fn project_files(main: &'static str) -> [(&'static str, &'static str); 3] {
         ("a", include_str!("project/a.zil")),
         ("b", include_str!("project/b.zil")),
     ]
+}
+
+#[test]
+fn cross_module_mutable_provider_keeps_actual_receiver() {
+    let files = [
+        ("main", include_str!("project/mutable-main.zil")),
+        ("a", include_str!("project/mutable-a.zil")),
+        ("b", include_str!("project/mutable-b.zil")),
+    ];
+    for backend in backends() {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory("mutable-default-project");
+            let executable = dir.join("program");
+            let options = CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                output: Some(executable.clone()),
+                emit_dir: Some(dir.join("phases")),
+                cache_dir: Some(dir.join("cache")),
+                object_cache: (backend == NativeBackend::LlvmApi).then(|| dir.join("objects")),
+                ..CompileOptions::default()
+            };
+            for warm in [false, true] {
+                let report = compile_project(&project(&files), &options);
+                fs::write(
+                    dir.join(if warm { "warm.json" } else { "cold.json" }),
+                    report.to_json(),
+                )
+                .unwrap();
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                if warm {
+                    assert_eq!(report.disk_cache, DiskCacheStatus::Hit);
+                    if backend == NativeBackend::LlvmApi {
+                        let native = report.native_codegen.as_ref().unwrap();
+                        assert_eq!(native.object_cache.hits, native.actual_units);
+                        assert_eq!(native.object_cache.misses, 0);
+                    }
+                }
+                for (input, expected) in
+                    [(b"1\n".as_slice(), b"82\n".as_slice()), (b"0\n", b"22\n")]
+                {
+                    let mut child = Command::new(&executable)
+                        .stdin(Stdio::piped())
+                        .stdout(Stdio::piped())
+                        .stderr(Stdio::piped())
+                        .spawn()
+                        .unwrap();
+                    child.stdin.take().unwrap().write_all(input).unwrap();
+                    let result = child.wait_with_output().unwrap();
+                    assert_eq!(result.status.code(), Some(0), "{result:?}");
+                    assert_eq!(result.stdout, expected);
+                    assert!(result.stderr.is_empty(), "{result:?}");
+                }
+            }
+        }
+    }
 }
 
 #[test]
@@ -255,11 +409,11 @@ fn explicit_local_coercion_and_live_receiver_conflicts() {
     );
 }
 
-fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+fn source_candidate_for(text: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     // This fixture has no CT expressions. Use the same closed-project identity
     // and program expansion entry as Driver, so the original trait/impl origins
     // survive specialization instead of manufacturing a raw Core inventory.
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "dynamic-dispatch.zil", INPUT);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "dynamic-dispatch.zil", text);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
@@ -287,6 +441,10 @@ fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let module = typed.module;
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
     (module, plan)
+}
+
+fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
+    source_candidate_for(INPUT)
 }
 
 fn rejected(
@@ -365,6 +523,159 @@ fn source_derived_raw_wire_contract_identity_and_slot_controls() {
         zil_ir::wire::encode_module_candidate(&other, &other_plan, &Limits::default()).unwrap();
     zil_verify::verify_module(other, other_plan, &target, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn mutable_provider_raw_wire_requires_real_write_and_exclusive_source() {
+    let (module, plan) = source_candidate_for(MUTABLE_RECEIVER);
+    rejected(module.clone(), plan.clone(), |m| {
+        let other = m.dyn_vtables[1].entries[0].function;
+        m.dyn_vtables[0].entries[0].function = other;
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_vtables[0].entries[0].slot = u32::MAX;
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        m.dyn_interfaces[0].slots[0]
+            .contract
+            .call
+            .as_mut()
+            .unwrap()
+            .writes
+            .clear();
+    });
+    rejected(module.clone(), plan.clone(), |m| {
+        let write = m
+            .functions
+            .iter_mut()
+            .flat_map(|f| &mut f.blocks)
+            .flat_map(|b| &mut b.instructions)
+            .find(|i| matches!(i.kind, I::WriteAddress { .. }))
+            .unwrap();
+        write.kind = I::StorageDead(zil_ir::LocalId(0));
+    });
+    let mut forged = module.clone();
+    let make = forged
+        .functions
+        .iter_mut()
+        .flat_map(|f| &mut f.blocks)
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| matches!(i.kind, I::MakeDynBorrow { .. }))
+        .unwrap();
+    if let I::MakeDynBorrow { mutable, .. } = &mut make.kind {
+        *mutable = false;
+    }
+    let mut forged_plan = plan;
+    forged_plan.module_fingerprint = forged.fingerprint();
+    assert!(zil_analyze::analyze(&forged, &Limits::default()).is_err());
+    let target = forged.target.clone();
+    let wire =
+        zil_ir::wire::encode_module_candidate(&forged, &forged_plan, &Limits::default()).unwrap();
+    assert!(zil_verify::verify_module(forged, forged_plan, &target, &Limits::default()).is_err());
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+}
+
+#[test]
+fn shared_dyn_cannot_call_mutable_slot_or_create_exclusive_dyn() {
+    for body in [
+        "fn main()->i32{var a=A{n:1};let d:&dyn Change=&a;d.set(5);return a.n}",
+        "fn main()->i32{var a=A{n:1};let shared:&A=&a;let d:&mut dyn Change=shared;d.set(5);return a.n}",
+    ] {
+        let report = compile(
+            &format!("{MUTABLE_PREFIX}{body}"),
+            &CompileOptions::default(),
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(matches!(
+            report.phase,
+            Phase::Expand | Phase::Types | Phase::Analyze | Phase::Verify
+        ));
+    }
+    let conflict = format!(
+        "{MUTABLE_PREFIX}fn main()->i32{{var a=A{{n:1}};let d:&mut dyn Change=&mut a;let shared:&A=&a;d.set(5);return shared.n}}"
+    );
+    let report = compile(&conflict, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert!(
+        matches!(report.phase, Phase::Analyze | Phase::Verify),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn explicit_exclusive_dyn_local_retains_real_owner() {
+    let source = format!(
+        "{MUTABLE_PREFIX}fn main()->i32{{var a=A{{n:1}};let d:&mut dyn Change=&mut a;d.set(5);return a.n}}"
+    );
+    let dir = directory("exclusive-local");
+    let executable = dir.join("program");
+    let report = compile(
+        &source,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            entry: Some("main".into()),
+            output: Some(executable.clone()),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    let result = Command::new(executable).output().unwrap();
+    assert_eq!(result.status.code(), Some(0));
+    assert_eq!(result.stdout, b"5\n");
+}
+
+#[test]
+fn mutable_provider_work_budget_has_exact_acceptance_edge() {
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "mutable-dispatch.zil",
+        MUTABLE_RECEIVER,
+    );
+    let maximum = CompileOptions::default().limits.max_analysis_steps;
+    let options = |work| {
+        let mut options = CompileOptions::default();
+        options.limits.max_analysis_steps = work;
+        options
+    };
+    let (mut low, mut high) = (1, maximum);
+    while low < high {
+        let middle = low + (high - low) / 2;
+        let report = CompilationSession::default().compile_source(&unit, &options(middle));
+        match report.status {
+            ResultCategory::Success => high = middle,
+            ResultCategory::ResourceLimit => low = middle + 1,
+            _ => panic!("work={middle}: {}", report.to_json()),
+        }
+    }
+    assert!(low > 1);
+    for (work, status) in [
+        (low, ResultCategory::Success),
+        (low - 1, ResultCategory::ResourceLimit),
+    ] {
+        let report = CompilationSession::default().compile_source(&unit, &options(work));
+        assert_eq!(report.status, status, "{}", report.to_json());
+        if status == ResultCategory::Success {
+            assert_eq!(report.verification_runs, 1);
+        }
+    }
 }
 
 #[test]

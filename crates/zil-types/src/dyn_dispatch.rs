@@ -1,4 +1,4 @@
-//! Finite shared dyn admission. Core tables and slot claims are untrusted.
+//! Finite borrowed dyn admission. Core tables and slot claims are untrusted.
 use super::*;
 
 fn receiver_position() -> StoragePosition {
@@ -8,15 +8,19 @@ fn receiver_position() -> StoragePosition {
     }
 }
 
-pub(super) fn scalar_contract() -> DynContract {
+pub(super) fn scalar_contract(mutable: bool) -> DynContract {
     let receiver = receiver_position();
     DynContract {
-        requires: Some(vec![DynRequirement::Read(receiver.clone())]),
+        requires: Some(vec![if mutable {
+            DynRequirement::Write(receiver.clone())
+        } else {
+            DynRequirement::Read(receiver.clone())
+        }]),
         guarantees: Some(Vec::new()),
         hold: Some(Vec::new()),
         call: Some(DynCallAccess {
-            reads: vec![receiver],
-            writes: Vec::new(),
+            reads: vec![receiver.clone()],
+            writes: if mutable { vec![receiver] } else { Vec::new() },
         }),
         result: Some(DynResultSource::Value),
         cleanup: Some(DynCleanupContract {
@@ -128,12 +132,16 @@ pub(super) fn inventory(
         }
         for (ordinal, slot) in interface.slots.iter().enumerate() {
             spend(&mut left, 256 + slot.parameters.len())?;
-            if slot.contract != scalar_contract()
-                || slot.receiver.mutable
-                || slot.receiver.mode != PassingMode::Borrow
+            if slot.contract != scalar_contract(slot.receiver.mutable)
+                || slot.receiver.mode
+                    != if slot.receiver.mutable {
+                        PassingMode::BorrowMut
+                    } else {
+                        PassingMode::Borrow
+                    }
                 || !slot.actuals.is_empty()
                 || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                || !slot.result.is_b0_scalar()
+                || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
                 || slot
                     .parameter_modes
                     .iter()
@@ -212,10 +220,7 @@ pub(super) fn inventory(
                 .get(&function.name)
                 .ok_or_else(|| error("E-DYN-ENTRY", function.span, "dyn entry signature absent"))?
                 .concrete_id(function.span)?;
-            let Some(Type::Address {
-                mutable: false,
-                inner,
-            }) = function.parameters.first().map(|p| &p.ty)
+            let Some(Type::Address { mutable, inner }) = function.parameters.first().map(|p| &p.ty)
             else {
                 return Err(unsupported(
                     function.span,
@@ -248,7 +253,8 @@ pub(super) fn inventory(
             }
             canonical_self = Some(inner.as_ref().clone());
             let slot = &interface.slots[ordinal];
-            if function.foreign.is_some()
+            if *mutable != slot.receiver.mutable
+                || function.foreign.is_some()
                 || !function.type_parameters.is_empty()
                 || !function.state_parameters.is_empty()
                 || !function.callable_parameters.is_empty()
@@ -261,7 +267,17 @@ pub(super) fn inventory(
                     .skip(1)
                     .zip(&slot.parameters)
                     .any(|(p, ty)| p.ty != *ty)
-                || !scalar_body(core, function, fields, &slot.result, signatures, &mut left)?
+                || !scalar_body(
+                    core,
+                    table,
+                    interface,
+                    function,
+                    fields,
+                    slot.receiver.mutable,
+                    &slot.result,
+                    signatures,
+                    &mut left,
+                )?
             {
                 return Err(unsupported(
                     function.span,
@@ -400,11 +416,11 @@ pub(super) fn inventory_program(
                         + slot.actuals.len()
                         + slot.member.application.actuals.len(),
                 )?;
-                if slot.contract != scalar_contract()
+                if slot.contract != scalar_contract(slot.receiver.mutable)
                     || !slot.actuals.is_empty()
                     || !slot.member.application.actuals.is_empty()
                     || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
-                    || !slot.result.is_b0_scalar()
+                    || !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
                 {
                     return Err(unsupported(
                         Span::default(),
@@ -494,8 +510,11 @@ pub(super) fn inventory_program(
 
 fn scalar_body(
     core: &CoreModule,
+    table: &CoreDynVtable,
+    interface: &DynInterface,
     function: &CoreFunction,
     fields: &[(String, Type)],
+    mutable: bool,
     result: &Type,
     signatures: &BTreeMap<String, Signature>,
     left: &mut usize,
@@ -514,42 +533,160 @@ fn scalar_body(
             return Ok(false);
         }
         seen.push(current.id);
+        if mutable && current.body.statements.len() == 2 {
+            *left = left
+                .checked_sub(
+                    1 + current.body.statements.len()
+                        + fields.len().saturating_mul(3)
+                        + current.parameters.len(),
+                )
+                .ok_or_else(|| {
+                    Diagnostic::limit(
+                        Phase::Types,
+                        "dyn mutable body budget exceeded",
+                        Some(current.span),
+                    )
+                })?;
+            let [assignment, returned] = current.body.statements.as_slice() else {
+                return Ok(false);
+            };
+            let CoreStatementKind::Assign { target, value } = &assignment.kind else {
+                return Ok(false);
+            };
+            let CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } = &target.kind
+            else {
+                return Ok(false);
+            };
+            if !matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                || !matches!(
+                    &value.kind,
+                    CoreExprKind::Integer(_) | CoreExprKind::Bool(_) | CoreExprKind::Name(_)
+                )
+                || !fields
+                    .iter()
+                    .any(|(name, ty)| name == member && ty.is_b0_scalar())
+            {
+                return Ok(false);
+            }
+            let returns_unit = *result == Type::Unit
+                && matches!(
+                    &returned.kind,
+                    CoreStatementKind::Return(None)
+                        | CoreStatementKind::Return(Some(CoreExpr {
+                            kind: CoreExprKind::Unit,
+                            ..
+                        }))
+                );
+            let returns_field = matches!(&returned.kind,
+                CoreStatementKind::Return(Some(CoreExpr { kind: CoreExprKind::Member { object, member, owner: None }, .. }))
+                    if matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                        && fields.iter().any(|(name, ty)| name == member && ty == result));
+            return Ok(returns_unit || returns_field);
+        }
+
         let [statement] = current.body.statements.as_slice() else {
             return Ok(false);
         };
+        if !mutable
+            && *result == Type::Unit
+            && matches!(
+                &statement.kind,
+                CoreStatementKind::Return(None)
+                    | CoreStatementKind::Return(Some(CoreExpr {
+                        kind: CoreExprKind::Unit,
+                        ..
+                    }))
+            )
+        {
+            return Ok(true);
+        }
         let CoreStatementKind::Return(Some(value)) = &statement.kind else {
             return Ok(false);
         };
         let CoreExprKind::Call { callee, arguments } = &value.kind else {
             break value;
         };
-        let CoreExprKind::Name(target_name) = &callee.kind else {
-            return Ok(false);
-        };
-        if current.parameters.len() != 1
-            || arguments.len() != 1
-            || !matches!(&arguments[0].kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
-        {
+        if current.parameters.len() != 1 {
             return Ok(false);
         }
-        *left = left.checked_sub(core.functions.len()).ok_or_else(|| {
-            Diagnostic::limit(
-                Phase::Types,
-                "dyn reachable target budget exceeded",
-                Some(value.span),
+        *left = left
+            .checked_sub(
+                core.functions
+                    .len()
+                    .saturating_add(core.dyn_declarations.len())
+                    .saturating_add(
+                        core.dyn_declarations
+                            .iter()
+                            .map(|d| d.members.len())
+                            .sum::<usize>(),
+                    )
+                    .saturating_add(table.entries.len()),
             )
-        })?;
-        let mut targets = core
-            .functions
-            .iter()
-            .filter(|candidate| candidate.name == *target_name);
-        let Some(next) = targets.next() else {
-            return Ok(false);
+            .ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "dyn reachable target budget exceeded",
+                    Some(value.span),
+                )
+            })?;
+        let next = match &callee.kind {
+            CoreExprKind::Name(target_name)
+                if arguments.len() == 1
+                    && matches!(&arguments[0].kind,
+                    CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
+            {
+                let mut targets = core
+                    .functions
+                    .iter()
+                    .filter(|candidate| candidate.name == *target_name);
+                let Some(found) = targets.next() else {
+                    return Ok(false);
+                };
+                if targets.next().is_some() {
+                    return Ok(false);
+                }
+                found
+            }
+            CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } if arguments.is_empty()
+                && matches!(&object.kind,
+                    CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
+            {
+                let Some(declaration) = core
+                    .dyn_declarations
+                    .iter()
+                    .find(|d| d.id == interface.application.declaration)
+                else {
+                    return Ok(false);
+                };
+                let Some(ordinal) = declaration.members.iter().position(|m| m.name == *member)
+                else {
+                    return Ok(false);
+                };
+                let Some(entry) = table
+                    .entries
+                    .get(ordinal)
+                    .filter(|e| e.slot as usize == ordinal && e.module == core.module_id)
+                else {
+                    return Ok(false);
+                };
+                let Some(found) = core.functions.iter().find(|f| f.id == entry.function) else {
+                    return Ok(false);
+                };
+                found
+            }
+            _ => return Ok(false),
         };
-        if targets.next().is_some()
-            || signatures
-                .get(target_name)
-                .is_none_or(|signature| signature.id.is_none())
+        if signatures
+            .get(&next.name)
+            .is_none_or(|signature| signature.id.is_none())
             || next.foreign.is_some()
             || !next.type_parameters.is_empty()
             || !next.state_parameters.is_empty()
@@ -564,6 +701,9 @@ fn scalar_body(
         }
         current = next;
     };
+    if mutable {
+        return Ok(false);
+    }
     Ok(match &value.kind {
         CoreExprKind::Member {
             object,
@@ -589,11 +729,7 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         member: &str,
     ) -> Option<(DynInterfaceId, u32)> {
-        let Type::Address {
-            mutable: false,
-            inner,
-        } = self.known_type(object)?
-        else {
+        let Type::Address { mutable: _, inner } = self.known_type(object)? else {
             return None;
         };
         let Type::Dyn { interface } = *inner else {
@@ -624,6 +760,7 @@ impl Builder<'_, '_> {
         source: ValueId,
         actual: &Type,
         interface: DynInterfaceId,
+        mutable: bool,
         span: Span,
     ) -> R<(ValueId, Type)> {
         let table = self
@@ -638,7 +775,7 @@ impl Builder<'_, '_> {
                 )
             })?;
         let ty = Type::Address {
-            mutable: false,
+            mutable,
             inner: Box::new(Type::Dyn { interface }),
         };
         let value = self.value(
@@ -646,7 +783,7 @@ impl Builder<'_, '_> {
                 interface,
                 vtable: table.id,
                 source,
-                mutable: false,
+                mutable,
             },
             ty.clone(),
             span,
@@ -662,15 +799,9 @@ impl Builder<'_, '_> {
         mutable: bool,
         span: Span,
     ) -> R<(ValueId, Type)> {
-        if mutable {
-            return Err(unsupported(
-                span,
-                "mutable dyn borrow is outside shared profile",
-            ));
-        }
         let (source, ty) = self.expr(source, None)?;
         let Type::Address {
-            mutable: false,
+            mutable: available,
             inner,
         } = ty
         else {
@@ -680,6 +811,13 @@ impl Builder<'_, '_> {
                 "dyn source must be a real shared concrete address",
             ));
         };
+        if mutable && !available {
+            return Err(error(
+                "E-DYN-RECEIVER",
+                span,
+                "shared receiver cannot create mutable dyn",
+            ));
+        }
         let table = self
             .dyn_vtables
             .iter()
@@ -694,7 +832,7 @@ impl Builder<'_, '_> {
                 )
             })?;
         let ty = Type::Address {
-            mutable: false,
+            mutable,
             inner: Box::new(Type::Dyn { interface }),
         };
         let value = self.value(
@@ -702,7 +840,7 @@ impl Builder<'_, '_> {
                 interface,
                 vtable: table.id,
                 source,
-                mutable: false,
+                mutable,
             },
             ty.clone(),
             span,
@@ -743,7 +881,7 @@ impl Builder<'_, '_> {
         }
         let (receiver, actual) = self.expr(callee, None)?;
         let expected = Type::Address {
-            mutable: false,
+            mutable: slot.receiver.mutable,
             inner: Box::new(Type::Dyn { interface }),
         };
         self.same(&actual, &expected, callee.span)?;

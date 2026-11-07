@@ -1,9 +1,9 @@
-//! Physical shared dyn ABI. Admission comes from the exactly bound capability.
+//! Physical borrowed dyn ABI. Admission comes from the exactly bound capability.
 use super::*;
 use zil_ir::{DynInterfaceId, DynVtableId, TypedModule};
 
 pub(super) fn address(ty: &Type) -> bool {
-    matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. }))
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }))
 }
 
 pub(super) fn pair() -> m::Ty {
@@ -34,14 +34,10 @@ pub(super) fn reserve(module: &TypedModule, work: &mut usize) -> CompileResult<(
         }
         for slot in &interface.slots {
             cost = cost.saturating_add(slot.parameters.len().saturating_mul(64));
-            if slot.receiver.mutable
-                || !slot.result.is_b0_scalar()
+            if !(slot.result.is_b0_scalar() || slot.result == Type::Unit)
                 || !slot.parameters.iter().all(Type::is_b0_scalar)
             {
-                return unsupported(
-                    "shared dyn ABI requires a shared receiver and scalar slots",
-                    None,
-                );
+                return unsupported("borrowed dyn ABI requires fixed scalar or Unit slots", None);
             }
         }
     }
@@ -122,18 +118,17 @@ impl FunctionEmitter<'_> {
         interface: DynInterfaceId,
         vtable: DynVtableId,
         source: ValueId,
-        mutable: bool,
+        _mutable: bool,
     ) -> CompileResult<()> {
-        if mutable
-            || !self
-                .dyn_module
-                .dyn_vtables
-                .iter()
-                .any(|t| t.id == vtable && t.interface == interface)
+        if !self
+            .dyn_module
+            .dyn_vtables
+            .iter()
+            .any(|t| t.id == vtable && t.interface == interface)
         {
             return invalid(
                 "E-CODEGEN-DYN",
-                "shared dyn construction lacks its verified table",
+                "borrowed dyn construction lacks its verified table",
                 Some(instruction.span),
             );
         }

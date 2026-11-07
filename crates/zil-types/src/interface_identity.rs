@@ -388,8 +388,12 @@ fn dyn_type(
         if slot.member.application != interface.application
             || slot.member.ordinal as usize != ordinal
             || !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty())
-            || slot.receiver.mutable
-            || slot.receiver.mode != PassingMode::Borrow
+            || slot.receiver.mode
+                != if slot.receiver.mutable {
+                    PassingMode::BorrowMut
+                } else {
+                    PassingMode::Borrow
+                }
             || !slot.actuals.is_empty()
             || slot.parameter_modes.len() != slot.parameters.len()
             || slot
@@ -398,7 +402,7 @@ fn dyn_type(
                 .any(|mode| *mode != PassingMode::Infer)
             || slot.result_mode != PassingMode::Infer
             || slot.call_kind != CallKind::Direct
-            || slot.contract != dyn_dispatch::scalar_contract()
+            || slot.contract != dyn_dispatch::scalar_contract(slot.receiver.mutable)
             || slot.storage_life.as_ref() != Some(&dyn_dispatch::shared_slot_life())
         {
             return Err(invalid(
@@ -610,7 +614,7 @@ mod tests {
                     result_mode: PassingMode::Infer,
                     call_kind: CallKind::Direct,
                     storage_life: Some(dyn_dispatch::shared_slot_life()),
-                    contract: dyn_dispatch::scalar_contract(),
+                    contract: dyn_dispatch::scalar_contract(false),
                 }],
             };
             (original, interface)

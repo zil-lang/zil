@@ -29,15 +29,19 @@ fn receiver_position() -> zil_ir::StoragePosition {
     }
 }
 
-fn scalar_read_contract() -> zil_ir::DynContract {
+fn scalar_read_contract(mutable: bool) -> zil_ir::DynContract {
     let receiver = receiver_position();
     zil_ir::DynContract {
-        requires: Some(vec![zil_ir::DynRequirement::Read(receiver.clone())]),
+        requires: Some(vec![if mutable {
+            zil_ir::DynRequirement::Write(receiver.clone())
+        } else {
+            zil_ir::DynRequirement::Read(receiver.clone())
+        }]),
         guarantees: Some(Vec::new()),
         hold: Some(Vec::new()),
         call: Some(zil_ir::DynCallAccess {
-            reads: vec![receiver],
-            writes: Vec::new(),
+            reads: vec![receiver.clone()],
+            writes: if mutable { vec![receiver] } else { Vec::new() },
         }),
         result: Some(zil_ir::DynResultSource::Value),
         cleanup: Some(zil_ir::DynCleanupContract {
@@ -80,12 +84,11 @@ fn prove_scalar_read(
         || provider.parameters.len() != slot.parameters.len() + 1
         || provider.return_type != slot.result
         || provider.result_mode != slot.result_mode
-        || !slot.result.is_b0_scalar()
-        || slot.receiver.mutable
+        || !(slot.result.is_b0_scalar() || slot.result == zil_ir::Type::Unit)
         || provider.parameters[0].mode != slot.receiver.mode
         || provider.parameters[0].ty
             != (zil_ir::Type::Address {
-                mutable: false,
+                mutable: slot.receiver.mutable,
                 inner: Box::new(table.self_type.clone()),
             })
     {
@@ -121,12 +124,118 @@ fn prove_scalar_read(
             }
         }
         seen.push(current.id);
+        if slot.receiver.mutable && current.body.statements.len() == 2 {
+            for aggregate in &owner.aggregates {
+                budget.node(aggregate.span, 0)?;
+            }
+            for parameter in &current.parameters {
+                budget.node(parameter.span, 0)?;
+            }
+            let [assignment, returned] = current.body.statements.as_slice() else {
+                return Err(unsupported(
+                    current.span,
+                    "mutable dyn provider needs a proven field update and return",
+                ));
+            };
+            let zil_ir::CoreStatementKind::Assign { target, value } = &assignment.kind else {
+                return Err(unsupported(
+                    assignment.span,
+                    "mutable dyn provider has unproven write",
+                ));
+            };
+            let zil_ir::CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } = &target.kind
+            else {
+                return Err(unsupported(
+                    target.span,
+                    "mutable dyn provider must write a real Self field",
+                ));
+            };
+            if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                || !matches!(
+                    &value.kind,
+                    zil_ir::CoreExprKind::Integer(_)
+                        | zil_ir::CoreExprKind::Bool(_)
+                        | zil_ir::CoreExprKind::Name(_)
+                )
+            {
+                return Err(unsupported(
+                    assignment.span,
+                    "mutable dyn write value or source is unproven",
+                ));
+            }
+            let aggregate = owner
+                .aggregates
+                .iter()
+                .find(|a| &a.name == self_name)
+                .ok_or_else(|| unsupported(current.span, "mutable dyn Self aggregate absent"))?;
+            for _ in 0..4 {
+                for field in &aggregate.fields {
+                    budget.node(field.span, 0)?;
+                    budget.text(&field.name, field.span)?;
+                }
+            }
+            let field = aggregate
+                .fields
+                .iter()
+                .find(|f| f.name == *member)
+                .ok_or_else(|| unsupported(target.span, "mutable dyn field absent"))?;
+            if aggregate.kind != zil_ir::AggregateKind::Struct
+                || aggregate
+                    .fields
+                    .iter()
+                    .any(|f| f.manages || !f.ty.is_b0_scalar())
+                || !field.ty.is_b0_scalar()
+                || (matches!(&value.kind, zil_ir::CoreExprKind::Name(name)
+                    if !current.parameters.iter().skip(1).any(|p| p.name == *name && p.ty == field.ty)))
+            {
+                return Err(unsupported(
+                    assignment.span,
+                    "mutable dyn field/value lacks finite Copy proof",
+                ));
+            }
+            let returns_unit = matches!(
+                &returned.kind,
+                zil_ir::CoreStatementKind::Return(None)
+                    | zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
+                        kind: zil_ir::CoreExprKind::Unit,
+                        ..
+                    }))
+            ) && slot.result == zil_ir::Type::Unit;
+            let returns_field = matches!(&returned.kind, zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr { kind: zil_ir::CoreExprKind::Member { object, member: result_member, owner: None }, .. }))
+                if matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+                    && aggregate.fields.iter().any(|f| f.name == *result_member && f.ty == slot.result));
+            if !returns_unit && !returns_field {
+                return Err(unsupported(
+                    returned.span,
+                    "mutable dyn result lacks actual Self source",
+                ));
+            }
+            return Ok(());
+        }
+
         let [statement] = current.body.statements.as_slice() else {
             return Err(unsupported(
                 current.span,
                 "dyn provider body needs one proven return",
             ));
         };
+        if !slot.receiver.mutable
+            && slot.result == zil_ir::Type::Unit
+            && matches!(
+                &statement.kind,
+                zil_ir::CoreStatementKind::Return(None)
+                    | zil_ir::CoreStatementKind::Return(Some(zil_ir::CoreExpr {
+                        kind: zil_ir::CoreExprKind::Unit,
+                        ..
+                    }))
+            )
+        {
+            return Ok(());
+        }
         let zil_ir::CoreStatementKind::Return(Some(value)) = &statement.kind else {
             return Err(unsupported(
                 statement.span,
@@ -137,36 +246,98 @@ fn prove_scalar_read(
             break value;
         };
         // Default methods have a real wrapper. Resolve its exact callee in
-        // the originating module and carry the shared Self root through each
+        // the originating module and carry the actual Self root through each
         // reachable direct call. No callee-name spelling grants authority.
-        let zil_ir::CoreExprKind::Name(target_name) = &callee.kind else {
-            return Err(unsupported(
-                callee.span,
-                "dyn provider callee is not direct",
-            ));
-        };
-        budget.text(target_name, callee.span)?;
-        if !slot.parameters.is_empty()
-            || current.parameters.len() != 1
-            || arguments.len() != 1
-            || !matches!(&arguments[0].kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
-        {
+        if !slot.parameters.is_empty() || current.parameters.len() != 1 {
             return Err(unsupported(
                 value.span,
-                "dyn provider call arguments are unproven",
+                "dyn wrapper has unproven extra arguments",
             ));
         }
         let mut target = None;
-        for function in &owner.functions {
-            budget.node(function.span, 0)?;
-            if function.name == *target_name {
-                if target.is_some() {
-                    return Err(unsupported(
-                        value.span,
-                        "dyn provider call target is ambiguous",
-                    ));
+        match &callee.kind {
+            zil_ir::CoreExprKind::Name(target_name)
+                if arguments.len() == 1
+                    && matches!(&arguments[0].kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
+            {
+                budget.text(target_name, callee.span)?;
+                for module in modules {
+                    for function in &module.functions {
+                        budget.node(function.span, 0)?;
+                        if function.name == *target_name {
+                            if target.is_some() {
+                                return Err(unsupported(
+                                    value.span,
+                                    "dyn direct wrapper target is ambiguous",
+                                ));
+                            }
+                            target = Some(function);
+                        }
+                    }
                 }
-                target = Some(function);
+            }
+            zil_ir::CoreExprKind::Member {
+                object,
+                member,
+                owner: None,
+            } if arguments.is_empty()
+                && matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name) =>
+            {
+                budget.text(member, callee.span)?;
+                for module in modules {
+                    budget.node(callee.span, 0)?;
+                    for row in &module.dyn_interfaces {
+                        budget.node(callee.span, 0)?;
+                        for _ in &row.slots {
+                            budget.node(callee.span, 0)?;
+                        }
+                    }
+                    for declaration in &module.dyn_declarations {
+                        budget.node(callee.span, 0)?;
+                        for part in &declaration.members {
+                            budget.node(callee.span, 0)?;
+                            budget.text(&part.name, callee.span)?;
+                        }
+                    }
+                    for function in &module.functions {
+                        budget.node(function.span, 0)?;
+                    }
+                }
+                for _ in &table.entries {
+                    budget.node(callee.span, 0)?;
+                }
+                let interface = modules
+                    .iter()
+                    .flat_map(|m| &m.dyn_interfaces)
+                    .find(|i| i.id == table.interface)
+                    .ok_or_else(|| unsupported(callee.span, "dyn wrapper interface absent"))?;
+                let declaration = modules
+                    .iter()
+                    .flat_map(|m| &m.dyn_declarations)
+                    .find(|d| d.id == interface.application.declaration)
+                    .ok_or_else(|| unsupported(callee.span, "dyn wrapper declaration absent"))?;
+                let ordinal = declaration
+                    .members
+                    .iter()
+                    .position(|m| m.name == *member)
+                    .ok_or_else(|| unsupported(callee.span, "dyn wrapper member absent"))?;
+                let entry = table
+                    .entries
+                    .get(ordinal)
+                    .filter(|e| e.slot as usize == ordinal)
+                    .ok_or_else(|| {
+                        unsupported(callee.span, "dyn wrapper actual provider entry absent")
+                    })?;
+                target = modules
+                    .iter()
+                    .find(|m| m.module_id == entry.module)
+                    .and_then(|m| m.functions.iter().find(|f| f.id == entry.function));
+            }
+            _ => {
+                return Err(unsupported(
+                    callee.span,
+                    "dyn provider callee or receiver is not direct",
+                ));
             }
         }
         let next =
@@ -188,6 +359,12 @@ fn prove_scalar_read(
         }
         current = next;
     };
+    if slot.receiver.mutable {
+        return Err(unsupported(
+            value.span,
+            "mutable dyn provider chain has no proven receiver write",
+        ));
+    }
     if matches!(
         &value.kind,
         zil_ir::CoreExprKind::Integer(_)
@@ -585,10 +762,10 @@ impl Catalog {
                 .ok_or_else(|| error(span, "dyn source vtable output module absent"))?;
             core.dyn_vtables.push(table);
         }
-        // A slot is executable only when *every* actual entry has a closed
-        // body. This first lane proves precisely one receiver-field scalar
-        // read and no reachable calls, writes, cleanup or retained result.
-        // A declaration's scalar signature alone never grants these facts.
+        // A slot is executable only when every actual entry has a closed
+        // body. Shared entries prove bounded scalar reads; exclusive entries
+        // prove a real scalar Self write, including checked direct wrappers.
+        // A declaration's scalar signature alone grants none of these facts.
         for _ in cores.iter() {
             budget.node(span, 0)?;
         }
@@ -657,7 +834,8 @@ impl Catalog {
                 for (id, ordinal, proven) in &decisions {
                     budget.node(span, 0)?;
                     if *proven && *id == interface.id {
-                        interface.slots[*ordinal].contract = scalar_read_contract();
+                        interface.slots[*ordinal].contract =
+                            scalar_read_contract(interface.slots[*ordinal].receiver.mutable);
                     }
                 }
             }
