@@ -9,6 +9,9 @@ pub(super) enum Root {
     Field(LocalId, u32),
     Projection(LocalId, u32, u32),
     Window(HoldRoot, u32, u32),
+    // The owner header's inline interval and the heap element's payload
+    // interval are separate domains. Conflict checks use the header interval.
+    StoreElementWindow(HoldRoot, u32, u32, u32, u32),
     Capture(u32),
     Parameter(u32),
     ParameterCapture(u32, u32),
@@ -21,22 +24,28 @@ impl Root {
                 HoldRoot::Local(local)
             }
             Self::Window(root, ..) => root,
+            Self::StoreElementWindow(root, ..) => root,
             Self::Capture(index) => HoldRoot::Capture(index),
             Self::Parameter(index) | Self::ParameterCapture(index, _) => HoldRoot::Parameter(index),
         }
     }
     pub(super) fn intersects(self, other: Self) -> bool {
+        let header = |root: Self| match root {
+            Self::StoreElementWindow(origin, start, end, ..) => Self::Window(origin, start, end),
+            root => root,
+        };
+        let (left, right) = (header(self), header(other));
         // An incoming environment position is distinct from its externally
         // captured targets. Different capture slots are symbolic: the actual
         // caller must instantiate them before proving any separation.
-        if matches!(self, Self::ParameterCapture(..)) || matches!(other, Self::ParameterCapture(..))
+        if matches!(left, Self::ParameterCapture(..)) || matches!(right, Self::ParameterCapture(..))
         {
-            return self == other;
+            return left == right;
         }
-        if self.coarse() != other.coarse() {
+        if left.coarse() != right.coarse() {
             return false;
         }
-        match (self, other) {
+        match (left, right) {
             (Self::Projection(_, a, b), Self::Projection(_, c, d))
             | (Self::Window(_, a, b), Self::Window(_, c, d))
             | (Self::Projection(_, a, b), Self::Window(_, c, d))
@@ -49,6 +58,7 @@ impl Root {
         match self {
             Self::Local(local) | Self::Field(local, _) | Self::Projection(local, ..) => Some(local),
             Self::Window(HoldRoot::Local(local), ..) => Some(local),
+            Self::StoreElementWindow(HoldRoot::Local(local), ..) => Some(local),
             _ => None,
         }
     }
@@ -56,11 +66,14 @@ impl Root {
 impl Ord for Root {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         let projection = |root: &Self| match root {
-            Self::Field(_, index) => (1, *index, 0),
-            Self::Projection(_, start, end) => (2, *start, *end),
-            Self::Window(_, start, end) => (4, *start, *end),
-            Self::ParameterCapture(_, capture) => (3, *capture, 0),
-            _ => (0, 0, 0),
+            Self::Field(_, index) => (1, *index, 0, 0, 0),
+            Self::Projection(_, start, end) => (2, *start, *end, 0, 0),
+            Self::Window(_, start, end) => (4, *start, *end, 0, 0),
+            Self::StoreElementWindow(_, start, end, payload_start, payload_end) => {
+                (5, *start, *end, *payload_start, *payload_end)
+            }
+            Self::ParameterCapture(_, capture) => (3, *capture, 0, 0, 0),
+            _ => (0, 0, 0, 0, 0),
         };
         (self.coarse(), projection(self)).cmp(&(other.coarse(), projection(other)))
     }
@@ -69,6 +82,74 @@ impl PartialOrd for Root {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
         Some(self.cmp(other))
     }
+}
+
+pub(super) fn store_element_roots(
+    function: &TypedFunction,
+    result: ValueId,
+    source: &[Root],
+    budget: &mut Budget,
+) -> Check<Vec<Root>> {
+    fn payload_width(ty: &Type, budget: &mut Budget) -> Check<u32> {
+        budget.spend(1)?;
+        let mut count = 1u32;
+        let mut add = |child: &Type| -> Check<()> {
+            count = count
+                .checked_add(payload_width(child, budget)?)
+                .ok_or_else(|| limit("Store element payload interval overflow"))?;
+            Ok(())
+        };
+        match ty {
+            Type::Tuple(fields) => {
+                for child in fields {
+                    add(child)?;
+                }
+            }
+            Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                for (_, child) in fields {
+                    add(child)?;
+                }
+            }
+            Type::Enum { variants, .. } => {
+                for (_, fields) in variants {
+                    for child in fields {
+                        add(child)?;
+                    }
+                }
+            }
+            Type::ErrorUnion { error, result } => {
+                add(error)?;
+                add(result)?;
+            }
+            _ => {}
+        }
+        Ok(count)
+    }
+    let mut output = Vec::with_capacity(source.len());
+    let mut width = None;
+    for root in source {
+        output.push(match *root {
+            Root::Window(origin, header_start, header_end) => {
+                let payload_end = if let Some(width) = width {
+                    width
+                } else {
+                    let Type::Address { inner, .. } = value_type(function, result, None)? else {
+                        return Err(reject(
+                            "E-VERIFY-ADDRESS",
+                            None,
+                            "Store element result is not an address",
+                        ));
+                    };
+                    let count = payload_width(inner, budget)?;
+                    width = Some(count);
+                    count
+                };
+                Root::StoreElementWindow(origin, header_start, header_end, 0, payload_end)
+            }
+            root => root,
+        });
+    }
+    Ok(output)
 }
 
 pub(super) fn field_root(
@@ -536,6 +617,28 @@ pub(super) fn inline_address_field(
                         ));
                     }
                     Root::Window(origin, a, z)
+                }
+                Root::StoreElementWindow(
+                    origin,
+                    header_start,
+                    header_end,
+                    payload_start,
+                    payload_end,
+                ) => {
+                    let a = payload_start
+                        .checked_add(start)
+                        .ok_or_else(|| limit("Store element field interval overflow"))?;
+                    let z = payload_start
+                        .checked_add(end)
+                        .ok_or_else(|| limit("Store element field interval overflow"))?;
+                    if z > payload_end {
+                        return Err(reject(
+                            "E-VERIFY-ADDRESS",
+                            None,
+                            "Store element field escapes payload interval",
+                        ));
+                    }
+                    Root::StoreElementWindow(origin, header_start, header_end, a, z)
                 }
                 root => root,
             })

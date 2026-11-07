@@ -810,10 +810,18 @@ fn reconstruct(
                                 row.push(Root::Capture(*index));
                             }
                             InstructionKind::ByteBufferBorrow { buffer, .. }
-                            | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
                             | InstructionKind::MutexValue { guard: buffer } => {
                                 roots_join(&mut row, &values[buffer.0 as usize], budget)?;
+                            }
+                            InstructionKind::OwnedStoreBorrow { store, .. }
+                            | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                                let precise = roots::store_element_roots(
+                                    f,
+                                    result,
+                                    &values[store.0 as usize],
+                                    budget,
+                                )?;
+                                roots_join(&mut row, &precise, budget)?;
                             }
                             InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                                 row.push(Root::Local(*local));

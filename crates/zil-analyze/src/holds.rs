@@ -13,6 +13,10 @@ enum Root {
     Field(LocalId, u32),
     Projection(LocalId, u32, u32),
     Window(HoldRoot, u32, u32),
+    // Store element bytes live in the heap, while the Store header occupies
+    // the inline parent interval. Keep both domains instead of treating an
+    // element field as a child of the header's narrow inline interval.
+    StoreElementWindow(HoldRoot, u32, u32, u32, u32),
     Capture(u32),
     Parameter(u32),
     // A borrowed environment keeps these positions alive, but its pointer
@@ -21,6 +25,7 @@ enum Root {
     RetainedField(LocalId, u32),
     RetainedProjection(LocalId, u32, u32),
     RetainedWindow(HoldRoot, u32, u32),
+    RetainedStoreElementWindow(HoldRoot, u32, u32, u32, u32),
     RetainedCapture(u32),
     RetainedParameter(u32),
 }
@@ -32,6 +37,9 @@ impl Root {
             Self::RetainedField(local, index) => Self::Field(local, index),
             Self::RetainedProjection(local, start, end) => Self::Projection(local, start, end),
             Self::RetainedWindow(root, start, end) => Self::Window(root, start, end),
+            Self::RetainedStoreElementWindow(root, header_start, header_end, start, end) => {
+                Self::StoreElementWindow(root, header_start, header_end, start, end)
+            }
             Self::RetainedCapture(index) => Self::Capture(index),
             Self::RetainedParameter(index) => Self::Parameter(index),
             root => root,
@@ -44,6 +52,9 @@ impl Root {
             Self::Field(local, index) => Self::RetainedField(local, index),
             Self::Projection(local, start, end) => Self::RetainedProjection(local, start, end),
             Self::Window(root, start, end) => Self::RetainedWindow(root, start, end),
+            Self::StoreElementWindow(root, header_start, header_end, start, end) => {
+                Self::RetainedStoreElementWindow(root, header_start, header_end, start, end)
+            }
             Self::Capture(index) => Self::RetainedCapture(index),
             Self::Parameter(index) => Self::RetainedParameter(index),
             _ => unreachable!(),
@@ -320,7 +331,13 @@ fn delegated(
 }
 
 fn root_overlap(a: Root, b: Root) -> bool {
-    match (a.position(), b.position()) {
+    // Element loans keep the containing Store header as their conflict root.
+    // Different dynamic indices of one Store are deliberately not separated.
+    let header = |root: Root| match root.position() {
+        Root::StoreElementWindow(origin, start, end, ..) => Root::Window(origin, start, end),
+        root => root,
+    };
+    match (header(a), header(b)) {
         (Root::Window(x, a, b), Root::Window(y, c, d)) => x == y && a < d && c < b,
         (Root::Window(HoldRoot::Local(x), a, b), Root::Projection(y, c, d))
         | (Root::Projection(y, c, d), Root::Window(HoldRoot::Local(x), a, b)) => {
@@ -1876,13 +1893,50 @@ fn infer_with_private(
                             found.insert(Root::Capture(*index));
                         }
                         InstructionKind::ByteBufferBorrow { buffer, .. }
-                        | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
                         | InstructionKind::MutexValue { guard: buffer } => {
                             let source = values
                                 .get(buffer.0 as usize)
                                 .ok_or_else(|| bad("ByteBuffer source outside table"))?;
                             extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::OwnedStoreBorrow { store, .. }
+                        | InstructionKind::OwnedStoreBorrowMut { store, .. } => {
+                            let result = instruction
+                                .result
+                                .ok_or_else(|| bad("Store element address absent"))?;
+                            let source = values
+                                .get(store.0 as usize)
+                                .ok_or_else(|| bad("Store source outside table"))?;
+                            let mut payload_end = None;
+                            for root in source {
+                                budget.lookup(found.len(), "Hold root union")?;
+                                found.insert(match *root {
+                                    Root::Window(origin, header_start, header_end) => {
+                                        let width = if let Some(width) = payload_end {
+                                            width
+                                        } else {
+                                            let Type::Address { inner, .. } =
+                                                &f.values[result.0 as usize]
+                                            else {
+                                                return Err(bad(
+                                                    "Store element result is not an address",
+                                                ));
+                                            };
+                                            let width = inline_width(inner, budget)?;
+                                            payload_end = Some(width);
+                                            width
+                                        };
+                                        Root::StoreElementWindow(
+                                            origin,
+                                            header_start,
+                                            header_end,
+                                            0,
+                                            width,
+                                        )
+                                    }
+                                    root => root,
+                                });
+                            }
                         }
                         InstructionKind::BorrowOwnedArrayElement { local, .. } => {
                             found.insert(Root::Local(*local));
@@ -2300,7 +2354,10 @@ fn infer_with_private(
                 | Root::RetainedLocal(local)
                 | Root::RetainedField(local, _)
                 | Root::RetainedProjection(local, ..) => HoldRoot::Local(local),
-                Root::Window(origin, ..) | Root::RetainedWindow(origin, ..) => origin,
+                Root::Window(origin, ..)
+                | Root::RetainedWindow(origin, ..)
+                | Root::StoreElementWindow(origin, ..)
+                | Root::RetainedStoreElementWindow(origin, ..) => origin,
                 Root::Capture(index) | Root::RetainedCapture(index) => HoldRoot::Capture(index),
                 Root::Parameter(index) | Root::RetainedParameter(index) => {
                     HoldRoot::Parameter(index)
@@ -4280,6 +4337,18 @@ fn inline_address_field_root(
                 return Err(bad("inline field escapes parent interval"));
             }
             Root::Window(origin, a, z)
+        }
+        Root::StoreElementWindow(origin, header_start, header_end, payload_start, payload_end) => {
+            let a = payload_start
+                .checked_add(begin)
+                .ok_or_else(|| bad("Store element field interval overflow"))?;
+            let z = payload_start
+                .checked_add(end)
+                .ok_or_else(|| bad("Store element field interval overflow"))?;
+            if z > payload_end {
+                return Err(bad("Store element field escapes payload interval"));
+            }
+            Root::StoreElementWindow(origin, header_start, header_end, a, z)
         }
         root => root,
     })

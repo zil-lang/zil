@@ -22,7 +22,7 @@ fn external(module: &TypedModule, function: &TypedFunction, root: Root) -> bool 
                 borrowed(&module.closures[id.0 as usize].captures[capture as usize])
             })
         }
-        Root::Window(origin, ..) => external(
+        Root::Window(origin, ..) | Root::StoreElementWindow(origin, ..) => external(
             module,
             function,
             match origin {

@@ -466,11 +466,22 @@ fn ordinary_string_search_and_store_composition_are_native() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
-            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
         }
     }
@@ -498,7 +509,12 @@ fn ordinary_utf8_stream_search_is_native() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             let program = &report.artifacts["executable"];
             for (bytes, code, stdout) in [
@@ -515,7 +531,11 @@ fn ordinary_utf8_stream_search_is_native() {
                     .unwrap();
                 child.stdin.take().unwrap().write_all(bytes).unwrap();
                 let out = child.wait_with_output().unwrap();
-                assert_eq!(out.status.code(), Some(code), "{backend:?}/{optimization:?}: {out:?}");
+                assert_eq!(
+                    out.status.code(),
+                    Some(code),
+                    "{backend:?}/{optimization:?}: {out:?}"
+                );
                 assert_eq!(out.stdout, stdout, "{backend:?}/{optimization:?}");
                 assert!(out.stderr.is_empty());
             }
@@ -524,7 +544,12 @@ fn ordinary_utf8_stream_search_is_native() {
                 .stdout(Stdio::piped())
                 .spawn()
                 .unwrap();
-            child.stdin.take().unwrap().write_all(&vec![b'a'; 4097]).unwrap();
+            child
+                .stdin
+                .take()
+                .unwrap()
+                .write_all(&vec![b'a'; 4097])
+                .unwrap();
             let out = child.wait_with_output().unwrap();
             assert_eq!(out.status.code(), Some(3));
             assert!(out.stdout.is_empty());
@@ -554,7 +579,12 @@ fn ordinary_standard_io_stream_is_native() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
             for bytes in [
                 Vec::new(),
@@ -570,7 +600,11 @@ fn ordinary_standard_io_stream_is_native() {
                     .unwrap();
                 child.stdin.take().unwrap().write_all(&bytes).unwrap();
                 let out = child.wait_with_output().unwrap();
-                assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+                assert_eq!(
+                    out.status.code(),
+                    Some(0),
+                    "{backend:?}/{optimization:?}: {out:?}"
+                );
                 assert_eq!(out.stdout, bytes);
                 assert!(out.stderr.is_empty());
             }
@@ -588,8 +622,8 @@ fn ordinary_standard_io_file_ownership_is_native() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = directory(&format!("standard-file-{backend:?}-{optimization:?}"));
             let data = dir.join("content.bin");
-            let input = include_str!("standard_io_file.zil")
-                .replace("FILEPATH", data.to_str().unwrap());
+            let input =
+                include_str!("standard_io_file.zil").replace("FILEPATH", data.to_str().unwrap());
             fs::write(dir.join("main.zil"), input).unwrap();
             let report = CompilationSession::default().compile_path(
                 &dir.join("main.zil"),
@@ -601,10 +635,21 @@ fn ordinary_standard_io_file_ownership_is_native() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
-            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
-            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
             assert_eq!(fs::read(data).unwrap(), "猫\0Z".as_bytes());
         }
@@ -632,10 +677,21 @@ fn ordinary_i64_map_and_set_are_native() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
             assert_eq!(report.verification_runs, 1);
-            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
-            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
         }
     }
@@ -674,7 +730,11 @@ fn ordinary_i64_map_growth_failure_preserves_entries() {
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             let run = directory(&format!("collections-failure-{backend:?}-{optimization:?}"));
-            fs::write(run.join("main.zil"), include_str!("collections_failure.zil")).unwrap();
+            fs::write(
+                run.join("main.zil"),
+                include_str!("collections_failure.zil"),
+            )
+            .unwrap();
             let report = CompilationSession::default().compile_path(
                 &run.join("main.zil"),
                 &CompileOptions {
@@ -686,13 +746,115 @@ fn ordinary_i64_map_growth_failure_preserves_entries() {
                     ..CompileOptions::default()
                 },
             );
-            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
-            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
-            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
             let audit = String::from_utf8(out.stderr).unwrap();
-            assert!(audit.contains("\"failures\":1") && audit.contains("\"live\":0"), "{audit}");
+            assert!(
+                audit.contains("\"failures\":1") && audit.contains("\"live\":0"),
+                "{audit}"
+            );
         }
     }
+}
+
+#[test]
+fn owned_store_element_field_under_borrowed_package_keeps_parent_authority() {
+    let input = include_str!("store_element_field.zil");
+    let conflict = include_str!("store_element_field_conflict.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("store-field-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let out = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                out.status.code(),
+                Some(0),
+                "{backend:?}/{optimization:?}: {out:?}"
+            );
+            fs::write(
+                dir.join("out-of-range.zil"),
+                input.replace("bump(&mut value,1)", "bump(&mut value,2)"),
+            )
+            .unwrap();
+            let out_of_range = CompilationSession::default().compile_path(
+                &dir.join("out-of-range.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("out-of-range")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                out_of_range.status,
+                ResultCategory::Success,
+                "{}",
+                out_of_range.to_json()
+            );
+            let trapped = Command::new(&out_of_range.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert!(
+                !trapped.status.success(),
+                "{backend:?}/{optimization:?}: {trapped:?}"
+            );
+        }
+    }
+    let dir = directory("store-field-conflict");
+    fs::write(dir.join("main.zil"), conflict).unwrap();
+    let denied = CompilationSession::default().compile_path(
+        &dir.join("main.zil"),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        denied.status,
+        ResultCategory::SafeReject,
+        "{}",
+        denied.to_json()
+    );
+    assert!(matches!(
+        denied.phase,
+        zil_base::Phase::Analyze | zil_base::Phase::Verify
+    ));
 }
 
 #[cfg(unix)]
