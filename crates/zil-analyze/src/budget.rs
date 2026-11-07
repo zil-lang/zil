@@ -1470,7 +1470,9 @@ pub(super) fn preflight(
         {
             return Err(bad("function references an absent environment"));
         }
-        if let Some(id) = function.environment {
+        if !budget.sum_roots.is_empty()
+            && let Some(id) = function.environment
+        {
             for ty in &module.closures[id.0 as usize].captures {
                 budget.input(1, "entry Sum capture membership")?;
                 sum_function |= budget.sum_type(ty)?;
