@@ -570,12 +570,27 @@ fn raw_closure_cannot_hide_an_owned_dyn_capture() {
     module.closures[0].captures[0] = Type::OwnedDyn {
         interface: module.dyn_interfaces[0].id,
     };
-    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    let analyze_errors = zil_analyze::analyze(&module, &Limits::default()).unwrap_err();
+    assert!(
+        analyze_errors
+            .iter()
+            .any(|e| e.message.contains("owned dyn closure capture")),
+        "{analyze_errors:?}"
+    );
     plan.module_fingerprint = module.fingerprint();
     let target = module.target.clone();
     let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
-    assert!(zil_verify::verify_module(module, plan, &target, &Limits::default()).is_err());
-    assert!(zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).is_err());
+    for errors in [
+        zil_verify::verify_module(module, plan, &target, &Limits::default()).unwrap_err(),
+        zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap_err(),
+    ] {
+        assert!(
+            errors.iter().any(
+                |e| e.code == "E-VERIFY-DYN" && e.message.contains("owned dyn closure capture")
+            ),
+            "{errors:?}"
+        );
+    }
     let captured = format!(
         "{OWNED_PACKAGE}\nfn captured()->DynCreateError!i32{{let owner=owned_dyn::<dyn Read>(A{{data:bytes_new(),n:7}})?;let f=move()->i32=>owner.read();return f()}}"
     );
