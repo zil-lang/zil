@@ -7,6 +7,12 @@ pub fn with_capacity(limit:i64)->i64_hash_map.Error!I64HashSet {
     return inner
 }
 pub fn len(set:&I64HashSet)->i64 {return i64_hash_map.len(set)}
+pub fn key_at(set:&I64HashSet,index:i64)->Option<i64> {
+    match i64_hash_map.at(set,index) {
+        Option.None()=>{return Option.None},
+        Option.Some(pair)=>{return Option.Some(pair.key)}
+    }
+}
 pub fn contains(set:&I64HashSet,key:i64)->bool {
     match i64_hash_map.get(set,key) {
         Option.None()=>{return false},

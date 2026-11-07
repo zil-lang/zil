@@ -2,6 +2,7 @@
 struct Entry { key:i64; value:i64 }
 pub package I64HashMap { manages entries:Store<Entry>; manages buckets:Store<i64>; limit:i64 }
 pub enum Error { Capacity, Allocation, Internal }
+pub struct Pair { pub key:i64; pub value:i64 }
 struct Slot { found:bool; bucket:i64; entry:i64 }
 fn locate(map:&I64HashMap,key:i64)->Slot {
     let count=store_len(map.buckets)
@@ -50,6 +51,12 @@ pub fn with_capacity(limit:i64)->Error!I64HashMap {
     return I64HashMap{entries:give entries,buckets:give buckets,limit:limit}
 }
 pub fn len(map:&I64HashMap)->i64 {return store_len(map.entries)}
+// Dense insertion-order snapshot. Removal may move the last pair into a gap.
+pub fn at(map:&I64HashMap,index:i64)->Option<Pair> {
+    if index<0 || index>=store_len(map.entries) {return Option.None}
+    let entry=*store_at(map.entries,index)
+    return Option.Some(Pair{key:entry.key,value:entry.value})
+}
 pub fn get(map:&I64HashMap,key:i64)->Option<i64> {
     let found=locate(map,key)
     if !found.found {return Option::<i64>.None()}

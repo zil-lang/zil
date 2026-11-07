@@ -40,9 +40,11 @@ fn main()->i32 {
             if put(&mut map,10,20,-1)!=0 {return 3}
             if put(&mut map,19,30,-1)!=0 {return 4}
             if put(&mut map,-8,40,-1)!=0 {return 5}
+            match i64_hash_map.at(&map,0) {Option.None()=>{return 15},Option.Some(pair)=>{if pair.key!=1 || pair.value!=11{return 16}}}
             if put(&mut map,10,22,20)!=0 {return 6}
             if read(&map,1)!=11 || read(&map,10)!=22 || read(&map,19)!=30 || read(&map,-8)!=40 {return 7}
             if erase(&mut map,1,11)!=0 {return 8}
+            match i64_hash_map.at(&map,0) {Option.None()=>{return 17},Option.Some(pair)=>{if pair.key!=-8 || pair.value!=40{return 18}}}
             if read(&map,1)!=-1 || read(&map,-8)!=40 || read(&map,10)!=22 || read(&map,19)!=30 {return 9}
             if put(&mut map,28,50,-1)!=0 {return 10}
             if i64_hash_map.len(&map)!=4 || read(&map,28)!=50 {return 11}
