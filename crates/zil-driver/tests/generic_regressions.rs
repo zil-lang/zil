@@ -138,6 +138,138 @@ fn generic_mutex_guard_return_native_candidate() {
     check_mutex_native(&src, "helper-guard");
 }
 #[test]
+fn generic_mutex_custom_drop_native_candidate() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let src = source(
+        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}fn run()->MutexCreateError!i32{let token=Token{code:65};let cell=mutex_create(give token)?;return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let output = std::env::temp_dir().join(format!(
+            "zil-mutex-token-{}-{optimization:?}",
+            std::process::id()
+        ));
+        let report = compile_source(
+            &src,
+            &CompileOptions {
+                backend: NativeBackend::Clang,
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(output),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let actual = std::process::Command::new(&report.artifacts["executable"])
+            .output()
+            .unwrap();
+        assert!(actual.status.success(), "{actual:?}");
+        assert_eq!(actual.stdout, b"A");
+    }
+}
+#[test]
+fn generic_mutex_allocation_failure_cleans_input_once() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let dir = std::env::temp_dir().join(format!("zil-mutex-oom-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let shim = dir.join("fail_malloc.c");
+    std::fs::write(&shim, "#include <stddef.h>\nextern void* __libc_malloc(size_t);\nstatic int fail;\nint mallopt(int p,int v){if(p==19777){fail=1;return 1;}return 0;}\nvoid* malloc(size_t n){if(fail){fail=0;return 0;}return __libc_malloc(n);}\n").unwrap();
+    let library = dir.join("fail_malloc.so");
+    let built = std::process::Command::new("clang")
+        .args(["-shared", "-fPIC"])
+        .arg(&shim)
+        .arg("-o")
+        .arg(&library)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let src = source(
+        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};extern \"C\" fn mallopt(param:i32,value:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}fn run()->MutexCreateError!i32{let token=Token{code:65};unsafe{mallopt(19777,1)};let cell=mutex_create(give token)?;return 2}fn main()->i32{match run(){.ok(_)=>{return 1},.err(_)=>{return 0}}}",
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let report = compile_source(
+            &src,
+            &CompileOptions {
+                backend: NativeBackend::Clang,
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(dir.join(format!("program-{optimization:?}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let actual = std::process::Command::new(&report.artifacts["executable"])
+            .env("LD_PRELOAD", &library)
+            .output()
+            .unwrap();
+        assert!(actual.status.success(), "{actual:?}");
+        assert_eq!(
+            actual.stdout, b"A",
+            "input Drop must run once on allocator failure"
+        );
+    }
+}
+#[test]
+fn generic_mutex_init_failure_cleans_without_destroy() {
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let dir = std::env::temp_dir().join(format!("zil-mutex-init-fail-{}", std::process::id()));
+    std::fs::create_dir_all(&dir).unwrap();
+    let shim = dir.join("fail_init.c");
+    std::fs::write(&shim, "#include <unistd.h>\nint pthread_mutex_init(void* m,const void* a){return 12;}\nint pthread_mutex_destroy(void* m){write(2,\"D\",1);return 0;}\n").unwrap();
+    let library = dir.join("fail_init.so");
+    let built = std::process::Command::new("clang")
+        .args(["-shared", "-fPIC"])
+        .arg(&shim)
+        .arg("-o")
+        .arg(&library)
+        .output()
+        .unwrap();
+    assert!(built.status.success(), "{built:?}");
+    let src = source(
+        "extern \"C\" fn putchar(code:i32)->i32 contract{effects(ffi)};resource Token{code:i32}impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}}fn run()->MutexCreateError!i32{let token=Token{code:65};let cell=mutex_create(give token)?;return 2}fn main()->i32{match run(){.ok(_)=>{return 1},.err(_)=>{return 0}}}",
+    );
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let report = compile_source(
+            &src,
+            &CompileOptions {
+                backend: NativeBackend::Clang,
+                optimization,
+                stop_after: Stage::Build,
+                output: Some(dir.join(format!("program-{optimization:?}"))),
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        let actual = std::process::Command::new(&report.artifacts["executable"])
+            .env("LD_PRELOAD", &library)
+            .output()
+            .unwrap();
+        assert!(actual.status.success(), "{actual:?}");
+        assert_eq!(
+            actual.stdout, b"A",
+            "input Drop must run once on init failure"
+        );
+        assert!(
+            actual.stderr.is_empty(),
+            "uninitialized mutex must not be destroyed: {actual:?}"
+        );
+    }
+}
+#[test]
 fn generic_mutex_implicit_guard_cleanup_native_candidate() {
     let src = source(
         "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;let guard=mutex_lock(cell);return 0}fn main()->i32{match run(){.ok(value)=>{return value},.err(_)=>{return 1}}}",
