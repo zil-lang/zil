@@ -33,6 +33,8 @@ def check(root=ROOT):
         errors.append('Two source documents claim the same destination')
     for item in entries:
         name, target = item['source_path'], item['destination']
+        if item['handling'] not in {'history-only', 'frozen-bytes', 'current-document'} or ((target is None) != (item['handling'] == 'history-only')):
+            errors.append(f'Invalid provenance handling: {name}')
         data = original.get(name)
         if data is None or hashlib.sha256(data).hexdigest() != item['sha256']:
             errors.append(f'Wrong historical document digest: {name}')

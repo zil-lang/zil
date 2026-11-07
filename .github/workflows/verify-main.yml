@@ -2,8 +2,20 @@ name: Main source verification
 on:
   push:
     branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'docs/README.md'
+      - 'docs/guide/**'
+      - 'docs/development/**'
   pull_request:
     branches: [main]
+    paths-ignore:
+      - 'README.md'
+      - 'AGENTS.md'
+      - 'docs/README.md'
+      - 'docs/guide/**'
+      - 'docs/development/**'
 permissions:
   contents: read
 concurrency:
