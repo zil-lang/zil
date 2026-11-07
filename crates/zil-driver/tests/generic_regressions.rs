@@ -9439,3 +9439,6 @@ mod helper_cfg_join_review;
 
 #[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/callable-completion/regressions.rs"]
 mod helper_life_completion_completion;
+
+#[path = "../../../tests/language-readiness/foreign-thread-registration/raw_holder.rs"]
+mod foreign_raw_holder;
