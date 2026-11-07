@@ -10122,6 +10122,8 @@ mod contextual_record_relocation_review;
 mod owned_aggregate_nonlocal_replace;
 
 // Independent complete-parent consumers; staged failures remain visible during integration.
+#[path = "../../../tests/fixtures/resource-packages/mixed_holder.rs"]
+mod mixed_holder;
 #[path = "../../../tests/fixtures/resource-packages/consumers.rs"]
 mod parent_consumer_independent_parent_consumers;
 #[path = "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/runtime-phase/consumer_tests.rs"]
