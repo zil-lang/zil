@@ -605,10 +605,13 @@ fn run_tests(
             );
         }
         results.push(format!(
-            "{{\"source\":{},\"name\":{},\"outcome\":{}}}",
+            "{{\"source\":{},\"name\":{},\"outcome\":{},\"compile_status\":{},\"verification_runs\":{},\"diagnostics\":[{}]}}",
             json_string(&source.to_string_lossy()),
             json_string(name),
-            json_string(&outcome)
+            json_string(&outcome),
+            json_string(report.status.as_str()),
+            report.verification_runs,
+            report.diagnostics.iter().map(Diagnostic::to_json).collect::<Vec<_>>().join(",")
         ));
     }
     if json {

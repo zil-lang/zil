@@ -1194,7 +1194,10 @@ impl Materializer<'_, '_> {
             let Some((import_span, source_import)) = source_import else {
                 continue;
             };
-            let Some(target) = self.paths.get(&source_import.path) else {
+            let Some(target) = self
+                .environment
+                .resolve_path(self.sources[provider_index].module_id, &source_import.path)
+            else {
                 continue;
             };
             let alias = format!("__zil_ct_mod{}_{}_{}", provider_index, target.0, span.start);
@@ -1220,14 +1223,14 @@ impl Materializer<'_, '_> {
                 });
             }
             if !self.required_imports.iter().any(|(module, import)| {
-                *module == caller && import.alias == alias && import.module == *target
+                *module == caller && import.alias == alias && import.module == target
             }) {
                 self.environment.budget.reserve_generated_nodes(1)?;
                 self.required_imports.push((
                     caller,
                     CoreImport {
                         alias,
-                        module: *target,
+                        module: target,
                         span,
                     },
                 ));
@@ -2322,11 +2325,43 @@ impl Materializer<'_, '_> {
 // This is the single project materialization boundary: the parsed graph,
 // target, limits and frozen provider registry are all independent inputs.
 #[allow(clippy::too_many_arguments)]
+#[cfg(test)]
 pub(crate) fn materialize<'a>(
     sources: &'a [SourceUnit],
     parsed: &'a [Arc<ParseResult>],
     modules: &[&s::Module],
     paths: &'a BTreeMap<Vec<String>, ModuleId>,
+    imports: &[Vec<CoreImport>],
+    root: ModuleId,
+    fingerprint: Fingerprint,
+    target: &'a TargetProfile,
+    limits: &Limits,
+    registry: Option<&CtLockedProviderRegistry>,
+    original_declarations: bool,
+) -> CompileResult<Materialized<'a>> {
+    materialize_scoped(
+        sources,
+        parsed,
+        modules,
+        paths,
+        None,
+        imports,
+        root,
+        fingerprint,
+        target,
+        limits,
+        registry,
+        original_declarations,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn materialize_scoped<'a>(
+    sources: &'a [SourceUnit],
+    parsed: &'a [Arc<ParseResult>],
+    modules: &[&s::Module],
+    paths: &'a BTreeMap<Vec<String>, ModuleId>,
+    scoped: Option<&'a crate::ScopedImports>,
     imports: &[Vec<CoreImport>],
     root: ModuleId,
     fingerprint: Fingerprint,
@@ -2349,10 +2384,11 @@ pub(crate) fn materialize<'a>(
     } else {
         (None, limits.clone())
     };
-    let mut environment = Environment::new(
+    let mut environment = Environment::new_scoped(
         sources,
         parsed,
         paths,
+        scoped,
         imports,
         root,
         fingerprint,

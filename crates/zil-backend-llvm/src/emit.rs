@@ -1056,6 +1056,15 @@ fn entry_wrapper(
             Some(function.span),
         );
     }
+    if matches!(entry, EntryPoint::Test(_))
+        && !matches!(function.return_type, Type::Unit | Type::Bool | Type::I32)
+    {
+        return invalid(
+            "E-CODEGEN-TEST-RESULT",
+            "a test must return unit, bool, or i32",
+            Some(function.span),
+        );
+    }
     let abi = copy_plans.functions.get(&function.id);
     let symbol = if abi.is_some_and(|abi| abi.versioned) {
         format!("{}.lc1", symbol(function.id))

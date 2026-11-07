@@ -888,6 +888,14 @@ impl CompilationSession {
             .cancellation
             .check(Phase::Codegen)
             .map_err(|error| vec![error])?;
+        if options.test_harness && options.entry.is_none() {
+            return Err(vec![Diagnostic::error(
+                Phase::Driver,
+                "E-TEST-ENTRY",
+                None,
+                "test harness requires a selected entry function",
+            )]);
+        }
         let requested_entry = if let Some(name) = &options.entry {
             let id = if let Some(program) = project {
                 program

@@ -255,10 +255,20 @@ impl SourceIndex {
         Ok(())
     }
 
+    #[cfg(test)]
     pub(super) fn freeze(
         sources: &[SourceUnit],
         syntax: &[&s::Module],
         paths: &BTreeMap<Vec<String>, ModuleId>,
+    ) -> CompileResult<Self> {
+        Self::freeze_scoped(sources, syntax, paths, None)
+    }
+
+    pub(super) fn freeze_scoped(
+        sources: &[SourceUnit],
+        syntax: &[&s::Module],
+        paths: &BTreeMap<Vec<String>, ModuleId>,
+        scoped: Option<&crate::ScopedImports>,
     ) -> CompileResult<Self> {
         if sources.len() != syntax.len() {
             return Err(vec![Diagnostic::error(
@@ -302,9 +312,15 @@ impl SourceIndex {
                 let target = match import.path.as_slice() {
                     [a, b] if a == "std" && b == "meta" => ImportTarget::Meta,
                     [a, b] if a == "std" && b == "syntax" => ImportTarget::Syntax,
-                    _ => ImportTarget::Module(*paths.get(&import.path).ok_or_else(|| {
-                        error("E-CT-IMPORT", item.span, "import has no frozen module")
-                    })?),
+                    _ => ImportTarget::Module(
+                        *scoped
+                            .filter(|_| import.path.first().is_none_or(|part| part != "std"))
+                            .and_then(|map| map.get(&(module.id, import.path.clone())))
+                            .or_else(|| paths.get(&import.path))
+                            .ok_or_else(|| {
+                                error("E-CT-IMPORT", item.span, "import has no frozen module")
+                            })?,
+                    ),
                 };
                 bindings.push(SourceImport { alias, target });
             }

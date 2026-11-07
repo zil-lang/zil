@@ -32,6 +32,7 @@ fn error(message: &str, span: Span) -> Vec<Diagnostic> {
 pub(super) struct Environment<'a> {
     sources: &'a [SourceUnit],
     paths: &'a BTreeMap<Vec<String>, ModuleId>,
+    pub(super) scoped: Option<&'a crate::ScopedImports>,
     root: ModuleId,
     parsed: &'a [Arc<ParseResult>],
     pub index: SourceIndex,
@@ -52,6 +53,7 @@ pub(super) struct Environment<'a> {
 impl<'a> Environment<'a> {
     // The immutable project graph and request identity enter together; callers
     // already own these borrowed inputs, so a wrapper would only hide them.
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(super) fn new(
         sources: &'a [SourceUnit],
@@ -63,8 +65,32 @@ impl<'a> Environment<'a> {
         target: &'a TargetProfile,
         limits: &Limits,
     ) -> CompileResult<Self> {
+        Self::new_scoped(
+            sources,
+            parsed,
+            paths,
+            None,
+            imports,
+            root,
+            fingerprint,
+            target,
+            limits,
+        )
+    }
+    #[allow(clippy::too_many_arguments)]
+    pub(super) fn new_scoped(
+        sources: &'a [SourceUnit],
+        parsed: &'a [Arc<ParseResult>],
+        paths: &'a BTreeMap<Vec<String>, ModuleId>,
+        scoped: Option<&'a crate::ScopedImports>,
+        imports: &[Vec<CoreImport>],
+        root: ModuleId,
+        fingerprint: Fingerprint,
+        target: &'a TargetProfile,
+        limits: &Limits,
+    ) -> CompileResult<Self> {
         let syntax = parsed.iter().map(|p| &p.module).collect::<Vec<_>>();
-        let index = SourceIndex::freeze(sources, &syntax, paths)?;
+        let index = SourceIndex::freeze_scoped(sources, &syntax, paths, scoped)?;
         // This batch contains only prior, independent ordinary declarations.
         // Failure makes the view unavailable; a query reports the exact phase
         // boundary, while final ordinary checking still diagnoses the source.
@@ -153,6 +179,7 @@ impl<'a> Environment<'a> {
         Ok(Self {
             sources,
             paths,
+            scoped,
             root,
             parsed,
             index,
@@ -169,6 +196,13 @@ impl<'a> Environment<'a> {
             generated_catalog: Default::default(),
             static_host_invocations: Vec::new(),
         })
+    }
+    pub(super) fn resolve_path(&self, importer: ModuleId, path: &[String]) -> Option<ModuleId> {
+        self.scoped
+            .filter(|_| path.first().is_none_or(|part| part != "std"))
+            .and_then(|map| map.get(&(importer, path.to_vec())))
+            .or_else(|| self.paths.get(path))
+            .copied()
     }
 
     /// Retain the exact parse+hygiene tree before output remapping. The row is

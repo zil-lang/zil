@@ -67,9 +67,21 @@ fn declared_path_dependency_and_test_results_are_real() {
     let text = String::from_utf8(test.stdout).unwrap();
     assert!(text.contains("\"status\":\"Pass\""), "{text}");
     assert!(text.contains("\"passed\":3"), "{text}");
+    let default_backend = dir.run(&["test", path, "--json"]);
+    assert!(default_backend.status.success(), "{default_backend:?}");
     fs::write(
         app.join("tests.zil"),
         "#[test]\nfn boolean_fails() -> bool => false\n#[test]\nfn integer_fails() -> i32 => 7\n",
+    )
+    .unwrap();
+    let failed = dir.run(&["test", path, "--backend", "clang", "--json"]);
+    assert!(!failed.status.success(), "{failed:?}");
+    let text = String::from_utf8(failed.stdout).unwrap();
+    assert!(text.contains("\"outcome\":\"exit:1\""), "{text}");
+    assert!(text.contains("\"outcome\":\"exit:7\""), "{text}");
+    fs::write(
+        math.join("arithmetic.zil"),
+        "pub fn answer() -> i32 => 42\n// changed dependency\n",
     )
     .unwrap();
     let stale = dir.run(&["test", path, "--backend", "clang", "--json"]);
@@ -79,12 +91,6 @@ fn declared_path_dependency_and_test_results_are_real() {
             .unwrap()
             .contains("E-PROJECT-LOCK-MISMATCH")
     );
-    assert!(dir.run(&["lock", path]).status.success());
-    let failed = dir.run(&["test", path, "--backend", "clang", "--json"]);
-    assert!(!failed.status.success(), "{failed:?}");
-    let text = String::from_utf8(failed.stdout).unwrap();
-    assert!(text.contains("\"outcome\":\"exit:1\""), "{text}");
-    assert!(text.contains("\"outcome\":\"exit:7\""), "{text}");
 }
 
 #[test]
@@ -183,4 +189,168 @@ fn empty_invalid_and_timed_out_tests_never_pass() {
             .unwrap()
             .contains("\"outcome\":\"timeout\"")
     );
+}
+
+#[test]
+fn two_dependencies_can_use_distinct_helpers_with_the_same_import_path() {
+    let dir = Scratch::new();
+    let app = dir.0.join("app");
+    fs::create_dir(&app).unwrap();
+    fs::write(
+        app.join("Zil.toml"),
+        "[package]\nroot = \"main.zil\"\n[dependencies]\na = \"../a\"\nb = \"../b\"\n",
+    )
+    .unwrap();
+    fs::write(
+        app.join("main.zil"),
+        "import a.lib as a\nimport b.lib as b\nfn main() -> i32 => a.answer() + b.answer()\n",
+    )
+    .unwrap();
+    for (name, value) in [("a", 20), ("b", 22)] {
+        let package = dir.0.join(name);
+        fs::create_dir(&package).unwrap();
+        fs::write(package.join("Zil.toml"), "[package]\nroot = \"lib.zil\"\n").unwrap();
+        fs::write(
+            package.join("lib.zil"),
+            "import helper\npub fn answer() -> i32 => helper.value()\n",
+        )
+        .unwrap();
+        fs::write(
+            package.join("helper.zil"),
+            format!("pub fn value() -> i32 => #({value})\n"),
+        )
+        .unwrap();
+    }
+    let path = app.to_str().unwrap();
+    assert!(dir.run(&["lock", path]).status.success());
+    let output = app.join("program");
+    let cache = dir.0.join("semantic-cache");
+    let build = |dir: &Scratch| {
+        dir.run(&[
+            "build",
+            path,
+            "--backend",
+            "clang",
+            "-o",
+            output.to_str().unwrap(),
+            "--semantic-cache",
+            cache.to_str().unwrap(),
+            "--json",
+        ])
+    };
+    let build = build(&dir);
+    assert!(build.status.success(), "{build:?}");
+    let native = Command::new(&output).output().unwrap();
+    assert_eq!(native.status.code(), Some(42), "{native:?}");
+    fs::write(
+        dir.0.join("b/helper.zil"),
+        "pub fn value() -> i32 => #(23)\n",
+    )
+    .unwrap();
+    let stale = dir.run(&[
+        "build",
+        path,
+        "--backend",
+        "clang",
+        "-o",
+        output.to_str().unwrap(),
+        "--semantic-cache",
+        cache.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(!stale.status.success());
+    assert!(
+        String::from_utf8(stale.stdout)
+            .unwrap()
+            .contains("E-PROJECT-LOCK-MISMATCH")
+    );
+    assert_eq!(Command::new(&output).status().unwrap().code(), Some(42));
+    assert!(dir.run(&["lock", path]).status.success());
+    let rebuilt = dir.run(&[
+        "build",
+        path,
+        "--backend",
+        "clang",
+        "-o",
+        output.to_str().unwrap(),
+        "--semantic-cache",
+        cache.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(rebuilt.status.success(), "{rebuilt:?}");
+    assert!(
+        String::from_utf8(rebuilt.stdout)
+            .unwrap()
+            .contains("\"verification_runs\":1")
+    );
+    assert_eq!(Command::new(&output).status().unwrap().code(), Some(43));
+    fs::write(
+        dir.0.join("a/lib.zil"),
+        "import b.helper as stolen\npub fn answer() -> i32 => stolen.value()\n",
+    )
+    .unwrap();
+    assert!(dir.run(&["lock", path]).status.success());
+    let wrong_package = dir.run(&[
+        "build",
+        path,
+        "--backend",
+        "clang",
+        "-o",
+        output.to_str().unwrap(),
+        "--semantic-cache",
+        cache.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(!wrong_package.status.success(), "{wrong_package:?}");
+    assert!(
+        String::from_utf8(wrong_package.stdout)
+            .unwrap()
+            .contains("E-MODULE-NOT-FOUND")
+    );
+    assert_eq!(Command::new(&output).status().unwrap().code(), Some(43));
+    fs::write(
+        dir.0.join("a/Zil.toml"),
+        "[package]\nroot = \"lib.zil\"\n[dependencies]\nb = \"../b\"\n",
+    )
+    .unwrap();
+    assert!(dir.run(&["lock", path]).status.success());
+    let transitive = dir.run(&[
+        "build",
+        path,
+        "--backend",
+        "clang",
+        "-o",
+        output.to_str().unwrap(),
+        "--semantic-cache",
+        cache.to_str().unwrap(),
+        "--json",
+    ]);
+    assert!(transitive.status.success(), "{transitive:?}");
+    assert_eq!(Command::new(&output).status().unwrap().code(), Some(46));
+}
+
+#[test]
+fn manifest_byte_and_file_budgets_are_checked_before_read_allocation() {
+    let dir = Scratch::new();
+    let app = dir.0.join("app");
+    let dep = dir.0.join("dep");
+    fs::create_dir(&app).unwrap();
+    fs::create_dir(&dep).unwrap();
+    let root_manifest = "[package]\nroot = \"main.zil\"\n[dependencies]\ndep = \"../dep\"\n";
+    let dep_manifest = "[package]\nroot = \"lib.zil\"\n";
+    let dep_source = "pub fn answer() -> i32 => 1\n";
+    fs::write(app.join("Zil.toml"), root_manifest).unwrap();
+    fs::write(app.join("main.zil"), "fn main() -> i32 => 0\n").unwrap();
+    fs::write(dep.join("Zil.toml"), dep_manifest).unwrap();
+    fs::write(dep.join("lib.zil"), dep_source).unwrap();
+    let mut limits = zil_driver::CompileOptions::default().limits;
+    limits.max_source_bytes = root_manifest.len() + dep_manifest.len() + dep_source.len();
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_ok());
+    limits.max_source_bytes -= 1;
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_err());
+    limits.max_source_bytes += 1;
+    limits.max_nodes = 2;
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_ok());
+    limits.max_nodes = 1;
+    assert!(zil_driver::ProjectManifest::open(&app, &limits).is_err());
 }
