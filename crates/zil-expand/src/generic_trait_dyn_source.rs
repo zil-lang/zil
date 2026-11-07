@@ -66,6 +66,13 @@ fn prove_scalar_read(
     budget: &mut Budget<'_>,
 ) -> R<()> {
     budget.node(provider.span, 0)?;
+    let zil_ir::Type::Named(self_name) = &table.self_type else {
+        return Err(unsupported(
+            provider.span,
+            "dyn provider Self needs a concrete named Copy struct",
+        ));
+    };
+    budget.text(self_name, provider.span)?;
     if provider.foreign.is_some()
         || !provider.type_parameters.is_empty()
         || !provider.state_parameters.is_empty()
@@ -143,6 +150,14 @@ fn prove_scalar_read(
             "dyn provider Self needs a concrete named Copy struct",
         ));
     };
+    for module in modules {
+        budget.node(provider.span, 0)?;
+        if module.module_id == table.id.module {
+            for aggregate in &module.aggregates {
+                budget.node(aggregate.span, 0)?;
+            }
+        }
+    }
     let aggregate = modules
         .iter()
         .find(|module| module.module_id == table.id.module)
@@ -153,6 +168,10 @@ fn prove_scalar_read(
                 .find(|aggregate| &aggregate.name == name)
         })
         .ok_or_else(|| unsupported(provider.span, "dyn provider concrete Self aggregate absent"))?;
+    for field in &aggregate.fields {
+        budget.node(field.span, 0)?;
+        budget.text(&field.name, field.span)?;
+    }
     if aggregate.kind != zil_ir::AggregateKind::Struct
         || aggregate
             .fields
@@ -520,6 +539,14 @@ impl Catalog {
                             })?;
                             if entry.slot as usize != ordinal {
                                 return Err(error(span, "dyn provider slot order differs"));
+                            }
+                            for owner in &snapshot {
+                                budget.node(span, 0)?;
+                                if owner.module_id == entry.module {
+                                    for function in &owner.functions {
+                                        budget.node(function.span, 0)?;
+                                    }
+                                }
                             }
                             let provider = snapshot
                                 .iter()

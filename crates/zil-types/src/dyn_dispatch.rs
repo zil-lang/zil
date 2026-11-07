@@ -8,7 +8,7 @@ fn receiver_position() -> StoragePosition {
     }
 }
 
-fn scalar_contract() -> DynContract {
+pub(super) fn scalar_contract() -> DynContract {
     let receiver = receiver_position();
     DynContract {
         requires: Some(vec![DynRequirement::Read(receiver.clone())]),
@@ -37,7 +37,7 @@ fn scalar_contract() -> DynContract {
     }
 }
 
-fn shared_slot_life() -> StorageLifeContract {
+pub(super) fn shared_slot_life() -> StorageLifeContract {
     StorageLifeContract {
         fixed_binder_count: 0,
         invocation_binder_count: 1,
@@ -101,13 +101,32 @@ pub(super) fn inventory(
             || !interface.associated_constants.is_empty()
             || !interface.retained_life.ports.is_empty()
             || !interface.retained_life.retained.is_empty()
+            || interface.retained_life.binder_count != 0
+            || !interface.retained_life.nominal_arguments.is_empty()
         {
             return Err(unsupported(
                 Span::default(),
                 "dyn interface is outside closed shared profile",
             ));
         }
-        for slot in &interface.slots {
+        let declaration = core
+            .dyn_declarations
+            .iter()
+            .find(|d| d.id == interface.application.declaration)
+            .ok_or_else(|| {
+                error(
+                    "E-DYN-DECLARATION",
+                    Span::default(),
+                    "dyn interface declaration absent",
+                )
+            })?;
+        if interface.slots.len() != declaration.members.len() {
+            return Err(unsupported(
+                Span::default(),
+                "dyn interface omits an actual declared method",
+            ));
+        }
+        for (ordinal, slot) in interface.slots.iter().enumerate() {
             spend(&mut left, 1 + slot.parameters.len())?;
             if slot.contract != scalar_contract()
                 || slot.receiver.mutable
@@ -122,6 +141,7 @@ pub(super) fn inventory(
                 || slot.call_kind != CallKind::Direct
                 || slot.storage_life.as_ref() != Some(&shared_slot_life())
                 || slot.member.application != interface.application
+                || slot.member.ordinal as usize != ordinal
                 || core
                     .dyn_declarations
                     .iter()
@@ -253,11 +273,22 @@ pub(super) fn inventory(
                 function: typed_id,
             });
         }
+        let self_type =
+            canonical_self.ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?;
+        spend(&mut left, output.len())?;
+        if output.iter().any(|prior: &DynVtable| {
+            prior.interface == table.interface && prior.self_type == self_type
+        }) {
+            return Err(error(
+                "E-DYN-PROVIDER",
+                Span::default(),
+                "dyn interface has duplicate concrete Self tables",
+            ));
+        }
         output.push(DynVtable {
             id: table.id,
             interface: table.interface,
-            self_type: canonical_self
-                .ok_or_else(|| unsupported(Span::default(), "dyn table is empty"))?,
+            self_type,
             implementation: table.implementation,
             actuals: table.actuals.clone(),
             ports: Vec::new(),
@@ -276,17 +307,124 @@ pub(super) fn inventory_program(
     let mut declarations = Vec::new();
     let mut interfaces = Vec::new();
     let mut left = limits.max_analysis_steps;
+    let mut declaration_ids = std::collections::BTreeSet::new();
+    let mut declaration_identities = std::collections::BTreeSet::new();
     for module in &program.modules {
         let core = &module.core;
-        left = left
-            .checked_sub(
-                core.dyn_declarations
-                    .len()
-                    .saturating_add(core.dyn_interfaces.len()),
-            )
-            .ok_or_else(|| {
+        let spend = |left: &mut usize, count: usize| {
+            *left = left.checked_sub(count).ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "dyn project inventory budget exceeded", None)
             })?;
+            Ok::<(), Diagnostic>(())
+        };
+        for declaration in &core.dyn_declarations {
+            spend(
+                &mut left,
+                1 + declaration.parameters.len() + declaration.members.len(),
+            )?;
+            spend(
+                &mut left,
+                declaration.identity.package.len()
+                    + declaration.identity.module_path.len().saturating_mul(8)
+                    + declaration
+                        .identity
+                        .declaration_path
+                        .len()
+                        .saturating_mul(8)
+                    + declaration.identity.generation_path.len().saturating_mul(8),
+            )?;
+            for name in declaration
+                .identity
+                .module_path
+                .iter()
+                .chain(&declaration.identity.declaration_path)
+            {
+                spend(&mut left, name.len())?;
+            }
+            if !declaration.parameters.is_empty() {
+                return Err(unsupported(
+                    Span::default(),
+                    "generic dyn declaration needs a fixed application",
+                ));
+            }
+            if !declaration_ids.insert(declaration.id)
+                || !declaration_identities.insert(&declaration.identity)
+            {
+                return Err(error(
+                    "E-DYN-DECLARATION",
+                    Span::default(),
+                    "dyn declaration identity is duplicated",
+                ));
+            }
+            for member in &declaration.members {
+                spend(&mut left, member.name.len() + 1)?;
+                if !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty())
+                {
+                    return Err(unsupported(
+                        Span::default(),
+                        "dyn declaration member is outside fixed method profile",
+                    ));
+                }
+            }
+        }
+        for interface in &core.dyn_interfaces {
+            spend(
+                &mut left,
+                1 + interface.slots.len()
+                    + interface.inherited.len()
+                    + interface.application.actuals.len()
+                    + interface.associated_types.len()
+                    + interface.associated_constants.len()
+                    + interface.retained_life.ports.len()
+                    + interface.retained_life.retained.len()
+                    + interface.retained_life.nominal_arguments.len(),
+            )?;
+            if !interface.application.actuals.is_empty()
+                || !interface.inherited.is_empty()
+                || !interface.associated_types.is_empty()
+                || !interface.associated_constants.is_empty()
+                || !interface.retained_life.ports.is_empty()
+                || !interface.retained_life.retained.is_empty()
+                || !interface.retained_life.nominal_arguments.is_empty()
+            {
+                return Err(unsupported(
+                    Span::default(),
+                    "dyn interface has unresolved retained or generic facts",
+                ));
+            }
+            for slot in &interface.slots {
+                spend(
+                    &mut left,
+                    1 + slot.parameters.len()
+                        + slot.parameter_modes.len()
+                        + slot.actuals.len()
+                        + slot.member.application.actuals.len(),
+                )?;
+                if slot.contract != scalar_contract()
+                    || !slot.actuals.is_empty()
+                    || !slot.member.application.actuals.is_empty()
+                    || slot.parameters.iter().any(|ty| !ty.is_b0_scalar())
+                    || !slot.result.is_b0_scalar()
+                {
+                    return Err(unsupported(
+                        Span::default(),
+                        "dyn slot has unknown or non-scalar contract",
+                    ));
+                }
+            }
+        }
+        for table in &core.dyn_vtables {
+            spend(
+                &mut left,
+                1 + table.entries.len() + table.actuals.len() + table.ports.len(),
+            )?;
+            if !table.actuals.is_empty() || !table.ports.is_empty() || table.cleanup.is_some() {
+                return Err(unsupported(
+                    Span::default(),
+                    "dyn table has unsupported actuals or cleanup",
+                ));
+            }
+        }
         declarations.extend(core.dyn_declarations.iter().cloned());
         interfaces.extend(core.dyn_interfaces.iter().cloned());
     }
@@ -305,6 +443,7 @@ pub(super) fn inventory_program(
             "dyn project declaration has no actual interface",
         ));
     }
+    let metadata_work = limits.max_analysis_steps - left;
     let mut tables = Vec::new();
     for module in &program.modules {
         if module.core.dyn_vtables.is_empty() {
@@ -313,25 +452,33 @@ pub(super) fn inventory_program(
         // A provider table belongs to its implementation module, while its
         // exact interface declaration may be in a different module.
         left = left
-            .checked_sub(
-                module
-                    .core
-                    .functions
-                    .len()
-                    .saturating_add(interfaces.len())
-                    .saturating_add(declarations.len()),
-            )
+            .checked_sub(metadata_work.saturating_add(module.core.functions.len()))
             .ok_or_else(|| {
                 Diagnostic::limit(Phase::Types, "dyn project snapshot budget exceeded", None)
             })?;
         let mut local = inference::snapshot_context_module(&module.core, limits, &mut left)?;
         local.dyn_declarations = declarations.clone();
         local.dyn_interfaces = interfaces.clone();
-        tables.extend(inventory(
-            &local,
-            &signatures[&module.core.module_id],
-            limits,
-        )?);
+        for table in inventory(&local, &signatures[&module.core.module_id], limits)? {
+            left = left.checked_sub(tables.len()).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "dyn project table match budget exceeded",
+                    None,
+                )
+            })?;
+            if tables.iter().any(|prior: &DynVtable| {
+                prior.id == table.id
+                    || prior.interface == table.interface && prior.self_type == table.self_type
+            }) {
+                return Err(error(
+                    "E-DYN-PROVIDER",
+                    Span::default(),
+                    "dyn project has duplicate table identity or Self",
+                ));
+            }
+            tables.push(table);
+        }
     }
     if interfaces
         .iter()
