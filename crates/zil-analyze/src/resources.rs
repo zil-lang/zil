@@ -2644,20 +2644,21 @@ impl Flow<'_> {
                 InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local) => {
                     if let Some(s) = self.shapes.get(&Place::Local(*local)) {
                         if check && s.owned {
-                            let local_ty = &f.locals[local.0 as usize].ty;
-                            let new_store_sum = matches!(local_ty,
-                                Type::ErrorUnion { error, .. }
-                                    if crate::ownership_store::pod_owned(error))
-                                || (matches!(local_ty, Type::Package { .. })
-                                    && budget.ordinary_pod_store_type(local_ty)?);
-                            let discharged_error =
-                                new_store_sum && state.sums.no_live_owner(*local, budget)?;
                             if copied(state, Place::Local(*local), budget)?
                                 .life
                                 .contains(&Life::Available)
-                                && !discharged_error
                             {
-                                return Err(error("storage boundary discards an owned carrier"));
+                                let local_ty = &f.locals[local.0 as usize].ty;
+                                let new_store_sum = matches!(local_ty,
+                                    Type::ErrorUnion { error, .. }
+                                        if crate::ownership_store::pod_owned(error))
+                                    || (matches!(local_ty, Type::Package { .. })
+                                        && budget.ordinary_pod_store_type(local_ty)?);
+                                if !new_store_sum || !state.sums.no_live_owner(*local, budget)? {
+                                    return Err(error(
+                                        "storage boundary discards an owned carrier",
+                                    ));
+                                }
                             }
                             no_later_use(
                                 state,
