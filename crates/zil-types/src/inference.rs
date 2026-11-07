@@ -2619,11 +2619,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
-    fn pattern_term(&self, variable: Variable, span: Span) -> R<Term> {
-        Ok(match self.graph.address_shape(variable, span)? {
-            Some((inner, Some(mutable))) => Term::Address(inner, mutable),
-            _ => Term::Scalar(variable),
-        })
+    fn pattern_term(&mut self, variable: Variable, span: Span) -> R<Term> {
+        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
+            return Ok(Term::Address(inner, mutable));
+        }
+        if let Some(ty @ (Type::Managed(_) | Type::Desc(_))) = self.graph.ty(variable)? {
+            return self.known_term(&ty, span);
+        }
+        Ok(Term::Scalar(variable))
     }
     // A shared aggregate projection constrains its pointee shape only.
     // Ordinary checking still decides place validity and all address permissions.

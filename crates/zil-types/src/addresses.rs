@@ -19,7 +19,7 @@ impl Builder<'_, '_> {
                             | Type::Managed(_)
                             | Type::Package { .. }
                             | Type::Closure(_)
-                    )
+                    ) || owned_shapes::sum(&c.stored_type())
                 }),
             _ => false,
         }

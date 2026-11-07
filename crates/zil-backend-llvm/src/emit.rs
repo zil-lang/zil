@@ -2575,6 +2575,12 @@ impl FunctionEmitter<'_> {
                             align: (alignment(&ty, self.closures)?) as u32,
                         },
                     )));
+                    if drop_plan::owned_sum(&ty) {
+                        // Verify proved that TakeCapture emptied this exact
+                        // owning field and this write refills it once. Publish
+                        // liveness only after its complete payload/tag write.
+                        self.refill_owned_sum_capture(environment, *index)?;
+                    }
                 }
             }
             InstructionKind::CallClosureMut { callee, arguments } => {

@@ -600,6 +600,7 @@ struct Builder<'a, 'c> {
     address_written_captures: BTreeMap<LocalId, u32>,
     managed_captures: BTreeMap<LocalId, (u32, Type)>,
     closure_captures: BTreeMap<LocalId, (u32, Type)>,
+    owned_sum_captures: BTreeMap<LocalId, u32>,
     factory_modes: Option<owning_factory::Modes>,
     forwarding_modes: bool,
     closure_slots: BTreeMap<LocalId, ClosureId>,
@@ -691,6 +692,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             address_written_captures: BTreeMap::new(),
             managed_captures: BTreeMap::new(),
             closure_captures: BTreeMap::new(),
+            owned_sum_captures: BTreeMap::new(),
             factory_modes: owning_factory::template(f).then(owning_factory::Modes::default),
             forwarding_modes: false,
             closure_slots: BTreeMap::new(),
@@ -1129,6 +1131,20 @@ impl<'a, 'c> Builder<'a, 'c> {
                 };
                 if deferred {
                     self.invoke_defer(local, span)?;
+                } else if let Some(capture) = self.owned_sum_captures.get(&local).copied() {
+                    // FnMut temporarily owns the complete captured Sum during
+                    // activation. Refill the empty environment field exactly
+                    // once; Analyze and Verify check every actual exit.
+                    let ty = self.function.locals[local.0 as usize].ty.clone();
+                    let value = self.value(InstructionKind::TakeLocal { local }, ty, span)?;
+                    self.emit(
+                        InstructionKind::WriteCapture {
+                            index: capture,
+                            value,
+                        },
+                        None,
+                        span,
+                    )?;
                 } else if !self.temporary_locals.contains(&local)
                     || self.resource_temps.contains(&local)
                 {
@@ -2857,6 +2873,55 @@ impl<'a, 'c> Builder<'a, 'c> {
         for (index, capture) in captures.into_iter().enumerate() {
             let stored = capture.stored_type();
             if matches!(stored, Type::Package { .. }) {
+                continue;
+            }
+            if owned_shapes::sum(&stored)
+                && builder
+                    .closures
+                    .ordinary_store_capture(&stored, capture.span)?
+            {
+                let kind = builder.closures.pending[id.0 as usize].callable_kind();
+                if kind == CallableKind::Fn {
+                    // Shared calls retain the owner in the environment. The
+                    // activation sees only its real address and may form
+                    // child reference patterns without copying the Sum.
+                    let address = Type::Address {
+                        mutable: false,
+                        inner: Box::new(stored.clone()),
+                    };
+                    let local =
+                        builder.local(&capture.name, address.clone(), false, capture.span)?;
+                    let value = builder.value(
+                        InstructionKind::BorrowCapture {
+                            index: index as u32,
+                            mutable: false,
+                        },
+                        address,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    builder.borrowed_captures.insert(local, stored);
+                } else {
+                    // FnMut takes the complete owner for this activation and
+                    // refills its field on every exit. FnOnce consumes it.
+                    let local = builder.local(
+                        &capture.name,
+                        stored.clone(),
+                        capture.written,
+                        capture.span,
+                    )?;
+                    let value = builder.value(
+                        InstructionKind::TakeCapture {
+                            index: index as u32,
+                        },
+                        stored,
+                        capture.span,
+                    )?;
+                    builder.store(local, value, capture.span)?;
+                    if kind == CallableKind::FnMut {
+                        builder.owned_sum_captures.insert(local, index as u32);
+                    }
+                }
                 continue;
             }
             if let Type::Closure(child) = &stored {
