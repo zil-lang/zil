@@ -256,6 +256,97 @@ fn zero_debt_package_shape_is_rechecked_from_raw_and_wire() {
 }
 
 #[test]
+fn two_bound_ordinary_helpers_move_distinct_values_and_cleanup_on_error() {
+    native(
+        "two-bound-value-relay-error",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn flip<K:StoreElement,V:StoreElement>(entry:Entry<K,V>)->Entry<V,K>{
+ return Entry::<V,K>{key:entry.value,value:entry.key}
+}
+
+fn relay<K:StoreElement,V:StoreElement>(entry:Entry<K,V>)->Entry<V,K>{return flip(entry)}
+fn fail()->bool!i32{return true}
+fn work()->bool!i32{
+ let entry=relay(Entry::<Item,Managed<Ticket>>{key:Item{ticket:Ticket{code:65}},value:Ticket{code:66}});
+ return fail()?
+}
+fn main()->i32{match work(){.err(_)=>{return 0},.ok(_)=>{return 1}}}
+"#,
+        "BA",
+    );
+}
+
+#[test]
+fn managed_value_field_take_has_one_debt_and_raw_descriptor_cannot_replace_it() {
+    let source = r#"
+resource Ticket{code:i32}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let entry=Entry::<Managed<Ticket>,Item>{key:Ticket{code:65},value:Item{ticket:Ticket{code:66}}};
+ let key:Managed<Ticket>=entry.key;
+ return key.code-65
+}
+"#;
+    native("managed-value-field-take", source, "");
+    let input = core(source);
+    let target = TargetProfile::host_llvm();
+    let limits = Limits::default();
+    let mut module = zil_types::check(&input, &target, &limits).unwrap();
+    let mut plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
+    let take = module
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "main")
+        .unwrap()
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|instruction| matches!(instruction.kind, InstructionKind::TakePackageField { .. }))
+        .unwrap();
+    let (local, index) = match &take.kind {
+        InstructionKind::TakePackageField { local, index } => (*local, *index),
+        _ => unreachable!(),
+    };
+    take.kind = InstructionKind::DescribePackageField { local, index };
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    for result in [
+        zil_verify::verify_module(module, plan, &target, &limits),
+        zil_verify::verify_module_bytes(&wire, &target, &limits),
+    ] {
+        let errors = result.expect_err("a descriptor cannot discharge the owned Value field");
+        assert!(
+            errors.iter().any(|error| error.phase == Phase::Verify
+                && matches!(error.category, ResultCategory::SafeReject | ResultCategory::Unsupported)),
+            "{errors:#?}"
+        );
+    }
+    let duplicate = source.replace(
+        "return key.code-65",
+        "let second:Managed<Ticket>=entry.key;return key.code+second.code-130",
+    );
+    let rejected = compile_source(
+        &unit(&duplicate),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert!(
+        matches!(rejected.status, ResultCategory::SafeReject | ResultCategory::Unsupported),
+        "{}",
+        rejected.to_json()
+    );
+}
+
+#[test]
 fn explicit_managed_value_argument_is_owned_without_manages_formal() {
     native(
         "two-value-entry-managed-argument",

@@ -2034,6 +2034,21 @@ impl<'a, 'c> Builder<'a, 'c> {
         let CoreExprKind::Member { object, .. } = &e.kind else {
             unreachable!("member expression dispatcher")
         };
+        // A value context can consume one actual Managed field from an owned
+        // local Package. A read context still takes the descriptor path below.
+        if let Some(expected @ Type::Managed(_)) = expected
+            && let Some((local, index, field)) = self.package_place(e)?
+            && field == *expected
+        {
+            return Ok((
+                self.value(
+                    InstructionKind::TakePackageField { local, index },
+                    field.clone(),
+                    e.span,
+                )?,
+                field,
+            ));
+        }
         if self.enum_constructor(e)?.is_some() {
             let (ty, variant) = self.enum_constructor(e)?.expect("checked constructor");
             return self.make_variant(ty, variant, &[], expected, e.span);
