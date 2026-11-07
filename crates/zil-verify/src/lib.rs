@@ -1882,14 +1882,18 @@ fn check_function(
                 }
             }
         }
-        if function.return_type.is_package_address()
+        // The shared Copy leaf path still needs its actual parameter origin
+        // and transitive caller loan below; this header check only admits its
+        // shape. Mutable and non-Copy returns retain the Store boundary.
+        if !matches!(&function.return_type, Type::Address { mutable: false, inner } if inner.is_address_pointee())
+            && (function.return_type.is_package_address()
             || store_parent_address
             || function
                 .locals
                 .iter()
                 .map(|local| &local.ty)
                 .chain(&function.values)
-                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner)))
+                .any(|ty| matches!(ty,Type::Address{inner,..} if ty.is_package_address() && packages::has_store_fields(inner))))
         {
             return Err(unsupported(
                 "Store element windows are synchronous inputs; address results derived from element windows are not implemented",
