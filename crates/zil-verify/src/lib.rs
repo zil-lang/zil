@@ -326,6 +326,7 @@ struct Budget {
     // This is a work gate only; each consumer still checks the complete type.
     inline_store_roots: BTreeSet<usize>,
     inline_store_addresses: bool,
+    inline_store_package_addresses: bool,
     sums: bool,
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
@@ -364,6 +365,7 @@ impl Budget {
             pod_stores: false,
             inline_store_roots: BTreeSet::new(),
             inline_store_addresses: false,
+            inline_store_package_addresses: false,
             sums: false,
             tasks: false,
             task_origin_roots: false,
@@ -1263,7 +1265,9 @@ fn check_type_shape(
             ty,
             Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
         ) || matches!(ty, Type::Address { inner, .. }
-            if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })));
+            if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })
+                || matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Package { .. }))
+                || matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))));
     for element in pod_stores {
         dynamic_store::check_pod_element(element, target, None, budget)?;
         budget.pod_stores = true;
@@ -1272,7 +1276,10 @@ fn check_type_shape(
     if inline_store_root {
         budget.spend(budget.inline_store_roots.len().saturating_add(1))?;
         budget.inline_store_roots.insert(ty as *const Type as usize);
-        budget.inline_store_addresses |= matches!(ty, Type::Address { .. });
+        budget.inline_store_addresses |= matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }));
+        budget.inline_store_package_addresses |= matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Package { .. }));
     }
     // Fingerprint only after the complete raw type tree has been bounded.
     // This independently checks the sealed family key and payload shape.
@@ -1448,7 +1455,7 @@ fn check_function_signature_type(
     }
     match ty {
         Type::Address { inner, .. }
-            if budget.pod_stores
+            if budget.inline_store_root(ty)?
                 && matches!(inner.as_ref(), Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)? =>
         {
@@ -1531,7 +1538,7 @@ fn check_local_type(
             "local closure type references an absent environment",
         )),
         Type::Address { inner, .. }
-            if budget.pod_stores
+            if budget.inline_store_root(ty)?
                 && matches!(inner.as_ref(), Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)? =>
         {
@@ -1673,7 +1680,7 @@ fn check_function(
     if matches!(function.return_type, Type::Address { .. }) {
         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
         let mut store_parent_address = false;
-        if budget.pod_stores {
+        if budget.inline_store_package_addresses {
             for ty in function
                 .locals
                 .iter()
@@ -1682,6 +1689,7 @@ fn check_function(
             {
                 if let Type::Address { inner, .. } = ty
                     && ty.is_package_address()
+                    && budget.inline_store_root(ty)?
                     && dynamic_store::package_inline_store(inner, budget)?
                 {
                     store_parent_address = true;
@@ -2316,7 +2324,7 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
-            } else if budget.pod_stores
+            } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?
             {
@@ -2343,7 +2351,7 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
-            } else if budget.pod_stores
+            } else if budget.inline_store_root(inner)?
                 && matches!(inner, Type::Package { .. })
                 && dynamic_store::package_inline_store(inner, budget)?
             {
@@ -2444,7 +2452,8 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if budget.pod_stores && dynamic_store::package_inline_store(projected, budget)?
+                    if budget.inline_store_root(value_type(function, *address, span)?)?
+                        && dynamic_store::package_inline_store(projected, budget)?
                     {
                         packages::check_ordinary_type(module, projected, span, budget)?;
                     } else if packages::shared_product_head(projected) {
@@ -2470,7 +2479,7 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
-            } else if budget.pod_stores
+            } else if budget.inline_store_root(value_type(function, *address, span)?)?
                 && matches!(field, Type::Package { .. })
                 && dynamic_store::package_inline_store(field, budget)?
             {
