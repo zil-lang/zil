@@ -278,6 +278,68 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
 }
 
 #[test]
+fn ordinary_tuple_destructure_consumes_its_actual_owned_capture() {
+    let (module, _) = candidate(include_str!("ordinary-tuple-copy-companions.zil"));
+    let definition = module
+        .closures
+        .iter()
+        .find(|definition| {
+            matches!(&definition.captures[..], [Type::Tuple(fields)]
+                if fields.len() == 3
+                    && matches!(&fields[0], Type::Managed(payload)
+                        if matches!(payload.as_ref(), Type::OwnedStore { element }
+                            if matches!(element.as_ref(), Type::U64)))
+                    && matches!(&fields[1], Type::Record { .. })
+                    && matches!(&fields[2], Type::Array { .. }))
+        })
+        .expect("Source captures its complete Store/Record/Array Tuple");
+    assert_eq!(definition.kind, zil_ir::CallableKind::FnOnce);
+    let entry = module
+        .functions
+        .iter()
+        .find(|function| {
+            function.id == definition.function && function.environment == Some(definition.id)
+        })
+        .expect("actual Source closure entry");
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(instruction.kind, I::TakeCapture { index: 0 }))
+    );
+    assert!(
+        entry
+            .blocks
+            .iter()
+            .flat_map(|block| &block.instructions)
+            .any(|instruction| matches!(instruction.kind, I::UnpackTuple { .. }))
+    );
+}
+
+#[test]
+fn ordinary_tuple_capture_mode_follows_owning_child_binding() {
+    let source = include_str!("ordinary-tuple-copy-companions.zil");
+    let original = "let (values,marker,bytes)=packet";
+    assert_eq!(source.matches(original).count(), 1);
+    let shared = source
+        .replacen("impl FnOnce()->u64", "impl Fn()->u64", 1)
+        .replacen(original, "let (ref values,marker,bytes)=packet", 1);
+    let (module, _) = candidate(&shared);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::Fn
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
+
+    let mixed = source.replacen(original, "let (values,ref marker,bytes)=packet", 1);
+    let (module, _) = candidate(&mixed);
+    assert!(module.closures.iter().any(|definition| {
+        definition.kind == zil_ir::CallableKind::FnOnce
+            && matches!(&definition.captures[..], [Type::Tuple(fields)] if fields.len() == 3)
+    }));
+}
+
+#[test]
 fn ordinary_store_same_size_canonical_element_rejects_raw_and_wire() {
     let (mut module, mut plan) = candidate(include_str!("ordinary-sums.zil"));
     let store = module
