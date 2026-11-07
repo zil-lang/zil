@@ -501,7 +501,16 @@ fn package_capture_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> 
 }
 
 fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    let Type::Package { fields, .. } = ty else {
+    let qualified = matches!(ty, Type::BorrowedStorage { .. });
+    let physical = match ty {
+        Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }) =>
+        {
+            storage.as_ref()
+        }
+        other => other,
+    };
+    let Type::Package { fields, .. } = physical else {
         return false;
     };
     let mut owns = false;
@@ -514,6 +523,13 @@ fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if product_type(field, resources) => owns = true,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && product_type(field, resources) =>
+            {
+                owns = true
+            }
+            Type::Address { inner, .. } if qualified && inner.is_address_pointee() => {}
             field if field.is_copy_value() => {}
             _ => return false,
         }
@@ -522,7 +538,16 @@ fn product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
 }
 
 fn owned_product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bool {
-    let Type::Package { fields, .. } = ty else {
+    let qualified = matches!(ty, Type::BorrowedStorage { .. });
+    let physical = match ty {
+        Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }) =>
+        {
+            storage.as_ref()
+        }
+        other => other,
+    };
+    let Type::Package { fields, .. } = physical else {
         return false;
     };
     let mut owns = false;
@@ -532,6 +557,13 @@ fn owned_product_type(ty: &Type, resources: &[zil_ir::ResourceDefinition]) -> bo
                 owns = true;
             }
             Type::Package { .. } if owned_product_type(field, resources) => owns = true,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && owned_product_type(field, resources) =>
+            {
+                owns = true
+            }
+            Type::Address { inner, .. } if qualified && inner.is_address_pointee() => {}
             field if field.is_copy_value() => {}
             _ => return false,
         }

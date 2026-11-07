@@ -324,9 +324,8 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     if !matches!(
         storage,
         Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
-    ) || (!shape.retained.is_empty() && !shape.slots.is_empty())
-        || (matches!(storage, Type::Enum { .. })
-            && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
+    ) || (matches!(storage, Type::Enum { .. })
+        && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(unsupported(
             "nested retained/nominal stored carrier needs its independent consumer",
@@ -352,6 +351,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     } else {
                         StoredBorrowMode::SharedAddress
                     },
+                    None,
                 ));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -422,11 +422,26 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
                 todo.push((element, path));
             }
-            Type::BorrowedStorage { .. } => {
-                if !retained::pure(t, b)? {
-                    return Err(err(
-                        "retained physical leaf needs a real borrowing consumer",
-                    ));
+            Type::BorrowedStorage {
+                storage: child,
+                life,
+            } => {
+                if !matches!(storage, Type::Package { .. })
+                    || !matches!(child.as_ref(), Type::Package { .. })
+                {
+                    return Err(err("nested physical child requires owning Package"));
+                }
+                physical(t, limits, b)?;
+                let boundary: Vec<_> = path
+                    .iter()
+                    .copied()
+                    .map(LifeTypeProjection::Place)
+                    .collect();
+                for slot in &life.slots {
+                    b.spend(path.len().saturating_add(slot.path.len()).saturating_add(1))?;
+                    let mut complete = path.clone();
+                    complete.extend(&slot.path);
+                    actual.push((complete, slot.mode, Some((boundary.clone(), slot.binder))));
                 }
             }
             Type::Managed(payload) if matches!(storage, Type::Package { .. }) => {
@@ -476,17 +491,26 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         b.spend(row.path.len().saturating_add(1))?;
         class(row.binder, b)?;
     }
-    for ((path, mode), row) in actual.iter().zip(&shape.slots) {
+    for ((path, mode, child_class), row) in actual.iter().zip(&shape.slots) {
         b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
         if path != &row.path || mode != &row.mode {
             return Err(err(
                 "actual physical stored path or mode differs from declared leaf",
             ));
         }
+        if let Some((boundary, class)) = child_class {
+            if !shape.retained.iter().any(|entry| {
+                &entry.path == boundary && entry.class == *class && entry.binder == row.binder
+            }) {
+                return Err(err("nested slot binder differs from retained child class"));
+            }
+        }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !shape.retained.is_empty()
-                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+                || !path
+                    .iter()
+                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+                || (child_class.is_none() && path.len() != 1))
         {
             return Err(unsupported(
                 "exclusive stored holder requires direct nominal address slots",
@@ -641,9 +665,24 @@ pub(super) fn qualifications(
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
+                let scalar_owner_operation = match &i.kind {
+                    InstructionKind::ReadDesc { desc, .. } => f
+                        .values
+                        .get(desc.0 as usize)
+                        .is_some_and(super::stored_owned::description),
+                    InstructionKind::MakeManaged { .. } => i.result.is_some_and(|id| {
+                        f.values
+                            .get(id.0 as usize)
+                            .is_some_and(super::stored_owned::owner)
+                    }),
+                    _ => false,
+                };
+                let owned_operation = (!mixed_package
+                    && super::stored_owned::instruction(f, &i.kind))
+                    || scalar_owner_operation;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
-                    && !(!mixed_package && super::stored_owned::instruction(f, &i.kind))
+                    && !owned_operation
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
@@ -666,7 +705,11 @@ pub(super) fn qualifications(
                             | InstructionKind::MakePackage { .. }
                             | InstructionKind::ByteBufferNew
                             | InstructionKind::ByteBufferPush { .. }
+                            | InstructionKind::ByteBufferReserve { .. }
+                            | InstructionKind::ByteBufferTruncate { .. }
                             | InstructionKind::DescribeAddress { .. }
+                            | InstructionKind::DescribeLocal { .. }
+                            | InstructionKind::DescribeCapture { .. }
                             | InstructionKind::DropPackage { .. }
                             | InstructionKind::DropManaged { .. }
                             | InstructionKind::TakeLocal { .. }
@@ -694,7 +737,7 @@ pub(super) fn qualifications(
                         Some(i.span),
                     ));
                 }
-                if !mixed_package && super::stored_owned::instruction(f, &i.kind) {
+                if owned_operation {
                     super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
@@ -1358,9 +1401,11 @@ fn select(
     let mut result = Permission::default();
     for source in &address.sources {
         b.spend(width(source))?;
-        if !source.leaf.is_empty() || !source.inline.is_empty() {
+        if !source.leaf.is_empty() {
             return Err(err("stored leaf base crosses a target or inline boundary"));
         }
+        let mut actual_path = source.inline.clone();
+        actual_path.extend_from_slice(path);
         let p = match source.base {
             HoldRoot::Static => {
                 return Err(err("static text cannot supply nested carrier permissions"));
@@ -1370,7 +1415,7 @@ fn select(
             HoldRoot::Capture(p) => state.captures.get(p as usize),
         }
         .ok_or_else(|| err("carrier location is absent"))?;
-        if let Some(p) = leaf(p, path, b)? {
+        if let Some(p) = leaf(p, &actual_path, b)? {
             join_permission(&mut result, p, b)?;
         }
     }
@@ -1592,12 +1637,17 @@ fn step(
             state.locals[l.0 as usize] = Payload::default()
         }
         InstructionKind::DescribeLocal { local } => {
-            b.spend(1)?;
-            out.address.sources.push(Source {
-                base: HoldRoot::Local(*local),
-                leaf: Vec::new(),
-                inline: Vec::new(),
-            });
+            if f.locals
+                .get(local.0 as usize)
+                .is_some_and(|local| super::stored_owned::owner(&local.ty))
+            {
+                b.spend(1)?;
+                out.address.sources.push(Source {
+                    base: HoldRoot::Local(*local),
+                    leaf: Vec::new(),
+                    inline: Vec::new(),
+                });
+            }
         }
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
@@ -1614,7 +1664,9 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
-        InstructionKind::ByteBufferPush { .. } => {
+        InstructionKind::ByteBufferPush { .. }
+        | InstructionKind::ByteBufferReserve { .. }
+        | InstructionKind::ByteBufferTruncate { .. } => {
             // ByteBuffer growth may relocate bytes. This component must not
             // silently preserve a stored pointer into that payload.
             for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
@@ -1626,6 +1678,9 @@ fn step(
                     let mut field = storage;
                     for step in &row.path {
                         b.spend(1)?;
+                        if let Type::BorrowedStorage { storage, .. } = field {
+                            field = storage;
+                        }
                         field = match (field, step) {
                             (
                                 Type::Record { fields, .. } | Type::Package { fields, .. },

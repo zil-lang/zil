@@ -1303,7 +1303,7 @@ impl Resolver<'_> {
                         && packages::array_field_supported(&ty))
                     || (d.kind == AggregateKind::Package
                         && !f.manages
-                        && matches!(ty, Type::Package { .. })
+                        && matches!(stored::physical(&ty), Type::Package { .. })
                         && packages::product::owned_supported(&ty))
                     || (d.kind == AggregateKind::Package
                         && f.manages

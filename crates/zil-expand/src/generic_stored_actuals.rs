@@ -42,7 +42,8 @@ impl Engine<'_> {
                         self.budget.node(ty.span, depth)?;
                         if let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
                             && let zil_ir::Type::Record { name, .. }
-                            | zil_ir::Type::Enum { name, .. } = storage.as_ref()
+                            | zil_ir::Type::Enum { name, .. }
+                            | zil_ir::Type::Package { name, .. } = storage.as_ref()
                         {
                             self.budget.text(name, ty.span)?;
                             self.budget.text(&path[0], ty.span)?;
@@ -137,7 +138,8 @@ impl Engine<'_> {
             self.budget.node(ty.span, depth)?;
             if let zil_ir::Type::BorrowedStorage { storage, .. } = &instance.instance.ty
                 && let zil_ir::Type::Record { name: physical, .. }
-                | zil_ir::Type::Enum { name: physical, .. } = storage.as_ref()
+                | zil_ir::Type::Enum { name: physical, .. }
+                | zil_ir::Type::Package { name: physical, .. } = storage.as_ref()
             {
                 self.budget.text(physical, ty.span)?;
                 self.budget.text(&name, ty.span)?;
