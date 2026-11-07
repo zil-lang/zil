@@ -50,7 +50,7 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
     assert!(FROZEN_SHA256.contains(&zil_base::Fingerprint::of(bytes).to_hex().as_str()));
     assert_eq!(&bytes[..8], b"ZILMODP\0");
     assert_eq!(&bytes[8..12], &40u32.to_le_bytes());
-    const CURRENT_LAYOUT: u32 = 44;
+    const CURRENT_LAYOUT: u32 = 45;
     assert_eq!(zil_ir::wire::WIRE_VERSION, CURRENT_LAYOUT);
     assert_eq!(zil_base::SCHEMA_VERSION, CURRENT_LAYOUT);
     // The production decoder still rejects every old transport envelope. Only

@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "purpose": "Acceptance contract for general-language functional 1.0; this document has no live task status and asserts no implementation success.",
+  "authority": [
+    "_zil_design.md",
+    "spec/",
+    "policy/",
+    "validation/product-gates.json"
+  ],
+  "declared_target": "Linux x86_64 native applications and libraries; exact additional supported targets require their own execution evidence.",
+  "capabilities": [
+    {
+      "id": "values-and-patterns",
+      "name": "Scalars, aggregates and patterns",
+      "requirements": [
+        "All existing scalar widths and checked conversions compose with arrays/slices, Records, Enum, Option and ErrorUnion.",
+        "Named and positional patterns preserve nominal identity, visibility, borrowing and actual partial ownership; no silent Copy of exclusive/owning leaves."
+      ]
+    },
+    {
+      "id": "generic-libraries",
+      "name": "Generic and trait APIs",
+      "requirements": [
+        "Type/const/life arguments, nominal trait/impl identity, associated type/constant projections and ordinary generic/default methods compose across function signatures, fields, aliases and modules.",
+        "Unused definitions prove their declared obligations; ambiguity, cycles and illegal overlap are diagnosed before instances can supply missing proofs.",
+        "Real iterator/container APIs cover both Copy values and the already supported owning value families."
+      ]
+    },
+    {
+      "id": "ownership-composition",
+      "name": "Ordinary owned and borrowed data models",
+      "requirements": [
+        "An ordinary Package may own values while retaining external borrows; complete construction, move, nesting, helper return, capture and failure cleanup preserve every actual relation.",
+        "Multiple exclusive leaves, reborrow parents and slot initialization/replace/take/refill preserve access and responsibility in the same CFG.",
+        "Existing values remain usable together inside ordinary functions; function splitting or a scalar-only seam does not satisfy this capability."
+      ]
+    },
+    {
+      "id": "dynamic-abstraction",
+      "name": "Heterogeneous runtime abstraction",
+      "requirements": [
+        "Ordinary Unit/value methods and shared/exclusive receivers have real checked dispatch, with provider effects, sources, cleanup and lifetime preserved.",
+        "An explicit owned erased-storage route has correct move, destruction and construction-failure behavior for heterogeneous values."
+      ]
+    },
+    {
+      "id": "resource-graphs",
+      "name": "Stable resource and graph lifecycle",
+      "requirements": [
+        "A runtime-sized graph with cycles/shared edges is constructed, traversed and reclaimed with exact responsibility and no hidden default GC/RC/lease.",
+        "Logical deletion and slot reuse cannot revive stale descriptions; static restrictions versus explicit checked operations are documented and exercised."
+      ]
+    },
+    {
+      "id": "async-ownership",
+      "name": "Async tasks and cancellation",
+      "requirements": [
+        "Real input ports cover ordinary shared/exclusive values and multiple inputs; PC0, Pending, Ready, cancellation and close preserve actual sources and parent loans.",
+        "Typed helper parameters/returns preserve complete retained contexts and move obligations; result borrows distinguish external inputs from the task frame.",
+        "Construction failure, PendingExit, notification and cleanup cannot abandon live work or release borrows early."
+      ]
+    },
+    {
+      "id": "threads-and-synchronization",
+      "name": "Threads, mutex and atomics",
+      "requirements": [
+        "Structured threads, ordinary parameterized Mutex/affine Guard and explicit atomic widths have real machine operations and checked sharing/transfer/cleanup requirements.",
+        "Each guard unlocks exactly once, projected borrows depend on the guard, and guard/task/thread transport is permitted only by actual capability proofs."
+      ]
+    },
+    {
+      "id": "foreign-lifecycle",
+      "name": "Foreign interfaces and registered callbacks",
+      "requirements": [
+        "Native ABI and callback retention have complete unsafe provider contracts and checked lifetime/cleanup behavior.",
+        "Callbacks already holding userdata before admission, close races, reentrant close and final drain cannot access reclaimed storage; cross-thread profiles require an actual protocol proof."
+      ]
+    },
+    {
+      "id": "standard-library",
+      "name": "Text, collections, iteration and I/O",
+      "requirements": [
+        "UTF8 validation/encoding, String construction/edit/search/compare and scalar iteration are reusable ordinary APIs.",
+        "Dynamic sequences, associative Map/Set, sorting and iterator composition work through actual language-defined APIs, including ordinary owning values and explicit allocation errors.",
+        "File/stream I/O distinguishes EOF/error, handles partial writes and cleans actual owned handles on failure and early exit."
+      ]
+    },
+    {
+      "id": "project-workflow",
+      "name": "Build, test and dependency workflow",
+      "requirements": [
+        "A documented project manifest, reproducible path dependency resolution/lock, ordinary build/run/check and executable test discovery work from a fresh checkout.",
+        "Empty selection, compilation failures, timeouts and failed tests cannot be reported as Pass; diagnostics identify the actual source."
+      ]
+    },
+    {
+      "id": "native-delivery",
+      "name": "Supported native delivery",
+      "requirements": [
+        "On the declared Linux x86_64 target, both native backends and O0/O2 execute the same real programs and cleanup/error cases.",
+        "Published source is restored independently, all required bytes and dependencies are accounted for, and it builds without prior compiler artifacts."
+      ]
+    },
+    {
+      "id": "release-acceptance",
+      "name": "Release validation",
+      "requirements": [
+        "Every required capability is bound to actual Source consumers, independent raw/Wire controls where applicable, nonzero executions and precise-source independent review.",
+        "No required or unaccounted language profile remains Unsupported; test counts and transport declarations alone are not completion.",
+        "Existing validation/product-gates.json remains mandatory for any formal 1.0 product claim; functionality readiness is reported separately from safety/cost/product acceptance."
+      ]
+    }
+  ],
+  "common_evidence": [
+    "real ordinary source programs, not simulator-only or isolated IR construction",
+    "positive and nearest safety-negative behavior",
+    "source commit/tree and actual selected backend/optimization",
+    "precise source review by a non-author",
+    "construction failure, cleanup and request-budget boundaries when relevant"
+  ],
+  "outside_basic_language_1_0": [
+    "complete GPU/ZUI/font/IME product",
+    "native Windows support claim without Windows execution",
+    "managed execution mode and a default GC/RC",
+    "central package registry publishing",
+    "full grapheme/locale typography and advanced IDE services"
+  ],
+  "not_deferred_by_exclusions": [
+    "ownership/generic/container combinations needed by ordinary libraries",
+    "real error and cleanup semantics",
+    "required safety and product acceptance conditions"
+  ]
+}

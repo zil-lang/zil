@@ -10,7 +10,7 @@
 use crate::*;
 use zil_base::{CompileResult, Diagnostic, Endian, FileId, Limits, Phase};
 
-pub const WIRE_VERSION: u32 = 44;
+pub const WIRE_VERSION: u32 = 45;
 #[path = "dynamic_wire.rs"]
 mod dynamic;
 const CT_MAGIC: &[u8; 8] = b"ZILCTIR\0";
