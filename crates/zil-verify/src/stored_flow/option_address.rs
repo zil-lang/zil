@@ -44,7 +44,7 @@ pub(super) fn shape(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
                 Type::Slice { element } => element.as_ref(),
                 other => other,
             };
-            if !closed_pointee(pointee, limits, b)? {
+            if !closed_pointee(pointee, limits, b)? && !matches!(pointee, Type::Package { .. }) {
                 return Ok(false);
             }
         }

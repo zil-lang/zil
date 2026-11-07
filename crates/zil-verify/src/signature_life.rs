@@ -489,7 +489,14 @@ fn relation_inner(
                 }
             }
             t if pointee => {
-                if !(t.is_address_pointee() || allow_callback && matches!(t, Type::Closure(_))) {
+                if !(t.is_address_pointee()
+                    // The actual Store source/loan remains a separate proof.
+                    || !output
+                        && matches!(base, StorageBase::Parameter(_))
+                        && matches!(ty, Type::Address { mutable: false, .. })
+                        && matches!(t, Type::Package { .. })
+                    || allow_callback && matches!(t, Type::Closure(_)))
+                {
                     return Err(invalid());
                 }
             }

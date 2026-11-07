@@ -45,7 +45,7 @@ pub(super) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
         Type::Slice { element } => element.as_ref(),
         other => other,
     };
-    if !closed_pointee(pointee, b, 0)? {
+    if !closed_pointee(pointee, b, 0)? && !matches!(pointee, Type::Package { .. }) {
         return Ok(false);
     }
     let [slot] = life.slots.as_slice() else {
