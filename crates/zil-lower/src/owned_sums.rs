@@ -441,6 +441,53 @@ impl<'a> Budget<'a> {
             }
         }
     }
+
+    // This is a representation admission after independent Verify, not a
+    // source ownership rule. Only visit it when legacy capture admission failed.
+    pub(super) fn inline_store_capture(
+        &mut self,
+        ty: &Type,
+        resources: &[zil_ir::ResourceDefinition],
+    ) -> CompileResult<bool> {
+        fn contains(b: &mut Budget<'_>, ty: &Type, depth: usize) -> CompileResult<bool> {
+            b.pay(ty, depth)?;
+            let mut found = false;
+            match ty {
+                Type::Managed(payload) => {
+                    return Ok(matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if !matches!(element.as_ref(), Type::Package { .. })));
+                }
+                Type::Package { fields, .. } => {
+                    b.metadata(fields.len())?;
+                    for (_, field) in fields {
+                        found |= contains(b, field, depth + 1)?;
+                    }
+                }
+                Type::Tuple(fields) => {
+                    b.metadata(fields.len())?;
+                    for field in fields {
+                        found |= contains(b, field, depth + 1)?;
+                    }
+                }
+                Type::Enum { variants, .. } => {
+                    b.metadata(variants.len())?;
+                    for (_, fields) in variants {
+                        b.metadata(fields.len())?;
+                        for field in fields {
+                            found |= contains(b, field, depth + 1)?;
+                        }
+                    }
+                }
+                Type::ErrorUnion { error, result } => {
+                    b.metadata(2)?;
+                    found = contains(b, error, depth + 1)? | contains(b, result, depth + 1)?;
+                }
+                _ => {}
+            }
+            Ok(found)
+        }
+        Ok(contains(self, ty, 0)? && self.admits(ty, resources, 0)?)
+    }
 }
 fn limit() -> Vec<Diagnostic> {
     vec![Diagnostic::limit(

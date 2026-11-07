@@ -181,15 +181,9 @@ fn lower_view_with_budget(
                 .parameters
                 .iter()
                 .any(|p| matches!(p, Type::Address { .. }));
-        if !matches!(
-            closure.kind,
-            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
-        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
-            || (!closure.lending_captures.is_empty()
-                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
-                && matches!(&closure.result, Type::Address { inner, mutable: false }
-                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
-            || !closure.captures.iter().all(|ty| {
+        let mut complete_captures = true;
+        for ty in &closure.captures {
+            let legacy_capture = {
                 ty.is_copy_value()
                     || callable_parameter_type(ty, &module.closures)
                     || ty.is_shared_sync_cell_address()
@@ -205,7 +199,21 @@ fn lower_view_with_budget(
                         && !matches!(ty, Type::Desc(p) if matches!(p.as_ref(), Type::OwnedStore { .. })))
                     || (package_capture_type(ty, &module.resources)
                         && !package_array_fields(ty))
-            })
+            };
+            if !legacy_capture && !sum_budget.inline_store_capture(ty, &module.resources)? {
+                complete_captures = false;
+                break;
+            }
+        }
+        if !matches!(
+            closure.kind,
+            CallableKind::Fn | CallableKind::FnMut | CallableKind::FnOnce
+        ) || !(owning_signature || invocation_signature || closure.result.is_copy_value()
+            || (!closure.lending_captures.is_empty()
+                && matches!(closure.kind, CallableKind::Fn | CallableKind::FnMut)
+                && matches!(&closure.result, Type::Address { inner, mutable: false }
+                    if inner.is_copy_value() || matches!(&**inner, Type::Slice { element } if element.is_copy_value()))))
+            || !complete_captures
             || !closure.parameters.iter().all(|ty| {
                 owning_signature || ty.is_copy_value() || ty.is_shared_sync_cell_address()
                     || (captured_fixed_signature && shared_qualified_capture_address(ty)) || (qualified_signature
