@@ -243,8 +243,8 @@ pub(super) fn reserve_callable_metadata(
 /// Only this representation slice is currently implemented. This predicate is
 /// used after Verify; it grants no source Copy/Store/capture qualification.
 pub(super) fn representation_type(t: &Type) -> bool {
-    matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_)))
-        || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Tuple(_))))
+    matches!(t,Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_)))
+        || matches!(t,Type::Address{inner,..}if matches!(inner.as_ref(),Type::BorrowedStorage{storage,..}if matches!(storage.as_ref(),Type::Record{..}|Type::Package{..}|Type::Tuple(_))))
         || shared_pointer_enum(t)
         || pure_composite(t)
 }
@@ -471,6 +471,10 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ConvertNumber { .. }
                     | InstructionKind::ScopeEnter { .. }
                     | InstructionKind::ScopeExit { .. }
+                    | InstructionKind::ByteBufferNew
+                    | InstructionKind::ByteBufferPush { .. }
+                    | InstructionKind::DescribeAddress { .. }
+                    | InstructionKind::DropPackage { .. }
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
                     InstructionKind::MakeErrorUnion { .. }
@@ -520,6 +524,7 @@ fn operands(i: &InstructionKind) -> Vec<ValueId> {
         InstructionKind::Call { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
         | InstructionKind::MakeAggregate { fields: arguments }
+        | InstructionKind::MakePackage { fields: arguments }
         | InstructionKind::MakeVariant {
             fields: arguments, ..
         }
@@ -595,6 +600,7 @@ pub(super) fn reserve_emission(
                 InstructionKind::Call { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
                 | InstructionKind::MakeAggregate { fields: arguments }
+                | InstructionKind::MakePackage { fields: arguments }
                 | InstructionKind::MakeVariant {
                     fields: arguments, ..
                 }
@@ -664,6 +670,7 @@ pub(super) fn reserve_emission(
                 type_work(&f.values[v.0 as usize], work, limits, 0)?;
             }
             if let InstructionKind::MakeAggregate { fields }
+            | InstructionKind::MakePackage { fields }
             | InstructionKind::MakeManaged { fields } = &i.kind
                 && let Some(v) = i.result
             {
@@ -727,7 +734,9 @@ impl FunctionEmitter<'_> {
                 );
             };
             current = match current {
-                Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, t)| t),
+                Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                    fields.get(*index as usize).map(|(_, t)| t)
+                }
                 Type::Tuple(fs) => fs.get(*index as usize),
                 _ => None,
             }

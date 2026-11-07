@@ -2,6 +2,15 @@
 //! Preparation temporaries retain ownership until an explicit cleanup/commit.
 use super::*;
 
+fn physical_package(ty: &Type) -> Option<&Type> {
+    match ty {
+        Type::Package { .. } => Some(ty),
+        Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }) => Some(storage),
+        _ => None,
+    }
+}
+
 pub(super) fn supported_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     let Type::Package { fields, .. } = ty else {
         return false;
@@ -233,7 +242,7 @@ impl FunctionEmitter<'_> {
         if !self.partial_packages.contains(&local) {
             return Ok(());
         }
-        let Type::Package { fields, .. } = self.local_type(local)? else {
+        let Some(Type::Package { fields, .. }) = physical_package(self.local_type(local)?) else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "field flags require a package",
@@ -269,7 +278,7 @@ impl FunctionEmitter<'_> {
 
     fn package_field(&self, local: LocalId, index: u32) -> CompileResult<(m::Ty, Type)> {
         let ty = self.local_type(local)?;
-        let Type::Package { fields, .. } = ty else {
+        let Some(Type::Package { fields, .. }) = physical_package(ty) else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "package field requires a package local",
@@ -588,7 +597,7 @@ impl FunctionEmitter<'_> {
             return Ok(());
         }
         let ty = self.local_type(local)?;
-        let Type::Package { fields, .. } = ty else {
+        let Some(Type::Package { fields, .. }) = physical_package(ty) else {
             return invalid(
                 "E-CODEGEN-CFG",
                 "package cleanup requires a package local",
