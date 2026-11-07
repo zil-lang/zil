@@ -820,39 +820,43 @@ fn check_pairs(
     }
     Ok(())
 }
-fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
+fn consumers(kind: &InstructionKind, affine_values: bool) -> impl Iterator<Item = &ValueId> {
     let (callee, values): (Option<&ValueId>, &[ValueId]) = match kind {
         InstructionKind::Store { value, .. }
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::StorePackageField { value, .. } => (None, std::slice::from_ref(value)),
         InstructionKind::MakeOwnedArray { elements }
-        | InstructionKind::MakeManaged { fields: elements }
-        | InstructionKind::MakePackage { fields: elements }
+        | InstructionKind::MakePackage { fields: elements } => (None, elements),
+        InstructionKind::MakeManaged { fields: elements }
         | InstructionKind::MakeAggregate { fields: elements }
         | InstructionKind::MakeOwnedTuple { fields: elements }
         | InstructionKind::MakeVariant {
             fields: elements, ..
-        } => (None, elements),
+        } if affine_values => (None, elements),
         InstructionKind::MakeErrorUnion { value, .. }
         | InstructionKind::ExtractField {
             aggregate: value, ..
         }
         | InstructionKind::ExtractIndex {
             aggregate: value, ..
-        } => (None, std::slice::from_ref(value)),
+        } if affine_values => (None, std::slice::from_ref(value)),
         InstructionKind::UpdateField {
             aggregate, value, ..
         }
         | InstructionKind::UpdateIndex {
             aggregate, value, ..
-        } => (Some(aggregate), std::slice::from_ref(value)),
+        } if affine_values => (Some(aggregate), std::slice::from_ref(value)),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::WithForeignCallback { body, .. }
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
-        InstructionKind::Call { arguments, .. }
-        | InstructionKind::SuspendCall { arguments, .. }
+        InstructionKind::SuspendCall { arguments, .. }
         | InstructionKind::TaskCreate { arguments, .. }
+            if affine_values =>
+        {
+            (None, arguments)
+        }
+        InstructionKind::Call { arguments, .. }
         | InstructionKind::CallDynSlot { arguments, .. }
         | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }
@@ -876,7 +880,19 @@ fn ownership(
     let v = f.values.len();
     reserve(budget, &[n, v, 2])?;
     budget.spend(v.saturating_mul(2))?;
-    let mut affine: Vec<_> = f.values.iter().map(|t| affine_type(module, t)).collect();
+    // Record eligibility during the existing paid classification and later
+    // State/callback marking. With no affine SSA value, the extra aggregate
+    // consumers cannot change the move state and retain their old fast path.
+    let mut affine_values = false;
+    let mut affine: Vec<_> = f
+        .values
+        .iter()
+        .map(|t| {
+            let value = affine_type(module, t);
+            affine_values |= value;
+            value
+        })
+        .collect();
     // Owning array/State publication consumes a resource-free concrete callback.
     // This is a move obligation, not a fabricated resource cleanup obligation.
     // Preserve the established ordinary closure Copy profile outside this lane.
@@ -905,6 +921,7 @@ fn ownership(
         for value in elements {
             if matches!(f.values[value.0 as usize], Type::Closure(_)) {
                 affine[value.0 as usize] = true;
+                affine_values = true;
             }
         }
         if matches!(
@@ -915,6 +932,7 @@ fn ownership(
             && matches!(f.values[value.0 as usize], Type::Closure(_))
         {
             affine[value.0 as usize] = true;
+            affine_values = true;
         }
     }
     let mut view = vec![false; v];
@@ -951,11 +969,15 @@ fn ownership(
             }
             inputs[b].clone_from(&state);
             for instruction in &block.instructions {
-                budget.spend(consumers(&instruction.kind).count().saturating_add(1))?;
+                budget.spend(
+                    consumers(&instruction.kind, affine_values)
+                        .count()
+                        .saturating_add(1),
+                )?;
                 if let Some(value) = instruction.result {
                     state[value.0 as usize] = false;
                 }
-                for value in consumers(&instruction.kind) {
+                for value in consumers(&instruction.kind, affine_values) {
                     if affine[value.0 as usize] {
                         state[value.0 as usize] = true;
                     }
@@ -998,7 +1020,7 @@ fn ownership(
             if let Some(value) = instruction.result {
                 state[value.0 as usize] = false;
             }
-            for value in consumers(&instruction.kind) {
+            for value in consumers(&instruction.kind, affine_values) {
                 if !affine[value.0 as usize] {
                     continue;
                 }
