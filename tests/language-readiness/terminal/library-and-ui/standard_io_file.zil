@@ -3,11 +3,17 @@ import std.io
 fn main()->io.Error!i32 {
     match io.open_read("") {
         .ok(_)=>{return 1},
-        .err(_)=>{}
+        .err(error)=>{match error {
+            io.Error.InvalidPath()=>{},
+            _=>{return 1}
+        }}
     }
     match io.open_read("FILEPATH-missing") {
         .ok(_)=>{return 2},
-        .err(_)=>{}
+        .err(error)=>{match error {
+            io.Error.Open()=>{},
+            _=>{return 2}
+        }}
     }
     if true {
         let output=io.create_write("FILEPATH",384)?
