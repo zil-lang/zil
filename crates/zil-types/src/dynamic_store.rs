@@ -28,10 +28,23 @@ fn legacy_fields(ty: &Type) -> bool {
                 || (matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()))))
 }
 
-/// Admission for an actually owned capture, not for an arbitrary Store
-/// element. Only the old leaf or a complete finite Product is admitted;
-/// hidden callback/Store/borrowed fields still cannot enter an inner element.
+/// Ordinary closure capture qualification. Callback Store elements call the
+/// legacy-only branch below, so ordinary ownership cannot grant StoreElement.
 pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    capture_shape(ty, work, limits, span, true)
+}
+
+fn callback_owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: Span) -> R<bool> {
+    capture_shape(ty, work, limits, span, false)
+}
+
+fn capture_shape(
+    ty: &Type,
+    work: &mut usize,
+    limits: &Limits,
+    span: Span,
+    ordinary_inline: bool,
+) -> R<bool> {
     let cost = inference::type_snapshot_work(ty, span, limits)?;
     *work = work.checked_sub(cost.saturating_mul(8)).ok_or_else(|| {
         Diagnostic::limit(
@@ -55,7 +68,7 @@ pub(super) fn owned_capture(ty: &Type, work: &mut usize, limits: &Limits, span: 
             _ => false,
         }
     }
-    if inline_owner(ty) {
+    if ordinary_inline && inline_owner(ty) {
         return Ok(owned_shapes::value(ty));
     }
     fn store(ty: &Type) -> bool {
@@ -298,7 +311,7 @@ fn check_callback_captures(
                     packages::product::validate(capture, work, limits.max_call_depth, span)?;
                 }
                 Type::Managed(_) | Type::Package { .. }
-                    if owned_capture(capture, work, limits, span)? =>
+                    if callback_owned_capture(capture, work, limits, span)? =>
                 {
                     has_owned_store = true;
                 }
@@ -855,6 +868,26 @@ mod pod_tests {
             Type::ForeignHandle,
         ] {
             assert!(!supported_element(&forbidden));
+        }
+    }
+
+    #[test]
+    fn ordinary_capture_does_not_grant_callback_store_element_qualification() {
+        let head = Type::Managed(Box::new(Type::OwnedStore {
+            element: Box::new(Type::I32),
+        }));
+        let parent = Type::Package {
+            name: "Owner".into(),
+            fields: vec![("items".into(), head.clone())],
+        };
+        let limits = Limits::default();
+        let span = Span::default();
+        for ty in [&head, &parent] {
+            let mut ordinary = limits.max_analysis_steps;
+            let mut callback = limits.max_analysis_steps;
+            assert!(owned_capture(ty, &mut ordinary, &limits, span).unwrap());
+            assert!(!callback_owned_capture(ty, &mut callback, &limits, span).unwrap());
+            assert_eq!(ordinary, callback);
         }
     }
 
