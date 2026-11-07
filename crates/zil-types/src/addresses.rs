@@ -794,4 +794,68 @@ impl Builder<'_, '_> {
         )?;
         Ok(())
     }
+
+    pub(super) fn assign_stored_slot(&mut self, target: &CoreExpr, rhs: &CoreExpr) -> R<bool> {
+        let CoreExprKind::Member {
+            object,
+            member,
+            owner,
+        } = &target.kind
+        else {
+            return Ok(false);
+        };
+        if !self.known_type_is(object, |ty| {
+            let ty = match ty {
+                Type::Address { inner, .. } => inner.as_ref(),
+                _ => ty,
+            };
+            matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. }))
+        }) {
+            return Ok(false);
+        }
+        let (storage, address_ty) = self.projection_base(object, true)?;
+        let Type::Address {
+            mutable: true,
+            inner,
+        } = address_ty
+        else {
+            return Err(error(
+                "E-ADDRESS-PERMISSION",
+                target.span,
+                "stored slot replacement requires a mutable holder",
+            ));
+        };
+        let Type::BorrowedStorage {
+            storage: physical,
+            life,
+        } = inner.as_ref()
+        else {
+            unreachable!("qualified stored assignment detection")
+        };
+        self.member_owner(inner.as_ref(), owner.as_ref(), target.span)?;
+        let (index, field_ty) = aggregates::field(physical, member, target.span)?;
+        let path = vec![PlaceProjection::Field(index)];
+        if !life
+            .slots
+            .iter()
+            .any(|slot| slot.path == path && slot.mode == StoredBorrowMode::ExclusiveAddress)
+        {
+            return Err(unsupported(
+                target.span,
+                "stored assignment requires a declared exclusive address slot",
+            ));
+        }
+        let (value, actual) = self.expr(rhs, Some(&field_ty))?;
+        self.same(&actual, &field_ty, rhs.span)?;
+        self.emit(
+            InstructionKind::StoreStoredBorrow {
+                storage,
+                path,
+                value,
+            },
+            None,
+            target.span,
+        )?;
+        Ok(true)
+    }
 }

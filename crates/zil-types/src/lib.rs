@@ -1417,6 +1417,9 @@ impl<'a, 'c> Builder<'a, 'c> {
                 self.store(local, v, s.span)?;
             }
             CoreStatementKind::Assign { target, value } => {
+                if self.assign_stored_slot(target, value)? {
+                    return Ok(());
+                }
                 if self.package_assign(target, value)? {
                     return Ok(());
                 }
