@@ -423,6 +423,68 @@ fn privacy_local_self_and_nominal_identity_remain_required() {
 }
 
 #[test]
+fn private_host_bound_calls_do_not_publish_an_ordinary_external_member() {
+    let private_data = format!(
+        "{};trait Local{{fn local(self:&Self)->i32;}}impl Local for Payload{{fn local()->i32=>.n}}pub fn local_check()->i32{{let value=Payload{{n:13}};return value.local()-13}}",
+        DATA.replace("pub struct Payload", "struct Payload")
+    );
+    let rules = format!("{RULES}pub fn through<T:Code>(value:&T)->i32{{return value.code()}}");
+    native(
+        "private-host-bound",
+        &[
+            (
+                "main",
+                "import rules;import data;fn main()->i32{let value=data.make();return rules.through(&value)-13+data.local_check()}",
+            ),
+            ("rules", &rules),
+            ("data", &private_data),
+        ],
+        b"",
+    );
+    let other_rules = format!(
+        "{rules}pub trait Other{{fn code(self:&Self)->i32;}}pub fn other<T:Other>(value:&T)->i32{{return value.code()}}"
+    );
+    let other_data = format!("{private_data}impl rules.Other for Payload{{fn code()->i32=>.n+1}}");
+    native(
+        "private-host-two-providers",
+        &[
+            (
+                "main",
+                "import rules;import data;fn main()->i32{let value=data.make();return rules.through(&value)+rules.other(&value)-27}",
+            ),
+            ("rules", &other_rules),
+            ("data", &other_data),
+        ],
+        b"",
+    );
+    budget_boundary(
+        "private-host-trait-bound",
+        project(&[
+            (
+                "main",
+                "import rules;import data;fn main()->i32{let value=data.make();return rules.through(&value)-13+data.local_check()}",
+            ),
+            ("rules", &rules),
+            ("data", &private_data),
+        ]),
+    );
+    // Proving a separate bound call does not add the private host's ordinary
+    // member to the importing module's directory.
+    rejected(
+        "private-host-after-bound",
+        &[
+            (
+                "main",
+                "import rules;import data;fn main()->i32{let value=data.make();let observed=rules.through(&value);return value.code()-observed}",
+            ),
+            ("rules", &rules),
+            ("data", &private_data),
+        ],
+        "E-UNKNOWN-FIELD",
+    );
+}
+
+#[test]
 fn original_single_module_and_drop_work_budgets_remain_exact() {
     fn measure(mut run: impl FnMut(usize) -> zil_driver::CompileReport) -> usize {
         let (mut low, mut high) = (0, zil_base::Limits::default().max_analysis_steps);

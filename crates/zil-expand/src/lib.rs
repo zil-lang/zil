@@ -448,8 +448,8 @@ pub fn expand_program_module_with_limits_target(
 /// Export ordinary functions and declared public methods. A method's
 /// visibility comes from its declaration and public nominal owner, never from
 /// seeing a same-spelled method in a downstream module. Trait signatures in a
-/// public local or checked imported trait are public through their public
-/// concrete implementation.
+/// public local or checked imported trait use an internal qualified callable
+/// for a private concrete owner, separately from its ordinary member name.
 fn source_exports(
     module: &s::Module,
     core: &CoreModule,
@@ -1064,6 +1064,7 @@ struct Expander<'a> {
     project_trait_nodes: usize,
     static_traits: BTreeSet<String>,
     static_trait_impls: BTreeSet<usize>,
+    private_trait_aliases: BTreeSet<(usize, usize)>,
     source_item_ordinal: usize,
     current_function: Option<NodeId>,
     source_map: SourceMap,
@@ -1120,6 +1121,7 @@ impl<'a> Expander<'a> {
             project_trait_nodes: 0,
             static_traits: BTreeSet::new(),
             static_trait_impls: BTreeSet::new(),
+            private_trait_aliases: BTreeSet::new(),
             source_item_ordinal: 0,
             current_function: None,
             source_map: SourceMap::new(module_id),
@@ -1263,6 +1265,15 @@ impl Expander<'_> {
                     {
                         let target = self.functions.last().expect("emitted method").id;
                         self.record_dyn_method(member_ordinal, target, m.span);
+                    }
+                    if self
+                        .private_trait_aliases
+                        .contains(&(self.source_item_ordinal, member_ordinal))
+                    {
+                        // Preserve the owner's ordinary private member. The
+                        // separate emitted callable has a checked trait target
+                        // and is the only function exported across this edge.
+                        self.item(m, Some(&name), Some(&host), inherited.as_ref());
                     }
                     if matches!(m.kind, s::ItemKind::Function(_))
                         && let Some(target) = self

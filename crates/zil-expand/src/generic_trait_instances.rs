@@ -61,11 +61,19 @@ impl PartialEq<&str> for Bound {
         self == *other
     }
 }
+pub(crate) type PrivateHosts = std::rc::Rc<BTreeMap<String, BTreeSet<String>>>;
+pub(crate) struct PrivateReceiver {
+    pub host: TypeRef,
+    pub owners: PrivateHosts,
+}
 pub(crate) struct CallTarget {
     pub reference: Reference,
     pub member: String,
     pub generic: bool,
     pub static_host: bool,
+    /// The symbolic receiver and actual private implementation directory come
+    /// from checked declarations, never from a generated member spelling.
+    pub private_receiver: Option<PrivateReceiver>,
 }
 pub(crate) type CallTargets = BTreeMap<usize, CallTarget>;
 pub(crate) type Calls = BTreeMap<String, CallTargets>;
@@ -740,6 +748,12 @@ pub(crate) fn resolve_generic_calls(
                 member: target.member.clone(),
                 generic: true,
                 static_host: target.static_host,
+                private_receiver: target.private_receiver.as_ref().map(|receiver| {
+                    PrivateReceiver {
+                        host: receiver.host.clone(),
+                        owners: std::rc::Rc::clone(&receiver.owners),
+                    }
+                }),
             },
         );
     }
@@ -778,10 +792,26 @@ pub(crate) fn rewrite_calls_materialized(
             reference.key.arguments.push(type_key(&argument, budget)?);
             reference.arguments.push(argument);
         }
+        let private_receiver = if let Some(receiver) = &target.private_receiver {
+            budget.substituted_type(&receiver.host, substitutions)?;
+            let mut host = receiver.host.clone();
+            Substitution { substitutions }.ty(&mut host);
+            if let Some(name) = super::trait_bounds::plain(&host) {
+                budget.text(name, item.span)?;
+                receiver
+                    .owners
+                    .get(&reference.key.name)
+                    .is_some_and(|hosts| hosts.contains(name))
+            } else {
+                false
+            }
+        } else {
+            false
+        };
         let name = method_name_with(
             &reference,
             &target.member,
-            target.generic,
+            target.generic || private_receiver,
             budget,
             item.span,
         )?;

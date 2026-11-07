@@ -2829,7 +2829,11 @@ impl Check<'_, '_, '_> {
         };
         let static_method = selected_reference.is_some();
         let mut method_origin = self.budget.context.origin;
-        if static_method || method.name != name || !method.generics.is_empty() {
+        if static_method
+            || method.name != name
+            || !method.generics.is_empty()
+            || !self.traits.private_hosts.is_empty()
+        {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
@@ -2866,6 +2870,15 @@ impl Check<'_, '_, '_> {
                         member: name.to_owned(),
                         generic: !method.generics.is_empty(),
                         static_host: static_method,
+                        private_receiver: if self.traits.private_hosts.is_empty() {
+                            None
+                        } else {
+                            self.budget.ty(host)?;
+                            Some(trait_instances::PrivateReceiver {
+                                host: host.clone(),
+                                owners: std::rc::Rc::clone(&self.traits.private_hosts),
+                            })
+                        },
                     },
                 );
         }
