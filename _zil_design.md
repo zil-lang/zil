@@ -939,6 +939,16 @@ SABI 内的清理若再次 panic，按固定策略进入 Faulted/abort；不得�
 
 联合Typed/Wire42登记`Type::AsyncRegistration{environment}`（tag37）、同名Core recipe、AsyncRegistrationStart/Valid/RequestClose/PollClose/FinishDestroy（opcode134–138）及外部角色3–5；完整字段见`spec/interfaces.json`。Typed/Type/LifeInventory域为V42，旧envelope拒绝，CT artifact5不变。公共运输可用不等于源、两核及机器消费者已经实现；未接通者明确Unsupported。真实验收必须包含保留raw callback/userdata的外部事件队列、关闭期间晚通知、安装失败、重入、重复关闭与提前销毁，以及正常/错误/取消的结果责任，不能用同步close外包一层假Pending替代。
 
+### 12.3.2 登记对象的逐结果静态合同
+
+现有 AsyncRegistration 的有限协议有 Open、Closing、Closed 三态。函数可用 `requires(state(r,Closing,Closed))` 声明唯一真实借入参数的入口上界，并用 `provides(on_pending(state(r,Closing)),on_ready(state(r,Closed)))` 声明标准 Poll<Unit> 的逐结果关系。Core/Typed 的 FunctionProtocolContract 保存协议种类、实际参数索引、规范有序的入口状态及逐输入/结果转换表；它是待核上界，不授予状态或调用资格。一般自定义协议、多角色及任意投影仍另行开放。
+
+定义方必须证明每个可能入口及实际返回结果的状态包含在声明上界内。未实例化的有限借入 Registration helper 也检查定义期义务；首片符号定义检查限真实原语、直线块、局部别名及返回，不制造一个假闭包环境代替参数证明。未实现的模板控制流或转发明确 Unsupported。实际 F 环境、FnMut/ClosedEnvironment 资格和同步清理图仍分别核验；primitive 名字被函数、导入、参数或局部遮蔽时不得按拼写授信。
+
+Analyze 和 Verify 各自重建实际根、真实 Poll 结果与其状态代次。仅同根且仍有效的结果分支可以精化：Pending 保留 Closing，Ready 才证明 Closed；手工构造的 Ready、另一个对象的结果或已失效的旧结果不能授信。真实根再次变化、未知调用或替换使其旧 SSA/local 结果及条件来源失效。调用者包括没有自身合同的普通函数，仍须满足被调用合同的全部可能入口。循环以有限状态与有效来源的不动点检查，不使用无界计数器；复制、合流、失效扫描及队列增长在发生前计费。
+
+`async_registration_finish_destroy_checked(give owner)` 消费已独立证明 Closed 的同一真实拥有根，使用 opcode140；旧显式 finish_destroy 保持运行时 CLOSED 检查语义。强制退出、伪 Pending、丢弃拥有根或 abort 不替代正常排空。真实外部 no-future/drain、活回调、晚 raw 入口和一次清理仍沿既有合同。Source/CT 重建、模块、公开接口及指纹保留完整协议表，未知 effects 字符串不得产生状态权限。联合 Typed/Wire44 传递函数合同及新指令，旧 envelope 拒绝。
+
 ### 12.4 设备与 FFI
 
 CPU release/acquire 只解决相应 CPU 同步；DMA map/unmap、方向、cache 和设备屏障由平台适配器保证。 任意原始设备字节必须经过初始化/类型有效性转换才能成为 bool、enum、引用。
@@ -1405,6 +1415,10 @@ Core/Typed module的`life_declarations`及`life_instances`承载实际声明身�
 opaque载体共同`RetainedLifeShape`保留binder_count、完整typed ports、嵌套类映射及名义life实参。port有完整借用叶、mode和固定binder；其真实来源映射为`RetainedPortBinding`，独立核验完整实际位置、叶类型、上界与真实目标，不由表项制造权限。Dyn固定interface的完整泛型实参、关联类型/常量、有限方法实例、CallKind、签名、错误/恢复及life/effect合同；普通dyn别名可显式列`type Item=T; const COUNT:usize=3; fn pick::<i32>;`，未列的泛型方法实例不由调用点隐式生长。关联常量的首个表示只覆盖真实Constant标量；完整CT常量仍需实际表示。DynReceiver独立描述被擦除的接收者param0，不制造interface自引用物理边；CallDynSlot显式receiver不重复列入普通args。Unknown合同不可当作空。表ID须随module/function relocation一致更新，稳定键使用解析后的完整上下文。
 
 `Task{result,retained_life}`保留共同固定域、typed ports及结果内嵌套关系。空shape只声明原封闭frame profile，仍须从实际PC0实参/捕获、所有保存PC的local/SSA、活动child及结果独立重建。TaskCreate传递实际worker及已求值的有序参数，输入准备、分配失败、成功转交各自守恒并保持真实清理顺序。内部child借入父frame的拥有存储建立真实frame loan，不伪造外部port；父释放等待child关闭排空。Ready结果若借入frame，真实loan须阻止Destroy至最后使用。显式Task<T>注解不能擦除推断的隐藏shape；跨函数/模块保存、move和返回保留完整上下文身份。裸C/SABI的借入frame输出须有可独立检查的实际边界，不由结果T推断。
+
+有限共享输入 Task（borrowed task port）：单个真实共享 &i32 worker 输入可进入结果为 i32 的 Task。TaskCreate 的 port_bindings 以该创建指令的真实有序实参为上下文，将 port0 映射至 Parameter(0)；完整 port 叶为 Address<i32>、SharedAddress、binder0，不由结果 i32 推断。显式 Task<i32> 工厂返回约束保留从实际创建/返回推得的隐藏 shape，跨模块转发仍核唯一输入、实际返回来源及完整 Invocation/结果 port 关系。未知递归工厂、借入 Task 函数输入、其它结果族、可变 port、捕获/聚合运输、线程转移及外部 ABI 不由本片准入。
+
+PC0 在首次轮询前已将真实输入指针存入稳定帧。两核独立保护随拥有责任在创建、成功错误联合、局部移动、合法 helper 返回及解构间转交的帧借用，不能按最初 SSA 的末用提前结束。Allocation 实际错误边没有帧；成功帧的 Pending、Ready、请求取消和 PollClose 不归还借用。首片保守保持到真实成功的 TaskFinishDestroy 或已证明同步的默认清理结束，不宣称仅 Closed 而未销毁即可立即重借。结果本身的拥有/借用责任另行核验，不因清理帧而删除调用者仍持有的 loan。
 
 CT4以一份联合`life_context`表达名义应用完整的Type/Const/Lifetime实参及关系。`CtLifetimeArgument{owner,binder}`引用实际词法包围的binder拥有者，数值owner为语义反向引用，不是物理DAG边；分别核验物理图与词法scope、域和范围，同形兄弟owner不可替代祖先。节点复制/重编号连同owner一致变换，键以已核相对scope/域/序号表示。带context的schema Type实参必须为同一图内的`TypeInContext`并选择对应实际参数，禁止独立Type图逐参新鲜化后丢掉相等关系；无context时仅接纳实际封闭Type图。提取Type参数保留真实scope handle；当前返回形状无法表达时显式Unsupported并继续补齐，不能新建自由life名或空wrapper。Task/Dyn的完整CT节点和上下文桥仍须另外实现，不由运行时表示自动开放。
 

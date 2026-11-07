@@ -650,6 +650,59 @@
       "representation": "Existing canonical OwnedStore and opcodes/Wire43, complete Copy value/error protocols and exact independent machine plan",
       "responsibility": "Whole-Store actual parent windows, initialized-prefix bounds and structural conflicts; capacity failure preserves modified contents, single allocation release",
       "accounting": "Prepay all new paths, preserve unaffected owning/Record requests and limits"
+    },
+    "borrowed_i32_task": {
+      "schema_version": 44,
+      "wire_version": 44,
+      "scope": "One actual shared Address<I32> worker input, I32 result, same-thread stable frame; Task<I32> retains inferred hidden context across factory return.",
+      "instruction": "TaskCreate{worker:FunctionId,arguments:Vec<ValueId>,port_bindings:Vec<RetainedPortBinding>}; opcode128. Parameter source positions are relative to the actual ordered constructor arguments.",
+      "retained_shape": {
+        "binder_count": 1,
+        "ports": [
+          {
+            "leaf": "Address{mutable:false,inner:I32}",
+            "mode": "SharedAddress",
+            "binder": 0
+          }
+        ],
+        "retained": [],
+        "nominal_arguments": []
+      },
+      "binding": "port0 -> StoragePosition{base:Parameter(0),path:[]}; verify actual worker input, complete leaf/mode and PC0 frame storage independently.",
+      "factory": "TaskCreateError!Managed(Task<I32>); infer full hidden shape from actual factories before Builder/signature freeze; preserve exact invocation input/result port relation and real return roots across modules.",
+      "owner": "Actual successful frame retains source through ErrorUnion selection, move, local owner and supported factory forwarding. Allocation error has no frame. Pending, Ready, cancellation and PollClose do not release; this profile conservatively releases on successful FinishDestroy or proved synchronous Drop.",
+      "rejected": "Borrowed Task as function input; other result families; mutable/multiple ports; capture/aggregate/container transport; indirect/foreign owner transfer and cross-thread/external ABI.",
+      "verification": "Analyze and Verify independently reconstruct actual roots, tag-selected owner transfers, owner liveness and cleanup worker graph. Raw metadata, same type and producer tables do not create a loan or synchronous cleanup proof."
+    },
+    "registration_phase_contracts": {
+      "schema_version": 44,
+      "wire_version": 44,
+      "protocol": "AsyncRegistrationV1",
+      "states": [
+        "Open",
+        "Closing",
+        "Closed"
+      ],
+      "function_field": "CoreFunction.protocol_contract / TypedFunction.protocol_contract: Option<FunctionProtocolContract>",
+      "contract": {
+        "protocol": "ProtocolKind",
+        "parameter": "u32 actual parameter index",
+        "entry": "canonical nonempty ordered unique Vec<ProtocolState>",
+        "exits": "Vec<ProtocolTransition{input:ProtocolState,exit:ProtocolExit,output:Vec<ProtocolState>}>; unique canonical (input,exit), nonempty ordered output"
+      },
+      "exit_selectors": [
+        "Return",
+        "ErrorOk",
+        "ErrorErr",
+        "PollPending",
+        "PollReady"
+      ],
+      "source": "requires(state(r,Closing,Closed)); provides(on_pending(state(r,Closing)),on_ready(state(r,Closed))); on a single actual &mut AsyncRegistration<F> parameter; F keeps its actual FnMut/ClosedEnvironment qualification.",
+      "checked_finish": "AsyncRegistrationFinishDestroyChecked{registration:ValueId}; opcode140; actual owner must be proved Closed. Existing AsyncRegistrationFinishDestroy retains its runtime CLOSED guard.",
+      "proof": "Actual Poll/root/generation and nominal result selector; invalidate all stale SSA/local result and condition origins on root mutation. Independent bounded worklists and caller checks, including unannotated callers. Unknown effects/calls never mean empty state effects.",
+      "definition": "Unused finite borrowed helper definitions are checked symbolically without fabricated F environments; currently straight-line real primitives, local aliases and returns. Other template control flow/forwarding is Unsupported; caller retry loops are supported.",
+      "transport": "Preserve complete contracts through CT/source reconstruction, module specialization, public interface and fingerprint; legacy None identities remain unchanged with a disjoint protocol extension discriminator. Wire44 rejects old envelope.",
+      "boundary": "Sealed registration protocol only; no general user protocols, multiple roles, arbitrary projections or indirect/foreign protocol helper authority."
     }
   },
   "schemas": [
