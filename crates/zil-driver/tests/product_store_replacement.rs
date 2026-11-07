@@ -33,7 +33,7 @@ fn dir(label: &str) -> PathBuf {
     d
 }
 fn unit(s: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "product235.zil", s)
+    SourceUnit::new(FileId(0), ModuleId(0), "product_store_replacement.zil", s)
 }
 fn source(label: &str, s: &str, expected: ResultCategory) {
     let d = dir(label);

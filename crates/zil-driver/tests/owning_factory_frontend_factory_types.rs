@@ -6,7 +6,12 @@ use zil_ir::{CallableKind, InstructionKind, Type, TypedModule};
 const BASE: &str = "fn base(n:i32)->impl Fn(i32)->i32{return move(x:i32)=>x+n}";
 
 fn typed(text: &str) -> Result<TypedModule, Vec<Diagnostic>> {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "factory218.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_factory_frontend_factory_types.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax)?;
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default())

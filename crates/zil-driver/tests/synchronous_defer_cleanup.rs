@@ -27,7 +27,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "defer227.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "synchronous_defer_cleanup.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -42,7 +47,12 @@ fn native(label: &str, source: &str, stdout: &str, exit: i32) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "defer227.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "synchronous_defer_cleanup.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 backend,
@@ -171,7 +181,12 @@ fn invalid_cleanup_control_and_nested_registration_are_rejected() {
         let source = format!(
             "enum Fault{{Bad}}fn fail()->Fault!i32{{return Fault.Bad}}fn main()->i32{{defer{{{body}}}return 0}}"
         );
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "defer227-reject.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "synchronous_defer_cleanup_defer_reject.zil",
+            source,
+        );
         let syntax = zil_syntax::parse(&unit).into_result().unwrap();
         let core = zil_expand::expand(&unit, &syntax).unwrap();
         let diagnostics =
@@ -188,7 +203,12 @@ fn captured_resource_source_stays_live_until_cleanup_invocation() {
         "{IO}\nfn main()->i32{{let token=Ticket{{code:65}};defer{{emit(token.code)}}let consumed=give token;return 0}}"
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "defer227-loan.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "synchronous_defer_cleanup_defer_loan.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -205,7 +225,12 @@ fn captured_resource_source_stays_live_until_cleanup_invocation() {
 #[test]
 fn types_new_cleanup_work_is_bounded_before_growth() {
     let text = "fn main()->i32{let value=7;defer{let seen=value;}return 0}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "defer227-budget.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "synchronous_defer_cleanup_defer_budget.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let defaults = Limits::default();

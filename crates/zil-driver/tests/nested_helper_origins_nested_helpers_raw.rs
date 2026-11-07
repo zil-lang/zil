@@ -38,7 +38,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn baseline(source: &str) -> (TypedModule, CandidatePlan) {
-    let s = SourceUnit::new(FileId(0), ModuleId(0), "nested188.zil", source);
+    let s = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested_helper_origins_nested_helpers_raw.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&s).into_result().unwrap();
     let core = zil_expand::expand(&s, &ast).unwrap();
     let m = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
@@ -508,7 +513,12 @@ fn analyze_reconstructs_its_own_callee_order_and_body_counts() {
 
 #[test]
 fn dag_construction_and_trace_composition_pay_each_phase_budget() {
-    let s = SourceUnit::new(FileId(0), ModuleId(0), "budget188.zil", BRANCH);
+    let s = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested_helper_origins_nested_helpers_raw_budget.zil",
+        BRANCH,
+    );
     let ast = zil_syntax::parse(&s).into_result().unwrap();
     let defaults = Limits::default();
     let core = zil_expand::expand(&s, &ast).unwrap();
@@ -571,7 +581,12 @@ fn deep_finite_dependencies_pay_the_existing_instantiation_depth_bound() {
         ));
     }
     source.push_str("fn main()->i32{let f=move()=>4;return level0(&f)-4}");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "depth188.zil", source.clone());
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested_helper_origins_nested_helpers_raw_depth.zil",
+        source.clone(),
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let target = TargetProfile::host_llvm();
@@ -610,7 +625,12 @@ fn the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion
         }
         source.push_str("fn main()->i32{let f=move()=>4;return level0(&f)-4}");
         fs::write(path.join(format!("depth-{count}.zil")), &source).unwrap();
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "default-depth188.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "default-nested_helper_origins_nested_helpers_raw_depth.zil",
+            source,
+        );
         let ast = zil_syntax::parse(&unit).into_result().unwrap();
         let core = zil_expand::expand(&unit, &ast).unwrap();
         let result = zil_types::check(&core, &target, &limits);
@@ -642,7 +662,12 @@ fn the_default_helper_depth_boundary_returns_a_diagnostic_without_host_recursion
 
 #[test]
 fn raw_core_dependency_cycles_do_not_rely_on_expand_or_the_host_stack() {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "core-cycle188.zil", SOURCE);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested_helper_origins_nested_helpers_raw_core_cycle.zil",
+        SOURCE,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let mut core = zil_expand::expand(&source, &ast).unwrap();
     let middle = core

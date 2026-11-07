@@ -46,7 +46,12 @@ fn every_allocating_edge_before_and_after_capture_settles_live_prefix_once() {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
             fs::write(dir.join("source.zil"), &source).unwrap();
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "fault225.zil", &source),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "product_store_capture_cleanup_machine_fault.zil",
+                    &source,
+                ),
                 &CompileOptions {
                     backend: NativeBackend::LlvmApi,
                     clang: Some(wrapper),

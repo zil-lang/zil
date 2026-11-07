@@ -23,7 +23,12 @@ fn output(label: &str) -> PathBuf {
 }
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "where229.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_binders_where_copy.zil",
+        text,
+    )
 }
 
 fn check(label: &str, text: &str) -> CompileReport {

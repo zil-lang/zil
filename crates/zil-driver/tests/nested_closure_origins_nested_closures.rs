@@ -11,7 +11,12 @@ use zil_driver::{CompileOptions, CompileReport, Optimization, Stage, compile_sou
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn compile(source: &str) -> CompileReport {
     compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "nested161.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "nested_closure_origins_nested_closures.zil",
+            source,
+        ),
         &CompileOptions::default(),
     )
 }
@@ -29,7 +34,12 @@ fn native(source: &str, expected: &[u8], exit: i32) {
         fs::write(dir.join("main.zil"), source).unwrap();
         let executable = dir.join("program");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "nested161.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "nested_closure_origins_nested_closures.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,
@@ -174,7 +184,7 @@ fn nested_closure_function_and_depth_budgets_remain_enforced() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "budget161.zil",
+        "nested_closure_origins_nested_closures_budget.zil",
         "fn main()->i32{let f=()=>{let g=()=>42;return g()};return f()-42}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
@@ -206,7 +216,7 @@ fn independent_verify_rejects_forged_shared_kind_and_second_capture_transfer() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw161.zil",
+        "nested_closure_origins_nested_closures_raw.zil",
         "resource R{n:i32}fn main()->i32{let a=R{n:42};let f=move()=>{let g=move()=>a.n;return g()};return f()-42}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

@@ -19,7 +19,12 @@ fn check(text: &str, accepted: bool) {
     fs::create_dir_all(&path).unwrap();
     fs::write(path.join("input.zil"), text).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "helper178.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "generic_store_helpers_helper_give.zil",
+            text,
+        ),
         &CompileOptions::default(),
     );
     fs::write(path.join("compile.json"), report.to_json()).unwrap();

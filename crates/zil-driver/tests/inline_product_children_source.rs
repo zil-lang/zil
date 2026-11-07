@@ -67,7 +67,12 @@ fn original_sources_reach_types_without_claiming_freshness_or_execution() {
     for (label, text) in INPUTS {
         let dir = directory(label);
         fs::write(dir.join("source.zil"), text).unwrap();
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "product206.zil", *text);
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "inline_product_children_source.zil",
+            *text,
+        );
         let report = compile_source(
             &source,
             &CompileOptions {
@@ -93,7 +98,12 @@ fn both_public_types_apis_check_unused_complete_product_metadata() {
     use zil_base::{Limits, TargetProfile};
     use zil_ir::{CoreProgram, ProgramModule, Type};
     let text = "resource R{n:i32}package P{manages leaf:R}package Outer{child:P}fn unused(p:Outer){}fn main(){}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "unused206.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_product_children_source_unused.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let target = TargetProfile::host_llvm();

@@ -42,7 +42,12 @@ fn directory(label: &str) -> PathBuf {
 }
 
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review232.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "readonly_product_default_capture.zil",
+        text,
+    )
 }
 
 fn typed(text: &str) -> TypedModule {

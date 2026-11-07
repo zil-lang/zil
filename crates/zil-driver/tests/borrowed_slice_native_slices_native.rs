@@ -39,7 +39,12 @@ impl Drop for Temp {
 fn compile(text: &str, optimization: Optimization) -> Temp {
     let temp = Temp::new();
     fs::write(temp.0.join("source.zil"), text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "slices092.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "borrowed_slice_native_slices_native.zil",
+        text,
+    );
     let report = compile_source(
         &source,
         &CompileOptions {
@@ -226,7 +231,7 @@ fn independently_verified_slice_lir_cannot_be_tampered_after_checking() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "bound092.zil",
+        "borrowed_slice_native_slices_native_bound.zil",
         "fn main()->i32{let a=[1,2,3];let p=&a[1..3];return p[0]}",
     );
     let limits = Limits::default();

@@ -41,7 +41,12 @@ fn compile(
     };
     fs::write(dir.join("source.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent223.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_machine_layout.zil",
+            source,
+        ),
         &CompileOptions {
             backend: NativeBackend::LlvmApi,
             clang: Some(driver),

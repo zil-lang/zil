@@ -120,7 +120,12 @@ impl Drop for Case {
 }
 fn candidate(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let case = Case::new(label, source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "store201.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_store_positions_analyze_store.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -397,7 +402,7 @@ fn original_package_store_capture_is_owned_since() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "store201-capture.zil",
+        "callback_store_positions_analyze_store_store_capture.zil",
         PACKAGE_STORE_CAPTURE,
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();

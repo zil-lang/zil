@@ -468,7 +468,12 @@ fn native_entry_keeps_void_or_i32_success_boundary() {
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw166.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_error_results_owned_results_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();

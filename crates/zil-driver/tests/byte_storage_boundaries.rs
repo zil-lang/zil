@@ -9,7 +9,7 @@ use zil_verify::VerifiedModule;
 const BODY: &str = "fn value()->i64{let b=bytes_new();bytes_reserve(b,5);bytes_push(b,42u8);let p=bytes_view(b);let n=i64(p[0]);return n+bytes_len(b)}";
 
 fn checked(text: &str, target: &TargetProfile) -> (VerifiedModule, LirModule) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "review096.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "byte_storage_boundaries.zil", text);
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let typed = zil_types::check(&core, target, &Limits::default()).unwrap();

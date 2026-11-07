@@ -20,7 +20,7 @@ fn dir(label: &str) -> PathBuf {
     out
 }
 fn typed(source: &str) -> TypedModule {
-    let u = SourceUnit::new(FileId(0), ModuleId(0), "fresh241.zil", source);
+    let u = SourceUnit::new(FileId(0), ModuleId(0), "value_return_freshness.zil", source);
     let ast = zil_syntax::parse(&u).into_result().unwrap();
     let core = zil_expand::expand(&u, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()

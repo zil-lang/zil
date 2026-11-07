@@ -324,7 +324,12 @@ fn whole_array_can_cross_modules_with_exact_public_package_identity() {
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw167.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_array_elements_owned_arrays_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();

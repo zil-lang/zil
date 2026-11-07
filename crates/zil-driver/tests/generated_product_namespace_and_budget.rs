@@ -12,7 +12,12 @@ fn out() -> PathBuf {
     p
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review222.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_product_namespace_and_budget.zil",
+        text,
+    )
 }
 
 #[test]

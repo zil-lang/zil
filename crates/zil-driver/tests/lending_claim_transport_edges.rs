@@ -6,7 +6,12 @@ use zil_ir::{CandidatePlan, TypedModule};
 const SOURCE: &str = "fn make(a:i32,b:i32)->impl Fn()->i32{return move()=>a+b}fn main()->i32{let f=make(2,3);return f()-5}";
 
 fn fixture() -> (TypedModule, CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "review185.zil", SOURCE);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "lending_claim_transport_edges.zil",
+        SOURCE,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
@@ -25,7 +30,7 @@ fn fixture() -> (TypedModule, CandidatePlan) {
 fn directory(label: &str) -> PathBuf {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
-        .unwrap_or_else(|| std::env::temp_dir().join("zil-review185"));
+        .unwrap_or_else(|| std::env::temp_dir().join("zil-lending-claim-transport"));
     let dir = root.join(label);
     fs::create_dir_all(&dir).unwrap();
     fs::write(dir.join("input.zil"), SOURCE).unwrap();

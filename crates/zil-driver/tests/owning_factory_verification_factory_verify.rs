@@ -45,7 +45,12 @@ fn source_control() -> (TypedModule, CandidatePlan) {
 fn source_module(label: &str, text: &str) -> (TypedModule, CandidatePlan) {
     let path = directory(label);
     fs::write(path.join("source.zil"), text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "factory221.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_factory_verification_factory_verify.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     fs::write(path.join("core.txt"), format!("{core:#?}")).unwrap();
@@ -319,7 +324,12 @@ fn unused_factory_definitions_keep_declared_consuming_obligations() {
         let path = directory(label);
         fs::write(path.join("source.zil"), &source).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "unused221.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "owning_factory_verification_factory_verify_unused.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Verify,
                 ..CompileOptions::default()
@@ -363,7 +373,12 @@ fn build(label: &str, source: &str, opt: Optimization, project: bool) -> PathBuf
         compile_path(&path.join("main.zil"), &options)
     } else {
         compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "native221.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "owning_factory_verification_factory_verify_native.zil",
+                source,
+            ),
             &options,
         )
     };

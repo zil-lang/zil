@@ -545,7 +545,7 @@ fn raw_head() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw171.zil",
+        "shared_resource_heads_raw.zil",
         "resource R{n:i32}fn read(r:&R)->i32=>r.n;fn main()->i32{let r=R{n:42};let d=r;let p=&r;return read(p)-42}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

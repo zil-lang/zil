@@ -42,7 +42,12 @@ fn rhs_preparation_and_self_transfer_failures_preserve_actual_debt() {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
             fs::write(dir.join("source.zil"), &source).unwrap();
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "machine238.zil", &source),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "private_product_replacement_machine.zil",
+                    &source,
+                ),
                 &CompileOptions {
                     backend: NativeBackend::LlvmApi,
                     clang: Some(wrapper),

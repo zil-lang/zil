@@ -134,7 +134,12 @@ fn native(input: &ProjectSources, label: &str, expected: &str, code: i32) {
 }
 
 fn core(text: &str) -> zil_ir::CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "localfactory127.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "local_callable_factories_local_factory_localfactory.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }
@@ -385,7 +390,12 @@ fn unused_templates_still_check_opaque_consumption_and_mutability() {
 }
 #[test]
 fn local_invocations_pay_each_independent_phase_budget() {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "budget127.zil", SHARED);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "local_callable_factories_local_factory_budget.zil",
+        SHARED,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let input = core(SHARED);
     let defaults = Limits::default();

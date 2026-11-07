@@ -250,7 +250,12 @@ fn mutually_exclusive_once_paths_are_checked_independently() {
 }
 
 fn expanded(source: &str) -> zil_ir::CoreModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw203.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "declared_state_modes_source_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     zil_expand::expand(&unit, &syntax).unwrap()
 }

@@ -40,7 +40,12 @@ fn dir(label: &str) -> PathBuf {
     out
 }
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review237.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_defer_obligations_contracts.zil",
+        text,
+    )
 }
 fn core(text: &str) -> CoreModule {
     let u = unit(text);
@@ -175,7 +180,7 @@ fn native(label: &str, text: &str, expected: &str) {
 
 #[test]
 fn original_success_obligation_is_preserved_byte_for_byte_and_executes() {
-    native("original235", ORIGINAL, "AZ")
+    native("product_store_replacement_cleanup", ORIGINAL, "AZ")
 }
 
 fn retained_source() -> String {

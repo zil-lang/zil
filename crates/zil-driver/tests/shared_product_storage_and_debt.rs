@@ -20,7 +20,12 @@ fn typed(name: &str) -> TypedModule {
         }
         _ => panic!("unknown frozen source {name}"),
     };
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent224.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "shared_product_storage_and_debt.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()

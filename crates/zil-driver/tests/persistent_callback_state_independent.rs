@@ -49,7 +49,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, native: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent200.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "persistent_callback_state.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if native.is_some() {
                 Stage::Build
@@ -92,7 +97,12 @@ fn native(label: &str, source: &str, expected: &str, expected_exit: i32) {
 fn baseline(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent200.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "persistent_callback_state.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -854,7 +864,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 fn two_actual_values_and_interleaved_inputs_have_exact_fresh_phase_budgets() {
     let source = format!("{PREFIX}{MIXED}{OWNED_FACTORY}{OWNED_MAIN}");
     let (module, candidate) = baseline("budget-two-values-control", &source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent200.zil", &source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "persistent_callback_state.zil",
+        &source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let expand = boundary(|n| {
@@ -907,7 +922,12 @@ fn two_actual_values_and_interleaved_inputs_have_exact_fresh_phase_budgets() {
 #[test]
 fn legacy_single_field_state_has_fresh_exact_expand_budget_measurement() {
     let source = include_str!("mixed_owning_state_cases/01-existing-state-f-sibling/main.zil");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "legacy197.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "persistent_callback_state_independent_legacy.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let expand = boundary(|n| {
         zil_expand::expand_with_map_limits(

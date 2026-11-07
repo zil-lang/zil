@@ -29,7 +29,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "defer238.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "private_product_replacement_defer.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -257,7 +262,12 @@ fn tuple_ownership_frozen_product_parameter_has_real_exclusive_authority() {
             "{head}fn main()->i32{{var root=Root{{child:Leaf{{owner:R{{n:1}},tag:2}},tag:3}};{body}}}"
         );
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "frozen223-review.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "private_product_replacement_frozen.zil",
+                source,
+            ),
             &CompileOptions::default(),
         );
         assert_eq!(
@@ -803,7 +813,7 @@ fn ordinary_local_product_mutable_helper_exact_phase_budgets() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "budget315.zil",
+        "private_product_replacement_budget.zil",
         MUTABLE_PRODUCT_HELPER,
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
@@ -838,7 +848,12 @@ fn native(label: &str, source: &str, stdout: &str, exit: i32) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "defer238.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "private_product_replacement_defer.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 backend,
@@ -887,7 +902,12 @@ fn reject(label: &str, source: &str, category: ResultCategory) {
     let path = directory(label);
     fs::write(path.join("source.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "reject238.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "private_product_replacement_reject.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             emit_dir: Some(path.join("phases")),
@@ -1033,7 +1053,12 @@ fn ordinary_whole_move_copy_reads_live_windows_and_complex_self_remain_closed() 
 }
 #[test]
 fn replacement_types_budget_is_paid_before_field_growth() {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget238.zil", ORIGINAL);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "private_product_replacement_budget.zil",
+        ORIGINAL,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let defaults = Limits::default();

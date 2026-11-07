@@ -234,7 +234,12 @@ fn original_uninstantiated_borrow_probe_is_only_a_definition_check() {
     // definition check. This is not an execution or independent Verify proof.
     let text =
         include_str!("mixed_owning_state_cases/12-mixed-held-field-window-negative/main.zil");
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "uninstantiated197.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "mixed_owning_state_mixed_state_uninstantiated.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let errors = zil_expand::expand(&source, &ast).unwrap_err();
     assert!(errors.iter().any(|d| d.phase == Phase::Expand

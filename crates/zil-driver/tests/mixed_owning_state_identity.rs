@@ -14,7 +14,7 @@ fn run(source: &str, expected: i32) {
         modules: vec![SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "review197.zil",
+            "mixed_owning_state_identity.zil",
             source,
         )],
     };

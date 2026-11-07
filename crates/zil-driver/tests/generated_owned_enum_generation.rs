@@ -39,7 +39,12 @@ fn generated_manages_and_handwritten_fields_execute_the_same_declared_order() {
             fs::write(out.join("source.zil"), &source).unwrap();
             fs::write(out.join("expected.txt"), "stdout=AB\nexit=0\n").unwrap();
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "generated239.zil", source.as_str()),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "generated_owned_enum_generation.zil",
+                    source.as_str(),
+                ),
                 &CompileOptions {
                     stop_after: Stage::Build,
                     optimization,
@@ -102,7 +107,12 @@ fn generation_preserves_private_iteration_identity_and_closed_payload_profiles()
         let out = directory(label);
         fs::write(out.join("source.zil"), source).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "generated239-reject.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "generated_owned_enum_generation_generated_reject.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Verify,
                 emit_dir: Some(out.join("phases")),
@@ -135,7 +145,12 @@ fn new_local_observers_cannot_enter_ct_even_when_the_enum_is_copy() {
     use zil_base::{Limits, TargetProfile};
     use zil_ir::*;
     let text = "enum E{Some(i32)}fn main()->i32{let e=E.Some(7);match e{E.Some(n)=>{return n}}}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "copy-observer239.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_owned_enum_generation_copy_observer.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let limits = Limits::default();

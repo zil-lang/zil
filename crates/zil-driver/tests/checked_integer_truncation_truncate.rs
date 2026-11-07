@@ -11,7 +11,12 @@ use zil_ir::{InstructionKind, Type};
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn input(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "truncate137.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "checked_integer_truncation_truncate.zil",
+        text,
+    )
 }
 fn check(text: &str) -> zil_driver::CompileReport {
     compile_source(&input(text), &CompileOptions::default())

@@ -46,7 +46,12 @@ impl Drop for Case {
 }
 fn source_program() -> CoreProgram {
     let source = "fn pure()->i32{return 7}fn wrapper()->i32{return pure()}fn main()->i32{return wrapper()-7}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "ct202.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "complete_store_element_binding_ct.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     CoreProgram {
@@ -245,7 +250,7 @@ fn raw_application_metadata_is_charged_before_preparing_its_ct_argument() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "ct202-order.zil",
+        "complete_store_element_binding_ct_independent_ct_order.zil",
         "fn pure()->i64{return 7}fn sink(n:i64)->i32{return 0}fn main()->i32{return sink(#(pure()))}",
     );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();

@@ -75,7 +75,12 @@ impl Drop for Case {
     }
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "enum105.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "compile_time_enum_values_ct_enum.zil",
+        text,
+    )
 }
 fn check(text: &str) -> CompileReport {
     let case = Case::new("source");

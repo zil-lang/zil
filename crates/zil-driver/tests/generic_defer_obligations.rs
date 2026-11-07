@@ -25,7 +25,12 @@ fn original_f_helper_defer_and_implicit_or_explicit_selfcall_execute_alqz() {
             fs::write(root.join("source.zil"), text).unwrap();
             let executable = root.join("program");
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "defer237.zil", text),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "generic_defer_obligations.zil",
+                    text,
+                ),
                 &CompileOptions {
                     backend,
                     optimization,

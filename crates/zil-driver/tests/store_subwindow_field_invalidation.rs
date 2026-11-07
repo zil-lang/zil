@@ -22,7 +22,12 @@ fn dir() -> PathBuf {
     p
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review175.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store_subwindow_field_invalidation.zil",
+        text,
+    )
 }
 const MODEL: &str = r#"
 extern "C" fn putchar(n:i32)->i32;

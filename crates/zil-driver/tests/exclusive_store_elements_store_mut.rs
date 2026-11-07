@@ -143,7 +143,12 @@ fn native_input_backend(
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw180.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "exclusive_store_elements_store_mut_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();
@@ -352,7 +357,12 @@ fn managed_fields_whole_packages_and_escaping_windows_remain_closed() {
     let replacement = format!(
         "{MODEL}fn main()->i32{{{SETUP}let v=store_at_mut(s,0);v.owner=R{{code:90}};return 0}}"
     );
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "replacement180.zil", &replacement);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "exclusive_store_elements_store_mut_replacement.zil",
+        &replacement,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let typed = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

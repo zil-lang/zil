@@ -58,7 +58,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, optimization: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent205.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owned_state_replacement.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if optimization.is_some() {
                 Stage::Build
@@ -131,7 +136,12 @@ fn reject(
 fn expanded(label: &str, source: &str) -> CoreModule {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent205.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_state_replacement.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -1386,7 +1396,12 @@ fn revise<F:Fn()->i32>(replacement:F,flag:bool,state:State<F>)->State<F>{
 fn main()->i32{let state=revise(make(3),true,pack(make(1),make(2)));return state.a()+state.b()-5}
 "#;
     let (typed, candidate) = typed_control("phase-budget-mixed-alias", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent205.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_state_replacement.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let wire =

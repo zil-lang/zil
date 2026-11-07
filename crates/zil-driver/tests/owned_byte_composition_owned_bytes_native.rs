@@ -22,7 +22,7 @@ impl Temp {
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&base).unwrap();
         let path = base.join(format!(
-            "zil-owned099-{}-{}",
+            "zil-owned-byte-composition-owned-bytes-native-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -48,7 +48,12 @@ fn build(text: &str, level: Optimization, fault: bool) -> Temp {
     fs::write(temp.0.join("source.zil"), text).unwrap();
     let clang = fault.then(|| fault_clang(&temp.0));
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "owned099.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owned_byte_composition_owned_bytes_native.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: Stage::Build,
             entry: Some("value".into()),

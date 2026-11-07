@@ -14,7 +14,12 @@ const SHARED: &str =
     "fn main()->i32{let a=[20,22];let f=(p:&[i32])=>p[0]+p[1];return f(&a[..])-42}";
 
 fn baseline(text: &str) -> (TypedModule, CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw193.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "explicit_slice_arguments_slice_arguments_raw.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

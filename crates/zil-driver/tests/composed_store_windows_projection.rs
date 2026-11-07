@@ -18,7 +18,12 @@ fn check(text: &str, accepted: bool) {
     ));
     fs::create_dir_all(&path).unwrap();
     fs::write(path.join("input.zil"), text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "projection181.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "composed_store_windows_projection.zil",
+        text,
+    );
     let report = compile_source(
         &source,
         &CompileOptions {
@@ -106,7 +111,12 @@ fn reviewer_effectful_address_base_is_evaluated_once_per_projection() {
         fs::write(path.join("input.zil"), text).unwrap();
         let executable = path.join("program");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "effect181.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "composed_store_windows_projection_effect.zil",
+                text,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,

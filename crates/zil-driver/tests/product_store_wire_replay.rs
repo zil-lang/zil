@@ -210,7 +210,7 @@ fn frozen_mutable_product_raw_and_wire_is_promoted() {
         &zil_base::SourceUnit::new(
             zil_base::FileId(0),
             zil_base::ModuleId(0),
-            "incomplete223.zil",
+            "product_store_wire_replay_incomplete.zil",
             text,
         ),
         &zil_driver::CompileOptions {

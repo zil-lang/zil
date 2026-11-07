@@ -261,7 +261,12 @@ fn original_array_of_owned_store_captures_composes_since() {
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw172.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "dynamic_owned_store_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();

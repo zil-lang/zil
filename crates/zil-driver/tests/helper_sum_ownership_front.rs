@@ -2,7 +2,12 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::*;
 fn core(text: &str) -> CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "front240.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "helper_sum_ownership_front.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }
@@ -10,7 +15,12 @@ fn checked(text: &str) -> TypedModule {
     zil_types::check(&core(text), &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 fn rejected(text: &str) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "reject240.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "helper_sum_ownership_front_reject.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     if let Ok(c) = zil_expand::expand(&source, &ast) {
         assert!(

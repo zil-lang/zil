@@ -113,7 +113,12 @@ fn native(label: &str, files: &[(&str, &str)], stdout: &str, exit: i32) {
     }
 }
 fn typed(source: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "roles196.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_runtime_roles_source.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

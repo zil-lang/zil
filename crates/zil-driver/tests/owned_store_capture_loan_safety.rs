@@ -66,7 +66,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, optimization: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "review204.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owned_store_capture_loan_safety.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if optimization.is_some() {
                 Stage::Build
@@ -168,7 +173,12 @@ fn verify_pair(
 fn baseline(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review204.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_store_capture_loan_safety.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -1254,7 +1264,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 
 fn phase_budgets(label: &str, source: &str) -> [usize; 4] {
     let (module, plan) = baseline(label, source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review204.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_store_capture_loan_safety.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let values = [

@@ -581,7 +581,7 @@ mod generated_enum_tests {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "raw230.zil",
+            "hygiene_raw.zil",
             "#for(n in [42]){enum E{A(i32),B(i32)}pub fn result()->i32{let e=E.A(n);match e{E.A(x)=>{return x},E.B(x)=>{return x}}}}",
         );
         let limits = Limits::default();

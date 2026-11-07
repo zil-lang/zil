@@ -86,7 +86,7 @@ fn checked(case: &Case, label: &str, command: Command) {
 }
 fn emit(case: &Case, label: &str, text: &str, target: TargetProfile) -> String {
     fs::write(case.0.join(format!("{label}.zil")), text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "binding108.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "foreign_binding_policy.zil", text);
     let report = compile_source(
         &source,
         &CompileOptions {

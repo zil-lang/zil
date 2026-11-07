@@ -32,7 +32,7 @@ fn module(id: u32, source: &str) -> CoreModule {
     let unit = SourceUnit::new(
         FileId(id),
         ModuleId(id),
-        format!("ct205-independent-{id}.zil"),
+        format!("owned_state_replacement_ct_independent_ct_independent_{id}.zil"),
         source,
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();

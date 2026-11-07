@@ -15,7 +15,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review228.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_type_scope_and_nominal_identity.zil",
+        text,
+    )
 }
 fn check(label: &str, text: &str) -> CompileReport {
     let path = directory(label);

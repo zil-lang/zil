@@ -248,7 +248,7 @@ fn persistent_package_capture_views_are_not_ct_capabilities_or_forgeable_lir_aut
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "capture-boundary079.zil",
+        "persistent_package_environments_package_captures_capture_boundary.zil",
         "resource R{n:i32} package P{manages a:R;manages b:R;n:i32} fn main()->i32{var p=P{a:R{n:20},b:R{n:21},n:1};var f=move()=>{p.a=R{n:21};return p.a.n+p.b.n+p.n};return f()-43}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

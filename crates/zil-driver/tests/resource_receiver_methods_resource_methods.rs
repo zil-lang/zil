@@ -502,7 +502,7 @@ fn raw_and_wire_candidates_cannot_relabel_a_mutating_owned_method_callback_as_fn
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw163.zil",
+        "resource_receiver_methods_resource_methods_raw.zil",
         "resource R{n:i32}impl R{fn add(self:Self){.n+=1}}fn main(){let r=R{n:0};var f=move()=>r.add();f()}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
@@ -536,7 +536,11 @@ fn raw_and_wire_candidates_cannot_relabel_a_mutating_owned_method_callback_as_fn
     plan.module_fingerprint = forged.fingerprint();
     let bytes = zil_ir::wire::encode_module_candidate(&forged, &plan, &limits).unwrap();
     let dir = directory();
-    fs::write(dir.join("raw163.zil"), &source.text).unwrap();
+    fs::write(
+        dir.join("resource_receiver_methods_resource_methods_raw.zil"),
+        &source.text,
+    )
+    .unwrap();
     fs::write(dir.join("forged-candidate.bin"), &bytes).unwrap();
     for (label, errors) in [
         (

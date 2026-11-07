@@ -20,7 +20,12 @@ fn source(kind: &str) -> String {
     )
 }
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "factory220-source.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_owning_factories_factory_source_factory_source.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

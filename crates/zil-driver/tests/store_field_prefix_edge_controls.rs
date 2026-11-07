@@ -112,7 +112,12 @@ fn native_input(files: &[(&str, &str)], input: &[u8], stdout: &[u8], exit: i32) 
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review174.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "store_field_prefix_edge_controls.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();

@@ -6,7 +6,12 @@ use zil_ir::*;
 const FLAT: &str = "resource R{n:i32}\npackage Leaf{manages a:R;n:i32}\nfn local_capture(p:Leaf)->i32{let f=move()=>p.n;return f()}\nfn main(){}\n";
 
 fn control() -> (TypedModule, CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "capture216.zil", FLAT);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_capture_cleanup_raw.zil",
+        FLAT,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

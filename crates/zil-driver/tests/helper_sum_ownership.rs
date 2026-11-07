@@ -2,7 +2,7 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::*;
 fn expand(text: &str) -> Result<CoreModule, Vec<zil_base::Diagnostic>> {
-    let s = SourceUnit::new(FileId(0), ModuleId(0), "helper240.zil", text);
+    let s = SourceUnit::new(FileId(0), ModuleId(0), "helper_sum_ownership.zil", text);
     zil_expand::expand(&s, &zil_syntax::parse(&s).into_result().unwrap())
 }
 fn checked(text: &str) {

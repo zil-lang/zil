@@ -22,7 +22,7 @@ fn dir(label: &str) -> PathBuf {
     p
 }
 fn unit(s: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review193.zil", s)
+    SourceUnit::new(FileId(0), ModuleId(0), "slice_argument_composition.zil", s)
 }
 fn native(label: &str, s: &str, stdout: &[u8], exit: i32) {
     for optimization in [Optimization::O0, Optimization::O2] {

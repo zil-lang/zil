@@ -25,7 +25,12 @@ fn directory(label: &str) -> PathBuf {
     dir
 }
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review186.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_owned_success_field_origins.zil",
+        text,
+    )
 }
 fn typed(text: &str) -> TypedModule {
     let source = unit(text);

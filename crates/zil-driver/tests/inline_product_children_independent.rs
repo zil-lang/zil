@@ -50,7 +50,12 @@ impl Drop for Case {
     }
 }
 fn unit(source: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "independent206.zil", source)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_product_children.zil",
+        source,
+    )
 }
 fn compile(case: &Case, source: &str, optimization: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
@@ -604,8 +609,11 @@ fn nested_actual_leaf_paths_have_exact_fresh_phase_work_boundaries() {
 }
 
 #[test]
-fn source_00_original120() {
-    accepted("00_original120", source!("00_original120"));
+fn source_nested_owned_product_control() {
+    accepted(
+        "00_nested_owned_product_control",
+        source!("00_nested_owned_product_control"),
+    );
 }
 
 #[test]

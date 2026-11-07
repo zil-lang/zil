@@ -29,7 +29,12 @@ fn native(label: &str, source: &str, stdout: &[u8], exit: i32) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let p = directory(label);
         fs::write(p.join("main.zil"), source).unwrap();
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "review183.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "managed_success_boundaries.zil",
+            source,
+        );
         let output = p.join("program");
         let r = compile_source(
             &unit,
@@ -71,7 +76,12 @@ fn alternative_incoming_carriers_keep_one_owner_on_both_tags() {
     );
     let p = directory("not-fresh");
     fs::write(p.join("main.zil"), &source).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review183.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "managed_success_boundaries.zil",
+        source,
+    );
     let r = compile_source(&unit, &CompileOptions::default());
     fs::write(p.join("compile.json"), r.to_json()).unwrap();
     assert_eq!(r.status, ResultCategory::SafeReject, "{}", r.to_json());
@@ -94,7 +104,12 @@ fn error_only_create_after_question_has_no_success_responsibility() {
     }
 }
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review183.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "managed_success_boundaries.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();

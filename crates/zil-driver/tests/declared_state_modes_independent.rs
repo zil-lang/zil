@@ -60,7 +60,7 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, native: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", source),
+        &SourceUnit::new(FileId(0), ModuleId(0), "declared_state_modes.zil", source),
         &CompileOptions {
             stop_after: if native.is_some() {
                 Stage::Build
@@ -122,7 +122,7 @@ fn reject_source(label: &str, source: &str, phases: &[Phase], code: Option<&str>
 fn expanded(label: &str, source: &str) -> CoreModule {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "declared_state_modes.zil", source);
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -2066,7 +2066,7 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
 fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
     let source = value_inferred_choice_source(true, "Left");
     let (core, typed, _) = typed_control("value-inferred-budget-control", &source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", &source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "declared_state_modes.zil", &source);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let expand = boundary(|n| {
         zil_expand::expand_with_map_limits(

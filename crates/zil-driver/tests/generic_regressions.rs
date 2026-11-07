@@ -231,7 +231,7 @@ fn generic_context_injection_native_contexts_preserve_value_and_order() {
         for backend in &backends {
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-295-{}-{}",
+                    "zil-generic-context-{}-{}",
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
                 ));
@@ -983,7 +983,7 @@ fn thread_local_parent_raw_wire_worker_identity_and_once_body() {
             "verify={verify} N={high}: {errors:?}"
         );
         eprintln!(
-            "thread325 {} work N={high}",
+            "thread-local-parent {} work N={high}",
             if verify { "Verify" } else { "Analyze" }
         );
     }
@@ -1047,7 +1047,7 @@ fn thread_native_parent_observer(profile: &str) {
                 .map(PathBuf::from)
                 .unwrap_or_else(std::env::temp_dir)
                 .join(format!(
-                    "thread325-{}-{}",
+                    "thread-local-parent-{}-{}",
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
                 ));
@@ -1187,7 +1187,7 @@ fn thread_native_parent_observer(profile: &str) {
                     if Instant::now() >= deadline {
                         let _ = child.kill();
                         let _ = child.wait();
-                        panic!("thread325 join timed out");
+                        panic!("thread-local-parent join timed out");
                     }
                     std::thread::sleep(Duration::from_millis(2));
                 }
@@ -1608,7 +1608,7 @@ fn thread_parent_reviewer_real_owned_body_forces_parent_once_before_actual_entry
     };
     use zil_driver::{NativeBackend, Optimization, Stage};
     let directory =
-        std::env::temp_dir().join(format!("zil-review332-owned-{}", std::process::id()));
+        std::env::temp_dir().join(format!("zil-thread-parent-owned-{}", std::process::id()));
     std::fs::create_dir(&directory).unwrap();
     let mut backends = vec![NativeBackend::Clang];
     if cfg!(feature = "llvm-api") {
@@ -1819,7 +1819,7 @@ fn thread_parent_budget(typed: &zil_ir::TypedModule, plan: &zil_ir::CandidatePla
             }
         }
         eprintln!(
-            "thread332 {} cumulative parent work N={high}",
+            "thread-parent {} cumulative parent work N={high}",
             if verify { "Verify" } else { "Analyze" }
         );
     }
@@ -2117,7 +2117,9 @@ fn thread_parent_cleanup_types_shared_budget_and_scalar_control() {
                 }
             }
         }
-        eprintln!("thread339 {name} Types N={high}, N-1 ResourceLimit, fresh N identical");
+        eprintln!(
+            "thread-parent-cleanup {name} Types N={high}, N-1 ResourceLimit, fresh N identical"
+        );
         let plan = zil_analyze::analyze(&expected, &limits).unwrap();
         if [
             "shared_child",
@@ -2127,7 +2129,7 @@ fn thread_parent_cleanup_types_shared_budget_and_scalar_control() {
         ]
         .contains(&name)
         {
-            eprintln!("thread339 {name} kernel budgets follow");
+            eprintln!("thread-parent-cleanup {name} kernel budgets follow");
             thread_parent_budget(&expected, &plan);
         }
     }
@@ -2207,7 +2209,10 @@ fn thread_parent_cleanup_helper_return_mutable_roots_are_joint_in_both_kernels()
 #[cfg(all(target_os = "linux", feature = "llvm-api"))]
 fn thread_parent_cleanup_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
     use zil_driver::{NativeBackend, Optimization, Stage};
-    let dir = std::env::temp_dir().join(format!("thread339-cache-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "thread-parent-cleanup-cache-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     for (index, name) in ["scalar_control", "shared_child", "shared_child"]
         .iter()
@@ -2315,7 +2320,7 @@ fn async_registration_sealed_sync_native_contention() {
         for backend in &backends {
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-source-{}-{}",
+                    "zil-async-registration-source-{}-{}",
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
                 ));
@@ -2522,7 +2527,7 @@ fn async_registration_mutex_native_failures_and_owned_body_cleanup() {
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-failure-{}-{}",
+                "zil-async-registration-failure-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
@@ -2640,7 +2645,7 @@ fn async_registration_native_yields_resume_once() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-task-{}-{backend:?}-{optimization:?}",
+                    "zil-async-registration-task-{}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -2950,7 +2955,7 @@ fn async_registration_native_allocation_failure_drop_and_closed_destroy() {
                 ),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-task-failure-{}-{backend:?}-{optimization:?}-{index}",
+                    "zil-async-registration-task-failure-{}-{backend:?}-{optimization:?}-{index}",
                     std::process::id()
                 ));
                 fs::create_dir_all(&dir).unwrap();
@@ -3058,7 +3063,7 @@ fn async_registration_public_semantics_are_independently_bound() {
         paths: Default::default(),
     };
     let output = std::env::temp_dir().join(format!(
-        "zil343-reject-suspend-entry-{}",
+        "zil-async-registration-reject-suspend-entry-{}",
         std::process::id()
     ));
     let direct = zil_driver::compile_project(
@@ -3275,7 +3280,7 @@ fn async_registration_run_external_sabi(child: bool) {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-task-export-{}-{child}-{backend:?}-{optimization:?}",
+                "zil-async-registration-task-export-{}-{child}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             fs::create_dir_all(&dir).unwrap();
@@ -3517,7 +3522,7 @@ fn async_registration_returned_stable_owner_native_and_failures() {
                     fixture.clone()
                 };
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-registration-{}-{backend:?}-{optimization:?}-{two}-{composed}",
+                    "zil-async-registration-registration-{}-{backend:?}-{optimization:?}-{two}-{composed}",
                     std::process::id()
                 ));
                 fs::create_dir_all(&dir).unwrap();
@@ -4092,7 +4097,7 @@ fn main()->i32 {var t=task_start(worker,7);let direct=plain(7);let (s,v)=task_po
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-child-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-async-registration-child-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -4422,7 +4427,7 @@ let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-child-fault-{}-{backend:?}-{optimization:?}",
+                "zil-async-registration-child-fault-{}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             fs::create_dir_all(&dir).unwrap();
@@ -4544,7 +4549,7 @@ fn async_registration_scalar_library_helpers_keep_sealed_identity() {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-sync-library-{}-{backend:?}-{optimization:?}",
+                "zil-async-registration-sync-library-{}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&dir).unwrap();
@@ -4940,7 +4945,7 @@ fn async_registration_task_queued_cancel_native() {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil-async841-{}-{backend:?}-{optimization:?}",
+                "zil-async-registration-{}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             fs::create_dir_all(&dir).unwrap();

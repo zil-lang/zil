@@ -24,7 +24,12 @@ fn directory(label: &str) -> PathBuf {
     p
 }
 fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
-    let u = SourceUnit::new(FileId(0), ModuleId(0), "raw192.zil", source);
+    let u = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_copy_field_access_copy_fields_raw.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&u).into_result().unwrap();
     let core = zil_expand::expand(&u, &ast).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

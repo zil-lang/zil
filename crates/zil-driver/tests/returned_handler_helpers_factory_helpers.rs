@@ -478,7 +478,12 @@ fn invalid_escape_modes_and_factory_dependencies_stay_rejected() {
 
 const RAW: &str = "resource R{n:i64}fn apply<F:Fn(i64)->i64>(f:&F,n:i64)->i64{return f(n)}fn make(n:i64)->impl Fn()->i64{let init=(x:i64)=>x+2;let state=apply(&init,n);let held=R{n:state};return move ()=>held.n}fn value()->i64{let f=make(40);return f()}";
 fn core() -> zil_ir::CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw125.zil", RAW);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "returned_handler_helpers_factory_helpers_raw.zil",
+        RAW,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }

@@ -45,7 +45,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, native: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent201.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "callback_store_positions.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if native.is_some() {
                 Stage::Build
@@ -101,7 +106,12 @@ fn rejected(label: &str, source: &str, category: ResultCategory, phases: &[Phase
 fn baseline(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent201.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_store_positions.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -770,7 +780,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 #[test]
 fn callback_store_has_bounded_fresh_phase_work_without_raising_defaults() {
     let (module, candidate) = baseline("budget-store-control", LENDING);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent201.zil", LENDING);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_store_positions.zil",
+        LENDING,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let expand = boundary(|n| {

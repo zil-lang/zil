@@ -28,7 +28,12 @@ fn directory(label: &str) -> PathBuf {
 }
 fn emit(text: &str, dir: &Path, entry: Option<&str>) -> String {
     fs::write(dir.join("source.zil"), text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "independent092.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "borrowed_slice_external_abi.zil",
+        text,
+    );
     let target = TargetProfile::host_llvm();
     let limits = Limits::default();
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

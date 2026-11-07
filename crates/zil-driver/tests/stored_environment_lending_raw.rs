@@ -14,7 +14,12 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 const SOURCE: &str = "fn make(a:i32,b:i32)->impl Fn()->&i32{return move()=>{b;return &a}}fn main()->i32{let f=make(17,25);let s=f();return *s-17}";
 
 fn typed(source: &str) -> TypedModule {
-    let s = SourceUnit::new(FileId(0), ModuleId(0), "raw184.zil", source);
+    let s = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "stored_environment_lending_raw.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&s).into_result().unwrap();
     let core = zil_expand::expand(&s, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()

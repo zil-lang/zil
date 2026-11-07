@@ -333,7 +333,7 @@ fn generic_tuple_binding_symbolic_work_has_exact_fresh_budget() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "tuple-budget321.zil",
+        "copy_callback_composition_tuple_budget.zil",
         COPY_TUPLE_IDENTITY,
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();

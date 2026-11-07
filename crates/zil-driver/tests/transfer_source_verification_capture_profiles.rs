@@ -50,7 +50,12 @@ fn replace(ty: &mut Type, before: &Type, after: &Type) {
 }
 fn module() -> TypedModule {
     let text = "resource R{n:i32}package P{manages r:R}fn main(){let p=P{r:R{n:1}};let f=move()=>{let q=p;return 0}}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "capture-profile242.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "transfer_source_verification_capture_profiles_capture_profile.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let mut module =
@@ -299,7 +304,7 @@ fn unused_error_union_slots_preserve_the_old_managed_success_profile() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "error-slots242.zil",
+        "transfer_source_verification_capture_profiles_error_slots.zil",
         "resource R{n:i32}fn main(){}",
     );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();

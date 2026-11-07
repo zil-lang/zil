@@ -15,7 +15,12 @@ const ITEM: &str = "package Item{manages ticket:Ticket;id:i32;}";
 const PRODUCT: &str = "enum Event{Empty,Full(Item)}pub fn run()->i32{let t=Ticket{code:65};let p=Item{ticket:give t,id:66};let e=Event.Full(p);match e{Event.Empty()=>{return 1},Event.Full(q)=>{emit(q.id);return 0}}}";
 const MARKER: &str = "resource Ticket{code:i32}#for(n in [1]){enum Event{Empty,Full(manages Ticket)}}fn main()->i32=>0";
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "generated-owned239.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_owned_enums_generated_owned.zil",
+        text,
+    )
 }
 fn directory(label: &str) -> PathBuf {
     let p = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -285,7 +290,12 @@ fn unchanged_copy_enum_generation_keeps_q_exact_logical_budgets() {
                 limits.max_analysis_steps = limit;
             }
             session.compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "generated-enums230.zil", text),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "generated_owned_enums_generated_enums.zil",
+                    text,
+                ),
                 &CompileOptions {
                     limits,
                     ..CompileOptions::default()

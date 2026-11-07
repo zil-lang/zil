@@ -8,7 +8,7 @@ fn existing_owned_error_helper_abi_survives_unrelated_retained_callback_inferenc
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "inference173.zil",
+        "owning_package_cross_feature_composition_inference.zil",
         r#"
 resource R{n:i32}
 package P{manages r:R}

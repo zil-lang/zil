@@ -25,7 +25,12 @@ fn check(definition: &str, accepted: bool) {
     let text = format!("{definition}\nfn main() {{}}\n");
     let path = directory();
     fs::write(path.join("input.zil"), &text).unwrap();
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "definition178.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_store_helpers_definitions.zil",
+        text,
+    );
     let report = compile_source(&source, &CompileOptions::default());
     fs::write(path.join("result.json"), report.to_json()).unwrap();
     if accepted {
@@ -82,7 +87,7 @@ fn raw_and_wire_reject_erasing_the_factory_result_mode() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw-review178.zil",
+        "generic_store_helpers_definitions_raw.zil",
         "resource R { n:i32 }package P { manages r:R }fn empty<T:StoreElement>()->Store<T> contract{result(create)}=>store_new();fn main(){let s:Store<P>=empty();}",
     );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
@@ -130,7 +135,12 @@ fn raw_and_wire_reject_erasing_the_factory_result_mode() {
 #[test]
 fn callable_resource_exception_does_not_open_noncallable_generic_give() {
     let source = "resource R { n:i32 } fn bad<T>(give owned:R)->i32=>owned.n; fn main() {}";
-    let input = SourceUnit::new(FileId(0), ModuleId(0), "helper-boundary178.zil", source);
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_store_helpers_definitions_helper_boundary.zil",
+        source,
+    );
     let report = compile_source(&input, &CompileOptions::default());
     let path = directory();
     fs::write(path.join("input.zil"), source).unwrap();

@@ -6,7 +6,12 @@ use zil_driver::Stage;
 use zil_driver::{CompilationSession, CompileOptions, CompileReport};
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "generated-types228.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_event_consumers_generation_generated_types.zil",
+        text,
+    )
 }
 fn directory(label: &str) -> PathBuf {
     let p = std::env::var_os("ZIL_TEST_REPORT_DIR")

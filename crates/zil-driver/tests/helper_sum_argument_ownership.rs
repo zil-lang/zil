@@ -71,7 +71,12 @@ fn finite_fn_helper_accepts_complete_enum_product_and_error_arguments() {
             fs::write(out.join("source.zil"), &text).unwrap();
             fs::write(out.join("expected.txt"), "stdout=AB\nexit=0\n").unwrap();
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "helper240.zil", text.as_str()),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "helper_sum_argument_ownership.zil",
+                    text.as_str(),
+                ),
                 &CompileOptions {
                     stop_after: Stage::Build,
                     optimization,
@@ -191,7 +196,7 @@ fn ordinary_sum_argument_does_not_expand_callable_or_state_permissions() {
             &SourceUnit::new(
                 FileId(0),
                 ModuleId(0),
-                "helper240-reject.zil",
+                "helper_sum_argument_ownership_helper_reject.zil",
                 text.as_str(),
             ),
             &CompileOptions {
@@ -241,7 +246,7 @@ fn formerly_unsupported_return_f_keeps_the_instance_and_cleans_owning_companion(
             &SourceUnit::new(
                 FileId(0),
                 ModuleId(0),
-                "helper240-return-f.zil",
+                "helper_sum_argument_ownership_helper_return_f.zil",
                 text.as_str(),
             ),
             &CompileOptions {

@@ -25,7 +25,12 @@ fn dir(label: &str) -> PathBuf {
     path
 }
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "capture225.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_store_capture_cleanup.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -58,7 +63,12 @@ fn native(label: &str, text: &str, stdout: &str, exit: i32) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "capture225.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product_store_capture_cleanup.zil",
+                text,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,
@@ -143,7 +153,12 @@ fn child_only_three_level_wrapper_and_package_capture() {
 fn live_child_window_still_blocks_capture_transfer() {
     let source=SOURCE.replace("return move () => { return i32(store_len(items)) }", "let view = store_at(items, 0); let child = &view.first; let callback = move () => { return i32(store_len(items)) }; child.value; return callback");
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "capture225.zil", &source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_capture_cleanup.zil",
+            &source,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(
@@ -166,7 +181,12 @@ fn hidden_copy_callback_cannot_enter_owned_product_store() {
     let source=SOURCE.replace("package Leaf { manages ticket: Ticket; value: i32 }", "struct Hidden { f: fn(i32) -> i32 }\npackage Leaf { manages ticket: Ticket; value: i32; hidden: Hidden }\nfn identity(x:i32)->i32 {return x}")
         .replace("value: 7", "value: 7, hidden: Hidden { f: identity }").replace("value: 9", "value: 9, hidden: Hidden { f: identity }");
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "capture225.zil", &source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_capture_cleanup.zil",
+            &source,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(

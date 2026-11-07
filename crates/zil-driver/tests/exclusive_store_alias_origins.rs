@@ -58,7 +58,12 @@ fn rejected_source(label: &str, source: &str, category: ResultCategory, phase: P
 }
 
 fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review180.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "exclusive_store_alias_origins.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let limits = Limits::default();
