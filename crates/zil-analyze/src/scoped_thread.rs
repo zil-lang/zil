@@ -12,14 +12,30 @@ fn reject(span: zil_base::Span, message: &str) -> Vec<Diagnostic> {
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
+        Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
     )
 }
 fn cas_pair(t: &Type) -> bool {
-    matches!(t,Type::Tuple(fields) if fields.as_slice()==[Type::I32,Type::Bool])
+    matches!(t,Type::Tuple(fields) if matches!(fields.as_slice(), [Type::I32 | Type::I64 | Type::U64 | Type::Usize, Type::Bool]))
 }
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
+}
+fn wide_integer(kind: zil_ir::SyncCellKind) -> Option<Type> {
+    use zil_ir::SyncCellKind as K;
+    match kind {
+        K::AtomicI64 => Some(Type::I64),
+        K::AtomicU64 => Some(Type::U64),
+        K::AtomicUsize => Some(Type::Usize),
+        K::MutexI32 | K::AtomicI32 => None,
+    }
 }
 fn mutex_head(ty: &Type) -> Option<&Type> {
     match ty {
@@ -340,6 +356,8 @@ fn worker(
                 match &instruction.kind {
                     InstructionKind::SyncI32 { .. }
                     | InstructionKind::SyncI32CompareExchange { .. }
+                    | InstructionKind::SyncInteger { .. }
+                    | InstructionKind::SyncIntegerCompareExchange { .. }
                         if shared =>
                     {
                         sync_instruction(module, function, instruction, budget)?
@@ -446,7 +464,9 @@ fn worker(
                         | Constant::U8(_)
                         | Constant::U16(_)
                         | Constant::I32(_)
-                        | Constant::I64(_),
+                        | Constant::I64(_)
+                        | Constant::U64(_)
+                        | Constant::Usize(_),
                     )
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::ConvertNumber { .. }
@@ -497,6 +517,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     InstructionKind::WithSyncCell { .. }
                         | InstructionKind::SyncI32 { .. }
                         | InstructionKind::SyncI32CompareExchange { .. }
+                        | InstructionKind::SyncInteger { .. }
+                        | InstructionKind::SyncIntegerCompareExchange { .. }
                 ) {
                     sync_instruction(module, caller, instruction, budget)?;
                     continue;
@@ -734,7 +756,8 @@ fn sync_instruction(
                     "ordinary payload cannot grant cell operation permission",
                 ));
             };
-            if value.is_none() != (op == P::Load)
+            if !matches!(kind, K::MutexI32 | K::AtomicI32)
+                || value.is_none() != (op == P::Load)
                 || value
                     .is_some_and(|value| caller.values.get(value.0 as usize) != Some(&Type::I32))
                 || (*kind == K::MutexI32 && ordering != O::SeqCst)
@@ -762,15 +785,132 @@ fn sync_instruction(
                 ));
             }
         }
+        InstructionKind::SyncIntegerCompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            budget.spend(
+                8,
+                "wide atomic strong CAS actual signature and order matrix",
+            )?;
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = ty(address)?
+            else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS needs shared sealed address",
+                ));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS cannot use ordinary address",
+                ));
+            };
+            let Some(integer) = wide_integer(*kind) else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS requires matching wide cell",
+                ));
+            };
+            if ty(expected)? != &integer || ty(desired)? != &integer {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS operands differ from cell width",
+                ));
+            }
+            let admitted = match success {
+                O::Relaxed | O::Release => failure == O::Relaxed,
+                O::Acquire | O::AcqRel => matches!(failure, O::Relaxed | O::Acquire),
+                O::SeqCst => matches!(failure, O::Relaxed | O::Acquire | O::SeqCst),
+            };
+            if !admitted {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS order pair is invalid",
+                ));
+            }
+            if instruction
+                .result
+                .and_then(|v| caller.values.get(v.0 as usize))
+                != Some(&Type::Tuple(vec![integer, Type::Bool]))
+            {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic CAS result type differs from cell",
+                ));
+            }
+        }
+        InstructionKind::SyncInteger {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = ty(address)?
+            else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic operation needs shared sealed address",
+                ));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic operation cannot use ordinary address",
+                ));
+            };
+            let Some(integer) = wide_integer(*kind) else {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic operation requires wide cell",
+                ));
+            };
+            if value.is_none() != (op == zil_ir::SyncIntegerOp::Load)
+                || value.is_some_and(|v| caller.values.get(v.0 as usize) != Some(&integer))
+                || (op == zil_ir::SyncIntegerOp::Load && matches!(ordering, O::Release | O::AcqRel))
+                || (op == zil_ir::SyncIntegerOp::Store
+                    && matches!(ordering, O::Acquire | O::AcqRel))
+            {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic value or ordering differs from operation",
+                ));
+            }
+            let expected = if op == zil_ir::SyncIntegerOp::Store {
+                Type::Unit
+            } else {
+                integer
+            };
+            if instruction
+                .result
+                .and_then(|v| caller.values.get(v.0 as usize))
+                != Some(&expected)
+            {
+                return Err(reject(
+                    instruction.span,
+                    "wide atomic operation result has wrong width",
+                ));
+            }
+        }
         InstructionKind::WithSyncCell {
             kind,
             initial,
             body,
         } => {
-            if ty(initial)? != &Type::I32 {
+            let integer = wide_integer(kind).unwrap_or(Type::I32);
+            if ty(initial)? != &integer {
                 return Err(reject(
                     instruction.span,
-                    "cell initializer must be an actual i32",
+                    "cell initializer differs from actual sealed width",
                 ));
             }
             let Type::Closure(id) = ty(body)? else {

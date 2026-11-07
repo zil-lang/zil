@@ -2730,13 +2730,26 @@ impl FunctionEmitter<'_> {
             InstructionKind::Unsupported(feature) => {
                 return unsupported(feature.clone(), Some(instruction.span));
             }
-            InstructionKind::SyncInteger { .. }
-            | InstructionKind::SyncIntegerCompareExchange { .. } => {
-                return unsupported(
-                    "wide atomic operation awaits native lowering",
-                    Some(instruction.span),
-                );
-            }
+            InstructionKind::SyncInteger {
+                op,
+                address,
+                value,
+                ordering,
+            } => self.sync_integer(instruction, *op, *address, *value, *ordering)?,
+            InstructionKind::SyncIntegerCompareExchange {
+                address,
+                expected,
+                desired,
+                success,
+                failure,
+            } => self.sync_integer_compare_exchange(
+                instruction,
+                *address,
+                *expected,
+                *desired,
+                *success,
+                *failure,
+            )?,
             InstructionKind::MutexCreate { value } => self.mutex_create(instruction, *value)?,
             InstructionKind::MutexLock { mutex } => self.mutex_lock(instruction, *mutex)?,
             InstructionKind::MutexValue { guard } => self.mutex_value(instruction, *guard)?,

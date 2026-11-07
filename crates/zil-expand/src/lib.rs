@@ -80,6 +80,9 @@ fn sync_name(name: &str) -> bool {
         name,
         "MutexI32"
             | "AtomicI32"
+            | "AtomicI64"
+            | "AtomicU64"
+            | "AtomicUsize"
             | "Mutex"
             | "MutexGuard"
             | "MutexCreateError"
@@ -96,6 +99,21 @@ fn sync_name(name: &str) -> bool {
             | "atomic_store"
             | "atomic_fetch_add"
             | "atomic_compare_exchange"
+            | "atomic_i64_scope"
+            | "atomic_i64_load"
+            | "atomic_i64_store"
+            | "atomic_i64_fetch_add"
+            | "atomic_i64_compare_exchange"
+            | "atomic_u64_scope"
+            | "atomic_u64_load"
+            | "atomic_u64_store"
+            | "atomic_u64_fetch_add"
+            | "atomic_u64_compare_exchange"
+            | "atomic_usize_scope"
+            | "atomic_usize_load"
+            | "atomic_usize_store"
+            | "atomic_usize_fetch_add"
+            | "atomic_usize_compare_exchange"
     )
 }
 fn task_name(name: &str) -> bool {
@@ -2103,6 +2121,9 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "c_handle" => Type::ForeignHandle,
             "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
             "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
+            "AtomicI64" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI64),
+            "AtomicU64" => Type::SyncCell(zil_ir::SyncCellKind::AtomicU64),
+            "AtomicUsize" => Type::SyncCell(zil_ir::SyncCellKind::AtomicUsize),
             "MutexCreateError" => Type::Enum {
                 name: "@std.sync:v1:MutexCreateError".into(),
                 variants: vec![("Allocation".into(), vec![])],

@@ -75,6 +75,8 @@ pub(super) fn present(lir: &LirView<'_>) -> bool {
                     | InstructionKind::WithSyncCell { .. }
                     | InstructionKind::SyncI32 { .. }
                     | InstructionKind::SyncI32CompareExchange { .. }
+                    | InstructionKind::SyncInteger { .. }
+                    | InstructionKind::SyncIntegerCompareExchange { .. }
             )
         })
 }
@@ -166,6 +168,104 @@ pub(super) fn runtime(lir: &LirView<'_>) -> CompileResult<m::Code> {
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn sync_integer_compare_exchange(
+        &mut self,
+        instruction: &Instruction,
+        address: ValueId,
+        expected: ValueId,
+        desired: ValueId,
+        success: AtomicOrdering,
+        failure: AtomicOrdering,
+    ) -> CompileResult<()> {
+        if !matches!(self.value_type(address)?, Type::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Type::SyncCell(SyncCellKind::AtomicI64 | SyncCellKind::AtomicU64 | SyncCellKind::AtomicUsize)))
+        {
+            return invalid(
+                "E-CODEGEN-SYNC",
+                "wide CAS requires actual wide atomic address",
+                Some(instruction.span),
+            );
+        }
+        self.event(inst(
+            Some(format!("v.{}", result(instruction)?.0)),
+            m::Op::AtomicCompareExchange {
+                result: m::Ty::Struct(vec![m::Ty::Int(64), m::Ty::Int(1)]),
+                expected: m::Arg::new(m::Ty::Int(64), m::val(value(expected))),
+                desired: m::val(value(desired)),
+                ptr: m::val(value(address)),
+                align: 8,
+                success: machine_order(success),
+                failure: machine_order(failure),
+            },
+        ));
+        Ok(())
+    }
+    pub(super) fn sync_integer(
+        &mut self,
+        instruction: &Instruction,
+        op: zil_ir::SyncIntegerOp,
+        address: ValueId,
+        operand: Option<ValueId>,
+        ordering: AtomicOrdering,
+    ) -> CompileResult<()> {
+        let id = result(instruction)?;
+        if !matches!(self.value_type(address)?, Type::Address { mutable: false, inner }
+            if matches!(inner.as_ref(), Type::SyncCell(SyncCellKind::AtomicI64 | SyncCellKind::AtomicU64 | SyncCellKind::AtomicUsize)))
+        {
+            return invalid(
+                "E-CODEGEN-SYNC",
+                "wide atomic operation requires actual wide cell",
+                Some(instruction.span),
+            );
+        }
+        let payload = operand.map(|id| m::val(value(id)));
+        let operation = match op {
+            zil_ir::SyncIntegerOp::Load => m::Op::AtomicLoad {
+                ty: m::Ty::Int(64),
+                ptr: m::val(value(address)),
+                align: 8,
+                ordering: machine_order(ordering),
+            },
+            zil_ir::SyncIntegerOp::Store => m::Op::AtomicStore {
+                arg: m::Arg::new(
+                    m::Ty::Int(64),
+                    payload.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            Phase::Codegen,
+                            "E-CODEGEN-SYNC",
+                            Some(instruction.span),
+                            "wide atomic store operand is absent",
+                        )]
+                    })?,
+                ),
+                ptr: m::val(value(address)),
+                align: 8,
+                ordering: machine_order(ordering),
+            },
+            zil_ir::SyncIntegerOp::FetchAdd => m::Op::AtomicRmw {
+                operation: m::AtomicRmwOp::Add,
+                arg: m::Arg::new(
+                    m::Ty::Int(64),
+                    payload.ok_or_else(|| {
+                        vec![Diagnostic::error(
+                            Phase::Codegen,
+                            "E-CODEGEN-SYNC",
+                            Some(instruction.span),
+                            "wide atomic add operand is absent",
+                        )]
+                    })?,
+                ),
+                ptr: m::val(value(address)),
+                align: 8,
+                ordering: machine_order(ordering),
+            },
+        };
+        self.event(inst(
+            (op != zil_ir::SyncIntegerOp::Store).then(|| format!("v.{}", id.0)),
+            operation,
+        ));
+        Ok(())
+    }
     pub(super) fn call_scoped_thread_helper(
         &mut self,
         instruction: &Instruction,
@@ -515,12 +615,13 @@ impl FunctionEmitter<'_> {
                 Some(instruction.span),
             );
         };
+        let integer = llvm_type(self.value_type(initial)?)?;
         self.event(call(
             Some(&format!("v.{}", id.0)),
             sync_result_type(),
             sync_helper(self.function.id, id),
             vec![
-                m::Arg::new(m::Ty::Int(32), m::val(value(initial))),
+                m::Arg::new(integer, m::val(value(initial))),
                 m::Arg::new(environment_type(*body_id), m::val(value(body))),
             ],
         ));
@@ -610,6 +711,13 @@ impl FunctionEmitter<'_> {
             );
         };
         let kind = *kind;
+        if !matches!(kind, SyncCellKind::MutexI32 | SyncCellKind::AtomicI32) {
+            return invalid(
+                "E-CODEGEN-SYNC",
+                "SyncI32 cannot operate on a wide atomic cell",
+                Some(instruction.span),
+            );
+        }
         let pointer = m::val(value(address));
         let operand = operand.map(|id| m::val(value(id)));
         if kind == SyncCellKind::AtomicI32 {
@@ -752,6 +860,17 @@ impl FunctionEmitter<'_> {
             );
         };
         let body_id = *body_id;
+        let integer = match kind {
+            SyncCellKind::MutexI32 | SyncCellKind::AtomicI32 => m::Ty::Int(32),
+            SyncCellKind::AtomicI64 | SyncCellKind::AtomicU64 | SyncCellKind::AtomicUsize => {
+                m::Ty::Int(64)
+            }
+        };
+        let integer_align = if matches!(kind, SyncCellKind::MutexI32 | SyncCellKind::AtomicI32) {
+            4
+        } else {
+            8
+        };
         let definition = self.closure_definition(body_id)?.clone();
         let body_align = alignment(&Type::Closure(body_id), self.closures)?;
         self.event(m::Event::Begin(m::Function {
@@ -760,7 +879,7 @@ impl FunctionEmitter<'_> {
             signature: m::Signature::new(
                 sync_result_type(),
                 vec![
-                    m::Param::new(m::Ty::Int(32), "sync.initial"),
+                    m::Param::new(integer.clone(), "sync.initial"),
                     m::Param::new(environment_type(body_id), "sync.body.value"),
                 ],
             ),
@@ -837,14 +956,14 @@ impl FunctionEmitter<'_> {
             ));
         }
         self.event(store(
-            m::Ty::Int(32),
+            integer,
             m::local("sync.initial".into()),
             if kind == SyncCellKind::MutexI32 {
                 "sync.payload"
             } else {
                 "sync.cell"
             },
-            4,
+            integer_align,
         ));
         let body_arg = if resource_closures::by_pointer(&definition) {
             m::Arg::new(m::Ty::Ptr, m::local("thread.body".into()))

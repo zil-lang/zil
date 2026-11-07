@@ -328,7 +328,15 @@ pub fn evaluate_program(program: &VerifiedCTProgram) -> CompileResult<ProgramEva
                 | InstructionKind::TaskFinishDestroy { .. }
                 | InstructionKind::WithScopedThread { .. }
                 | InstructionKind::WithSyncCell { .. }
-                | InstructionKind::SyncI32 { .. } => {
+                | InstructionKind::SyncI32 { .. }
+                | InstructionKind::SyncI32CompareExchange { .. }
+                | InstructionKind::SyncInteger { .. }
+                | InstructionKind::SyncIntegerCompareExchange { .. }
+                | InstructionKind::MutexCreate { .. }
+                | InstructionKind::MutexLock { .. }
+                | InstructionKind::MutexValue { .. }
+                | InstructionKind::MutexUnlock { .. }
+                | InstructionKind::DropMutexGuard { .. } => {
                     return Err(vec![Diagnostic::error(
                         Phase::Ct,
                         "E-CT-FORBIDDEN",

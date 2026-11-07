@@ -8,14 +8,30 @@ fn invalid(span: Option<Span>, message: &str) -> Diagnostic {
 fn scalar(ty: &Type) -> bool {
     matches!(
         ty,
-        Type::Unit | Type::Bool | Type::U8 | Type::U16 | Type::I32 | Type::I64
+        Type::Unit
+            | Type::Bool
+            | Type::U8
+            | Type::U16
+            | Type::I32
+            | Type::I64
+            | Type::U64
+            | Type::Usize
     )
 }
 fn cas_pair(t: &Type) -> bool {
-    matches!(t,Type::Tuple(fields) if fields.as_slice()==[Type::I32,Type::Bool])
+    matches!(t,Type::Tuple(fields) if matches!(fields.as_slice(), [Type::I32 | Type::I64 | Type::U64 | Type::Usize, Type::Bool]))
 }
 fn shared_i32(ty: &Type) -> bool {
     matches!(ty, Type::Address { mutable: false, inner } if **inner == Type::I32 || matches!(inner.as_ref(), Type::SyncCell(_)))
+}
+fn wide_integer(kind: zil_ir::SyncCellKind) -> Option<Type> {
+    use zil_ir::SyncCellKind as K;
+    match kind {
+        K::AtomicI64 => Some(Type::I64),
+        K::AtomicU64 => Some(Type::U64),
+        K::AtomicUsize => Some(Type::Usize),
+        K::MutexI32 | K::AtomicI32 => None,
+    }
 }
 fn mutex_head(ty: &Type) -> Option<&Type> {
     if let Type::Desc(inner) = ty {
@@ -275,6 +291,8 @@ fn worker_graph(
                 match &instruction.kind {
                     InstructionKind::SyncI32 { .. }
                     | InstructionKind::SyncI32CompareExchange { .. }
+                    | InstructionKind::SyncInteger { .. }
+                    | InstructionKind::SyncIntegerCompareExchange { .. }
                         if shared =>
                     {
                         sync_instruction(module, function, instruction, budget)?;
@@ -333,7 +351,9 @@ fn worker_graph(
                         | Constant::U8(_)
                         | Constant::U16(_)
                         | Constant::I32(_)
-                        | Constant::I64(_),
+                        | Constant::I64(_)
+                        | Constant::U64(_)
+                        | Constant::Usize(_),
                     )
                     | InstructionKind::ConvertInteger { .. }
                     | InstructionKind::Load(_)
@@ -581,7 +601,8 @@ pub(super) fn sync_instruction(
                 return Err(invalid(span, "cell write requires an actual i32 value"));
             }
             use zil_ir::{AtomicOrdering as O, SyncCellKind as K, SyncI32Op as P};
-            if (*kind == K::MutexI32 && ordering != O::SeqCst)
+            if !matches!(kind, K::MutexI32 | K::AtomicI32)
+                || (*kind == K::MutexI32 && ordering != O::SeqCst)
                 || (op == P::Load && matches!(ordering, O::Release | O::AcqRel))
                 || (op == P::Store && matches!(ordering, O::Acquire | O::AcqRel))
             {
@@ -596,13 +617,105 @@ pub(super) fn sync_instruction(
                 Type::I32
             }))
         }
+        InstructionKind::SyncIntegerCompareExchange {
+            address,
+            expected,
+            desired,
+            success,
+            failure,
+        } => {
+            budget.spend(8)?;
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = value_type(caller, address, span)?
+            else {
+                return Err(invalid(
+                    span,
+                    "wide atomic CAS requires shared sealed address",
+                ));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(invalid(span, "wide atomic CAS cannot use ordinary address"));
+            };
+            let Some(integer) = wide_integer(*kind) else {
+                return Err(invalid(span, "wide atomic CAS requires actual wide cell"));
+            };
+            if value_type(caller, expected, span)? != &integer
+                || value_type(caller, desired, span)? != &integer
+            {
+                return Err(invalid(
+                    span,
+                    "wide atomic CAS operands differ from cell width",
+                ));
+            }
+            use zil_ir::AtomicOrdering as O;
+            let admitted = match success {
+                O::Relaxed | O::Release => failure == O::Relaxed,
+                O::Acquire | O::AcqRel => matches!(failure, O::Relaxed | O::Acquire),
+                O::SeqCst => matches!(failure, O::Relaxed | O::Acquire | O::SeqCst),
+            };
+            if !admitted {
+                return Err(invalid(span, "wide atomic CAS order pair is invalid"));
+            }
+            Ok(Some(Type::Tuple(vec![integer, Type::Bool])))
+        }
+        InstructionKind::SyncInteger {
+            op,
+            address,
+            value,
+            ordering,
+        } => {
+            let Type::Address {
+                mutable: false,
+                inner,
+            } = value_type(caller, address, span)?
+            else {
+                return Err(invalid(
+                    span,
+                    "wide atomic operation requires shared sealed address",
+                ));
+            };
+            let Type::SyncCell(kind) = inner.as_ref() else {
+                return Err(invalid(
+                    span,
+                    "wide atomic operation cannot use ordinary address",
+                ));
+            };
+            let Some(integer) = wide_integer(*kind) else {
+                return Err(invalid(
+                    span,
+                    "wide atomic operation requires actual wide cell",
+                ));
+            };
+            use zil_ir::{AtomicOrdering as O, SyncIntegerOp as P};
+            if let Some(operand) = value
+                && value_type(caller, operand, span)? != &integer
+            {
+                return Err(invalid(span, "wide atomic operand differs from cell width"));
+            }
+            if value.is_none() != (op == P::Load)
+                || (op == P::Load && matches!(ordering, O::Release | O::AcqRel))
+                || (op == P::Store && matches!(ordering, O::Acquire | O::AcqRel))
+            {
+                return Err(invalid(
+                    span,
+                    "wide atomic value or ordering differs from operation",
+                ));
+            }
+            Ok(Some(if op == P::Store { Type::Unit } else { integer }))
+        }
         InstructionKind::WithSyncCell {
             kind,
             initial,
             body,
         } => {
-            if value_type(caller, initial, span)? != &Type::I32 {
-                return Err(invalid(span, "cell scope initializer is not i32"));
+            let integer = wide_integer(kind).unwrap_or(Type::I32);
+            if value_type(caller, initial, span)? != &integer {
+                return Err(invalid(
+                    span,
+                    "cell scope initializer differs from sealed width",
+                ));
             }
             let Type::Closure(id) = value_type(caller, body, span)? else {
                 return Err(invalid(

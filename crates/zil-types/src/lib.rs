@@ -932,7 +932,17 @@ impl<'a, 'c> Builder<'a, 'c> {
     ) -> R<LocalId> {
         if scoped_thread::sync_primitive(name).is_some()
             || generic_mutex::primitive(name)
-            || matches!(name, "MutexI32" | "AtomicI32" | "atomic_compare_exchange")
+            || matches!(
+                name,
+                "MutexI32"
+                    | "AtomicI32"
+                    | "AtomicI64"
+                    | "AtomicU64"
+                    | "AtomicUsize"
+                    | "atomic_compare_exchange"
+            )
+            || scoped_thread::wide_primitive(name).is_some()
+            || scoped_thread::wide_compare_exchange_kind(name).is_some()
         {
             return Err(error(
                 "E-SYNC-NAME",
@@ -2098,6 +2108,16 @@ impl<'a, 'c> Builder<'a, 'c> {
             }
             if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
                 return self.compare_exchange_call(arguments, expected, e.span);
+            }
+            if let CoreExprKind::Name(name) = &callee.kind
+                && let Some(kind) = scoped_thread::wide_compare_exchange_kind(name)
+            {
+                return self.wide_compare_exchange_call(kind, arguments, expected, e.span);
+            }
+            if let CoreExprKind::Name(name) = &callee.kind
+                && let Some((kind, op)) = scoped_thread::wide_primitive(name)
+            {
+                return self.wide_sync_call(kind, op, arguments, expected, e.span);
             }
             if let CoreExprKind::Name(name) = &callee.kind
                 && generic_mutex::primitive(name)
