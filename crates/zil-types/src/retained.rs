@@ -188,6 +188,7 @@ pub(super) fn self_contained(
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
+                ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
@@ -616,6 +617,12 @@ impl Builder<'_, '_> {
                 && !borrowed
                 && matches!(ty, Type::Package { .. })
                 && packages::has_store_fields(&ty)
+                && self.closures.ordinary_store_capture(&ty, span)?
+            {
+                cleanup.push(index as u32);
+            } else if moved
+                && !borrowed
+                && owned_shapes::sum(&ty)
                 && self.closures.ordinary_store_capture(&ty, span)?
             {
                 cleanup.push(index as u32);
