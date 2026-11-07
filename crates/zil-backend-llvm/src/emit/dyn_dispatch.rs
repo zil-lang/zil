@@ -368,13 +368,6 @@ pub(super) fn tables(
         }));
     }
     for interface in &module.dyn_interfaces {
-        if !module
-            .dyn_vtables
-            .iter()
-            .any(|t| t.interface == interface.id && t.owned_storage == Some(DynOwnedStorage::Heap))
-        {
-            continue;
-        }
         code.push(m::Event::Begin(m::Function {
             name: owner_drop_symbol(interface.id),
             linkage: m::Linkage::Internal,
@@ -435,6 +428,22 @@ pub(super) fn tables(
 }
 
 impl FunctionEmitter<'_> {
+    pub(super) fn owned_dyn_scratch_allocations(&mut self) -> CompileResult<()> {
+        for instruction in self.function.blocks.iter().flat_map(|b| &b.instructions) {
+            if let InstructionKind::MakeDynOwned { source, .. } = instruction.kind {
+                let result = result(instruction)?;
+                let ty = self.value_type(source)?;
+                self.text.push(inst(
+                    Some(format!("dyn.owner.scratch.{}", result.0)),
+                    m::Op::Alloca {
+                        ty: llvm_type(ty)?,
+                        align: alignment(ty, self.closures)?,
+                    },
+                ));
+            }
+        }
+        Ok(())
+    }
     pub(super) fn make_dyn_owned(
         &mut self,
         instruction: &Instruction,
@@ -542,17 +551,10 @@ impl FunctionEmitter<'_> {
         self.event(inst(None, m::Op::Branch(name("done"))));
         self.event(m::Event::Label(name("failure")));
         self.event(inst(
-            Some(name("source")),
-            m::Op::Alloca {
-                ty: concrete.clone(),
-                align: alignment(&actual, self.closures)?,
-            },
-        ));
-        self.event(inst(
             None,
             m::Op::Store {
                 arg: m::Arg::new(concrete, m::val(value(source))),
-                ptr: m::local(name("source")),
+                ptr: m::local(format!("dyn.owner.scratch.{}", result.0)),
                 align: alignment(&actual, self.closures)?,
             },
         ));
@@ -560,7 +562,7 @@ impl FunctionEmitter<'_> {
             None,
             m::Ty::Void,
             m::global(payload_drop_symbol(vtable)),
-            vec![m::Arg::new(m::Ty::Ptr, m::local(name("source")))],
+            vec![m::Arg::new(m::Ty::Ptr, m::local(format!("dyn.owner.scratch.{}", result.0)))],
         ));
         self.event(inst(
             Some(name("error")),
