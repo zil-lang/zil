@@ -1142,7 +1142,10 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
             }
             Type::BorrowedStorage { storage, life } => {
                 if !owning || !matches!(storage.as_ref(), Type::Package { .. }) {
-                    return Err(failure("nested physical child requires an owning Package"));
+                    if !retained::pure(ty, b)? {
+                        return Err(failure("nested physical child requires an owning Package"));
+                    }
+                    return Ok(());
                 }
                 physical(ty, b)?;
                 let start = out.len();

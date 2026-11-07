@@ -732,10 +732,13 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 }
                 Type::BorrowedStorage { storage, life } => {
                     if !self.owning || !matches!(storage.as_ref(), Type::Package { .. }) {
-                        return Err(unsupported(
-                            self.span,
-                            "nested qualified storage needs an owning Package child",
-                        ));
+                        if !retained::pure(ty, self.span, self.left)? {
+                            return Err(unsupported(
+                                self.span,
+                                "nested qualified storage needs an owning Package child",
+                            ));
+                        }
+                        return Ok(());
                     }
                     shape(ty, self.left, self.limit, self.span)?;
                     let start = self.slots.len();
