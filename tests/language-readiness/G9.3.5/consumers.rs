@@ -85,6 +85,12 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
             b"18446744073709551614\n".as_slice(),
             false,
         ),
+        (
+            "ordinary-both-owned-error",
+            include_str!("ordinary-both-owned-error.zil"),
+            b"18446744073709551613\n".as_slice(),
+            false,
+        ),
     ] {
         super::g933_consumers::native_entry_all_backends(
             label,
