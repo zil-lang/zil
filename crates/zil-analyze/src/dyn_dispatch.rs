@@ -90,6 +90,9 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     {
         return Ok(());
     }
+    if !module.target.is_supported_x64_llvm() {
+        return Err(bad("finite shared dyn requires a checked x64 LLVM target"));
+    }
     budget.spend(
         module
             .dyn_declarations
@@ -101,6 +104,16 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     let mut declarations = BTreeMap::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
+        budget.spend(
+            declaration
+                .identity
+                .module_path
+                .len()
+                .saturating_add(declaration.identity.declaration_path.len())
+                .saturating_add(declaration.identity.generation_path.len())
+                .saturating_add(declaration.members.len()),
+            WORK,
+        )?;
         budget.spend(
             declaration
                 .members
@@ -878,6 +891,13 @@ mod tests {
     fn forged_source_and_unused_bad_table_are_rejected() {
         let mut m = fixture();
         m.functions[1].blocks[0].instructions[0].kind = InstructionKind::Constant(Constant::I32(7));
+        assert!(admitted(&m).is_err());
+        let mut m = fixture();
+        if let InstructionKind::CallDynSlot { interface, .. } =
+            &mut m.functions[1].blocks[0].instructions[2].kind
+        {
+            interface.index = 1;
+        }
         assert!(admitted(&m).is_err());
         let mut m = fixture();
         let mut bad = m.dyn_vtables[0].clone();
