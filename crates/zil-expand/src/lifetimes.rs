@@ -13,6 +13,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         mutable_life: bool,
         stored_fields: bool,
         direct_type_argument: bool,
+        task_context: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -58,8 +59,10 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_mutable_life = self.mutable_life;
             let old_stored_fields = self.stored_fields;
             let old_type_argument = self.direct_type_argument;
+            let old_task_context = self.task_context;
             self.stored_fields = false;
             self.direct_type_argument = false;
+            self.task_context = false;
             self.mutable_life = false;
             self.trait_scope |= matches!(item.kind, s::ItemKind::Trait(_));
             self.impl_scope |= matches!(item.kind, s::ItemKind::Impl(_));
@@ -148,6 +151,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.mutable_life = old_mutable_life;
             self.stored_fields = old_stored_fields;
             self.direct_type_argument = old_type_argument;
+            self.task_context = old_task_context;
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
@@ -245,7 +249,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if (*mutable && !self.mutable_life)
                     || (!self.stored_fields
                         && !self.headers.contains(&std::ptr::from_ref(ty))
-                        && !(!*mutable && self.direct_type_argument))
+                        && !(!*mutable && self.direct_type_argument)
+                        && !self.task_context)
                 {
                     return Err(vec![Diagnostic::unsupported(
                         Phase::Expand,
@@ -255,6 +260,9 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 }
             }
             let old_type_argument = self.direct_type_argument;
+            let old_task_context = self.task_context;
+            self.task_context |= matches!(&ty.kind, s::TypeKind::Named { path, args }
+                if path.as_slice() == ["Task"] && args.len() == 2);
             self.direct_type_argument = match ty.kind {
                 s::TypeKind::Named { .. } => true,
                 s::TypeKind::Group(_) => old_type_argument,
@@ -262,6 +270,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             };
             let result = ct_selection::walk_type(self, ty, depth);
             self.direct_type_argument = old_type_argument;
+            self.task_context = old_task_context;
             result
         }
     }
@@ -274,6 +283,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         mutable_life: false,
         stored_fields: false,
         direct_type_argument: false,
+        task_context: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;

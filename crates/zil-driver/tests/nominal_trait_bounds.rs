@@ -21,6 +21,37 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+fn task_two_actual_address_ports_keep_independent_modes() {
+    let source = r#"fn worker(a:&i32,b:&mut i32)->bool {
+    let n=*a;
+    task_yield();
+    *b=*b+n;
+    return true;
+}
+fn main()->TaskCreateError!i32 {
+    let a=4;
+    var b=5;
+    var task=task_create(worker,&a,&mut b)?;
+    task_finish_destroy(give task);
+    return b;
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
 #[cfg(target_os = "linux")]
 fn mutable_holder_trait_task_and_queued_registration_share_one_native_program() {
     use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};

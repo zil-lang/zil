@@ -4136,7 +4136,10 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     } else {
                         tasks::create_type(
                             &signature.result,
-                            tasks::borrowed_context(&signature.parameters),
+                            tasks::borrowed_context_with_life(
+                                &signature.parameters,
+                                signature.life.as_ref(),
+                            ),
                         )
                     },
                     span,

@@ -680,7 +680,15 @@ impl<'a, 'c> Builder<'a, 'c> {
         closures: &'c mut closures::State,
     ) -> R<Self> {
         closures.block(f.span)?;
-        if let Some(contract) = &f.storage_life {
+        let worker_life = if f.storage_life.is_none()
+            && f.call_kind == Some(CallKind::Suspend)
+            && f.life.as_ref().is_some_and(|life| life.parameter_lives.iter().flatten().count() > 1)
+        {
+            f.life.as_ref().and_then(|life|
+                StorageLifeContract::from_flat(borrowed_fp::from_life(life)))
+        } else { None };
+        let storage_life = f.storage_life.clone().or(worker_life);
+        if let Some(contract) = &storage_life {
             borrowed_fp::charge_contract(contract, |work| closures.snapshot(work, f.span), 1)?;
         }
         let first_closure = closures.pending.len();
@@ -688,7 +696,7 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut b = Self {
             declared_call_kind: f.call_kind,
             function: TypedFunction {
-                storage_life: f.storage_life.clone(),
+                storage_life,
                 call_kind: f.call_kind.unwrap_or(CallKind::Direct),
                 reference_return_bound: lifetimes::compile(f, closures, limits)?,
                 callable_return_contract: None,

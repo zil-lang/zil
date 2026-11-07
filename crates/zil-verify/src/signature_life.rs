@@ -145,45 +145,65 @@ pub(super) fn function_relation(
         && !retained_life.ports.is_empty()
     {
         super::tasks::require_closed_context(payload, span)?;
-        let actual_input = Type::Address {
-            mutable: false,
-            inner: Box::new(Type::I32),
-        };
-        let expected_bindings = [
-            StorageLifeBinding {
+        let inputs = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, ty)| matches!(ty, Type::Address { .. }))
+            .collect::<Vec<_>>();
+        if inputs.len() != retained_life.ports.len() {
+            return Err(reject(
+                "E-VERIFY-SIGNATURE-CLASS",
+                span,
+                "borrowed Task signature input count differs from actual ports",
+            ));
+        }
+        let mut expected_bindings = Vec::new();
+        for (port, (input, ty)) in inputs.iter().enumerate() {
+            if *ty != &retained_life.ports[port].leaf {
+                return Err(reject(
+                    "E-VERIFY-SIGNATURE-CLASS",
+                    span,
+                    "borrowed Task signature input type differs from actual port",
+                ));
+            }
+            expected_bindings.push(StorageLifeBinding {
                 position: StoragePosition {
-                    base: StorageBase::Parameter(0),
+                    base: StorageBase::Parameter(*input as u32),
                     path: vec![],
                 },
-                binder: StorageBinder::Invocation(0),
-            },
-            StorageLifeBinding {
+                binder: StorageBinder::Invocation(retained_life.ports[port].binder),
+            });
+        }
+        for (port, row) in retained_life.ports.iter().enumerate() {
+            expected_bindings.push(StorageLifeBinding {
                 position: StoragePosition {
                     base: StorageBase::Result,
                     path: vec![
                         ContractProjection::Place(PlaceProjection::ErrorArm(false)),
-                        ContractProjection::RetainedPort(0),
+                        ContractProjection::RetainedPort(port as u32),
                     ],
                 },
-                binder: StorageBinder::Invocation(0),
-            },
-        ];
-        let expected_class = SignatureLifeClassBinding {
-            position: SignatureLifeClass {
-                base: StorageBase::Result,
-                path: vec![
-                    LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
-                    LifeTypeProjection::Pointee,
-                ],
-                class: 0,
-            },
-            binder: StorageBinder::Invocation(0),
-        };
-        if parameters != [actual_input]
-            || c.fixed_binder_count != 0
-            || c.invocation_binder_count != 1
-            || c.bindings.as_slice() != expected_bindings
-            || c.classes.as_slice() != [expected_class]
+                binder: StorageBinder::Invocation(row.binder),
+            });
+        }
+        let mut expected_classes = Vec::new();
+        for class in 0..retained_life.binder_count {
+            expected_classes.push(SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                        LifeTypeProjection::Pointee,
+                    ],
+                    class,
+                },
+                binder: StorageBinder::Invocation(class),
+            });
+        }
+        if c.fixed_binder_count != 0
+            || c.invocation_binder_count != retained_life.binder_count
+            || c.bindings != expected_bindings
+            || c.classes != expected_classes
         {
             return Err(reject(
                 "E-VERIFY-SIGNATURE-CLASS",

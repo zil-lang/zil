@@ -145,48 +145,64 @@ pub(super) fn function_relation(
         && !retained_life.ports.is_empty()
     {
         super::tasks::require_closed_context(payload)?;
-        let input = Type::Address {
-            mutable: false,
-            inner: Box::new(Type::I32),
-        };
-        if parameters != [input]
-            || c.fixed_binder_count != 0
-            || c.invocation_binder_count != 1
-            || c.bindings
-                != [
-                    StorageLifeBinding {
-                        position: StoragePosition {
-                            base: StorageBase::Parameter(0),
-                            path: vec![],
-                        },
-                        binder: StorageBinder::Invocation(0),
-                    },
-                    StorageLifeBinding {
-                        position: StoragePosition {
-                            base: StorageBase::Result,
-                            path: vec![
-                                ContractProjection::Place(PlaceProjection::ErrorArm(false)),
-                                ContractProjection::RetainedPort(0),
-                            ],
-                        },
-                        binder: StorageBinder::Invocation(0),
-                    },
-                ]
-            || c.classes
-                != [SignatureLifeClassBinding {
-                    position: SignatureLifeClass {
-                        base: StorageBase::Result,
-                        path: vec![
-                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
-                            LifeTypeProjection::Pointee,
-                        ],
-                        class: 0,
-                    },
-                    binder: StorageBinder::Invocation(0),
-                }]
+        let mut expected_bindings = Vec::new();
+        let mut expected_classes = Vec::new();
+        let inputs = parameters
+            .iter()
+            .enumerate()
+            .filter(|(_, ty)| matches!(ty, Type::Address { .. }))
+            .collect::<Vec<_>>();
+        if inputs.len() != retained_life.ports.len() {
+            return Err(bad(
+                "borrowed Task signature input count differs from actual ports",
+            ));
+        }
+        for (port, (input, ty)) in inputs.iter().enumerate() {
+            if *ty != &retained_life.ports[port].leaf {
+                return Err(bad(
+                    "borrowed Task signature input type differs from actual port",
+                ));
+            }
+            expected_bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(*input as u32),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(retained_life.ports[port].binder),
+            });
+        }
+        for (port, row) in retained_life.ports.iter().enumerate() {
+            expected_bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Result,
+                    path: vec![
+                        ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                        ContractProjection::RetainedPort(port as u32),
+                    ],
+                },
+                binder: StorageBinder::Invocation(row.binder),
+            });
+        }
+        for class in 0..retained_life.binder_count {
+            expected_classes.push(SignatureLifeClassBinding {
+                position: SignatureLifeClass {
+                    base: StorageBase::Result,
+                    path: vec![
+                        LifeTypeProjection::Place(PlaceProjection::ErrorArm(false)),
+                        LifeTypeProjection::Pointee,
+                    ],
+                    class,
+                },
+                binder: StorageBinder::Invocation(class),
+            });
+        }
+        if c.fixed_binder_count != 0
+            || c.invocation_binder_count != retained_life.binder_count
+            || c.bindings != expected_bindings
+            || c.classes != expected_classes
         {
             return Err(bad(
-                "borrowed Task signature has no exact shared input and retained port relation",
+                "borrowed Task signature has no exact actual input and retained port relation",
             ));
         }
         return Ok(());

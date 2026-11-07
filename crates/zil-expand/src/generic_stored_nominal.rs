@@ -625,6 +625,97 @@ impl<'a> Engine<'a> {
                 type_path.pop();
                 result
             }
+            TypeKind::Named { path: name, args }
+                if name.as_slice() == ["Task"] && args.len() == 2 =>
+            {
+                let GenericArg::Type(context) = &args[1] else {
+                    return Err(error(ty.span, "Task retained context must be a type"));
+                };
+                let sources = match &context.kind {
+                    TypeKind::Tuple(fields) => fields.as_slice(),
+                    _ => std::slice::from_ref(context),
+                };
+                if sources.is_empty() {
+                    return Err(error(
+                        context.span,
+                        "Task retained context needs an actual port",
+                    ));
+                }
+                let mut classes = Vec::new();
+                let fixed_input = !matches!(base, zil_ir::StorageBase::Result);
+                for (port, source) in sources.iter().enumerate() {
+                    self.budget.node(source.span, depth + 1)?;
+                    let TypeKind::Reference {
+                        lifetime: Some(name),
+                        ..
+                    } = &source.kind
+                    else {
+                        return Err(error(
+                            source.span,
+                            "Task retained port needs a named lifetime",
+                        ));
+                    };
+                    let life = self.source_life(name, source.span)?;
+                    if !classes.contains(&life) {
+                        classes.push(life);
+                    }
+                    path.push(zil_ir::ContractProjection::RetainedPort(
+                        u32::try_from(port)
+                            .map_err(|_| error(source.span, "Task port overflow"))?,
+                    ));
+                    occurrences.push(stored_types::Occurrence {
+                        position: stored_types::OccurrencePosition::Borrow(
+                            zil_ir::StoragePosition {
+                                base,
+                                path: path.clone(),
+                            },
+                        ),
+                        life,
+                        fixed_input,
+                    });
+                    path.pop();
+                }
+                for (class, life) in classes.into_iter().enumerate() {
+                    occurrences.push(stored_types::Occurrence {
+                        position: stored_types::OccurrencePosition::Class(
+                            zil_ir::SignatureLifeClass {
+                                base,
+                                path: type_path.clone(),
+                                class: u32::try_from(class)
+                                    .map_err(|_| error(ty.span, "Task class overflow"))?,
+                            },
+                        ),
+                        life,
+                        fixed_input,
+                    });
+                }
+                *stored = true;
+                Ok(false)
+            }
+            TypeKind::Error { result, .. }
+                if matches!(&result.kind, TypeKind::Named { path, args }
+                    if path.as_slice() == ["Task"] && args.len() == 2) =>
+            {
+                path.push(zil_ir::ContractProjection::Place(
+                    zil_ir::PlaceProjection::ErrorArm(false),
+                ));
+                type_path.push(zil_ir::LifeTypeProjection::Place(
+                    zil_ir::PlaceProjection::ErrorArm(false),
+                ));
+                let answer = self.storage_header(
+                    result,
+                    base,
+                    path,
+                    type_path,
+                    occurrences,
+                    stored,
+                    next_elided,
+                    depth + 1,
+                );
+                path.pop();
+                type_path.pop();
+                answer
+            }
             TypeKind::Named { path: name, args } if name.len() == 1 => {
                 if !self.stored_application(&name[0], args, ty.span, depth + 1)? {
                     return Ok(false);
