@@ -428,6 +428,7 @@ Sol high 并行实施与独审；Astra只处理逐port、槽更新和图生命�
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
 | G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 冻结源码`c12287aa5`已推远端并实际冷拉3819文件重建；重点回归及单元已过，全默认/参考/文本与严格检查分批。全量失败原样保留并派修，无最终Pass/main推进声明。 |
+| G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 进行中 | P0 | sol high · compatibility | task/G10.6.4@c122；修new Product inventory误抢旧flat callback路径，原CLI state消费者已修，继续StringMap/helper/raw近邻联合检查。 |
 
 </details>
 
@@ -438,7 +439,6 @@ Sol high 并行实施与独审；Astra只处理逐port、槽更新和图生命�
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G10.6.3.1 | 项目清单、可复现路径依赖/锁定及真实 zil test | 实现待验 | P0 | sol high · tooling | `55a773aac`：清单/依赖锁、per-importer同名helper及CT/热缓存、真实Unit/Bool/I32测试已9/9；原始SourceUnit与有界扫描保留，等共同验收。 |
-| G10.6.4 | 全量回归中的旧Store/实际callback Package准入 | 进行中 | P0 | sol high · compatibility | task/G10.6.4@c122；修new Product inventory误抢旧flat callback路径，原CLI state消费者已修，继续StringMap/helper/raw近邻联合检查。 |
 
 </details>
 
