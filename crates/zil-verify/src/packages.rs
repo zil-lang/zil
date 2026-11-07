@@ -138,7 +138,7 @@ pub(super) fn check_capture_type(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<()> {
-    if budget.pod_stores && dynamic_store::owned_capture_store(ty, budget)? {
+    if budget.inline_store_root(ty)? && dynamic_store::owned_capture_store(ty, budget)? {
         check_ordinary_type(module, ty, span, budget)
     } else {
         check_product_type(module, ty, span, budget, false)

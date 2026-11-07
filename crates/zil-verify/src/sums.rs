@@ -2003,13 +2003,15 @@ fn run_with_replacements(
         budget.spend(definition.captures.len())?;
         let mut direct_sum = false;
         for ty in &definition.captures {
-            direct_sum |= dynamic_store::inline_sum_capture(ty, budget)?;
+            if budget.inline_store_root(ty)? {
+                direct_sum |= dynamic_store::inline_sum_capture(ty, budget)?;
+            }
         }
         if direct_sum {
             budget.spend(definition.captures.len())?;
             captures = vec![None; definition.captures.len()];
             for (index, ty) in definition.captures.iter().enumerate() {
-                if dynamic_store::inline_sum_capture(ty, budget)? {
+                if budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)? {
                     let mut actual = content(ty, None, &mut Vec::new(), false, budget)?;
                     actual.mark_captured(index as u32, &mut Vec::new(), budget)?;
                     captures[index] = Some(Arc::new(actual));
