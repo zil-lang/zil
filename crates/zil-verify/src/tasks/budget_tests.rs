@@ -31,7 +31,7 @@ fn task343_classifier_many_blocks_and_low_remaining_are_prepaid() {
                 assert_eq!(b.remaining, 0);
             } else {
                 assert_eq!(
-                    result.unwrap_err()[0].category,
+                    result.unwrap_err().category,
                     zil_base::ResultCategory::ResourceLimit
                 );
             }
@@ -42,7 +42,7 @@ fn task343_classifier_many_blocks_and_low_remaining_are_prepaid() {
         };
         let mut b = Budget::new(&limits);
         assert_eq!(
-            has_await(&input, &mut b).unwrap_err()[0].category,
+            has_await(&input, &mut b).unwrap_err().category,
             zil_base::ResultCategory::ResourceLimit
         );
         eprintln!("task343 classifier blocks={blocks} instructions={instructions} N={n}");
@@ -86,7 +86,7 @@ fn task343_carrier_repeated_prefix_and_name_comparisons_use_remaining_ledger() {
             payload: query.clone(),
             teardown: None,
         });
-        let run = |n| -> CompileResult<(bool, usize)> {
+        let run = |n| -> Check<(bool, usize)> {
             let limits = zil_base::Limits {
                 max_analysis_steps: n,
                 ..zil_base::Limits::default()
@@ -102,12 +102,12 @@ fn task343_carrier_repeated_prefix_and_name_comparisons_use_remaining_ledger() {
         let n = before - left;
         assert_eq!(run(n).unwrap(), (true, 0));
         assert_eq!(
-            run(n - 1).unwrap_err()[0].category,
+            run(n - 1).unwrap_err().category,
             zil_base::ResultCategory::ResourceLimit
         );
         assert_eq!(run(n).unwrap(), (true, 0));
         assert_eq!(
-            run(4).unwrap_err()[0].category,
+            run(4).unwrap_err().category,
             zil_base::ResultCategory::ResourceLimit
         );
         growth.push(n);
