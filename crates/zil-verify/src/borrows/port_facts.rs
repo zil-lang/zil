@@ -262,16 +262,55 @@ fn input(ty: &Type, index: u32, budget: &mut Budget) -> Check<Carrier> {
     Ok(result)
 }
 
-fn select<'a>(
-    values: &'a [Carrier],
+fn select(
+    values: &[Carrier],
     arguments: &[ValueId],
     position: &StoragePosition,
-) -> Option<&'a Port> {
+    budget: &mut Budget,
+) -> Check<Option<Port>> {
     let StorageBase::Parameter(index) = position.base else {
-        return None;
+        return Ok(None);
     };
-    let value = arguments.get(index as usize)?;
-    values.get(value.0 as usize)?.ports.get(&position.path)
+    let Some(value) = arguments
+        .get(index as usize)
+        .and_then(|value| values.get(value.0 as usize))
+    else {
+        return Ok(None);
+    };
+    cost(value, budget)?;
+    let selected = value
+        .ports
+        .iter()
+        .filter(|(path, _)| {
+            position
+                .path
+                .strip_prefix(path.as_slice())
+                .is_some_and(|suffix| {
+                    suffix
+                        .iter()
+                        .all(|part| matches!(part, ContractProjection::Place(_)))
+                })
+        })
+        .max_by_key(|(path, _)| path.len());
+    let Some((path, row)) = selected else {
+        return Ok(None);
+    };
+    let suffix = &position.path[path.len()..];
+    let mut actual = row.clone();
+    if !suffix.is_empty() {
+        actual.origins = actual
+            .origins
+            .into_iter()
+            .map(|origin| match origin {
+                Origin::Input(mut source) => {
+                    source.path.extend(suffix);
+                    Origin::Input(source)
+                }
+                other => other,
+            })
+            .collect();
+    }
+    Ok(Some(actual))
 }
 
 fn invoke(
@@ -298,7 +337,7 @@ fn invoke(
         for origin in &port.origins {
             match origin {
                 Origin::Input(position) => {
-                    if let Some(actual) = select(values, arguments, position) {
+                    if let Some(actual) = select(values, arguments, position, budget)? {
                         budget.spend(actual.origins.len().saturating_add(actual.parents.len()))?;
                         row.origins.extend(actual.origins.iter().cloned());
                         row.parents.extend(actual.parents.iter().cloned());
@@ -421,7 +460,7 @@ fn produce(
                         "constructor output has no selected retained port",
                     ));
                 };
-                let mut row = match select(values, arguments, &binding.source) {
+                let mut row = match select(values, arguments, &binding.source, budget)? {
                     Some(source) => {
                         let mut row = source.clone();
                         row.unknown |= row.mode != mode;
@@ -704,7 +743,15 @@ fn binding<'a>(
         .bindings
         .iter()
         .filter(|row| {
-            row.position.base == position.base && position.path.starts_with(&row.position.path)
+            row.position.base == position.base
+                && position
+                    .path
+                    .strip_prefix(row.position.path.as_slice())
+                    .is_some_and(|suffix| {
+                        suffix
+                            .iter()
+                            .all(|part| matches!(part, ContractProjection::Place(_)))
+                    })
         })
         .max_by_key(|row| row.position.path.len())
 }
@@ -792,6 +839,14 @@ pub(super) fn owner_transfer(
 ) -> Check<()> {
     budget.spend(owners.len().saturating_add(1))?;
     match &instruction.kind {
+        InstructionKind::StorageLive(local) | InstructionKind::StorageDead(local)
+            if owners.contains(&Owner::Local(*local)) =>
+        {
+            return Err(bad(
+                instruction.span,
+                "retained owner storage ends before destruction or transfer",
+            ));
+        }
         InstructionKind::Store { local, value } if owned(&f.locals[local.0 as usize].ty) => {
             owners.remove(&Owner::Value(*value));
             owners.insert(Owner::Local(*local));
@@ -949,4 +1004,406 @@ pub(super) fn solve(
         }
     }
     Ok(facts)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn span() -> Span {
+        Span::new(zil_base::FileId(0), 0, 1)
+    }
+    fn address(mutable: bool) -> Type {
+        Type::Address {
+            mutable,
+            inner: Box::new(Type::I32),
+        }
+    }
+    fn instruction(value: Option<u32>, kind: InstructionKind) -> Instruction {
+        Instruction {
+            result: value.map(ValueId),
+            kind,
+            span: span(),
+        }
+    }
+    fn task(classes: &[u32], mutable: bool) -> Type {
+        Type::Managed(Box::new(Type::Task {
+            result: Box::new(Type::I32),
+            retained_life: RetainedLifeShape {
+                binder_count: classes.iter().copied().max().unwrap_or(0) + 1,
+                ports: classes
+                    .iter()
+                    .map(|&binder| RetainedBorrowPort {
+                        leaf: address(mutable),
+                        mode: if mutable {
+                            StoredBorrowMode::ExclusiveAddress
+                        } else {
+                            StoredBorrowMode::SharedAddress
+                        },
+                        binder,
+                    })
+                    .collect(),
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+        }))
+    }
+    fn creation(classes: &[u32], mutable: bool) -> Type {
+        Type::ErrorUnion {
+            error: Box::new(Type::I32),
+            result: Box::new(task(classes, mutable)),
+        }
+    }
+    fn function(
+        id: u32,
+        parameters: Vec<Type>,
+        result: Type,
+        values: Vec<Type>,
+        instructions: Vec<Instruction>,
+        returned: ValueId,
+    ) -> TypedFunction {
+        TypedFunction {
+            id: FunctionId(id),
+            name: format!("f{id}"),
+            foreign: None,
+            environment: None,
+            parameters: (0..parameters.len()).map(|i| LocalId(i as u32)).collect(),
+            locals: parameters
+                .into_iter()
+                .enumerate()
+                .map(|(i, ty)| LocalDecl {
+                    id: LocalId(i as u32),
+                    name: format!("p{i}"),
+                    ty,
+                    mutable: false,
+                    span: span(),
+                })
+                .collect(),
+            return_type: result,
+            result_mode: PassingMode::Create,
+            values,
+            blocks: vec![BasicBlock {
+                id: BlockId(0),
+                instructions,
+                terminator: Terminator::Return(Some(returned)),
+            }],
+            entry: BlockId(0),
+            span: span(),
+            storage_life: None,
+            call_kind: CallKind::Direct,
+            reference_return_bound: None,
+            callable_return_contract: None,
+            callable_contract: None,
+            protocol_contract: None,
+        }
+    }
+    fn module(functions: Vec<TypedFunction>) -> TypedModule {
+        TypedModule {
+            schema_version: SCHEMA_VERSION,
+            module_id: zil_base::ModuleId(0),
+            source_fingerprint: Fingerprint::ZERO,
+            target: TargetProfile::default(),
+            functions,
+            closures: vec![],
+            resources: vec![],
+            unsupported: vec![],
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
+            life_declarations: vec![],
+            life_instances: vec![],
+        }
+    }
+    fn graphs(module: &TypedModule) -> Vec<FunctionGraph> {
+        module
+            .functions
+            .iter()
+            .map(|_| FunctionGraph {
+                predecessors: vec![vec![]],
+                successors: vec![vec![]],
+                reachable: vec![true],
+                package_views: packages::CaptureViews::default(),
+                role_data_uses: vec![],
+            })
+            .collect()
+    }
+    fn contract(classes: &[u32]) -> StorageLifeContract {
+        let mut bindings = vec![];
+        for (i, &class) in classes.iter().enumerate() {
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Parameter(i as u32),
+                    path: vec![],
+                },
+                binder: StorageBinder::Invocation(class),
+            });
+            bindings.push(StorageLifeBinding {
+                position: StoragePosition {
+                    base: StorageBase::Result,
+                    path: vec![
+                        ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                        ContractProjection::RetainedPort(i as u32),
+                    ],
+                },
+                binder: StorageBinder::Invocation(class),
+            });
+        }
+        StorageLifeContract {
+            fixed_binder_count: 0,
+            invocation_binder_count: classes.iter().max().unwrap() + 1,
+            bindings,
+            classes: vec![],
+        }
+    }
+    fn factory(classes: &[u32]) -> TypedModule {
+        let result = creation(classes, false);
+        let mut make = function(
+            0,
+            vec![address(false), address(false)],
+            result.clone(),
+            vec![address(false), address(false), result.clone()],
+            vec![
+                instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                instruction(Some(1), InstructionKind::Load(LocalId(1))),
+                instruction(
+                    Some(2),
+                    InstructionKind::TaskCreate {
+                        worker: FunctionId(2),
+                        arguments: vec![ValueId(0), ValueId(1)],
+                        port_bindings: vec![
+                            RetainedPortBinding {
+                                port: 0,
+                                source: StoragePosition {
+                                    base: StorageBase::Parameter(0),
+                                    path: vec![],
+                                },
+                            },
+                            RetainedPortBinding {
+                                port: 1,
+                                source: StoragePosition {
+                                    base: StorageBase::Parameter(1),
+                                    path: vec![],
+                                },
+                            },
+                        ],
+                    },
+                ),
+            ],
+            ValueId(2),
+        );
+        make.storage_life = Some(contract(classes));
+        let mut relay = function(
+            1,
+            vec![address(false), address(false)],
+            result.clone(),
+            vec![address(false), address(false), result],
+            vec![
+                instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                instruction(Some(1), InstructionKind::Load(LocalId(1))),
+                instruction(
+                    Some(2),
+                    InstructionKind::Call {
+                        function: FunctionId(0),
+                        arguments: vec![ValueId(1), ValueId(0)],
+                    },
+                ),
+            ],
+            ValueId(2),
+        );
+        relay.storage_life = Some(contract(classes));
+        let worker = function(
+            2,
+            vec![address(false), address(false)],
+            Type::I32,
+            vec![Type::I32],
+            vec![instruction(
+                Some(0),
+                InstructionKind::Constant(Constant::I32(1)),
+            )],
+            ValueId(0),
+        );
+        module(vec![make, relay, worker])
+    }
+
+    #[test]
+    fn same_life_helper_ports_keep_distinct_actual_sources_and_fresh_loans() {
+        let module = factory(&[0, 0]);
+        let facts = solve(
+            &module,
+            &graphs(&module),
+            &mut Budget::new(&Limits::default()),
+        )
+        .unwrap();
+        for port in 0..2 {
+            let path = vec![
+                ContractProjection::Place(PlaceProjection::ErrorArm(false)),
+                ContractProjection::RetainedPort(port),
+            ];
+            let row = &facts[1].values[2].ports[&path];
+            assert_eq!(
+                row.origins,
+                BTreeSet::from([Origin::Input(StoragePosition {
+                    base: StorageBase::Parameter(1 - port),
+                    path: vec![]
+                })])
+            );
+            assert_eq!(
+                row.parents,
+                BTreeSet::from([Parent::Retained(ValueId(2), path.clone())])
+            );
+            assert_eq!(
+                facts[1].created[&(ValueId(2), path)].1,
+                BTreeSet::from([Parent::Input(StoragePosition {
+                    base: StorageBase::Parameter(1 - port),
+                    path: vec![]
+                })])
+            );
+        }
+    }
+
+    #[test]
+    fn swapped_same_typed_ports_reject_independently_after_wire_roundtrip() {
+        let mut raw = factory(&[0, 1]);
+        // The bad helper is unused by any entry. All definitions still count.
+        let run =
+            |raw: &TypedModule| solve(raw, &graphs(raw), &mut Budget::new(&Limits::default()));
+        assert!(
+            run(&raw)
+                .unwrap_err()
+                .message
+                .contains("different input class")
+        );
+        let limits = Limits::default();
+        let wire =
+            zil_ir::wire::encode_module_candidate(&raw, &CandidatePlan::empty_for(&raw), &limits)
+                .unwrap();
+        let (decoded, _) = zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap();
+        assert!(run(&decoded).is_err());
+        if let InstructionKind::Call { arguments, .. } =
+            &mut raw.functions[1].blocks[0].instructions[2].kind
+        {
+            arguments.swap(0, 1);
+        }
+        assert!(run(&raw).is_ok());
+    }
+
+    #[test]
+    fn recursive_bottom_is_not_a_proven_allocation_error() {
+        let mut raw = factory(&[0, 0]);
+        raw.functions[0].blocks[0].instructions[2].kind = InstructionKind::Call {
+            function: FunctionId(1),
+            arguments: vec![ValueId(0), ValueId(1)],
+        };
+        assert!(solve(&raw, &graphs(&raw), &mut Budget::new(&Limits::default())).is_err());
+        raw.functions[0].values.push(Type::I32);
+        raw.functions[0].blocks[0].instructions.insert(
+            2,
+            instruction(Some(3), InstructionKind::Constant(Constant::I32(1))),
+        );
+        raw.functions[0].blocks[0].instructions[3].kind = InstructionKind::MakeErrorUnion {
+            value: ValueId(3),
+            is_error: true,
+        };
+        assert!(solve(&raw, &graphs(&raw), &mut Budget::new(&Limits::default())).is_ok());
+    }
+
+    #[test]
+    fn exclusive_retained_ssa_without_future_use_blocks_original_parent_read() {
+        for mutable in [false, true] {
+            let f = function(
+                0,
+                vec![address(mutable)],
+                Type::I32,
+                vec![address(mutable), creation(&[0], mutable), Type::I32],
+                vec![
+                    instruction(Some(0), InstructionKind::Load(LocalId(0))),
+                    instruction(
+                        Some(1),
+                        InstructionKind::TaskCreate {
+                            worker: FunctionId(1),
+                            arguments: vec![ValueId(0)],
+                            port_bindings: vec![RetainedPortBinding {
+                                port: 0,
+                                source: StoragePosition {
+                                    base: StorageBase::Parameter(0),
+                                    path: vec![],
+                                },
+                            }],
+                        },
+                    ),
+                    instruction(
+                        Some(2),
+                        InstructionKind::ReadAddress {
+                            address: ValueId(0),
+                        },
+                    ),
+                ],
+                ValueId(2),
+            );
+            let worker = function(
+                1,
+                vec![address(mutable)],
+                Type::I32,
+                vec![Type::I32],
+                vec![instruction(
+                    Some(0),
+                    InstructionKind::Constant(Constant::I32(1)),
+                )],
+                ValueId(0),
+            );
+            let mut raw = module(vec![f, worker]);
+            let graphs = graphs(&raw);
+            let mut budget = Budget::new(&Limits::default());
+            budget.borrowed_task_ports = true;
+            let ports = solve(&raw, &graphs, &mut budget).unwrap();
+            let ordinary =
+                super::super::reconstruct_module(&raw, &graphs, true, None, &mut budget).unwrap();
+            let checked = super::super::loans::check(
+                &raw,
+                &raw.functions[0],
+                &graphs[0],
+                &ordinary[0],
+                &ports[0],
+                None,
+                true,
+                &mut budget,
+            );
+            assert_eq!(
+                checked.is_err(),
+                mutable,
+                "shared read vs exclusive owner: {checked:?}"
+            );
+            raw.functions[0].values.push(task(&[0], mutable));
+            raw.functions[0].blocks[0].instructions.splice(
+                2..2,
+                [
+                    instruction(
+                        Some(3),
+                        InstructionKind::TakeErrorUnion {
+                            value: ValueId(1),
+                            is_error: false,
+                        },
+                    ),
+                    instruction(
+                        None,
+                        InstructionKind::TaskFinishDestroy { task: ValueId(3) },
+                    ),
+                ],
+            );
+            let ports = solve(&raw, &graphs, &mut budget).unwrap();
+            let ordinary =
+                super::super::reconstruct_module(&raw, &graphs, true, None, &mut budget).unwrap();
+            super::super::loans::check(
+                &raw,
+                &raw.functions[0],
+                &graphs[0],
+                &ordinary[0],
+                &ports[0],
+                None,
+                true,
+                &mut budget,
+            )
+            .unwrap();
+        }
+    }
 }
