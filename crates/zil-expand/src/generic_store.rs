@@ -191,6 +191,30 @@ pub(super) fn concrete_element(
     ),
 ) -> R<()> {
     let mut shape = Shape { nominals, budget };
+    let (available, variables, callback) = context;
+    let symbolic_candidate = match &grouped(ty).kind {
+        TypeKind::Named { path, .. } => nominals.get(&path.join(".")).is_some_and(|item| {
+            matches!(&item.kind, ItemKind::Aggregate(aggregate)
+                if aggregate.kind == AggregateKind::Struct)
+        }),
+        _ => false,
+    };
+    if check::dependent(ty, variables) && symbolic_candidate {
+        if !symbolic_pod(
+            &mut shape,
+            ty,
+            available,
+            variables,
+            &mut BTreeSet::new(),
+            0,
+        )? {
+            return Err(error(
+                ty.span,
+                "POD Store elements require nonzero inline layout",
+            ));
+        }
+        return Ok(());
+    }
     if let TypeKind::Named { path, args } = &grouped(ty).kind
         && path.as_slice() == ["Managed"]
     {
@@ -244,7 +268,6 @@ pub(super) fn concrete_element(
     // aggregate already charged the complete application before this bounded
     // syntactic classification. F grants neither Copy nor StoreElement: only
     // its direct occurrences in the existing owning State family are admitted.
-    let (available, variables, callback) = context;
     let callback = if callback.active(ty) {
         callback
     } else {
@@ -293,6 +316,93 @@ pub(super) fn concrete_element(
         ));
     }
     Ok(())
+}
+
+fn symbolic_pod(
+    shape: &mut Shape<'_, '_, '_, '_>,
+    ty: &TypeRef,
+    available: &trait_bounds::Bounds,
+    variables: &BTreeSet<String>,
+    active: &mut BTreeSet<String>,
+    depth: usize,
+) -> R<bool> {
+    shape.budget.node(ty.span, depth)?;
+    shape.budget.ty(ty)?;
+    if let Some(name) = trait_bounds::plain(ty).filter(|name| variables.contains(*name)) {
+        shape.budget.text(name, ty.span)?;
+        let bounds = available.get(name).ok_or_else(|| {
+            error(
+                ty.span,
+                "symbolic POD Store field needs Copy and StoreElement bounds",
+            )
+        })?;
+        if !bounds.iter().any(|bound| bound == copy::BOUND)
+            || !bounds.iter().any(|bound| bound == BOUND)
+        {
+            return Err(error(
+                ty.span,
+                "symbolic POD Store field needs Copy and StoreElement bounds",
+            ));
+        }
+        return Ok(true);
+    }
+    if !check::dependent(ty, variables) {
+        return shape.pod(ty, active, depth).map(|(size, _)| size != 0);
+    }
+    match &grouped(ty).kind {
+        TypeKind::Tuple(fields) => {
+            let mut nonzero = false;
+            for field in fields {
+                nonzero |= symbolic_pod(shape, field, available, variables, active, depth + 1)?;
+            }
+            Ok(nonzero)
+        }
+        TypeKind::Array {
+            element,
+            length: Some(length),
+        } => {
+            let count = array_length(length)?;
+            let nonzero = symbolic_pod(shape, element, available, variables, active, depth + 1)?;
+            Ok(count != 0 && nonzero)
+        }
+        TypeKind::Group(inner) => {
+            symbolic_pod(shape, inner, available, variables, active, depth + 1)
+        }
+        TypeKind::Named { .. } => {
+            let key = type_key(ty, shape.budget)?;
+            shape.budget.identity_work(
+                key.len()
+                    .saturating_add(1)
+                    .saturating_mul(active.len().saturating_add(2)),
+                ty.span,
+            )?;
+            if !active.insert(key.clone()) {
+                return Err(error(
+                    ty.span,
+                    "recursive symbolic POD Store element layout",
+                ));
+            }
+            let (aggregate, substitutions) = shape.aggregate(ty, AggregateKind::Struct, false)?;
+            let mut nonzero = false;
+            for field in &aggregate.fields {
+                shape.budget.node(field.span, depth + 1)?;
+                if field.manages {
+                    return Err(error(field.span, "POD Store field cannot own resources"));
+                }
+                let actual = shape.substitute(&field.ty, &substitutions)?;
+                nonzero |= symbolic_pod(shape, &actual, available, variables, active, depth + 1)?;
+            }
+            shape
+                .budget
+                .identity_work(key.len().saturating_add(1), ty.span)?;
+            active.remove(&key);
+            Ok(nonzero)
+        }
+        _ => Err(error(
+            ty.span,
+            "symbolic POD Store element requires finite numeric Records, tuples or arrays",
+        )),
+    }
 }
 
 pub(super) fn explicit_managed_value(
