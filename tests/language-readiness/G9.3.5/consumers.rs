@@ -92,6 +92,12 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
             false,
         ),
         (
+            "ordinary-fnmut-error-capture",
+            include_str!("ordinary-fnmut-error-capture.zil"),
+            b"17\n".as_slice(),
+            false,
+        ),
+        (
             "ordinary-both-owned-error",
             include_str!("ordinary-both-owned-error.zil"),
             b"18446744073709551613\n".as_slice(),
@@ -213,12 +219,6 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             "if false { choice=Choice.Value(make(18446744073709551612u64)) }",
             "E-UNINITIALIZED",
         ),
-        (
-            "mutable-error-unfilled",
-            "choice=Choice.Value(make(18446744073709551612u64))",
-            "if store_len(make(1u64))==1 { return 0u64 }\n        choice=Choice.Value(make(18446744073709551612u64))",
-            "E-UNINITIALIZED",
-        ),
     ] {
         assert_eq!(
             source.matches(from).count(),
@@ -245,6 +245,30 @@ fn ordinary_direct_sum_capture_source_rejects_lost_ownership() {
             report.to_json()
         );
     }
+    let error_source = include_str!("ordinary-fnmut-error-capture.zil");
+    let refill_then_error = "        choice=Choice.Value(make(12u64))\n        if store_len(make(1u64))==1 { return fail() }";
+    let error_then_refill = "        if store_len(make(1u64))==1 { return fail() }\n        choice=Choice.Value(make(12u64))";
+    assert_eq!(error_source.matches(refill_then_error).count(), 1);
+    let report = check(
+        "mutable-error-exit-unfilled",
+        &error_source.replacen(refill_then_error, error_then_refill, 1),
+        Stage::Verify,
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Analyze, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-UNINITIALIZED"),
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
