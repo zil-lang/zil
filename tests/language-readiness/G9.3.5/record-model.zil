@@ -1,0 +1,1 @@
+struct Cell{n:i32} package Model{manages values:Store<Cell>} fn make()->Model{let s:Store<Cell>=store_new();store_reserve(s,1);store_push(s,Cell{n:42});return Model{values:give s}} fn main()->i32{let m=make();return i32(store_len(m.values))}
