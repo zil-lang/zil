@@ -506,6 +506,7 @@ impl Builder<'_, '_> {
             } => {
                 if !self.indirect_place(e)
                     && let Some((local, index, field)) = self.package_place(e)?
+                    && !(mutable && packages::product::owned_supported(&field))
                 {
                     return self.borrow_package_field(local, index, field, mutable, e.span);
                 }
