@@ -34,6 +34,7 @@ pub fn get(map:&StringMap,key:&string.String)->Option<i64> {
 pub fn insert(map:&mut StringMap,key:string.String,value:i64)->InsertError!Put {
     let at=index(map.keys,&key)
     if at>=0 {
+        // A duplicate retains its original key and consumes the incoming key.
         let prior=at_value(map.values,at)
         set_value(map.values,at,value)
         return Put{replaced:true,previous:prior}
