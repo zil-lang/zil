@@ -1193,11 +1193,12 @@ fn scoped_transition(
 // themselves strong address windows. Ordinary resource descriptions are kept
 // by Analyze's separate responsibility facts, not this public address graph.
 fn tracked_desc(ty: &Type) -> bool {
-    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. }))
+    matches!(ty, Type::Desc(inner) if matches!(inner.as_ref(), Type::ByteBuffer | Type::Task { .. } | Type::TaskI32 | Type::OwnedStore { .. } | Type::Mutex { .. }))
 }
 
 fn retained_task_value(ty: &Type) -> bool {
     match ty {
+        Type::MutexGuard { .. } => true,
         Type::Task { retained_life, .. } => !retained_life.ports.is_empty(),
         Type::Managed(inner) | Type::Desc(inner) => {
             matches!(inner.as_ref(), Type::Task { retained_life, .. } if !retained_life.ports.is_empty())
@@ -2002,6 +2003,9 @@ fn infer_with_private(
                                     .ok_or_else(|| bad("task retained port input absent"))?;
                                 extend(&mut found, &values[source.0 as usize], budget)?;
                             }
+                        }
+                        InstructionKind::MutexLock { mutex } => {
+                            extend(&mut found, &values[mutex.0 as usize], budget)?;
                         }
                         InstructionKind::TakeErrorUnion {
                             value,
@@ -3527,7 +3531,23 @@ fn infer_module_inner(
                                     InstructionKind::MakeErrorUnion { is_error: true, .. }
                                 )
                         });
+                    if matches!(function.return_type, Type::MutexGuard { .. })
+                        && (roots.roots.is_empty()
+                            || roots.roots.iter().any(|root| {
+                                let HoldRoot::Parameter(index) = root else {
+                                    return true;
+                                };
+                                let Some(local) = function.parameters.get(*index as usize) else {
+                                    return true;
+                                };
+                                !matches!(&function.locals[local.0 as usize].ty,
+                                Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                            }))
+                    {
+                        return Err(bad("guard return has no actual mutex head input"));
+                    }
                     if retained_task_value(&function.return_type)
+                        && !matches!(function.return_type, Type::MutexGuard { .. })
                         && !explicit_error
                         && (roots.roots.is_empty()
                             || roots

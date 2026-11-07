@@ -2071,11 +2071,18 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
         }
         s::TypeKind::Named { path, args } if path.as_slice() == ["MutexGuard"] => {
             if let [s::GenericArg::Type(payload)] = args.as_slice() {
+                let payload = type_ref(payload);
                 Type::MutexGuard {
-                    payload: Box::new(type_ref(payload)),
+                    payload: Box::new(payload.clone()),
                     retained_life: zil_ir::RetainedLifeShape {
                         binder_count: 1,
-                        ports: vec![],
+                        ports: vec![zil_ir::RetainedBorrowPort {
+                            leaf: Type::Mutex {
+                                payload: Box::new(payload),
+                            },
+                            mode: zil_ir::StoredBorrowMode::SharedAddress,
+                            binder: 0,
+                        }],
                         retained: vec![],
                         nominal_arguments: vec![],
                     },

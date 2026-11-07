@@ -231,6 +231,10 @@ fn reconstruct(
                                 row.insert(id);
                                 join(&mut parents, &flow.values[buffer.0 as usize], budget)?;
                             }
+                            InstructionKind::MutexLock { mutex } => {
+                                row.insert(id);
+                                join(&mut parents, &flow.values[mutex.0 as usize], budget)?;
+                            }
                             InstructionKind::ByteBufferBorrow { .. }
                             | InstructionKind::OwnedStoreBorrow { .. }
                             | InstructionKind::OwnedStoreBorrowMut { .. }

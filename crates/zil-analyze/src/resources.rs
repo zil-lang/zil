@@ -3077,6 +3077,31 @@ impl Flow<'_> {
                     } else {
                         None
                     };
+                    let guard_sources = if i.result.is_some_and(|id| {
+                        matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
+                    }) {
+                        let mut sources = BTreeSet::new();
+                        for value in arguments {
+                            if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
+                            {
+                                let fact = copied(state, Place::Value(*value), budget)?;
+                                budget.spend(
+                                    fact.sources.len(),
+                                    "guard helper actual head origins",
+                                )?;
+                                sources.extend(fact.sources);
+                            }
+                        }
+                        if sources.is_empty() {
+                            return Err(error(
+                                "guard helper result has no actual mutex head input",
+                            ));
+                        }
+                        Some(sources)
+                    } else {
+                        None
+                    };
                     for value in arguments {
                         self.consume(state, *value, check, budget)?;
                     }
@@ -3092,7 +3117,7 @@ impl Flow<'_> {
                         } else {
                             Fact {
                                 life: BTreeSet::from([Life::Available]),
-                                sources: BTreeSet::new(),
+                                sources: guard_sources.unwrap_or_default(),
                                 birth: BTreeSet::from([
                                     if callee.result_mode == PassingMode::Create {
                                         Birth::Created
