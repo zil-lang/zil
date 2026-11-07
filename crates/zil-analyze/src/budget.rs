@@ -45,6 +45,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) generic_mutex: bool,
+    pub(super) guard_return_sources: Vec<BTreeSet<u32>>,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
     // Derived only by the complete paid raw-type preflight, never producer metadata.
@@ -105,6 +106,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             generic_mutex: false,
+            guard_return_sources: Vec::new(),
             borrowed_function_pointers: false,
             tasks: false,
             task_origin_roots: false,

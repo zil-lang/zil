@@ -71,6 +71,12 @@ fn payload(module: &TypedModule, ty: &Type, budget: &mut Budget, span: Span) -> 
                 budget.spend(fields.len(), "mutex payload fields")?;
                 pending.extend(fields.iter().map(|(_, field)| field));
             }
+            Type::Array { element, length }
+                if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
+            {
+                budget.spend(*length as usize, "mutex owning array cleanup slots")?;
+                pending.push(element);
+            }
             Type::Tuple(fields) => {
                 budget.spend(fields.len(), "mutex payload tuple")?;
                 pending.extend(fields);

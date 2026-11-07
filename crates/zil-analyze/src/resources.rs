@@ -3088,23 +3088,32 @@ impl Flow<'_> {
                         matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
                     }) {
                         let mut sources = BTreeSet::new();
-                        let mut matching_inputs = 0usize;
-                        for value in arguments {
-                            if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
-                                || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
+                        let selectors = budget
+                            .guard_return_sources
+                            .get(function.0 as usize)
+                            .ok_or_else(|| {
+                                error("guard helper has no checked return source summary")
+                            })?
+                            .clone();
+                        budget.spend(selectors.len(), "guard helper selected input positions")?;
+                        for position in &selectors {
+                            let value = *arguments
+                                .get(*position as usize)
+                                .ok_or_else(|| error("guard helper selected input is absent"))?;
+                            if !matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                && !matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
                             {
-                                matching_inputs += 1;
-                                let fact = copied(state, Place::Value(*value), budget)?;
-                                budget.spend(
-                                    fact.sources.len(),
-                                    "guard helper actual head origins",
-                                )?;
-                                sources.extend(fact.sources);
+                                return Err(error(
+                                    "guard helper selected input is not an actual mutex carrier",
+                                ));
                             }
+                            let fact = copied(state, Place::Value(value), budget)?;
+                            budget.spend(fact.sources.len(), "guard helper actual head origins")?;
+                            sources.extend(fact.sources);
                         }
-                        if matching_inputs != 1 || sources.is_empty() {
+                        if selectors.is_empty() || sources.is_empty() {
                             return Err(error(
-                                "guard helper result requires one actual mutex head input",
+                                "guard helper result has no selected actual mutex head input",
                             ));
                         }
                         Some(sources)

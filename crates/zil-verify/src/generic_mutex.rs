@@ -37,6 +37,7 @@ pub(super) fn guard_shape(
     actual: &RetainedLifeShape,
     budget: &mut Budget,
 ) -> Check<()> {
+    budget.generic_mutex = true;
     budget.spend(
         actual
             .ports
@@ -82,6 +83,12 @@ fn supported_payload(module: &TypedModule, payload: &Type, budget: &mut Budget) 
             Type::Package { fields, .. } | Type::Record { fields, .. } => {
                 budget.spend(fields.len())?;
                 pending.extend(fields.iter().map(|(_, field)| field));
+            }
+            Type::Array { element, length }
+                if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
+            {
+                resources::arrays::check_type_for(module, ty, None, budget)?;
+                pending.push(element);
             }
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;

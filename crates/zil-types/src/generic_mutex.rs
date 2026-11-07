@@ -115,7 +115,11 @@ impl Builder<'_, '_> {
             "mutex_create" => {
                 let (value, payload) = self.transfer_expr(argument, None)?;
                 self.closures.snapshot_type(&payload, 4, 0, span)?;
-                if !owned_shapes::value(&payload) {
+                if !owned_shapes::value(&payload)
+                    && !(matches!(&payload, Type::Array { element, .. }
+                        if matches!(element.as_ref(), Type::Package { .. }))
+                        && packages::owned_array_supported(&payload))
+                {
                     return Err(unsupported(
                         span,
                         "mutex payload requires a complete ordinary Copy or owning value",

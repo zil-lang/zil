@@ -15,6 +15,11 @@ pub(super) fn value_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
     }
     match ty {
         Type::Managed(_) => resources::supported_type(ty, resources),
+        Type::Array { element, length }
+            if *length > 0 && matches!(element.as_ref(), Type::Package { .. }) =>
+        {
+            value_type(element, resources)
+        }
         Type::Tuple(fields) => fields.iter().all(|t| value_type(t, resources)),
         Type::Package { fields, .. } => fields.iter().all(|(_, t)| value_type(t, resources)),
         Type::Enum { variants, .. } => variants
@@ -42,6 +47,9 @@ fn legacy_flat(ty: &Type) -> bool {
 /// Old Copy and already implemented flat error protocols retain their old path.
 pub(super) fn new_shape(ty: &Type) -> bool {
     match ty {
+        Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
+            new_shape(element)
+        }
         Type::Enum { .. } | Type::Tuple(_) => !ty.is_copy_value(),
         Type::Package { fields, .. } => fields.iter().any(|(_, t)| owned_sum(t) || new_shape(t)),
         Type::ErrorUnion { error, result } => [error.as_ref(), result.as_ref()].iter().any(|t| {
@@ -610,6 +618,9 @@ pub(super) fn functions(
             found.insert(hash, ty);
         }
         match ty {
+            Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }) => {
+                visit(element, found, seen, budget, true, depth + 1)?;
+            }
             Type::Tuple(fields) => {
                 for t in fields {
                     visit(t, found, seen, budget, true, depth + 1)?;
