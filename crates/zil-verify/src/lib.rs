@@ -629,6 +629,12 @@ fn check_module(
     }
 
     let mut budget = Budget::new(limits);
+    let trace = |label: &str, budget: &Budget| {
+        if std::env::var_os("ZIL_VERIFY_TRACE").is_some() {
+            eprintln!("VERIFY {label} spent={}", limits.max_analysis_steps - budget.remaining);
+        }
+    };
+    trace("start", &budget);
     budget.stored_context = true;
     if has_dyn {
         dynamic_dispatch::inventory(module, &mut budget)?;
@@ -705,6 +711,7 @@ fn check_module(
         check_type_shape(ty, &module.target, limits, &mut budget)?;
     }
     registration::storage(module, &mut budget)?;
+    trace("shapes", &budget);
     closures::check_definitions(module, limits, &mut budget)?;
     foreign::check_declarations(module, &mut budget)?;
     let mut names = BTreeSet::new();
@@ -934,6 +941,7 @@ fn check_module(
     // Deep unsupported type trees have already been rejected without recursing.
     // A candidate's digest is an identity check, not evidence of correctness.
     let stored_partition = if budget.stored_borrows && (budget.tasks || budget.registrations) {
+        trace("raw-inventory", &budget);
         stored_partition::mixed(module, &mut budget)?
     } else {
         None
@@ -952,6 +960,7 @@ fn check_module(
         ));
     }
     let mut graphs = Vec::with_capacity(module.functions.len());
+    trace("precheck", &budget);
     for (function, function_plan) in module.functions.iter().zip(&plan.functions) {
         if function_plan.function != function.id {
             return Err(reject(
@@ -972,12 +981,14 @@ fn check_module(
         graphs.push(graph);
     }
     tasks::module(module, &mut budget)?;
+    trace("functions", &budget);
     let mut task_input_fingerprint = fingerprint;
     if let Some(program) = program {
         tasks::interfaces(program, &mut budget)?;
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
+    trace("helpers", &budget);
     if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
@@ -995,7 +1006,9 @@ fn check_module(
         borrows::check_module(module, plan, &graphs, &mut budget)?;
     }
     head_access::check(module, &graphs, &mut budget)?;
+    trace("stored", &budget);
     resources::check_module(module, &graphs, &mut budget)?;
+    trace("resources", &budget);
     registration::check_phase(module, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,

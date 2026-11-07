@@ -2355,9 +2355,13 @@ fn live_loans(
             add_loans(&mut loans, &p.loans, b)?;
         }
     }
-    for holder in &state.external {
-        for (_, p) in &holder.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+    // Only an actual slot write can create a new external loan that is not
+    // already represented by the original parameter relation.
+    if b.stored_slot_updates {
+        for holder in &state.external {
+            for (_, p) in &holder.leaves {
+                add_loans(&mut loans, &p.loans, b)?;
+            }
         }
     }
     ancestry(&loans, &solution.loans, b)
