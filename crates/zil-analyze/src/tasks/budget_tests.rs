@@ -45,7 +45,7 @@ fn classifier_many_blocks_and_low_remaining_are_prepaid() {
             has_await(&input, &mut b).unwrap_err()[0].category,
             zil_base::ResultCategory::ResourceLimit
         );
-        eprintln!("task343 classifier blocks={blocks} instructions={instructions} N={n}");
+        eprintln!("task classifier blocks={blocks} instructions={instructions} N={n}");
     }
 }
 #[test]
@@ -111,7 +111,7 @@ fn carrier_repeated_prefix_and_name_comparisons_use_remaining_ledger() {
             zil_base::ResultCategory::ResourceLimit
         );
         growth.push(n);
-        eprintln!("task343 carrier rows={rows} width={width} N={n}");
+        eprintln!("task carrier rows={rows} width={width} N={n}");
     }
     assert!(growth[1] > growth[0] * 4, "{growth:?}");
 }

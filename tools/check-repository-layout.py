@@ -48,6 +48,7 @@ SEMANTIC_NUMBER = re.compile(
     r"|^(?:case|fixture)[_-]?[0-9]+_[a-z]", re.I
 )
 HASH_NUMBER = re.compile(r"(?:^|_)sha(?:256|512)(?:_|$)", re.I)
+MEASURED_QUANTITY = re.compile(r"_[0-9]{3,}_(?:level|levels|pairs|rectangles)(?=_|$)", re.I)
 
 
 def git(root, *args):
@@ -104,7 +105,8 @@ def construction_declarations(text):
     for name in DECLARATION.findall(text):
         if not CONSTRUCTION_NAME.search(name) or SEMANTIC_NUMBER.match(name):
             continue
-        if HASH_NUMBER.search(name) and not CONSTRUCTION_NAME.search(HASH_NUMBER.sub("hash", name)):
+        semantic_numbers = MEASURED_QUANTITY.sub("_quantity", HASH_NUMBER.sub("hash", name))
+        if not CONSTRUCTION_NAME.search(semantic_numbers):
             continue
         names.add(name)
     return names
