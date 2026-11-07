@@ -607,8 +607,9 @@ pub(super) fn pure_inline(module: &TypedModule, ty: &Type, b: &mut Budget) -> Ch
     Ok(true)
 }
 
-pub(super) fn qualifications(module: &TypedModule, limits: &Limits, b: &mut Budget) -> Check<()> {
-    for f in &module.functions {
+pub(super) fn qualifications(module: &TypedModule, limits: &Limits, mask: Option<&[bool]>, b: &mut Budget) -> Check<()> {
+    for (index, f) in module.functions.iter().enumerate() {
+        if mask.is_some_and(|mask| !mask[index]) { continue; }
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
@@ -2587,9 +2588,18 @@ pub(super) fn check(
     plan: &CandidatePlan,
     b: &mut Budget,
 ) -> Check<()> {
-    super::stored_owned::module(module, b)?;
-    super::stored_callables::definitions(module, b)?;
-    for f in &module.functions {
+    check_with_mask(module, graphs, plan, None, b)
+}
+pub(super) fn check_mixed(module: &TypedModule, graphs: &[FunctionGraph], plan: &CandidatePlan, mask: &[bool], b: &mut Budget) -> Check<()> {
+    check_with_mask(module, graphs, plan, Some(mask), b)
+}
+fn check_with_mask(module: &TypedModule, graphs: &[FunctionGraph], plan: &CandidatePlan, mask: Option<&[bool]>, b: &mut Budget) -> Check<()> {
+    if mask.is_none() {
+        super::stored_owned::module(module, b)?;
+        super::stored_callables::definitions(module, b)?;
+    }
+    for (index, f) in module.functions.iter().enumerate() {
+        if mask.is_some_and(|mask| !mask[index]) { continue; }
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
             return Err(unsupported(
@@ -2643,25 +2653,30 @@ pub(super) fn check(
             }
         }
     }
-    super::stored_callables::roles(module, graphs, b)?;
-    solve_check(module, graphs, plan, None, b)
+    if mask.is_none() { super::stored_callables::roles(module, graphs, b)?; }
+    solve_check(module, graphs, plan, None, mask, b)
 }
 fn solve_check(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     plan: &CandidatePlan,
     inactive: Option<&[Vec<ValueId>]>,
+    mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
     b.spend(module.functions.len().saturating_mul(2))?;
     let mut observed_none = false;
     let mut summaries = vec![Summary::default(); module.functions.len()];
+    if let Some(mask) = mask {
+        for (index, yes) in mask.iter().enumerate() { if !yes { summaries[index].complete = true; } }
+    }
     let mut solved: Vec<Option<Solution>> = (0..module.functions.len()).map(|_| None).collect();
     loop {
         let mut changed = false;
         let mut pending = Vec::new();
         b.spend(module.functions.len())?;
         for index in (0..module.functions.len()).rev() {
+            if mask.is_some_and(|mask| !mask[index]) { continue; }
             let f = &module.functions[index];
             let mut solution = solve(module, f, &graphs[index], &summaries, b)?;
             let mut summary = summarize(
@@ -2699,13 +2714,14 @@ fn solve_check(
             break;
         }
     }
-    if inactive.is_none()
+    if mask.is_none() && inactive.is_none()
         && observed_none
         && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
     {
-        return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), b);
+        return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
     }
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
+        if mask.is_some_and(|mask| !mask[index]) { continue; }
         if !s.complete {
             return Err(err(
                 "stored/reference operation has no complete actual target permission",

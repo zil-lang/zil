@@ -55,6 +55,9 @@ pub(super) struct Budget {
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
     pub(super) stored_borrows: bool,
+    // Empty for the established single-lane profiles. A mixed module has one
+    // paid, actual-function partition; neither lane may infer the other lane.
+    pub(super) composition_stored: Vec<bool>,
     // Eligibility only; each pure use still proves the actual physical type.
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
@@ -110,6 +113,7 @@ impl Budget {
             protocol_contracts: false,
             protocol_checked: false,
             stored_borrows: false,
+            composition_stored: Vec::new(),
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,

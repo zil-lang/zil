@@ -21,6 +21,205 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 #[test]
+#[cfg(target_os = "linux")]
+fn mutable_holder_trait_task_and_queued_registration_share_one_native_program() {
+    use std::{os::unix::fs::PermissionsExt, path::Path, process::Command};
+    use zil_driver::NativeBackend;
+
+    let files = [
+        (
+            "main",
+            include_str!("../../../tests/language-readiness/native-composition/main.zil"),
+        ),
+        (
+            "rules",
+            include_str!("../../../tests/language-readiness/native-composition/rules.zil"),
+        ),
+        (
+            "model",
+            include_str!("../../../tests/language-readiness/native-composition/model.zil"),
+        ),
+    ];
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-native-composition-{}-{}-{backend:?}-{optimization:?}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed),
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let host = dir.join("host.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/async-registration/queued-host.c"),
+                )
+                .arg("-o")
+                .arg(&host)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper, format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n", quote(&clang), quote(&host), quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_project(
+                &project(&files),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none(), "{codegen:?}");
+            let actual = Command::new("timeout")
+                .arg("10s")
+                .arg(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(actual.status.code(), Some(0), "{actual:?}");
+            assert_eq!(
+                actual.stdout,
+                b"pending retried; ready drained; registration dropped once\n42\n"
+            );
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
+fn cross_module_retained_task_annotation_and_holder_identity_reach_verify() {
+    let main = r#"import api
+fn main()->TaskPollState!i32 {
+    let value=21;
+    match api.start(&value) {
+        .ok(created)=>{
+            var task=give created;
+            match task_poll(&mut task)? {
+                Poll.Pending()=>{},
+                Poll.Ready(_)=>{return 91;}
+            }
+            match task_poll(&mut task)? {
+                Poll.Pending()=>{return 92;},
+                Poll.Ready(result)=>{if result!=42{return 93;}}
+            }
+            match task_poll_close(&mut task) {
+                Poll.Pending()=>{return 94;},
+                Poll.Ready(_)=>{}
+            }
+            task_finish_destroy(give task);
+        },
+        .err(_)=>{return 95;}
+    }
+    return 0;
+}"#;
+    let api = r#"fn worker(input:&i32)->i32 {
+    let first=*input;
+    task_yield();
+    return first+*input;
+}
+pub fn start<life a>(input:&'a i32)->TaskCreateError!Task<i32> contract{result(create)} {
+    return task_create(worker,input);
+}"#;
+    let options = CompileOptions {
+        stop_after: Stage::Verify,
+        ..CompileOptions::default()
+    };
+    let positive = compile_project(&project(&[("main", main), ("api", api)]), &options);
+    assert_eq!(
+        positive.status,
+        ResultCategory::Success,
+        "{}",
+        positive.to_json()
+    );
+    assert_eq!(positive.verification_runs, 1, "{}", positive.to_json());
+
+    let wrong_result = api.replace("Task<i32>", "Task<bool>");
+    let mismatch = compile_project(
+        &project(&[("main", main), ("api", &wrong_result)]),
+        &options,
+    );
+    assert_eq!(
+        mismatch.status,
+        ResultCategory::SafeReject,
+        "{}",
+        mismatch.to_json()
+    );
+    assert_eq!(mismatch.phase, Phase::Types, "{}", mismatch.to_json());
+    assert!(
+        mismatch
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-TASK-RETURN-CONTEXT"),
+        "{}",
+        mismatch.to_json()
+    );
+    assert_eq!(mismatch.verification_runs, 0);
+
+    let fake = compile_project(
+        &project(&[
+            (
+                "main",
+                r#"import model
+struct MutableHolder<life a>{pointer:&'a mut i32}
+fn fake<life a>(p:&'a mut i32)->MutableHolder<'a>{return MutableHolder::<'a>{pointer:p}}
+fn main()->i32 {
+    var value=41;
+    if true {
+        var holder=fake(&mut value);
+        model.increment(&mut holder);
+    }
+    return 0;
+}"#,
+            ),
+            (
+                "model",
+                r#"pub struct MutableHolder<life a>{pointer:&'a mut i32}
+pub fn increment<life a>(holder:&mut MutableHolder<'a>){
+    let pointer=holder.pointer;
+    *pointer=*pointer+1;
+}"#,
+            ),
+        ]),
+        &options,
+    );
+    assert_eq!(
+        fake.status,
+        ResultCategory::SafeReject,
+        "{}",
+        fake.to_json()
+    );
+    assert_eq!(fake.phase, Phase::Expand, "{}", fake.to_json());
+    assert!(
+        fake.diagnostics
+            .iter()
+            .any(|d| d.code == "E-GENERIC-ARGUMENT"),
+        "{}",
+        fake.to_json()
+    );
+    assert_eq!(fake.verification_runs, 0);
+}
+
+#[test]
 fn self_associated_constant_self_associated_constants_effective_and_default_checks() {
     for text in [
         "trait C{const A:i32;const B:i32=Self.A+1;}struct P{}impl C for P{const A:i32=41;}fn main()->i32{return P.B-42}",

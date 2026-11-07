@@ -519,7 +519,7 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::AsyncRegistrationRequestClose { registration }
         | InstructionKind::AsyncRegistrationPollClose { registration }
         | InstructionKind::AsyncRegistrationFinishDestroy { registration }
-                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             (Some(*registration), None, &[])
         }
         InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),

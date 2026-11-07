@@ -190,6 +190,12 @@ pub(super) fn reserve_callable_metadata(
             .saturating_add(module.resources.len()),
     )?;
     for function in &module.functions {
+        if let Some(protocol) = &function.protocol_contract {
+            pay(work, protocol.entry.len().saturating_add(protocol.exits.len()).saturating_add(4))?;
+            for exit in &protocol.exits {
+                pay(work, exit.output.len().saturating_add(2))?;
+            }
+        }
         if let Some(life) = &function.storage_life {
             contract(life, work)?;
         }
@@ -296,9 +302,10 @@ pub(super) fn reserve_binding(
     limits: &Limits,
     work: &mut usize,
 ) -> CompileResult<()> {
-    // Both stored-profile kernels structurally reject every other instruction
-    // in every block, including unreachable blocks. The only variable-length
-    // instruction payloads in that admitted profile are enumerated below.
+    // A verified module may contain separate stored and ordinary components.
+    // Exact LIR binding compares the complete original module, so this ledger
+    // covers ordinary Task/registration instructions as well as stored bodies.
+    // Every admitted variable-length instruction payload is enumerated below.
     pay(work, module.functions.len())?;
     for f in &module.functions {
         pay(
@@ -366,12 +373,26 @@ pub(super) fn reserve_binding(
             for i in &block.instructions {
                 let n = match &i.kind {
                     InstructionKind::Call { arguments, .. }
+                    | InstructionKind::SuspendCall { arguments, .. }
                     | InstructionKind::ForeignCall { arguments, .. }
                     | InstructionKind::MakeAggregate { fields: arguments }
                     | InstructionKind::MakeVariant {
                         fields: arguments, ..
                     }
-                    | InstructionKind::MakeManaged { fields: arguments } => arguments.len(),
+                    | InstructionKind::MakeManaged { fields: arguments }
+                    | InstructionKind::MakePackage { fields: arguments }
+                    | InstructionKind::MakeOwnedTuple { fields: arguments }
+                    | InstructionKind::MakeOwnedArray { elements: arguments }
+                    | InstructionKind::CallDynSlot { arguments, .. } => arguments.len(),
+                    InstructionKind::TaskCreate { arguments, port_bindings, .. } => {
+                        pay(work, port_bindings.len())?;
+                        for binding in port_bindings {
+                            pay(work, binding.source.path.len().saturating_add(3))?;
+                        }
+                        arguments.len()
+                    }
+                    InstructionKind::UnpackTuple { fields, .. }
+                    | InstructionKind::UnpackVariant { fields, .. } => fields.len(),
                     InstructionKind::CallIndirect { arguments, .. }
                     | InstructionKind::CallClosure { arguments, .. }
                     | InstructionKind::CallClosureOnce { arguments, .. }
@@ -398,7 +419,21 @@ pub(super) fn reserve_binding(
                     | InstructionKind::DropManaged { .. }
                     | InstructionKind::DropClosure { .. } => 1,
                     InstructionKind::LoadStoredBorrow { path, .. }
-                    | InstructionKind::StoreStoredBorrow { path, .. } => path.len(),
+                    | InstructionKind::StoreStoredBorrow { path, .. }
+                    | InstructionKind::TakeTupleField { path, .. }
+                    | InstructionKind::TakeVariantField { path, .. }
+                    | InstructionKind::BorrowPlaceLocal { path, .. }
+                    | InstructionKind::PlaceTagLocal { path, .. }
+                    | InstructionKind::BorrowPlaceAddress { path, .. }
+                    | InstructionKind::PlaceTagAddress { path, .. }
+                    | InstructionKind::ReservePlaceLocal { path, .. }
+                    | InstructionKind::ReservePlaceAddress { path, .. } => path.len(),
+                    InstructionKind::BorrowFieldLocal { path, .. } => path.len(),
+                    InstructionKind::VariantTagLocal { path, .. }
+                    | InstructionKind::ReadVariantLocal { path, .. }
+                    | InstructionKind::BorrowVariantLocal { path, .. }
+                    | InstructionKind::VariantTagAddress { path, .. }
+                    | InstructionKind::BorrowVariantAddress { path, .. } => path.len().saturating_mul(2),
                     InstructionKind::Constant(Constant::WideString(s)) => s.len(),
                     InstructionKind::StaticUtf8 { bytes } => bytes.len(),
                     InstructionKind::Constant(_)
@@ -423,6 +458,33 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::UnsafeEnter { .. }
                     | InstructionKind::UnsafeExit { .. } => 1,
+                    InstructionKind::MakeErrorUnion { .. }
+                    | InstructionKind::ErrorTag { .. }
+                    | InstructionKind::ReadErrorUnion { .. }
+                    | InstructionKind::TakeErrorUnion { .. }
+                    | InstructionKind::DropErrorUnion { .. }
+                    | InstructionKind::DropTuple { .. }
+                    | InstructionKind::DropEnum { .. }
+                    | InstructionKind::ForeignFunctionRef { .. }
+                    | InstructionKind::TaskStart { .. }
+                    | InstructionKind::TaskYield
+                    | InstructionKind::TaskValid { .. }
+                    | InstructionKind::TaskPoll { .. }
+                    | InstructionKind::TaskRequestCancel { .. }
+                    | InstructionKind::TaskPollClose { .. }
+                    | InstructionKind::TaskFinishDestroy { .. }
+                    | InstructionKind::RegistrationStart { .. }
+                    | InstructionKind::RegistrationValid { .. }
+                    | InstructionKind::RegistrationClose { .. }
+                    | InstructionKind::AsyncRegistrationStart { .. }
+                    | InstructionKind::AsyncRegistrationValid { .. }
+                    | InstructionKind::AsyncRegistrationRequestClose { .. }
+                    | InstructionKind::AsyncRegistrationPollClose { .. }
+                    | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. }
+                    | InstructionKind::RegisterDefer { .. }
+                    | InstructionKind::CommitPlaceReplace { .. }
+                    | InstructionKind::AbortPlaceReservation { .. } => 8,
                     _ => {
                         return invalid(
                             "E-CODEGEN-STORAGE-PROFILE",

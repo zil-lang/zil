@@ -121,11 +121,13 @@ pub(super) fn close_apart(
     capture_facts: &[captures::CaptureFacts],
     effects: &[captures::Effects],
     mut apart: Vec<Apart>,
+    mask: Option<&[bool]>,
     budget: &mut Budget,
 ) -> Check<()> {
     loop {
         let mut changed = false;
         for (index, function) in module.functions.iter().enumerate() {
+            if mask.is_some_and(|mask| mask[index]) { continue; }
             budget.spend(1)?;
             let context = captures::Context {
                 module,
