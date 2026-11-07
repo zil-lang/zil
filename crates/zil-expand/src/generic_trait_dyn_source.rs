@@ -103,17 +103,90 @@ fn prove_scalar_read(
             ));
         }
     }
-    let [statement] = provider.body.statements.as_slice() else {
-        return Err(unsupported(
-            provider.span,
-            "dyn provider body needs one proven return",
-        ));
-    };
-    let zil_ir::CoreStatementKind::Return(Some(value)) = &statement.kind else {
-        return Err(unsupported(
-            statement.span,
-            "dyn provider body has unproven effects",
-        ));
+    let owner = modules
+        .iter()
+        .find(|module| module.module_id == table.id.module)
+        .ok_or_else(|| unsupported(provider.span, "dyn provider module absent"))?;
+    let mut current = provider;
+    let mut seen = Vec::new();
+    let value = loop {
+        budget.node(current.span, 0)?;
+        for id in &seen {
+            budget.node(current.span, 0)?;
+            if *id == current.id {
+                return Err(unsupported(
+                    current.span,
+                    "dyn provider call cycle is unknown",
+                ));
+            }
+        }
+        seen.push(current.id);
+        let [statement] = current.body.statements.as_slice() else {
+            return Err(unsupported(
+                current.span,
+                "dyn provider body needs one proven return",
+            ));
+        };
+        let zil_ir::CoreStatementKind::Return(Some(value)) = &statement.kind else {
+            return Err(unsupported(
+                statement.span,
+                "dyn provider body has unproven effects",
+            ));
+        };
+        let zil_ir::CoreExprKind::Call { callee, arguments } = &value.kind else {
+            break value;
+        };
+        // Default methods have a real wrapper. Resolve its exact callee in
+        // the originating module and carry the shared Self root through each
+        // reachable direct call. No callee-name spelling grants authority.
+        let zil_ir::CoreExprKind::Name(target_name) = &callee.kind else {
+            return Err(unsupported(
+                callee.span,
+                "dyn provider callee is not direct",
+            ));
+        };
+        budget.text(target_name, callee.span)?;
+        if !slot.parameters.is_empty()
+            || current.parameters.len() != 1
+            || arguments.len() != 1
+            || !matches!(&arguments[0].kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
+        {
+            return Err(unsupported(
+                value.span,
+                "dyn provider call arguments are unproven",
+            ));
+        }
+        let mut target = None;
+        for function in &owner.functions {
+            budget.node(function.span, 0)?;
+            if function.name == *target_name {
+                if target.is_some() {
+                    return Err(unsupported(
+                        value.span,
+                        "dyn provider call target is ambiguous",
+                    ));
+                }
+                target = Some(function);
+            }
+        }
+        let next =
+            target.ok_or_else(|| unsupported(value.span, "dyn provider call target absent"))?;
+        if next.foreign.is_some()
+            || !next.type_parameters.is_empty()
+            || !next.state_parameters.is_empty()
+            || !next.callable_parameters.is_empty()
+            || next.parameters.len() != 1
+            || next.parameters[0].ty != current.parameters[0].ty
+            || next.parameters[0].mode != current.parameters[0].mode
+            || next.return_type != current.return_type
+            || next.result_mode != current.result_mode
+        {
+            return Err(unsupported(
+                value.span,
+                "dyn provider call target is not closed",
+            ));
+        }
+        current = next;
     };
     if matches!(
         &value.kind,
@@ -137,7 +210,7 @@ fn prove_scalar_read(
             "dyn provider result must read receiver scalar field",
         ));
     };
-    if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &provider.parameters[0].name)
+    if !matches!(&object.kind, zil_ir::CoreExprKind::Name(name) if name == &current.parameters[0].name)
     {
         return Err(unsupported(
             object.span,

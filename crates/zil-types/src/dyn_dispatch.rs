@@ -261,7 +261,7 @@ pub(super) fn inventory(
                     .skip(1)
                     .zip(&slot.parameters)
                     .any(|(p, ty)| p.ty != *ty)
-                || !scalar_body(function, fields, &slot.result)
+                || !scalar_body(core, function, fields, &slot.result, signatures, &mut left)?
             {
                 return Err(unsupported(
                     function.span,
@@ -492,20 +492,85 @@ pub(super) fn inventory_program(
     Ok((declarations, interfaces, tables))
 }
 
-fn scalar_body(function: &CoreFunction, fields: &[(String, Type)], result: &Type) -> bool {
-    let [statement] = function.body.statements.as_slice() else {
-        return false;
+fn scalar_body(
+    core: &CoreModule,
+    function: &CoreFunction,
+    fields: &[(String, Type)],
+    result: &Type,
+    signatures: &BTreeMap<String, Signature>,
+    left: &mut usize,
+) -> R<bool> {
+    let mut current = function;
+    let mut seen = Vec::new();
+    let value = loop {
+        *left = left.checked_sub(1 + seen.len()).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dyn reachable body budget exceeded",
+                Some(current.span),
+            )
+        })?;
+        if seen.contains(&current.id) {
+            return Ok(false);
+        }
+        seen.push(current.id);
+        let [statement] = current.body.statements.as_slice() else {
+            return Ok(false);
+        };
+        let CoreStatementKind::Return(Some(value)) = &statement.kind else {
+            return Ok(false);
+        };
+        let CoreExprKind::Call { callee, arguments } = &value.kind else {
+            break value;
+        };
+        let CoreExprKind::Name(target_name) = &callee.kind else {
+            return Ok(false);
+        };
+        if current.parameters.len() != 1
+            || arguments.len() != 1
+            || !matches!(&arguments[0].kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
+        {
+            return Ok(false);
+        }
+        *left = left.checked_sub(core.functions.len()).ok_or_else(|| {
+            Diagnostic::limit(
+                Phase::Types,
+                "dyn reachable target budget exceeded",
+                Some(value.span),
+            )
+        })?;
+        let mut targets = core
+            .functions
+            .iter()
+            .filter(|candidate| candidate.name == *target_name);
+        let Some(next) = targets.next() else {
+            return Ok(false);
+        };
+        if targets.next().is_some()
+            || signatures
+                .get(target_name)
+                .is_none_or(|signature| signature.id.is_none())
+            || next.foreign.is_some()
+            || !next.type_parameters.is_empty()
+            || !next.state_parameters.is_empty()
+            || !next.callable_parameters.is_empty()
+            || next.parameters.len() != 1
+            || next.parameters[0].ty != current.parameters[0].ty
+            || next.parameters[0].mode != current.parameters[0].mode
+            || next.return_type != current.return_type
+            || next.result_mode != current.result_mode
+        {
+            return Ok(false);
+        }
+        current = next;
     };
-    let CoreStatementKind::Return(Some(value)) = &statement.kind else {
-        return false;
-    };
-    match &value.kind {
+    Ok(match &value.kind {
         CoreExprKind::Member {
             object,
             member,
             owner: None,
         } => {
-            matches!(&object.kind, CoreExprKind::Name(name) if name == &function.parameters[0].name)
+            matches!(&object.kind, CoreExprKind::Name(name) if name == &current.parameters[0].name)
                 && fields
                     .iter()
                     .any(|(name, ty)| name == member && ty == result)
@@ -515,7 +580,7 @@ fn scalar_body(function: &CoreFunction, fields: &[(String, Type)], result: &Type
         | CoreExprKind::Bool(_)
         | CoreExprKind::Literal(_) => true,
         _ => false,
-    }
+    })
 }
 
 impl Builder<'_, '_> {
