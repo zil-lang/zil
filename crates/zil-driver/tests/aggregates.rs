@@ -7064,7 +7064,7 @@ fn nested_conversions_with_unrelated_generic_methods_keep_default_stack() {
 
 #[test]
 fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
-    if let Ok(mode) = std::env::var("ZIL_344_NESTED_CHILD") {
+    if let Ok(mode) = std::env::var("ZIL_NESTED_CALL_STACK_CHILD") {
         std::thread::spawn(move || {
             let call = match mode.as_str() {
                 "generic" => "same",
@@ -7077,11 +7077,23 @@ fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
             for depth in [32, 64, 96, 112, 124, 126] {
                 let expression = format!("{}0{}", format!("{call}(").repeat(depth), ")".repeat(depth));
                 let text = format!("fn same<T:Copy>(x:T)->T{{return x}}fn plain(x:i32)->i32{{return x}}fn result()->{result}{{return {expression}}}");
+                eprintln!("default worker nested call: {mode}/{depth}");
                 let report = compile_source(&source(&text), &CompileOptions::default());
                 let expected = if depth == 126 { ResultCategory::ResourceLimit } else { ResultCategory::Success };
                 assert_eq!(report.status, expected, "{mode}/{depth}: {}", report.to_json());
                 assert_eq!(report.verification_runs, usize::from(depth != 126));
                 if depth == 126 { assert_eq!(report.phase, Phase::Parse); }
+                if mode == "plain" && depth == 124 {
+                    for (leaf, code) in [("true", "E-TYPE-MISMATCH"), ("plain()", "E-CALL-ARITY")] {
+                        let expression = format!("{}{}{}", "plain(".repeat(depth - 1), leaf, ")".repeat(depth - 1));
+                        let text = format!("fn plain(x:i32)->i32{{return x}}fn result()->i32{{return {expression}}}");
+                        let rejected = compile_source(&source(&text), &CompileOptions::default());
+                        assert_eq!(rejected.status, ResultCategory::SafeReject, "{code}: {}", rejected.to_json());
+                        assert_eq!(rejected.phase, Phase::Types, "{}", rejected.to_json());
+                        assert_eq!(rejected.verification_runs, 0);
+                        assert!(rejected.diagnostics.iter().any(|d| d.code == code), "{}", rejected.to_json());
+                    }
+                }
                 if mode == "plain" && depth == 96 {
                     for (nodes, n) in [(true, 2348), (false, 197)] {
                         let mut session = zil_driver::CompilationSession::default();
@@ -7115,7 +7127,7 @@ fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
                 "--test-threads=1",
             ])
             .env_remove("RUST_MIN_STACK")
-            .env("ZIL_344_NESTED_CHILD", mode)
+            .env("ZIL_NESTED_CALL_STACK_CHILD", mode)
             .output()
             .unwrap();
         assert!(
