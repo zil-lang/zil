@@ -80,6 +80,7 @@ pub(super) fn leaves(ty: &Type, resources: &[ResourceDefinition]) -> CompileResu
 /// drop-site expansion before FunctionEmitter allocates any recipe vectors.
 pub(super) fn prepay(
     ty: &Type,
+    local: LocalId,
     f: &TypedFunction,
     resources: &[ResourceDefinition],
     b: &mut drop_plan::Budget<'_>,
@@ -130,9 +131,41 @@ pub(super) fn prepay(
     let structural_work = b.spent() - before;
     let (n, paths) = count(ty, 0, b)?;
     b.pay(0, f.blocks.len())?;
-    let sites = f.blocks.iter().try_fold(1usize, |n, b| {
-        n.checked_add(b.instructions.len()).ok_or_else(exhausted)
-    })?;
+    // The recipe and flags belong to this actual local. Other instructions in
+    // the function do not expand its drop paths. Charge the scan itself, then
+    // bound only operations that initialize, transfer or clean these flags.
+    let mut sites = 1usize; // entry allocation and initial parameter flags
+    for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
+        b.pay(0, 1)?;
+        let touches = match &instruction.kind {
+            InstructionKind::Store { local: target, .. }
+            | InstructionKind::TakeLocal { local: target }
+            | InstructionKind::StorageLive(target)
+            | InstructionKind::StorageDead(target)
+            | InstructionKind::TakeTupleField { local: target, .. }
+            | InstructionKind::TakeVariantField { local: target, .. }
+            | InstructionKind::DropTuple { local: target }
+            | InstructionKind::DropEnum { local: target }
+            | InstructionKind::DropPackage { local: target }
+            | InstructionKind::DropErrorUnion { local: target } => *target == local,
+            InstructionKind::UnpackTuple {
+                local: source,
+                fields,
+            }
+            | InstructionKind::UnpackVariant {
+                local: source,
+                fields,
+                ..
+            } => {
+                b.pay(0, fields.len())?;
+                *source == local || fields.contains(&local)
+            }
+            _ => false,
+        };
+        if touches {
+            sites = sites.checked_add(1).ok_or_else(exhausted)?;
+        }
+    }
     let weight = b
         .machine_weight(ty, 0)?
         .checked_add(structural_work)
