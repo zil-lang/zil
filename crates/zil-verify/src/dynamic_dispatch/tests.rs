@@ -181,6 +181,11 @@ fn fixture() -> TypedModule {
                     },
                     span: span(),
                 },
+                Instruction {
+                    result: None,
+                    kind: InstructionKind::StorageDead(LocalId(0)),
+                    span: span(),
+                },
             ],
             terminator: Terminator::Return(Some(ValueId(2))),
         }],
@@ -221,7 +226,7 @@ fn accepts_raw_candidate_with_independent_provider_proof() {
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
-            initialized_out: vec![LocalId(0)],
+            initialized_out: vec![],
         }],
     });
     plan.module_fingerprint = module.fingerprint();
@@ -344,7 +349,7 @@ fn call_candidate() -> (TypedModule, CandidatePlan) {
         blocks: vec![BlockPlan {
             block: BlockId(0),
             initialized_in: vec![LocalId(0)],
-            initialized_out: vec![LocalId(0)],
+            initialized_out: vec![],
         }],
     });
     plan.module_fingerprint = module.fingerprint();
