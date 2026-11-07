@@ -1,5 +1,6 @@
 import std.io
 import std.string
+import std.int
 
 // A bounded byte stream becomes one checked UTF-8 String before searching.
 fn read_input()->io.Error!ByteBuffer contract {result(create)} {
@@ -34,25 +35,8 @@ fn occurrences(text:&string.String)->string.Error!i64 {
 
 fn emit_count(value:i64)->io.Error!void {
     let output=io.stdout()?
-    var digits=[0u8,0u8,0u8,0u8,0u8]
-    var remaining=value
-    var length:i64=0
-    loop {
-        digits[length]=u8(48+i32(remaining%10))
-        length+=1
-        remaining=remaining/10
-        if remaining==0 {break}
-    }
-    var left:i64=0
-    var right=length-1
-    while left<right {
-        let prior=digits[left]
-        digits[left]=digits[right]
-        digits[right]=prior
-        left+=1
-        right-=1
-    }
-    io.write_all(&output,&digits[..length])?
+    let decimal=int.format_i64(value)
+    io.write_all(&output,&decimal.bytes[..decimal.len])?
     io.write_all(&output,"\n")?
     return ()
 }
