@@ -1,6 +1,20 @@
 //! Finite borrowed dyn admission. Core tables and slot claims are untrusted.
 use super::*;
 
+pub(super) fn create_error() -> Type {
+    Type::Enum {
+        name: "@std.dyn:v1:DynCreateError".into(),
+        variants: vec![("Allocation".into(), vec![])],
+    }
+}
+
+pub(super) fn owned_result(interface: DynInterfaceId) -> Type {
+    Type::ErrorUnion {
+        error: Box::new(create_error()),
+        result: Box::new(Type::OwnedDyn { interface }),
+    }
+}
+
 fn receiver_position() -> StoragePosition {
     StoragePosition {
         base: StorageBase::Parameter(0),
@@ -237,11 +251,15 @@ fn inventory_in_modules(
                     "dyn provider receiver must be shared concrete Address",
                 ));
             };
-            let Type::Record { name, fields } = inner.as_ref() else {
+            let (name, fields, owning_package) = match inner.as_ref() {
+                Type::Record { name, fields } => (name, fields, false),
+                Type::Package { name, fields } => (name, fields, true),
+                _ => {
                 return Err(unsupported(
                     function.span,
-                    "dyn provider Self must resolve to concrete Copy struct",
+                    "dyn provider Self must resolve to concrete record or owning Package",
                 ));
+                }
             };
             let Type::Named(raw_self) = &table.self_type else {
                 return Err(unsupported(
@@ -250,7 +268,13 @@ fn inventory_in_modules(
                 ));
             };
             if *name != format!("@module{}:{}", table.id.module.0, raw_self)
-                || fields.iter().any(|(_, ty)| !ty.is_b0_scalar())
+                || if owning_package {
+                    table.owned_storage != Some(DynOwnedStorage::Heap)
+                        || !fields.iter().any(|(_, ty)| matches!(ty, Type::Managed(_)))
+                        || !fields.iter().all(|(_, ty)| ty.is_copy_value() || matches!(ty, Type::Managed(_) if resources::supported(ty)))
+                } else {
+                    fields.iter().any(|(_, ty)| !ty.is_b0_scalar())
+                }
                 || canonical_self
                     .as_ref()
                     .is_some_and(|previous| previous != inner.as_ref())
@@ -322,6 +346,7 @@ fn inventory_in_modules(
             ports: Vec::new(),
             entries,
             cleanup: None,
+            owned_storage: table.owned_storage,
         });
     }
     Ok(output)
@@ -805,11 +830,13 @@ impl Builder<'_, '_> {
         object: &CoreExpr,
         member: &str,
     ) -> Option<(DynInterfaceId, u32)> {
-        let Type::Address { mutable: _, inner } = self.known_type(object)? else {
-            return None;
-        };
-        let Type::Dyn { interface } = *inner else {
-            return None;
+        let interface = match self.known_type(object)? {
+            Type::Address { inner, .. } => match *inner {
+                Type::Dyn { interface } => interface,
+                _ => return None,
+            },
+            Type::OwnedDyn { interface } => interface,
+            _ => return None,
         };
         let definition = self
             .dyn_interfaces
@@ -924,6 +951,34 @@ impl Builder<'_, '_> {
         Ok((value, ty))
     }
 
+    pub(super) fn dyn_make_owned(
+        &mut self,
+        interface: DynInterfaceId,
+        vtable: Option<DynVtableId>,
+        source: &CoreExpr,
+        route: DynOwnedStorage,
+        span: Span,
+    ) -> R<(ValueId, Type)> {
+        let (source_value, actual) = self.transfer_expr(source, None)?;
+        if !matches!(&actual, Type::Package { .. } | Type::Managed(_)) {
+            return Err(error("E-DYN-OWNER", span, "owned dyn needs a complete Package or given resource"));
+        }
+        let table = self.dyn_vtables.iter().find(|table| {
+            table.interface == interface
+                && table.self_type == actual
+                && table.owned_storage == Some(route)
+                && vtable.is_none_or(|id| table.id == id)
+        }).ok_or_else(|| error("E-DYN-PROVIDER", span, "owned dyn has no exact owning provider table"))?;
+        let result = owned_result(interface);
+        let value = self.value(InstructionKind::MakeDynOwned {
+            interface,
+            vtable: table.id,
+            source: source_value,
+            route,
+        }, result.clone(), span)?;
+        Ok((value, result))
+    }
+
     pub(super) fn dyn_call(
         &mut self,
         callee: &CoreExpr,
@@ -955,7 +1010,22 @@ impl Builder<'_, '_> {
                 "dyn slot argument count mismatch",
             ));
         }
-        let (receiver, actual) = self.expr(callee, None)?;
+        let (receiver, actual) = if let CoreExprKind::Name(name) = &callee.kind {
+            if let Some(local) = self.lookup(name)
+                && self.function.locals.get(local.0 as usize).is_some_and(|l| l.ty == Type::OwnedDyn { interface })
+            {
+                let ty = Type::Address {
+                    mutable: slot.receiver.mutable,
+                    inner: Box::new(Type::Dyn { interface }),
+                };
+                let value = self.value(InstructionKind::BorrowDynOwned { local, mutable: slot.receiver.mutable }, ty.clone(), callee.span)?;
+                (value, ty)
+            } else {
+                self.expr(callee, None)?
+            }
+        } else {
+            self.expr(callee, None)?
+        };
         let expected = Type::Address {
             mutable: slot.receiver.mutable,
             inner: Box::new(Type::Dyn { interface }),

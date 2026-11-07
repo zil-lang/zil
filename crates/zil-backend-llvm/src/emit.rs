@@ -1730,6 +1730,11 @@ impl FunctionEmitter<'_> {
             } => {
                 self.make_dyn_borrow(instruction, *interface, *vtable, *source, *mutable)?;
             }
+            InstructionKind::MakeDynOwned { .. }
+            | InstructionKind::BorrowDynOwned { .. }
+            | InstructionKind::DropDynOwned { .. } => {
+                return unsupported("owned dyn machine lowering is incomplete", Some(instruction.span));
+            }
             InstructionKind::CallDynSlot {
                 callee,
                 interface,
@@ -3623,7 +3628,7 @@ fn llvm_type(ty: &Type) -> CompileResult<m::Ty> {
         ])),
         Type::Closure(id) => Ok(environment_type(*id)),
         Type::FunctionPointer { .. } | Type::BorrowedFunctionPointer { .. } => Ok("ptr".into()),
-        ty if dyn_dispatch::address(ty) => Ok(dyn_dispatch::pair()),
+        ty if dyn_dispatch::address(ty) || matches!(ty, Type::OwnedDyn { .. }) => Ok(dyn_dispatch::pair()),
         Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Slice { .. }) => {
             Ok(m::Ty::Struct(vec![m::Ty::Ptr, m::Ty::Int(64)]))
         }

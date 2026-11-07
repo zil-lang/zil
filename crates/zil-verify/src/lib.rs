@@ -1501,6 +1501,9 @@ fn check_function_signature_type(
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         return dynamic_dispatch::type_address(module, ty, span, budget);
     }
+    if let Type::OwnedDyn { interface } = ty {
+        return dynamic_dispatch::type_owned(module, *interface, budget);
+    }
     match ty {
         Type::Address { inner, .. }
             if budget.inline_store_root(ty)?
@@ -1568,6 +1571,10 @@ fn check_local_type(
     }
     if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
         dynamic_dispatch::type_address(module, ty, span, budget)?;
+        return Ok(false);
+    }
+    if let Type::OwnedDyn { interface } = ty {
+        dynamic_dispatch::type_owned(module, *interface, budget)?;
         return Ok(false);
     }
     if let Type::Address {
@@ -2138,7 +2145,11 @@ fn check_instruction(
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
             registration::instruction(module, function, instruction, budget)?
         }
-        InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
+        InstructionKind::MakeDynBorrow { .. }
+        | InstructionKind::MakeDynOwned { .. }
+        | InstructionKind::BorrowDynOwned { .. }
+        | InstructionKind::DropDynOwned { .. }
+        | InstructionKind::CallDynSlot { .. } => {
             dynamic_dispatch::instruction(module, function, instruction, budget)?
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
@@ -3603,7 +3614,9 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             ([Some(*registration), None], &[])
         }
-        InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),
+        InstructionKind::MakeDynBorrow { source, .. }
+        | InstructionKind::MakeDynOwned { source, .. } => ([Some(*source), None], &[]),
+        InstructionKind::BorrowDynOwned { .. } | InstructionKind::DropDynOwned { .. } => ([None, None], &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..
         } => ([Some(*callee), None], arguments),

@@ -183,11 +183,10 @@ fn prove_scalar_read(
                 .iter()
                 .find(|f| f.name == *member)
                 .ok_or_else(|| unsupported(target.span, "mutable dyn field absent"))?;
-            if aggregate.kind != zil_ir::AggregateKind::Struct
-                || aggregate
-                    .fields
-                    .iter()
-                    .any(|f| f.manages || !f.ty.is_b0_scalar())
+            if !(aggregate.kind == zil_ir::AggregateKind::Struct
+                    && aggregate.fields.iter().all(|f| !f.manages && f.ty.is_b0_scalar())
+                || aggregate.kind == zil_ir::AggregateKind::Package
+                    && table.owned_storage == Some(zil_ir::DynOwnedStorage::Heap))
                 || !field.ty.is_b0_scalar()
                 || (matches!(&value.kind, zil_ir::CoreExprKind::Name(name)
                     if !current.parameters.iter().skip(1).any(|p| p.name == *name && p.ty == field.ty)))
@@ -453,11 +452,10 @@ fn prove_scalar_read(
         budget.node(field.span, 0)?;
         budget.text(&field.name, field.span)?;
     }
-    if aggregate.kind != zil_ir::AggregateKind::Struct
-        || aggregate
-            .fields
-            .iter()
-            .any(|field| field.manages || !field.ty.is_b0_scalar())
+    if !(aggregate.kind == zil_ir::AggregateKind::Struct
+            && aggregate.fields.iter().all(|field| !field.manages && field.ty.is_b0_scalar())
+        || aggregate.kind == zil_ir::AggregateKind::Package
+            && table.owned_storage == Some(zil_ir::DynOwnedStorage::Heap))
         || !aggregate
             .fields
             .iter()
@@ -742,6 +740,7 @@ impl Catalog {
                 ports: Vec::new(),
                 entries,
                 cleanup: None,
+                owned_storage: self.owned_used.then_some(zil_ir::DynOwnedStorage::Heap),
             });
         }
         Ok(output)
@@ -1012,6 +1011,15 @@ impl Catalog {
     ) -> R<zil_ir::Type> {
         budget.node(ty.span, depth)?;
         match &ty.kind {
+            TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
+                let [GenericArg::Type(target)] = args.as_slice() else {
+                    return Err(unsupported(ty.span, "OwnedDyn requires one dyn interface"));
+                };
+                let zil_ir::Type::Dyn { interface } = self.core_type(target, budget, depth + 1)? else {
+                    return Err(unsupported(ty.span, "OwnedDyn argument must be an actual dyn interface"));
+                };
+                Ok(zil_ir::Type::OwnedDyn { interface })
+            }
             TypeKind::Dyn { .. } => {
                 let reference = self.source_reference(ty, budget)?;
                 let ordinal = self.find(&reference, budget, ty.span)?.ok_or_else(|| {
@@ -1288,7 +1296,7 @@ pub(crate) fn prepay_substitute_self(
                 prepay_substitute_self(field, host, budget, span, depth + 1)?;
             }
         }
-        zil_ir::Type::Dyn { .. } => {}
+        zil_ir::Type::Dyn { .. } | zil_ir::Type::OwnedDyn { .. } => {}
         _ if ty.is_b0_scalar() || matches!(ty, zil_ir::Type::Unit) => {}
         _ => {
             return Err(unsupported(
@@ -1313,7 +1321,7 @@ fn pay_type(ty: &zil_ir::Type, budget: &mut Budget<'_>, span: Span, depth: usize
             }
         }
         _ if ty.is_b0_scalar() => {}
-        zil_ir::Type::Unit => {}
+        zil_ir::Type::Unit | zil_ir::Type::OwnedDyn { .. } => {}
         _ => {
             return Err(unsupported(
                 span,

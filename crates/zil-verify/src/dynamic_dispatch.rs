@@ -109,6 +109,18 @@ fn scalar(ty: &Type) -> bool {
     ty.is_b0_scalar() || *ty == Type::Unit
 }
 
+fn owned_provider(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Check<bool> {
+    let Type::Package { fields, .. } = ty else { return Ok(false) };
+    budget.spend(fields.len().saturating_add(module.resources.len()))?;
+    Ok(fields.iter().any(|(_, field)| matches!(field, Type::Managed(_)))
+        && fields.iter().all(|(_, field)| match field {
+            field if field.is_copy_value() => true,
+            Type::Managed(payload) => module.resources.iter().any(|r| r.payload == **payload)
+                && !matches!(payload.as_ref(), Type::AsyncRegistration { .. } | Type::MutexGuard { .. }),
+            _ => false,
+        }))
+}
+
 fn dyn_address(ty: &Type) -> bool {
     matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }))
 }
@@ -325,7 +337,10 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             || !item.ports.is_empty()
             || item.cleanup.is_some()
             || item.entries.len() != iface.slots.len()
-            || !matches!(&item.self_type, Type::Record { fields, .. } if !fields.is_empty() && fields.iter().all(|(_, ty)| scalar(ty)))
+            || !(matches!(&item.self_type, Type::Record { fields, .. }
+                    if !fields.is_empty() && fields.iter().all(|(_, ty)| scalar(ty)))
+                || item.owned_storage == Some(DynOwnedStorage::Heap)
+                    && owned_provider(module, &item.self_type, budget)?)
         {
             return Err(bad(
                 "dyn table exceeds finite Copy record provider profile",
@@ -425,8 +440,9 @@ fn entry_body(
     // The finite lane accepts bounded scalar reads and writes through the
     // exact receiver. Direct wrappers carry that receiver to a checked target.
     // Ownership, unknown effects and unproved arithmetic remain rejected.
-    let Type::Record { fields, .. } = self_type else {
-        unreachable!()
+    let fields = match self_type {
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields,
+        _ => return Err(bad("dyn entry Self has no checked fields", Some(function.span))),
     };
     let mut receiver_values = BTreeSet::new();
     let mut field_values = BTreeSet::new();
@@ -620,6 +636,19 @@ pub(super) fn type_address(
     Ok(())
 }
 
+pub(super) fn type_owned(module: &TypedModule, interface_id: DynInterfaceId, budget: &mut Budget) -> Check<()> {
+    budget.spend(module.dyn_interfaces.len().saturating_add(1))?;
+    interface(module, interface_id)?;
+    Ok(())
+}
+
+pub(super) fn create_error() -> Type {
+    Type::Enum {
+        name: "@std.dyn:v1:DynCreateError".into(),
+        variants: vec![("Allocation".into(), vec![])],
+    }
+}
+
 pub(super) fn instruction(
     module: &TypedModule,
     function: &TypedFunction,
@@ -628,6 +657,38 @@ pub(super) fn instruction(
 ) -> Check<Option<Type>> {
     let span = Some(instruction.span);
     match &instruction.kind {
+        InstructionKind::MakeDynOwned { interface: id, vtable, source, route } => {
+            budget.spend(module.dyn_vtables.len().saturating_add(4))?;
+            interface(module, *id)?;
+            let selected = table(module, *vtable)?;
+            if *route != DynOwnedStorage::Heap
+                || selected.interface != *id
+                || selected.owned_storage != Some(*route)
+                || value_type(function, *source, span)? != &selected.self_type
+                || !owned_provider(module, &selected.self_type, budget)?
+            {
+                return Err(bad("owned dyn construction lacks exact complete provider and Heap route", span));
+            }
+            Ok(Some(Type::ErrorUnion {
+                error: Box::new(create_error()),
+                result: Box::new(Type::OwnedDyn { interface: *id }),
+            }))
+        }
+        InstructionKind::BorrowDynOwned { local, mutable } => {
+            budget.spend(function.locals.len().saturating_add(1))?;
+            let Some(Type::OwnedDyn { interface }) = function.locals.get(local.0 as usize).map(|l| &l.ty) else {
+                return Err(bad("owned dyn borrow lacks its actual owner local", span));
+            };
+            type_owned(module, *interface, budget)?;
+            Ok(Some(Type::Address { mutable: *mutable, inner: Box::new(Type::Dyn { interface: *interface }) }))
+        }
+        InstructionKind::DropDynOwned { local } => {
+            budget.spend(function.locals.len().saturating_add(1))?;
+            if !matches!(function.locals.get(local.0 as usize).map(|l| &l.ty), Some(Type::OwnedDyn { .. })) {
+                return Err(bad("owned dyn drop lacks its actual owner local", span));
+            }
+            Ok(None)
+        }
         InstructionKind::MakeDynBorrow {
             interface: id,
             vtable,

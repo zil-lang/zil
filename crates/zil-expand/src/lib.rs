@@ -62,7 +62,10 @@ fn byte_buffer_name(name: &str) -> bool {
 fn owned_store_name(name: &str) -> bool {
     matches!(
         name,
-        "Managed"
+        "OwnedDyn"
+            | "DynCreateError"
+            | "owned_dyn"
+            | "Managed"
             | "Store"
             | "StoreElement"
             | "store_new"
@@ -2017,6 +2020,17 @@ impl Expander<'_> {
 }
 pub fn type_ref(t: &s::TypeRef) -> Type {
     match &t.kind {
+        s::TypeKind::Named { path, args } if path.as_slice() == ["OwnedDyn"] => {
+            if let [s::GenericArg::Type(target)] = args.as_slice() {
+                if let Type::Dyn { interface } = type_ref(target) {
+                    Type::OwnedDyn { interface }
+                } else {
+                    Type::Unsupported("OwnedDyn requires an actual dyn interface".into())
+                }
+            } else {
+                Type::Unsupported("OwnedDyn requires one dyn interface".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Managed"] => {
             if let [s::GenericArg::Type(resource)] = args.as_slice() {
                 match type_ref(resource) {
@@ -2127,6 +2141,10 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
             "MutexCreateError" => Type::Enum {
                 name: "@std.sync:v1:MutexCreateError".into(),
+                variants: vec![("Allocation".into(), vec![])],
+            },
+            "DynCreateError" => Type::Enum {
+                name: "@std.dyn:v1:DynCreateError".into(),
                 variants: vec![("Allocation".into(), vec![])],
             },
             "c_wstr" => Type::CWideString,

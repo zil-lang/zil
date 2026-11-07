@@ -561,7 +561,9 @@ pub(super) fn uses(kind: &InstructionKind) -> impl Iterator<Item = ValueId> + '_
         | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             (Some(*registration), None, &[])
         }
-        InstructionKind::MakeDynBorrow { source, .. } => (Some(*source), None, &[]),
+        InstructionKind::MakeDynBorrow { source, .. }
+        | InstructionKind::MakeDynOwned { source, .. } => (Some(*source), None, &[]),
+        InstructionKind::BorrowDynOwned { .. } | InstructionKind::DropDynOwned { .. } => (None, None, &[]),
         InstructionKind::CallDynSlot {
             callee, arguments, ..
         } => (Some(*callee), None, arguments),

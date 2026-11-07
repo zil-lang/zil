@@ -5,7 +5,7 @@ use super::*;
 pub(super) fn owned(ty: &Type, sum_extension: bool) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
-            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
+            || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_) | Type::OwnedDyn { .. })
             || (sum_extension && (sums::owned(error) || sums::owned(result)
                 || dynamic_store::inline_owner(error))))
 }
@@ -31,6 +31,12 @@ pub(super) fn check_type_for(
             "expected an error-union type",
         ));
     };
+    if let Type::OwnedDyn { interface } = result.as_ref() {
+        if *error.as_ref() != dynamic_dispatch::create_error() {
+            return Err(reject("E-VERIFY-DYN", span, "owned dyn error route differs from Allocation"));
+        }
+        return dynamic_dispatch::type_owned(module, *interface, budget);
+    }
     budget.spend(2)?;
     // Store push/pop use these exact complete Product/Unit protocols. The
     // active-tag and linear checks below remain the ordinary union checks;

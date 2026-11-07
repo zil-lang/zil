@@ -3,7 +3,7 @@ use super::*;
 impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
-            Type::MutexGuard { .. } => true,
+            Type::MutexGuard { .. } | Type::OwnedDyn { .. } => true,
             Type::Package { .. } => true,
             Type::BorrowedStorage { storage, .. }
                 if matches!(storage.as_ref(), Type::Package { .. }) =>
@@ -118,6 +118,21 @@ impl Builder<'_, '_> {
         mutable: bool,
         inner: &Type,
     ) -> R<(ValueId, Type)> {
+        if let Type::Dyn { interface } = inner
+            && let CoreExprKind::Unary { op, operand } = &e.kind
+            && matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut)
+            && let CoreExprKind::Name(name) = &operand.kind
+            && let Some(local) = self.lookup(name)
+            && self.function.locals.get(local.0 as usize)
+                .is_some_and(|decl| decl.ty == (Type::OwnedDyn { interface: *interface }))
+        {
+            if mutable && *op != UnaryOp::BorrowMut {
+                return Err(error("E-DYN-RECEIVER", e.span, "shared owned dyn borrow cannot provide exclusive slot"));
+            }
+            let ty = Type::Address { mutable, inner: Box::new(Type::Dyn { interface: *interface }) };
+            let value = self.value(InstructionKind::BorrowDynOwned { local, mutable }, ty.clone(), e.span)?;
+            return Ok((value, ty));
+        }
         let (address, actual) = self.expr(e, None)?;
         let Type::Address {
             mutable: available,

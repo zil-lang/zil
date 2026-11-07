@@ -139,6 +139,10 @@ impl Writer<'_> {
         if let Some(value) = &value.cleanup {
             self.dyn_entry(value)?;
         }
+        self.u8(match value.owned_storage {
+            None => 0,
+            Some(DynOwnedStorage::Heap) => 1,
+        })?;
         Ok(())
     }
     pub(super) fn dyn_call_access(&mut self, value: &DynCallAccess) -> WireResult<()> {
@@ -631,6 +635,11 @@ impl Reader<'_> {
                 Some(self.dyn_entry()?)
             } else {
                 None
+            },
+            owned_storage: match self.u8()? {
+                0 => None,
+                1 => Some(DynOwnedStorage::Heap),
+                _ => return Err(malformed("E-WIRE-TAG", "unknown dyn owned storage route")),
             },
         })
     }

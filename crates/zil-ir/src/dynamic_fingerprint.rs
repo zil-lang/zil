@@ -128,6 +128,10 @@ pub(super) fn encode_dyn_vtable(b: &mut impl FingerprintSink, value: &DynVtable)
     if let Some(value) = &value.cleanup {
         encode_dyn_entry(b, value);
     }
+    b.push(match value.owned_storage {
+        None => 0,
+        Some(DynOwnedStorage::Heap) => 1,
+    });
 }
 pub(super) fn encode_dyn_call_access(b: &mut impl FingerprintSink, value: &DynCallAccess) {
     encode_len(b, value.reads.len());

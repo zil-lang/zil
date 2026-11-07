@@ -3422,6 +3422,7 @@ mod tests {
                 function: NodeId(92),
             }],
             cleanup: None,
+            owned_storage: None,
         });
         core
     }
