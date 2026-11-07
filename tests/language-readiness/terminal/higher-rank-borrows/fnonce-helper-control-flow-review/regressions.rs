@@ -17,7 +17,7 @@ fn rejected(errors: &[zil_base::Diagnostic], label: &str) {
 }
 
 #[test]
-fn p0_g338_independent_source_and_raw_wire_path_mutations() {
+fn fnonce_control_flow_independent_source_and_raw_wire_path_mutations() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     for text in [SPLIT, DIAMOND, OPTIONAL] {
@@ -169,7 +169,7 @@ fn p0_g338_independent_source_and_raw_wire_path_mutations() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn p0_g338_independent_dynamic_source_complete_values() {
+fn fnonce_control_flow_independent_dynamic_source_complete_values() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let backend = if cfg!(feature = "llvm-api") {
         NativeBackend::LlvmApi
@@ -183,7 +183,7 @@ fn p0_g338_independent_dynamic_source_complete_values() {
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil-p0-g338-{}-{name}-{optimization:?}",
+                "fnonce-control-flow-{}-{name}-{optimization:?}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&dir).unwrap();

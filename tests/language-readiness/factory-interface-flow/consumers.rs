@@ -80,7 +80,7 @@ fn native_expected(files: &[(&str, &str)], expected: &[u8]) {
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "g242-{}-{}",
+                "factory-interface-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));
@@ -123,7 +123,7 @@ fn native_expected(files: &[(&str, &str)], expected: &[u8]) {
 }
 
 fn checked(text: &str) -> CompileReport {
-    let path = std::path::PathBuf::from("/tmp/zil-g242-core")
+    let path = std::path::PathBuf::from("/tmp/zil-factory-interface-core")
         .join(format!("{}", NEXT.fetch_add(1, Ordering::Relaxed)));
     compile_source(
         &source(text),

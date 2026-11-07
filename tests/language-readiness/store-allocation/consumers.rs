@@ -9,7 +9,7 @@ mod trust_boundary;
 
 #[test]
 fn numeric_records_preserve_complete_values_and_copy_protocols() {
-    native("g932-numeric", include_str!("numeric.zil"), b"POD\n", 0);
+    native("store-allocation-numeric", include_str!("numeric.zil"), b"POD\n", 0);
 }
 
 #[test]
@@ -21,7 +21,7 @@ fn std_store_uses_actual_module_interfaces_and_native_values() {
         NativeBackend::Clang
     };
     for optimization in [Optimization::O0, Optimization::O2] {
-        let dir = directory("g932-std-store");
+        let dir = directory("store-allocation-std-store");
         let input = dir.join("main.zil");
         fs::write(&input, source).unwrap();
         let exe = dir.join("program");
@@ -60,7 +60,7 @@ fn std_store_uses_actual_module_interfaces_and_native_values() {
 
 #[test]
 fn actual_shared_view_last_use_and_distinct_roots_are_precise() {
-    native("g932-view", include_str!("shared.zil"), b"VIEW\n", 0);
+    native("store-allocation-view", include_str!("shared.zil"), b"VIEW\n", 0);
 }
 
 #[test]
@@ -75,7 +75,7 @@ fn actual_live_shared_view_blocks_same_root_mutations_with_spare_capacity() {
         let source = format!(
             "struct Cell{{value:i32}}fn destroy(give items:Store<Cell>){{}}fn main()->i32{{let items:Store<Cell>=store_new();store_reserve(items,3);store_push(items,Cell{{value:41}});let view=store_at(items,0);{mutation};return view.value}}"
         );
-        let report = check(&format!("g932-live-{label}"), &source, Stage::Verify);
+        let report = check(&format!("store-allocation-live-{label}"), &source, Stage::Verify);
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,
@@ -94,7 +94,7 @@ fn actual_live_shared_view_blocks_same_root_mutations_with_spare_capacity() {
 #[test]
 fn original_pod_mutable_source_is_accepted_without_banning_record_mutability() {
     let source = "struct Cell{value:i32}fn main(){let items:Store<Cell>=store_new();store_reserve(items,1);store_push(items,Cell{value:41});let view=store_at_mut(items,0);view.value=42}";
-    let report = check("g932-store-mut", source, Stage::Verify);
+    let report = check("store-allocation-store-mut", source, Stage::Verify);
     assert_eq!(
         report.status,
         ResultCategory::Success,
@@ -103,7 +103,7 @@ fn original_pod_mutable_source_is_accepted_without_banning_record_mutability() {
     );
     assert!(!report.artifacts.contains_key("executable"));
     pass(
-        "g932-ordinary-mut",
+        "store-allocation-ordinary-mut",
         "struct Cell{value:i32}fn update(value:&mut Cell){value.value=42}fn main()->i32{var value=Cell{value:41};update(&mut value);return value.value-42}",
     );
 }
@@ -198,7 +198,7 @@ fn records_classify_complete_push_and_pop_protocols() {
         large_record(&mut source, bytes, "u64", 8);
     }
     source.push_str("fn main()->i32{if run4080()!=0{return 1};unsafe{putchar(65)};if run4088()!=0{return 2};unsafe{putchar(66)};if run4096()!=0{return 3};unsafe{putchar(67);putchar(10)};return 0}");
-    native("g932-protocol-thresholds", &source, b"ABC\n", 0);
+    native("store-allocation-protocol-thresholds", &source, b"ABC\n", 0);
 }
 
 #[test]
@@ -207,7 +207,7 @@ fn byte_record_actual_store_native_o0_reliability() {
     arrays(&mut source, 18, "u8");
     large_record(&mut source, 262144, "u8", 1);
     source.push_str("fn main()->i32{if run262144()!=0{return 1};unsafe{putchar(76);putchar(65);putchar(82);putchar(71);putchar(69);putchar(10)};return 0}");
-    native("g932-large-o0-o2", &source, b"LARGE\n", 0);
+    native("store-allocation-large-o0-o2", &source, b"LARGE\n", 0);
 }
 
 #[test]
@@ -216,5 +216,5 @@ fn large_mutable_record_readback_preserves_complete_copy() {
     arrays(&mut source, 9, "u64");
     large_record(&mut source, 4096, "u64", 8);
     source.push_str("fn main()->i32{let items:Store<E4096>=store_new();if !store_reserve(items,1){return 1}store_push(items,make4096(7u64));let view=store_at_mut(items,0);view.part9[0][0][0][0][0][0][0][0][0]=11u64;let snapshot=*view;if snapshot.part9[0][0][0][0][0][0][0][0][0]!=11u64 || snapshot.part9[1][0][0][0][0][0][0][0][0]!=7u64{return 2}match store_pop(items){.ok(value)=>{if value.part9[0][0][0][0][0][0][0][0][0]!=11u64{return 3}},.err(_)=>{return 4}}unsafe{putchar(66);putchar(73);putchar(71);putchar(77);putchar(10)}return 0}");
-    native("g933-large-mut", &source, b"BIGM\n", 0);
+    native("store-mutation-large-mut", &source, b"BIGM\n", 0);
 }

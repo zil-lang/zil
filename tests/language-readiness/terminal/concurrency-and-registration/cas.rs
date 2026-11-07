@@ -1,7 +1,7 @@
 use super::*;
 const OBSERVED: &str = include_str!("sync-probes/cas-observed-value.zil");
 #[test]
-fn cas343_source_observed_result_and_real_thread_contention() {
+fn cas_source_observed_result_and_real_thread_contention() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -15,7 +15,7 @@ fn cas343_source_observed_result_and_real_thread_contention() {
                 ("contention", include_str!("cas-contention.zil")),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-cas-source-{}-{case}-{backend:?}-{optimization:?}",
+                    "task-runtime-cas-source-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -48,7 +48,7 @@ fn cas343_source_observed_result_and_real_thread_contention() {
     }
 }
 #[test]
-fn cas343_plain_address_mutex_and_name_spoofs_reject() {
+fn cas_plain_address_mutex_and_name_spoofs_reject() {
     for text in [
         include_str!("sync-probes/cas-ordinary-address-reject.zil").to_owned(),
         OBSERVED
@@ -79,7 +79,7 @@ fn typed_cas() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
 }
 
 #[test]
-fn cas343_source_derived_raw_and_wire_order_matrix() {
+fn cas_source_derived_raw_and_wire_order_matrix() {
     use zil_ir::{AtomicOrdering as O, InstructionKind as I};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -147,7 +147,7 @@ fn cas343_source_derived_raw_and_wire_order_matrix() {
 }
 
 #[test]
-fn cas343_each_operand_result_and_sealed_cell_are_independently_checked() {
+fn cas_each_operand_result_and_sealed_cell_are_independently_checked() {
     use zil_ir::{InstructionKind as I, Type, ValueId};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -220,7 +220,7 @@ fn cas343_each_operand_result_and_sealed_cell_are_independently_checked() {
 }
 
 #[test]
-fn cas343_decoded_wire_reaches_strong_machine_and_partition_cache() {
+fn cas_decoded_wire_reaches_strong_machine_and_partition_cache() {
     use zil_backend_llvm::{BuildOptions, CodegenOptions, NativeBackend, Optimization};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -277,7 +277,7 @@ fn cas343_decoded_wire_reaches_strong_machine_and_partition_cache() {
 }
 
 #[test]
-fn cas343_independent_kernel_fees_have_exact_exhaustion_boundaries() {
+fn cas_independent_kernel_fees_have_exact_exhaustion_boundaries() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let (typed, plan) = typed_cas();

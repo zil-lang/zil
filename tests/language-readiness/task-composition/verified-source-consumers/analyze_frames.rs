@@ -4,7 +4,7 @@ use super::*;
 #[test]
 fn analyze_enum_leaf_teardown_entry_binds_actual_resource() {
     let text = format!(
-        "{OWNED_ENUM861}\nresource Other{{code:i32,extra:i64}}impl Drop for Other{{fn drop(self:Self){{unsafe{{putchar(.code);}}}}}}"
+        "{OWNED_ENUM_SOURCE}\nresource Other{{code:i32,extra:i64}}impl Drop for Other{{fn drop(self:Self){{unsafe{{putchar(.code);}}}}}}"
     );
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();

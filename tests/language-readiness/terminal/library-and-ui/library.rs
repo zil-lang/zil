@@ -11,7 +11,7 @@ fn directory(label: &str) -> PathBuf {
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
-    let path = root.join(format!("terminal345-{label}-{}", std::process::id()));
+    let path = root.join(format!("library-ui-{label}-{}", std::process::id()));
     fs::create_dir_all(&path).unwrap();
     path
 }

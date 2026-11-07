@@ -95,7 +95,7 @@ fn cross_module_source_and_all_native_modes() {
                 .map(PathBuf::from)
                 .unwrap_or_else(std::env::temp_dir);
             let dir = root.join(format!(
-                "g241-source-{}-{}",
+                "borrowed-interface-source-{}-{}",
                 std::process::id(),
                 NEXT.fetch_add(1, Ordering::Relaxed)
             ));

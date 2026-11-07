@@ -108,7 +108,7 @@ def main():
         if "/recovery/rejects/" in relative and row["status"] != "SafeReject":
             failures.append({"source": relative, "reason": "protected reject regression"})
         observations.append(row)
-    with tempfile.TemporaryDirectory(prefix="zil334-native-") as directory:
+    with tempfile.TemporaryDirectory(prefix="language-gap-native-") as directory:
         for index, source in enumerate(NATIVE):
             for optimization in ["O0", "O2"]:
                 output = Path(directory) / f"case{index}-{optimization}"

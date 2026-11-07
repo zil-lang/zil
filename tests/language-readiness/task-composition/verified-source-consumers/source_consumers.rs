@@ -2,18 +2,18 @@
 use super::*;
 #[path = "analyze_frames.rs"]
 mod analyze_frames;
-const OWNED_ENUM861: &str = include_str!("owned-enum-saved.zil");
+const OWNED_ENUM_SOURCE: &str = include_str!("owned-enum-saved.zil");
 
 #[test]
 fn complete_enum_real_source_reaches_analyze() {
-    let cancelled = OWNED_ENUM861.replace(
+    let cancelled = OWNED_ENUM_SOURCE.replace(
         "    drive(&mut task);\n    drive(&mut task);",
         "    drive(&mut task);",
     );
-    let pc0 = OWNED_ENUM861.replace("    drive(&mut task);\n    drive(&mut task);\n", "");
-    let empty = OWNED_ENUM861.replace("Packet.Item(give token)", "Packet.Empty");
+    let pc0 = OWNED_ENUM_SOURCE.replace("    drive(&mut task);\n    drive(&mut task);\n", "");
+    let empty = OWNED_ENUM_SOURCE.replace("Packet.Item(give token)", "Packet.Empty");
     for input in [
-        OWNED_ENUM861,
+        OWNED_ENUM_SOURCE,
         &cancelled,
         &pc0,
         &empty,
@@ -41,13 +41,13 @@ fn complete_enum_real_source_reaches_analyze() {
 
 #[test]
 fn complete_enum_scope_fences_stay_closed() {
-    let copy_error_result = OWNED_ENUM861
+    let copy_error_result = OWNED_ENUM_SOURCE
         .replace(
             "fn worker(give token:Token)->i32",
             "fn worker(give token:Token)->TaskPollState!i32",
         )
         .replace("Task<i32>", "Task<TaskPollState!i32>");
-    let enum_input = OWNED_ENUM861
+    let enum_input = OWNED_ENUM_SOURCE
         .replace("fn worker(give token:Token)", "fn worker(packet:Packet)")
         .replace("    let packet=Packet.Item(give token);\n", "")
         .replace(
@@ -83,7 +83,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
     let pair = include_str!("owned-enum-two-leaves.zil");
     let prepared = include_str!("owned-enum-prepared.zil");
     let child = include_str!("owned-enum-child-local.zil");
-    let direct = OWNED_ENUM861
+    let direct = OWNED_ENUM_SOURCE
         .replace("    task_yield();\n", "")
         .replace(
             "    var task=task_create(worker,give input)?;",
@@ -93,7 +93,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
             "    drive(&mut task);\n    drive(&mut task);",
             "    drive(&mut task);",
         );
-    let empty = OWNED_ENUM861
+    let empty = OWNED_ENUM_SOURCE
         .replace(
             "fn worker(give token:Token)->i32 {",
             "fn discard(give token:Token){}fn worker(give token:Token)->i32 {",
@@ -103,7 +103,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
             "let packet=Packet.Empty;discard(give token);",
         );
     let inputs = [
-        ("complete", OWNED_ENUM861.to_owned(), "PAR", 0),
+        ("complete", OWNED_ENUM_SOURCE.to_owned(), "PAR", 0),
         ("direct-body-and-adapter", direct, "BAR", 0),
         ("child-local-complete", child.to_owned(), "PAR", 0),
         (
@@ -117,7 +117,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
         ),
         (
             "cancel",
-            OWNED_ENUM861.replace(
+            OWNED_ENUM_SOURCE.replace(
                 "    drive(&mut task);\n    drive(&mut task);",
                 "    drive(&mut task);",
             ),
@@ -126,7 +126,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
         ),
         (
             "pc0",
-            OWNED_ENUM861.replace("    drive(&mut task);\n    drive(&mut task);\n", ""),
+            OWNED_ENUM_SOURCE.replace("    drive(&mut task);\n    drive(&mut task);\n", ""),
             "A",
             0,
         ),
@@ -212,7 +212,7 @@ fn complete_enum_native_whole_slot_lifecycle() {
                     );
                 }
                 let dir = std::env::temp_dir().join(format!(
-                    "zil861-enum-{}-{case}-{backend:?}-{optimization:?}",
+                    "owned-enum-enum-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -271,7 +271,7 @@ fn complete_enum_internal_view_real_source_native() {
                 }
                 for optimization in [Optimization::O0, Optimization::O2] {
                     let dir = std::env::temp_dir().join(format!(
-                        "zil861-view-{}-{case}-{cancel}-{backend:?}-{optimization:?}",
+                        "owned-enum-view-{}-{case}-{cancel}-{backend:?}-{optimization:?}",
                         std::process::id()
                     ));
                     std::fs::create_dir_all(&dir).unwrap();
@@ -393,7 +393,7 @@ fn complete_enum_request_budgets_and_semantic_cache() {
         eprintln!("G8.6.1 {case} Source {ledger} N={low}/N-1/cold/warm/fresh");
     };
     for (case, text) in [
-        ("whole", OWNED_ENUM861),
+        ("whole", OWNED_ENUM_SOURCE),
         (
             "internal-view",
             include_str!("owned-enum-view-across-yield.zil"),
@@ -403,7 +403,7 @@ fn complete_enum_request_budgets_and_semantic_cache() {
             bounds(case, text, ledger);
         }
     }
-    let dir = std::env::temp_dir().join(format!("zil861-cache-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!("owned-enum-cache-{}", std::process::id()));
     std::fs::create_dir_all(&dir).unwrap();
     let mut session = CompilationSession::default();
     let pair = include_str!("owned-enum-two-leaves.zil");
@@ -412,14 +412,14 @@ fn complete_enum_request_budgets_and_semantic_cache() {
         "    drive(&mut task);",
     );
     for (ordinal, (text, expected)) in [
-        (OWNED_ENUM861, "PAR"),
-        (OWNED_ENUM861, "PAR"),
+        (OWNED_ENUM_SOURCE, "PAR"),
+        (OWNED_ENUM_SOURCE, "PAR"),
         (pair, "PABR"),
         (cancelled.as_str(), "PAB"),
         (include_str!("owned-enum-view-same-poll.zil"), "PAR"),
         (include_str!("owned-enum-view-across-yield.zil"), "PQAR"),
         (include_str!("owned-enum-view-same-poll.zil"), "PAR"),
-        (OWNED_ENUM861, "PAR"),
+        (OWNED_ENUM_SOURCE, "PAR"),
     ]
     .into_iter()
     .enumerate()
@@ -497,7 +497,7 @@ fn complete_enum_kernel_current_request_boundaries() {
     let defaults = Limits::default();
     let target = zil_base::TargetProfile::default();
     for (case, text) in [
-        ("whole", OWNED_ENUM861),
+        ("whole", OWNED_ENUM_SOURCE),
         (
             "internal-view",
             include_str!("owned-enum-view-across-yield.zil"),
