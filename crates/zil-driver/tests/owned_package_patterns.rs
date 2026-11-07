@@ -118,6 +118,10 @@ fn named_pattern_mutably_borrows_owned_package_child_and_moves_sibling() {
         "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn bump(child:&mut Child)->i32{child.n+=1;return child.n}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{side:moved,child:ref mut child}=p;return bump(child)+moved.n}",
         10,
     );
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn result()->i32{let p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{child:child,side:side}=p;let Child{r:moved,n:k}=child;return moved.n+side.n+k}",
+        14,
+    );
 }
 
 #[test]
