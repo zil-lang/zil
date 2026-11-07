@@ -1,4 +1,4 @@
-//! Bounded source recipes for the one-StoreElement Product profile. This only
+//! Bounded source recipes for StoreElement Product profiles. This only
 //! transports original declarations and applications; Types checks them again.
 use super::*;
 use zil_base::{
@@ -43,17 +43,14 @@ struct Application {
     arguments: Vec<TypeRef>,
     scope: Option<Scope>,
 }
-pub(super) fn parameter(aggregate: &Aggregate) -> Option<&GenericParam> {
-    let [parameter] = aggregate.generics.as_slice() else {
-        return None;
-    };
-    let GenericParamKind::Type(bounds) = &parameter.kind else {
-        return None;
-    };
+pub(super) fn parameters(aggregate: &Aggregate) -> Option<&[GenericParam]> {
     (aggregate.kind == zil_syntax::ast::AggregateKind::Package
-        && bounds.len() == 1
-        && stores::is_bound(&bounds[0]))
-    .then_some(parameter)
+        && !aggregate.generics.is_empty()
+        && aggregate.generics.iter().all(|parameter| {
+            matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                if bounds.len() == 1 && stores::is_bound(&bounds[0]))
+        }))
+    .then_some(&aggregate.generics)
 }
 impl Engine<'_> {
     pub(super) fn collect_products(&mut self, module: &Module) -> R<()> {
@@ -61,7 +58,7 @@ impl Engine<'_> {
             let ItemKind::Aggregate(a) = &item.kind else {
                 continue;
             };
-            if parameter(a).is_none() {
+            if parameters(a).is_none() {
                 continue;
             }
             self.budget.item(item)?;
@@ -76,12 +73,18 @@ impl Engine<'_> {
             }
             for index in 0..self.products.templates.len() {
                 let span = self.products.templates[index].1;
-                let name = &self.products.templates[index].0.generics[0].name;
-                self.budget.text(name, span)?;
-                let formal = name.clone();
+                let formals = self.products.templates[index]
+                    .0
+                    .generics
+                    .iter()
+                    .map(|p| p.name.clone())
+                    .collect::<Vec<_>>();
+                for name in &formals {
+                    self.budget.text(name, span)?;
+                }
                 let mut fields = std::mem::take(&mut self.products.templates[index].0.fields);
                 for field in &mut fields {
-                    self.prepare_product_recipe(&mut field.ty, &formal, &families, 0)?;
+                    self.prepare_product_recipe(&mut field.ty, &formals, &families, 0)?;
                 }
                 self.products.templates[index].0.fields = fields;
             }
@@ -91,16 +94,19 @@ impl Engine<'_> {
     fn prepare_product_recipe(
         &mut self,
         ty: &mut TypeRef,
-        formal: &str,
+        formals: &[String],
         families: &BTreeSet<String>,
         depth: usize,
     ) -> R<()> {
         self.budget.node(ty.span, depth)?;
-        if callable::parameter_mode(ty, formal) == Some(None) {
+        if formals
+            .iter()
+            .any(|formal| callable::parameter_mode(ty, formal) == Some(None))
+        {
             return Ok(());
         }
         if let TypeKind::Group(inner) = &mut ty.kind {
-            return self.prepare_product_recipe(inner, formal, families, depth + 1);
+            return self.prepare_product_recipe(inner, formals, families, depth + 1);
         }
         if let TypeKind::Named { path, args } = &mut ty.kind
             && path.len() == 1
@@ -110,11 +116,11 @@ impl Engine<'_> {
                 let GenericArg::Type(t) = arg else {
                     return Err(unsupported(ty.span, "constant Product recipe argument"));
                 };
-                self.prepare_product_recipe(t, formal, families, depth + 1)?;
+                self.prepare_product_recipe(t, formals, families, depth + 1)?;
             }
             return Ok(());
         }
-        if callable::refers(ty, formal) {
+        if formals.iter().any(|formal| callable::refers(ty, formal)) {
             return Err(unsupported(
                 ty.span,
                 "Product parameter requires a direct field, Store or finite child application",
@@ -383,15 +389,17 @@ impl Products {
         }
         let mut templates = Vec::new();
         for (a, span) in &self.templates {
-            let formal = parameter(a).expect("collected bounded Product");
+            let formals = parameters(a).expect("collected bounded Product");
             budget.node(*span, 0)?;
             budget.text(&a.name, *span)?;
-            budget.text(&formal.name, *span)?;
+            for formal in formals {
+                budget.text(&formal.name, *span)?;
+            }
             let mut fields = Vec::new();
             for f in &a.fields {
                 budget.node(f.span, 0)?;
                 budget.text(&f.name, f.span)?;
-                let ty = recipe(&f.ty, &formal.name, &families, budget, 0)?;
+                let ty = recipe(&f.ty, formals, &families, budget, 0)?;
                 fields.push(CoreAggregateFieldRecipe {
                     name: f.name.clone(),
                     public: f.public,
@@ -406,11 +414,15 @@ impl Products {
                 CoreAggregateTemplate {
                     id,
                     name: a.name.clone(),
-                    parameter: CoreTypeParameter {
-                        index: 0,
-                        name: formal.name.clone(),
-                        bound: CoreTypeBound::StoreElement,
-                    },
+                    parameters: formals
+                        .iter()
+                        .enumerate()
+                        .map(|(index, formal)| CoreTypeParameter {
+                            index: index as u32,
+                            name: formal.name.clone(),
+                            bound: CoreTypeBound::StoreElement,
+                        })
+                        .collect(),
                     fields,
                     span: *span,
                 },
@@ -517,14 +529,19 @@ impl Products {
 }
 fn recipe(
     ty: &TypeRef,
-    formal: &str,
+    formals: &[GenericParam],
     families: &BTreeMap<String, (ModuleId, NodeId)>,
     budget: &mut Budget<'_>,
     depth: usize,
 ) -> R<CoreAggregateTypeRecipe> {
     budget.node(ty.span, depth)?;
-    if callable::parameter_mode(ty, formal) == Some(None) {
-        return Ok(CoreAggregateTypeRecipe::Parameter { index: 0 });
+    if let Some(index) = formals
+        .iter()
+        .position(|formal| callable::parameter_mode(ty, &formal.name) == Some(None))
+    {
+        return Ok(CoreAggregateTypeRecipe::Parameter {
+            index: index as u32,
+        });
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind
         && path.as_slice() == ["Task"]
@@ -566,14 +583,14 @@ fn recipe(
                     next
                 };
                 ports.push(CoreTaskPortRecipe {
-                    pointee: Box::new(recipe(inner, formal, families, budget, depth + 1)?),
+                    pointee: Box::new(recipe(inner, formals, families, budget, depth + 1)?),
                     mutable: *mutable,
                     binder,
                 });
             }
         }
         return Ok(CoreAggregateTypeRecipe::Task {
-            result: Box::new(recipe(result, formal, families, budget, depth + 1)?),
+            result: Box::new(recipe(result, formals, families, budget, depth + 1)?),
             binder_count: classes.len() as u32,
             ports,
         });
@@ -583,12 +600,12 @@ fn recipe(
         && let [GenericArg::Type(environment)] = args.as_slice()
     {
         return Ok(CoreAggregateTypeRecipe::AsyncRegistration {
-            environment: Box::new(recipe(environment, formal, families, budget, depth + 1)?),
+            environment: Box::new(recipe(environment, formals, families, budget, depth + 1)?),
         });
     }
     if let Some(element) = stores::element(ty) {
         return Ok(CoreAggregateTypeRecipe::Store {
-            element: Box::new(recipe(element, formal, families, budget, depth + 1)?),
+            element: Box::new(recipe(element, formals, families, budget, depth + 1)?),
         });
     }
     if let TypeKind::Named { path, args } = &grouped(ty).kind
@@ -600,7 +617,7 @@ fn recipe(
             let GenericArg::Type(t) = arg else {
                 return Err(unsupported(ty.span, "constant Product argument"));
             };
-            arguments.push(recipe(t, formal, families, budget, depth + 1)?);
+            arguments.push(recipe(t, formals, families, budget, depth + 1)?);
         }
         return Ok(CoreAggregateTypeRecipe::Apply {
             module: *module,
@@ -608,7 +625,10 @@ fn recipe(
             arguments,
         });
     }
-    if callable::refers(ty, formal) {
+    if formals
+        .iter()
+        .any(|formal| callable::refers(ty, &formal.name))
+    {
         return Err(unsupported(
             ty.span,
             "Product parameter requires a direct field, Store or finite child application",
