@@ -369,7 +369,12 @@ fn retained_alias_and_consuming_callback_misuse_are_rejected() {
 }
 
 fn checked_module(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw168.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "retained_state_composition_retained_composition_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();

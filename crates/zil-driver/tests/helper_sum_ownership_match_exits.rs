@@ -17,7 +17,12 @@ fn run(label: &str, text: String, expected: &str) {
         fs::write(out.join("source.zil"), &text).unwrap();
         fs::write(out.join("expected.stdout"), expected).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "match-exits240.zil", text.as_str()),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "helper_sum_ownership_match_exits_match_exits.zil",
+                text.as_str(),
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,
@@ -80,7 +85,7 @@ fn defer_borrows_actual_published_leaf_locals_before_their_drop() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "defer-leaves240.zil",
+        "helper_sum_ownership_match_exits_defer_leaves.zil",
         source.as_str(),
     );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
@@ -121,7 +126,7 @@ fn pending_defer_borrow_blocks_consuming_a_published_pattern_leaf() {
         &SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "defer-leaf-consume240.zil",
+            "helper_sum_ownership_match_exits_defer_leaf_consume.zil",
             text.as_str(),
         ),
         &CompileOptions {

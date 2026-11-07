@@ -533,7 +533,12 @@ fn runtime_negative_empty_and_end_indices_trap_before_element_access() {
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw175.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "indexed_store_views_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();

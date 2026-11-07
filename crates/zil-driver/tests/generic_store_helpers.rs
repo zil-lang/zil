@@ -422,7 +422,12 @@ fn generic_prefix_drain_repeats_with_real_item_cleanup() {
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw178.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_store_helpers_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();
@@ -561,7 +566,7 @@ fn bounded_element_shape_work_has_an_exact_definition_time_boundary() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "budget178.zil",
+        "generic_store_helpers_budget.zil",
         format!(
             "{MODEL}{HELPERS}fn main()->i32{{let s:Store<Other>=empty();reserve(s,1);push(s,other(65));return i32(len(s))-1}}"
         ),

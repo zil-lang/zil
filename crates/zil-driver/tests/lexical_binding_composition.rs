@@ -381,7 +381,12 @@ fn callback_field_qualification_allows_sibling_copy_write_before_its_last_use() 
 #[test]
 fn independent_raw_and_wire_rebuild_both_composed_loan_kinds() {
     let source = last_read_source();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review177-raw.zil", source.clone());
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "lexical_binding_composition_review_raw.zil",
+        source.clone(),
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();

@@ -27,7 +27,7 @@ fn check(body: &str) -> zil_driver::CompileReport {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "field120.zil",
+        "owned_field_backing.zil",
         format!("{PRE}{body}"),
     );
     let directory = evidence("source");
@@ -67,7 +67,12 @@ fn rejected(body: &str, phase: &str, code: &str) {
     assert_eq!(report.status, ResultCategory::SafeReject);
 }
 fn typed(body: &str) -> TypedModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw120.zil", format!("{PRE}{body}"));
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_field_backing_raw.zil",
+        format!("{PRE}{body}"),
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap()

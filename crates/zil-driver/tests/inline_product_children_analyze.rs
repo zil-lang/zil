@@ -23,7 +23,12 @@ fn directory(label: &str) -> PathBuf {
 fn typed(label: &str, source: &str) -> TypedModule {
     let dir = directory(label);
     fs::write(dir.join("source.zil"), source).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "product206.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_product_children_analyze.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     fs::write(dir.join("core.txt"), format!("{core:#?}")).unwrap();

@@ -7,7 +7,12 @@ use zil_ir::{CallableKind, TypedModule};
 
 const DATA: &str = "resource R{n:i32}package Event{manages r:R;n:i32}";
 fn typed(source: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review246.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_callback_signature_admission.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -96,7 +101,12 @@ fn owning_data_does_not_open_address_borrowed_multi_f_or_capture_profiles() {
         let out = output(label);
         fs::write(out.join("source.zil"), &source).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "review246.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "owning_callback_signature_admission.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Types,
                 ..CompileOptions::default()

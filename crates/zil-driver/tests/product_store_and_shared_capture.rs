@@ -35,7 +35,12 @@ fn directory(label: &str) -> PathBuf {
 }
 
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review225226.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_store_and_shared_capture.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -100,7 +105,12 @@ fn native(label: &str, text: &str, expected: &str) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "review225226.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product_store_and_shared_capture.zil",
+                text,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 backend,
@@ -163,7 +173,12 @@ fn callable_hidden_in_managed_resource_head_is_not_capture_authority() {
         "let callback=move()=>i32(store_len(items))",
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "hidden225.zil", &owning),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_and_shared_capture_hidden.zil",
+            &owning,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(
@@ -279,7 +294,12 @@ fn child_take_and_replacement_wait_for_last_actual_callback_use() {
             &format!("{operation};let value=callback()"),
         );
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "active226.zil", &bad),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product_store_and_shared_capture_active.zil",
+                &bad,
+            ),
             &CompileOptions::default(),
         );
         assert_eq!(
@@ -312,7 +332,12 @@ fn ordinary_branch_union_keeps_each_possible_owner_live() {
             &format!("let moved={name};let value=callback()"),
         );
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "union226.zil", &bad),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "product_store_and_shared_capture_union.zil",
+                &bad,
+            ),
             &CompileOptions::default(),
         );
         assert_eq!(
@@ -356,7 +381,12 @@ fn owned_store_environment_does_not_acquire_external_shared_product_hold() {
         "callback State requires a self-contained environment",
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "mixed225226.zil", &good),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_and_shared_capture_mixed.zil",
+            &good,
+        ),
         &CompileOptions::default(),
     );
     fs::write(dir.join("compile.json"), report.to_json()).unwrap();
@@ -387,7 +417,12 @@ fn separate_local_environments_preserve_owned_store_and_shared_product_responsib
         "consume(item);let value=owned_callback()+shared_callback()",
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "mixed225226.zil", &bad),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_and_shared_capture_mixed.zil",
+            &bad,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(

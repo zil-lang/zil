@@ -18,7 +18,7 @@ struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
         let path = std::env::temp_dir().join(format!(
-            "zil-047-{}-{}",
+            "zil-resource-cleanup-pipeline-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

@@ -26,7 +26,12 @@ fn directory(label: &str) -> PathBuf {
 fn typed(label: &str, text: &str) -> TypedModule {
     let out = directory(label);
     fs::write(out.join("source.zil"), text).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "verify206.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_product_children_verify.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

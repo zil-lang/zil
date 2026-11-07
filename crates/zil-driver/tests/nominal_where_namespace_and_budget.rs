@@ -6,7 +6,12 @@ use zil_driver::Stage;
 use zil_driver::{CompilationSession, CompileOptions, CompileReport, ProjectSources};
 
 fn input(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review229.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_namespace_and_budget.zil",
+        text,
+    )
 }
 fn out(label: &str) -> PathBuf {
     let p = std::env::var_os("ZIL_TEST_REPORT_DIR")

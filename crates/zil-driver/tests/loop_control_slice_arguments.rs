@@ -31,7 +31,12 @@ fn check(label: &str, source: &str) -> CompileReport {
     let dir = directory(label);
     fs::write(dir.join("source.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "review195.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "loop_control_slice_arguments.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             emit_dir: Some(dir.join("phases")),
@@ -154,7 +159,12 @@ fn nearest_mixed_loop_targets_match_the_manual_native_cleanup_oracle() {
         fs::write(dir.join("source.zil"), NATIVE).unwrap();
         let program = dir.join("program");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "native195.zil", NATIVE),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "loop_control_slice_arguments_native.zil",
+                NATIVE,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 output: Some(program.clone()),
@@ -217,7 +227,12 @@ fn nearest_mixed_loop_targets_match_the_manual_native_cleanup_oracle() {
 fn baseline(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let dir = directory(label);
     fs::write(dir.join("source.zil"), source).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw195.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "loop_control_slice_arguments_raw.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
@@ -400,7 +415,12 @@ fn nested_exit_snapshots_with_shadowed_moved_ids_keep_exact_existing_limits() {
         source.replace("Store<i32>", "Store<Item>")
     );
     accepted("shadowed-id-budget-default", &source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget195.zil", &source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "loop_control_slice_arguments_budget.zil",
+        &source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     for metric in ["nodes", "work", "depth"] {
         let dir = directory(metric);

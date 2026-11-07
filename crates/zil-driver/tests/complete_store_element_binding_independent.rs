@@ -58,7 +58,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, native: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "independent202.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "complete_store_element_binding.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if native.is_some() {
                 Stage::Build
@@ -120,7 +125,12 @@ fn reject_source(label: &str, source: &str, phases: &[Phase], code: Option<&str>
 fn expanded(label: &str, source: &str) -> CoreModule {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent202.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "complete_store_element_binding.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -1265,7 +1275,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 fn complete_type_instantiation_and_independent_checks_have_exact_fresh_work_bounds() {
     let source = nominal_pair_source(true, true);
     let (core, typed, plan) = typed_control("full-type-budget-control", &source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent202.zil", &source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "complete_store_element_binding.zil",
+        &source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let expand = boundary(|n| {
         zil_expand::expand_with_map_limits(

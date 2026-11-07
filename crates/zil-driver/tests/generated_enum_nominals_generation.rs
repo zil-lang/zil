@@ -7,7 +7,12 @@ use zil_driver::{
 };
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "generated-enums230.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_enum_nominals_generation_generated_enums.zil",
+        text,
+    )
 }
 fn directory(label: &str) -> PathBuf {
     let path = std::env::var_os("ZIL_TEST_REPORT_DIR")

@@ -533,7 +533,12 @@ fn source_shape_and_field_plan_budgets_have_exact_fresh_boundaries() {
         ("nested-helper", nested.as_str()),
         ("lending", LENDING),
     ] {
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget201.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "callback_store_positions_source_budget.zil",
+            source,
+        );
         let syntax = zil_syntax::parse(&unit).into_result().unwrap();
         let core = zil_expand::expand(&unit, &syntax).unwrap();
         let limits = Limits::default();

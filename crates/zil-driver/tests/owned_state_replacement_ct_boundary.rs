@@ -30,7 +30,12 @@ fn record(label: &str, core: &CoreModule, value: impl std::fmt::Debug) {
 }
 
 fn program(source: &str) -> CoreProgram {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "ct205.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_state_replacement_ct_boundary.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     CoreProgram {

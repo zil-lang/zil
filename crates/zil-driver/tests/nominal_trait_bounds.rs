@@ -1244,7 +1244,7 @@ fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
     // frontend cache, then replay both independent verifier entry points.
     for ct_source in [ct_source, computed_constants_source] {
         let ct_cache = std::env::temp_dir().join(format!(
-            "zil-341-ct-wire-{}-{}",
+            "zil-nominal-trait-bounds-ct-wire-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -1594,7 +1594,7 @@ fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
             eprintln!("341 {label} request {ledger} N={low}; N-1/cold/warm/fresh agree");
         }
         let cache = std::env::temp_dir().join(format!(
-            "zil-341-cache-{}-{}",
+            "zil-nominal-trait-bounds-cache-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

@@ -13,7 +13,12 @@ use zil_driver::{
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "where231.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_bounds_where_traits.zil",
+        text,
+    )
 }
 
 fn output(label: &str) -> PathBuf {
@@ -870,7 +875,12 @@ fn direct_expand_api_checks_nominal_where_without_driver_normalization() {
     let result = zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default());
     assert!(result.is_ok(), "{result:?}");
     let bad = "trait Read{fn get(self:&Self)->i32;}fn read<T>(x:T)->(T,T) where T:Read=>(x,x);fn main()->i32=>0";
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw231.zil", bad);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_bounds_where_traits_raw.zil",
+        bad,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let errors =
         zil_expand::expand_with_map_limits(&source, &syntax, &Limits::default()).unwrap_err();

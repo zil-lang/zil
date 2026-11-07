@@ -19,7 +19,12 @@ fn directory(label: &str) -> PathBuf {
 }
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "shadow229.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_binders_nominal_shadow.zil",
+        text,
+    )
 }
 
 #[test]

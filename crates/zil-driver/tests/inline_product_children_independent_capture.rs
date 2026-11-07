@@ -60,7 +60,12 @@ fn pair(records: &Records, label: &str, typed: &TypedModule, candidate: &Candida
 fn frozen_coordinated_product_capture_is_admitted_after() {
     let records = Records::new();
     records.write("control.zil", CONTROL);
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "capture206.zil", CONTROL);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "inline_product_children_independent_capture.zil",
+        CONTROL,
+    );
     let syntax = zil_syntax::parse(&source).into_result();
     records.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&source, &syntax.unwrap());

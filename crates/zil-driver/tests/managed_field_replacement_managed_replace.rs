@@ -143,7 +143,7 @@ fn independent_verify_rejects_omitted_or_invalid_slot_cleanup() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "slot155.zil",
+        "managed_field_replacement_managed_replace_slot.zil",
         "fn main()->i32{var b=bytes_new();bytes_reserve(b,64);b=bytes_new();return 0}",
     );
     let ast = zil_syntax::parse(&source).into_result().unwrap();

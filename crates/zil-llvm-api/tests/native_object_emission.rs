@@ -10,7 +10,7 @@ use zil_llvm_api::{Config, Optimization, compile_module, model::*};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn run(module: &Module, optimization: Optimization) -> Output {
     let path = std::env::temp_dir().join(format!(
-        "zil-native211-{}-{}",
+        "zil-native-object-emission-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

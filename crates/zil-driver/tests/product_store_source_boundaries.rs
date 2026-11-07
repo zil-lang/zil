@@ -12,7 +12,12 @@ fn directory(label: &str) -> PathBuf {
     out
 }
 fn typed(source: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review223.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_store_source_boundaries.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -162,7 +167,12 @@ fn original_unused_mutable_product_copy_helper_is_promoted() {
     }
     let source = source.replace("write(p:&mut Leaf)","write(p:&mut Root)").replace("fn main(){}", "fn main(){var root=Root{child:Leaf{owner:R{n:1},tag:2},tag:3};let child=root.child;write(&mut root)}");
     let r = zil_driver::compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "incomplete223.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_source_boundaries_incomplete.zil",
+            source,
+        ),
         &zil_driver::CompileOptions {
             stop_after: zil_driver::Stage::Verify,
             ..Default::default()

@@ -12,7 +12,12 @@ fn root(n:i32)->Root { return Root{child:leaf(n),tag:n} }
 "#;
 
 fn core(source: &str) -> CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "capture214.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_capture_classification_source.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &syntax).unwrap()
 }
@@ -284,7 +289,12 @@ fn source_declared_fn_cannot_hide_child_consumption() {
 #[test]
 fn complete_product_store_elements_are_admitted_since() {
     let source = format!("{TYPES}fn main(){{let items:Store<Root>=store_new()}}");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "closed214.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_capture_classification_source_closed.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     // The exact old source and source identity remain a Types-level control;
     // 223 now admits this complete Product as a Store element.

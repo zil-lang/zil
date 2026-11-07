@@ -17,7 +17,7 @@ fn try_build_with_limits(
     entry: &str,
     limits: &Limits,
 ) -> zil_base::CompileResult<CtArtifactProgram> {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "260.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "member_owner_compiler.zil", text);
     let syntax = zil_syntax::parse(&source).into_result()?;
     let symbols: Vec<_> = syntax
         .items
@@ -784,7 +784,12 @@ fn generic_type_binders_shadow_ct_builtins_and_outer_ct_nominals() {
         "fn identity<Syntax:Copy>(value:Syntax)->Syntax{return value}fn main()->i32{return identity(7)-7}",
     ] {
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "314-shadow.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "member_owner_compiler_shadow.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Verify,
                 ..CompileOptions::default()
@@ -930,7 +935,12 @@ fn generic_definition_without_invocation_rejects_before_runtime_pipeline() {
     ] {
         let text = format!("fn unused<T:Copy>(x:T)->Type{{{body}}}fn main()->i32{{return 0}}");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "314-unused.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "member_owner_compiler_unused.zil",
+                text,
+            ),
             &options,
         );
         assert_eq!(
@@ -1035,7 +1045,12 @@ fn original_pending_ct_generics_reach_runtime_verify() {
             "import std.syntax as syntax;struct Config<T:Copy,P:Copy>{value:T}fn value_type<T:Copy>(x:T)->Type{return T}fn expression(x:Config<i32,bool>)->Syntax<Expr>{return quote<Expr>{$(syntax.literal(x.value))}}fn main()->i32{let n:#(value_type(7))=#splice(expression(Config::<i32,bool>{value:7}));return n-7}",
         ),
     ] {
-        let source = SourceUnit::new(FileId(0), ModuleId(0), format!("314-{name}.zil"), text);
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            format!("member_owner_compiler_{name}.zil"),
+            text,
+        );
         let report = compile_source(
             &source,
             &CompileOptions {
@@ -1125,7 +1140,7 @@ fn multiple_generic_queries_share_request_budget_on_cold_and_warm_sessions() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "314-two-queries.zil",
+        "member_owner_compiler_two_queries.zil",
         "fn select<T:Copy>(x:T)->Type{return T}fn main()->i32{let a:#(select(7))=7;let b:#(select(i64(8)))=8;return a-7}",
     );
     let mut low = 1;
@@ -1196,7 +1211,7 @@ fn copy_record_lexical_alias_and_phantom_result_types_reach_real_consumers() {
             &SourceUnit::new(
                 FileId(0),
                 ModuleId(0),
-                format!("review319-{name}.zil"),
+                format!("member_owner_compiler_review_{name}.zil"),
                 text,
             ),
             &CompileOptions {
@@ -1226,7 +1241,7 @@ fn copy_record_generic_binders_shadow_ct_domain_names() {
             &SourceUnit::new(
                 FileId(0),
                 ModuleId(0),
-                format!("review319-{name}.zil"),
+                format!("member_owner_compiler_review_{name}.zil"),
                 text,
             ),
             &CompileOptions {

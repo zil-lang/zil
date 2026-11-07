@@ -17,7 +17,12 @@ fn record(name: &str, bytes: impl AsRef<[u8]>) {
 
 fn base() -> (TypedModule, CandidatePlan) {
     let source = "fn main()->i32{let n=0;return n}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review177.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "public_lexical_bindings.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();

@@ -2,7 +2,12 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::*;
 fn checked(text: &str) -> TypedModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "front252.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "forwarded_callback_types_front.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -44,7 +49,12 @@ fn mutable_owned_environment_can_be_called_then_forwarded() {
 }
 
 fn rejected(text: &str) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "reject252.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "forwarded_callback_types_front_reject.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     if let Ok(core) = zil_expand::expand(&source, &ast) {
         assert!(
@@ -185,7 +195,12 @@ fn frozen_same_type_fresh_factory_returns_are_real_safe_rejections() {
             "../../../tests/impl256/frozen-prep/negative/same_closure_id_wrong_branch.zil"
         ),
     ] {
-        let source = SourceUnit::new(FileId(0), ModuleId(0), "fresh252.zil", text);
+        let source = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "forwarded_callback_types_front_fresh.zil",
+            text,
+        );
         let ast = zil_syntax::parse(&source).into_result().unwrap();
         let errors = zil_expand::expand(&source, &ast).unwrap_err();
         assert!(
@@ -203,7 +218,7 @@ fn raw_unused_parameter_definition_checks_mutable_position_before_any_instance()
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw252.zil",
+        "forwarded_callback_types_front_raw.zil",
         "fn keep<F:FnMut(i32)->i32>(f:F)->F{return f}fn main(){}",
     );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
@@ -253,7 +268,12 @@ fn raw_unused_parameter_definition_checks_mutable_position_before_any_instance()
 #[test]
 fn original_forward_has_exact_fresh_types_and_expand_work_boundaries() {
     let text = include_str!("forwarded_callback_types_fixtures/original.zil");
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "front252.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "forwarded_callback_types_front.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let expanded = zil_expand::expand(&source, &ast).unwrap();
     let expected =
@@ -323,7 +343,12 @@ fn in_scope_forward_fnmut_let_call_is_safe_rejected_and_var_call_preserves_state
     let bad = format!(
         "{prelude}fn outer<F:FnMut(i32)->i32>(f:F)->F{{let current=keep(f);current(1);return current}}fn main(){{}}"
     );
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "mut252.zil", &bad);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "forwarded_callback_types_front_mut.zil",
+        &bad,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let errors = zil_expand::expand(&unit, &ast).unwrap_err();
     assert!(

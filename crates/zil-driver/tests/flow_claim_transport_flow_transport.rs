@@ -6,7 +6,12 @@ use zil_ir::{
 };
 const SOURCE: &str = "fn twice<F:Fn()->i32>(f:&F)->i32{return f()+f()}fn main()->i32{let n=7;let f=()=>n;return twice(&f)-14}";
 fn fixture() -> (TypedModule, CandidatePlan) {
-    let u = SourceUnit::new(FileId(0), ModuleId(0), "flow191.zil", SOURCE);
+    let u = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "flow_claim_transport_flow_transport.zil",
+        SOURCE,
+    );
     let a = zil_syntax::parse(&u).into_result().unwrap();
     let c = zil_expand::expand(&u, &a).unwrap();
     let m = zil_types::check(&c, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

@@ -19,7 +19,12 @@ fn main() -> void!i32 {
 "#;
 
 fn typed(target: &TargetProfile) -> (TypedModule, CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "win64-store181.zil", SOURCE);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "composed_store_windows_win64_store_win64_store.zil",
+        SOURCE,
+    );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &syntax).unwrap();
     let limits = Limits::default();

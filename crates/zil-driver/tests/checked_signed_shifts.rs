@@ -34,7 +34,7 @@ impl Case {
     fn compile(&self, source: &str, optimization: Option<Optimization>) -> CompileReport {
         fs::write(self.0.join("main.zil"), source).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "shift124.zil", source),
+            &SourceUnit::new(FileId(0), ModuleId(0), "checked_signed_shifts.zil", source),
             &self.options(optimization),
         );
         self.record(&report);

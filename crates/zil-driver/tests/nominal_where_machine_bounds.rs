@@ -264,7 +264,12 @@ fn independent_reserved_capabilities_and_similar_ordinary_trait_names() {
 fn independent_raw_ast_prefixes_only_apply_the_reserved_name_exclusion() {
     use zil_syntax::ast::{ItemKind, TypeKind};
     let text = "trait Tag{}fn keep<T>(x:T)->T where T:Tag=>x;fn main()->i32=>0";
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw-review231.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_machine_bounds_raw.zil",
+        text,
+    );
     let original = zil_syntax::parse(&source).into_result().unwrap();
     for (index, (name, blocked)) in [
         ("$module17_Send", true),

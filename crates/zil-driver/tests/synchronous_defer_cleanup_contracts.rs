@@ -29,7 +29,12 @@ fn dir(label: &str) -> PathBuf {
     out
 }
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review227.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "synchronous_defer_cleanup_contracts.zil",
+        text,
+    )
 }
 fn typed(text: &str) -> TypedModule {
     let u = unit(text);

@@ -6,7 +6,7 @@ fn product() -> TypedModule {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "capture215.zil",
+        "product_capture_ownership.zil",
         "resource R{n:i32}\npackage Leaf{manages a:R;n:i32}\nfn local_capture(p:Leaf)->i32{let f=move()=>p.n;return 0}\nfn main(){}\n",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

@@ -12,7 +12,7 @@ struct Temp(std::path::PathBuf);
 impl Temp {
     fn new() -> Self {
         let p = std::env::temp_dir().join(format!(
-            "zil037-{}-{}",
+            "zil-conditional-patterns-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

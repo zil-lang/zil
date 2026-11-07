@@ -29,7 +29,12 @@ fn check(label: &str, source: &str) -> CompileReport {
     let dir = directory(label);
     fs::write(dir.join("main.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "symbolic195.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "loop_control_flow_symbolic.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             emit_dir: Some(dir.join("phases")),
@@ -257,7 +262,12 @@ fn loop_exit_state_collections_have_exact_existing_budget_frontiers() {
     let source = format!(
         "fn keep<T>(value:T,mode:i32)->T{{for index in 0..4{{{body}}}return value}}fn main(){{}}"
     );
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget195.zil", &source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "loop_control_flow_symbolic_budget.zil",
+        &source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     for metric in ["nodes", "work"] {
         let dir = directory(metric);

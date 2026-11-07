@@ -16,7 +16,12 @@ use zil_ir::{
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review045-loans.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "resource_loan_boundaries_review_loans.zil",
+        text,
+    )
 }
 fn native(build: impl FnOnce(&CompileOptions) -> CompileReport, want: i64) {
     let temp = std::env::temp_dir().join(format!(

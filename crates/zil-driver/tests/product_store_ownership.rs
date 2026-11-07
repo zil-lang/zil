@@ -38,7 +38,12 @@ fn directory(label: &str) -> PathBuf {
 fn check(label: &str, source: &str, stage: Stage) -> CompileReport {
     let dir = directory(label);
     fs::write(dir.join("source.zil"), source).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "store223.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_store_ownership.zil",
+        source,
+    );
     let report = compile_source(
         &unit,
         &CompileOptions {
@@ -69,7 +74,12 @@ fn native(label: &str, source: &str, stdout: &[u8], exit: i32) {
     for opt in [Optimization::O0, Optimization::O2] {
         let dir = directory(label);
         fs::write(dir.join("source.zil"), source).unwrap();
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "store223.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_store_ownership.zil",
+            source,
+        );
         let exe = dir.join("program");
         let report = compile_source(
             &unit,
@@ -287,7 +297,12 @@ fn ordinary_sum_payloads_extend_unit_protocols_without_other_shape_permissions()
 }
 
 fn candidate(source: &str) -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw223.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_store_ownership_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let target = TargetProfile::host_llvm();

@@ -109,7 +109,12 @@ fn all_i32_and_i64_return_bits_match_independent_oracle_cold_and_warm() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = Dir::new(backend, optimization);
             fs::write(dir.0.join("source.zil"), SOURCE).unwrap();
-            let source = SourceUnit::new(FileId(0), ModuleId(0), "review234.zil", SOURCE);
+            let source = SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "narrow_constant_lowering_full_width.zil",
+                SOURCE,
+            );
             let options = CompileOptions {
                 backend,
                 optimization,

@@ -227,7 +227,7 @@ fn owning_package_new_field_operations_cannot_escape_ct_or_verified_lir_binding(
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "field-boundary074.zil",
+        "owning_package_field_updates_packages_field_boundary.zil",
         "resource R{n:i32} package P{manages a:R;manages b:R;n:i32} fn main()->i32{var p=P{a:R{n:20},b:R{n:21},n:1};let a=give p.a;p.a=R{n:a.n+1};p.n=2;return p.a.n+p.b.n+p.n-44}",
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

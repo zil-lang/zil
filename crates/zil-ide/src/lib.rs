@@ -137,7 +137,8 @@ mod tests {
         for original in cases {
             // Reuse the same file/module/path across edits: stale template or
             // concrete-type bindings must not survive the source fingerprint.
-            let source = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", original);
+            let source =
+                SourceUnit::new(FileId(0), ModuleId(0), "lib_store_template.zil", original);
             let cli = zil_driver::compile_source(&source, &options);
             assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
             assert_eq!(cli.verification_runs, 1);
@@ -155,7 +156,7 @@ mod tests {
             );
             let changed = original.replacen("fn push<T: StoreElement>", "fn push<T: Copy>", 1);
             assert_ne!(original, changed);
-            let edited = SourceUnit::new(FileId(0), ModuleId(0), "store-template202.zil", changed);
+            let edited = SourceUnit::new(FileId(0), ModuleId(0), "lib_store_template.zil", changed);
             let cli = zil_driver::compile_source(&edited, &options);
             let ide = editor.analyze(&edited, &options);
             assert_ne!(cli.status, ResultCategory::Success);
@@ -192,7 +193,7 @@ mod tests {
         };
         let mut editor = EditorSession::new();
         for original in cases {
-            let source = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", original);
+            let source = SourceUnit::new(FileId(0), ModuleId(0), "lib_state_edit.zil", original);
             let cli = zil_driver::compile_source(&source, &options);
             assert_eq!(cli.status, ResultCategory::Success, "{}", cli.to_json());
             let cold = editor.analyze(&source, &options);
@@ -215,7 +216,7 @@ mod tests {
             let head = "fn run<T: Copy, F: Fn() -> i32";
             assert_eq!(original.matches(head).count(), 1);
             let changed = original.replacen(head, "fn run<T: Copy, F: FnOnce() -> i32", 1);
-            let changed = SourceUnit::new(FileId(0), ModuleId(0), "state203-edit.zil", changed);
+            let changed = SourceUnit::new(FileId(0), ModuleId(0), "lib_state_edit.zil", changed);
             let cli = zil_driver::compile_source(&changed, &options);
             assert_eq!(cli.status, ResultCategory::SafeReject, "{}", cli.to_json());
             let ide = editor.analyze(&changed, &options);

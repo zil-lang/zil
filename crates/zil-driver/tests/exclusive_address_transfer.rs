@@ -25,7 +25,7 @@ fn run(path: &Path, want: i64) {
 }
 fn native(text: &str, want: i64) -> String {
     let dir = std::env::temp_dir().join(format!(
-        "zil-042-{}-{}",
+        "zil-exclusive-address-transfer-{}-{}",
         std::process::id(),
         NEXT.fetch_add(1, Ordering::Relaxed)
     ));

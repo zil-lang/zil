@@ -44,7 +44,12 @@ impl Drop for Case {
     }
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "alias103.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "transparent_generic_aliases.zil",
+        text,
+    )
 }
 fn check(text: &str) -> CompileReport {
     let case = Case::new("source");

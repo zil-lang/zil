@@ -27,7 +27,7 @@ fn dir(label: &str) -> PathBuf {
     path
 }
 fn typed(text: &str) -> TypedModule {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "capture226.zil", text);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "shared_product_capture.zil", text);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -60,7 +60,7 @@ fn native(label: &str, text: &str, stdout: &str, exit: i32) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "capture226.zil", text),
+            &SourceUnit::new(FileId(0), ModuleId(0), "shared_product_capture.zil", text),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,
@@ -132,7 +132,12 @@ fn current_loan_blocks_whole_owner_move() {
         "let moved = item; let value = callback()",
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "bad226.zil", &source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "shared_product_capture_bad.zil",
+            &source,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(

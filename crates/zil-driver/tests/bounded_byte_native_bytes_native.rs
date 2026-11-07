@@ -22,7 +22,7 @@ impl Temp {
             .unwrap_or_else(std::env::temp_dir);
         fs::create_dir_all(&base).unwrap();
         let path = base.join(format!(
-            "zil-bytes083-{}-{}",
+            "zil-bounded-byte-native-bytes-native-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -285,7 +285,12 @@ fn byte_buffer_controlled_short_writes_and_no_progress_errors_preserve_prefix() 
 }
 
 fn check_source(temp: &Path, index: usize, text: &str, expected: Option<(Phase, &str)>) {
-    let input = SourceUnit::new(FileId(0), ModuleId(0), "bytes083.zil", text);
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "bounded_byte_native_bytes_native.zil",
+        text,
+    );
     let report = compile_source(&input, &CompileOptions::default());
     fs::write(temp.join(format!("source-{index}.zil")), text).unwrap();
     fs::write(temp.join(format!("source-{index}.json")), report.to_json()).unwrap();

@@ -39,7 +39,12 @@ impl Drop for Case {
     }
 }
 fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "constructor200.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "persistent_callback_state_analyze_constructor.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

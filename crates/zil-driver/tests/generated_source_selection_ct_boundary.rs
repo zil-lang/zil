@@ -4,7 +4,12 @@ use zil_driver::{CompileOptions, compile_source};
 use zil_ir::{Constant, CtProgram};
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "boundary219.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_source_selection_ct_boundary.zil",
+        text,
+    )
 }
 
 #[test]

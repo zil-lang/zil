@@ -2,7 +2,7 @@
 use zil_base::{FileId, Limits, ModuleId, SourceUnit, TargetProfile};
 use zil_ir::*;
 fn core(text: &str) -> CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "front246.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "owning_callback_frontend.zil", text);
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }
@@ -10,7 +10,12 @@ fn checked(text: &str) -> TypedModule {
     zil_types::check(&core(text), &TargetProfile::host_llvm(), &Limits::default()).unwrap()
 }
 fn rejected(text: &str) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "reject246.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_callback_frontend_reject.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     if let Ok(core) = zil_expand::expand(&source, &ast) {
         assert!(
@@ -321,7 +326,12 @@ fn raw_unused_helper_signature_cannot_forge_a_data_or_passing_qualification() {
 #[test]
 fn dispatch_has_fresh_exact_types_and_expand_work_boundaries() {
     let source = include_str!("owning_callback_frontend_fixtures/event_reply.zil");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "front246.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_callback_frontend.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let expanded = core(source);
     let expected = checked(source);
@@ -415,7 +425,12 @@ fn registered_copy_helper_costs_and_old_flat_control_have_exact_fresh_boundaries
             (2, 5),
         ),
     ] {
-        let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget246.zil", source);
+        let unit = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owning_callback_frontend_budget.zil",
+            source,
+        );
         let ast = zil_syntax::parse(&unit).into_result().unwrap();
         let core = zil_expand::expand(&unit, &ast).unwrap();
         let expected =

@@ -46,7 +46,12 @@ fn save(
     }
 }
 fn baseline(label: &str, text: &str) -> (TypedModule, CandidatePlan) {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "analyze196.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "independent_callback_roles_analyze_roles.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();

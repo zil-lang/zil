@@ -239,7 +239,12 @@ fn unsupported_callable_contracts_are_not_widened() {
 #[test]
 fn expansion_charges_nested_callable_work_at_exact_boundaries() {
     let text = "struct Cell<T>{value:T;}fn apply<F:Fn(Cell<i64>)->Cell<i64>>(f:&F,x:Cell<i64>)->Cell<i64>{return f(x)}fn value()->i64{let f=(x:Cell<i64>)=>Cell::<i64>{value:x.value+2};let n=apply(&f,Cell::<i64>{value:40});return n.value}";
-    let input = SourceUnit::new(FileId(0), ModuleId(0), "boundaries121.zil", text);
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callable_nominal_values_callable_nominals_boundaries.zil",
+        text,
+    );
     let parsed = zil_syntax::parse(&input).into_result().unwrap();
     let full = zil_expand::expand_with_map_limits(&input, &parsed, &Limits::default()).unwrap();
     let case = Case::new("budget");
@@ -292,7 +297,12 @@ fn expansion_charges_nested_callable_work_at_exact_boundaries() {
 #[test]
 fn independent_verifier_rejects_a_forged_nominal_callable_signature() {
     let text = "struct Cell<T>{value:T;}fn apply<F:Fn(Cell<i64>)->Cell<i64>>(f:&F,x:Cell<i64>)->Cell<i64>{return f(x)}fn value()->i64{let f=(x:Cell<i64>)=>Cell::<i64>{value:x.value+2};let n=apply(&f,Cell::<i64>{value:40});return n.value}";
-    let input = SourceUnit::new(FileId(0), ModuleId(0), "raw121.zil", text);
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callable_nominal_values_callable_nominals_raw.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &ast).unwrap();
     let target = zil_base::TargetProfile::default();

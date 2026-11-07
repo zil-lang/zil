@@ -26,7 +26,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn baseline(source: &str) -> (TypedModule, CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw196.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_runtime_roles_raw.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap();
@@ -338,7 +343,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 }
 #[test]
 fn role_events_have_stage_local_work_limits_and_fresh_retry() {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget196.zil", SOURCE);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_runtime_roles_raw_budget.zil",
+        SOURCE,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let types = boundary(|n| {
@@ -382,7 +392,12 @@ fn role_events_have_stage_local_work_limits_and_fresh_retry() {
 fn nested_capture_role_binding_pays_work_before_signature_clones() {
     let source =
         include_str!("independent_callback_roles_fixtures/12_nested_second_role_owned_write.zil");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "nested-budget196.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nested-callback_runtime_roles_raw_budget.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let types = boundary(|n| {

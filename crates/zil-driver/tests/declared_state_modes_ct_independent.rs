@@ -44,7 +44,12 @@ impl Drop for Case {
     }
 }
 fn module(id: u32, source: &str) -> CoreModule {
-    let unit = SourceUnit::new(FileId(id), ModuleId(id), format!("ct203-{id}.zil"), source);
+    let unit = SourceUnit::new(
+        FileId(id),
+        ModuleId(id),
+        format!("declared_state_modes_ct_independent_ct_{id}.zil"),
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     zil_expand::expand(&unit, &ast).unwrap()
 }

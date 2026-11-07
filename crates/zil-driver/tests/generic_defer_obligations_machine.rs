@@ -37,7 +37,12 @@ fn original_generic_wrapper_allocation_failure_keeps_actual_responsibility() {
         fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
         fs::write(dir.join("source.zil"), source).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "fault237.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "generic_defer_obligations_machine_fault.zil",
+                source,
+            ),
             &CompileOptions {
                 backend: NativeBackend::LlvmApi,
                 clang: Some(wrapper),

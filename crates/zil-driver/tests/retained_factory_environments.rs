@@ -7,7 +7,12 @@ use zil_ir::{CallableKind, InstructionKind, Type};
 
 fn source(text: &str, stage: Stage) -> CompileReport {
     compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "retained069.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "retained_factory_environments.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: stage,
             ..CompileOptions::default()
@@ -221,7 +226,7 @@ fn retained_factory_new_raw_metadata_is_bounded_before_cloning() {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "budget069.zil",
+        "retained_factory_environments_budget.zil",
         "fn make()->impl Fn()->i32{return move ()=>1}",
     );
     let limits = Limits::default();
@@ -250,7 +255,7 @@ fn retained_factory_return_is_a_direct_call_with_environment_not_body_substituti
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "shape069.zil",
+        "retained_factory_environments_shape.zil",
         "fn main()->i32{let f=make(40);return f(2)-42} fn make(n:i32)->impl Fn(i32)->i32{return move (x)=>n+x}",
     );
     let limits = Limits::default();
@@ -280,7 +285,7 @@ fn retained_factory_analyze_reconstructs_cleanup_and_rejects_missing_contract() 
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "contract069.zil",
+        "retained_factory_environments_contract.zil",
         "resource R{n:i32} fn make()->impl Fn()->i32{let r=R{n:21};return move ()=>r.n}",
     );
     let limits = Limits::default();

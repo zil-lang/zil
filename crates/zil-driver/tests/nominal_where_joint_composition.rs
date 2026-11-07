@@ -4,7 +4,12 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompilationSession, CompileOptions};
 
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review229-joint.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "nominal_where_joint_composition_review_joint.zil",
+        text,
+    )
 }
 fn output(label: &str) -> PathBuf {
     let p = std::env::var_os("ZIL_TEST_REPORT_DIR")

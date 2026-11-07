@@ -6,7 +6,12 @@ use zil_driver::{
 
 fn checked(text: &str) {
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "helpers065.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "concrete_callable_helpers.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -215,7 +220,12 @@ fn callable_helper_copy_error_callbacks_are_instantiated_and_verified() {
 
 fn rejected(text: &str, category: ResultCategory, phase: Phase, message: &str) {
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "negative065.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "concrete_callable_helpers_negative.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -305,7 +315,12 @@ fn callable_helper_scope_is_explicit_for_extra_borrows_and_unbounded_traces() {
 }
 
 fn core(text: &str) -> zil_ir::CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw065.zil", text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "concrete_callable_helpers_raw.zil",
+        text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }

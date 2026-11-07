@@ -12,7 +12,12 @@ fn rejects(label: &str, source: String) {
     fs::create_dir_all(&out).unwrap();
     fs::write(out.join("source.zil"), &source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "review247.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owning_callback_transfer_analysis.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             emit_dir: Some(out.join("phases")),

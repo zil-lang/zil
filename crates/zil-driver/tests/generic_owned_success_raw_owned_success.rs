@@ -31,7 +31,12 @@ fn main()->E!i32{let pending=pass(make::<P>());let s=rewrap(pending)?;let final=
 "#;
 
 fn candidate(source: &str) -> (TypedModule, CandidatePlan) {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw186.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generic_owned_success_raw_owned_success.zil",
+        source,
+    );
     let parsed = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &parsed).unwrap();
     let limits = Limits::default();

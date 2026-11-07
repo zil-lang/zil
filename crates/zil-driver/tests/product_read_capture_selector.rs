@@ -35,7 +35,12 @@ fn directory(label: &str) -> PathBuf {
 
 fn typed(body: &str) -> (String, TypedModule) {
     let text = format!("{DEFINITIONS} {body}");
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "captures077.zil", &text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "product_read_capture_selector_captures.zil",
+        &text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let module = zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap();

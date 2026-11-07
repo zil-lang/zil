@@ -11,7 +11,12 @@ fn owned_package_array_capture_is_closed_in_source_raw_and_wire() {
         "{prefix}fn main()->i32{{let a=[make(),make()];let f=move()=>a[0].r.n;return f()}}"
     );
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "capture167.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "owned_array_elements_array_capture_boundary.zil",
+            text,
+        ),
         &CompileOptions::default(),
     );
     assert_eq!(
@@ -25,7 +30,7 @@ fn owned_package_array_capture_is_closed_in_source_raw_and_wire() {
     let source = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "raw-capture167.zil",
+        "raw-owned_array_elements_array_capture_boundary.zil",
         format!("{prefix}fn main()->i32{{let p=make();let n=0;let f=move()=>n;return f()}}"),
     );
     let syntax = zil_syntax::parse(&source).into_result().unwrap();

@@ -25,7 +25,7 @@ fn dir(label: &str) -> PathBuf {
     path
 }
 fn typed(text: &str) -> Result<TypedModule, Vec<Diagnostic>> {
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "capture232.zil", text);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "readonly_product_capture.zil", text);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default())
@@ -101,7 +101,7 @@ fn native(label: &str, text: &str, stdout: &str, exit: i32) {
             NativeBackend::Clang
         };
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "capture232.zil", text),
+            &SourceUnit::new(FileId(0), ModuleId(0), "readonly_product_capture.zil", text),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,
@@ -242,7 +242,12 @@ fn live_shared_capture_rejects_owner_move_and_child_replacement() {
         .replace("let value = callback() + callback()", "item.child = Leaf { ticket: Ticket { code: 66 }, value: 9 }; let value = callback() + callback()");
     for source in [moved, replaced] {
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "bad232.zil", &source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "readonly_product_capture_bad.zil",
+                &source,
+            ),
             &CompileOptions::default(),
         );
         assert_eq!(

@@ -68,7 +68,12 @@ fn complete_children_have_inline_payloads_and_one_parent_obligation() {
         fs::write(case.0.join("source.zil"), SOURCE).unwrap();
         let executable = case.0.join("program");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "machine206.zil", SOURCE),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "inline_product_children_machine.zil",
+                SOURCE,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,

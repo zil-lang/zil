@@ -19,7 +19,7 @@ impl Temp {
             .map(PathBuf::from)
             .unwrap_or_else(std::env::temp_dir);
         let path = base.join(format!(
-            "zil-native087-{}-{}",
+            "zil-foreign-abi-native-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));
@@ -35,7 +35,7 @@ impl Drop for Temp {
     }
 }
 fn input(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "native087.zil", text)
+    SourceUnit::new(FileId(0), ModuleId(0), "foreign_abi_native.zil", text)
 }
 fn build(text: &str, optimization: Optimization) -> Temp {
     let temp = Temp::new();

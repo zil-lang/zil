@@ -56,7 +56,12 @@ fn compile(label: &str, text: &str, limits: Limits) -> zil_driver::CompileReport
     let dir = directory(label);
     fs::write(dir.join("source.zil"), text).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "shared224.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "complete_product_shared_borrows_shared_product.zil",
+            text,
+        ),
         &CompileOptions {
             limits,
             emit_dir: Some(dir.join("phases")),
@@ -257,7 +262,12 @@ fn original_shared_capture_promoted() {
 fn typed(label: &str, text: &str) -> TypedModule {
     let out = directory(label);
     fs::write(out.join("source.zil"), text).unwrap();
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw224.zil", text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "complete_product_shared_borrows_shared_product_raw.zil",
+        text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
@@ -535,7 +545,12 @@ fn nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2() {
         let executable = dir.join("program");
         fs::write(dir.join("source.zil"), text).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "native224.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "complete_product_shared_borrows_shared_product_native.zil",
+                text,
+            ),
             &CompileOptions {
                 backend: native_backend(),
                 stop_after: Stage::Build,
@@ -597,7 +612,12 @@ fn main()->i32{
             let executable = dir.join("program");
             fs::write(dir.join("source.zil"), text).unwrap();
             let report = compile_source(
-                &SourceUnit::new(FileId(0), ModuleId(0), "direct224.zil", text),
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "complete_product_shared_borrows_shared_product_direct.zil",
+                    text,
+                ),
                 &CompileOptions {
                     backend: native_backend(),
                     stop_after: Stage::Build,
@@ -658,7 +678,12 @@ fn allocated_product_leaves_are_cleaned_on_each_real_allocator_failure() {
         };
         fs::write(dir.join("source.zil"), text).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "allocation224.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "complete_product_shared_borrows_shared_product_allocation.zil",
+                text,
+            ),
             &CompileOptions {
                 backend: native_backend(),
                 clang: Some(driver_clang),
@@ -833,7 +858,12 @@ fn each_changed_phase_has_its_own_exact_budget_boundary() {
     let text = source(&format!(
         "fn main()->i32{{let root={ROOT};let p=&root;return value(p)-23}}"
     ));
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "budget224.zil", &text);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "complete_product_shared_borrows_shared_product_budget.zil",
+        &text,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = |n| Limits {

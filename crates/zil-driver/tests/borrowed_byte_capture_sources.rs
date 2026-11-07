@@ -179,7 +179,12 @@ fn raw_same_slot_retargeting_cannot_discard_a_private_separation_obligation() {
     let text = format!(
         "{FILL}fn main()->i32{{let a=bytes_new();let b=bytes_new();if !fill(a,65u8){{return 8}}let read=a;let edit=b;let f=()=>{{let view=bytes_view(read);bytes_reserve(edit,4);return i32(view[0])}};return f()-65}}"
     );
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw187.zil", &text);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "borrowed_byte_capture_sources_raw.zil",
+        &text,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     let mut module =

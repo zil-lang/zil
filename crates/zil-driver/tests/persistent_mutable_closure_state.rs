@@ -13,7 +13,7 @@ struct Temp(PathBuf);
 impl Temp {
     fn new() -> Self {
         let p = std::env::temp_dir().join(format!(
-            "zil-030-{}-{}",
+            "zil-persistent-mutable-closure-state-{}-{}",
             std::process::id(),
             NEXT.fetch_add(1, Ordering::Relaxed)
         ));

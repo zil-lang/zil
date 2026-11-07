@@ -51,7 +51,12 @@ fn native(text: &str, expected: &[u8]) {
         let c = Case::new("native");
         fs::write(c.0.join("source.zil"), text).unwrap();
         let r = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "ct122.zil", text),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "compile_time_declarations_ct_declarations.zil",
+                text,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 entry: Some("value".into()),
@@ -78,7 +83,12 @@ fn reject(text: &str, phase: Phase, code: &str) {
     let c = Case::new("reject");
     fs::write(c.0.join("source.zil"), text).unwrap();
     let r = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "ct122.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "compile_time_declarations_ct_declarations.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: Stage::Lower,
             emit_dir: Some(c.0.join("phases")),

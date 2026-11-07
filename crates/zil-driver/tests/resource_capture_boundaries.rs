@@ -23,7 +23,12 @@ fn dir() -> PathBuf {
 fn check(source: &str, success: bool) {
     let p = dir();
     fs::write(p.join("input.zil"), source).unwrap();
-    let s = SourceUnit::new(FileId(0), ModuleId(0), "review182.zil", source);
+    let s = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "resource_capture_boundaries.zil",
+        source,
+    );
     let r = compile_source(&s, &CompileOptions::default());
     fs::write(p.join("report.json"), r.to_json()).unwrap();
     if success {
@@ -44,7 +49,12 @@ fn native(source: &str, stdout: &[u8]) {
     for optimization in [Optimization::O0, Optimization::O2] {
         let p = dir();
         fs::write(p.join("input.zil"), source).unwrap();
-        let s = SourceUnit::new(FileId(0), ModuleId(0), "review182.zil", source);
+        let s = SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "resource_capture_boundaries.zil",
+            source,
+        );
         let binary = p.join("program");
         let r = compile_source(
             &s,

@@ -13,7 +13,12 @@ fn directory(label: &str) -> PathBuf {
     path
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "generation222.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_product_declarations_generation.zil",
+        text,
+    )
 }
 fn check(label: &str, text: &str) -> CompileReport {
     let out = directory(label);

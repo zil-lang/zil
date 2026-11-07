@@ -28,7 +28,12 @@ fn check(label: &str, source: &str, stage: Stage) -> CompileReport {
     let dir = directory(label);
     fs::write(dir.join("main.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "range190.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "cyclic_helper_flow_for_ranges.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: stage,
             emit_dir: Some(dir.join("phases")),
@@ -74,7 +79,12 @@ fn native(label: &str, source: &str, stdout: &[u8]) {
         fs::write(dir.join("main.zil"), source).unwrap();
         let executable = dir.join("program");
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "range190.zil", source),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "cyclic_helper_flow_for_ranges.zil",
+                source,
+            ),
             &CompileOptions {
                 stop_after: Stage::Build,
                 optimization,

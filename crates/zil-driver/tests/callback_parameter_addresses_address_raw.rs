@@ -13,7 +13,12 @@ static NEXT: AtomicUsize = AtomicUsize::new(0);
 const SHARED: &str = "fn main()->i32{let n=41;let f=(p:&i32)=>*p;return f(&n)-41}";
 
 fn typed(source: &str) -> TypedModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "raw189.zil", source);
+    let source = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_parameter_addresses_address_raw.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()

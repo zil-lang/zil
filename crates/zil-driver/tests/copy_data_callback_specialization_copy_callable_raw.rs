@@ -45,7 +45,12 @@ impl Drop for Case {
     }
 }
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "raw194.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "copy_data_callback_specialization_copy_callable_raw.zil",
+        text,
+    )
 }
 fn baseline(text: &str) -> (CoreModule, TypedModule, CandidatePlan) {
     let source = source(text);

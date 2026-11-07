@@ -75,7 +75,12 @@ fn template(kind: CallableKind, fields: usize, reversed: bool) -> (CoreModule, u
     let source = format!(
         "resource Ticket{{code:i32}}package State<F>{{manages marker:Ticket;first:F;{second}}}fn inspect<F:Fn()->i32>(state:State<F>)->State<F>{{var next=state;return next}}fn main()->i32{{return 0}}"
     );
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "raw205-base.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owned_state_replacement_raw_raw_base.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let mut core = zil_expand::expand(&unit, &syntax).unwrap();
     let index = core

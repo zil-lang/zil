@@ -47,7 +47,12 @@ impl Drop for Case {
 fn compile(case: &Case, source: &str, native: Option<Optimization>) -> CompileReport {
     case.write("source.zil", source);
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "callback_roles_mixed_state.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: if native.is_some() {
                 Stage::Build
@@ -90,7 +95,12 @@ fn native(label: &str, source: &str, expected: &str) {
 fn baseline(label: &str, source: &str) -> (TypedModule, CandidatePlan) {
     let case = Case::new(label);
     case.write("source.zil", source);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_roles_mixed_state.zil",
+        source,
+    );
     let syntax = zil_syntax::parse(&unit).into_result();
     case.write("syntax.txt", format!("{syntax:#?}"));
     let core = zil_expand::expand(&unit, &syntax.unwrap());
@@ -665,7 +675,12 @@ fn boundary(mut run: impl FnMut(usize) -> Result<(), Vec<Diagnostic>>) -> usize 
 #[test]
 fn joint_flow_charges_default_budgets_and_fresh_requests_recover() {
     let (module, candidate) = baseline("flow-budget-control", FLOW);
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", FLOW);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_roles_mixed_state.zil",
+        FLOW,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let types = boundary(|n| {
@@ -755,7 +770,12 @@ fn nested_second_role_mutates_a_captured_callback_and_cleans_its_owner_once() {
             .iter()
             .any(|d| d.message.contains("opaque callable kind adaptation"))
     );
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review196.zil", NESTED_CAPTURE);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "callback_roles_mixed_state.zil",
+        NESTED_CAPTURE,
+    );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let types = boundary(|n| {

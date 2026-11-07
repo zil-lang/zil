@@ -37,7 +37,12 @@ fn build(label: &str, source: &str, opt: Optimization) -> PathBuf {
     fs::create_dir_all(&path).unwrap();
     fs::write(path.join("main.zil"), source).unwrap();
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "product216.zil", source),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "product_capture_cleanup_machine.zil",
+            source,
+        ),
         &CompileOptions {
             stop_after: Stage::Build,
             optimization: opt,

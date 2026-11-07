@@ -6,7 +6,12 @@ use zil_ir::*;
 
 fn module() -> TypedModule {
     let source = "resource R{n:i32}package Event{manages r:R;n:i32}fn main(){let f=(first:Event,second:Event)->Event=>{return first};let result=f(Event{r:R{n:1},n:2},Event{r:R{n:3},n:4})}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review248.zil", source);
+    let unit = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "owning_callback_raw_verification.zil",
+        source,
+    );
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()

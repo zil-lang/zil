@@ -15,7 +15,7 @@ fn source(body: &str) -> SourceUnit {
     SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "owned099.zil",
+        "owned_byte_composition_owned_bytes.zil",
         format!("{PRELUDE}{body}"),
     )
 }

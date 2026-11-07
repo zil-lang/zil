@@ -143,7 +143,7 @@ fn straight(count: usize) -> String {
     )
 }
 fn core(text: &str) -> zil_ir::CoreModule {
-    let source = SourceUnit::new(FileId(0), ModuleId(0), "sequence126.zil", text);
+    let source = SourceUnit::new(FileId(0), ModuleId(0), "finite_helper_sequences.zil", text);
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     zil_expand::expand(&source, &ast).unwrap()
 }

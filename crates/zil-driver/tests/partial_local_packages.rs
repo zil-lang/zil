@@ -11,7 +11,7 @@ const DEFINITIONS: &str = "resource R{n:i32} package P{manages a:R,manages b:R,n
 fn checked(body: &str) {
     let text = format!("{DEFINITIONS} {body}");
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "packages072.zil", text),
+        &SourceUnit::new(FileId(0), ModuleId(0), "partial_local_packages.zil", text),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -29,7 +29,12 @@ fn checked(body: &str) {
 fn rejected(body: &str, phase: Phase, code: &str) {
     let text = format!("{DEFINITIONS} {body}");
     let report = compile_source(
-        &SourceUnit::new(FileId(0), ModuleId(0), "packages072-negative.zil", text),
+        &SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "partial_local_packages_packages_negative.zil",
+            text,
+        ),
         &CompileOptions {
             stop_after: Stage::Verify,
             ..CompileOptions::default()
@@ -54,7 +59,7 @@ fn typed(body: &str) -> TypedModule {
     let unit = SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "packages072-ir.zil",
+        "partial_local_packages_packages_ir.zil",
         format!("{DEFINITIONS} {body}"),
     );
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
@@ -272,7 +277,7 @@ fn partial_package_default_managed_take_captures_the_complete_package_once() {
         SourceUnit::new(
             FileId(0),
             ModuleId(0),
-            "packages072-negative.zil",
+            "partial_local_packages_packages_negative.zil",
             format!("{DEFINITIONS} {body}"),
         )
     };

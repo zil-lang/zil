@@ -44,7 +44,12 @@ fn registration_and_cleanup_preserve_actual_allocation_debt() {
         fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
         fs::write(dir.join("source.zil"), SOURCE).unwrap();
         let report = compile_source(
-            &SourceUnit::new(FileId(0), ModuleId(0), "machine227.zil", SOURCE),
+            &SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "synchronous_defer_cleanup_machine.zil",
+                SOURCE,
+            ),
             &CompileOptions {
                 backend: NativeBackend::LlvmApi,
                 clang: Some(wrapper),

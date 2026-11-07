@@ -45,7 +45,12 @@ fn dir(label: &str) -> PathBuf {
     path
 }
 fn unit(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "review238.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "private_product_replacement_contracts.zil",
+        text,
+    )
 }
 fn source(label: &str, body: &str, accept: bool) {
     let out = dir(label);

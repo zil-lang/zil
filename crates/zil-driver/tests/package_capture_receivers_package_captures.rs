@@ -12,7 +12,7 @@ fn unit(body: &str) -> SourceUnit {
     SourceUnit::new(
         FileId(0),
         ModuleId(0),
-        "captures077.zil",
+        "package_capture_receivers_package_captures.zil",
         format!("{DEFINITIONS} {body}"),
     )
 }

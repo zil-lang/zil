@@ -5,7 +5,12 @@ use zil_driver::{CompilationSession, CompileOptions, ProjectSources, QueryDispos
 
 const PROGRAM: &str = "fn count(n:i32)->i32{var i=0;while i<n{i+=1}return i}#if(count(3)==3){fn selected()->i32=>3}else{fn selected()->i32=>missing}fn main()->i32{#if(count(4)==4){let n=#(count(5))}else{let n=missing}return n-5}";
 fn source(text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), "budget219.zil", text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "generated_source_selection_budget.zil",
+        text,
+    )
 }
 fn directory(label: &str) -> PathBuf {
     let p = std::env::var_os("ZIL_TEST_REPORT_DIR")
