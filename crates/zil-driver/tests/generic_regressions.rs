@@ -6403,13 +6403,19 @@ fn async_registration_source_neighbors_and_unused_definitions() {
         ResultCategory::Success
     );
     for text in [
+        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
+        generic.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
+    ] {
+        let report = compile_source(&source(&text), &CompileOptions::default());
+        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+    }
+    for text in [
         unused.replace(" + ClosedEnvironment", ""),
         unused.replace("FnMut(i32)", "FnOnce(i32)"),
         unused.replace(
             "async_register,async_request,async_drain,f",
             "async_register,async_drain,async_request,f",
         ),
-        unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
         unused.replace(" + ClosedEnvironment", " + ClosedEnvironment + Share"),
     ] {
         assert_ne!(

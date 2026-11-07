@@ -4538,13 +4538,34 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                         ));
                     }
                 };
-                for (expression, role) in providers {
+                let mut threaded = false;
+                for (index, (expression, role)) in providers.into_iter().enumerate() {
                     let Term::Function(signature) = self.expr(expression, depth + 1, false)? else {
                         return Err(error(
                             "E-FFI-REGISTRATION",
                             span,
                             "registration role requires static foreign function",
                         ));
+                    };
+                    if index == 0 && asynchronous {
+                        threaded = signature.scoped_callback
+                            == Some(ScopedCallbackRole::ThreadAsyncRegister);
+                    }
+                    let role = if threaded {
+                        match role {
+                            ScopedCallbackRole::AsyncRegister => {
+                                ScopedCallbackRole::ThreadAsyncRegister
+                            }
+                            ScopedCallbackRole::AsyncRequestClose => {
+                                ScopedCallbackRole::ThreadAsyncRequestClose
+                            }
+                            ScopedCallbackRole::AsyncPollDrain => {
+                                ScopedCallbackRole::ThreadAsyncPollDrain
+                            }
+                            other => other,
+                        }
+                    } else {
+                        role
                     };
                     if signature.scoped_callback != Some(role) {
                         return Err(error(
