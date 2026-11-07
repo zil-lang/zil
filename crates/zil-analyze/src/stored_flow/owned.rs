@@ -320,6 +320,7 @@ pub(super) fn describe(out: &mut Value, base: HoldRoot, b: &mut Budget) -> Compi
         base,
         stored: Vec::new(),
         place: Vec::new(),
+        heap_element: None,
     });
     Ok(())
 }

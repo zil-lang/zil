@@ -128,11 +128,11 @@ fn analyze_budgeted(
         });
     }
     let mut stored_holds = None;
-    if budget.stored_borrows || budget.task_borrowed_results {
+    if budget.stored_borrows || budget.task_borrowed_results || budget.store_option_results {
         // These actual opaque carriers cannot enter the legacy stored lane.
         // A stored module with only scalar helpers retains its old path/fees.
         let ordinary_required = budget.tasks || budget.registrations;
-        if budget.task_borrowed_results {
+        if budget.task_borrowed_results || budget.store_option_results {
             for function in &module.functions {
                 stored_flow::header(module, function, budget)?;
             }
@@ -229,7 +229,40 @@ fn analyze_budgeted(
     };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
-            if budget.task_borrowed_results || budget.composition_stored[index] {
+            if budget.store_option_results && !budget.task_borrowed_results {
+                if rows.len() != module.functions[index].values.len() {
+                    return Err(bad("stored Option proof omitted an actual SSA value"));
+                }
+                for (value, (ty, stored)) in module.functions[index]
+                    .values.iter().zip(&rows).enumerate() {
+                    budget.spend(1, "stored Option and ordinary Hold comparison")?;
+                    if matches!(ty, Type::BorrowedStorage { .. }) {
+                        actual_holds[index][value] = stored.clone();
+                    } else if matches!(ty, Type::Address { mutable: false, .. }) {
+                        if stored.roots != actual_holds[index][value].roots {
+                            let targets = budget.store_option_targets.as_ref()
+                                .and_then(|functions| functions.get(index))
+                                .and_then(|values| values.get(value))
+                                .ok_or_else(|| bad("stored Option element lacks actual proof"))?;
+                            let count = targets.len();
+                            let incomplete = targets.is_empty() || targets.iter().any(|target| {
+                                target.heap_element.is_none()
+                                    && !matches!((target.base, target.stored.as_slice()),
+                                        (zil_ir::HoldRoot::Parameter(_),
+                                            [zil_ir::PlaceProjection::Variant(selector)])
+                                            if selector.variant == 1 && selector.index == 0
+                                                && target.place.iter().all(|step|
+                                                    matches!(step, zil_ir::PlaceProjection::Field(_))))
+                            });
+                            budget.spend(count, "stored Option element proof")?;
+                            if incomplete {
+                                return Err(bad("stored Option and ordinary actual roots disagree"));
+                            }
+                            actual_holds[index][value] = stored.clone();
+                        }
+                    }
+                }
+            } else if budget.task_borrowed_results || budget.composition_stored[index] {
                 if rows.len() != module.functions[index].values.len() {
                     return Err(bad("stored composition solver omitted an owned function"));
                 }

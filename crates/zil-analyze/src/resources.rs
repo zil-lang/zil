@@ -31,6 +31,9 @@ enum Source {
     ArrayElement { local: LocalId, index: u32 },
     OwnedField(u32),
     Argument(u32),
+    /// Exact Some(0) leaf of a qualified Option input. This does not infer
+    /// an owner from the Option carrier's storage bytes.
+    InputPayload(u32),
     BorrowedField(u32),
     StoreParent(StoreParentSource),
 }
@@ -82,12 +85,78 @@ impl Source {
             }
             Self::OwnedField(value) => Self::StoreParent(StoreParentSource::OwnedField(value)),
             Self::Argument(value) => Self::StoreParent(StoreParentSource::Argument(value)),
+            Self::InputPayload(_) => self,
             Self::BorrowedField(value) => {
                 Self::StoreParent(StoreParentSource::BorrowedField(value))
             }
             Self::StoreParent(_) => unreachable!(),
         }
     }
+}
+
+/// Recover only a description origin from an independently checked heap
+/// element window. The element remains borrowed; this creates no Item debt.
+fn option_store_parent(
+    f: &TypedFunction,
+    target: &super::stored_flow::Target,
+    budget: &mut Budget,
+) -> CompileResult<Source> {
+    if target.retained_port.is_some() {
+        return Err(error("Option payload carries an unrelated retained port"));
+    }
+    if target.heap_element.is_none() {
+        return match (target.base, target.stored.as_slice(), target.place.as_slice()) {
+            (HoldRoot::Parameter(position),
+                [PlaceProjection::Variant(selector)], [])
+                if selector.variant == 1 && selector.index == 0 => {
+                    budget.spend(1, "Option input Some leaf selector")?;
+                    Ok(Source::InputPayload(position))
+                }
+            _ => Err(error("Option payload is not an actual checked input leaf")),
+        };
+    }
+    if !target.stored.is_empty() {
+        return Err(error("Store element window has an unrelated stored selector"));
+    }
+    let (ty, source) = match target.base {
+        HoldRoot::Local(local) => (
+            &f.locals.get(local.0 as usize)
+                .ok_or_else(|| error("Store window local is absent"))?.ty,
+            Source::Head(local),
+        ),
+        HoldRoot::Parameter(position) => {
+            let local = *f.parameters.get(position as usize)
+                .ok_or_else(|| error("Store window input is absent"))?;
+            (&f.locals[local.0 as usize].ty, Source::Argument(position))
+        }
+        HoldRoot::Capture(_) | HoldRoot::Static => {
+            return Err(error("Option Store window has no ordinary manager source"));
+        }
+    };
+    let ty = if let Type::Address { mutable: false, inner } = ty { inner.as_ref() } else { ty };
+    let (head, source) = match target.place.as_slice() {
+        [] => (ty, source),
+        [PlaceProjection::Field(index)] => {
+            let Type::Package { fields, .. } = package_storage(ty) else {
+                return Err(error("Store window header is not an actual Package field"));
+            };
+            budget.spend(fields.len(), "Option Store header field lookup")?;
+            let field = &fields.get(*index as usize)
+                .ok_or_else(|| error("Store window header field is absent"))?.1;
+            let source = match source {
+                Source::Head(local) => Source::PackageField { local, index: *index },
+                source => source,
+            };
+            (field, source)
+        }
+        _ => return Err(error("nested Store header path is outside this profile")),
+    };
+    if !matches!(head, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })) {
+        return Err(error("Option window header is not an actual owned Store"));
+    }
+    budget.spend(target.heap_element.as_ref().map_or(0, Vec::len),
+        "Option heap element projection")?;
+    Ok(source)
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -1004,8 +1073,11 @@ fn address_afters_inner(
             .map(|(index, ty)| (Place::Value(ValueId(index as u32)), ty)),
     ) {
         let captured = captures && capture_carrier(ty, budget)?;
+        let store_option = budget.store_option_results
+            && super::stored_flow::option_address::shape(ty, budget)?;
         has_capture |= captured;
         if captured
+            || store_option
             || matches!(ty, Type::Address { .. })
             || ((budget.head_descriptions || budget.invocation_callbacks)
                 && matches!(ty, Type::Desc(_) | Type::Closure(_)))
@@ -2415,6 +2487,28 @@ impl Flow<'_> {
                     {
                         return Err(error("head address requires a live managed position"));
                     }
+                }
+                InstructionKind::ReadVariant { value, variant: 1, index: 0 }
+                    if budget.store_option_results
+                        && out_shape.is_some_and(|shape| shape.description)
+                        && super::stored_flow::option_address::shape(
+                            &f.values[value.0 as usize], budget)? =>
+                {
+                    let result = i.result.ok_or_else(|| error("Option payload has no result"))?;
+                    let targets = budget.store_option_targets.as_ref()
+                        .and_then(|functions| functions.get(f.id.0 as usize))
+                        .and_then(|values| values.get(result.0 as usize))
+                        .ok_or_else(|| error("Option payload lacks completed stored proof"))?
+                        .clone();
+                    if targets.is_empty() {
+                        return Err(error("Option payload has no actual active Store window"));
+                    }
+                    budget.spend(targets.len(), "Option actual Store window origins")?;
+                    let mut sources = BTreeSet::new();
+                    for target in &targets {
+                        sources.insert(option_store_parent(f, target, budget)?);
+                    }
+                    produced = Some(Fact { sources, ..Fact::default() });
                 }
                 InstructionKind::OwnedStoreBorrow { store, .. }
                 | InstructionKind::OwnedStoreBorrowMut { store, .. }

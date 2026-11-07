@@ -203,6 +203,18 @@ pub(super) fn check_type_for(
     Ok(())
 }
 
+fn option_physical<'a>(ty: &'a Type, budget: &mut Budget) -> Check<&'a Type> {
+    if budget.store_option_results
+        && matches!(ty, Type::BorrowedStorage { .. })
+        && crate::stored_flow::option_address::shape(ty, &budget.limits.clone(), budget)?
+    {
+        let Type::BorrowedStorage { storage, .. } = ty else { unreachable!() };
+        Ok(storage)
+    } else {
+        Ok(ty)
+    }
+}
+
 fn projected_type<'a>(
     f: &'a TypedFunction,
     local: LocalId,
@@ -210,7 +222,7 @@ fn projected_type<'a>(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<&'a Type> {
-    let mut ty = local_type(f, local, span)?;
+    let mut ty = option_physical(local_type(f, local, span)?, budget)?;
     budget.spend(path.len().saturating_add(1))?;
     for projection in path {
         let Type::Enum { variants, .. } = ty else {
@@ -234,7 +246,7 @@ pub(super) fn place_type<'a>(
     span: Option<Span>,
     budget: &mut Budget,
 ) -> Check<&'a Type> {
-    let mut at = local_type(f, local, span)?;
+    let mut at = option_physical(local_type(f, local, span)?, budget)?;
     if path.is_empty() || path.len() > budget.limits.max_call_depth {
         return Err(bad(
             span,
@@ -940,6 +952,12 @@ fn content(
     budget: &mut Budget,
 ) -> Check<Content> {
     budget.spend(path.len().saturating_add(2))?;
+    if let Type::BorrowedStorage { .. } = ty {
+        let physical = option_physical(ty, budget)?;
+        if !std::ptr::eq(physical, ty) {
+            return content(physical, parameter, path, bottom, budget);
+        }
+    }
     Ok(match ty {
         Type::Managed(_) => Content::Leaf(if bottom {
             BTreeSet::new()
@@ -1519,7 +1537,8 @@ impl Flow<'_> {
                     state.captures[*index as usize] = Some(Arc::new(incoming));
                 }
                 InstructionKind::BorrowLocalMut { local }
-                    if matches!(self.f.locals[local.0 as usize].ty, Type::Enum { .. }) =>
+                    if matches!(option_physical(&self.f.locals[local.0 as usize].ty, budget)?,
+                        Type::Enum { .. }) =>
                 {
                     fn forget(at: &mut Content, t: &Type, b: &mut Budget) -> Check<()> {
                         resources::charge_payload(t, b)?;
@@ -1547,9 +1566,10 @@ impl Flow<'_> {
                         Ok(())
                     }
                     state.locals[local.0 as usize].cost(budget)?;
+                    let physical = option_physical(&self.f.locals[local.0 as usize].ty, budget)?;
                     forget(
                         Arc::make_mut(&mut state.locals[local.0 as usize]),
-                        &self.f.locals[local.0 as usize].ty,
+                        physical,
                         budget,
                     )?;
                     self.kill(state, *local, budget)?;
@@ -2102,6 +2122,12 @@ fn run_with_replacements(
                         tagged.push(local);
                         break;
                     }
+                    Type::BorrowedStorage { .. } if budget.store_option_results => {
+                        let actual = option_physical(ty, budget)?;
+                        if !std::ptr::eq(actual, ty) {
+                            pending.push(actual);
+                        }
+                    }
                     Type::Tuple(fields) => {
                         budget.spend(fields.len())?;
                         pending.extend(fields);
@@ -2305,15 +2331,13 @@ pub(super) fn check_module(
         resources::charge_payload(&f.return_type, budget)?;
     }
     budget.spend(count.saturating_mul(6))?;
-    let needed = module
-        .functions
-        .iter()
-        .map(|f| {
-            f.foreign.is_none()
-                && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
-                    || owned(&f.return_type))
-        })
-        .collect::<Vec<_>>();
+    let needed = module.functions.iter().map(|f| {
+        let physical = option_physical(&f.return_type, budget)?;
+        Ok(f.foreign.is_none()
+            && (matches!(f.return_type, Type::Managed(_) | Type::Package { .. })
+                || owned(&f.return_type)
+                || !std::ptr::eq(physical, &f.return_type)))
+    }).collect::<Check<Vec<_>>>()?;
     let mut users = vec![BTreeSet::new(); count];
     let mut callees = vec![BTreeSet::new(); count];
     for (index, f) in module.functions.iter().enumerate() {

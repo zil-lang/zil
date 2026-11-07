@@ -13,7 +13,7 @@ pub(super) fn declaration(d: &LifeNominalDeclaration) -> bool {
         && d.parameters == [LifeParameterKind::Type]
 }
 
-pub(super) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
+pub(crate) fn shape(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     let Some((storage, life)) = carrier(ty) else {
         return Ok(false);
     };

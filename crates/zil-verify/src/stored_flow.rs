@@ -13,11 +13,16 @@ mod task_address;
 type Path = Vec<PlaceProjection>;
 type WriteSites = Vec<(usize, u32, Path, usize, bool)>;
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-struct Source {
-    retained_port: Option<u32>,
-    base: HoldRoot,
-    leaf: Path,
-    inline: Path,
+pub(super) struct Source {
+    pub(super) retained_port: Option<u32>,
+    pub(super) base: HoldRoot,
+    pub(super) leaf: Path,
+    pub(super) inline: Path,
+    pub(super) heap_element: Option<Path>,
+}
+#[derive(Clone, Debug, Default)]
+pub(super) struct StoreOptionFunctionSources {
+    pub(super) values: Vec<Vec<Source>>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
@@ -29,6 +34,7 @@ struct Payload {
     enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     address: Permission,
+    store_description: Permission,
     task_ports: Vec<(Vec<ContractProjection>, Permission)>,
     creation_complete: Option<bool>,
     // For a concrete Fixed environment only, a private Field(capture) prefix
@@ -107,6 +113,7 @@ fn width(s: &Source) -> usize {
     s.leaf
         .len()
         .saturating_add(s.inline.len())
+        .saturating_add(s.heap_element.as_ref().map_or(0, Vec::len))
         .saturating_add(1)
 }
 fn source_work(s: &[Source], b: &mut Budget) -> Check<()> {
@@ -124,6 +131,7 @@ fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
     p.enum_variants.work(b)?;
     p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
+    permission_work(&p.store_description, b)?;
     task_address::work(p, b)?;
     b.spend(p.leaves.len())?;
     for (path, p) in &p.leaves {
@@ -237,6 +245,7 @@ fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -
 }
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
+    changed |= join_permission(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::join(to, from, b)?;
     if let Some(complete) = from.creation_complete {
         let joined = Some(to.creation_complete.unwrap_or(false) || complete);
@@ -876,6 +885,7 @@ pub(super) fn qualifications(
                 };
                 let enum_operation = enum_address::instruction(module, f, i, b)?;
                 let owned_operation = ((!mixed_package
+                    && !b.store_option_results
                     && super::stored_owned::instruction(f, &i.kind))
                     || scalar_owner_operation)
                     && !(b.task_borrowed_results && task_address::owner_instruction(f, &i.kind));
@@ -884,6 +894,14 @@ pub(super) fn qualifications(
                     && !owned_operation
                     && !enum_operation
                     && !(b.task_borrowed_results && task_address::operation(&i.kind))
+                    && !(b.store_option_results && matches!(i.kind,
+                        InstructionKind::OwnedStoreNew { .. }
+                        | InstructionKind::OwnedStoreReserve { .. }
+                        | InstructionKind::OwnedStorePush { .. }
+                        | InstructionKind::OwnedStoreLen { .. }
+                        | InstructionKind::OwnedStoreBorrow { .. }
+                        | InstructionKind::DropErrorUnion { .. }
+                        | InstructionKind::DescribePackageField { .. }))
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
@@ -1587,6 +1605,7 @@ fn seed_payload(
             base,
             leaf: Vec::new(),
             inline: Vec::new(),
+            heap_element: None,
         };
         b.spend(3)?;
         let id = loans.len();
@@ -1611,6 +1630,7 @@ fn seed_payload(
                 base,
                 leaf: path.clone(),
                 inline: Vec::new(),
+                heap_element: None,
             };
             let id = loans.len();
             loans.push(Loan {
@@ -1637,6 +1657,7 @@ fn seed_payload(
                 base,
                 leaf: slot.path.clone(),
                 inline: Vec::new(),
+                heap_element: None,
             };
             let id = loans.len();
             loans.push(Loan {
@@ -1662,6 +1683,7 @@ fn seed_payload(
                 base,
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_element: None,
             });
         }
     }
@@ -1879,7 +1901,11 @@ fn instantiate(
     };
     for target in &mut p.sources {
         b.spend(source.inline.len())?;
+        if target.heap_element.is_some() {
+            return Err(err("nested Store element summary is outside this profile"));
+        }
         target.inline.extend(&source.inline);
+        target.heap_element = source.heap_element.clone();
     }
     Ok(p)
 }
@@ -2016,6 +2042,7 @@ fn step(
                 base: HoldRoot::Static,
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_element: None,
             });
         }
         InstructionKind::Load(l) => {
@@ -2095,6 +2122,7 @@ fn step(
                     base: HoldRoot::Local(*local),
                     leaf: Vec::new(),
                     inline: Vec::new(),
+                    heap_element: None,
                 });
             }
         }
@@ -2105,6 +2133,7 @@ fn step(
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_element: None,
             });
         }
         InstructionKind::TakeCapture { .. }
@@ -2113,6 +2142,24 @@ fn step(
         InstructionKind::DropManaged { local } | InstructionKind::DropPackage { local } => {
             state.locals[local.0 as usize] = Payload::default();
             clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+            join_permission(&mut out.store_description, &val(*address)?.address, b)?;
+        }
+        InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
+            let description = &val(*store)?.store_description;
+            // The reverse-batch solver may see bottom before a predecessor's
+            // description arrives. Its final grounded-value check rejects a
+            // window that remains empty at the fixed point.
+            for source in &description.sources {
+                if source.heap_element.is_some() {
+                    return Err(err("nested Store element window is outside this profile"));
+                }
+                let mut target = source.clone();
+                target.heap_element = Some(Vec::new());
+                add_sources(&mut out.address.sources, &[target], b)?;
+            }
+            add_loans(&mut out.address.loans, &description.loans, b)?;
         }
         InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
         InstructionKind::ByteBufferPush { .. }
@@ -2196,6 +2243,7 @@ fn step(
                 base: HoldRoot::Capture(*index),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_element: None,
             });
         }
         kind if super::stored_callables::called(module, f, kind)
@@ -2213,6 +2261,7 @@ fn step(
                             base: HoldRoot::Local(*callee),
                             leaf: vec![],
                             inline: vec![],
+                            heap_element: None,
                         }],
                         loans: vec![],
                     }
@@ -2287,6 +2336,7 @@ fn step(
                 base: HoldRoot::Local(*local),
                 leaf: Vec::new(),
                 inline: Vec::new(),
+                heap_element: None,
             });
             if b.task_borrowed_results {
                 task_address::join(&mut out, &state.locals[local.0 as usize], b)?;
@@ -2303,7 +2353,11 @@ fn step(
             join_permission(&mut out.address, &val(*address)?.address, b)?;
             for target in &mut out.address.sources {
                 b.spend(1)?;
-                target.inline.push(PlaceProjection::Field(*index));
+                if let Some(element) = &mut target.heap_element {
+                    element.push(PlaceProjection::Field(*index));
+                } else {
+                    target.inline.push(PlaceProjection::Field(*index));
+                }
             }
         }
         InstructionKind::ReborrowAddress { address, .. }
@@ -2634,6 +2688,12 @@ fn step(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::OwnedStoreNew { .. }
+        | InstructionKind::OwnedStoreReserve { .. }
+        | InstructionKind::OwnedStorePush { .. }
+        | InstructionKind::OwnedStoreLen { .. }
+        | InstructionKind::DropErrorUnion { .. }
+        | InstructionKind::DescribePackageField { .. }
         | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
@@ -3189,6 +3249,7 @@ fn windows(
                             base: HoldRoot::Local(*local),
                             leaf: Vec::new(),
                             inline: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
                         }],
                         loans: Vec::new(),
                     };
@@ -3226,6 +3287,7 @@ fn windows(
                             base: HoldRoot::Capture(*index),
                             leaf: vec![],
                             inline: vec![],
+                            heap_element: None,
                         }],
                         loans: vec![],
                     };
@@ -3253,6 +3315,7 @@ fn windows(
                         base: HoldRoot::Local(*local),
                         leaf: Vec::new(),
                         inline: Vec::new(),
+                        heap_element: None,
                     };
                     let actual = Permission {
                         sources: vec![source],
@@ -3457,6 +3520,7 @@ fn windows(
                                         base: HoldRoot::Local(*callee),
                                         leaf: vec![],
                                         inline: vec![],
+                                        heap_element: None,
                                     }],
                                     loans: vec![],
                                 },
@@ -3992,7 +4056,7 @@ fn check_with_mask(
 ) -> Check<()> {
     let mixed_package = b.stored_package_instance;
     if mask.is_none() {
-        if !mixed_package && !b.task_borrowed_results {
+        if !mixed_package && !b.task_borrowed_results && !b.store_option_results {
             super::stored_owned::module(module, b)?;
         }
         super::stored_callables::definitions(module, b)?;
@@ -4039,6 +4103,7 @@ fn check_with_mask(
             if !module.resources.is_empty()
                 && !mixed_package
                 && !(b.task_borrowed_results && task_address::shape(ty))
+                && !b.store_option_results
             {
                 super::stored_owned::value_type(ty, b)?;
             }
@@ -4060,6 +4125,8 @@ fn check_with_mask(
                 || ty.is_copy_value()
                 || super::stored_owned::owner(ty)
                 || super::stored_owned::description(ty)
+                || b.store_option_results && matches!(ty, Type::Package { .. } | Type::OwnedStore { .. } | Type::ByteBuffer | Type::Managed(_) | Type::Desc(_) | Type::ErrorUnion { .. })
+                || b.store_option_results && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::OwnedStore { .. } | Type::Managed(_)))
                 || mixed_resource
                 || b.stored_enum_addresses
                     && enum_address::signature(ty)
@@ -4204,6 +4271,8 @@ fn solve_check(
     } else {
         None
     };
+    let mut checked_option_sources = b.store_option_results
+        .then(|| Vec::with_capacity(module.functions.len()));
     for (index, (f, s)) in module.functions.iter().zip(&summaries).enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -4300,6 +4369,19 @@ fn solve_check(
         let solution = solved[index]
             .as_ref()
             .ok_or_else(|| err("independent solver omitted a function"))?;
+        if let Some(checked) = &mut checked_option_sources {
+            let mut values = Vec::with_capacity(solution.values.len());
+            b.spend(solution.values.len())?;
+            for value in &solution.values {
+                let mut sources = value.address.sources.clone();
+                source_work(&sources, b)?;
+                for (_, leaf) in &value.leaves {
+                    add_sources(&mut sources, &leaf.sources, b)?;
+                }
+                values.push(sources);
+            }
+            checked.push(StoreOptionFunctionSources { values });
+        }
         if let Some(checked) = checked_task_sources.as_mut() {
             checked.push(task_address::checked_sources(f, solution, b)?);
         }
@@ -4308,11 +4390,23 @@ fn solve_check(
             return Err(err("candidate must cover each actual value once"));
         }
         for (v, (p, claim)) in solution.values.iter().zip(claimed).enumerate() {
+            if b.store_option_results
+                && !matches!(f.values[v], Type::BorrowedStorage { .. })
+                && !p.address.sources.iter().any(|source| source.heap_element.is_some())
+                && !p.leaves.iter().flat_map(|(_, leaf)| &leaf.sources)
+                    .any(|source| source.heap_element.is_some())
+            {
+                // Ordinary resource/borrow reconstruction checks this value's
+                // public Hold; the stored lane owns only qualified carriers
+                // and Store-element payload windows in this dual profile.
+                continue;
+            }
             let mut actual = BTreeSet::new();
             for root in p
                 .address
                 .sources
                 .iter()
+                .chain(p.store_description.sources.iter())
                 .chain(p.leaves.iter().flat_map(|(_, p)| &p.sources))
                 .chain(p.task_ports.iter().flat_map(|(_, p)| &p.sources))
             {
@@ -4330,6 +4424,7 @@ fn solve_check(
     if let Some(checked) = checked_task_sources {
         b.task_stored_sources = Some(checked);
     }
+    b.store_option_sources = checked_option_sources;
     Ok(())
 }
 

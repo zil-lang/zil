@@ -162,6 +162,93 @@ pub(super) fn store_element_roots(
     Ok(output)
 }
 
+/// Reconstruct the two physical domains of an Option-carried Store element
+/// from the independent stored solver's private actual source. The header is
+/// inline in the manager; the element projection is inside heap storage.
+pub(super) fn store_option_root(
+    f: &TypedFunction,
+    result_type: &Type,
+    source: &crate::stored_flow::Source,
+    budget: &mut Budget,
+) -> Check<Root> {
+    if source.heap_element.is_none() {
+        return match (source.base, source.leaf.as_slice()) {
+            (HoldRoot::Parameter(position), [zil_ir::PlaceProjection::Variant(selector)])
+                if selector.variant == 1 && selector.index == 0 => {
+                if !source.inline.iter().all(|step|
+                    matches!(step, zil_ir::PlaceProjection::Field(_))) {
+                    return Err(reject("E-VERIFY-STORE-WINDOW", None,
+                        "Option input projection is not a checked field path"));
+                }
+                budget.spend(source.inline.len().saturating_add(1))?;
+                Ok(Root::Parameter(position))
+            }
+            _ => Err(reject("E-VERIFY-STORE-WINDOW", None,
+                "Option payload has no checked Store element domain")),
+        };
+    }
+    if source.retained_port.is_some() || !source.leaf.is_empty() {
+        return Err(reject("E-VERIFY-STORE-WINDOW", None,
+            "Store window carries an unrelated retained selector"));
+    }
+    let local = match source.base {
+        HoldRoot::Local(local) => local,
+        HoldRoot::Parameter(position) => *f.parameters.get(position as usize)
+            .ok_or_else(|| reject("E-VERIFY-STORE-WINDOW", None,
+                "Store window manager input is absent"))?,
+        HoldRoot::Capture(_) | HoldRoot::Static => return Err(reject(
+            "E-VERIFY-STORE-WINDOW", None, "Store window lacks an ordinary manager root")),
+    };
+    let mut ty = &f.locals.get(local.0 as usize)
+        .ok_or_else(|| reject("E-VERIFY-STORE-WINDOW", None,
+            "Store window manager local is absent"))?.ty;
+    if let Type::Address { mutable: false, inner } = ty { ty = inner; }
+    let (header_start, header_end) = mixed_interval(ty, &source.inline, false, budget)?;
+    for step in &source.inline {
+        ty = match (step, ty) {
+            (zil_ir::PlaceProjection::Field(index), Type::Package { fields, .. }
+                | Type::Record { fields, .. }) => fields.get(*index as usize).map(|(_, ty)| ty),
+            _ => None,
+        }.ok_or_else(|| reject("E-VERIFY-STORE-WINDOW", None,
+            "Store header path crosses an invalid actual field"))?;
+    }
+    let Type::Managed(head) = ty else { return Err(reject("E-VERIFY-STORE-WINDOW", None,
+        "Option window header is not an owned Store")); };
+    let Type::OwnedStore { element } = head.as_ref() else { return Err(reject(
+        "E-VERIFY-STORE-WINDOW", None, "Option window header is not an owned Store")); };
+    let heap = source.heap_element.as_ref().unwrap();
+    let (payload_start, payload_end) = mixed_interval(element, heap, false, budget)?;
+    let mut pointee = element.as_ref();
+    for step in heap {
+        pointee = match (step, pointee) {
+            (zil_ir::PlaceProjection::Field(index), Type::Package { fields, .. }
+                | Type::Record { fields, .. }) => fields.get(*index as usize).map(|(_, ty)| ty),
+            _ => None,
+        }.ok_or_else(|| reject("E-VERIFY-STORE-WINDOW", None,
+            "Store element path crosses an invalid actual field"))?;
+    }
+    let expected = match result_type {
+        Type::Address { mutable: false, inner } => inner.as_ref(),
+        Type::BorrowedStorage { storage, .. } => {
+            let Type::Enum { variants, .. } = storage.as_ref() else { return Err(reject(
+                "E-VERIFY-STORE-WINDOW", None, "Option carrier lacks its actual Enum")); };
+            let [Type::Address { mutable: false, inner }] = variants.get(1)
+                .map(|(_, payload)| payload.as_slice()).unwrap_or(&[]) else {
+                return Err(reject("E-VERIFY-STORE-WINDOW", None,
+                    "Option carrier lacks a shared Some payload"));
+            };
+            inner.as_ref()
+        }
+        _ => return Err(reject("E-VERIFY-STORE-WINDOW", None,
+            "Store window result lacks a shared address")),
+    };
+    resources::charge_payload(expected, budget)?;
+    if pointee != expected { return Err(reject("E-VERIFY-STORE-WINDOW", None,
+        "Store element projection differs from the complete result pointee")); }
+    Ok(Root::StoreElementWindow(source.base, header_start, header_end,
+        payload_start, payload_end))
+}
+
 pub(super) fn field_root(
     function: &TypedFunction,
     local: LocalId,
