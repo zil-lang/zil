@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-五条 Sol high 主线已实际施工，Task 线随后并行接续；Astra只协助联合责任模型与逐port合同等疑难。当前重点为 G1.4.1、G2.3.3、G3.4.3、G8.5.1、G8.6.3、G9.3.6，由 G10.6.3 统一1.0功能门、真实消费者、独审和远端交付。项目清单/依赖锁/测试命令也属于闭环。GPU/ZUI、IME、原生Windows支持声明、集中注册表发布可另行交付；这些后置不能遮盖语言/库的必要组合。
+六条 Sol high 施工线已并行推进；Astra只协助联合责任模型与逐port合同等疑难。当前重点为 G1.4.1、G2.3.3、G3.4.3、G8.5.1、G8.6.3、G9.3.6，由 G10.6.3 统一1.0功能门、真实消费者、独审和远端交付。项目清单/依赖锁/测试命令也属于闭环。固定源码备份已更新至 `archive/source-history@271e1440b`，包含6条施工线实际WIP字节；归档不计验收。GPU/ZUI、IME、原生Windows支持声明、集中注册表发布可另行交付；这些后置不能遮盖语言/库的必要组合。
 
 ## G1 · 基础类型与模式
 
@@ -61,7 +61,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.3.3 | 关联投影贯通普通函数、Struct/Enum字段、泛型/具体别名及多约束库 | 进行中 | P0 | sol high · generics | `ae174c66f`：Struct/Enum/别名与实际std.iter组合、98/0及双后端原生已过；多StoreElement/Copy/F/Hash/Eq与nonCopy所有权组合继续。历史G2.3.2不复用。 |
+| G2.3.3 | 关联投影贯通普通函数、Struct/Enum字段、泛型/具体别名及多约束库 | 进行中 | P0 | sol high · generics | `bc9b89855`：字段/别名关联投影、std.iter与双binder POD Entry/Map已有四配置原生；多Copy/StoreElement/F与owning关联结果仍在实施。历史G2.3.2不复用。 |
 </details>
 
 <details>
@@ -138,7 +138,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 已合入 | — | — | [PR48 验收][e-pr48]：原始源码、两核 raw/Wire、连续 next/失效及四配置原生完整输出42；合法life遮蔽和原位置拒绝回退已修复。机器首片限thin shared Address，一般lending另缺。 |
 | G3.4.2 | 单直接可变叶 Record holder：真实来源、父 loan、helper 重借与失效 | 已合入 | — | — | `main@e800b39d5`；实际目标/父 loan、helper 重借、raw/Wire 和双后端 O0/O2 接受；通过标量 helper 与 Task/登记联编。[验收][e-native-foundations]；混合拥有 Package、多叶和槽操作仍缺。 |
-| G3.4.3 | 混合拥有/借入 Package 与多叶可变存储，同函数移动、借出及准确清理 | 进行中 | P0 | sol high · storage | task/G3.4.3；Astra协助Analyze资源账本，Sol独立Verify；真实Package已到Types，继续联合权限/债、字段投影、槽更新和机器链。多叶Record只是checkpoint。 |
+| G3.4.3 | 混合拥有/借入 Package 与多叶可变存储，同函数移动、借出及准确清理 | 进行中 | P0 | sol high · storage | `a6adfe8cb`及后端WIP：真实ByteBuffer+可变借入Package经make/relay/advance到Verify及LLVM O0/O2 exit42；同时活跃多叶、槽take/refill、helper替换与失败清理继续。 |
 
 </details>
 
@@ -271,7 +271,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G8.5.1 | 通用 Mutex<T>/affine Guard、结构化线程与必要原子位宽 | 进行中 | P0 | sol high · sync | `2f5474a62` 仅公共候选checkpoint；Create/Lock/Value/Unlock、Guard债/父loan、失败清理、Transfer/Share与真实机器仍在实施。Guard不自动跨挂起/线程。 |
+| G8.5.1 | 通用 Mutex<T>/affine Guard、结构化线程与必要原子位宽 | 进行中 | P0 | sol high · sync | `5b4fd9afe`：公共候选及两核基本检查已接，修复unlock后旧借用误放行；helper实际头保留、机器/失败清理及Transfer/Share仍待验。Guard不自动跨挂起/线程。 |
 </details>
 
 <details>
@@ -280,7 +280,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
-| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 进行中 | P0 | sol high · task | task/G8.6.3；采用显式 `Task<Result,Context>` 元数据包络，逐port来源/模式/父loan与Fixed类，不由整体roots union替代。创建、挂起、取消、helper及结果关系须共同闭合。 |
+| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 进行中 | P0 | sol high · task | `57e2340f3` WIP：双真实地址port已到Verify；显式 `Task<Result,Context>` helper继续接Source/Core及逐port Fixed来源与父loan。完整helper/返回和机器未验，不以整体roots union替代。 |
 
 </details>
 
@@ -305,7 +305,7 @@
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
 | G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 已合入 | — | — | [PR52 验收][e-pr52]：精确源码 `498f0f5a1` 默认5248/0、参考5136/0、文本70/0；17 Source/68 原生、独审、release/10工程门和远端重建运行通过，远端 main `c2ae6edb9` 已核。仅本表有限拥有组合，首轮5242/6与历史缺件状态保留。 |
-| G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `3fce07b94` 文本/排序/Linux std.io及四配置原生通过；Map/Set仍受Store字段投影/泛型资格阻塞，与storage/generics联合施工。 |
+| G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `53b4cd8e7`：String/排序/std.io、封装I64Map/Set与stdin文本联合四配置原生通过；增长失败1次/live0。通用K/V与Store元素字段直接更新仍在修，有限Map不关闭父项。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
