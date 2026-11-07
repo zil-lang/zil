@@ -449,19 +449,19 @@ fn four_module_consumer_contains_a_real_flow_helper_and_owned_state() {
     let files = [
         (
             "main",
-            include_str!("../../../examples/mainline/loop_helpers190/main.zil"),
+            include_str!("../../../examples/mainline/loop-helpers/main.zil"),
         ),
         (
             "factory",
-            include_str!("../../../examples/mainline/loop_helpers190/factory.zil"),
+            include_str!("../../../examples/mainline/loop-helpers/factory.zil"),
         ),
         (
             "helpers",
-            include_str!("../../../examples/mainline/loop_helpers190/helpers.zil"),
+            include_str!("../../../examples/mainline/loop-helpers/helpers.zil"),
         ),
         (
             "state",
-            include_str!("../../../examples/mainline/loop_helpers190/state.zil"),
+            include_str!("../../../examples/mainline/loop-helpers/state.zil"),
         ),
     ];
     let dir = directory("four-module");

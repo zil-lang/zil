@@ -25,7 +25,7 @@ def main():
     raw.mkdir()
     env = dict(os.environ, ZIL_TEST_REPORT_DIR=str(raw))
     command = ["cargo", "test", "--offline", "-p", "zil-driver", "--features", "llvm-api",
-               "--test", "impl224_shared_product", "--", "--nocapture"]
+               "--test", "complete_product_shared_borrows_shared_product", "--", "--nocapture"]
     revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=repo, text=True).strip()
     status = subprocess.check_output(["git", "status", "--porcelain"], cwd=repo, text=True)
     toolchains = {}

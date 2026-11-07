@@ -19,19 +19,19 @@ fn assert_source(text: &str) {
 #[test]
 fn static_member_life_host_complete_context() {
     assert_source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-full-context.zil"
     ));
 }
 #[test]
 fn static_member_life_host_member_distinct_lives() {
     assert_source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-member-lives.zil"
     ));
 }
 #[test]
 fn static_member_life_host_member_nearest_life_shadow() {
     assert_source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-member-life-shadow.zil"
     ));
 }
 #[test]
@@ -63,13 +63,13 @@ fn shared_option_borrow_life_duplicates_still_reject_within_the_current_declarat
 #[test]
 fn static_member_life_generated_host_member_distinct_lives() {
     assert_source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-host-member-lives.zil"
     ));
 }
 #[test]
 fn static_member_life_type_const_life_shadow_keeps_member_owner() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-static-host-shadow-all-kinds.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-static-host-shadow-all-kinds.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -203,7 +203,7 @@ fn static_member_life_failed_whole_request_does_not_publish_completed_host_calls
     );
     assert_eq!(session.active_query_count(), 0);
     let fresh = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-member-lives.zil"
     );
     let report = session.compile_source(&source(fresh), &CompileOptions::default());
     assert_eq!(

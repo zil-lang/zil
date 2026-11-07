@@ -53,11 +53,11 @@ fn original_probes_and_selected_lists_reach_the_independent_gate() {
     for (label, text) in [
         (
             "original-item",
-            include_str!("../../../tools/language/219/original/ct-item-if.zil"),
+            include_str!("../../../tools/language/conditional-source-items/original/ct-item-if.zil"),
         ),
         (
             "original-statement",
-            include_str!("../../../tools/language/219/original/ct-statement-if.zil"),
+            include_str!("../../../tools/language/conditional-source-items/original/ct-statement-if.zil"),
         ),
         (
             "local-after-list",
@@ -445,11 +445,11 @@ fn the_frozen_native_consumer_checks_both_source_configurations() {
     for (label, config) in [
         (
             "compact",
-            include_str!("../../../examples/mainline/ct_selection219/config.zil"),
+            include_str!("../../../examples/mainline/ct-selection/config.zil"),
         ),
         (
             "wide",
-            include_str!("../../../examples/mainline/ct_selection219/config_wide.zil"),
+            include_str!("../../../examples/mainline/ct-selection/config_wide.zil"),
         ),
     ] {
         let project = ProjectSources {
@@ -459,14 +459,14 @@ fn the_frozen_native_consumer_checks_both_source_configurations() {
                     FileId(0),
                     ModuleId(0),
                     "main.zil",
-                    include_str!("../../../examples/mainline/ct_selection219/main.zil"),
+                    include_str!("../../../examples/mainline/ct-selection/main.zil"),
                 ),
                 SourceUnit::new(FileId(1), ModuleId(1), "config.zil", config),
                 SourceUnit::new(
                     FileId(2),
                     ModuleId(2),
                     "io.zil",
-                    include_str!("../../../examples/mainline/ct_selection219/io.zil"),
+                    include_str!("../../../examples/mainline/ct-selection/io.zil"),
                 ),
             ],
             paths: BTreeMap::from([

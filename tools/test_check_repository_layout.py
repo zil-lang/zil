@@ -55,12 +55,12 @@ class RepositoryLayoutTests(unittest.TestCase):
         })
 
     def test_existing_numbered_paths_are_audited_without_failing(self):
-        base = self.baseline("tools/language/203/consumer.py", "changes/G1.3.2-record.md")
+        base = self.baseline("tools/language/state-bindings-consumer/consumer.py", "changes/owned replacement.2-record.md")
         new, failures, legacy = layout.check(base, root=self.root)
         self.assertEqual(new, [])
         self.assertEqual(failures, [])
         self.assertEqual({path for path, _ in legacy}, {
-            "tools/language/203/consumer.py", "changes/G1.3.2-record.md",
+            "tools/language/state-bindings-consumer/consumer.py", "changes/owned replacement.2-record.md",
         })
 
     def test_versions_and_stable_cases_survive(self):

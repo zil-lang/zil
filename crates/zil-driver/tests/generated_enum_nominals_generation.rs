@@ -31,8 +31,8 @@ fn check(label: &str, text: &str) -> CompileReport {
     fs::write(path.join("report.json"), report.to_json()).unwrap();
     report
 }
-const EVENTS: &str = include_str!("../../../examples/mainline/ct_enums230/events.zil");
-const PLAIN: &str = include_str!("../../../examples/mainline/ct_enums230/events_plain.zil");
+const EVENTS: &str = include_str!("../../../examples/mainline/ct-enums/events.zil");
+const PLAIN: &str = include_str!("../../../examples/mainline/ct-enums/events_plain.zil");
 const WIDTHS: &str = "#for(n in [1,2]){enum Event{Empty,Data([i32;n])}#if(n==1){pub fn one()->i32{let e=Event.Data([3]);match e{Event.Empty()=>{return 0},Event.Data(x)=>{return x[0]}}}}else{pub fn two()->i32{let e=Event.Data([4,5]);match e{Event.Empty()=>{return 0},Event.Data(x)=>{return x[0]+x[1]}}}}}fn main()->i32=>one()+two()-12";
 const NESTED: &str = "#for(n in [3]){enum E{A(i32)}#for(m in [4]){enum E{B(bool)}pub fn inner()->i32{let e=E.B(true);match e{E.B(true)=>{return m},E.B(false)=>{return 0}}}}pub fn outer()->i32{let e=E.A(n);match e{E.A(v)=>{return v}}}}fn main()->i32=>inner()+outer()-7";
 

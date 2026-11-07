@@ -13,7 +13,7 @@ printf 3 | ./program
 
 输入 0–3 决定 Item 数量，成功输出相应 A/B/C 前缀后接 HZ，退出 0。
 H 是 callback 捕获的 Ticket 清理；Z 是 Other 的 Ticket 清理。
-非法输入 9 退出 9。运行 `tools/language/178/consumer.py` 可在 O0/O2 下逐个
+非法输入 9 退出 9。运行 `tools/language/generic-store-library/consumer.py` 可在 O0/O2 下逐个
 真实分配点注入失败，并核对成功分配、释放和存活数。
 
 能力边界：StoreElement 是有限完整 Package 形状，不授予 Copy、字段访问或

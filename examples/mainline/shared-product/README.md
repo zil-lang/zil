@@ -9,7 +9,7 @@
 配置本机 Rust/LLVM 工具链后，在仓库根运行：
 
 ```sh
-python3 tools/language/224/validate.py --out /tmp/zil-224-fresh-run
+python3 tools/language/shared-product-validation/validate.py --out /tmp/zil-224-fresh-run
 ```
 
 输出目录必须是新目录。限定测试显式选择 LLVM API，包含 O0/O2、源码正反例、原始候选与 Wire、各阶段预算临界值。它不替代独立审核或整仓验收。

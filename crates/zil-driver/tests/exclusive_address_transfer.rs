@@ -84,7 +84,7 @@ fn raw(text: &str) -> TypedModule {
 }
 #[test]
 fn native_exclusive_call_and_reborrow() {
-    let ir = native(include_str!("../../../examples/impl042/main.zil"), 42);
+    let ir = native(include_str!("../../../examples/mutable-reborrow/main.zil"), 42);
     assert!(ir.contains("store i32 %v."));
 }
 #[test]
@@ -127,7 +127,7 @@ fn address_transfer_clears_the_source() {
 }
 #[test]
 fn wire_roundtrip_preserves_executable_permissions() {
-    let m = raw(include_str!("../../../examples/impl042/main.zil"));
+    let m = raw(include_str!("../../../examples/mutable-reborrow/main.zil"));
     let limits = Limits::default();
     let p = zil_analyze::analyze(&m, &limits).unwrap();
     zil_verify::verify_module(m.clone(), p.clone(), &m.target, &limits).unwrap();
@@ -370,7 +370,7 @@ fn raw_exclusive_ssa_transfer_is_single_use_even_without_source_local() {
 }
 #[test]
 fn low_budget_is_a_limit_and_whole_object_aliases_are_conservative() {
-    let module = raw(include_str!("../../../examples/impl042/main.zil"));
+    let module = raw(include_str!("../../../examples/mutable-reborrow/main.zil"));
     let defaults = Limits::default();
     let plan = zil_analyze::analyze(&module, &defaults).unwrap();
     let limits = Limits {

@@ -33,11 +33,11 @@ fn check(label: &str, text: &str) -> CompileReport {
 const CASES: &[(&str, &str)] = &[
     (
         "arrays-defaults",
-        include_str!("../../../examples/mainline/ct_types228/arrays_defaults.zil"),
+        include_str!("../../../examples/mainline/ct-types/arrays_defaults.zil"),
     ),
     (
         "arrays-defaults-plain",
-        include_str!("../../../examples/mainline/ct_types228/arrays_defaults_plain.zil"),
+        include_str!("../../../examples/mainline/ct-types/arrays_defaults_plain.zil"),
     ),
     (
         "forward-alias",

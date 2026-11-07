@@ -86,7 +86,7 @@ fn execute(report: &CompileReport, out: &Temp, expected: Option<i64>) -> String 
 #[test]
 fn function_factory_aggregation_and_indirect_calls_execute() {
     let llvm = native(
-        include_str!("../../../examples/impl033/main.zil"),
+        include_str!("../../../examples/function-pointer-stages/main.zil"),
         Some(8320),
     );
     assert!(llvm.contains("freeze ptr @zil.fn."));
@@ -354,8 +354,8 @@ fn project(root: &str, library: &str) -> ProjectSources {
 fn module_function_values_keep_identity_visibility_and_signature_hash() {
     let out = Temp::new();
     let input = project(
-        include_str!("../../../examples/impl033/modules/main.zil"),
-        include_str!("../../../examples/impl033/modules/ops.zil"),
+        include_str!("../../../examples/function-pointer-stages/modules/main.zil"),
+        include_str!("../../../examples/function-pointer-stages/modules/ops.zil"),
     );
     let options = CompileOptions {
         stop_after: Stage::Build,

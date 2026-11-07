@@ -170,9 +170,9 @@ fn original_three_module_where_and_inline_inputs_reach_independent_verify() {
     ));
 }
 
-const OPERATIONS: &str = include_str!("../../../examples/mainline/trait_modules233/operations.zil");
-const COUNTERS: &str = include_str!("../../../examples/mainline/trait_modules233/counters.zil");
-const USE_COUNTERS: &str = include_str!("../../../examples/mainline/trait_modules233/main.zil");
+const OPERATIONS: &str = include_str!("../../../examples/mainline/trait-modules/operations.zil");
+const COUNTERS: &str = include_str!("../../../examples/mainline/trait-modules/counters.zil");
+const USE_COUNTERS: &str = include_str!("../../../examples/mainline/trait-modules/main.zil");
 
 fn native(label: &str, files: &[(&str, &str)], stdout: &[u8]) {
     for optimization in [Optimization::O0, Optimization::O2] {

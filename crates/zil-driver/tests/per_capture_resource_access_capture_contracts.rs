@@ -206,23 +206,23 @@ fn once<F:FnOnce()->i32>(f:F)->i32{return f()}
 fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
     for source in [
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/mixed_no_head_control.zil"
+            "../../../examples/mainline/mixed-capture/probes/mixed_no_head_control.zil"
         ),
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/mixed_disjoint_actual_head.zil"
+            "../../../examples/mainline/mixed-capture/probes/mixed_disjoint_actual_head.zil"
         ),
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/desc_read_current_head.zil"
+            "../../../examples/mainline/mixed-capture/probes/desc_read_current_head.zil"
         ),
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/hidden_desc_read_head.zil"
+            "../../../examples/mainline/mixed-capture/probes/hidden_desc_read_head.zil"
         ),
     ] {
         native(&[("main", source)], b"", 0);
     }
     rejected(
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/desc_write_current_head.zil"
+            "../../../examples/mainline/mixed-capture/probes/desc_write_current_head.zil"
         ),
         ResultCategory::SafeReject,
         Phase::Verify,
@@ -230,7 +230,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
     );
     rejected(
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/current_call_address_parameter.zil"
+            "../../../examples/mainline/mixed-capture/probes/current_call_address_parameter.zil"
         ),
         ResultCategory::Unsupported,
         Phase::Types,
@@ -238,7 +238,7 @@ fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
     );
     rejected(
         include_str!(
-            "../../../examples/mainline/mixed_capture182/probes/helper_address_parameter.zil"
+            "../../../examples/mainline/mixed-capture/probes/helper_address_parameter.zil"
         ),
         ResultCategory::Unsupported,
         Phase::Types,
@@ -707,19 +707,19 @@ fn runtime_mixed_capture_consumer_uses_four_actual_modules() {
     let files = [
         (
             "main",
-            include_str!("../../../examples/mainline/mixed_capture182/main.zil"),
+            include_str!("../../../examples/mainline/mixed-capture/main.zil"),
         ),
         (
             "model",
-            include_str!("../../../examples/mainline/mixed_capture182/model.zil"),
+            include_str!("../../../examples/mainline/mixed-capture/model.zil"),
         ),
         (
             "operations",
-            include_str!("../../../examples/mainline/mixed_capture182/operations.zil"),
+            include_str!("../../../examples/mainline/mixed-capture/operations.zil"),
         ),
         (
             "visits",
-            include_str!("../../../examples/mainline/mixed_capture182/visits.zil"),
+            include_str!("../../../examples/mainline/mixed-capture/visits.zil"),
         ),
     ];
     for (input, output, exit) in [

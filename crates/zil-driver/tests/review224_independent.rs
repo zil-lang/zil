@@ -16,7 +16,7 @@ fn typed(name: &str) -> TypedModule {
     let text = match name {
         "distinct-instances" => DISTINCT,
         "child-nll-control" => {
-            include_str!("../../../examples/mainline/shared_product224/child-nll-control.zil")
+            include_str!("../../../examples/mainline/shared-product/child-nll-control.zil")
         }
         _ => panic!("unknown frozen source {name}"),
     };

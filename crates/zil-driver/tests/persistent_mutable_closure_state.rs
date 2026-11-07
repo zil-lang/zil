@@ -90,7 +90,7 @@ fn mutable_counter_updates_and_independent_copy() {
 }
 #[test]
 fn nested_record_array_tuple_environment_and_aggregate_result() {
-    native(include_str!("../../../examples/impl030/main.zil"), 123060);
+    native(include_str!("../../../examples/owned-state-closure/main.zil"), 123060);
 }
 #[test]
 fn inferred_array_capture_and_projected_assignment() {

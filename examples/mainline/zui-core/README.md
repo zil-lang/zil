@@ -18,7 +18,7 @@
 
 `L`是defer之后成功构造的真实资源析构，`Q`是无捕获同步defer动作，a/b是订阅析构，A/B是节点析构。末尾`LQabAB`验证局部逆构造、动作履行与Product字段声明序的交织。`ix`验证每轮的局部析构和defer。`Q`不代表OS注销、drain或no-future协议完成。
 
-`tools/language/236/oracle.py`独立按源码操作预测输出、退出及实际分配调用/释放，绝不读取编译器或机器输出。`ORACLE.json`冻结所有20个有效输入及4个无效入口，每个实际分配点失败一次，另含fail_at=0及末次申请之后控制：每个优化等级24次普通运行、151次分配探针。准备失败前缀、未插入的失败项、旧集合保留、新集合提交、注册前失败和注册后扩容/替换失败都有独立预期。字节峰值由探针记录，不猜机器布局或冒称RSS。
+`tools/language/core-ownership-oracle/oracle.py`独立按源码操作预测输出、退出及实际分配调用/释放，绝不读取编译器或机器输出。`ORACLE.json`冻结所有20个有效输入及4个无效入口，每个实际分配点失败一次，另含fail_at=0及末次申请之后控制：每个优化等级24次普通运行、151次分配探针。准备失败前缀、未插入的失败项、旧集合保留、新集合提交、注册前失败和注册后扩容/替换失败都有独立预期。字节峰值由探针记录，不猜机器布局或冒称RSS。
 
 最近反例由限定测试按完整正例作两处修改：省略child回填后整值返回；持有child的Store窗口后移动child并继续读旧窗口。使用无defer入口的同五模块正控制先通过Verify，避免无关defer错误遮蔽目标。两份实际非法源均由Analyze `E-ANALYZE-IR`拒绝，测试进一步精确核对缺字段和失效窗口消息。初版猜测后一份到Verify才拒绝不正确；首次联合失败、隔离源与真实诊断保留在`evidence/impl/236/joint01/`。这些源反例不代替235本身的独立raw/Wire核验。
 
@@ -30,8 +30,8 @@
 . /workspace/.zil-env/env.sh
 export CARGO_TARGET_DIR=/workspace/.zil-env/target-236
 export CARGO_BUILD_JOBS=1 CARGO_INCREMENTAL=0
-cargo test -p zil-driver --features llvm-api --test impl236_zui_core -- --test-threads=1
-python3 -B tools/language/236/run.py --repo /absolute/clean/consumer \
+cargo test -p zil-driver --features llvm-api --test zui_product_consumer_zui_core -- --test-threads=1
+python3 -B tools/language/core-ownership-oracle/run.py --repo /absolute/clean/consumer \
   --cli /absolute/zil --compiler-build-receipt /absolute/compiler-build.json \
   --clang /absolute/clang --out /absolute/fresh-output
 ```

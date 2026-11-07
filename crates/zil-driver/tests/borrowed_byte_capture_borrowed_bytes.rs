@@ -934,19 +934,19 @@ fn four_module_buffer_consumer_checks_runtime_input_and_cleanup_order() {
     let files = [
         (
             "main",
-            include_str!("../../../examples/mainline/borrowed_bytes187/main.zil"),
+            include_str!("../../../examples/mainline/borrowed-bytes/main.zil"),
         ),
         (
             "model",
-            include_str!("../../../examples/mainline/borrowed_bytes187/model.zil"),
+            include_str!("../../../examples/mainline/borrowed-bytes/model.zil"),
         ),
         (
             "operations",
-            include_str!("../../../examples/mainline/borrowed_bytes187/operations.zil"),
+            include_str!("../../../examples/mainline/borrowed-bytes/operations.zil"),
         ),
         (
             "visits",
-            include_str!("../../../examples/mainline/borrowed_bytes187/visits.zil"),
+            include_str!("../../../examples/mainline/borrowed-bytes/visits.zil"),
         ),
     ];
     for (input, output, exit) in [

@@ -12,7 +12,7 @@
   "cases": [
     {
       "case": "dyn-declaration",
-      "fixture": "tests/language-readiness/G5.2.1/dyn-declaration.zil",
+      "fixture": "tests/language-readiness/dynamic-dispatch/dyn-declaration.zil",
       "source_sha256": "a871681990f261dd6e4b75543720ce09a98c8c2941e4f941c9e83943772a83c2",
       "status": "Unsupported",
       "phase": "types",
@@ -33,7 +33,7 @@
     },
     {
       "case": "dyn-two-provider",
-      "fixture": "tests/language-readiness/G5.2.1/dyn-two-provider.zil",
+      "fixture": "tests/language-readiness/dynamic-dispatch/dyn-two-provider.zil",
       "source_sha256": "96582c2641346a96478b47331d78c52cdde63207b4053ceb5406eaf81e5fe631",
       "status": "Unsupported",
       "phase": "expand",

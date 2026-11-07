@@ -8,6 +8,6 @@
 
 固定marker：N加标签是factory创建；A/B/C是成功调用；1/2/3逐个表示对应环境叶Store元素的清理；a/b/c是环境Ticket清理；S是State头；P/Q是替换前后；K是同步取消；E是Copy准备错误；U/V是FnOnce消费边界；F表示该消费内部的分配失败已处理；L是完整成功路径结束；Z是外层Guard清理。未执行机器前先固定源码和oracle，不用观察输出回填预期。
 
-`tools/language/205/consumer.py` 复用真实realloc/HeapAlloc观察器，对Linux及Win64/Wine各执行O0/O2普通、零故障、每个实际分配点失败、最后分配点之后的控制和无效/EOF输入。算法不由C模拟；C只观测/注入分配。源码、全部命令、Core/Typed/Plan/Wire相关文本、LLVM布局与结果分别记录；机器产物不进入源码/证据交付。原生Windows及完整产品条件另列NotRun。
+`tools/language/state-replacement-consumer/consumer.py` 复用真实realloc/HeapAlloc观察器，对Linux及Win64/Wine各执行O0/O2普通、零故障、每个实际分配点失败、最后分配点之后的控制和无效/EOF输入。算法不由C模拟；C只观测/注入分配。源码、全部命令、Core/Typed/Plan/Wire相关文本、LLVM布局与结果分别记录；机器产物不进入源码/证据交付。原生Windows及完整产品条件另列NotRun。
 
 此文件登记消费者输入和冻结预期，不表示编译、native或平台矩阵已经通过。实际成功范围须引用对应受测提交、CLI摘要及运行收据。

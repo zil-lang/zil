@@ -14,7 +14,7 @@ explicit oracle for every allocation failure, including the exact live buffer
 count, frees, prefix output and exit status.
 
 ```sh
-python3 tools/language/188/consumer.py --repo . --cli /absolute/path/to/zil --out /fresh/output
+python3 tools/language/nested-lending-helpers/consumer.py --repo . --cli /absolute/path/to/zil --out /fresh/output
 ```
 
 The runner compiles O0 and O2, requires all four loaded modules and one independent

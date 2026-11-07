@@ -367,7 +367,7 @@ fn enum_verify_grounded_payload_desc_obeys_actual_retirement() {
     }
     assert_eq!(readers.len(), 2);
     plan.module_fingerprint = module.fingerprint();
-    // G1.3.9 now grounds this actual payload address independently. Reading
+    // owned replacement.9 now grounds this actual payload address independently. Reading
     // before the replacement is legal; the later read below must still fail.
     let fresh_plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
     verify_both(&module, &fresh_plan);
@@ -493,7 +493,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             assert!(run(low - 1).is_none());
             assert_eq!(run(low), Some(fingerprint));
         }
-        eprintln!("G1.3.5.1 Verify wire={wire} work N={low} N-1 ResourceLimit, fresh/retry Pass");
+        eprintln!("owned replacement.5.1 Verify wire={wire} work N={low} N-1 ResourceLimit, fresh/retry Pass");
     }
 
     let input = source(text);
@@ -553,7 +553,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        eprintln!("G1.3.5.1 whole Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
+        eprintln!("owned replacement.5.1 whole Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
     }
 
     let analyze_options = |work| CompileOptions {
@@ -574,7 +574,7 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             _ => panic!("{}", report.to_json()),
         }
     }
-    // G1.3.6: unchanged Source/IR, previous111234 plus the15-step paid
+    // owned replacement.6: unchanged Source/IR, previous111234 plus the15-step paid
     // producer exclusion inventory; no detailed nonlocal graph is built here.
     assert_eq!(low, 111_249, "current whole Enum Analyze work changed");
     let mut warm = zil_driver::CompilationSession::default();
@@ -594,5 +594,5 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
         }
         assert_eq!(warm.active_query_count(), 0);
     }
-    eprintln!("G1.3.6 current whole Enum Analyze N={low} N-1/fresh/warm/retry Pass");
+    eprintln!("owned replacement.6 current whole Enum Analyze N={low} N-1/fresh/warm/retry Pass");
 }

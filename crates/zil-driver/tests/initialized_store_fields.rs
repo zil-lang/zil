@@ -292,24 +292,24 @@ fn sealed_definitions_are_discovered_from_state_only_signatures() {
 
 #[test]
 fn cross_module_state_owns_runtime_replacement_and_partial_exit() {
-    let model = include_str!("../../../examples/mainline/impl174/model.zil");
-    let storage = include_str!("../../../examples/mainline/impl174/storage.zil");
-    let state = include_str!("../../../examples/mainline/impl174/state.zil");
+    let model = include_str!("../../../examples/mainline/owned-store-state-replacement/model.zil");
+    let storage = include_str!("../../../examples/mainline/owned-store-state-replacement/storage.zil");
+    let state = include_str!("../../../examples/mainline/owned-store-state-replacement/state.zil");
     for (entry, input, output, exit) in [
         (
-            include_str!("../../../examples/mainline/impl174/main.zil"),
+            include_str!("../../../examples/mainline/owned-store-state-replacement/main.zil"),
             b"3".as_slice(),
             b"ABZCDE".as_slice(),
             0,
         ),
         (
-            include_str!("../../../examples/mainline/impl174/take_exit.zil"),
+            include_str!("../../../examples/mainline/owned-store-state-replacement/take_exit.zil"),
             b"".as_slice(),
             b"ABZ".as_slice(),
             1,
         ),
         (
-            include_str!("../../../examples/mainline/impl174/reserve_recovery.zil"),
+            include_str!("../../../examples/mainline/owned-store-state-replacement/reserve_recovery.zil"),
             b"".as_slice(),
             b"ZAB".as_slice(),
             0,

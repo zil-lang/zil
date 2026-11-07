@@ -1598,7 +1598,7 @@ mod tests {
             ModuleId(0),
             "helper-ct.zil",
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/fn-shared-input.zil"
             ),
         );
         let syntax = zil_syntax::parse(&input).into_result().unwrap();

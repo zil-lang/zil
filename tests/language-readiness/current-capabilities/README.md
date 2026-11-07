@@ -20,7 +20,7 @@ collector固定原release CLI的完整hash，并核其观察源码至基线的�
 18次LLVM API构建/执行单独记录；原生显式main harness预期打印`0\n`且exit0。
 机器产物只放临时目录并清除，不归档raw evidence、不创建Cargo目标或target目录。
 
-`validation/results/language-readiness/language-gaps-baseline.json`是压缩后的观察与十行裁决；collector输出
+`validation/inputs/language-readiness/language-gaps-baseline.json`是压缩后的观察与十行裁决；collector输出
 可用于重新比较，不能自动升级人工矩阵或其它工单。329–333的新源不进入此冻结
 基线。一般大值ABI由333独立实测，Windows、Rust成本、弱内存和正式全量本片未跑。
 

@@ -8,6 +8,6 @@
 
 Linux x64 的 Root 是 28 字节，环境追加 shell/child 两个 i1 并按 4 字节对齐后为 32 字节；State 的 ByteBuffer 头为 24 字节，故每个元素步幅 56 字节。reserve 2/4 的真实请求应分别为 112/224 字节。
 
-`crates/zil-driver/tests/impl216_machine.rs` 固定这些预期，并覆盖 Fn、FnMut、FnOnce、提前/错误退出、未调用销毁及不同实例。allocator observer 复用 `tools/language/173/allocator_probe.c`，观察真实 realloc/free 和逐次失败；不替代语言权限检查。
+`crates/zil-driver/tests/product_capture_cleanup_machine.rs` 固定这些预期，并覆盖 Fn、FnMut、FnOnce、提前/错误退出、未调用销毁及不同实例。allocator observer 复用 `tools/language/composed-store-closures/allocator_probe.c`，观察真实 realloc/free 和逐次失败；不替代语言权限检查。
 
 执行与接受状态以精确提交的证据为准。本消费者不宣称完整 ZUI、完整 1.4 或原生 Windows 已验收。

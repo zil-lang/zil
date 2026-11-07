@@ -82,7 +82,7 @@ fn actual_source_tail_and_raw_wire_hostile_neighbors() {
             }
         }
     }
-    // G3.3.9 explicitly promotes the same registered user-Drop source. It
+    // closure environment.9 explicitly promotes the same registered user-Drop source. It
     // retains actual teardown/resource proof and receives a fresh raw/Wire check.
     let promoted = include_str!("user-drop.zil");
     let report = compile_source(

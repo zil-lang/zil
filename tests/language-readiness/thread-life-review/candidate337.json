@@ -19,7 +19,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-mixed-upper-bound.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-mixed-upper-bound.zil",
         "--json"
       ]
     },
@@ -37,7 +37,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-exact-return-origin.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-exact-return-origin.zil",
         "--json"
       ]
     },
@@ -55,7 +55,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-callee-permutation.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-callee-permutation.zil",
         "--json"
       ]
     },
@@ -73,7 +73,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-shared-reborrow.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-shared-reborrow.zil",
         "--json"
       ]
     },
@@ -96,7 +96,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-branch-bounds.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-branch-bounds.zil",
         "--json"
       ]
     },
@@ -119,7 +119,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-local-escape.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-local-escape.zil",
         "--json"
       ]
     },
@@ -142,7 +142,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-shared-upgrade.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-shared-upgrade.zil",
         "--json"
       ]
     },
@@ -165,7 +165,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-returned-loan-parent-write.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-returned-loan-parent-write.zil",
         "--json"
       ]
     },
@@ -188,7 +188,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-same-root-call.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-same-root-call.zil",
         "--json"
       ]
     },
@@ -211,7 +211,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-generic-mutable.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-generic-mutable.zil",
         "--json"
       ]
     },
@@ -229,7 +229,7 @@
       "argv": [
         "/workspace/.zil-env/target337/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/life-generic-no-life-known-gap.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/life-generic-no-life-known-gap.zil",
         "--json"
       ],
       "disposition": "Separate existing gap observation; excluded from pass counts"

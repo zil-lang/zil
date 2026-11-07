@@ -235,7 +235,7 @@ fn generic035_12_symbolic_bool_matrix_and_integer_aliases() {
 }
 #[test]
 fn generic035_13_full_example() {
-    let text = include_str!("../../../examples/impl035/main.zil")
+    let text = include_str!("../../../examples/generic-option-result/main.zil")
         .replace("fn answer()", "fn result()")
         .replace("answer() ==", "result() ==");
     let llvm = native(&text, 5000000042);

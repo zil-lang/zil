@@ -1,4 +1,4 @@
-//! Independent Source consumers for the G2.4.1 lending trait profile.
+//! Independent Source consumers for the trait shared lending lending trait profile.
 use super::{NEXT, project};
 use std::{fs, path::PathBuf, process::Command, sync::atomic::Ordering};
 use zil_base::{Phase, ResultCategory};
@@ -270,7 +270,7 @@ fn unused_method_rejects_wrong_input_root() {
 fn resource_head_lending_remains_explicitly_unsupported() {
     canonical_success();
     // A resource receiver reaches the existing head-address Types boundary.
-    // This does not establish a parent-move safety result for G2.4.1.
+    // This does not establish a parent-move safety result for trait shared lending.
     // A shared resource receiver with associated Item also lacks a supported
     // resource trait impl, so no resource transfer pair proves a move window here.
     let provider = "trait Lend{type Item:Copy;fn next<life a>(self:&'a mut Self)->Option<&'a Self.Item>;}resource Cursor{values:[i32;2];index:usize}impl Lend for Cursor{type Item=i32;fn next<life p>(self:&'p mut Self)->Option<&'p i32>{if self.index>=2usize{return Option::<&'p i32>.None()}let i=self.index;self.index+=1usize;return Option::<&'p i32>.Some(&self.values[i])}}fn consume(give c:Cursor)->i32{return c.values[0]}";

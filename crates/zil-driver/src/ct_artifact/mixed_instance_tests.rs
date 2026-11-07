@@ -10,13 +10,13 @@ fn contextual_record_relocation_actual_source_record_relocation_has_independent_
     for (text, separated) in [
         (
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/host-identity-review/good-three-layer-reordered.zil"
             ),
             false,
         ),
         (
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-lifetime-separation.zil"
             ),
             true,
         ),
@@ -453,10 +453,10 @@ impl CtArtifactAuthority for InventoryOnly<'_> {
 #[test]
 fn mixed_compile_time_actual_actual_source_instances_raw_wire_ledger_and_independent_checks() {
     let values = include_str!(
-        "../../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+        "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-instance-values.zil"
     );
     let usize_source = include_str!(
-        "../../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+        "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-factory.zil"
     )
     .replace("#N:i32", "#N:usize");
     // The returned scalar ignores every generic actual. Vary each slot alone
@@ -864,7 +864,7 @@ fn mixed_compile_time_actual_actual_source_instances_raw_wire_ledger_and_indepen
 #[test]
 fn static_member_factory_original_static_members_keep_host_identity_and_actual_values() {
     let text = include_str!(
-        "../../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
+        "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-host-identity.zil"
     );
     let sources = vec![SourceUnit::new(
         zil_base::FileId(0),
@@ -991,13 +991,13 @@ fn nested_static_member_nested_source_calls_keep_private_vectors_and_published_g
     for (text, intermediate) in [
         (
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-scalar.zil"
             ),
             false,
         ),
         (
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-intermediate.zil"
             ),
             true,
         ),

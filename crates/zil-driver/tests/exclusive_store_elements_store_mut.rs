@@ -649,19 +649,19 @@ fn runtime_updates_cross_four_modules_without_moving_element_resources() {
     let files = [
         (
             "main",
-            include_str!("../../../examples/mainline/store_mut180/main.zil"),
+            include_str!("../../../examples/mainline/store-mut/main.zil"),
         ),
         (
             "model",
-            include_str!("../../../examples/mainline/store_mut180/model.zil"),
+            include_str!("../../../examples/mainline/store-mut/model.zil"),
         ),
         (
             "storage",
-            include_str!("../../../examples/mainline/store_mut180/storage.zil"),
+            include_str!("../../../examples/mainline/store-mut/storage.zil"),
         ),
         (
             "edit",
-            include_str!("../../../examples/mainline/store_mut180/edit.zil"),
+            include_str!("../../../examples/mainline/store-mut/edit.zil"),
         ),
     ];
     for (input, stdout, exit) in [

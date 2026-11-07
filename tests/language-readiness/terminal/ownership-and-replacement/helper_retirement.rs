@@ -240,6 +240,6 @@ fn no_commit_is_not_invalidation_but_possible_success_has_no_error_refinement() 
         "target.owner=R{code:66};",
         "*target=P{owner:R{code:66},n:42};",
     );
-    // G1.3.7 admits the endpoint; actual retirement still rejects this use.
+    // owned replacement.7 admits the endpoint; actual retirement still rejects this use.
     check(&whole, true);
 }

@@ -37,7 +37,7 @@ def main():
     repo, scratch, out = args.compiler.resolve(), args.scratch.resolve(), args.out.resolve()
     tool = Path(__file__).resolve().parent
     author_tree = tool.parents[2]
-    suite = author_tree / "crates/zil-driver/tests/impl221_factory_verify.rs"
+    suite = author_tree / "crates/zil-driver/tests/owning_factory_verification_factory_verify.rs"
     out.mkdir(parents=True, exist_ok=False)
     scratch.mkdir(parents=True, exist_ok=False)
 

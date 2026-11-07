@@ -299,7 +299,7 @@ fn verify_current_raw_wire_and_source_limits() {
             assert!(run(low - 1).is_none());
             assert_eq!(run(low), Some(fp));
         }
-        eprintln!("G1.3.6.1 Verify wire={wire} work N={low} N-1 ResourceLimit fresh/retry Pass");
+        eprintln!("owned replacement.6.1 Verify wire={wire} work N={low} N-1 ResourceLimit fresh/retry Pass");
     }
     let input = source(&text);
     for (kind, max) in [
@@ -358,7 +358,7 @@ fn verify_current_raw_wire_and_source_limits() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        eprintln!("G1.3.6.1 Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
+        eprintln!("owned replacement.6.1 Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
     }
 }
 

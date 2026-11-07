@@ -10,7 +10,7 @@
       "phase": "verify",
       "diagnostics": [],
       "source_sha256": "64f8fe7aa090341eba3759ef3637d4cb913bd59fa8cd82799042e25757b8d456",
-      "fixture": "tests/language-readiness/G9.3.5/standalone-scalar.zil"
+      "fixture": "tests/language-readiness/owning-store-captures/standalone-scalar.zil"
     },
     {
       "case": "declaration-only",
@@ -32,7 +32,7 @@
         }
       ],
       "source_sha256": "1dd357f1ad17f1da5a69c2f43df6a6a63405b62af000e5f7055d1cc0c832331f",
-      "fixture": "tests/language-readiness/G9.3.5/declaration-only.zil"
+      "fixture": "tests/language-readiness/owning-store-captures/declaration-only.zil"
     },
     {
       "case": "scalar-model",
@@ -54,7 +54,7 @@
         }
       ],
       "source_sha256": "dc96a031c809ce70958c2bda280c33089e194897c060d02e87c6bc03a5e9a1a9",
-      "fixture": "tests/language-readiness/G9.3.5/scalar-model.zil"
+      "fixture": "tests/language-readiness/owning-store-captures/scalar-model.zil"
     },
     {
       "case": "record-model",
@@ -76,7 +76,7 @@
         }
       ],
       "source_sha256": "e4fb4c1832c5a9a04ba14897e255fe25527a2aec9501df61eba7a91fe9d981a6",
-      "fixture": "tests/language-readiness/G9.3.5/record-model.zil"
+      "fixture": "tests/language-readiness/owning-store-captures/record-model.zil"
     },
     {
       "case": "old-owning-model",
@@ -85,7 +85,7 @@
       "phase": "verify",
       "diagnostics": [],
       "source_sha256": "646823b1a2f9fe3d6b0f0f6afaf0114e71599c5fd1fdfc0b1ef6f2db3c779fc8",
-      "fixture": "tests/language-readiness/G9.3.5/old-owning-model.zil"
+      "fixture": "tests/language-readiness/owning-store-captures/old-owning-model.zil"
     }
   ],
   "status": "BaselineGapReproducedNotImplementationAcceptance",

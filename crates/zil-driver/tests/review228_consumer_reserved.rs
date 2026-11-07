@@ -10,19 +10,19 @@ fn generated_private_functions_preserve_the_ordinary_reserved_name_boundary() {
         (
             "plain",
             include_str!(
-                "../../../examples/mainline/generated_events228/review/reserved_function_plain.zil"
+                "../../../examples/mainline/generated-events/review/reserved_function_plain.zil"
             ),
         ),
         (
             "pure",
             include_str!(
-                "../../../examples/mainline/generated_events228/review/reserved_function_pure.zil"
+                "../../../examples/mainline/generated-events/review/reserved_function_pure.zil"
             ),
         ),
         (
             "mixed",
             include_str!(
-                "../../../examples/mainline/generated_events228/review/reserved_function_mixed.zil"
+                "../../../examples/mainline/generated-events/review/reserved_function_mixed.zil"
             ),
         ),
     ] {

@@ -8,10 +8,10 @@ use std::{
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, CompileReport, ProjectSources, compile_project};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
-const MAIN: &str = include_str!("../../../examples/mainline/zui_language181/composed.zil");
-const MODEL: &str = include_str!("../../../examples/mainline/zui_language181/model.zil");
-const COLLECTION: &str = include_str!("../../../examples/mainline/zui_language181/collection.zil");
-const STATE: &str = include_str!("../../../examples/mainline/zui_language181/state.zil");
+const MAIN: &str = include_str!("../../../examples/mainline/zui-language-interface-flow/composed.zil");
+const MODEL: &str = include_str!("../../../examples/mainline/zui-language-interface-flow/model.zil");
+const COLLECTION: &str = include_str!("../../../examples/mainline/zui-language-interface-flow/collection.zil");
+const STATE: &str = include_str!("../../../examples/mainline/zui-language-interface-flow/state.zil");
 
 fn check(files: &[(&str, &str)]) -> CompileReport {
     let base = std::env::var_os("ZIL_TEST_REPORT_DIR")

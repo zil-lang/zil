@@ -15,13 +15,13 @@ use zil_driver::{
 };
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
-const MAIN: &str = include_str!("../../../examples/mainline/generated_events228/plain/main.zil");
-const PLAIN: &str = include_str!("../../../examples/mainline/generated_events228/plain/events.zil");
+const MAIN: &str = include_str!("../../../examples/mainline/generated-events/plain/main.zil");
+const PLAIN: &str = include_str!("../../../examples/mainline/generated-events/plain/events.zil");
 const GENERATED: &str =
-    include_str!("../../../examples/mainline/generated_events228/generated/events.zil");
-const WHERE: &str = include_str!("../../../examples/mainline/generated_events228/where/events.zil");
+    include_str!("../../../examples/mainline/generated-events/generated/events.zil");
+const WHERE: &str = include_str!("../../../examples/mainline/generated-events/where/events.zil");
 const COMBINED: &str =
-    include_str!("../../../examples/mainline/generated_events228/combined/events.zil");
+    include_str!("../../../examples/mainline/generated-events/combined/events.zil");
 
 struct Case(PathBuf, bool);
 impl Case {
@@ -176,9 +176,9 @@ fn paired_sources_change_only_the_requested_declaration_forms() {
     assert_eq!(WHERE.replace(trailing, inline), PLAIN);
     assert_eq!(COMBINED.replace(trailing, inline), GENERATED);
     for main in [
-        include_str!("../../../examples/mainline/generated_events228/generated/main.zil"),
-        include_str!("../../../examples/mainline/generated_events228/where/main.zil"),
-        include_str!("../../../examples/mainline/generated_events228/combined/main.zil"),
+        include_str!("../../../examples/mainline/generated-events/generated/main.zil"),
+        include_str!("../../../examples/mainline/generated-events/where/main.zil"),
+        include_str!("../../../examples/mainline/generated-events/combined/main.zil"),
     ] {
         assert_eq!(MAIN, main);
     }

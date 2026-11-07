@@ -3,7 +3,7 @@ The original 32 suggested ZIL sources are preserved byte-for-byte under
 The original Type-value and scalar-emit probes retain their bytes. No original
 expectation is replaced because of an implementation failure.
 
-`ORACLE.json` is independently derived by `tools/language/262/oracle.py` from
+`ORACLE.json` is independently derived by `tools/language/native-product-equivalence/oracle.py` from
 source operations, not compiler reports or native stdout. It covers 9 positive
 entries, 9 handwritten equivalents, and 19 source negatives. The source target
 for numeric layout is x86_64 with i32 size/alignment4. All source/native

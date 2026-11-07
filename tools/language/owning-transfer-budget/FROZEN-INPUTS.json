@@ -2,7 +2,7 @@
   "baseline": "4153fbd0a2a0effd90da4bee4034247e1e822cc1",
   "purpose": "Predeclared source oracles for the new 218 implementation; no old218 acceptance is reused.",
   "expand": {
-    "source": "crates/zil-expand/tests/impl218_factory.rs",
+    "source": "crates/zil-expand/tests/owning_factory.rs",
     "positive": [
       "unused Fn/FnMut/FnOnce definitions",
       "nonadjacent F parameter",
@@ -37,7 +37,7 @@
     "status": "NotRun"
   },
   "types": {
-    "source": "crates/zil-driver/tests/impl218_factory_types.rs",
+    "source": "crates/zil-driver/tests/owning_factory_frontend_factory_types.rs",
     "positive": [
       "Fn/FnMut/FnOnce ordinary owning boundary with real return contract",
       "actual Fn adapted to declared FnOnce uses TakeCapture",
@@ -73,7 +73,7 @@
     "status": "Limited source-derived checks passed on checkpoint E working source; pending published SHA replay"
   },
   "budget_sources": {
-    "directory": "tools/language/218/budget-sources",
+    "directory": "tools/language/owning-transfer-budget/budget-sources",
     "legacy": [
       "helper",
       "state",
@@ -89,8 +89,8 @@
   },
   "review_fix": {
     "original_source_commit": "2212505a667508dc9c7565cbab674c8e59700457",
-    "source_directory": "tools/language/218/review-cases",
-    "originals": "tools/language/218/review-cases/ORIGINALS.json",
+    "source_directory": "tools/language/owning-transfer-budget/review-cases",
+    "originals": "tools/language/owning-transfer-budget/review-cases/ORIGINALS.json",
     "result": "evidence/impl/218/CHECKPOINT-F.json",
     "oracle": "original independent success/rejection oracles unchanged",
     "extra_controls": [

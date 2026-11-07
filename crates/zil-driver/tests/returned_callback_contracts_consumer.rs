@@ -539,7 +539,7 @@ fn allocator_matrix(entry: &str, selection: &str) {
         let probe = out.join("probe");
         let linked = Command::new(&clang)
             .arg(out.join("api.o"))
-            .arg(root().join("tools/language/173/allocator_probe.c"))
+            .arg(root().join("tools/language/composed-store-closures/allocator_probe.c"))
             .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
             .arg(&probe)
             .output()

@@ -86,7 +86,7 @@ impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
 fn mark(){unsafe{putchar(88)}}
 "#;
 const ORIGINAL: &str =
-    include_str!("../../zil-expand/tests/impl205_fixtures/00_original_state_and_replacement.zil");
+    include_str!("../../zil-expand/tests/state_replacement_fixtures/state_and_replacement.zil");
 
 fn verified(label: &str, source: &str) {
     let (_, report) = compile(label, source, Stage::Verify);

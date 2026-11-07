@@ -95,7 +95,7 @@ fn callback_return_does_not_revive_a_borrowed_input_window() {
         zil_ir::wire::decode_module_candidate(archived, &limits).unwrap_err()[0].code,
         "E-WIRE-VERSION"
     );
-    let bytes = include_bytes!("../../../tests/impl254/v40/loan_revival.wire");
+    let bytes = include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
     let migrated = schema40_fixture::migrate(bytes, &limits);
     let bytes = migrated.as_slice();
     let (typed, candidate) = zil_ir::wire::decode_module_candidate(bytes, &limits).unwrap();

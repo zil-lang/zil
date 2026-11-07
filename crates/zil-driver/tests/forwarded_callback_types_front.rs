@@ -150,17 +150,17 @@ fn checked_project(main: &str, model: &str, relay: &str) -> TypedProgram {
 #[test]
 fn frozen_three_module_consumer_reaches_types() {
     checked_project(
-        include_str!("../../../tests/impl256/frozen-prep/project/main.zil"),
-        include_str!("../../../tests/impl256/frozen-prep/project/model.zil"),
-        include_str!("../../../tests/impl256/frozen-prep/project/relay.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/frozen-prep/project/main.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/frozen-prep/project/model.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/frozen-prep/project/relay.zil"),
     );
 }
 #[test]
 fn owning_environment_loop_uses_a_real_slot_and_keeps_parameter_origin() {
     let module = checked_project(
-        include_str!("../../../tests/impl256/extended/main.zil"),
-        include_str!("../../../tests/impl256/extended/model.zil"),
-        include_str!("../../../tests/impl256/extended/relay.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/extended/main.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/extended/model.zil"),
+        include_str!("../../../tests/callable-instance-forwarding/extended/relay.zil"),
     )
     .module;
     assert!(module.functions.iter().any(|f| {
@@ -179,10 +179,10 @@ fn owning_environment_loop_uses_a_real_slot_and_keeps_parameter_origin() {
 fn frozen_same_type_fresh_factory_returns_are_real_safe_rejections() {
     for text in [
         include_str!(
-            "../../../tests/impl256/frozen-prep/negative/same_closure_id_different_instance.zil"
+            "../../../tests/callable-instance-forwarding/frozen-prep/negative/same_closure_id_different_instance.zil"
         ),
         include_str!(
-            "../../../tests/impl256/frozen-prep/negative/same_closure_id_wrong_branch.zil"
+            "../../../tests/callable-instance-forwarding/frozen-prep/negative/same_closure_id_wrong_branch.zil"
         ),
     ] {
         let source = SourceUnit::new(FileId(0), ModuleId(0), "fresh252.zil", text);

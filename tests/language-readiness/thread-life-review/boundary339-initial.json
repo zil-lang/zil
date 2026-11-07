@@ -13,7 +13,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -31,7 +31,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-invalidates-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-invalidates-store.zil",
         "--json"
       ],
       "exit_code": 3,
@@ -54,7 +54,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-capture-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-retained-store.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -72,7 +72,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-capture-invalidates-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-invalidates-store.zil",
         "--json"
       ],
       "exit_code": 3,
@@ -95,7 +95,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--json"
       ],
       "exit_code": 3,
@@ -118,7 +118,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-conflicting-inputs.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-conflicting-inputs.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -141,7 +141,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-consumes-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-consumes-store.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -164,7 +164,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-capture-consumes-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-consumes-store.zil",
         "--json"
       ],
       "exit_code": 3,

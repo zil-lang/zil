@@ -45,7 +45,7 @@ fn boundary<T: PartialEq + Debug>(
 
 fn probe(label: &str, legacy: bool) {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/218/budget-sources")
+        .join("../../tools/language/owning-transfer-budget/budget-sources")
         .join(format!("{label}.zil"));
     let text = fs::read_to_string(fixture).unwrap();
     let name = format!("budget{}-{label}.zil", if legacy { 221 } else { 218 });

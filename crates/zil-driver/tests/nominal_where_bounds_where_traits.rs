@@ -413,15 +413,15 @@ fn unsupported_subjects_and_non_nominal_bounds_are_not_erased() {
 const PROJECT: &[(&str, &str)] = &[
     (
         "main",
-        include_str!("../../../examples/mainline/where_traits231/main.zil"),
+        include_str!("../../../examples/mainline/where-traits/main.zil"),
     ),
     (
         "model",
-        include_str!("../../../examples/mainline/where_traits231/model.zil"),
+        include_str!("../../../examples/mainline/where-traits/model.zil"),
     ),
     (
         "helper",
-        include_str!("../../../examples/mainline/where_traits231/helper.zil"),
+        include_str!("../../../examples/mainline/where-traits/helper.zil"),
     ),
 ];
 

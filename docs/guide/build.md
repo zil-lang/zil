@@ -53,7 +53,7 @@ cargo build --locked --offline --release -p zil-cli --no-default-features
 
 ```sh
 mkdir -p out
-./target/release/zil build examples/mainline/zui_language177/main.zil \
+./target/release/zil build examples/mainline/zui-language-store-fields/main.zil \
   -o out/state --clang "$ZIL_CLANG" --opt O0 \
   --codegen-units 8 --codegen-jobs 4 --json > out/state-build.json
 printf '3' | ./out/state
@@ -64,7 +64,7 @@ printf '3' | ./out/state
 优化构建先保持单模块：
 
 ```sh
-./target/release/zil build examples/mainline/zui_language177/main.zil \
+./target/release/zil build examples/mainline/zui-language-store-fields/main.zil \
   -o out/state-o2 --clang "$ZIL_CLANG" --opt O2 --codegen-units 1
 ```
 
@@ -89,13 +89,13 @@ cargo test --workspace --locked --offline --no-default-features
 cargo test --locked --offline -p zil-llvm-api --features text-reference
 cargo clippy --workspace --all-targets --locked --offline -- -D warnings
 cargo fmt --all -- --check
-python3 tools/research/208/validate.py --repo . --cli target/release/zil \
+python3 tools/research/native-api-validation/validate.py --repo . --cli target/release/zil \
   --clang "$ZIL_CLANG" --out out/api-consumer-new --source-commit <交付提交>
 ```
 
 `--out`必须不存在；无Git源码快照用交付清单提供的提交身份，该身份不冒充现场Git查询。消费者探针包装的是API生成的对象，不把旁置`.ll`重新用Clang编译。
 
-`tools/research/210/differential.py`对209/210的63个现有入口做O0/O2、单/多CGU原生差分。`no-parser.c`用于拦截旧解析API，有209触发失败作为正控制。`bench.py`冻结二进制和工作负载后测完整构建，首次负面结果和修正后的新窗口分别保留。
+`tools/research/compiler-differential/differential.py`对209/210的63个现有入口做O0/O2、单/多CGU原生差分。`no-parser.c`用于拦截旧解析API，有209触发失败作为正控制。`bench.py`冻结二进制和工作负载后测完整构建，首次负面结果和修正后的新窗口分别保留。
 
 ## 边界
 

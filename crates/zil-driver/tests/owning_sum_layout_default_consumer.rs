@@ -10,11 +10,11 @@ use zil_driver::{
 fn owning_sum_layout_default_budget_builds_frozen_five_module_sum_cleanup_graph() {
     let names = ["main", "portable", "model", "storage", "state"];
     let text = [
-        include_str!("../../../tests/impl244/project/main.zil"),
-        include_str!("../../../tests/impl244/project/portable.zil"),
-        include_str!("../../../tests/impl244/project/model.zil"),
-        include_str!("../../../tests/impl244/project/storage.zil"),
-        include_str!("../../../tests/impl244/project/state.zil"),
+        include_str!("../../../tests/owned-sum-consumer/project/main.zil"),
+        include_str!("../../../tests/owned-sum-consumer/project/portable.zil"),
+        include_str!("../../../tests/owned-sum-consumer/project/model.zil"),
+        include_str!("../../../tests/owned-sum-consumer/project/storage.zil"),
+        include_str!("../../../tests/owned-sum-consumer/project/state.zil"),
     ];
     let project = ProjectSources {
         root: ModuleId(0),

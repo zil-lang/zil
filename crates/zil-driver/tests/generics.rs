@@ -9,7 +9,7 @@ use zil_base::{FileId, ModuleId, Phase, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, Stage, compile_source};
 
 const STORED_VIEW: &str =
-    include_str!("../../../tests/language-readiness/terminal/342/stored_view.zil");
+    include_str!("../../../tests/language-readiness/terminal/higher-rank-borrows/stored_view.zil");
 
 #[test]
 fn terminal_stored_view_source_keeps_actual_targets_through_direct_calls() {
@@ -339,7 +339,7 @@ fn terminal341_driver_declaration_context_preserves_original_and_closes_unknown_
 #[test]
 fn terminal341_generic_methods_specialize_ordinary_calls() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
         "struct P{}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item{return x}}impl Echo for P{type Item=i32;}fn main()->i32{let p=P{};return p.echo::<bool>(7)-7}",
         "struct Box<T:Copy>{value:T}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item;}impl<T:Copy> Echo for Box<T>{type Item=T;fn echo<U:Copy>(x:Self.Item)->Self.Item{return x}}fn main()->i32{let p=Box::<bool>{value:true};if p.echo::<i32>(true){return 0}return 1}",
         "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
@@ -409,7 +409,7 @@ fn terminal341_generic_methods_reject_unused_invalid_contracts() {
 #[test]
 fn terminal341_unsigned_const_domains_keep_full_target_bits() {
     let positive =
-        include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil");
     for text in [
         positive,
         "fn value<#N:usize>()->usize{return N}fn main()->i32{if value::<18446744073709551615usize>()==18446744073709551615usize{return 0}return 1}",
@@ -508,7 +508,7 @@ fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
         "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected()->Type{return meta.field_type(meta.field(Box::<i64>,\"value\"))}fn main()->i32{let n:#(selected())=3000000000;return i32(n-3000000000)}",
         "import std.meta as meta;struct Box<T:Copy>{value:T}fn selected<T:Copy>(x:T)->Type{return meta.field_type(meta.field(T,\"value\"))}fn main()->i32{let n:#(selected(Box::<i64>{value:7}))=3000000000;return i32(n-3000000000)}",
         include_str!(
-            "../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/ct-generics-reflection-syntax.zil"
         ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -538,7 +538,7 @@ fn terminal341_ct_generic_type_return_record_reflection_and_syntax() {
 #[test]
 fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_values() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/const-functions.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-functions.zil"),
         "fn constant<#N:i32>()->i32{return N}fn main()->i32{return constant::<7>()-7}",
         "fn pick<T:Copy,#N:i32>(x:T)->T{let n:i32=N;return x}fn main()->i32{return pick::<i32,3>(7)-7}",
         "fn flag<#B:bool>()->bool{return B}fn main()->i32{if flag::<true>(){return 0}return 1}",
@@ -561,9 +561,9 @@ fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_va
         assert_eq!(report.verification_runs, 1);
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/const-unused-invalid.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unused-invalid.zil"),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/const-shadow-length-invalid.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/const-shadow-length-invalid.zil"
         ),
         "fn bad<#B:bool>()->i32{return B}fn main()->i32{return 0}",
         "fn bad<T,#N:i32>(x:T)->T{return x+x}fn main()->i32{return 0}",
@@ -592,7 +592,7 @@ fn terminal341_const_scalar_functions_check_unused_definitions_and_substitute_va
 fn terminal341_const_instances_reach_wire_native_and_exact_budget() {
     use zil_base::{Limits, TargetProfile};
     let text =
-        include_str!("../../../tests/language-readiness/terminal/341/const-array-machine.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-array-machine.zil");
     let src = source(text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -1349,7 +1349,7 @@ fn generic_instance_growth_is_bounded_before_type_building() {
     assert_eq!(error[0].code, "E-RESOURCE-LIMIT");
 }
 
-include!("../../../tests/language-readiness/terminal/181/interface_source.rs");
+include!("../../../tests/language-readiness/terminal/interface-source/interface_source.rs");
 
 #[test]
 fn terminal_static_function_value_keeps_qualified_input_classes() {
@@ -2607,21 +2607,21 @@ fn capture_context_relations_actual_source_forms_complete_capture_relations_in_t
             CallableKind::Fn,
             0,
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fn-input-capture.zil"
             ),
         ),
         (
             CallableKind::FnMut,
             1,
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnmut-move-input-capture.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnmut-move-input-capture.zil"
             ),
         ),
         (
             CallableKind::FnOnce,
             1,
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnonce-input-capture.zil"
             ),
         ),
     ];
@@ -2677,7 +2677,7 @@ fn capture_context_relations_actual_source_forms_complete_capture_relations_in_t
         assert_eq!(changed.closures[0].storage_life.as_ref(), Some(c));
     }
     let original_mut = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnmut-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnmut-input-capture.zil"
     );
     let error = zil_types::check(
         &capture_context_relations_source_core(original_mut),
@@ -2696,7 +2696,7 @@ fn capture_context_relations_actual_source_forms_complete_capture_relations_in_t
 fn capture_context_relations_raw_source_context_rows_are_consumed_from_actual_creators() {
     use zil_ir::{CoreClosureHeaderPosition, StorageBinder};
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fn-input-capture.zil"
     );
     let core = capture_context_relations_source_core(text);
     let limits = zil_base::Limits::default();
@@ -2772,7 +2772,7 @@ fn capture_context_relations_context_clone_preflight_and_warm_scalar_orphan_stay
     let limits = zil_base::Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fn-input-capture.zil"
     );
     let core = capture_context_relations_source_core(text);
     for mutation in 0..3 {
@@ -2852,7 +2852,7 @@ fn capture_context_relations_context_clone_preflight_and_warm_scalar_orphan_stay
 #[test]
 fn capture_context_relations_source_formation_request_budget_and_default_worker_are_reproducible() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fn-input-capture.zil"
     );
     let core = capture_context_relations_source_core(text);
     let target = zil_base::TargetProfile::host_llvm();

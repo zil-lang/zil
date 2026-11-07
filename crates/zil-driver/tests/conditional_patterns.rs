@@ -69,7 +69,7 @@ fn reject(s: &str, code: &str) {
 }
 #[test]
 fn pattern037_example_break_continue_and_unit_variant() {
-    native(include_str!("../../../examples/impl037/main.zil"), 1607);
+    native(include_str!("../../../examples/enum-loop-pattern/main.zil"), 1607);
 }
 #[test]
 fn pattern037_nested_patterns_else_if_and_outer_shadow() {

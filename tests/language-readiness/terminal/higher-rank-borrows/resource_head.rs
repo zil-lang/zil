@@ -350,7 +350,7 @@ fn actual_borrowed_head_failure_restores_and_releases_owned_buffer() {
     let temp = Temp::new();
     let compiler = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());
     let shim =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/byte-buffer/096/fault-allocator.c");
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/byte-buffer/owned-storage-abi/fault-allocator.c");
     let wrapper = temp.0.join("fault-clang.py");
     fs::write(&wrapper,format!("#!/usr/bin/env python3\nimport os,sys\ncompiler={}\nextra=['-x','c',{},'-Wl,--wrap=malloc','-Wl,--wrap=realloc','-Wl,--wrap=free']\nos.execvp(compiler,[compiler]+sys.argv[1:]+extra)\n",zil_base::json_string(&compiler),zil_base::json_string(&shim.to_string_lossy()))).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();

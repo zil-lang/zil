@@ -164,10 +164,10 @@ fn empty_pop_propagates_unit_error_without_an_element_obligation() {
     native(&[("main", &source)], b"", 1);
 }
 
-const MODEL: &str = include_str!("../../../examples/mainline/impl172/model.zil");
-const STORAGE: &str = include_str!("../../../examples/mainline/impl172/storage.zil");
-const WORK: &str = include_str!("../../../examples/mainline/impl172/work.zil");
-const MAIN: &str = include_str!("../../../examples/mainline/impl172/main.zil");
+const MODEL: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/model.zil");
+const STORAGE: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/storage.zil");
+const WORK: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/work.zil");
+const MAIN: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/main.zil");
 
 #[test]
 fn runtime_count_crosses_four_modules_then_drains_real_prefix() {

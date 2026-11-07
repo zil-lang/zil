@@ -5,9 +5,9 @@ cd -- "$zil176_root"
 export CARGO_INCREMENTAL=0 CARGO_PROFILE_DEV_DEBUG=0 CARGO_PROFILE_TEST_DEBUG=0
 export ZIL_TEST_REPORT_DIR="${ZIL_TEST_REPORT_DIR:-/tmp/zil-impl176-evidence}"
 cargo test -p zil-driver \
-  --test impl176_callable_fields \
-  --test impl065_helpers --test impl121_callable_nominals \
-  --test impl125_factory_helpers --test impl126_helper_sequences \
-  --test impl167_owned_arrays --test impl167_array_capture_boundary \
-  --test impl168_retained_composition --test impl170_package_fields \
+  --test callable_package_fields_callable_fields \
+  --test concrete_callable_helpers --test callable_nominal_values_callable_nominals \
+  --test returned_handler_helpers_factory_helpers --test finite_helper_sequences \
+  --test owned_array_elements_owned_arrays --test owned_array_elements_array_capture_boundary \
+  --test retained_state_composition_retained_composition --test owning_array_fields_package_fields \
   --offline -j2 -- --nocapture

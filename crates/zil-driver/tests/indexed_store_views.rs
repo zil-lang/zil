@@ -892,10 +892,10 @@ fn verify_window_budget_has_an_exact_n_and_n_minus_one_boundary() {
     .unwrap();
 }
 
-const MODEL: &str = include_str!("../../../examples/mainline/impl175/model.zil");
-const STORAGE: &str = include_str!("../../../examples/mainline/impl175/storage.zil");
-const INSPECTION: &str = include_str!("../../../examples/mainline/impl175/inspection.zil");
-const MAIN: &str = include_str!("../../../examples/mainline/impl175/main.zil");
+const MODEL: &str = include_str!("../../../examples/mainline/store-element-read/model.zil");
+const STORAGE: &str = include_str!("../../../examples/mainline/store-element-read/storage.zil");
+const INSPECTION: &str = include_str!("../../../examples/mainline/store-element-read/inspection.zil");
+const MAIN: &str = include_str!("../../../examples/mainline/store-element-read/main.zil");
 
 #[test]
 fn runtime_index_reads_real_metadata_through_four_source_modules() {

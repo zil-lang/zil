@@ -827,7 +827,7 @@ fn ordinary_owning_store_request_budgets_are_exact_and_fresh() {
                 }
                 assert_eq!(session.active_query_count(), 0);
             }
-            eprintln!("G9.3.5 {label} work={work} N={low}; N-1/cold/warm/fresh agree");
+            eprintln!("owned scalar Store {label} work={work} N={low}; N-1/cold/warm/fresh agree");
         }
     }
 }

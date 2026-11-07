@@ -378,15 +378,15 @@ fn project(files: &[(&str, &str)]) -> ProjectSources {
 const PROJECT: &[(&str, &str)] = &[
     (
         "main",
-        include_str!("../../../examples/mainline/where_copy229/main.zil"),
+        include_str!("../../../examples/mainline/where-copy/main.zil"),
     ),
     (
         "helper",
-        include_str!("../../../examples/mainline/where_copy229/helper.zil"),
+        include_str!("../../../examples/mainline/where-copy/helper.zil"),
     ),
     (
         "model",
-        include_str!("../../../examples/mainline/where_copy229/model.zil"),
+        include_str!("../../../examples/mainline/where-copy/model.zil"),
     ),
 ];
 

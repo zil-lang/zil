@@ -234,7 +234,7 @@ fn an_unused_recursive_definition_is_rejected_without_instantiating_it() {
 #[test]
 fn cross_module_state_uses_nested_lending_helpers_and_a_disjoint_counter() {
     let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/nested_helpers188");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/nested-helpers");
     let contents: Vec<_> = ["factory", "helpers", "state"]
         .into_iter()
         .map(|name| {

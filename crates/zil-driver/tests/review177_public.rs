@@ -1,5 +1,5 @@
 //! Independent public21 review. Manual byte oracles exercise the real transport;
-//! Public-only semantic stub probes are frozen in tests/frozen/177_public/.
+//! Public-only semantic stub probes are frozen in tests/frozen/store-field-public-interface/.
 use std::{collections::BTreeMap, fs, path::PathBuf};
 use zil_base::{
     Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Span, TargetProfile,

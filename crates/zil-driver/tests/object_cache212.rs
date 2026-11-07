@@ -417,7 +417,7 @@ fn owned_state_store_and_callbacks_match_on_cold_and_warm_o0_o2() {
     use std::process::Stdio;
     let d = Dir::new();
     let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui_language177");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui-language-store-fields");
     for entry in ["main", "field_exit"] {
         for opt in [Optimization::O0, Optimization::O2] {
             for units in [1, 8] {

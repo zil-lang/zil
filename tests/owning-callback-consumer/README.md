@@ -18,7 +18,7 @@ Event's original ByteBuffer is independently freed. Its renderer requires V
 
 `frozen-R` preserves the original three planning probes and old failed receipts
 byte for byte. Old Unsupported results are historical failures, never current
-passes. `ORACLE.json` is generated only from `tools/research/250/oracle.py`, an
+passes. `ORACLE.json` is generated only from `tools/research/source-ownership-oracle/oracle.py`, an
 independent model of source ownership/preparation/destruction. It never reads a
 compiler report or stdout. Native observations are recorded separately.
 

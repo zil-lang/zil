@@ -9,7 +9,7 @@ use std::{
 };
 use zil_base::{FileId, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_source};
-const SOURCE: &str = include_str!("../../../examples/mainline/product_store_capture225/faults.zil");
+const SOURCE: &str = include_str!("../../../examples/mainline/product-store-capture/faults.zil");
 fn quote(p: &Path) -> String {
     format!("'{}'", p.to_string_lossy().replace('\'', "'\"'\"'"))
 }
@@ -19,7 +19,7 @@ fn every_allocating_edge_before_and_after_capture_settles_live_prefix_once() {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/173/allocator_probe.c");
+        .join("../../tools/language/composed-store-closures/allocator_probe.c");
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);

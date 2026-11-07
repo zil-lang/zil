@@ -91,7 +91,7 @@ fn execute(report: &CompileReport, out: &Temp, expected: Option<i64>) -> String 
 #[test]
 fn inferred_higher_order_closure_and_mutable_pointer_fields_execute() {
     let llvm = native(
-        include_str!("../../../examples/impl036/main.zil"),
+        include_str!("../../../examples/callback-stage-state/main.zil"),
         Some(5000000043),
     );
     assert!(llvm.contains("call i64 %v."));

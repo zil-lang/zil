@@ -14,23 +14,23 @@ use zil_driver::{
 const FILES: [(&str, &str); 5] = [
     (
         "main",
-        include_str!("../../../examples/mainline/zui_core236/main.zil"),
+        include_str!("../../../examples/mainline/zui-core/main.zil"),
     ),
     (
         "portable",
-        include_str!("../../../examples/mainline/zui_core236/portable.zil"),
+        include_str!("../../../examples/mainline/zui-core/portable.zil"),
     ),
     (
         "model",
-        include_str!("../../../examples/mainline/zui_core236/model.zil"),
+        include_str!("../../../examples/mainline/zui-core/model.zil"),
     ),
     (
         "collections",
-        include_str!("../../../examples/mainline/zui_core236/collections.zil"),
+        include_str!("../../../examples/mainline/zui-core/collections.zil"),
     ),
     (
         "session",
-        include_str!("../../../examples/mainline/zui_core236/session.zil"),
+        include_str!("../../../examples/mainline/zui-core/session.zil"),
     ),
 ];
 
@@ -232,5 +232,5 @@ fn nearest_missing_refill_and_live_window_counterexamples() {
     }
 }
 
-#[path = "../../../tests/language-readiness/terminal/345/library.rs"]
+#[path = "../../../tests/language-readiness/terminal/library-and-ui/library.rs"]
 mod terminal345;

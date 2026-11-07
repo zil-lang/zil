@@ -138,7 +138,7 @@ fn native(source: &str, label: &str, expected: &[u8], allocations: Option<usize>
         if let Some(allocations) = allocations {
             let probe = dir.join("allocation-probe");
             let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c");
+                .join("../../tools/language/composed-store-closures/allocator_probe.c");
             let linked = Command::new("clang")
                 .arg(match opt {
                     Optimization::O0 => "-O0",

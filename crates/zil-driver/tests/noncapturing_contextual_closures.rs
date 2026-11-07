@@ -118,7 +118,7 @@ fn cl13_runs_and_cl14_uses_the_required_capture_diagnostic() {
 #[test]
 fn function_return_argument_record_array_tuple_and_assignment_contexts_execute() {
     let llvm = native(
-        include_str!("../../../examples/impl040/main.zil"),
+        include_str!("../../../examples/function-pointer-pipeline/main.zil"),
         5000000042,
     );
     assert!(llvm.contains("call i64 %v."));

@@ -90,7 +90,7 @@ fn native(text: &str, expected: &str) -> (String, String) {
 
 #[test]
 fn closure051_01_resource_and_unrelated_copy_closure_coexist_native() {
-    native(include_str!("../../../examples/impl051/coexist.zil"), "A");
+    native(include_str!("../../../examples/callback-capture-modes/coexist.zil"), "A");
 }
 
 #[test]
@@ -102,7 +102,7 @@ fn closure051_02_resource_context_keeps_i64_array_literals() {
 #[test]
 fn closure051_03_descriptor_reads_each_call_and_target_write_is_shared_native() {
     native(
-        include_str!("../../../examples/impl051/descriptor.zil"),
+        include_str!("../../../examples/callback-capture-modes/descriptor.zil"),
         "C",
     );
 }
@@ -110,7 +110,7 @@ fn closure051_03_descriptor_reads_each_call_and_target_write_is_shared_native() 
 #[test]
 fn closure051_04_owned_shared_can_repeat_and_environment_transfer_is_unique_native() {
     let (typed, _) = native(
-        include_str!("../../../examples/impl051/owned_shared.zil"),
+        include_str!("../../../examples/callback-capture-modes/owned_shared.zil"),
         "A",
     );
     assert!(typed.contains("CallClosureShared"));
@@ -119,27 +119,27 @@ fn closure051_04_owned_shared_can_repeat_and_environment_transfer_is_unique_nati
 #[test]
 fn closure051_05_owned_mutation_through_descriptor_alias_is_exclusive_native() {
     native(
-        include_str!("../../../examples/impl051/owned_exclusive.zil"),
+        include_str!("../../../examples/callback-capture-modes/owned_exclusive.zil"),
         "C",
     );
 }
 
 #[test]
 fn closure051_06_body_give_owns_at_creation_and_conditional_consume_cleans_rest_native() {
-    let (typed, _) = native(include_str!("../../../examples/impl051/consume.zil"), "ABC");
+    let (typed, _) = native(include_str!("../../../examples/callback-capture-modes/consume.zil"), "ABC");
     assert!(typed.contains("TakeCapture"));
     assert!(typed.contains("CallClosureOnce"));
 }
 
 #[test]
 fn closure051_07_uncalled_owned_environments_clean_in_capture_order_native() {
-    native(include_str!("../../../examples/impl051/unused.zil"), "ABC");
+    native(include_str!("../../../examples/callback-capture-modes/unused.zil"), "ABC");
 }
 
 #[test]
 fn closure051_08_early_return_loop_exits_and_temporary_environments_cleanup_native() {
     native(
-        include_str!("../../../examples/impl051/control.zil"),
+        include_str!("../../../examples/callback-capture-modes/control.zil"),
         "BACDEF",
     );
 }
@@ -218,7 +218,7 @@ fn closure051_11_source_move_and_capture_liveness_are_independently_rejected() {
 
 #[test]
 fn closure051_12_pure_helper_stays_shared_and_recursive_write_helper_is_exclusive_native() {
-    native(include_str!("../../../examples/impl051/effects.zil"), "AC");
+    native(include_str!("../../../examples/callback-capture-modes/effects.zil"), "AC");
 }
 
 const OBSERVABLE: &str = "extern \"C\" fn putchar(code:i32)->i32; resource Token{code:i32} impl Drop for Token{fn drop(self:Self){unsafe{putchar(.code)}}} fn consume(give token:Token){} ";

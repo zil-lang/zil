@@ -8,6 +8,6 @@
 退出 0。非法输入 `44` 输出空、退出 9。大写字母是责任清理，不是读取视图时的
 复制或消费。模型中的 ByteBuffer 只由元素拥有，窗口不暴露其 Managed 字段。
 
-`tools/language/175/consumer.py` 构建 O0/O2，运行实际分配探针，并逐真实分配
+`tools/language/dynamic-element-reads/consumer.py` 构建 O0/O2，运行实际分配探针，并逐真实分配
 调用注入失败。新元素准备失败只清理当前已获得的责任；后续 reserve 失败检查
 原前缀内容仍相同。运行结果以实际命令收据为准，本说明不预先宣称通过。

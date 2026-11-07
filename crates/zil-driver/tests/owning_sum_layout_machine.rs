@@ -180,7 +180,7 @@ fn owning_sum_layout_actual_api_object_entry_faults_settle_only_selected_live_pa
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/173/allocator_probe.c");
+        .join("../../tools/language/composed-store-closures/allocator_probe.c");
     for optimization in [Optimization::O0, Optimization::O2] {
         let path = dir(&format!("entry-faults-{optimization:?}"));
         fs::write(path.join("main.zil"), ENTRY).unwrap();

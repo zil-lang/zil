@@ -292,7 +292,7 @@ fn boundary(text: &str) -> usize {
 #[test]
 fn real_alias_work_and_new_header_have_exact_fresh_budget_boundaries() {
     let legacy =
-        include_str!("../../zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil");
+        include_str!("../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil");
     for (name, source) in [
         ("header", ORIGINAL),
         ("unused_alias", LAST_USE),

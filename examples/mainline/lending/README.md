@@ -4,7 +4,7 @@
 
 The native consumer accepts digits 0–3. Its expected output is `A`, the requested prefix of `BCD`, then `HAZ`. `H` is the State callback's Drop marker and `Z` is the outer factory's marker. An invalid digit exits 9 without output. Each real allocator failure has a separate expected output, exit 1 and exact allocation/free count; the runner wraps the actual runtime realloc/free ABI. No runtime binary is part of this source directory.
 
-Run the checked compiler through `tools/language/184/consumer.py --repo . --cli /absolute/path/to/zil --out /fresh/output/directory`. The script builds O0 and O2, checks four loaded modules and exactly one verification run, executes ordinary and instrumented cases, and retains original command receipts. The full matrix has 38 native executions, including 20 allocation failures.
+Run the checked compiler through `tools/language/multimodule-lending/consumer.py --repo . --cli /absolute/path/to/zil --out /fresh/output/directory`. The script builds O0 and O2, checks four loaded modules and exactly one verification run, executes ordinary and instrumented cases, and retains original command receipts. The full matrix has 38 native executions, including 20 allocation failures.
 
 The admitted result is a shared `&Copy` or `&[Copy]` from an actual inline Copy capture or owned ByteBuffer capture. Explicit call arguments remain finite Copy. Result loans keep the actual environment place alive; intersecting mutable calls, transfers, replacements and destruction are rejected until the last use. ReadCapture activation copies are not the borrowed storage. FnOnce, consuming adapters, by-value temporaries, external Address/Desc captures and nested Package/Closure lending sources remain outside this slice.
 

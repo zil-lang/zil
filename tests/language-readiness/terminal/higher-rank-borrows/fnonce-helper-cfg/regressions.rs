@@ -161,7 +161,7 @@ fn actual_dag_budget_boundaries_and_old_tail_fees() {
                 }
             }
             if let Some(known) = known {
-                // G3.3.10 replaces u8 marks by a pointer-sized actual-role key
+                // closure environment.10 replaces u8 marks by a pointer-sized actual-role key
                 // plus flags. This exact old source has one 4-local/12-SSA
                 // table in each independent helper consumer: 16 * 15 = 240
                 // added physical units on this 64-bit host. Keep old N red.

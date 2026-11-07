@@ -38,7 +38,7 @@ inside the helper, so they do not cover this caller-side selection either.
 The mixed source deliberately reuses the existing Copy call signature with an
 owning Mark environment; it does not add an owning-signature opaque factory.
 
-The independent generator is `tools/research/256/supplement_oracle.py`. It reads
+The independent generator is `tools/research/restored-product-transport/supplement_oracle.py`. It reads
 source operations and the original source-oracle definitions, never reports or
 native stdout. The supplementary ORACLE.json is frozen before native execution.
 Planned O0/O2 totals are 32 native runs (8 normal and 24 allocator), including 8

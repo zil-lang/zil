@@ -9,13 +9,13 @@ fn fixtures() -> [(&'static str, &'static str); 2] {
         (
             "original",
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-cross-factory-pure-composites.zil"
             ),
         ),
         (
             "recursive",
             include_str!(
-                "../../../../tests/language-readiness/terminal/344/anonymous/ct6-recursive-cross-schema-composites.zil"
+                "../../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-recursive-cross-schema-composites.zil"
             ),
         ),
     ]

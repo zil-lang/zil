@@ -95,7 +95,7 @@ fn typed(text: &str) -> zil_ir::TypedModule {
 }
 #[test]
 fn enum029_01_unit_and_tuple_payloads_cross_function_native() {
-    let text = include_str!("../../../examples/impl029/main.zil")
+    let text = include_str!("../../../examples/enum-packet-matching/main.zil")
         .replace("fn answer()", "fn result()")
         .replace("answer() ==", "result() ==");
     let llvm = native(&text, Some(5000000049));

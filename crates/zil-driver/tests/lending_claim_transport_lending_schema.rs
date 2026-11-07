@@ -2,7 +2,7 @@
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_ir::{CandidatePlan, TypedModule};
 
-#[path = "../../../tests/language-readiness/G2.4.1/verify.rs"]
+#[path = "../../../tests/language-readiness/borrowed-interface-flow/verify.rs"]
 mod trait_lending_verify;
 fn module() -> (TypedModule, CandidatePlan) {
     let s = SourceUnit::new(

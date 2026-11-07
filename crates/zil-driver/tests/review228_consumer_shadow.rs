@@ -59,9 +59,9 @@ fn rejects_nominal_field_capture(label: &str, text: &str, control: &str) {
 fn trailing_copy_bound_does_not_capture_a_same_named_struct() {
     rejects_nominal_field_capture(
         "where",
-        include_str!("../../../examples/mainline/generated_events228/review/shadow_where.zil"),
+        include_str!("../../../examples/mainline/generated-events/review/shadow_where.zil"),
         include_str!(
-            "../../../examples/mainline/generated_events228/review/shadow_where_control.zil"
+            "../../../examples/mainline/generated-events/review/shadow_where_control.zil"
         ),
     );
 }
@@ -70,9 +70,9 @@ fn trailing_copy_bound_does_not_capture_a_same_named_struct() {
 fn inline_copy_bound_does_not_capture_a_same_named_struct() {
     rejects_nominal_field_capture(
         "inline",
-        include_str!("../../../examples/mainline/generated_events228/review/shadow_inline.zil"),
+        include_str!("../../../examples/mainline/generated-events/review/shadow_inline.zil"),
         include_str!(
-            "../../../examples/mainline/generated_events228/review/shadow_inline_control.zil"
+            "../../../examples/mainline/generated-events/review/shadow_inline_control.zil"
         ),
     );
 }
@@ -81,9 +81,9 @@ fn inline_copy_bound_does_not_capture_a_same_named_struct() {
 fn unbounded_generic_does_not_capture_a_same_named_struct() {
     rejects_nominal_field_capture(
         "unbounded",
-        include_str!("../../../examples/mainline/generated_events228/review/shadow_unbounded.zil"),
+        include_str!("../../../examples/mainline/generated-events/review/shadow_unbounded.zil"),
         include_str!(
-            "../../../examples/mainline/generated_events228/review/shadow_unbounded_control.zil"
+            "../../../examples/mainline/generated-events/review/shadow_unbounded_control.zil"
         ),
     );
 }

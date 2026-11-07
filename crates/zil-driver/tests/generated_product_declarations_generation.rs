@@ -58,11 +58,11 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "namespace-plain-api-control",
-        include_str!("../../../examples/mainline/ct_for222/review_repair/namespace-plain.zil"),
+        include_str!("../../../examples/mainline/ct-for/review_repair/namespace-plain.zil"),
     ),
     (
         "namespace-generated-review",
-        include_str!("../../../examples/mainline/ct_for222/review_repair/namespace-generated.zil"),
+        include_str!("../../../examples/mainline/ct-for/review_repair/namespace-generated.zil"),
     ),
     (
         "namespace-iterator-name",
@@ -71,7 +71,7 @@ const CASES: &[(&str, &str)] = &[
     (
         "array-length-closure-parameter-review",
         include_str!(
-            "../../../examples/mainline/ct_for222/review_repair/array-closure-parameter.zil"
+            "../../../examples/mainline/ct-for/review_repair/array-closure-parameter.zil"
         ),
     ),
     (
@@ -81,16 +81,16 @@ const CASES: &[(&str, &str)] = &[
     (
         "array-length-parameter-review",
         include_str!(
-            "../../../examples/mainline/ct_for222/review_repair/array-length-parameter.zil"
+            "../../../examples/mainline/ct-for/review_repair/array-length-parameter.zil"
         ),
     ),
     (
         "array-length-local-review",
-        include_str!("../../../examples/mainline/ct_for222/review_repair/array-length-local.zil"),
+        include_str!("../../../examples/mainline/ct-for/review_repair/array-length-local.zil"),
     ),
     (
         "array-length-result",
-        include_str!("../../../examples/mainline/ct_for222/review_repair/array-return-type.zil"),
+        include_str!("../../../examples/mainline/ct-for/review_repair/array-return-type.zil"),
     ),
     (
         "array-length-closure",
@@ -99,7 +99,7 @@ const CASES: &[(&str, &str)] = &[
     (
         "array-length-type-argument",
         include_str!(
-            "../../../examples/mainline/ct_for222/review_repair/array-generic-typearg.zil"
+            "../../../examples/mainline/ct-for/review_repair/array-generic-typearg.zil"
         ),
     ),
     (

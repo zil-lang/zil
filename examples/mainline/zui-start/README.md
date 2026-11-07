@@ -17,7 +17,7 @@ ZUI 框架，也不把同步起步范围等同用户全部 ZUI 需求。
 `A/B/C/D`、Product 叶 `a/b/c/d/i` 和另一环境 `1/2/3/4`。`S . D R E > Z F`
 是构造、轮次、删除、替换、提前退出、FnOnce、完成和失败标记。
 
-固定 oracle 在 `tools/language/217/ORACLE.json`，由独立的源操作模型生成，
+固定 oracle 在 `tools/language/language-readiness-probes/ORACLE.json`，由独立的源操作模型生成，
 在五模块源首次机器执行之前提交。它核每个真实申请失败点、下一个非失败控制、
 实际分配/释放、峰值存活分配个数和最终 live0；请求 payload 峰值字节只记录，
 不冒称 RSS 或 Rust 对比。

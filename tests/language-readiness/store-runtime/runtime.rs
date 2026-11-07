@@ -54,7 +54,7 @@ fn allocator_wrapper(dir: &Path) -> std::path::PathBuf {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)

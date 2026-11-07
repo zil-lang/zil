@@ -7,7 +7,7 @@
 标准 runner：
 
 ```sh
-python3 tools/language/219/consumer.py --repo /path/to/zil --cli /path/to/zil-cli --compiler-build-receipt /path/to/compiler-build.json --out /path/to/new-run
+python3 tools/language/conditional-source-items/consumer.py --repo /path/to/zil --cli /path/to/zil-cli --compiler-build-receipt /path/to/compiler-build.json --out /path/to/new-run
 ```
 
 runner 要求 clean 提交和精确 CLI 构建收据，并在任何运行前写入独立 oracle。它构建两种配置的 O0/O2 普通程序，再用已有 allocator observer 注入每个实际分配点及 last+1；不会从观测输出反推预期。

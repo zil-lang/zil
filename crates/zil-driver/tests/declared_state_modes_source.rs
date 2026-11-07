@@ -78,12 +78,12 @@ fn native(label: &str, source: &str, stdout: &str, exit: i32) {
 }
 
 const SAME: &str =
-    include_str!("../../zil-expand/tests/impl203_fixtures/01_same_factory_distinct_modes.zil");
-const REPEATED: &str = include_str!("../../zil-expand/tests/impl203_fixtures/02_once_repeated.zil");
+    include_str!("../../zil-expand/tests/state_binding_fixtures/same_factory_distinct_modes.zil");
+const REPEATED: &str = include_str!("../../zil-expand/tests/state_binding_fixtures/once_repeated.zil");
 const REVERSED: &str =
-    include_str!("../../zil-expand/tests/impl203_fixtures/03_reversed_declared_modes.zil");
+    include_str!("../../zil-expand/tests/state_binding_fixtures/reversed_declared_modes.zil");
 const MARKERS: &str =
-    include_str!("../../zil-expand/tests/impl203_fixtures/04_mode_cleanup_markers.zil");
+    include_str!("../../zil-expand/tests/state_binding_fixtures/mode_cleanup_markers.zil");
 
 #[test]
 fn original_same_factory_distinct_modes() {
@@ -599,7 +599,7 @@ fn a_named_mutable_store_field_view_can_call_twice() {
 fn error_side_complete_state_keeps_its_owning_payload() {
     native(
         "error-side",
-        include_str!("../../zil-expand/tests/impl203_fixtures/05_independent_error_side.zil"),
+        include_str!("../../zil-expand/tests/state_binding_fixtures/independent_error_side.zil"),
         "ZAB",
         0,
     );
@@ -612,23 +612,23 @@ fn five_module_consumer_infers_complete_value_types() {
     let entries = [
         (
             "main",
-            include_str!("../../../examples/mainline/state_bindings203/main.zil"),
+            include_str!("../../../examples/mainline/state-bindings/main.zil"),
         ),
         (
             "factory",
-            include_str!("../../../examples/mainline/state_bindings203/factory.zil"),
+            include_str!("../../../examples/mainline/state-bindings/factory.zil"),
         ),
         (
             "state",
-            include_str!("../../../examples/mainline/state_bindings203/state.zil"),
+            include_str!("../../../examples/mainline/state-bindings/state.zil"),
         ),
         (
             "portable",
-            include_str!("../../../examples/mainline/state_bindings203/portable.zil"),
+            include_str!("../../../examples/mainline/state-bindings/portable.zil"),
         ),
         (
             "store_helpers",
-            include_str!("../../../examples/mainline/state_bindings203/store_helpers.zil"),
+            include_str!("../../../examples/mainline/state-bindings/store_helpers.zil"),
         ),
     ];
     for optimization in [Optimization::O0, Optimization::O2] {

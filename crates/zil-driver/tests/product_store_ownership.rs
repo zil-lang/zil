@@ -105,7 +105,7 @@ fn native(label: &str, source: &str, stdout: &[u8], exit: i32) {
 fn original_217_and_unused_206_sources_are_promoted_without_rewriting() {
     pass(
         "original217",
-        include_str!("../../../tools/language/217/probes/product-store-element/main.zil"),
+        include_str!("../../../tools/language/language-readiness-probes/probes/product-store-element/main.zil"),
     );
     pass(
         "unused206",
@@ -672,14 +672,14 @@ fn incoming_mutable_product_copy_helper_is_promoted_by_315() {
     );
 }
 
-#[path = "../../../tests/language-readiness/G9.3.2/consumers.rs"]
+#[path = "../../../tests/language-readiness/store-allocation/consumers.rs"]
 mod pod_collections;
 
-#[path = "../../../tests/language-readiness/G9.3.3/consumers.rs"]
+#[path = "../../../tests/language-readiness/store-mutation/consumers.rs"]
 mod pod_collection_consumers;
 
-#[path = "../../../tests/language-readiness/G9.3.4/consumers.rs"]
+#[path = "../../../tests/language-readiness/store-call-boundaries/consumers.rs"]
 mod scalar_store_consumers;
 
-#[path = "../../../tests/language-readiness/G9.3.5/consumers.rs"]
+#[path = "../../../tests/language-readiness/owning-store-captures/consumers.rs"]
 mod owned_scalar_store_consumers;

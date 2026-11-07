@@ -43,27 +43,27 @@ fn six_frozen_callback_signatures_reach_analyze() {
     for (name, source) in [
         (
             "fn-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fn-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-copy.zil"),
         ),
         (
             "fnmut-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnmut-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-copy.zil"),
         ),
         (
             "fnonce-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnonce-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-copy.zil"),
         ),
         (
             "fn-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fn-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-owned.zil"),
         ),
         (
             "fnmut-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnmut-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-owned.zil"),
         ),
         (
             "fnonce-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnonce-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-owned.zil"),
         ),
     ] {
         let module = typed(source);
@@ -197,7 +197,7 @@ fn extended_store_address_and_owning_loop_source_reaches_analyze_without_verify(
 fn checked_project(relative: &str) {
     use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/impl256")
+        .join("../../tests/callable-instance-forwarding")
         .join(relative);
     let names = ["main", "model", "relay"];
     let project = ProjectSources {

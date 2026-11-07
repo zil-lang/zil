@@ -33,15 +33,15 @@ pub fn migrate(bytes: &[u8], limits: &zil_base::Limits) -> Vec<u8> {
         "a20e2cb8c8750ee488b6d30a8350a4ce13ee2d629236abf6813283073bc46045",
         // crates/zil-driver/tests/review223_fixtures/v40/mutable-product.wire
         "d3c496c8fc68d4135731791e7fbb052eb977475433c4646e3692f2deb1c0e14f",
-        // tests/impl254/v40/control_callback_i32_argument.wire
+        // tests/borrowed-callable-arguments/v40/control_callback_i32_argument.wire
         "c4f59db2ce30691888fa548b6100b608d82904c3809bc7469c5d7bb0ade9443d",
-        // tests/impl254/v40/escape_callback_argument.wire
+        // tests/borrowed-callable-arguments/v40/escape_callback_argument.wire
         "9504658bd740ec175e6e53320298d114c4cc5bde4ae493a1efb8afeefc148c19",
-        // tests/impl254/v40/loan_revival.wire
+        // tests/borrowed-callable-arguments/v40/loan_revival.wire
         "00c022e566a4b855f5a3c97ae4eea0a216ee0f8dd05c01730a52f8b2d5561c7f",
-        // tests/impl254/v40/parent_valid_no_call_edge.wire
+        // tests/borrowed-callable-arguments/v40/parent_valid_no_call_edge.wire
         "ceaee43c3f99be1a17967fc54093d1a10bf48590adc7af18b09f52a1b5c217ff",
-        // tests/impl254/v40/parent_valid_with_call_edge.wire
+        // tests/borrowed-callable-arguments/v40/parent_valid_with_call_edge.wire
         "c35f9e2a36451b7ad32eb4873236fc0ad7f05a7501daf00566049e14c90354c5",
     ];
     assert!(FROZEN_SHA256.contains(&zil_base::Fingerprint::of(bytes).to_hex().as_str()));

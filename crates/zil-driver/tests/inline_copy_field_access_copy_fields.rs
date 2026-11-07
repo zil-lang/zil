@@ -432,19 +432,19 @@ fn actual_four_module_consumer_uses_direct_state_field_addresses() {
         &[
             (
                 "main",
-                include_str!("../../../examples/mainline/fields192/main.zil"),
+                include_str!("../../../examples/mainline/fields/main.zil"),
             ),
             (
                 "factory",
-                include_str!("../../../examples/mainline/fields192/factory.zil"),
+                include_str!("../../../examples/mainline/fields/factory.zil"),
             ),
             (
                 "helpers",
-                include_str!("../../../examples/mainline/fields192/helpers.zil"),
+                include_str!("../../../examples/mainline/fields/helpers.zil"),
             ),
             (
                 "state",
-                include_str!("../../../examples/mainline/fields192/state.zil"),
+                include_str!("../../../examples/mainline/fields/state.zil"),
             ),
         ],
         CompileOptions::default(),

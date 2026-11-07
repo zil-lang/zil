@@ -105,7 +105,7 @@ def main():
     # still fails the gate, while one old fixture cannot hide later regressions.
     run('rust-tests',['cargo','test','--workspace','--offline','--locked','--no-fail-fast'])
     run('scalar-source',[sys.executable,'tests/integration/scalar.py','--out-root',str(out/'scalar-source'/'campaign')])
-    run('native-stdio-rust-comparison',[sys.executable,'tests/integration/impl044.py','--zil',str(built_compiler),'--out',str(out/'native-stdio-rust-comparison'/'campaign'),'--evidence',str(out/'native-stdio-rust-comparison'/'receipt.json')],expected_status='Pass',executed_field='checks',minimum_executed=32)
+    run('native-stdio-rust-comparison',[sys.executable,'tests/integration/ascii-uppercase-filter.py','--zil',str(built_compiler),'--out',str(out/'native-stdio-rust-comparison'/'campaign'),'--evidence',str(out/'native-stdio-rust-comparison'/'receipt.json')],expected_status='Pass',executed_field='checks',minimum_executed=32)
     run('closure-source-oracle',[sys.executable,'tests/integration/closures.py','--compiler',str(built_compiler),'--seed','23041','--cases','24','--out-root',str(out/'closure-source-oracle'/'campaign')],timeout=300,expected_status='Pass',executed_field='executed',minimum_executed=26)
     closure_record=records[-1]
     closure_report=closure_record.get('reported',{})

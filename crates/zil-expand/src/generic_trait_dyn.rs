@@ -492,7 +492,7 @@ mod tests {
             ModuleId(17),
             "not-a-logical-module.zil",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/dyn-source/generic-instances.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/generic-instances.zil"
             ),
         );
         let parsed = zil_syntax::parse(&source).into_result().unwrap();
@@ -582,7 +582,7 @@ mod tests {
             ModuleId(17),
             "dyn-default.zil",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/dyn-source/inherited-default.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/inherited-default.zil"
             ),
         );
         let mut parsed = zil_syntax::parse(&source).into_result().unwrap();

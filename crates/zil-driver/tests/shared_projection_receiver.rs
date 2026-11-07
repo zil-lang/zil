@@ -81,7 +81,7 @@ fn native(text: &str, expected: Option<i64>) -> String {
 #[test]
 fn shared_projection_and_receiver_end_to_end() {
     let llvm = native(
-        include_str!("../../../examples/impl032/main.zil"),
+        include_str!("../../../examples/borrowed-ledger-fields/main.zil"),
         Some(8075),
     );
     assert!(llvm.contains("address.ok."));

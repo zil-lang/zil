@@ -75,7 +75,7 @@ fn build(text: &str, level: Optimization, fault: bool) -> Temp {
 fn fault_clang(dir: &Path) -> PathBuf {
     #[cfg(unix)]
     use std::os::unix::fs::PermissionsExt;
-    let source = root().join("tools/byte-buffer/096/fault-allocator.c");
+    let source = root().join("tools/byte-buffer/owned-storage-abi/fault-allocator.c");
     let local = dir.join("fault-allocator.c");
     fs::copy(source, &local).unwrap();
     let compiler = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());

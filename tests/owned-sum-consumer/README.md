@@ -39,7 +39,7 @@ without consuming the original value, then select the following arm.
 subscription/node resources, and m/n/o, M/N/O distinguish replacement owners.
 The same Mark type at different payload positions has separate responsibility.
 
-`tools/research/244/oracle.py` models allocation requests and source transfers
+`tools/research/owner-join-review/oracle.py` models allocation requests and source transfers
 only. `ORACLE.json` freezes 32 valid inputs, five invalid inputs, every actual
 allocation failure point, zero and one-past-last controls at O0/O2. This gives
 190 allocation probes per optimization. It asserts request/free/live-block

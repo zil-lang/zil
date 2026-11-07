@@ -5,9 +5,9 @@ use zil_driver::{
     CompilationSession, CompileOptions, NativeBackend, Optimization, ProjectSources, Stage,
 };
 
-const MAIN: &str = include_str!("../../../examples/mainline/construction11/main.zil");
-const RULES: &str = include_str!("../../../examples/mainline/construction11/rules.zil");
-const DATA: &str = include_str!("../../../examples/mainline/construction11/data.zil");
+const MAIN: &str = include_str!("../../../examples/mainline/construction/main.zil");
+const RULES: &str = include_str!("../../../examples/mainline/construction/rules.zil");
+const DATA: &str = include_str!("../../../examples/mainline/construction/data.zil");
 
 fn project(main: &str) -> ProjectSources {
     let files = [("main", main), ("rules", RULES), ("data", DATA)];

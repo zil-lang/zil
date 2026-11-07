@@ -9,13 +9,13 @@ fn generated_alias_constructor_patterns_match_the_ordinary_source() {
         (
             "plain",
             include_str!(
-                "../../../examples/mainline/generated_events228/review/enum_alias_plain.zil"
+                "../../../examples/mainline/generated-events/review/enum_alias_plain.zil"
             ),
         ),
         (
             "generated",
             include_str!(
-                "../../../examples/mainline/generated_events228/review/enum_alias_generated.zil"
+                "../../../examples/mainline/generated-events/review/enum_alias_generated.zil"
             ),
         ),
     ] {

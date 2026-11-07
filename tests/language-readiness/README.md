@@ -6,7 +6,7 @@
 不将旧CLI结果归给B。记录变体、有限default、Copy-T/life和具体父闭包线程已
 有限贯通，完整Option/trait/life/dyn/异步/库与产品门仍未完成。
 
-当前十方面核查见 `validation/results/language-readiness/language-gaps-baseline.json`，基线为已合入main的
+当前十方面核查见 `validation/inputs/language-readiness/language-gaps-baseline.json`，基线为已合入main的
 `40fbcca6ef506f3cb8e1d40a4f8995c788627da0`：52源检查和9源的18次API O0/O2
 原生构建/执行分别记账。复跑入口为 `current334/README.md`。历史基线与实际观察
 仍见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/language-readiness-baseline.json`。
@@ -23,7 +23,7 @@
 | `pending/mutable-product-helper-gap.zil` | 315普通完整Product局部`&mut`同步helper。 |
 
 317实际多模块组合消费者也已完成本地源码与O0/O2运行、错误/关闭清理验证，见`examples/mainline/component-language-prerequisites`及`changes/317-recovery-consumer.md`。
-316仅为`recovery/`中的25源历史能力核查，结果见`validation/results/language-readiness/recovery-capabilities.json`。
+316仅为`recovery/`中的25源历史能力核查，结果见`validation/inputs/language-readiness/recovery-capabilities.json`。
 334复跑相同字节时，life参数返回和具体泛型trait已成功，三份未声明life源已明确
 拒绝。有限life-only、具体泛型trait和Direct线程不代表一般life/trait、异步/Mutex
 或其余基础类型/模式已经完成。`current334/partial-copy-tuple.zil`保留已支持的

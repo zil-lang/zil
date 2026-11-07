@@ -182,7 +182,7 @@ fn allocation_cases(label: &str, source: &str, cases: &[Probe<'_>]) {
         let result = Command::new(clang)
             .arg(format!("-{opt:?}"))
             .arg(path.join("phases/llvm.ll"))
-            .arg(repo.join("tools/language/173/allocator_probe.c"))
+            .arg(repo.join("tools/language/composed-store-closures/allocator_probe.c"))
             .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
             .arg(&probe)
             .output()
@@ -234,7 +234,7 @@ fn allocation_cases(label: &str, source: &str, cases: &[Probe<'_>]) {
 
 #[test]
 fn callback_store_uses_actual_product_environment_stride_and_cleans_failures() {
-    let source = include_str!("../../../examples/mainline/product_capture216/main.zil");
+    let source = include_str!("../../../examples/mainline/product-capture/main.zil");
     let mutable = source
         .replace("impl Fn()", "impl FnMut()")
         .replace("<F:Fn()", "<F:FnMut()")

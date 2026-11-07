@@ -37,10 +37,10 @@ fn original_source_bytes_reach_verify() {
 
 #[test]
 fn fnmut_and_loop_forwarding_reach_verify() {
-    checked("fnmut", include_str!("../../../tests/impl254/fnmut.zil"));
+    checked("fnmut", include_str!("../../../tests/borrowed-callable-arguments/fnmut.zil"));
     checked(
         "branch_loop",
-        include_str!("../../../tests/impl254/branch_loop.zil"),
+        include_str!("../../../tests/borrowed-callable-arguments/branch_loop.zil"),
     );
 }
 
@@ -125,7 +125,7 @@ fn unused_uninitialized_same_type_private_slot_is_allowed() {
 fn complete_error_union_store_companion_reaches_verify() {
     checked(
         "owned_companion",
-        include_str!("../../../tests/impl254/owned_companion.zil"),
+        include_str!("../../../tests/borrowed-callable-arguments/owned_companion.zil"),
     );
 }
 
@@ -134,27 +134,27 @@ fn frozen_six_copy_and_owned_signatures_reach_verify() {
     for (name, source) in [
         (
             "fn-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fn-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-copy.zil"),
         ),
         (
             "fnmut-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnmut-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-copy.zil"),
         ),
         (
             "fnonce-copy",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnonce-copy.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-copy.zil"),
         ),
         (
             "fn-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fn-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-owned.zil"),
         ),
         (
             "fnmut-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnmut-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-owned.zil"),
         ),
         (
             "fnonce-owned",
-            include_str!("../../../tests/impl256/frozen-prep/probes/fnonce-owned.zil"),
+            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-owned.zil"),
         ),
     ] {
         checked(name, source);
@@ -166,7 +166,7 @@ fn frozen_and_extended_three_module_sources_reach_verify() {
     use zil_driver::{CompileOptions, ProjectSources, Stage, compile_project};
     for directory in ["frozen-prep/project", "extended"] {
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-            .join("../../tests/impl256")
+            .join("../../tests/callable-instance-forwarding")
             .join(directory);
         let names = ["main", "model", "relay"];
         let project = ProjectSources {

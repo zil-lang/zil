@@ -6,7 +6,7 @@
 
 输入 0/1/2/3/7 覆盖零轮、一轮、continue、多个轮次、break；6 覆盖容量满 push 的完整错误 payload 清理；9/EOF 是入口拒绝。每个 O0/O2 运行包括普通执行、独立分配 probe、每个实际申请失败点及最后申请之后的成功控制。runner 固定源码/编译器身份并核一个 Verify、五模块；Linux 与 Win64/Wine 分列。原生 Windows 不据 Wine 升级。
 
-运行入口为 `python3 tools/language/203/consumer.py --help`。必须传成功且干净的冻结 CLI 构建收据、实际 SHA-256 和新输出目录。源码包不包含机器产物；证据后续单独封装。
+运行入口为 `python3 tools/language/state-bindings-consumer/consumer.py --help`。必须传成功且干净的冻结 CLI 构建收据、实际 SHA-256 和新输出目录。源码包不包含机器产物；证据后续单独封装。
 
 当前作者源已完成，尚未宣称该完整消费者通过：`expand01` 曾发现 seed 返回拥有 Store 时漏写 give，原输入已保存；已按既有责任语义改为 `return give items`。`expand02` 准确暴露普通 main 中 callable State 生产者的完整 T 依赖不能提前 eager 实例化，正在补对应合同及实现。五模块正例保持成功预期，不把这条失败改写为支持边界或复制 202 成绩。
 

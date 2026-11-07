@@ -1,6 +1,6 @@
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit};
 use zil_driver::{CompileOptions, compile_source};
-#[path = "../../../tests/language-readiness/terminal/342/loans.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/loans.rs"]
 mod terminal342_loans;
 fn source(s: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), "review.zil", s)
@@ -325,7 +325,7 @@ fn generic_injection_295_ambiguous_and_wrong_nominal_controls_reject() {
 fn recovery317_project(entry: &str) -> zil_driver::ProjectSources {
     use std::{collections::BTreeMap, fs, path::PathBuf};
     let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/recovery317");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/component-language-prerequisites");
     let names = [entry, "config", "component", "bridge"];
     let mut paths = BTreeMap::new();
     let modules = names
@@ -477,7 +477,7 @@ fn recovery317_component_native_success_error_and_null_cleanup() {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
     let fixture =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/recovery317");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/component-language-prerequisites");
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -663,7 +663,7 @@ fn thread325_review_direct_factory_scalar_graph_and_once_body() {
 #[cfg(target_os = "linux")]
 fn thread325_root() -> std::path::PathBuf {
     std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/mainline/concurrency325")
+        .join("../../examples/mainline/concurrency")
 }
 
 #[cfg(target_os = "linux")]
@@ -2237,10 +2237,10 @@ fn thread339_machine_cache_keeps_scalar_and_pointer_payloads_distinct() {
 #[test]
 fn terminal343_sealed_sync_scope_source_reaches_independent_kernel() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -2268,10 +2268,10 @@ fn terminal343_sealed_sync_native_contention() {
         backends.push(NativeBackend::LlvmApi);
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/343/atomic-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/mutex-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/atomic-contention.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/mutex-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"),
     ] {
         for backend in &backends {
             for optimization in [Optimization::O0, Optimization::O2] {
@@ -2336,7 +2336,7 @@ fn terminal343_sealed_sync_source_and_raw_boundaries() {
         );
     }
     let src = source(include_str!(
-        "../../../tests/language-readiness/terminal/343/atomic-contention.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"
     ));
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2493,7 +2493,7 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-pthread", "-c"])
                 .arg(
                     Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../tests/language-readiness/terminal/343/sync-observer.c"),
+                        .join("../../tests/language-readiness/terminal/concurrency-and-registration/sync-observer.c"),
                 )
                 .arg("-o")
                 .arg(&observer)
@@ -2505,7 +2505,7 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
             fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
             let report = compile_source(
                 &source(include_str!(
-                    "../../../tests/language-readiness/terminal/343/mutex-failure.zil"
+                    "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-failure.zil"
                 )),
                 &CompileOptions {
                     backend,
@@ -2556,7 +2556,7 @@ fn terminal343_mutex_native_failures_and_owned_body_cleanup() {
 
 #[test]
 fn task343_source_to_persistent_native_frame() {
-    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -2571,13 +2571,13 @@ fn task343_source_to_persistent_native_frame() {
 fn task343_native_yields_resume_once() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-control.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-cancel.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-unused.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-move.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-static-callback.zil"),
-        include_str!("../../../tests/language-readiness/terminal/343/task-nonyield.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-control.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-cancel.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-unused.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-move.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-static-callback.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-nonyield.zil"),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -2625,7 +2625,7 @@ fn task343_native_yields_resume_once() {
 #[test]
 fn task343_source_rejects_direct_paths_and_overlapping_heads() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/343/task-reject-foreign-ref.zil"),
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-reject-foreign-ref.zil"),
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let f:fn(i32)->i32=worker;return f(7)}",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let r=thread_scope(worker,7,()->i32=>0);return r.1}",
@@ -2648,7 +2648,7 @@ fn task343_source_rejects_direct_paths_and_overlapping_heads() {
 #[test]
 fn task343_raw_wire_and_exact_kernel_budgets() {
     use zil_ir::{InstructionKind as I, Type};
-    let text = include_str!("../../../tests/language-readiness/terminal/343/task-poll.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
     let src = source(text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2855,7 +2855,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
             for (index, text, failure, code, stdout) in [
                 (
                     0,
-                    include_str!("../../../tests/language-readiness/terminal/343/task-null.zil"),
+                    include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-null.zil"),
                     true,
                     Some(0),
                     "AA",
@@ -2863,7 +2863,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
                 (
                     1,
                     include_str!(
-                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-default-drop.zil"
                     ),
                     false,
                     Some(0),
@@ -2872,7 +2872,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
                 (
                     2,
                     include_str!(
-                        "../../../tests/language-readiness/terminal/343/task-early-destroy.zil"
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-early-destroy.zil"
                     ),
                     false,
                     None,
@@ -2881,7 +2881,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
                 (
                     3,
                     include_str!(
-                        "../../../tests/language-readiness/terminal/343/task-default-drop.zil"
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-default-drop.zil"
                     ),
                     true,
                     Some(10),
@@ -2898,7 +2898,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
                     .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
                     .arg(
                         Path::new(env!("CARGO_MANIFEST_DIR"))
-                            .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                            .join("../../tests/language-readiness/terminal/concurrency-and-registration/task-observer.c"),
                     )
                     .arg("-o")
                     .arg(&observer)
@@ -2950,7 +2950,7 @@ fn task343_native_allocation_failure_drop_and_closed_destroy() {
 
 fn task343_export_program() -> zil_ir::TypedProgram {
     let src = source(include_str!(
-        "../../../tests/language-readiness/terminal/343/task-export.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil"
     ));
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2992,7 +2992,7 @@ fn task343_public_semantics_are_independently_bound() {
     let project = zil_driver::ProjectSources {
         root: ModuleId(0),
         modules: vec![source(include_str!(
-            "../../../tests/language-readiness/terminal/343/task-export.zil"
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil"
         ))],
         paths: Default::default(),
     };
@@ -3204,9 +3204,9 @@ fn task343_run_external_sabi(child: bool) {
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR")).join(if child {
-        "../../tests/language-readiness/terminal/343/task-child-export-caller.c"
+        "../../tests/language-readiness/terminal/concurrency-and-registration/task-child-export-caller.c"
     } else {
-        "../../tests/language-readiness/terminal/343/task-export-caller.c"
+        "../../tests/language-readiness/terminal/concurrency-and-registration/task-export-caller.c"
     });
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -3234,10 +3234,10 @@ fn task343_run_external_sabi(child: bool) {
                 root: ModuleId(0),
                 modules: vec![source(if child {
                     include_str!(
-                        "../../../tests/language-readiness/terminal/343/task-child-export.zil"
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-child-export.zil"
                     )
                 } else {
-                    include_str!("../../../tests/language-readiness/terminal/343/task-export.zil")
+                    include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil")
                 })],
                 paths: Default::default(),
             };
@@ -3415,7 +3415,7 @@ fn task343_run_external_sabi(child: bool) {
 #[test]
 fn registration343_returned_generic_owner_reaches_both_kernels() {
     let text =
-        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -3440,7 +3440,7 @@ fn registration343_returned_stable_owner_native_and_failures() {
         .unwrap_or_else(|| "clang".into());
     let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
     let fixture = Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tests/language-readiness/terminal/343/registration-observer.c");
+        .join("../../tests/language-readiness/terminal/concurrency-and-registration/registration-observer.c");
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
             continue;
@@ -3472,15 +3472,15 @@ fn registration343_returned_stable_owner_native_and_failures() {
                 for default_drop in [false, true] {
                     let text = if composed {
                         include_str!(
-                            "../../../tests/language-readiness/terminal/343/registration-composed.zil"
+                            "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-composed.zil"
                         )
                     } else if two {
                         include_str!(
-                            "../../../tests/language-readiness/terminal/343/registration-two.zil"
+                            "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-two.zil"
                         )
                     } else {
                         include_str!(
-                            "../../../tests/language-readiness/terminal/343/registration-return.zil"
+                            "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
                         )
                     };
                     let text = if default_drop {
@@ -3544,7 +3544,7 @@ fn registration343_returned_stable_owner_native_and_failures() {
 #[test]
 fn registration343_source_definition_moves_and_closed_environment_rejects() {
     let original =
-        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let unused = original.split("fn main").next().unwrap().to_owned() + "fn main() {}";
     let neighbors=[
         unused.replace(" + ClosedEnvironment",""),
@@ -3583,7 +3583,7 @@ fn registration343_source_definition_moves_and_closed_environment_rejects() {
 fn registration343_raw_wire_and_exact_kernel_budgets() {
     use zil_ir::{InstructionKind as I, Type};
     let src = source(include_str!(
-        "../../../tests/language-readiness/terminal/343/registration-return.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
     ));
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -3864,7 +3864,7 @@ fn registration343_raw_wire_and_exact_kernel_budgets() {
 #[test]
 fn registration343_copy_instances_and_return_branch_neighbors() {
     let original =
-        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let declarations = original.split("fn install").next().unwrap();
     let copy = format!(
         "{declarations}\nfn main()->i32 {{let base=37;let f=move(x:i32)->i32=>x+base;unsafe{{let first=c_register(registration_register,registration_close_backend,f);let second=c_register(registration_register,registration_close_backend,f);registration_close(give first);registration_close(give second);}}return 0}}"
@@ -3884,7 +3884,7 @@ fn registration343_copy_instances_and_return_branch_neighbors() {
 #[test]
 fn registration343_source_library_preserves_actual_returned_environment() {
     let original =
-        include_str!("../../../tests/language-readiness/terminal/343/registration-return.zil");
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
     let helper = original
         .split("fn install")
         .nth(1)
@@ -3925,7 +3925,7 @@ fn registration343_source_library_preserves_actual_returned_environment() {
 #[test]
 fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries() {
     let positive =
-        include_str!("../../../tests/language-readiness/terminal/343/registration-composed.zil");
+        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-composed.zil");
     let report = compile_source(&source(positive), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -3937,31 +3937,31 @@ fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries()
         (
             "address",
             include_str!(
-                "../../../tests/language-readiness/terminal/343/registration-address-capture.zil"
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-address-capture.zil"
             ),
         ),
         (
             "desc",
             include_str!(
-                "../../../tests/language-readiness/terminal/343/registration-desc-capture.zil"
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-desc-capture.zil"
             ),
         ),
         (
             "slice",
             include_str!(
-                "../../../tests/language-readiness/terminal/343/registration-slice-capture.zil"
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-slice-capture.zil"
             ),
         ),
         (
             "wrong-root",
             include_str!(
-                "../../../tests/language-readiness/terminal/343/registration-bfp-wrong-result-root.zil"
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-bfp-wrong-result-root.zil"
             ),
         ),
         (
             "suspend",
             include_str!(
-                "../../../tests/language-readiness/terminal/343/registration-transitive-suspend.zil"
+                "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-transitive-suspend.zil"
             ),
         ),
     ] {
@@ -3986,7 +3986,7 @@ fn registration343_composed_code_capture_keeps_actual_data_and_life_boundaries()
 #[cfg(target_os = "linux")]
 fn child343_native_static_frames_resume_and_cancel() {
     use zil_driver::{NativeBackend, Optimization, Stage};
-    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let original = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil");
     let prefix = original.split("fn main").next().unwrap();
     let mut sources = vec![original.to_owned()];
     for after in 0..=8 {
@@ -4092,7 +4092,7 @@ fn child343_source_and_raw_effect_boundaries() {
         );
     }
     let src = source(include_str!(
-        "../../../tests/language-readiness/terminal/343/task-child.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil"
     ));
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -4331,7 +4331,7 @@ fn child343_native_allocation_failure_and_embedded_cleanup() {
         process::Command,
     };
     use zil_driver::{NativeBackend, Optimization, Stage};
-    let original = include_str!("../../../tests/language-readiness/terminal/343/task-child.zil");
+    let original = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil");
     let prefix = original.split("fn main").next().unwrap();
     let mut cases = vec![original.to_owned()];
     for explicit in [false, true] {
@@ -4359,7 +4359,7 @@ let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
                 .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
                 .arg(
                     Path::new(env!("CARGO_MANIFEST_DIR"))
-                        .join("../../tests/language-readiness/terminal/343/task-observer.c"),
+                        .join("../../tests/language-readiness/terminal/concurrency-and-registration/task-observer.c"),
                 )
                 .arg("-o")
                 .arg(&object)
@@ -4421,10 +4421,10 @@ let (status,value)=task_poll(&mut t);if status!=0 || value!=0{{return 11}}
 fn terminal343_scalar_library_helpers_keep_sealed_identity() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let main = source(include_str!(
-        "../../../tests/language-readiness/terminal/343/sync-probes/library/main.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/sync-probes/library/main.zil"
     ));
     let library = include_str!(
-        "../../../tests/language-readiness/terminal/343/sync-probes/library/sync_ops.zil"
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/sync-probes/library/sync_ops.zil"
     );
     let project = zil_driver::ProjectSources {
         root: ModuleId(0),
@@ -4508,13 +4508,13 @@ fn terminal343_scalar_library_helpers_keep_sealed_identity() {
     }
 }
 
-#[path = "../../../tests/language-readiness/terminal/343/task_general.rs"]
+#[path = "../../../tests/language-readiness/terminal/concurrency-and-registration/task_general.rs"]
 mod general_task343;
 
-#[path = "../../../tests/language-readiness/task-composition/G8.6.1/verify_frames.rs"]
+#[path = "../../../tests/language-readiness/task-composition/verified-source-consumers/verify_frames.rs"]
 mod task_verify_frame_verify_frames;
 
-#[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
+#[path = "../../../tests/language-readiness/terminal/concurrency-and-registration/cas.rs"]
 mod cas343;
 
 #[test]
@@ -5753,10 +5753,10 @@ fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
 
 fn captured_helper_source_captured_sources() -> Vec<(&'static str, String)> {
     let shared = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fn-input-capture.zil"
     );
     let once = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnonce-input-capture.zil"
     );
     let exclusive = shared
         .replace("let f=(p:", "var count=0;var f=move(p:")
@@ -6024,7 +6024,7 @@ fn owned_resource_identity_owned_fixed_source_resource_identity_is_independent()
         }
     }
     let wrong = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-wrong-class.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnonce-wrong-class.zil"
     );
     let report = compile_source(
         &source(wrong),
@@ -6053,7 +6053,7 @@ fn captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire() {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     use zil_ir::{CallableKind, InstructionKind as I, Type};
     let original = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-context-producer/fnonce-input-capture.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-context-producer/fnonce-input-capture.zil"
     );
     let dual = original
         .replace(
@@ -6157,13 +6157,13 @@ fn captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire() {
 }
 
 const SHARED_HELPER_LIFE_SIMPLE: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/fn-shared-input.zil"
 );
 const SHARED_HELPER_LIFE_REVERSE: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/reverse-generics-good.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/reverse-generics-good.zil"
 );
 const SHARED_HELPER_LIFE_CALLER: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-good.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/actual-caller-good.zil"
 );
 fn shared_helper_life_core(text: &str) -> zil_ir::CoreModule {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
@@ -6197,10 +6197,10 @@ fn shared_helper_life_original_bound_full_ordinals_and_complete_typed_relations(
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let a = shared_helper_life_core(include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-a.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/unused-declared-bound-a.zil"
     ));
     let b = shared_helper_life_core(include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/unused-declared-bound-b.zil"
     ));
     let (a, b) = (shared_helper_life_role(&a), shared_helper_life_role(&b));
     assert_eq!(a.parameters, b.parameters);
@@ -6285,7 +6285,7 @@ fn shared_helper_life_original_bound_full_ordinals_and_complete_typed_relations(
         report.to_json()
     );
     let wrong = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/actual-caller-wrong-class.zil"
     );
     let report = compile_source(
         &source(wrong),
@@ -6557,13 +6557,13 @@ fn shared_helper_life_actual_source_native_clang_api_o0_o2_full_results() {
         (
             "ordered-f-before",
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-before-data.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/ordered-f-before-data.zil"
             ),
         ),
         (
             "ordered-f-after",
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-after-data.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/ordered-f-after-data.zil"
             ),
         ),
     ] {
@@ -6674,7 +6674,7 @@ fn shared_helper_life_scope_frontiers_keep_old_unused_bodies_and_body_ct_transpo
             (SHARED_HELPER_LIFE_CALLER, true),
             (
                 include_str!(
-                    "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil"
+                    "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/actual-caller-wrong-class.zil"
                 ),
                 false,
             ),
@@ -6714,16 +6714,16 @@ fn shared_helper_life_scope_frontiers_keep_old_unused_bodies_and_body_ct_transpo
     }
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-call.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/body-ct-call.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/body-ct-unused.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/body-ct-unused.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-before-data.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/ordered-f-before-data.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/ordered-f-after-data.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/ordered-f-after-data.zil"
         ),
     ] {
         let report = compile_source(
@@ -6822,7 +6822,7 @@ fn shared_helper_life_unanchored_phantom_data_cannot_enter_the_physical_helper_p
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let wrong = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-data-wrong-class.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/phantom-data-wrong-class.zil"
     );
     let mut core = shared_helper_life_core(wrong);
     assert!(
@@ -6845,7 +6845,7 @@ fn shared_helper_life_unanchored_phantom_data_cannot_enter_the_physical_helper_p
         report.to_json()
     );
     let unused = include_str!(
-        "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-unused.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fixed-helper-bridge/phantom-unused.zil"
     );
     assert!(
         shared_helper_life_core(unused)
@@ -6889,16 +6889,16 @@ fn shared_helper_life_unanchored_phantom_data_cannot_enter_the_physical_helper_p
 }
 
 const MUTABLE_HELPER_LIFE_STATEFUL: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/stateful-two-calls.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/stateful-two-calls.zil"
 );
 const MUTABLE_HELPER_LIFE_REVERSE: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/reverse-stateful-two-calls.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/reverse-stateful-two-calls.zil"
 );
 const MUTABLE_HELPER_LIFE_ADAPTED: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/fn-adapted-control.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/fn-adapted-control.zil"
 );
 const MUTABLE_HELPER_LIFE_CALLER: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/actual-caller-good.zil"
 );
 
 #[test]
@@ -6976,21 +6976,21 @@ fn mutable_helper_life_actual_stateful_definition_receiver_and_source_bound_are_
     for (text, phase, message) in [
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/shared-receiver-reject.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/shared-receiver-reject.zil"
             ),
             zil_base::Phase::Types,
             "passing mode",
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/overlapping-receiver-borrows.zil"
             ),
             zil_base::Phase::Analyze,
             "overlaps",
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/wrong-actual-class.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/wrong-actual-class.zil"
             ),
             zil_base::Phase::Analyze,
             "actual retained classes",
@@ -7021,7 +7021,7 @@ fn mutable_helper_life_actual_stateful_definition_receiver_and_source_bound_are_
         );
     }
     let wrong = include_str!(
-        "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/wrong-actual-class.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/wrong-actual-class.zil"
     );
     for body in ["return 42", "return #(42)"] {
         for (text, expected) in [
@@ -7159,7 +7159,7 @@ fn mutable_helper_life_source_derived_wrong_class_capture_and_mutable_call_reach
     // Start with two actual same-type environments at disjoint physical locals.
     // Redirect only the first receiver borrow onto the second actual local;
     // SSA/CFG initialization facts remain unchanged, so Verify reaches loans.
-    let disjoint = include_str!("../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil")
+    let disjoint = include_str!("../../../tests/language-readiness/terminal/higher-rank-borrows/fnmut-helper-bridge/overlapping-receiver-borrows.zil")
         .replace("let held=&mut f;", "var g=f;let held=&mut g;");
     let mut bad = zil_types::check(&shared_helper_life_core(&disjoint), &target, &limits).unwrap();
     let mut forged = zil_analyze::analyze(&bad, &limits).unwrap();
@@ -7416,10 +7416,10 @@ fn mutable_helper_life_stateful_and_adapted_source_native_clang_api_o0_o2_full_r
 }
 
 const OWNING_HELPER_LIFE_OWNED: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/helper-owned-byvalue.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/helper-owned-byvalue.zil"
 );
 const OWNING_HELPER_LIFE_REVERSE: &str = include_str!(
-    "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/reverse-owned-byvalue.zil"
+    "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/reverse-owned-byvalue.zil"
 );
 
 #[test]
@@ -7428,10 +7428,10 @@ fn owning_helper_life_verify_staged_actual_source_and_raw_wire_neighbors() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let caller = include_str!(
-        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/actual-caller-good.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/actual-caller-good.zil"
     );
     let spare = include_str!(
-        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/owned-ssa-spare.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/owned-ssa-spare.zil"
     );
     for text in [
         OWNING_HELPER_LIFE_OWNED,
@@ -7850,7 +7850,7 @@ fn owning_helper_life_owning_source_context_budget_and_physical_gate_are_indepen
         "{errors:?}"
     );
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/phantom-wrong-class.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/phantom-wrong-class.zil"
     );
     let report = compile_source(
         &source(text),
@@ -7973,7 +7973,7 @@ fn owning_helper_life_actual_native_clang_api_o0_o2_preserves_complete_owned_res
         (
             "distinct-inputs",
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/actual-caller-good.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/actual-caller-good.zil"
             ),
         ),
     ] {
@@ -8046,21 +8046,21 @@ fn owning_helper_life_actual_source_consumption_and_class_neighbors_keep_their_r
     for (text, phase, message) in [
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/helper-double-invoke-byvalue.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/helper-double-invoke-byvalue.zil"
             ),
             Phase::Expand,
             "environment was consumed",
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/second-consume-byvalue.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/second-consume-byvalue.zil"
             ),
             Phase::Analyze,
             "not initialized",
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/wrong-class-byvalue.zil"
+                "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/wrong-class-byvalue.zil"
             ),
             Phase::Analyze,
             "actual retained classes",
@@ -8092,7 +8092,7 @@ fn owning_helper_life_actual_source_consumption_and_class_neighbors_keep_their_r
     }
     let report = compile_source(
         &source(include_str!(
-            "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/direct-owned-control.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-bridge/direct-owned-control.zil"
         )),
         &CompileOptions {
             stop_after: zil_driver::Stage::Verify,
@@ -8126,14 +8126,14 @@ fn owning_helper_life_actual_source_consumption_and_class_neighbors_keep_their_r
     assert_eq!(report.verification_runs, 1);
 }
 
-#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-next/regressions.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-next/regressions.rs"]
 mod helper_tail_return_tail;
 
-#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-cfg/regressions.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/regressions.rs"]
 mod helper_cfg_join_cfg;
 
-#[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-control-flow-review/regressions.rs"]
 mod helper_cfg_join_review;
 
-#[path = "../../../tests/language-readiness/terminal/342/callable-completion/regressions.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/callable-completion/regressions.rs"]
 mod helper_life_completion_completion;

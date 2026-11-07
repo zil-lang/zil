@@ -13,7 +13,7 @@ fn control_and_minimal_transfer_mutation() {
         FileId(0),
         ModuleId(0),
         "loan_control.zil",
-        include_str!("../../../tests/impl254/loan_control.zil"),
+        include_str!("../../../tests/borrowed-callable-arguments/loan_control.zil"),
     );
     let ast = zil_syntax::parse(&source).into_result().unwrap();
     let core = zil_expand::expand(&source, &ast).unwrap();
@@ -46,7 +46,7 @@ fn control_and_minimal_transfer_mutation() {
     for errors in [&raw, &wire] {
         assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");
     }
-    let frozen = include_bytes!("../../../tests/impl254/v40/loan_revival.wire");
+    let frozen = include_bytes!("../../../tests/borrowed-callable-arguments/v40/loan_revival.wire");
     let migrated = schema40_fixture::migrate(frozen, &limits);
     let errors = zil_verify::verify_module_bytes(&migrated, &target, &limits).unwrap_err();
     assert_eq!(errors[0].code, "E-BORROW-CONFLICT", "{errors:?}");

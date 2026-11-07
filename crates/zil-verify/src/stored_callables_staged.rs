@@ -613,7 +613,7 @@ mod tests {
     mod tail_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-next/tail_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-next/tail_neighbors.rs"
         ));
     }
     #[test]
@@ -671,7 +671,7 @@ mod tests {
     mod cfg_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-cfg/cfg_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/cfg_neighbors.rs"
         ));
     }
     #[test]

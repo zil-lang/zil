@@ -1,5 +1,5 @@
 //! Actual Source tests for the qualified pure-value machine path. These await
-//! the matching Enum/Array producer and independent consumers in G4.4.6.3.
+//! the matching Enum/Array producer and independent consumers in static member.6.3.
 use super::*;
 
 fn qualified_array_program(with_abi: bool) -> String {

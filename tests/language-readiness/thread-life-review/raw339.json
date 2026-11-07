@@ -8,7 +8,7 @@
     "rustc",
     "--edition=2024",
     "--test",
-    "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/raw339.rs",
+    "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/raw339.rs",
     "-L",
     "dependency=/workspace/.zil-env/target339/debug/deps",
     "-o",

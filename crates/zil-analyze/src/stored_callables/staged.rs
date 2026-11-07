@@ -233,7 +233,7 @@ mod tests {
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
     // Neutral raw identity fixture; it is not a Source or resource-proof oracle.
@@ -416,7 +416,7 @@ mod tests {
     mod tail_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-next/tail_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-next/tail_neighbors.rs"
         ));
     }
     #[test]
@@ -447,7 +447,7 @@ mod tests {
     mod cfg_fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/fnonce-helper-cfg/cfg_neighbors.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/fnonce-helper-cfg/cfg_neighbors.rs"
         ));
     }
     #[test]

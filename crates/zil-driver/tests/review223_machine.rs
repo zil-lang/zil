@@ -129,7 +129,7 @@ fn mixed_layout_and_every_allocator_exit_preserve_exact_leaf_debts() {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/173/allocator_probe.c");
+        .join("../../tools/language/composed-store-closures/allocator_probe.c");
     for optimization in [Optimization::O0, Optimization::O2] {
         let (dir, program) = compile("heterogeneous", source, optimization, true);
         let probe = dir.join("allocation-probe");

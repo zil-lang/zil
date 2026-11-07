@@ -73,7 +73,7 @@ def main():
     ]:
         paths.add(ROOT / name)
     observations, executions, failures = [], [], []
-    historical = json.loads((ROOT / "validation/results/language-readiness/recovery-capabilities.json").read_text())
+    historical = json.loads((ROOT / "validation/inputs/language-readiness/recovery-capabilities.json").read_text())
     historical = {row["source"]: row for row in historical["observations"]}
     for path in sorted(paths):
         relative = path.relative_to(ROOT).as_posix()

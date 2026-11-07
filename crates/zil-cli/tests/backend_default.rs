@@ -113,7 +113,7 @@ fn default_backend_runs_the_current_state_consumer_with_ascii_input() {
     use std::{io::Write, process::Stdio};
     let dir = Scratch::new();
     let source = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/mainline/zui_language177/main.zil");
+        .join("../../examples/mainline/zui-language-store-fields/main.zil");
     let executable = dir.0.join("state");
     let build = Command::new(env!("CARGO_BIN_EXE_zil"))
         .arg("build")

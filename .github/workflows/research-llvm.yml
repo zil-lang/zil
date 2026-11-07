@@ -7,7 +7,7 @@ on:
       - 'AGENTS.md'
       - 'docs/README.md'
       - 'docs/guide/**'
-      - 'docs/development/**'
+      - 'docs/guide/**'
   pull_request:
     branches: [main]
     paths-ignore:
@@ -15,7 +15,7 @@ on:
       - 'AGENTS.md'
       - 'docs/README.md'
       - 'docs/guide/**'
-      - 'docs/development/**'
+      - 'docs/guide/**'
   workflow_dispatch:
 permissions:
   contents: read
@@ -184,7 +184,7 @@ jobs:
           }
           trap preserve_consumer_summary EXIT
           cargo build --locked --release -p zil-cli
-          python3 tools/research/208/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer209"
+          python3 tools/research/native-api-validation/validate.py --repo . --cli "$CARGO_TARGET_DIR/release/zil" --clang "$ZIL_CLANG" --out "$RUNNER_TEMP/consumer209"
       - name: All-target Clippy
         id: clippy
         if: ${{ !cancelled() && steps.research_toolchain_identity.outcome == 'success' }}

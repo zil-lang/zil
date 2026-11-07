@@ -157,7 +157,7 @@ def main():
             gui(binary, name, closing)
         # The C oracle is deliberately outside the application and checks ABI
         # values, natural record offsets, and callback/static-data retention.
-        fixture = (root / "crates/zil-driver/tests/impl087_native.rs").read_text()
+        fixture = (root / "crates/zil-driver/tests/foreign_abi_native.rs").read_text()
         zil = re.search(r'const ABI_SOURCE: &str = r#"(.*?)"#;', fixture, re.S).group(1)
         c = re.search(r'const ABI_C: &str = r#"(.*?)"#;', fixture, re.S).group(1)
         (out / "abi.zil").write_text(zil)

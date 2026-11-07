@@ -89,7 +89,7 @@ fn semantic_cache_rechecks_actual_tagged_candidates_after_change_and_reorder() {
     }
     assert_eq!(candidates, 3);
     println!(
-        "G1.3.5 actual semantic cold/warm/change/reorder/revert; {candidates} actual candidates raw/Wire reverified"
+        "owned replacement.5 actual semantic cold/warm/change/reorder/revert; {candidates} actual candidates raw/Wire reverified"
     );
 }
 
@@ -512,7 +512,7 @@ fn native_runtime_tags_full_values_origins_and_preparation_failure() {
                     );
                     assert!(output.stderr.is_empty());
                     println!(
-                        "G1.3.5 {name}/{backend:?}/{optimization:?} stdin={input:?} stdout={:?} exit=0 Verify=1 fallback=None",
+                        "owned replacement.5 {name}/{backend:?}/{optimization:?} stdin={input:?} stdout={:?} exit=0 Verify=1 fallback=None",
                         String::from_utf8_lossy(&output.stdout)
                     );
                 }

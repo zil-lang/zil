@@ -13,7 +13,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-mixed-capture-modes.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -31,7 +31,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-shared-helper.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-shared-helper.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -49,7 +49,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-ordinary-ref-input.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-ordinary-ref-input.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -67,7 +67,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-fixed-parent-capture.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-fixed-parent-capture.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -85,7 +85,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-last-use-write.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-last-use-write.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -108,7 +108,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-ancestor-write.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-ancestor-write.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -131,7 +131,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-nested-writer.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-nested-writer.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -154,7 +154,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-nested-reader.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-nested-reader.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -172,7 +172,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-transitive-foreign.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-transitive-foreign.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -195,7 +195,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-address-result.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-address-result.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -218,7 +218,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-lending-origin.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-lending-origin.zil",
         "--json"
       ],
       "exit_code": 3,
@@ -241,7 +241,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-store-origin.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-store-origin.zil",
         "--json"
       ],
       "exit_code": 3,
@@ -264,7 +264,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-raw-disjoint-seed.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-disjoint-seed.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -282,7 +282,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -300,7 +300,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-capture-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-capture-retained-store.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -318,7 +318,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-conflicting-inputs.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-conflicting-inputs.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -341,7 +341,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-consumes-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-consumes-store.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -364,7 +364,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -382,7 +382,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-returned-mutable-conflict.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
         "--json"
       ],
       "exit_code": 1,
@@ -405,7 +405,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-raw-helper-return-seed.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
         "--json"
       ],
       "exit_code": 0,
@@ -423,7 +423,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-returned-mutable-conflict.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
         "--stop-after",
         "analyze",
         "--json"

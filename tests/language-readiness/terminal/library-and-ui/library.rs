@@ -162,7 +162,7 @@ fn ordinary_store_remove_transfers_and_cleans_actual_owners() {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)
@@ -284,7 +284,7 @@ fn main()->i32 {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)
@@ -462,7 +462,7 @@ fn ordinary_store_insert_preserves_order_and_owned_failure_values() {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)
@@ -594,7 +594,7 @@ fn main()->i32 {
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)
@@ -801,7 +801,7 @@ fn fail_commit(session:&mut input.Composition,document:&mut string.String,contin
         .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
         .arg(
             Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("../../tools/language/173/allocator_probe.c"),
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
         )
         .arg("-o")
         .arg(&observer)

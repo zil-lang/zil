@@ -18,15 +18,15 @@
       "optimization": "O0",
       "observer_inputs": [
         {
-          "path": "examples/mainline/concurrency325/shared339/native_main.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
           "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/native_worker.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
           "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/observer.c",
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
           "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
         }
       ],
@@ -38,7 +38,7 @@
         "-Werror",
         "-pthread",
         "-c",
-        "/workspace/zil-339/examples/mainline/concurrency325/shared339/observer.c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
         "-o",
         "/workspace/.zil-review336-astra-tmp/native339-observed-_62_t3gs/observer.o"
       ],
@@ -120,15 +120,15 @@
       "optimization": "O2",
       "observer_inputs": [
         {
-          "path": "examples/mainline/concurrency325/shared339/native_main.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
           "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/native_worker.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
           "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/observer.c",
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
           "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
         }
       ],
@@ -140,7 +140,7 @@
         "-Werror",
         "-pthread",
         "-c",
-        "/workspace/zil-339/examples/mainline/concurrency325/shared339/observer.c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
         "-o",
         "/workspace/.zil-review336-astra-tmp/native339-observed-xh6ap448/observer.o"
       ],
@@ -222,15 +222,15 @@
       "optimization": "O0",
       "observer_inputs": [
         {
-          "path": "examples/mainline/concurrency325/shared339/native_main.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
           "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/native_worker.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
           "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/observer.c",
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
           "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
         }
       ],
@@ -242,7 +242,7 @@
         "-Werror",
         "-pthread",
         "-c",
-        "/workspace/zil-339/examples/mainline/concurrency325/shared339/observer.c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
         "-o",
         "/workspace/.zil-review336-astra-tmp/native339-observed-l25r8fsh/observer.o"
       ],
@@ -345,15 +345,15 @@
       "optimization": "O2",
       "observer_inputs": [
         {
-          "path": "examples/mainline/concurrency325/shared339/native_main.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_main.zil",
           "sha256": "7098e9196151a993137c347a5782e3bc8925ba199b5decb8e8540dc06fdf2825"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/native_worker.zil",
+          "path": "examples/mainline/concurrency/shared-ancestor/native_worker.zil",
           "sha256": "c9fd1327b3e0ad736a8764836793f1b8b1a889043c401a330ff2a4a50d4c92a2"
         },
         {
-          "path": "examples/mainline/concurrency325/shared339/observer.c",
+          "path": "examples/mainline/concurrency/shared-ancestor/observer.c",
           "sha256": "a984e051cd5370e184c7c35e028e6fddc64c00e6585944aa05ffa81ec2de3059"
         }
       ],
@@ -365,7 +365,7 @@
         "-Werror",
         "-pthread",
         "-c",
-        "/workspace/zil-339/examples/mainline/concurrency325/shared339/observer.c",
+        "/workspace/zil-339/examples/mainline/concurrency/shared-ancestor/observer.c",
         "-o",
         "/workspace/.zil-review336-astra-tmp/native339-observed-uneju1f3/observer.o"
       ],
@@ -491,7 +491,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-mixed-capture-modes.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
         "--entry",
         "main",
         "--backend",
@@ -542,7 +542,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-mixed-capture-modes.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
         "--entry",
         "main",
         "--backend",
@@ -593,7 +593,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-mixed-capture-modes.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
         "--entry",
         "main",
         "--backend",
@@ -665,7 +665,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-mixed-capture-modes.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-mixed-capture-modes.zil",
         "--entry",
         "main",
         "--backend",
@@ -737,7 +737,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--entry",
         "main",
         "--backend",
@@ -788,7 +788,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--entry",
         "main",
         "--backend",
@@ -839,7 +839,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--entry",
         "main",
         "--backend",
@@ -911,7 +911,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-parent-static-identity.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-parent-static-identity.zil",
         "--entry",
         "main",
         "--backend",
@@ -983,7 +983,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--entry",
         "main",
         "--backend",
@@ -1034,7 +1034,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--entry",
         "main",
         "--backend",
@@ -1085,7 +1085,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--entry",
         "main",
         "--backend",
@@ -1157,7 +1157,7 @@
       "build_argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "build",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-retained-store.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-retained-store.zil",
         "--entry",
         "main",
         "--backend",

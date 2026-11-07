@@ -6,7 +6,7 @@ use zil_ir::{
     PassingMode, Type,
 };
 
-const PAIR: &str = include_str!("../../zil-driver/tests/impl201_fixtures/01_pair_store_mut.zil");
+const PAIR: &str = include_str!("../../zil-driver/tests/callback_store_positions_fixtures/01_pair_store_mut.zil");
 const HELPERS: &str = r#"
 fn empty<T: StoreElement>() -> Store<T> contract { result(create) } { return store_new() }
 fn reserve<T: StoreElement>(items: Store<T>, count: i64) -> bool { return store_reserve(items, count) }
@@ -239,7 +239,7 @@ fn contextless_factory_and_unused_bad_definition_stay_rejected() {
 #[test]
 fn legacy_single_field_state_preserves_exact_expand_budget() {
     let text =
-        include_str!("../../zil-driver/tests/impl197_cases/01-existing-state-f-sibling/main.zil");
+        include_str!("../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil");
     let unit = source(text);
     let parsed = zil_syntax::parse(&unit).into_result().unwrap();
     let check = |n| {
@@ -561,23 +561,23 @@ fn five_module_consumer_preserves_all_six_ordinary_helpers() {
     let entries = [
         (
             "main",
-            include_str!("../../../examples/mainline/store_template202/main.zil"),
+            include_str!("../../../examples/mainline/store-template/main.zil"),
         ),
         (
             "factory",
-            include_str!("../../../examples/mainline/store_template202/factory.zil"),
+            include_str!("../../../examples/mainline/store-template/factory.zil"),
         ),
         (
             "state",
-            include_str!("../../../examples/mainline/store_template202/state.zil"),
+            include_str!("../../../examples/mainline/store-template/state.zil"),
         ),
         (
             "portable",
-            include_str!("../../../examples/mainline/store_template202/portable.zil"),
+            include_str!("../../../examples/mainline/store-template/portable.zil"),
         ),
         (
             "store_helpers",
-            include_str!("../../../examples/mainline/store_template202/store_helpers.zil"),
+            include_str!("../../../examples/mainline/store-template/store_helpers.zil"),
         ),
     ];
     let sources = entries

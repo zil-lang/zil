@@ -4,9 +4,9 @@
 
 ```sh
 cargo run --offline --locked -p zil-cli -- run examples/function-pointer-pipeline/main.zil --entry result
-cargo test --offline --locked -p zil-driver --test impl040
-rustc --edition=2024 examples/function-pointer-pipeline/reference.rs -o out/impl040-reference
-./out/impl040-reference
+cargo test --offline --locked -p zil-driver --test noncapturing_contextual_closures
+rustc --edition=2024 examples/function-pointer-pipeline/reference.rs -o out/noncapturing_contextual_closures-reference
+./out/noncapturing_contextual_closures-reference
 ```
 
 ZIL 的 `result` 与配对 Rust 程序都打印 `5000000042`；普通 ZIL `main` 退出码为 `0`。Rust 程序仅作同任务行为对照，没有调用它检查 ZIL，也未用此样例宣称产品性能优势。

@@ -41,17 +41,17 @@ class Source:
 
     def run(self, case):
         result = 0
-        if case == '00_frozen_type_value':
+        if case == 'frozen_type_value':
             value = 1
             result = value - 1
-        elif case == '01_type_values':
+        elif case == 'type_values':
             values = [1, 2, 3, 4]
             point = {'x': 5, 'y': 8}
             # x86_64 target: two i32 fields, each size/alignment 4.
             size = 4 + 4
             alignment = 4
             assert values[3] == 4 and point['x'] == 5 and size == 8 and alignment == 4
-        elif case == '02_four_categories':
+        elif case == 'four_categories':
             caller_tmp = 90
             for _ in range(2):
                 fragment_tmp = 75
@@ -62,7 +62,7 @@ class Source:
             self.emit(48 + value // 10)
             self.emit(48 + value % 10)
             result = answer - 42
-        elif case == '03_providers_hygiene':
+        elif case == 'providers_hygiene':
             count = 0
             caller_tmp, support_local = 90, 999
             count += 1  # evaluate next(&mut count) exactly once
@@ -75,7 +75,7 @@ class Source:
             assert value == scaled == 42 and from_provider == 7
             self.emit(48 + value // 10)
             self.emit(48 + value % 10)
-        elif case == '04_generated_ownership':
+        elif case == 'generated_ownership':
             for early in [False, True]:
                 active = [65]
                 if not early:
@@ -84,7 +84,7 @@ class Source:
                     self.emit(ticket)
             # A declaration of never_called creates no runtime Ticket.
             self.emit(80)  # main's GeneratedOwner owns P until its return
-        elif case in ['05_generated_allocation', '05b_generated_early_error']:
+        elif case in ['generated_allocation', 'generated_early_error']:
             allocated = False
             try:
                 if case.startswith('05b_'):
@@ -99,9 +99,9 @@ class Source:
                 self.emit(70)  # same Ticket F, either local or returned package
                 if allocated:
                     self.release()
-        elif case == '06_generated_impl':
+        elif case == 'generated_impl':
             self.emit(84)
-        elif case == '07_fresh_and_named':
+        elif case == 'fresh_and_named':
             # A local CT value named i32 is the argument Type i64, not the
             # built-in type with that spelling. Runtime Selected is i64.
             selected = 'i64'

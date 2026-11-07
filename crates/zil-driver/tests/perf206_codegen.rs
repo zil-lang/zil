@@ -199,7 +199,7 @@ fn checked_overflow_still_traps_across_codegen_boundaries() {
 #[test]
 fn owning_closure_and_byte_runtime_preserve_full_consumer_output() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/product/108/programs104/retained/zil/main.zil");
+        .join("../../tools/product/external-binding-cost/programs104/retained/zil/main.zil");
     let d = Dir::new();
     for opt in [Optimization::O0, Optimization::O2] {
         let mut expected = None;

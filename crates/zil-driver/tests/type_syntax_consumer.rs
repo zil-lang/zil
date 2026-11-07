@@ -71,7 +71,7 @@ struct Input {
 
 fn materialize(name: &str, variant: &str, out: &Path) -> Input {
     let result = Command::new("python3")
-        .arg(root().join("tools/language/262/materialize.py"))
+        .arg(root().join("tools/language/native-product-equivalence/materialize.py"))
         .args(["--case", name, "--variant", variant, "--out"])
         .arg(out)
         .output()
@@ -270,7 +270,7 @@ fn execute(binary: &Path, out: &Path, expected: &Expected, allocator: bool) {
 #[test]
 fn frozen_source_operations_and_explicit_provider_locks_are_unchanged() {
     let result = Command::new("python3")
-        .arg(root().join("tools/language/262/oracle.py"))
+        .arg(root().join("tools/language/native-product-equivalence/oracle.py"))
         .arg("--check")
         .output()
         .unwrap();
@@ -383,7 +383,7 @@ fn invalid_generated_sources_reach_their_real_category_stage_or_ownership_reason
 #[test]
 fn explicit_provider_locks_fail_closed_without_repair_or_order_fallback() {
     let out = directory("lock-boundaries");
-    let input = materialize("03_providers_hygiene", "generated", &out);
+    let input = materialize("providers_hygiene", "generated", &out);
     let control = out.join("positive-control");
     fs::create_dir_all(&control).unwrap();
     let report = compile_project(
@@ -413,7 +413,7 @@ fn explicit_provider_locks_fail_closed_without_repair_or_order_fallback() {
             request.syntax_lock = None;
         } else {
             let generated = Command::new("python3")
-                .arg(root().join("tools/language/262/lock_variant.py"))
+                .arg(root().join("tools/language/native-product-equivalence/lock_variant.py"))
                 .arg(name)
                 .output()
                 .unwrap();
@@ -463,9 +463,9 @@ fn explicit_provider_locks_fail_closed_without_repair_or_order_fallback() {
 #[test]
 fn explicit_file_and_memory_graphs_have_the_same_inputs_and_results() {
     for name in [
-        "01_type_values",
-        "03_providers_hygiene",
-        "07_fresh_and_named",
+        "type_values",
+        "providers_hygiene",
+        "fresh_and_named",
     ] {
         let out = directory(&format!("{name}-input-equivalence"));
         let input = materialize(name, "generated", &out);
@@ -630,7 +630,7 @@ fn generated_and_handwritten_owners_follow_actual_allocator_failures() {
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
-    for name in ["05_generated_allocation", "05b_generated_early_error"] {
+    for name in ["generated_allocation", "generated_early_error"] {
         for variant in ["generated", "handwritten"] {
             for optimization in [Optimization::O0, Optimization::O2] {
                 let out = directory(&format!("{name}-{variant}-allocator-{optimization:?}"));
@@ -647,7 +647,7 @@ fn generated_and_handwritten_owners_follow_actual_allocator_failures() {
                 let probe = out.join("probe");
                 let linked = Command::new(&clang)
                     .arg(out.join("api.o"))
-                    .arg(root().join("tools/language/173/allocator_probe.c"))
+                    .arg(root().join("tools/language/composed-store-closures/allocator_probe.c"))
                     .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
                     .arg(&probe)
                     .output()

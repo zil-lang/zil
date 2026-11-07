@@ -224,7 +224,7 @@ impl FunctionEmitter<'_> {
 }
 
 #[cfg(test)]
-#[path = "../../../../tests/language-readiness/terminal/340/reservation_protocol.rs"]
+#[path = "../../../../tests/language-readiness/terminal/ownership-and-replacement/reservation_protocol.rs"]
 mod fixture;
 
 #[cfg(test)]

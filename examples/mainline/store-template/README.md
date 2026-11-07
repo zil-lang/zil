@@ -32,15 +32,15 @@
 
 ## 运行与证据身份
 
-`tools/language/202/consumer.py` 为新 runner。它要求干净的源码提交、成功的干净 CLI 构建收据及冻结 CLI SHA256，并核对编译器提交和消费者提交的 Rust 生产输入没有差异。消费者源码/测试/说明可以晚于 CLI 构建，但不能把别的编译器二进制归到当前生产。
+`tools/language/store-template-consumer/consumer.py` 为新 runner。它要求干净的源码提交、成功的干净 CLI 构建收据及冻结 CLI SHA256，并核对编译器提交和消费者提交的 Rust 生产输入没有差异。消费者源码/测试/说明可以晚于 CLI 构建，但不能把别的编译器二进制归到当前生产。
 
 Linux 示例；输出目录必须尚不存在：
 
 ```bash
-python3 tools/language/178/run_command.py \
+python3 tools/language/generic-store-library/run_command.py \
   --out "$STORE202_RUN/compiler-build" -- cargo build --locked -p zil-cli
 
-python3 tools/language/202/consumer.py \
+python3 tools/language/store-template-consumer/consumer.py \
   --repo "$PWD" --cli "$STORE202_CLI" \
   --compiler-build-receipt "$STORE202_RUN/compiler-build/command.json" \
   --compiler-sha256 "$STORE202_CLI_SHA256" \

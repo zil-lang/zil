@@ -529,7 +529,7 @@ fn candidate_cannot_hide_live_loan_or_incomplete_product_attacks() {
 
 #[test]
 fn nested_shared_projection_executes_with_real_drop_order_at_o0_and_o2() {
-    let text = include_str!("../../../examples/mainline/shared_product224/main.zil");
+    let text = include_str!("../../../examples/mainline/shared-product/main.zil");
     for optimization in [Optimization::O0, Optimization::O2] {
         let dir = directory(&format!("native-{optimization:?}"));
         let executable = dir.join("program");
@@ -587,7 +587,7 @@ fn main()->i32{
     for (label, text, expected) in [
         (
             "direct-child-review",
-            include_str!("../../../examples/mainline/shared_product224/child-nll-control.zil"),
+            include_str!("../../../examples/mainline/shared-product/child-nll-control.zil"),
             b"XAB".as_slice(),
         ),
         ("direct-resource", resource, b"XA".as_slice()),
@@ -634,12 +634,12 @@ fn main()->i32{
 #[test]
 fn allocated_product_leaves_are_cleaned_on_each_real_allocator_failure() {
     use std::os::unix::fs::PermissionsExt;
-    let text = include_str!("../../../examples/mainline/shared_product224/allocation.zil");
+    let text = include_str!("../../../examples/mainline/shared-product/allocation.zil");
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/173/allocator_probe.c");
+        .join("../../tools/language/composed-store-closures/allocator_probe.c");
     let quote =
         |path: &std::path::Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
     for optimization in [Optimization::O0, Optimization::O2] {

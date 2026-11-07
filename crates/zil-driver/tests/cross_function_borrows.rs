@@ -10,31 +10,31 @@ use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, Targ
 use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{HoldRoot, InstructionKind, LocalId, TypedModule};
 
-#[path = "../../../tests/language-readiness/review331/cache.rs"]
+#[path = "../../../tests/language-readiness/type-life-review/cache.rs"]
 mod independent331_cache;
 
-#[path = "../../../tests/language-readiness/mutable337/regressions.rs"]
+#[path = "../../../tests/language-readiness/mutable-capture-regressions/regressions.rs"]
 mod mutable337;
 
-#[path = "../../../tests/language-readiness/terminal/342/mutable_life.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/mutable_life.rs"]
 mod terminal342_mutable;
 
-#[path = "../../../tests/language-readiness/terminal/342/borrowed_fp.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/borrowed_fp.rs"]
 mod terminal342_borrowed_fp;
 
-#[path = "../../../tests/language-readiness/terminal/342/resource_head.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/resource_head.rs"]
 mod terminal342_resource_head;
 
-#[path = "../../../tests/language-readiness/terminal/342/higher_rank.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/higher_rank.rs"]
 mod terminal342_higher_rank;
 
-#[path = "../../../tests/language-readiness/terminal/342/stored_physical.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/stored_physical.rs"]
 mod terminal342_stored_physical;
 
-#[path = "../../../tests/language-readiness/G9.3.1/runtime.rs"]
+#[path = "../../../tests/language-readiness/store-runtime/runtime.rs"]
 mod utf8_literals;
 
-#[path = "../../../tests/language-readiness/G2.4.1/analyze.rs"]
+#[path = "../../../tests/language-readiness/borrowed-interface-flow/analyze.rs"]
 mod trait_shared_lending_analyze;
 
 static NEXT: AtomicU64 = AtomicU64::new(0);
@@ -1402,7 +1402,7 @@ fn contract_identity_tracks_return_origin_changes_only_after_verify() {
 #[test]
 fn shared_option_borrow_option_borrowed_source_keeps_lexical_life_in_core() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/342/slice-iterator/option-borrowed.zil"
+        "../../../tests/language-readiness/terminal/higher-rank-borrows/slice-iterator/option-borrowed.zil"
     );
     let report = compile_source(
         &source(text),
@@ -1446,8 +1446,8 @@ fn shared_option_borrow_option_borrowed_source_keeps_lexical_life_in_core() {
     }
 }
 
-#[path = "../../../tests/language-readiness/terminal/342/slice-iterator/option-consumers.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/slice-iterator/option-consumers.rs"]
 mod shared_option_borrow_option_consumers;
 
-#[path = "../../../tests/language-readiness/terminal/342/slice-iterator/original-consumers.rs"]
+#[path = "../../../tests/language-readiness/terminal/higher-rank-borrows/slice-iterator/original-consumers.rs"]
 mod shared_option_borrow_original_consumers;

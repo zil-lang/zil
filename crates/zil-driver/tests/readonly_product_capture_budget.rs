@@ -1,7 +1,7 @@
 //! Actual N / N-1 / fresh-N boundaries for the newly admitted source profiles.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
-const NEW: &str = include_str!("../../../examples/mainline/readonly_product232/local.zil");
+const NEW: &str = include_str!("../../../examples/mainline/readonly-product/local.zil");
 fn bounded<T>(r: Result<T, Vec<zil_base::Diagnostic>>) -> bool {
     match r {
         Ok(_) => true,

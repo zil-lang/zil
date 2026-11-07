@@ -2,7 +2,7 @@
 //! built 42ce8081 production baseline, not inferred from test counts.
 use std::{fs, path::PathBuf};
 use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfile};
-const NEW: &str = include_str!("../../../examples/mainline/shared_product_capture226/local.zil");
+const NEW: &str = include_str!("../../../examples/mainline/shared-product-capture/local.zil");
 const OLD: &str = include_str!("owned_store_leaf_capture_fixtures/01_direct_store_capture.zil");
 fn bounded<T>(r: Result<T, Vec<zil_base::Diagnostic>>) -> bool {
     match r {

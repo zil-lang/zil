@@ -92,7 +92,7 @@ fn main() {
 }
 ''')
     sources = [ROOT / p for p in [
-        "crates/zil-analyze/tests/impl253_fixtures/v39",
+        "crates/zil-analyze/tests/forward_call_wire_fixtures/v39",
         "crates/zil-driver/tests/review223_fixtures/v39",
         "tests/borrowed-callable-arguments/v39",
     ]]

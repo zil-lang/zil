@@ -255,23 +255,23 @@ fn five_module_consumer_preserves_pop_success_and_push_error_responsibility() {
     let sources = [
         (
             "main",
-            include_str!("../../../examples/mainline/store_template202/main.zil"),
+            include_str!("../../../examples/mainline/store-template/main.zil"),
         ),
         (
             "factory",
-            include_str!("../../../examples/mainline/store_template202/factory.zil"),
+            include_str!("../../../examples/mainline/store-template/factory.zil"),
         ),
         (
             "state",
-            include_str!("../../../examples/mainline/store_template202/state.zil"),
+            include_str!("../../../examples/mainline/store-template/state.zil"),
         ),
         (
             "portable",
-            include_str!("../../../examples/mainline/store_template202/portable.zil"),
+            include_str!("../../../examples/mainline/store-template/portable.zil"),
         ),
         (
             "store_helpers",
-            include_str!("../../../examples/mainline/store_template202/store_helpers.zil"),
+            include_str!("../../../examples/mainline/store-template/store_helpers.zil"),
         ),
     ];
     let project = ProjectSources {

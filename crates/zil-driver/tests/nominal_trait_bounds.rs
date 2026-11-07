@@ -1,9 +1,9 @@
 //! Ordinary nominal bounds are checked symbolically and at each instantiation.
-#[path = "../../../tests/language-readiness/G5.2.1/consumers.rs"]
+#[path = "../../../tests/language-readiness/dynamic-dispatch/consumers.rs"]
 mod shared_dynamic_dispatch_consumers;
-#[path = "../../../tests/language-readiness/G2.4.2/consumers.rs"]
+#[path = "../../../tests/language-readiness/factory-interface-flow/consumers.rs"]
 mod static_associated_method_consumers;
-#[path = "../../../tests/language-readiness/G2.4.1/consumers.rs"]
+#[path = "../../../tests/language-readiness/borrowed-interface-flow/consumers.rs"]
 mod trait_shared_lending_consumers;
 use std::{
     collections::BTreeMap,
@@ -160,7 +160,7 @@ fn self_associated_constant_generated_self_default_impls_require_completed_ct_jo
 fn self_associated_constant_self_associated_identity_budgets_and_machine_values() {
     use zil_driver::CompilationSession;
     let original =
-        include_str!("../../../tests/language-readiness/terminal/341/associated-constant-self.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-self.zil");
     let unit = source(original);
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let options = |n: usize| {
@@ -344,16 +344,16 @@ fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both
         (
             "main",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/dyn-source/project/main.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/main.zil"
             ),
         ),
         (
             "a",
-            include_str!("../../../tests/language-readiness/terminal/341/dyn-source/project/a.zil"),
+            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/a.zil"),
         ),
         (
             "b",
-            include_str!("../../../tests/language-readiness/terminal/341/dyn-source/project/b.zil"),
+            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/b.zil"),
         ),
     ];
     let directory = std::env::temp_dir().join(format!(
@@ -411,7 +411,7 @@ fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both
 #[test]
 fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
     let original = include_str!(
-        "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-substitution-growth.zil"
     );
     for count in [0, 1, 2, 4, 7] {
         let (ty, value) = if count == 0 {
@@ -451,13 +451,13 @@ fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
     }
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-method-impl-growth.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-impl-growth.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-method-default-growth.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-default-growth.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-method-const-growth.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-const-growth.zil"
         ),
     ] {
         native_both(&[("main", text)]);
@@ -468,7 +468,7 @@ fn terminal341_method_receiver_origins_survive_type_and_const_substitution() {
 fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances() {
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/terminal/341/generic-method-no-outer.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-method-no-outer.zil"),
     )]);
 
     native_both(&[(
@@ -482,7 +482,7 @@ fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances()
 
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
     )]);
     native_both(&[(
         "main",
@@ -540,7 +540,7 @@ fn terminal341_generic_methods_keep_provider_modules_and_exact_trait_instances()
 fn terminal341_associated_constant_member_ordinals_survive_shared_spans() {
     use zil_syntax::ast::ItemKind;
     let unit = source(include_str!(
-        "../../../tests/language-readiness/terminal/341/associated-constants.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"
     ));
     let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
     let shared = ast.items[0].span;
@@ -618,9 +618,9 @@ fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
         }
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/associated-constants.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/associated-constant-computed.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-computed.zil"
         ),
         "fn calculate(x:i32)->i32{return x*7}trait C{const N:i32=calculate(1);}struct P{}impl C for P{}fn get<T:C>()->i32{return T.N}fn main()->i32{return get::<P>()-7}",
         "trait C{const N:i64;}struct P{}impl C for P{const N:i64=3000000000+7;}fn get<T:C>()->i64{return T.N}fn main()->i32{return i32(get::<P>()-3000000007)}",
@@ -702,7 +702,7 @@ fn terminal341_associated_constants_keep_declared_types_and_committed_values() {
 fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-instances.zil"
         ),
         "trait Read<T>{type Item:Copy;fn read(self:&Self)->Self.Item;}struct Box<T:Copy>{value:T}impl<T:Copy> Read<bool> for Box<T>{type Item=T;fn read()->Self.Item{return .value}}fn get<V:Read<bool>>(p:&V)->V.Item{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<Box<i32>>(&p)-7}",
         "trait Read<T:Copy>{type Item:Copy=T;}fn main(){}",
@@ -730,12 +730,12 @@ fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
     }
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/341/associated-type-unused-invalid.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-unused-invalid.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/associated-type-unbounded-equation.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-unbounded-equation.zil"
         ),
-        include_str!("../../../tests/language-readiness/terminal/341/associated-type-cycle.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-type-cycle.zil"),
         "trait Tag<T>{}trait Read{type Item:Tag<Missing>;}fn main(){}",
         "trait Tag<T:Copy>{}trait Read<T>{type Item:Tag<T>;}fn main(){}",
         "trait Read<T>{type Item:Copy=T;}fn main(){}",
@@ -767,7 +767,7 @@ fn terminal341_associated_types_remain_bound_supported_in_unused_definitions() {
 #[test]
 fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil"),
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=P{};return get::<i32,P>(&p)-7}",
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn relay<U:Copy,V:Read<U>>(p:&V)->U{return get::<U,V>(p)}fn main()->i32{let p=P{};return relay::<i32,P>(&p)-7}",
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct Box<T:Copy>{value:T}impl<T:Copy> Read<T> for Box<T>{fn read()->T{return .value}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<i32,Box<i32>>(&p)-7}",
@@ -801,7 +801,7 @@ fn terminal341_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
 fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
-        "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-substitution-growth.zil"
     ));
     let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
     let function = ast
@@ -886,7 +886,7 @@ fn terminal341_generic_method_ordinals_reach_raw_wire_and_native() {
 fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_code() {
     use zil_syntax::ast::{ExprKind, FunctionBody, ItemKind, StmtKind};
     let unit = source(include_str!(
-        "../../../tests/language-readiness/terminal/341/trait-call-shared-spans.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/trait-call-shared-spans.zil"
     ));
     let mut ast = zil_syntax::parse(&unit).into_result().unwrap();
     let function = ast
@@ -963,11 +963,11 @@ fn terminal341_trait_call_ordinals_keep_shared_source_spans_distinct_in_native_c
 #[test]
 fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/341/generic-impls.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil"),
         "fn id(x:i32)->i32{return x}trait Read{fn read(self:&Self)->i32;}struct Box<F:Copy>{value:F}impl<T:Copy> Read for Box<fn(T)->i32>{fn read()->i32{return 7}}fn main()->i32{let p=Box::<fn(i32)->i32>{value:id};return p.read()-7}",
         "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<(T,T)>{fn read()->i32{return 7}}impl Read for Box<(i32,bool)>{fn read()->i32{return 8}}fn main(){}",
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-impl-trait-instances.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-trait-instances.zil"
         ),
         "trait Left<Tag>{fn left(self:&Self)->i32;}trait Right<Tag>{fn right(self:&Self)->i32;}trait Run{fn run(self:&Self)->i32;}struct P{}impl Left<i32> for P{fn left()->i32{return 7}}impl Right<i32> for P{fn right()->i32{return 11}}struct Box<T:Copy>{value:T}impl<T:Copy> Run for Box<T> where T:Left<i32>+Right<i32>{fn run()->i32{return .value.left()+.value.right()}}fn main()->i32{let p=Box::<P>{value:P{}};return p.run()-18}",
         "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T,n:i32}impl<T:Copy> Read for Box<T>{fn read()->i32{return .n}}fn main()->i32{let p=Box::<i32>{value:3,n:7};return p.read()-7}",
@@ -988,16 +988,16 @@ fn terminal341_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
     }
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-impl-unused-invalid.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-unused-invalid.zil"
         ),
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<fn(T)->i32>{}impl<U:Copy> Read for Box<fn(i32)->U>{}fn main(){}",
-        include_str!("../../../tests/language-readiness/terminal/341/generic-impl-cycle.zil"),
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-cycle.zil"),
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-impl-unknown-trait.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-unknown-trait.zil"
         ),
         "struct Box<T>{}impl Missing for Box<i32>{}fn main(){}",
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-impl-builtin-drop.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-builtin-drop.zil"
         ),
         "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<T>{fn read(self:&Self)->i32{return 1}}impl Read for Box<i32>{fn read(self:&Self)->i32{return 2}}fn main(){}",
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy,U> Read for Box<T>{}fn main(){}",
@@ -1089,7 +1089,7 @@ fn terminal341_supertrait_evidence_is_committed_after_inherited_obligations() {
     }
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/341/supertrait-missing-premise.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/supertrait-missing-premise.zil"
         ),
         "trait A:B{}trait B:A{}fn main(){}",
         "trait A:A{}fn main(){}",
@@ -1160,13 +1160,13 @@ fn terminal341_const_module_namespaces_and_forwarding_preserve_actual_binders() 
 fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
     let super_source =
-        include_str!("../../../tests/language-readiness/terminal/341/supertraits.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/supertraits.zil");
     let const_source =
-        include_str!("../../../tests/language-readiness/terminal/341/const-match-shadow.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-match-shadow.zil");
     let impl_source =
-        include_str!("../../../tests/language-readiness/terminal/341/generic-impls.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil");
     let symbolic_source =
-        include_str!("../../../tests/language-readiness/terminal/341/symbolic-trait-arguments.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil");
     let unit = source(super_source);
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -1219,18 +1219,18 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     native_both(&[("main", impl_source)]);
     native_both(&[("main", symbolic_source)]);
     let associated_source = include_str!(
-        "../../../tests/language-readiness/terminal/341/associated-type-instances.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-instances.zil"
     );
     native_both(&[("main", associated_source)]);
     let unsigned_source =
-        include_str!("../../../tests/language-readiness/terminal/341/const-unsigned.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil");
     let ct_source = include_str!(
-        "../../../tests/language-readiness/terminal/341/ct-generics-reflection-syntax.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/ct-generics-reflection-syntax.zil"
     );
     let associated_constants_source =
-        include_str!("../../../tests/language-readiness/terminal/341/associated-constants.zil");
+        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil");
     let computed_constants_source = include_str!(
-        "../../../tests/language-readiness/terminal/341/associated-constant-computed.zil"
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-computed.zil"
     );
     for text in [
         unsigned_source,
@@ -1411,7 +1411,7 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
     native_both(&[(
         "main",
         include_str!(
-            "../../../tests/language-readiness/terminal/341/generic-impl-trait-instances.zil"
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-trait-instances.zil"
         ),
     )]);
     native_both(&[
@@ -1529,24 +1529,24 @@ fn terminal341_supertrait_wire_native_and_const_shadow_budgets() {
         (
             "generic-method-substitution-growth",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/generic-method-substitution-growth.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-substitution-growth.zil"
             ),
         ),
         (
             "generic-method-const-growth",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/generic-method-const-growth.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-const-growth.zil"
             ),
         ),
         (
             "generic-method-no-outer",
             include_str!(
-                "../../../tests/language-readiness/terminal/341/generic-method-no-outer.zil"
+                "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-no-outer.zil"
             ),
         ),
         (
             "generic-methods",
-            include_str!("../../../tests/language-readiness/terminal/341/generic-methods.zil"),
+            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
         ),
     ] {
         let unit = source(text);
@@ -1896,7 +1896,7 @@ fn trait336_original_global_function_value_reaches_both_native_backends() {
     native_both(&[(
         "main",
         include_str!(
-            "../../../tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil"
+            "../../../tests/language-readiness/function-pointer-gaps/default-global-fnptr-known-incomplete.zil"
         ),
     )]);
 }
@@ -1906,16 +1906,16 @@ fn trait336_private_function_values_keep_trait_module_and_full_signature() {
     native_both(&[
         (
             "main",
-            include_str!("../../../tests/language-readiness/followup336/private-fnptr/main.zil"),
+            include_str!("../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/main.zil"),
         ),
         (
             "rules",
-            include_str!("../../../tests/language-readiness/followup336/private-fnptr/rules.zil"),
+            include_str!("../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/rules.zil"),
         ),
         (
             "component",
             include_str!(
-                "../../../tests/language-readiness/followup336/private-fnptr/component.zil"
+                "../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/component.zil"
             ),
         ),
     ]);
@@ -1925,7 +1925,7 @@ fn trait336_private_function_values_keep_trait_module_and_full_signature() {
 fn trait336_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() {
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/followup336/local-shadow.zil"),
+        include_str!("../../../tests/language-readiness/function-pointer-shadowing/local-shadow.zil"),
     )]);
 }
 
@@ -2131,7 +2131,7 @@ fn trait336_cached_default_values_recheck_the_actual_global_signature() {
 fn trait336_default_function_value_request_budgets_are_exact_across_cache_replay() {
     use zil_driver::CompilationSession;
     let unit = source(include_str!(
-        "../../../tests/language-readiness/followup334/default-global-fnptr-known-incomplete.zil"
+        "../../../tests/language-readiness/function-pointer-gaps/default-global-fnptr-known-incomplete.zil"
     ));
     for ledger in ["work", "nodes", "functions"] {
         let mut low = 1;
@@ -3176,5 +3176,5 @@ fn trait_bound_scans_obey_actual_work_budget() {
     assert_eq!(errors[0].category, ResultCategory::ResourceLimit);
 }
 
-#[path = "../../../tests/language-readiness/G2.4.1/stdlib.rs"]
+#[path = "../../../tests/language-readiness/borrowed-interface-flow/stdlib.rs"]
 mod trait_shared_lending_stdlib;

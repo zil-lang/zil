@@ -52,7 +52,7 @@ fn project(main: &str) -> Temp {
     )
     .unwrap();
     fs::copy(
-        root().join("benches/rust-parity/109/original/buffer/zil/io.zil"),
+        root().join("benches/rust-parity/mapped-comparison/original/buffer/zil/io.zil"),
         temp.0.join("io.zil"),
     )
     .unwrap();
@@ -178,7 +178,7 @@ fn empty_and_interior_mutable_windows_leave_outside_bytes_unchanged() {
 
 #[test]
 fn mapped_multimodule_consumer_preserves_binary_io_and_vector_tails() {
-    let source = root().join("benches/rust-parity/109/mapped/buffer/zil");
+    let source = root().join("benches/rust-parity/mapped-comparison/mapped/buffer/zil");
     assert_eq!(
         fs::read(source.join("sequence.zil")).unwrap(),
         fs::read(root().join("examples/mainline/byte_buffer/sequence.zil")).unwrap()

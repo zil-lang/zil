@@ -81,7 +81,7 @@ fn native(text: &str, expected: Option<i64>) -> String {
 #[test]
 fn aggregates_ct_recursive_borrow_and_last_use_compose() {
     let llvm = native(
-        include_str!("../../../examples/impl031/main.zil"),
+        include_str!("../../../examples/array-borrow-relay/main.zil"),
         Some(61008),
     );
     assert!(llvm.contains("define ptr"));

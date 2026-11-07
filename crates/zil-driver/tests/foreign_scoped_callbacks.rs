@@ -169,7 +169,7 @@ fn compile(temporary: &Temp, optimization: Optimization, entry: &str) -> PathBuf
         optimization,
         &project(entry),
         &fixtures().join("driver.c"),
-        &root().join("tools/language/173/allocator_probe.c"),
+        &root().join("tools/language/composed-store-closures/allocator_probe.c"),
     )
 }
 fn compile_native(

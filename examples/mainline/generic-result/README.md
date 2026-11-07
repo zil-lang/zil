@@ -14,7 +14,7 @@ observable. No same-layout or user trait claim supplies Store eligibility.
 
 Input bytes `0` through `4` select success, first factory error, second factory
 error, caller error, and discard-before-extraction. Byte `9` exits before any
-resource is created. `tools/language/186/consumer.py` declares exact outputs and
+resource is created. `tools/language/generic-store-success-unions/consumer.py` declares exact outputs and
 real allocator-failure expectations before executing either platform.
 
 The compiler remains a bounded implementation: arbitrary owning Sum nesting,

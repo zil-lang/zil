@@ -2778,7 +2778,7 @@ mod tests {
     mod fixture {
         include!(concat!(
             env!("CARGO_MANIFEST_DIR"),
-            "/../../tests/language-readiness/terminal/342/stored_flow_fixture.rs"
+            "/../../tests/language-readiness/terminal/higher-rank-borrows/stored_flow_fixture.rs"
         ));
     }
     // These fixtures have one straight-line block. The candidate supplies only

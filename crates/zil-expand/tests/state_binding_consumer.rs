@@ -6,23 +6,23 @@ fn five_modules_preserve_two_declared_roots_through_ordinary_helpers() {
     let entries = [
         (
             "main",
-            include_str!("../../../examples/mainline/state_bindings203/main.zil"),
+            include_str!("../../../examples/mainline/state-bindings/main.zil"),
         ),
         (
             "factory",
-            include_str!("../../../examples/mainline/state_bindings203/factory.zil"),
+            include_str!("../../../examples/mainline/state-bindings/factory.zil"),
         ),
         (
             "state",
-            include_str!("../../../examples/mainline/state_bindings203/state.zil"),
+            include_str!("../../../examples/mainline/state-bindings/state.zil"),
         ),
         (
             "portable",
-            include_str!("../../../examples/mainline/state_bindings203/portable.zil"),
+            include_str!("../../../examples/mainline/state-bindings/portable.zil"),
         ),
         (
             "store_helpers",
-            include_str!("../../../examples/mainline/state_bindings203/store_helpers.zil"),
+            include_str!("../../../examples/mainline/state-bindings/store_helpers.zil"),
         ),
     ];
     let sources = entries

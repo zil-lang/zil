@@ -7,7 +7,7 @@ use zil_ir::{CoreProgram, TypedModule};
 
 // Historical encoders remain archived byte-for-byte. The independent Vec
 // reference emits current V35 and can also reproduce representable V31 identities.
-#[path = "../../zil-ir/tests/support/cp34_reference_v34.rs"]
+#[path = "../../zil-ir/tests/support/identity_reference_v34.rs"]
 mod legacy;
 
 fn check_identity_and_verify(module: TypedModule) {

@@ -47,7 +47,7 @@
     "worktree_start": "Clean",
     "worktree_end": "Clean",
     "sha256": "15bd3dc8cec04668c84d7bb4ca6f9ae4518ffc8320e2f90eceeb613e2b9d0746",
-    "native_command_template": "zil build tests/language-readiness/mutable337/forward.zil --entry result --backend BACKEND --opt OPT -o OUTPUT --json",
+    "native_command_template": "zil build tests/language-readiness/mutable-capture-regressions/forward.zil --entry result --backend BACKEND --opt OPT -o OUTPUT --json",
     "source_sha256": "4c0523b4a8c4d46c5482c7daa556e98d04a3ed9483e3283ee497d74822d4937d",
     "observations": [
       {"backend": "clang", "optimization": "O0", "fallback": null, "status": "Success", "stdout": "42\n", "exit": 0},

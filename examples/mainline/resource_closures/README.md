@@ -8,7 +8,7 @@ mkdir -p out
 ./target/debug/zil build examples/mainline/resource_closures/main.zil -o out/resource-closures --emit-dir out/resource-closure-stages
 printf O | ./out/resource-closures
 printf 2 | ./out/resource-closures
-cargo test --offline --locked -p zil-driver --test impl053
+cargo test --offline --locked -p zil-driver --test resource_closure_lifecycle
 ```
 
 输出字符来自实际析构，均没有末尾换行。输入读取一个字节；以下是受测协议。

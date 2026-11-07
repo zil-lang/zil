@@ -403,7 +403,7 @@ Analyze与Verify分别按实际SSA/Local及子树叶位置重建每个Managed叶
 
 普通拥有准入与共享Product、StoreElement、closure capture、拥有数组及Sum准入明确分开。新的含Store递归Product不因本片自动进入这些位置；已支持的旧平坦State/Store/capture资格保持。复用既有Package、Managed<OwnedStore<T>>、实际字段指令与布局，不增加本片专用权限位；随227发布的Wire28不授予额外资格。新遍历/布局/复制预费，默认额度及既有无新组合的逻辑费用保持。支持范围须经原样近邻反例、raw/Wire和O0/O2真实失败清理验证。
 
-#### 8.1.3.2 POD／标量 Store 的普通拥有组合（G9.3.5）
+#### 8.1.3.2 POD／标量 Store 的普通拥有组合（owned scalar Store）
 
 §8.2.5 已准入的九种标量和完整 POD Record Store 可进入普通完整 Package 及其嵌套 Product、Tuple、Enum、ErrorUnion 拥有位置，并进入自含具体 Fn/FnMut/FnOnce 的显式 move 捕获。直接资源位置的责任仍为 Managed；独立普通资源参数仍为 Desc，描述别名不能通过 give 制造第二份管理责任。构造、参数、返回、整值移动、完整字段 take/refill/replace 和同步可变父 helper 采用既有责任与事务规则；深层 child 先完整取出再操作，不据此增加 deep Place。
 
@@ -543,7 +543,7 @@ push/pop/reserve前缀、父窗口、声明序清理、callee先于参数准备�
 
 #### 8.2.5 普通 POD 动态集合元素（G9.3.2）
 
-G9.3.4 接续直接允许既有 Bool/U8/U16/I32/I64/U64/Usize/F32/F64 作为 Store 元素和普通 std.store 的实际类型参数，不要求人为包装 Record。真实类型、目标布局和非零 stride 分别核验；等布局的 u64/usize 仍为不同类型。完整 push/pop 错误结果和 Copy 值协议、容量失败保持、共享/独占 whole-Store 父窗口及单次释放与本节 Record 规则相同。StoreElement 不因此授予泛型 Copy/拥有权限；Unit/零 stride、独立 Array/Tuple/Enum、外部句柄、引用、callable 或一般拥有新家族不由此开放。Types、Analyze、Verify 和机器计划都独立消费同一完整元素与实际指令，不回退小值路径规避核验。
+scalar Store 接续直接允许既有 Bool/U8/U16/I32/I64/U64/Usize/F32/F64 作为 Store 元素和普通 std.store 的实际类型参数，不要求人为包装 Record。真实类型、目标布局和非零 stride 分别核验；等布局的 u64/usize 仍为不同类型。完整 push/pop 错误结果和 Copy 值协议、容量失败保持、共享/独占 whole-Store 父窗口及单次释放与本节 Record 规则相同。StoreElement 不因此授予泛型 Copy/拥有权限；Unit/零 stride、独立 Array/Tuple/Enum、外部句柄、引用、callable 或一般拥有新家族不由此开放。Types、Analyze、Verify 和机器计划都独立消费同一完整元素与实际指令，不回退小值路径规避核验。
 
 
 StoreElement在既有拥有Package族之外，接受完整有限且总布局非零的普通Record。递归字段只含Unit、Bool、U8/U16/I32/I64/U64/Usize/F32/F64、Record、Tuple、Array；按真实目标布局核大小、对齐、溢出及i64::MAX界限。嵌套零大小字段合法，但零长数组也须检查所有叶类型。既有LLVM聚合内部Unit字段、Tuple成员及Array元素为空结构（size0/align1），空Record/Tuple同为零大小；独立布局保留原padding及这些规则，不能混用闭包捕获的Unit占位表示，也不改变旧ABI。总零大小、Enum/ErrorUnion、Address/Desc/Managed、callable/function/foreign/handle、OwnedStore/BorrowedStorage叶均不因Copy而放行。字段身份、顺序与完整名义类型不得擦除。
@@ -1117,7 +1117,7 @@ impl Measure for Point {
 
 `object.method(args)` 降为关联函数调用，receiver 求值一次且先于普通参数。只在已确定的 receiver 类型允许时自动产生短地址借入；不尝试多种权限直到安全检查成功。冲突 trait 候选使用显式 `Trait.method(receiver, args)` 指定，未消歧时报名字错误。
 
-G2.4.2 接续：普通静态 trait 的无接收者关联函数按既有 type-only 方法参数、where、普通值参数及结果规则调用，包含 Self 与当前支持的关联替换。具体类型宿主须选择唯一实际 impl/provider；符号类型宿主须具有当前词法作用域中的精确 trait bound。值绑定优先，类型宿主不求值为运行时对象，实参从左到右各求值一次。定义和未用泛型体保留完整义务、可见性与来源检查，trait bound 不额外授予 Copy/拥有/借用权限；不增加方法 life/const、默认体、dyn 或新 impl 家族。
+static associated method 接续：普通静态 trait 的无接收者关联函数按既有 type-only 方法参数、where、普通值参数及结果规则调用，包含 Self 与当前支持的关联替换。具体类型宿主须选择唯一实际 impl/provider；符号类型宿主须具有当前词法作用域中的精确 trait bound。值绑定优先，类型宿主不求值为运行时对象，实参从左到右各求值一次。定义和未用泛型体保留完整义务、可见性与来源检查，trait bound 不额外授予 Copy/拥有/借用权限；不增加方法 life/const、默认体、dyn 或新 impl 家族。
 
 `Type.method` 是含显式首参数的无绑定函数项；`object.method` 若指方法本身而非数据字段则拒绝取值。绑定回调显式写 `(args) => object.method(args)`，让捕获、存储和逃逸使用同一套闭包规则。具名 callable 字段可以普通取值。同一名义类型的固有字段与固有方法禁止重名，所有 impl 合并后检查；若字段与已导入 trait 方法同名，点号先解析现有字段，调用非 callable 字段会报类型错误，不回退 trait。调用该 trait 方法使用 `Trait.method(object, args)`；多个 trait 候选冲突也需显式路径。
 
@@ -1350,7 +1350,7 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 
 未标注返回的有正文函数继续按已有真实来源推导，不因多输入机械误拒。未声明/重复 binder 与错误来源拒绝；未实现的混合类型/可调用泛型、FP/HRTB、where life 偏序、借用存储位置及 trait lending 保持显式 Unsupported，不能擦除标注放行。Self正规化、跨模块、CT/生成后的重建保留相同声明与实际索引。Core保存原binder及参数映射，Types产生未核返回参数上界；Analyze与Verify各自从真实CFG重建并检查，不能共享证明。上界入Typed/Wire/指纹和接口签名；对调用方仍发布独立核得的实际来源，正文变化沿现有依赖失效。新元数据在复制或扩张前计费，默认额度不变；无life路径保持旧语义。该profile不授权可变存储缩短借期或空trait制造权限。
 
-普通trait逐调用lending方法（G2.4.1）：在静态名义trait中，方法可声明仅含life的局部binder，以真实共享或可变接收者和既有地址输入约束直接共享地址或内建Option共享地址结果；referent须为既有Copy类型或声明Copy的普通关联类型。每次调用按实际参数重新实例化来源，方法局部life不与环境固定依赖或其他声明同名life合并。impl可按序alpha改名，但完整参数/结果关系、接收者模式、关联替换、trait/provider身份、所属及可见性必须一致。未调用定义及符号泛型消费者仍核定义期义务，不能由一次具体实例补证。结果从可变接收者借出时保留真实父loan直到最后使用；相交再次调用、移动和覆盖拒绝，最后使用后及不同真实根仍许可。Types记录关系，Analyze与Verify各自从完整实际CFG核验允许来源及调用窗口；复用已有StorageLifeContract及内建Option资格，不以标注授予来源。有限入口包括普通无类型参数trait、具体名义impl和既有仅type参数名义impl，不因此开放GAT、trait/impl life参数、新默认体权限、可变或fat Option载荷、dyn及异步。新增身份/关系比较、替换、克隆和队列在增长前预付当前请求，既有无此路径费用及默认额度保持。
+普通trait逐调用lending方法（trait shared lending）：在静态名义trait中，方法可声明仅含life的局部binder，以真实共享或可变接收者和既有地址输入约束直接共享地址或内建Option共享地址结果；referent须为既有Copy类型或声明Copy的普通关联类型。每次调用按实际参数重新实例化来源，方法局部life不与环境固定依赖或其他声明同名life合并。impl可按序alpha改名，但完整参数/结果关系、接收者模式、关联替换、trait/provider身份、所属及可见性必须一致。未调用定义及符号泛型消费者仍核定义期义务，不能由一次具体实例补证。结果从可变接收者借出时保留真实父loan直到最后使用；相交再次调用、移动和覆盖拒绝，最后使用后及不同真实根仍许可。Types记录关系，Analyze与Verify各自从完整实际CFG核验允许来源及调用窗口；复用已有StorageLifeContract及内建Option资格，不以标注授予来源。有限入口包括普通无类型参数trait、具体名义impl和既有仅type参数名义impl，不因此开放GAT、trait/impl life参数、新默认体权限、可变或fat Option载荷、dyn及异步。新增身份/关系比较、替换、克隆和队列在增长前预付当前请求，既有无此路径费用及默认额度保持。
 
 有限普通类型与life参数组合（331）：普通自由Direct函数可在同一binder中声明一个直接`T:Copy`普通类型参数与若干life参数，次序任意。普通类型实参仅计T，`::<i32>`与实际参数推导等价；具体化只替换T，保留函数自己的life binder及真实参数/返回映射。未使用模板先按声明Copy资格和life来源上界符号检查，不能靠i32等实例补证明；调用处life关系按真实输入位置代换，不把跨函数同拼写标签当作相同对象或关系。type与life词法作用域分别维护，life名字不遮蔽外部类型/别名。实例化、模块、CT重建、接口及缓存保留322合同并继续两核独立CFG核验；合法无life路径保持既有推导语义。首片不开放混合F/StoreElement/const、泛型方法、HRTB/FP、where life/storage或其它新trait lending权限；新增遍历、映射与克隆先费后长且累计现有请求限额。
 
@@ -1443,9 +1443,9 @@ CT6 的 artifact/program/provider/dependency/function/value 版本域和专用�
 
 有限混合拥有State profile（197）：在194的唯一F与唯一直接函数`T:Copy`基础上，允许一个无聚合bound的`package State<T,F>`或`State<F,T>`保存唯一直接callable字段及有限Copy数据，继续满足既有Package资源字段、完整责任与清理规则。State外壳也可提供普通T推导约束；参数求值一次，F身份只由实际环境确定。原始名义声明和完整规范化普通T决定数据族，真实ClosureId决定具体环境；phantom T、不同模块同名或同布局名义类型不能合并，相同实际T的透明别名和不同词法F/G应归一。普通T所有复制、遍历、键构造及字段扫描在原额度中先计费。未调用定义也检查Copy能力；Copy不授予字段、数值或callable操作。State整体不获得Copy，多callback字段、多个环境角色的拥有State、aggregate上的一般bound及动态擦除不由本片开放。192真实sibling字段权限、FnOnce责任和独立Analyze/Verify保持。
 
-有限多角色同步helper profile（196，G3.3.10 接续）：允许请求额度内有限多个直接F、&F或&mut F环境形参，可来自同一callable泛型或多个独立callable参数，普通Copy T沿194规则。每个真实形参位置是独立角色；相同ClosureId仅表示类型/布局，不表示同一运行时实例或apart。相同泛型的角色使用一致bound和传递模式；不同F/G可有各自已核模式。实例键按callable泛型声明顺序包含全部实际ClosureId，不能按角色到达或布局猜类型。角色表按真实形参位置严格排序且唯一，完全覆盖环境参数；一份联合有序Finite/Flow调用语言记录`{parameter, kind}`事件，保留分支相关性、先后顺序及Return/Trap/无返回前缀。各角色独立的计数或轨迹笛卡尔积不能替代联合合同。
+有限多角色同步helper profile（196，closure environment.10 接续）：允许请求额度内有限多个直接F、&F或&mut F环境形参，可来自同一callable泛型或多个独立callable参数，普通Copy T沿194规则。每个真实形参位置是独立角色；相同ClosureId仅表示类型/布局，不表示同一运行时实例或apart。相同泛型的角色使用一致bound和传递模式；不同F/G可有各自已核模式。实例键按callable泛型声明顺序包含全部实际ClosureId，不能按角色到达或布局猜类型。角色表按真实形参位置严格排序且唯一，完全覆盖环境参数；一份联合有序Finite/Flow调用语言记录`{parameter, kind}`事件，保留分支相关性、先后顺序及Return/Trap/无返回前缀。各角色独立的计数或轨迹笛卡尔积不能替代联合合同。
 
-Types、Analyze和Verify分别从实际参数、值/局部传播、CFG及每个静态child调用点的实参替换重建角色事实与联合轨迹；Verify不调用前两阶段求证。每次普通调用按源顺序准备所有实参，并同时检查全部实际窗口；重借或自身窗口豁免只对当前角色成立，不能联合角色权限。写上界、Hold/Call和Owned/Borrowed清理按真实角色环境分别代入；未知或混合来源不能当空集合。有限无回边路径逐角色限制FnOnce至多一次；G3.3.9 接续允许可达回边，各核分别从真实 CFG 重建来源、激活及逐角色责任的不动点。每次动态激活的实际拥有角色只能消费或清理一次；所有正常退出结清剩余责任，回边不能恢复已消费的原参数、复制拥有责任或跳过清理。旧无环成功路径保持原证明；只有独立发现实际环后才进入循环求证，额度失败不重试。队列、状态复制和新增扫描在增长前预费，并限制待处理队列的物理大小。首片多角色限同步不逃逸及Copy结果；多角色lending/拥有State投影、dyn、async与持久保存不由本片开放。所有角色、事件、来源集合、实例键和child替换/队列/复制在分配或扩张前按现有额度收费；默认额度不提高。公共表示变更发布schema/Wire25和新指纹域，旧版本明确拒绝。上述两profile的实际准入完成状态以精确实现和非作者验收为准，登记不等于实现。
+Types、Analyze和Verify分别从实际参数、值/局部传播、CFG及每个静态child调用点的实参替换重建角色事实与联合轨迹；Verify不调用前两阶段求证。每次普通调用按源顺序准备所有实参，并同时检查全部实际窗口；重借或自身窗口豁免只对当前角色成立，不能联合角色权限。写上界、Hold/Call和Owned/Borrowed清理按真实角色环境分别代入；未知或混合来源不能当空集合。有限无回边路径逐角色限制FnOnce至多一次；closure environment.9 接续允许可达回边，各核分别从真实 CFG 重建来源、激活及逐角色责任的不动点。每次动态激活的实际拥有角色只能消费或清理一次；所有正常退出结清剩余责任，回边不能恢复已消费的原参数、复制拥有责任或跳过清理。旧无环成功路径保持原证明；只有独立发现实际环后才进入循环求证，额度失败不重试。队列、状态复制和新增扫描在增长前预费，并限制待处理队列的物理大小。首片多角色限同步不逃逸及Copy结果；多角色lending/拥有State投影、dyn、async与持久保存不由本片开放。所有角色、事件、来源集合、实例键和child替换/队列/复制在分配或扩张前按现有额度收费；默认额度不提高。公共表示变更发布schema/Wire25和新指纹域，旧版本明确拒绝。上述两profile的实际准入完成状态以精确实现和非作者验收为准，登记不等于实现。
 
 
 有限同F双字段拥有State profile（200）：沿197的单callable类型身份，允许一个完整Package保存一或两个直接、自含、同F的callable字段，普通Copy T仍沿194/197规则。唯一F类型绑定不合并两个实际环境值；相同ClosureId的不同字段始终是独立位置与责任。新增拥有构造入口可按值接收至多两个同F且同声明模式的直接实参，返回该完整State；新增双输入入口的其余形参仅限既有有限Copy值或直接Managed值，不引入额外State、Desc或地址参数；既有单输入入口保持原规则；以实际签名、字段与转交行为识别，不依赖函数名。既有单State参数操作保持，首片不由此开放State加replacement F、两个State参数、F/G State或嵌套callable字段。

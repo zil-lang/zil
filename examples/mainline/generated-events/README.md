@@ -15,10 +15,10 @@
 
 ## 运行
 
-先按仓库 `docs/development/toolchain.md` 配置支持的 LLVM 工具链，在仓库根执行：
+先按仓库 `docs/guide/build.md` 配置支持的 LLVM 工具链，在仓库根执行：
 
 ```bash
-cargo test --locked --offline -p zil-driver --features llvm-api --test impl228_consumer
+cargo test --locked --offline -p zil-driver --features llvm-api --test generated_event_consumers
 cargo build --locked --offline -p zil-cli
 mkdir -p out
 "${CARGO_TARGET_DIR:-target}/debug/zil" build examples/mainline/generated-events/combined/main.zil --backend llvm-api --opt O2 -o out/events

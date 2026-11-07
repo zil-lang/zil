@@ -293,27 +293,27 @@ fn frozen_case(name: &str) {
 }
 #[test]
 fn original_q01_flat_control() {
-    frozen_case("01-unit-flat")
+    frozen_case("unit-flat")
 }
 #[test]
 fn original_q02_nested_control() {
-    frozen_case("02-unit-nested-and-owned-error-unit")
+    frozen_case("unit-nested-and-owned-error-unit")
 }
 #[test]
 fn original_q03_store_session_success() {
-    frozen_case("03-unit-store-session")
+    frozen_case("unit-store-session")
 }
 #[test]
 fn original_q04_both_owned_control() {
-    frozen_case("04-both-owned-flat")
+    frozen_case("both-owned-flat")
 }
 #[test]
 fn original_q05_owned_option_success() {
-    frozen_case("05-owned-option-session")
+    frozen_case("owned-option-session")
 }
 #[test]
 fn original_q06_duplicate_consumption_rejects() {
-    frozen_case("06-negative-double-consume")
+    frozen_case("negative-double-consume")
 }
 
 #[test]
@@ -401,7 +401,7 @@ fn five_module_actual_allocator_failures_follow_the_frozen_source_oracle() {
         let probe = out.join("probe");
         let linked = Command::new(&clang)
             .arg(out.join("api.o"))
-            .arg(root().join("tools/language/173/allocator_probe.c"))
+            .arg(root().join("tools/language/composed-store-closures/allocator_probe.c"))
             .args(["-Wl,--wrap=realloc", "-Wl,--wrap=free", "-o"])
             .arg(&probe)
             .output()

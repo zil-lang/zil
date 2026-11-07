@@ -10,7 +10,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-returned-mutable-conflict.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
         "--stop-after",
         "analyze",
         "--json"
@@ -28,7 +28,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-helper-returned-mutable-conflict.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-helper-returned-mutable-conflict.zil",
         "--stop-after",
         "verify",
         "--json"
@@ -51,7 +51,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-raw-helper-return-seed.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
         "--stop-after",
         "analyze",
         "--json"
@@ -69,7 +69,7 @@
       "argv": [
         "/workspace/.zil-env/target339/debug/zil",
         "check",
-        "/workspace/zil-review-batch336-astra/tests/language-readiness/review336-astra/thread-raw-helper-return-seed.zil",
+        "/workspace/zil-review-batch336-astra/tests/language-readiness/thread-life-review/thread-raw-helper-return-seed.zil",
         "--stop-after",
         "verify",
         "--json"

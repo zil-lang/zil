@@ -84,7 +84,7 @@ fn expected(
 
 #[test]
 fn nearest_source_rejections_require_the_actual_mode_origin_or_window_reason() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/impl256");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/callable-instance-forwarding");
     let out = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)

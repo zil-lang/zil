@@ -1468,7 +1468,7 @@ mod source_tests {
     #[test]
     fn g3_4_1_original_slice_iterator_reaches_complete_core() {
         let core = expand_text(include_str!(
-            "../../../tests/language-readiness/terminal/342/slice_iter.zil"
+            "../../../tests/language-readiness/terminal/higher-rank-borrows/slice_iter.zil"
         ))
         .unwrap();
         assert!(

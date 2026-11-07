@@ -1,5 +1,5 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
-#[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_enum_controls.rs"]
+#[path = "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/qualified_enum_controls.rs"]
 mod enum_member_controls_enum_controls;
 #[path = "../../../tests/fixtures/nominal-lifetimes/nominal_controls.rs"]
 mod nominal_member_controls_nominal_controls;
@@ -14,24 +14,24 @@ use zil_driver::{CompileOptions, Stage, compile_source};
 use zil_ir::{InstructionKind, Type};
 static NEXT: AtomicU64 = AtomicU64::new(0);
 
-#[path = "../../../tests/language-readiness/terminal/340/helper_retirement_verify.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/helper_retirement_verify.rs"]
 mod helper_retirement_verify;
-#[path = "../../../tests/language-readiness/terminal/340/helper_retirement.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/helper_retirement.rs"]
 mod terminal340_helper_retirement;
 
-#[path = "../../../tests/language-readiness/terminal/340/enum_replacement_verify.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/enum_replacement_verify.rs"]
 mod enum_replacement_verify;
-#[path = "../../../tests/language-readiness/terminal/340/enum_terminal.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/enum_terminal.rs"]
 mod terminal340_enum_terminal;
 
 #[test]
 fn terminal340_owner_replacement_types_uses_real_tickets() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
         include_str!(
-            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
         ),
     ] {
         let temp = Temp::new();
@@ -60,22 +60,22 @@ fn terminal340_owner_replacement_types_uses_real_tickets() {
 fn terminal340_owner_replacement_analyze_tracks_fresh_and_incoming() {
     for (text, expected) in [
         (
-            include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
             ResultCategory::Success,
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"
             ),
             ResultCategory::Success,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
             ResultCategory::SafeReject,
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
             ),
             ResultCategory::SafeReject,
         ),
@@ -94,7 +94,7 @@ fn terminal340_owner_replacement_analyze_tracks_fresh_and_incoming() {
 #[test]
 fn terminal340_owner_replacement_preparation_abort_and_pin_neighbors() {
     let failed_rhs =
-        include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil");
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil");
     let temp = Temp::new();
     let report = compile_source(
         &source(failed_rhs),
@@ -212,27 +212,27 @@ fn terminal340_owner_replacement_wide_long_names_budget() {
 fn terminal340_owner_replacement_independent_verify_source() {
     for (text, expected) in [
         (
-            include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
             ResultCategory::Success,
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"
             ),
             ResultCategory::Success,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
             ResultCategory::SafeReject,
         ),
         (
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
             ),
             ResultCategory::SafeReject,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"),
             ResultCategory::Success,
         ),
     ] {
@@ -244,15 +244,15 @@ fn terminal340_owner_replacement_independent_verify_source() {
 #[test]
 fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/340/replace-captured-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"),
     ] {
         review329_native_output(&[("main", text)], b"AB42\n");
     }
     review329_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/replace-failure.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"),
         )],
         b"A42\n",
     );
@@ -260,18 +260,18 @@ fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
         &[(
             "main",
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-prepared-failure.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-prepared-failure.zil"
             ),
         )],
         b"BA42\n",
     );
-    let read_old = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+    let read_old = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil")
         .replace("R{code:66}", "R{code:target.owner.code+1}");
     review329_native_output(&[("main", &read_old)], b"AB42\n");
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/340/replace-incoming.zil"),
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
         include_str!(
-            "../../../tests/language-readiness/terminal/340/replace-captured-incoming.zil"
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
         ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -287,7 +287,7 @@ fn terminal340_owner_replacement_preserves_freshness_and_real_cleanup() {
 #[test]
 fn terminal340_owner_replacement_error_arm_content_and_raw_neighbors() {
     let text =
-        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arms.zil");
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arms.zil");
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -507,7 +507,7 @@ fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
     }
     // Preserve all producer claims while changing the actual staged debt from
     // Created to Incoming. Verify must derive the transfer through both calls.
-    let text = include_str!("../../../tests/language-readiness/terminal/340/replace-fresh.zil")
+    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil")
         .replace("fn make()", "fn make(give incoming:R)")
         .replace(
             "relay(&mut packet)",
@@ -552,7 +552,7 @@ fn terminal340_owner_replacement_raw_wire_and_real_parent_pin() {
 #[test]
 fn terminal340_captured_owning_base_native() {
     let original = include_str!(
-        "../../../tests/language-readiness/terminal/340/captured-owning-base-open.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-base-open.zil"
     );
     let report = compile_source(&source(original), &CompileOptions::default());
     assert_eq!(
@@ -568,7 +568,7 @@ fn terminal340_captured_owning_base_native() {
         report.to_json()
     );
     let legal =
-        include_str!("../../../tests/language-readiness/terminal/340/captured-owning-base.zil");
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-base.zil");
     assert_eq!(legal, original.replace("let f=", "var f="));
     review329_native_output(&[("main", legal)], b"A42\n");
 }
@@ -704,7 +704,7 @@ fn terminal340_captured_owning_callable_parameter_boundary() {
 }
 
 fn terminal340_captured_slots_source() -> &'static str {
-    include_str!("../../../tests/language-readiness/terminal/340/captured-owning-result.zil")
+    include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-result.zil")
 }
 
 #[test]
@@ -945,7 +945,7 @@ fn terminal340_error_arm_owned_and_borrowed_native() {
     review329_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/error-arms.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/error-arms.zil"),
         )],
         b"AXBX42\n",
     );
@@ -1102,7 +1102,7 @@ fn terminal340_error_arm_equal_type_raw_wire_and_native() {
 fn terminal340_error_arm_budget_fresh_and_warm() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/error-arms.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/error-arms.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -1222,7 +1222,7 @@ fn terminal340_fnptr_record_enum_result_inference() {
         &typed
     );
 
-    let original = include_str!("../../../tests/language-readiness/batch336/component.zil");
+    let original = include_str!("../../../tests/language-readiness/component-replay/component.zil");
     let report = compile_source(&source(original), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -1234,7 +1234,7 @@ fn terminal340_fnptr_record_enum_result_inference() {
 
 #[test]
 fn terminal340_unsigned_native_and_ct() {
-    let text = include_str!("../../../tests/language-readiness/terminal/340/unsigned.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/unsigned.zil");
     review329_native(&[("main", text)], 42);
     for text in [
         "fn result()->i32{let x:u64=18446744073709551616u64;return 0}",
@@ -1320,7 +1320,7 @@ fn terminal340_unsigned_target_width_raw_wire_and_type_ct() {
 fn terminal340_unsigned_budget_boundaries() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/unsigned.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/unsigned.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -1361,7 +1361,7 @@ fn terminal340_unsigned_budget_boundaries() {
 fn terminal340_option_budget_boundaries() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/option.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/option.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -1415,7 +1415,7 @@ fn terminal340_option_source_identity_and_negative_neighbors() {
     review329_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/option.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/option.zil"),
         )],
         42,
     );
@@ -1500,7 +1500,7 @@ fn terminal340_reference_places_native() {
     review329_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/reference.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/reference.zil"),
         )],
         42,
     );
@@ -1605,7 +1605,7 @@ fn terminal340_reference_conflicts_and_raw_tag_neighbors() {
 fn terminal340_reference_budget_boundaries() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/reference.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/reference.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -1995,7 +1995,7 @@ fn terminal340_addressed_tag_child_mutation_epoch() {
 #[test]
 fn terminal340_addressed_budget_boundaries() {
     use zil_driver::CompilationSession;
-    let text = include_str!("../../../tests/language-readiness/terminal/340/addressed.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/addressed.zil");
     review329_native(&[("main", text)], 42);
     let input = source(text);
     let options = |work| CompileOptions {
@@ -2221,7 +2221,7 @@ fn terminal340_owned_tuple_complete_transfers() {
     review329_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/owned-tuples.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/owned-tuples.zil"),
         )],
         b"A42\n",
     );
@@ -2298,7 +2298,7 @@ fn terminal340_owned_tuple_authority_neighbors() {
 fn terminal340_owned_tuple_budget_boundaries() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/owned-tuples.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/owned-tuples.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -2341,7 +2341,7 @@ fn terminal340_selective_mixed_patterns_native() {
     review329_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/340/mixed.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed.zil"),
         )],
         b"BAC42\n",
     );
@@ -2622,7 +2622,7 @@ fn terminal340_actual_mixed_address_observation_budget() {
     for (lane, text) in [
         (
             "mixed",
-            include_str!("../../../tests/language-readiness/terminal/340/mixed-address.zil"),
+            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil"),
         ),
         (
             "legacy",
@@ -2751,7 +2751,7 @@ fn terminal340_actual_mixed_address_returns_and_captures() {
 #[test]
 fn terminal340_actual_mixed_address_native_and_raw() {
     use zil_ir::PlaceProjection;
-    let text = include_str!("../../../tests/language-readiness/terminal/340/mixed-address.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil");
     review329_native_output(&[("main", text)], b"A42\n");
     let input = source(text);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
@@ -3257,7 +3257,7 @@ fn terminal340_copy_error_union_mutation_epoch() {
 fn terminal340_actual_mixed_address_budget() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/mixed-address.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -3303,7 +3303,7 @@ fn terminal340_actual_mixed_address_budget() {
 fn terminal340_selective_long_prefix_budget() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/mixed-long-prefix.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-long-prefix.zil"
     ));
     let options = |work| CompileOptions {
         limits: Limits {
@@ -4563,7 +4563,7 @@ fn review318_tuple_defer_capture_and_scoped_initialization() {
 #[test]
 fn review318_original_generic_gap_and_mixed_copy_record_obligations() {
     native(
-        include_str!("../../../tests/language-readiness/recovery/review318-generic-tuple-gap.zil"),
+        include_str!("../../../tests/language-readiness/recovery/generic-tuple-gap.zil"),
         Some(42),
     );
     let valid = "struct Pair<T:Copy,U>{first:T;second:U}fn hidden<T:Copy,U:Copy>(p:Pair<T,U>)->Pair<T,U>{let(x,_)=(p,());return x}fn result()->i32{return 0}";
@@ -6082,11 +6082,11 @@ fn large_copy_enum_error_default_stack_api_reliability() {
         "../../../tests/language-readiness/codegen-pending/large-copy-enum-error-borrow-capture.zil"
     );
     const DEEP: &[&str] = &[
-        include_str!("../../../tests/language-readiness/terminal/344/depth20.zil"),
-        include_str!("../../../tests/language-readiness/terminal/344/depth32.zil"),
-        include_str!("../../../tests/language-readiness/terminal/344/projection32.zil"),
-        include_str!("../../../tests/language-readiness/terminal/344/depth48.zil"),
-        include_str!("../../../tests/language-readiness/terminal/344/projection48.zil"),
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth20.zil"),
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth32.zil"),
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/projection32.zil"),
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth48.zil"),
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/projection48.zil"),
     ];
     if let Ok(profile) = std::env::var("ZIL_344_STACK_CHILD") {
         // No stack_size override: Linux Rust worker threads use the default
@@ -6275,14 +6275,14 @@ fn large_copy_enum_error_default_stack_api_reliability() {
 #[test]
 fn ieee_float_source_ct_and_native_agree() {
     let text =
-        include_str!("../../../tests/language-readiness/terminal/344/floats/ieee-native.zil");
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/floats/ieee-native.zil");
     review329_native(&[("main", text)], 344);
 }
 
 #[test]
 fn ieee_float_c_scalar_and_borrowed_pod_abi() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/344/floats/c-abi.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/floats/c-abi.zil"
     ));
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &syntax).unwrap();
@@ -6331,7 +6331,7 @@ fn ieee_float_artifact_ct_reification_preserves_ieee_values() {
     review329_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/344/floats/ct-artifact.zil"),
+            include_str!("../../../tests/language-readiness/terminal/constraint-budgets/floats/ct-artifact.zil"),
         )],
         344,
     );
@@ -6343,7 +6343,7 @@ fn ieee_float_aggregate_closure_and_function_pointer_are_native() {
         &[(
             "main",
             include_str!(
-                "../../../tests/language-readiness/terminal/344/floats/aggregate-closure.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/floats/aggregate-closure.zil"
             ),
         )],
         344,
@@ -6606,7 +6606,7 @@ fn ieee_float_unsigned_boundaries_are_ct_and_native() {
         &[(
             "main",
             include_str!(
-                "../../../tests/language-readiness/terminal/344/floats/unsigned-boundaries.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/floats/unsigned-boundaries.zil"
             ),
         )],
         344,
@@ -6689,20 +6689,20 @@ fn ieee_float_usize_conversions_use_target_width_in_both_ct_vms() {
 
 #[test]
 fn anonymous_sum_source_and_native() {
-    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/basic.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/basic.zil");
     review329_native(&[("main", text)], 42);
 }
 
 #[test]
 fn anonymous_sum_aliases_generic_copy_and_full_member_identity() {
-    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/aliases.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/aliases.zil");
     review329_native(&[("main", text)], 42);
 }
 
 #[test]
 fn anonymous_sum_ct_type_order_and_value_reification() {
     let text =
-        include_str!("../../../tests/language-readiness/terminal/344/anonymous/ct-types.zil");
+        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-types.zil");
     review329_native(&[("main", text)], 42);
 }
 
@@ -6734,7 +6734,7 @@ fn anonymous_sum_rejects_duplicate_inexact_and_incomplete_source() {
 #[test]
 fn anonymous_sum_raw_canonical_shape_and_wire_are_independently_checked() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/basic.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/basic.zil"
     ));
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &syntax).unwrap();
@@ -6792,7 +6792,7 @@ fn anonymous_sum_raw_canonical_shape_and_wire_are_independently_checked() {
 
 #[test]
 fn anonymous_sum_nominal_phantom_arguments_stay_distinct_across_ct_and_runtime() {
-    let text = include_str!("../../../tests/language-readiness/terminal/344/anonymous/phantom.zil");
+    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/phantom.zil");
     review329_native(&[("main", text)], 42);
     let swapped = text.replace(
         "type Integer=Phantom<i32>;\ntype Boolean=Phantom<bool>;",
@@ -6823,7 +6823,7 @@ fn anonymous_sum_imported_member_aliases() {
 fn anonymous_sum_budget_boundary_is_request_local() {
     use zil_driver::CompilationSession;
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-types.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-types.zil"
     ));
     let options = |n| CompileOptions {
         limits: Limits {
@@ -6890,7 +6890,7 @@ fn anonymous_sum_float_unsigned_nested_generic_enum_layout() {
     review329_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/344/anonymous/float-enum.zil"),
+            include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/float-enum.zil"),
         )],
         42,
     );
@@ -6900,7 +6900,7 @@ fn anonymous_sum_float_unsigned_nested_generic_enum_layout() {
 fn anonymous_sum_generic_long_prefix_key_budget_is_request_local() {
     use zil_driver::CompilationSession;
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/generic-key-prefix.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/generic-key-prefix.zil"
     );
     review329_native(&[("main", text)], 42);
     let input = source(text);
@@ -7063,7 +7063,7 @@ fn nested_calls_reach_verify_or_resource_limit_on_default_worker_stack() {
 #[test]
 fn ct3_anonymous_artifact_value_source_bridge() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/artifact-values.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/artifact-values.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     eprintln!("{}", report.to_json());
@@ -7078,7 +7078,7 @@ fn ct3_anonymous_artifact_value_source_bridge() {
 #[test]
 fn ct3_enum_match_checks_actual_owner_source() {
     let legal = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-enum-owner-legal.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-enum-owner-legal.zil"
     );
     let report = compile_source(&source(legal), &CompileOptions::default());
     assert_eq!(
@@ -7109,7 +7109,7 @@ fn ct3_enum_match_checks_actual_owner_source() {
 #[test]
 fn ct4_fixed_phantom_context_source_bridge() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7121,10 +7121,10 @@ fn ct4_fixed_phantom_context_source_bridge() {
     review329_native_entry_output(&[("main", text)], "main", b"42\n");
     for extra in [
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-joint-context.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-generic-context.zil"
         ),
     ] {
         let report = compile_source(&source(extra), &CompileOptions::default());
@@ -7137,7 +7137,7 @@ fn ct4_fixed_phantom_context_source_bridge() {
         review329_native_entry_output(&[("main", extra)], "main", b"42\n");
     }
     let joint = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-joint-context.zil"
     );
     let wrong = joint.replace("Pair::<'a,'b>", "Pair::<'a,'a>");
     let report = compile_source(&source(&wrong), &CompileOptions::default());
@@ -7156,7 +7156,7 @@ fn ct4_fixed_phantom_context_source_bridge() {
         report.to_json()
     );
     let escape = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context-escape.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context-escape.zil"
     );
     let report = compile_source(&source(escape), &CompileOptions::default());
     assert_eq!(
@@ -7170,7 +7170,7 @@ fn ct4_fixed_phantom_context_source_bridge() {
 #[test]
 fn ct4_mixed_nominal_context_preserves_full_source_ordinals() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-mixed-context.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7195,13 +7195,13 @@ fn ct4_phantom_source_work_neighbors_remain_checked_after_cache_reuse() {
     use zil_driver::CompilationSession;
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-generic-context.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-mixed-context.zil"
         ),
     ] {
         let input = source(text);
@@ -7254,16 +7254,16 @@ fn ct4_phantom_source_default_worker_subprocess() {
     if std::env::var_os(CHILD).is_some() {
         for text in [
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-fixed-context.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-fixed-context.zil"
             ),
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-joint-context.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-joint-context.zil"
             ),
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-generic-context.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-generic-context.zil"
             ),
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-mixed-context.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-mixed-context.zil"
             ),
         ] {
             let report = compile_source(&source(text), &CompileOptions::default());
@@ -7300,7 +7300,7 @@ fn ct4_phantom_source_default_worker_subprocess() {
 fn ct5_invocation_scoped_nominal_metadata_reaches_native() {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct4-phantom-invocation-metadata.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct4-phantom-invocation-metadata.zil"
     );
     let outcome = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7373,7 +7373,7 @@ fn ct3_phantom_callable_metadata_stays_separate_from_data() {
         "../../../tests/language-readiness/codegen-pending/ct3-phantom-fn-metadata.zil"
     );
     let borrowed = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-metadata.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/phantom-bfp-metadata.zil"
     );
     for (text, expected) in [(function, 7), (borrowed, 42)] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -7401,7 +7401,7 @@ fn ct3_phantom_callable_metadata_stays_separate_from_data() {
 #[test]
 fn ct3_generic_enum_values_retain_complete_owner_and_active_payload() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-enum-values.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-generic-enum-values.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7416,7 +7416,7 @@ fn ct3_generic_enum_values_retain_complete_owner_and_active_payload() {
 #[test]
 fn ct3_generic_callable_arguments_infer_and_reify_full_type_metadata() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-generic-callable-arguments.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-generic-callable-arguments.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7439,7 +7439,7 @@ fn ct3_generic_callable_arguments_infer_and_reify_full_type_metadata() {
 #[test]
 fn ct3_nominal_arguments_keep_ordered_type_and_scalar_identity() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-scalar-nominal-arguments.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-scalar-nominal-arguments.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7469,7 +7469,7 @@ fn ct3_nominal_arguments_keep_ordered_type_and_scalar_identity() {
 #[test]
 fn ct3_composite_callable_metadata_does_not_construct_pointer_data() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-composite-callable-metadata.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-composite-callable-metadata.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7492,7 +7492,7 @@ fn ct3_composite_callable_metadata_does_not_construct_pointer_data() {
 #[test]
 fn ct3_callable_metadata_alpha_order_and_free_life_boundaries() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/phantom-bfp-alpha.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/phantom-bfp-alpha.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7522,7 +7522,7 @@ fn ct3_callable_metadata_alpha_order_and_free_life_boundaries() {
 #[test]
 fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct-member-order-permutation.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-member-order-permutation.zil"
     );
     let reordered = text.replace(
         "struct Z{value:i32}\nstruct A{value:i32}",
@@ -7543,7 +7543,7 @@ fn ct3_member_tag_is_remapped_by_full_type_across_stage_order() {
 #[test]
 fn ct5_phantom_context_query_reaches_native() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-phantom-context-query.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-phantom-context-query.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7558,7 +7558,7 @@ fn ct5_phantom_context_query_reaches_native() {
 #[test]
 fn ct5_member_own_life_context_reaches_native() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-member-context.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -7607,7 +7607,7 @@ fn ct5_member_own_life_context_reaches_native() {
     }
     eprintln!("static member member source whole analysis N={low}/N-1/warm/fresh");
     let generated = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-generated-member.zil"
     );
     let report = compile_source(&source(generated), &CompileOptions::default());
     assert_eq!(
@@ -7755,7 +7755,7 @@ fn main()->i32{let n=0;let m=0;return result(&n,&m)}
 #[test]
 fn mixed_compile_time_actual_mixed_ct_phantom_call_actuals() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-instance-values.zil"
     );
     let permuted = text
         .replace(
@@ -7778,7 +7778,7 @@ fn mixed_compile_time_actual_mixed_ct_phantom_call_actuals() {
     // The concrete call already supplies i32/7. Those actuals cannot prove
     // the generic equation for arbitrary T/N, including an unused definition.
     let minimal = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-factory.zil"
     );
     for input in [
         minimal.replace("return Phantom::<'a,T,N>", "return Phantom::<'a,i32,N>"),
@@ -7947,7 +7947,7 @@ fn static_member_source_request_boundary(input: &str, ledger: &str) -> usize {
 fn mixed_compile_time_actual_source_budgets_cache_and_comparison_growth() {
     use zil_driver::CompilationSession;
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-instance-values.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let n = static_member_source_request_boundary(text, ledger);
@@ -8061,7 +8061,7 @@ fn mixed_compile_time_actual_source_budgets_cache_and_comparison_growth() {
 #[test]
 fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-joint-subvalues.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-joint-subvalues.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -8137,7 +8137,7 @@ fn terminal340_owner_replacement_error_arm_actual_mutable_alias() {
         "{prefix}fn result()->i32{{var value=make();let input=&mut value;match *input{{.ok(ref mut p)=>{{p.owner=R{{code:66}};return p.n+p.owner.code-66}},.err(_)=>{{return 0}}}}}}"
     );
     let unknown =
-        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil");
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil");
     let relay = unknown.replace("match *input", "let relay=input;match *relay");
     let read_old = unknown.replace("R{code:66}", "R{code:p.owner.code+1}");
     for text in [text.as_str(), unknown, relay.as_str(), read_old.as_str()] {
@@ -8163,7 +8163,7 @@ fn terminal340_owner_replacement_error_arm_actual_mutable_alias() {
 #[test]
 fn terminal340_owner_replacement_error_arm_alias_abort_and_pins() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-error-arm-alias-failure.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias-failure.zil"
     );
     let temp = Temp::new();
     let report = compile_source(
@@ -8184,7 +8184,7 @@ fn terminal340_owner_replacement_error_arm_alias_abort_and_pins() {
     assert!(typed.contains("AbortPlaceReservation"), "{typed}");
     review329_native_output(&[("main", text)], b"BA42\n");
     let text =
-        include_str!("../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil");
+        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil");
     for (case, neighbor) in [
         text.replace("let input=&mut value", "let input=&value"),
         text.replace(
@@ -8339,7 +8339,7 @@ fn terminal340_owner_replacement_error_arm_actual_root_and_epoch() {
 #[test]
 fn terminal340_owner_replacement_error_arm_alias_budget() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
     ));
     // helper resource retirement: previous Analyze N46908; actual local retirement/liveness and
     // paid producer eligibility add40. Verify retains its independent bound.
@@ -8399,14 +8399,14 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
 #[test]
 fn terminal340_package_terminal_source_types_and_analyze() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     );
     for (name, text, abort) in [
         ("complete", text, false),
         (
             "failed preparation",
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-failure.zil"
             ),
             true,
         ),
@@ -8450,7 +8450,7 @@ fn terminal340_package_terminal_source_types_and_analyze() {
         );
     }
     let old = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-old-desc.zil"
     );
     let report = compile_source(
         &source(old),
@@ -8475,7 +8475,7 @@ fn terminal340_package_terminal_source_types_and_analyze() {
         report.to_json()
     );
     let shared = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-shared.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-shared.zil"
     );
     let report = compile_source(
         &source(shared),
@@ -8569,7 +8569,7 @@ fn terminal340_package_terminal_source_types_and_analyze() {
 #[test]
 fn terminal340_package_terminal_resource_identity_raw_and_wire() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     ));
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
     let core = zil_expand::expand(&input, &syntax).unwrap();
@@ -8640,7 +8640,7 @@ fn terminal340_package_terminal_resource_identity_raw_and_wire() {
 #[test]
 fn terminal340_package_terminal_native_old_drop_store_and_failure() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     );
     let alias = text.replace(
         "packet.n+packet.owner.code-66",
@@ -8667,7 +8667,7 @@ fn terminal340_package_terminal_native_old_drop_store_and_failure() {
         (
             "failed RHS preparation",
             include_str!(
-                "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-failure.zil"
             ),
             b"BA42\n".as_slice(),
         ),
@@ -8680,10 +8680,10 @@ fn terminal340_package_terminal_native_old_drop_store_and_failure() {
 #[test]
 fn terminal340_package_terminal_exact_rhs_provenance() {
     let fresh = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-fresh-rhs.zil"
     );
     let incoming = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-incoming-rhs.zil"
     );
     let given = incoming.replace("result(create)", "result(give)");
     let reversed = fresh.replace(
@@ -8773,7 +8773,7 @@ fn terminal340_package_terminal_exact_rhs_provenance() {
 #[test]
 fn terminal340_package_terminal_desc_closure_carriers_remain_live() {
     let old = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-old-desc.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-old-desc.zil"
     );
     for borrowed in [false, true] {
         let saved = if borrowed {
@@ -8819,7 +8819,7 @@ fn terminal340_package_terminal_desc_closure_carriers_remain_live() {
 #[test]
 fn terminal340_package_terminal_exact_request_budget() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     ));
     for stage in [Stage::Analyze, Stage::Verify] {
         let options = |work| CompileOptions {
@@ -8884,18 +8884,18 @@ fn terminal340_package_terminal_exact_request_budget() {
 #[test]
 fn terminal340_package_terminal_new_provenance_and_temporary_native() {
     let fresh = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-fresh-rhs.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-fresh-rhs.zil"
     );
     let reverse = fresh.replace(
         "package P{manages owner:R;n:i32}",
         "package P{n:i32;manages owner:R}",
     );
     let given = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-incoming-rhs.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-incoming-rhs.zil"
     )
     .replace("result(create)", "result(give)");
     let temporary = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-failure.zil"
     )
     .replace(
         "assemble(give spare:R,n:i32)->P{return P{owner:R{code:n},n:42}}",
@@ -8938,10 +8938,10 @@ fn terminal340_package_terminal_independent_verify_and_wire() {
     let limits = Limits::default();
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/340/replace-package-terminal-failure.zil"
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-failure.zil"
         ),
     ] {
         let input = source(text);
@@ -9130,7 +9130,7 @@ fn terminal340_package_terminal_actual_parent_pin_is_not_type_apartness() {
 #[test]
 fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
     let input = source(include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     ));
     let target = TargetProfile::default();
     let limits = Limits::default();
@@ -9220,7 +9220,7 @@ fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
 #[test]
 fn terminal340_package_terminal_actual_tickets_complete_shell_and_rhs_once() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/340/replace-package-terminal-pending.zil"
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-package-terminal-pending.zil"
     )
     .replace(
         "    return packet.n",
@@ -9529,13 +9529,13 @@ fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
 fn static_member_factory_original_static_member_factories_reach_native_full_values() {
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-instance.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-retained.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-host-identity.zil"
         ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -9555,10 +9555,10 @@ fn static_member_factory_member_factories_keep_source_boundaries_and_definition_
     for text in [
         "struct Maker{fn make()->i32{return 42}}fn main()->i32{return Maker.make()}",
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-factory.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-mixed-ct-factory.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct5-member-context.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-member-context.zil"
         ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -9571,7 +9571,7 @@ fn static_member_factory_member_factories_keep_source_boundaries_and_definition_
         assert_eq!(report.verification_runs, 1);
     }
     let valid = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-instance.zil"
     );
     let bad = valid.replace(
         "return Phantom::<'a,T,N>{n:N}",
@@ -9602,7 +9602,7 @@ fn static_member_factory_member_factories_keep_source_boundaries_and_definition_
         assert_eq!(report.verification_runs, 0);
     }
     let host = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-complete-member.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-complete-member.zil"
     );
     assert_eq!(
         host,
@@ -9670,7 +9670,7 @@ fn static_member_factory_same_named_hosts_in_distinct_modules_use_actual_imports
 #[test]
 fn static_member_factory_member_requests_pay_all_current_ledgers() {
     let input = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-retained.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let n = static_member_source_request_boundary(input, ledger);
@@ -9683,10 +9683,10 @@ fn static_member_factory_member_requests_pay_all_current_ledgers() {
 #[test]
 fn nested_static_member_nested_mixed_scalar_source_and_native_values() {
     let scalar = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-scalar.zil"
     );
     let intermediate = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-intermediate.zil"
     );
     let reordered = scalar
         .replace(
@@ -9711,7 +9711,7 @@ fn nested_static_member_nested_mixed_scalar_source_and_native_values() {
 #[test]
 fn nested_static_member_symbolic_forwarding_checks_definitions_before_matching_instances() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-forwarding.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-forwarding.zil"
     );
     let bad_type = text
         .replace(
@@ -9761,7 +9761,7 @@ fn nested_static_member_symbolic_forwarding_checks_definitions_before_matching_i
         }
     }
     let scalar = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-scalar.zil"
     );
     for (bad, expected) in [
         (
@@ -9813,16 +9813,16 @@ fn nested_static_member_symbolic_forwarding_checks_definitions_before_matching_i
 #[test]
 fn contextual_record_relocation_original_context_record_returns_reach_native_full_values() {
     let reordered = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/host-identity-review/good-three-layer-reordered.zil"
     );
     let separated = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-lifetime-separation.zil"
     );
     let two_sources = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-two-source-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-two-source-lives.zil"
     );
     let scalar_fields = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-scalar-fields.zil"
     );
     // The preexisting direct factory must also reify Unit as (), independently
     // of whether the new return relocation is used by this expression.
@@ -9864,7 +9864,7 @@ fn contextual_record_relocation_original_context_record_returns_reach_native_ful
 #[test]
 fn contextual_record_relocation_relocation_keeps_symbolic_life_and_closed_type_identities() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-lifetime-separation.zil"
     );
     let bad = text.replace("make::<U,M,'b,'spare>", "make::<U,M,'spare,'b>");
     for input in [
@@ -9918,13 +9918,13 @@ fn contextual_record_relocation_real_record_relocations_pay_all_request_ledgers(
         (
             "single",
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-lifetime-separation.zil"
             ),
         ),
         (
             "scalar-vector",
             include_str!(
-                "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-scalar-fields.zil"
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-cross-factory-scalar-fields.zil"
             ),
         ),
     ] {
@@ -9940,7 +9940,7 @@ fn contextual_record_relocation_real_record_relocations_pay_all_request_ledgers(
 #[test]
 fn nested_static_member_nested_requests_pay_each_current_ledger() {
     let input = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-nested-mixed-intermediate.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let n = static_member_source_request_boundary(input, ledger);
@@ -9952,7 +9952,7 @@ fn nested_static_member_nested_requests_pay_each_current_ledger() {
 fn static_member_factory_actual_semantic_cache_rechecks_changed_and_reordered_members() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct5-static-member-retained.zil"
     );
     let changed = text
         .replace("Phantom<'s,i32,35>", "Phantom<'s,i32,36>")
@@ -10040,28 +10040,28 @@ fn static_member_factory_actual_semantic_cache_rechecks_changed_and_reordered_me
     );
 }
 
-#[path = "../../../tests/language-readiness/terminal/340/whole_helper_review.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/whole_replacement_cleanup.rs"]
 mod whole_helper_review;
 
-#[path = "../../../tests/language-readiness/terminal/340/whole_helper_error_review.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/fallible_replacement_cleanup.rs"]
 mod whole_helper_error_review;
 
-#[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
+#[path = "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/cross-factory-review/consumer_tests.rs"]
 mod contextual_record_relocation_review;
 
-#[path = "../../../tests/language-readiness/terminal/340/nonlocal-replace/controls.rs"]
+#[path = "../../../tests/language-readiness/terminal/ownership-and-replacement/nonlocal-replace/controls.rs"]
 mod terminal340_nonlocal_replace;
 
 // Independent complete-parent consumers; staged failures remain visible during integration.
 #[path = "../../../tests/fixtures/resource-packages/consumers.rs"]
 mod parent_consumer_independent_parent_consumers;
-#[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
+#[path = "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/runtime-phase/consumer_tests.rs"]
 mod runtime_ct_phase_tests;
 
 #[test]
 fn contextual_type_life_contextual_type_result_preserves_life_across_factories() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-type-result.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-cross-factory-type-result.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -10077,7 +10077,7 @@ fn contextual_type_life_contextual_type_result_preserves_life_across_factories()
 #[test]
 fn contextual_type_life_pure_composite_fields_keep_every_returned_bit() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-cross-factory-pure-composites.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -10093,7 +10093,7 @@ fn contextual_type_life_pure_composite_fields_keep_every_returned_bit() {
 #[test]
 fn contextual_type_life_ambient_type_actual_retains_nested_life_graph() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-ambient-type-actual.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -10109,7 +10109,7 @@ fn contextual_type_life_ambient_type_actual_retains_nested_life_graph() {
 #[test]
 fn contextual_type_life_generic_host_keeps_its_actual_type_binding() {
     let text = include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-context.zil"
     );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -10126,10 +10126,10 @@ fn contextual_type_life_generic_host_keeps_its_actual_type_binding() {
 fn contextual_type_life_generic_parameter_subsets_keep_authentic_source_contexts() {
     for text in [
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-const-only-factory.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-const-only-factory.zil"
         ),
         include_str!(
-            "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-parameter-subsets.zil"
+            "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-parameter-subsets.zil"
         ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
@@ -10159,35 +10159,35 @@ fn contextual_type_life_host_source_native(text: &str) {
 #[test]
 fn contextual_type_life_host_complete_context_and_ordinary_static_member() {
     contextual_type_life_host_source_native(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-full-context.zil"
     ));
 }
 
 #[test]
 fn contextual_type_life_host_member_distinct_life_owners_source_native() {
     contextual_type_life_host_source_native(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-member-lives.zil"
     ));
 }
 
 #[test]
 fn contextual_type_life_host_member_nearest_life_shadow_source_native() {
     contextual_type_life_host_source_native(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generic-host-member-life-shadow.zil"
     ));
 }
 
 #[test]
 fn contextual_type_life_host_generated_member_life_owners_source_native() {
     contextual_type_life_host_source_native(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-host-member-lives.zil"
     ));
 }
 
 #[test]
 fn contextual_type_life_generated_factory_forwards_its_real_life_source_native() {
     contextual_type_life_host_source_native(include_str!(
-        "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory-forward-life.zil"
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct6-generated-factory-forward-life.zil"
     ));
 }
 
@@ -10226,5 +10226,5 @@ fn contextual_type_life_ordinary_static_member_preserves_actual_module_privacy()
     assert_eq!(report.verification_runs, 0);
 }
 
-#[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_pure_backend.rs"]
+#[path = "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/qualified_pure_backend.rs"]
 mod enum_member_controls_qualified_pure_backend;

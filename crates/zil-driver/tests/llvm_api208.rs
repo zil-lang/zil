@@ -166,7 +166,7 @@ fn function_value_target_and_caller_in_different_units() {
 fn current_177_state_store_callback_and_field_exit() {
     let d = Dir::new();
     let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui_language177");
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/zui-language-store-fields");
     for entry in ["main", "field_exit"] {
         for opt in [Optimization::O0, Optimization::O2] {
             for units in [1, 8] {

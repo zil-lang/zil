@@ -19,7 +19,7 @@ fn original_generic_wrapper_allocation_failure_keeps_actual_responsibility() {
         .map(PathBuf::from)
         .unwrap_or_else(|| PathBuf::from("clang"));
     let shim = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../tools/language/173/allocator_probe.c");
+        .join("../../tools/language/composed-store-closures/allocator_probe.c");
     let root = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir);
