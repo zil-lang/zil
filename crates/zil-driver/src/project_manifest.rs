@@ -64,6 +64,12 @@ fn local_file(directory: &Path, value: &str) -> CompileResult<PathBuf> {
     }
     let path = fs::canonicalize(directory.join(relative))
         .map_err(|e| error("E-PROJECT-PATH", format!("{value}: {e}")))?;
+    if path.to_str().is_none() {
+        return Err(error(
+            "E-PROJECT-PATH",
+            "project source paths must be UTF-8",
+        ));
+    }
     if !path.starts_with(directory)
         || !path.is_file()
         || path.extension().is_none_or(|s| s != "zil")
@@ -167,6 +173,9 @@ impl ProjectManifest {
             .parent()
             .ok_or_else(|| error("E-PROJECT-PATH", "manifest has no parent"))?
             .to_path_buf();
+        if directory.to_str().is_none() {
+            return Err(error("E-PROJECT-PATH", "project directories must be UTF-8"));
+        }
         let entry = local_file(&directory, &entry_name)?;
         let index = packages.len();
         packages.push(Package {
@@ -228,6 +237,7 @@ impl ProjectManifest {
         builder.update(b"zil-project-lock-v1\0");
         let mut locked_sources = BTreeMap::new();
         let mut count = 0usize;
+        let mut path_bytes = limits.max_analysis_steps;
         for (index, package) in packages.iter().enumerate() {
             builder.update(&(index as u64).to_le_bytes());
             builder.update(&(package.manifest.len() as u64).to_le_bytes());
@@ -259,7 +269,18 @@ impl ProjectManifest {
                             None,
                         )]);
                     }
-                    entries.push(entry.map_err(|e| error("E-PROJECT-READ", e.to_string()))?);
+                    let entry = entry.map_err(|e| error("E-PROJECT-READ", e.to_string()))?;
+                    path_bytes =
+                        path_bytes
+                            .checked_sub(entry.file_name().len())
+                            .ok_or_else(|| {
+                                vec![Diagnostic::limit(
+                                    Phase::Driver,
+                                    "project path byte budget exceeded",
+                                    None,
+                                )]
+                            })?;
+                    entries.push(entry);
                 }
                 entries.sort_by_key(|entry| entry.file_name());
                 for entry in entries {

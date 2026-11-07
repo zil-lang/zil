@@ -446,7 +446,7 @@ mod tests {
         let loaded = load_sources(
             &mut project,
             &path,
-            &options,
+            &mut options.clone(),
             &CompilationSession::default(),
         )
         .unwrap();

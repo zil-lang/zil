@@ -12,7 +12,7 @@ math = "../math"
 # Equivalent: math = { path = "../math" }
 ```
 
-`root` is required. `tests` and `[dependencies]` are optional. Each dependency path names a directory containing its own `Zil.toml`; dependencies may declare further local dependencies. Dependency aliases must be ZIL identifiers. Entries and listed test files must be `.zil` files inside their project root. Unknown keys, duplicate keys, dependency cycles, symlinks in dependency source trees, and imports outside declared project roots are rejected. There is no registry or network resolution.
+`root` is required. `tests` and `[dependencies]` are optional. Paths use simple quoted strings without escapes. Each dependency path names a directory containing its own `Zil.toml`; dependencies may declare further local dependencies. Dependency aliases must be ZIL identifiers. Entries and listed test files must be `.zil` files inside their project root. Unknown keys, duplicate keys, dependency cycles, symlinks in dependency source trees, and imports outside declared project roots are rejected. There is no registry or network resolution.
 
 Run `zil lock PROJECT` after creating or changing dependencies or manifests. It writes `Zil.lock`, a content fingerprint of the manifests and dependency `.zil` files in the declared project graph. Editing the root package's own source does not require a new lock; those bytes still participate in normal compiler and cache identity. `zil check PROJECT`, `zil build PROJECT`, `zil run PROJECT`, and `zil test PROJECT` require an exact dependency lock match. `PROJECT` may be a directory or its `Zil.toml` path. Single-file commands still work without a manifest.
 
