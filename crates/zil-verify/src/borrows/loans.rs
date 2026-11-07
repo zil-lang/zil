@@ -8,6 +8,21 @@ use std::collections::BTreeSet;
 type Loans = BTreeSet<usize>;
 type Locals = BTreeMap<LocalId, Loans>;
 
+fn parameter_task_ports(ty: &Type) -> Option<&zil_ir::RetainedLifeShape> {
+    let payload = match ty {
+        Type::Managed(payload) | Type::Desc(payload) => payload.as_ref(),
+        Type::Address { inner, .. } => match inner.as_ref() {
+            Type::Managed(payload) | Type::Desc(payload) => payload.as_ref(),
+            _ => return None,
+        },
+        _ => return None,
+    };
+    match payload {
+        Type::Task { retained_life, .. } if !retained_life.ports.is_empty() => Some(retained_life),
+        _ => None,
+    }
+}
+
 fn join(target: &mut Loans, source: &Loans, budget: &mut Budget) -> Check<bool> {
     budget.spend(
         source
@@ -35,6 +50,7 @@ struct Flow {
     narrowed_lending: Vec<bool>,
     heads: Vec<bool>,
     roots: Vec<Roots>,
+    created: BTreeMap<(ValueId, super::port_facts::Path), usize>,
 }
 
 /// Descriptor writes do not mutate the closure's environment position. Only
@@ -85,6 +101,7 @@ fn reconstruct(
     f: &TypedFunction,
     graph: &FunctionGraph,
     facts: &Facts,
+    ports: &super::port_facts::FunctionFacts,
     budget: &mut Budget,
 ) -> Check<Flow> {
     let v = f.values.len();
@@ -103,8 +120,21 @@ fn reconstruct(
             }
         }
     }
+    let task_ports: Vec<_> = ports
+        .parameters
+        .iter()
+        .filter(|(position, _)| {
+            position
+                .path
+                .iter()
+                .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
+        })
+        .collect();
+    let mut parameter_loans = BTreeMap::new();
     let count = base
         .checked_add(incoming.len())
+        .and_then(|n| n.checked_add(task_ports.len()))
+        .and_then(|n| n.checked_add(ports.created.len()))
         .ok_or_else(|| limit("capture loan identity count overflow"))?;
     budget.spend(
         count
@@ -130,6 +160,17 @@ fn reconstruct(
             vec![]
         },
         roots: vec![vec![]; count],
+        created: ports
+            .created
+            .keys()
+            .enumerate()
+            .map(|(index, key)| {
+                (
+                    key.clone(),
+                    base + incoming.len() + task_ports.len() + index,
+                )
+            })
+            .collect(),
     };
     for (i, ty) in f.values.iter().enumerate() {
         flow.mutable[i] = matches!(ty, Type::Address { mutable: true, .. });
@@ -165,6 +206,33 @@ fn reconstruct(
             .entry(f.parameters[*parameter])
             .or_default()
             .insert(loan);
+    }
+    for (offset, (position, mode)) in task_ports.iter().enumerate() {
+        budget.spend(position.path.len().saturating_add(1))?;
+        let StorageBase::Parameter(parameter) = position.base else {
+            return Err(reject(
+                "E-VERIFY-TASK-PORT",
+                Some(f.span),
+                "retained loan input is not a parameter",
+            ));
+        };
+        let loan = base + incoming.len() + offset;
+        parameter_loans.insert((*position).clone(), loan);
+        flow.mutable[loan] = **mode == StoredBorrowMode::ExclusiveAddress;
+        flow.roots[loan] = vec![Root::Parameter(parameter)];
+        initial
+            .entry(f.parameters[parameter as usize])
+            .or_default()
+            .insert(loan);
+    }
+    for (index, _) in f.parameters.iter().enumerate() {
+        parameter_loans.insert(
+            StoragePosition {
+                base: StorageBase::Parameter(index as u32),
+                path: vec![],
+            },
+            v + index,
+        );
     }
     let mut outputs = vec![Locals::new(); f.blocks.len()];
     loop {
@@ -312,30 +380,6 @@ fn reconstruct(
                                     join(&mut row, source, budget)?;
                                 }
                             }
-                            InstructionKind::TaskCreate {
-                                arguments,
-                                port_bindings,
-                                ..
-                            } if super::retained_task_value(&f.values[id]) => {
-                                for binding in port_bindings {
-                                    let StorageBase::Parameter(index) = binding.source.base else {
-                                        return Err(reject(
-                                            "E-VERIFY-TASK",
-                                            Some(instruction.span),
-                                            "task port source is not an input",
-                                        ));
-                                    };
-                                    let source =
-                                        arguments.get(index as usize).ok_or_else(|| {
-                                            reject(
-                                                "E-VERIFY-TASK",
-                                                Some(instruction.span),
-                                                "task port input absent",
-                                            )
-                                        })?;
-                                    join(&mut row, &flow.values[source.0 as usize], budget)?;
-                                }
-                            }
                             InstructionKind::TakeErrorUnion {
                                 value,
                                 is_error: false,
@@ -362,19 +406,6 @@ fn reconstruct(
                                             &flow.values[argument.0 as usize],
                                             budget,
                                         )?;
-                                    }
-                                }
-                            }
-                            InstructionKind::Call { arguments, .. }
-                                if super::retained_task_value(&f.values[id]) =>
-                            {
-                                for argument in arguments {
-                                    if overlaps(
-                                        &facts.values[id],
-                                        &facts.values[argument.0 as usize],
-                                        budget,
-                                    )? {
-                                        join(&mut row, &flow.values[argument.0 as usize], budget)?;
                                     }
                                 }
                             }
@@ -431,6 +462,49 @@ fn reconstruct(
                             _ => {}
                         }
                     }
+                    if let Some(actual) = ports.values.get(id) {
+                        let retained = actual.ports.iter().filter(|(path, _)| {
+                            path.iter()
+                                .any(|part| matches!(part, ContractProjection::RetainedPort(_)))
+                        });
+                        if super::retained_task_value(&f.values[id]) {
+                            row.clear();
+                        }
+                        for (_, port) in retained {
+                            for parent in &port.parents {
+                                budget.spend(1)?;
+                                match parent {
+                                    super::port_facts::Parent::Input(position) => {
+                                        let loan =
+                                            parameter_loans.get(position).ok_or_else(|| {
+                                                reject(
+                                                    "E-VERIFY-TASK-PORT",
+                                                    Some(instruction.span),
+                                                    "retained source has no matching input loan",
+                                                )
+                                            })?;
+                                        row.insert(*loan);
+                                    }
+                                    super::port_facts::Parent::Retained(value, path) => {
+                                        let loan = flow
+                                            .created
+                                            .get(&(*value, path.clone()))
+                                            .ok_or_else(|| {
+                                                reject(
+                                                    "E-VERIFY-TASK-PORT",
+                                                    Some(instruction.span),
+                                                    "retained source lacks its constructor loan",
+                                                )
+                                            })?;
+                                        row.insert(*loan);
+                                    }
+                                    super::port_facts::Parent::Value(source) => {
+                                        join(&mut row, &flow.values[source.0 as usize], budget)?;
+                                    }
+                                }
+                            }
+                        }
+                    }
                     changed |= join(&mut flow.values[id], &row, budget)?;
                     changed |= join(&mut flow.parents[id], &parents, budget)?;
                 }
@@ -441,6 +515,46 @@ fn reconstruct(
                 outputs[b] = state;
                 changed = true;
             }
+        }
+        for (key, (mode, sources)) in &ports.created {
+            budget.spend(sources.len().saturating_add(1))?;
+            let id = flow.created[key];
+            flow.mutable[id] = *mode == StoredBorrowMode::ExclusiveAddress;
+            let mut parents = Loans::new();
+            for source in sources {
+                match source {
+                    super::port_facts::Parent::Input(position) => {
+                        let parent = parameter_loans.get(position).ok_or_else(|| {
+                            reject(
+                                "E-VERIFY-TASK-PORT",
+                                Some(f.span),
+                                "retained constructor has no input parent",
+                            )
+                        })?;
+                        parents.insert(*parent);
+                    }
+                    super::port_facts::Parent::Value(value) => {
+                        join(&mut parents, &flow.values[value.0 as usize], budget)?;
+                    }
+                    super::port_facts::Parent::Retained(value, path) => {
+                        let parent =
+                            flow.created.get(&(*value, path.clone())).ok_or_else(|| {
+                                reject(
+                                    "E-VERIFY-TASK-PORT",
+                                    Some(f.span),
+                                    "retained constructor has no actual parent",
+                                )
+                            })?;
+                        parents.insert(*parent);
+                    }
+                }
+            }
+            let mut roots = Roots::new();
+            for parent in &parents {
+                roots_join(&mut roots, &flow.roots[*parent], budget)?;
+            }
+            changed |= roots_join(&mut flow.roots[id], &roots, budget)?;
+            changed |= join(&mut flow.parents[id], &parents, budget)?;
         }
         if !changed {
             break;
@@ -497,7 +611,9 @@ fn active(
     if budget.borrowed_task_ports {
         for (local, loans) in locals {
             budget.spend(1)?;
-            if super::retained_task_value(&function.locals[local.0 as usize].ty) {
+            if super::retained_task_value(&function.locals[local.0 as usize].ty)
+                || parameter_task_ports(&function.locals[local.0 as usize].ty).is_some()
+            {
                 join(&mut active, loans, budget)?;
             }
         }
@@ -873,6 +989,7 @@ pub(super) fn check(
     f: &TypedFunction,
     graph: &FunctionGraph,
     facts: &Facts,
+    ports: &super::port_facts::FunctionFacts,
     capture: Option<captures::Context<'_>>,
     descriptor_origins: bool,
     budget: &mut Budget,
@@ -919,7 +1036,7 @@ pub(super) fn check(
     let apart = RefCell::new(Apart::new());
     let apart_ref = capture.is_some().then_some(&apart);
     let view = ownership(module, f, graph, budget)?;
-    let flow = reconstruct(module, f, graph, facts, budget)?;
+    let flow = reconstruct(module, f, graph, facts, ports, budget)?;
     let n = f.blocks.len();
     let v = f.values.len();
     let width = v
@@ -969,6 +1086,7 @@ pub(super) fn check(
             retain_replacement_values(&mut live, schedule, b, i, budget)?;
         }
         let mut locals = copy_state(&flow.inputs[b], budget)?;
+        let mut retained_owners = ports.owner_inputs.get(b).cloned().unwrap_or_default();
         let mut capture_locals = if let Some(capture) = capture {
             captures::input_state(capture.facts, b, budget)?
         } else {
@@ -985,6 +1103,22 @@ pub(super) fn check(
         };
         for (i, instruction) in block.instructions.iter().enumerate() {
             let mut active = active(&flow, f, &locals, &after[i], v, budget)?;
+            // Owning values retain their ports until an executable transfer or
+            // destruction, including SSA values with no future use.
+            for owner in &retained_owners {
+                budget.spend(1)?;
+                match owner {
+                    super::port_facts::Owner::Value(value) => {
+                        join(&mut active, &flow.values[value.0 as usize], budget)?
+                    }
+                    super::port_facts::Owner::Local(local) => {
+                        if let Some(row) = locals.get(local) {
+                            join(&mut active, row, budget)?;
+                        }
+                        false
+                    }
+                };
+            }
             // Arguments and captured targets participate in the current call,
             // even if neither value is live after its final invocation.
             let empty = Loans::new();
@@ -1013,6 +1147,7 @@ pub(super) fn check(
                 }
                 InstructionKind::WithSyncCell { body, .. } => (&flow.values[body.0 as usize], &[]),
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. } => (&empty, arguments),
                 InstructionKind::ForeignCall { arguments, .. } => (&empty, arguments),
@@ -1022,9 +1157,17 @@ pub(super) fn check(
             for argument in arguments {
                 join(&mut active, &flow.values[argument.0 as usize], budget)?;
             }
-            let ignore = instruction
+            let mut ignore = instruction
                 .result
                 .map_or_else(Loans::new, |r| Loans::from([r.0 as usize]));
+            if let Some(result) = instruction.result {
+                for ((value, _), loan) in &flow.created {
+                    budget.spend(1)?;
+                    if *value == result {
+                        ignore.insert(*loan);
+                    }
+                }
+            }
             let span = instruction.span;
             let empty = Loans::new();
             let access = Access {
@@ -1076,6 +1219,19 @@ pub(super) fn check(
                 // argument or its captured alias has no later use. Reborrows
                 // delegate only their own roots, never another capture's loan.
                 access.callback_arguments(arguments, facts, budget)?;
+            }
+            if let InstructionKind::TaskCreate { arguments, .. } = &instruction.kind {
+                check_pairs(arguments, module, f, &flow, span, apart_ref, budget)?;
+                for argument in arguments {
+                    if let Type::Address { mutable, .. } = f.values[argument.0 as usize] {
+                        access.check(
+                            &flow.values[argument.0 as usize],
+                            &facts.values[argument.0 as usize],
+                            mutable,
+                            budget,
+                        )?;
+                    }
+                }
             }
             if let InstructionKind::WithForeignCallback { callback, body, .. } = instruction.kind {
                 check_pairs(&[callback, body], module, f, &flow, span, apart_ref, budget)?;
@@ -1455,6 +1611,7 @@ pub(super) fn check(
                     access.check(&empty, &[Root::Capture(*index)], true, budget)?;
                 }
                 InstructionKind::Call { arguments, .. }
+                | InstructionKind::TaskCreate { arguments, .. }
                 | InstructionKind::CallDynSlot { arguments, .. }
                 | InstructionKind::CallIndirect { arguments, .. }
                 | InstructionKind::ForeignCall { arguments, .. }
@@ -1532,6 +1689,7 @@ pub(super) fn check(
                 _ => {}
             }
             local_transfer(&mut locals, instruction, &flow.values, budget)?;
+            super::port_facts::owner_transfer(f, instruction, &mut retained_owners, budget)?;
             if let Some(capture) = capture {
                 captures::local_transfer(
                     &mut capture_locals,
