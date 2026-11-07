@@ -33,15 +33,23 @@ pub(super) fn capture_admission(
     if supported_type(ty, resources) || product_type(ty, resources) {
         return Ok((true, false));
     }
-    if !matches!(ty, Type::Package { .. })
-        || !has_inline_store_owner(ty)
-        || !drop_plan::value_type(ty, resources)
-    {
+    if !matches!(ty, Type::Package { .. }) {
         return Ok((false, false));
     }
     let before = *work;
     copy_aggregates::reserve_enum_metadata(ty, work, 0, limits)?;
-    let fee = (before - *work).saturating_mul(4).saturating_add(16);
+    let shape = before - *work;
+    let mut definitions = 0usize;
+    for resource in resources {
+        let before = *work;
+        copy_aggregates::reserve_enum_metadata(&resource.payload, work, 0, limits)?;
+        definitions = definitions.saturating_add(before - *work);
+        definitions = definitions.saturating_add(resource.name.len().saturating_add(1));
+    }
+    let fee = shape
+        .saturating_add(definitions)
+        .saturating_mul(shape.saturating_add(4))
+        .saturating_add(16);
     *work = work.checked_sub(fee).ok_or_else(|| {
         vec![Diagnostic::limit(
             Phase::Codegen,
@@ -49,6 +57,9 @@ pub(super) fn capture_admission(
             None,
         )]
     })?;
+    if !has_inline_store_owner(ty) || !drop_plan::value_type(ty, resources) {
+        return Ok((false, false));
+    }
     Ok((true, drop_plan::new_shape(ty)))
 }
 
