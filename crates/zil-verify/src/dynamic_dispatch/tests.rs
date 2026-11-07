@@ -409,13 +409,12 @@ fn rejects_same_layout_wrong_self_and_unknown_effects() {
 
 #[test]
 fn rejects_unused_bad_table_and_refingerprinted_wire() {
-    let mut module = fixture();
+    let (mut module, mut plan) = call_candidate();
     let mut bad = module.dyn_vtables[0].clone();
     bad.id.index = 1;
     bad.entries[0].slot = 1;
     module.dyn_vtables.push(bad);
     assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
-    let mut plan = CandidatePlan::empty_for(&module);
     plan.module_fingerprint = module.fingerprint();
     let limits = Limits::default();
     let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();

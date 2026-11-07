@@ -101,6 +101,10 @@ fn scalar(ty: &Type) -> bool {
     ty.is_b0_scalar() || *ty == Type::Unit
 }
 
+fn dyn_address(ty: &Type) -> bool {
+    matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }))
+}
+
 /// Charge every raw list before cloning, fingerprinting or indexing it. This
 /// branch is inactive for old modules, preserving their exact budget path.
 pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> {
@@ -118,6 +122,32 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
             .saturating_add(module.dyn_interfaces.len().saturating_mul(8))
             .saturating_add(module.dyn_vtables.len().saturating_mul(8)),
     )?;
+    for function in &module.functions {
+        budget.spend(1)?;
+        if dyn_address(&function.return_type)
+            || (function.foreign.is_some()
+                && function.parameters.iter().any(|local| {
+                    function
+                        .locals
+                        .get(local.0 as usize)
+                        .is_some_and(|decl| dyn_address(&decl.ty))
+                }))
+        {
+            return Err(bad(
+                "dyn return and foreign dyn ABI require a separate source contract",
+                Some(function.span),
+            ));
+        }
+    }
+    for closure in &module.closures {
+        budget.spend(closure.captures.len().saturating_add(1))?;
+        if closure.captures.iter().any(dyn_address) {
+            return Err(bad(
+                "captured dyn requires a separate retained-root contract",
+                None,
+            ));
+        }
+    }
     let mut ids = BTreeSet::new();
     let mut identities = BTreeSet::new();
     for declaration in &module.dyn_declarations {
