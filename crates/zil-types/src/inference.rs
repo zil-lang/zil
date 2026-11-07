@@ -4206,6 +4206,39 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                 span,
             );
         }
+        if let CoreExprKind::Name(name) = &callee.kind
+            && generic_mutex::primitive(name)
+        {
+            self.budget.node(depth + 1, callee.span)?;
+            self.expression_index += 1;
+            let [argument] = arguments.as_slice() else {
+                return Err(error("E-CALL-ARITY", span, "mutex operation requires one argument"));
+            };
+            let term = self.expr_expected(argument, None, depth + 1, false)?;
+            let variable = self.projection_base(&term, argument.span)?;
+            if name == "mutex_create" && matches!(argument.kind, CoreExprKind::Integer(..))
+                && self.graph.ty(variable)?.is_none()
+            {
+                self.graph.bind(variable, &Type::I32, argument.span)?;
+            }
+            let actual = self.graph.ty(variable)?.ok_or_else(|| unsupported(span, "mutex operand type is unresolved"))?;
+            let result = match name.as_str() {
+                "mutex_create" => Type::ErrorUnion { error: Box::new(generic_mutex::create_error()), result: Box::new(Type::Managed(Box::new(Type::Mutex { payload: Box::new(actual) }))) },
+                "mutex_lock" => {
+                    let (Type::Desc(inner) | Type::Managed(inner)) = actual else { return Err(error("E-MUTEX-HEAD", span, "mutex lock requires head")) };
+                    let Type::Mutex { payload } = inner.as_ref() else { return Err(error("E-MUTEX-HEAD", span, "mutex lock requires head")) };
+                    generic_mutex::guard(payload)
+                }
+                "mutex_value" => {
+                    let Type::Address { mutable: true, inner } = actual else { return Err(error("E-MUTEX-GUARD", span, "mutex value requires mutable guard")) };
+                    let Type::MutexGuard { payload, .. } = inner.as_ref() else { return Err(error("E-MUTEX-GUARD", span, "mutex value requires guard")) };
+                    Type::Address { mutable: true, inner: payload.clone() }
+                }
+                "mutex_unlock" => Type::Unit,
+                _ => unreachable!(),
+            };
+            return self.known_term(&result, span);
+        }
         if matches!(&callee.kind,CoreExprKind::Name(name) if name=="atomic_compare_exchange") {
             self.budget.node(depth + 1, callee.span)?;
             self.expression_index += 1;

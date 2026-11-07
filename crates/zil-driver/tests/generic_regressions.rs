@@ -110,6 +110,14 @@ fn generic_mutex_source_candidate_has_real_guard_operations() {
     assert!(zil_analyze::analyze(&typed, &Limits::default()).is_err());
 }
 #[test]
+fn generic_mutex_thread_candidate() {
+    let src = source("fn worker(cell:Mutex<i32>)->i32{var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value+=1;return 0}fn run(cell:Mutex<i32>)->i32{let (created,child,parent)=thread_scope(worker,cell,()->i32=>worker(cell));if !created{return 1}var guard=mutex_lock(cell);let value=mutex_value(&mut guard);let result=*value;return result-2+child+parent}fn main()->MutexCreateError!i32{let cell=mutex_create(7)?;return run(cell)}");
+    let ast = zil_syntax::parse(&src).into_result().unwrap();
+    let core = zil_expand::expand(&src, &ast).unwrap();
+    let typed = zil_types::check(&core, &zil_base::TargetProfile::default(), &Limits::default()).unwrap();
+    eprintln!("mutex thread analyze {:?}", zil_analyze::analyze(&typed, &Limits::default()).as_ref().map(|_|()));
+}
+#[test]
 fn generic_mutex_copy_native_candidate() {
     let src = source(
         "fn run()->MutexCreateError!i32{let cell=mutex_create(7)?;var guard=mutex_lock(cell);let value=mutex_value(&mut guard);*value=9;let answer=*value;mutex_unlock(guard);return answer}fn main()->i32{match run(){.ok(value)=>{return value-9},.err(_)=>{return 1}}}",
