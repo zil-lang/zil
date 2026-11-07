@@ -365,6 +365,7 @@ struct Budget {
     head_descriptions: bool,
     stored_enum_addresses: bool,
     task_borrowed_results: bool,
+    store_option_results: bool,
     task_stored_sources: Option<Vec<stored_flow::TaskFunctionSources>>,
     stored_borrows: bool,
     stored_package_instance: bool,
@@ -417,6 +418,7 @@ impl Budget {
             head_descriptions: false,
             stored_enum_addresses: false,
             task_borrowed_results: false,
+            store_option_results: false,
             task_stored_sources: None,
             stored_borrows: false,
             stored_package_instance: false,
@@ -1046,7 +1048,7 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    let guard_sources = if budget.task_borrowed_results {
+    let guard_sources = if budget.task_borrowed_results || budget.store_option_results {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
         }
@@ -1219,6 +1221,11 @@ fn check_type_shape(
             matches!(ty, Type::Task { retained_life, .. } if !retained_life.ports.is_empty());
         tasks::require_closed_context(ty, None)?;
         budget.task_borrowed_results |= matches!(ty, Type::Task { result, .. } if matches!(result.as_ref(), Type::Address { mutable: false, .. }));
+        budget.store_option_results |= matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Enum { variants, .. }
+                if matches!(variants.as_slice(), [(_, none), (_, some)]
+                    if none.is_empty() && matches!(some.as_slice(), [Type::Address { mutable: false, inner }]
+                        if matches!(inner.as_ref(), Type::Package { .. })))));
         // Detect the new ordinary profile during the already paid raw-tree
         // traversal. Old functions do not acquire an extra classifier pass.
         if (context & 64 != 0 && matches!(ty, Type::Managed(_) | Type::Package { .. }))

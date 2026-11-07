@@ -19,7 +19,9 @@ pub(super) struct Target {
     /// Empty is an ordinary input pointee. A nonempty path is an input's
     /// *stored target*, never a byte offset into that input's carrier.
     pub stored: Vec<PlaceProjection>,
+    /// Manager-inline path remains pinned independently of the heap element.
     pub place: Vec<PlaceProjection>,
+    pub heap_element: Option<Vec<PlaceProjection>>,
 }
 type Targets = BTreeSet<Target>;
 type Loans = BTreeSet<usize>;
@@ -35,6 +37,9 @@ struct Value {
     enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     pointer: Permission,
+    /// DescribeAddress transports an actual weak manager origin. It does not
+    /// itself grant an element address or public Hold.
+    store_description: Permission,
     task_ports: BTreeMap<Vec<zil_ir::ContractProjection>, Permission>,
     slots: BTreeMap<Path, Permission>,
     held: Permission,
@@ -135,6 +140,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= union(&mut to.store_description, &from.store_description, b)?;
     changed |= task_address::merge(to, from, b)?;
     changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
@@ -204,6 +210,8 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
         fee(b, value.held.loans.len())?;
         target_work(&value.pointer.targets, b)?;
         fee(b, value.pointer.loans.len())?;
+        target_work(&value.store_description.targets, b)?;
+        fee(b, value.store_description.loans.len())?;
         task_address::work(value, b)?;
         fee(b, value.environment.len())?;
         for (path, permission) in value.environment.iter().chain(&value.slots) {
@@ -1543,6 +1551,7 @@ fn seed_environment(
             base,
             stored: path.clone(),
             place: Vec::new(),
+            heap_element: None,
         };
         let id = loans.len();
         loans.push(Loan {
@@ -1582,6 +1591,7 @@ fn seed_value(
             base,
             stored: Vec::new(),
             place: Vec::new(),
+            heap_element: None,
         };
         let id = loans.len();
         fee(b, 2)?;
@@ -1605,6 +1615,7 @@ fn seed_value(
                 base,
                 stored: path.clone(),
                 place: Vec::new(),
+                heap_element: None,
             };
             fee(b, path.len().saturating_mul(2).saturating_add(3))?;
             let id = loans.len();
@@ -1632,6 +1643,7 @@ fn seed_value(
                 base,
                 stored: decl.path.clone(),
                 place: Vec::new(),
+                heap_element: None,
             };
             let id = loans.len();
             loans.push(Loan {
@@ -1942,7 +1954,7 @@ fn substitute(
     } else {
         select(state, &value.pointer, &source.stored, b)?
     };
-    if !source.place.is_empty() {
+    if !source.place.is_empty() || source.heap_element.is_some() {
         let mut targets = Targets::new();
         for target in &result.targets {
             fee(
@@ -1955,7 +1967,11 @@ fn substitute(
                     .saturating_add(1),
             )?;
             let mut target = target.clone();
+            if target.heap_element.is_some() {
+                return Err(failure("nested Store element summary is outside this profile"));
+            }
             target.place.extend(&source.place);
+            target.heap_element = source.heap_element.clone();
             ordered(
                 b,
                 targets.len(),
@@ -2108,6 +2124,7 @@ fn transfer(
                 base: HoldRoot::Static,
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_element: None,
             });
         }
         InstructionKind::Load(local) => {
@@ -2205,6 +2222,7 @@ fn transfer(
                 base: HoldRoot::Local(*local),
                 stored: Vec::new(),
                 place: Vec::new(),
+                heap_element: None,
             });
             if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty) {
                 ordered(b, state.locals.len(), 0)?;
@@ -2243,7 +2261,11 @@ fn transfer(
                         .saturating_add(2),
                 )?;
                 let mut target = target.clone();
-                target.place.push(PlaceProjection::Field(*index));
+                if let Some(element) = &mut target.heap_element {
+                    element.push(PlaceProjection::Field(*index));
+                } else {
+                    target.place.push(PlaceProjection::Field(*index));
+                }
                 ordered(
                     b,
                     targets.len(),
@@ -2603,6 +2625,7 @@ fn transfer(
                 base: HoldRoot::Capture(*index),
                 stored: vec![],
                 place: vec![],
+                heap_element: None,
             });
         }
         kind if super::stored_callables::called(module, f, kind)
@@ -2623,6 +2646,7 @@ fn transfer(
                         base: HoldRoot::Local(*callee),
                         stored: vec![],
                         place: vec![],
+                        heap_element: None,
                     });
                 }
                 _ => {
@@ -2699,6 +2723,33 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
             clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DropPackage { local } if b.store_option_results => {
+            ordered(b, state.locals.len(), 0)?;
+            state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
+        }
+        InstructionKind::DescribeAddress { address } if b.store_option_results => {
+            // A weak description carries an actual header origin, but grants
+            // no element permission until the checked Store borrow.
+            union(&mut out.store_description, &get(*address)?.pointer, b)?;
+        }
+        InstructionKind::OwnedStoreBorrow { store, .. } if b.store_option_results => {
+            let description = &get(*store)?.store_description;
+            if description.targets.is_empty() {
+                return Err(failure("Store element window has no actual manager description"));
+            }
+            for source in &description.targets {
+                if source.heap_element.is_some() {
+                    return Err(failure("nested Store element window is outside this profile"));
+                }
+                let mut target = source.clone();
+                target.heap_element = Some(Vec::new());
+                ordered(b, out.pointer.targets.len(), target.place.len())?;
+                out.pointer.targets.insert(target);
+            }
+            fee(b, description.loans.len())?;
+            out.pointer.loans.extend(&description.loans);
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::DescribeAddress { .. }
@@ -2789,6 +2840,12 @@ fn transfer(
             }
         }
         InstructionKind::Constant(_)
+        | InstructionKind::OwnedStoreNew { .. }
+        | InstructionKind::OwnedStoreReserve { .. }
+        | InstructionKind::OwnedStorePush { .. }
+        | InstructionKind::OwnedStoreLen { .. }
+        | InstructionKind::DropErrorUnion { .. }
+        | InstructionKind::DescribePackageField { .. }
         | InstructionKind::ExtractField { .. }
         | InstructionKind::ConvertInteger { .. }
         | InstructionKind::ConvertNumber { .. }
@@ -2930,6 +2987,13 @@ fn intersects(left: &Target, right: &Target, b: &mut Budget) -> CompileResult<bo
         || left.retained_port != right.retained_port
     {
         return Ok(false);
+    }
+    // A heap element is a distinct domain from the manager's inline fields.
+    // Its Store header is pinned structurally, and dynamic indices cannot
+    // establish element apartness from another window of the same manager.
+    if left.heap_element.is_some() || right.heap_element.is_some() {
+        return Ok(left.place.starts_with(&right.place)
+            || right.place.starts_with(&left.place));
     }
     Ok(left.place.starts_with(&right.place) || right.place.starts_with(&left.place))
 }
@@ -3312,6 +3376,7 @@ fn windows(
                             base: HoldRoot::Local(*local),
                             stored: Vec::new(),
                             place: vec![PlaceProjection::Field(*index)],
+                            heap_element: None,
                         }]),
                         loans: Loans::new(),
                     };
@@ -3361,6 +3426,7 @@ fn windows(
                         base: HoldRoot::Local(*local),
                         stored: Vec::new(),
                         place: Vec::new(),
+                        heap_element: None,
                     });
                     let write = !matches!(i.kind, InstructionKind::BorrowLocal { .. });
                     use_permission(&actual, write, &current, loans, apart, b)?;
@@ -3372,6 +3438,7 @@ fn windows(
                             base: HoldRoot::Capture(*index),
                             stored: vec![],
                             place: vec![],
+                            heap_element: None,
                         }]),
                         loans: Loans::new(),
                     };
@@ -3513,6 +3580,7 @@ fn windows(
                                         base: HoldRoot::Local(*callee),
                                         stored: vec![],
                                         place: vec![],
+                                        heap_element: None,
                                     }]),
                                     loans: Loans::new(),
                                 },
@@ -4132,6 +4200,7 @@ pub(super) fn infer(
     // Raw paid inventories classify new owning holders and Fixed captures.
     // Preserve the established Fixed profile without rescanning either table.
     b.stored_owned_fixed = if !b.task_borrowed_results
+        && !b.store_option_results
         && b.composition_stored.is_empty()
         && (!b.stored_packages || b.stored_fixed_owner)
     {
@@ -4204,6 +4273,8 @@ pub(super) fn infer(
                 || matches!(ty,Type::Address{inner,..}if inner.is_address_pointee())
                 || ty.is_copy_value()
                 || b.stored_owned_fixed && owned::data(ty, b)?
+                || b.store_option_results && matches!(ty, Type::Package { .. } | Type::OwnedStore { .. } | Type::ByteBuffer | Type::Managed(_) | Type::Desc(_) | Type::ErrorUnion { .. })
+                || b.store_option_results && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Package { .. } | Type::OwnedStore { .. } | Type::Managed(_)))
                 || mixed_resource
                 || b.stored_enum_addresses
                     && enum_address::signature(ty)
@@ -4499,6 +4570,14 @@ fn actual_instructions(
                 && !owned_operation
                 && !enum_operation
                 && !(b.task_borrowed_results && task_address::operation(&i.kind))
+                && !(b.store_option_results && matches!(i.kind,
+                    InstructionKind::OwnedStoreNew { .. }
+                    | InstructionKind::OwnedStoreReserve { .. }
+                    | InstructionKind::OwnedStorePush { .. }
+                    | InstructionKind::OwnedStoreLen { .. }
+                    | InstructionKind::OwnedStoreBorrow { .. }
+                    | InstructionKind::DropErrorUnion { .. }
+                    | InstructionKind::DescribePackageField { .. }))
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
@@ -5970,7 +6049,8 @@ mod tests {
                 retained_port: None,
                 base: HoldRoot::Local(LocalId(0)),
                 stored: vec![],
-                place: vec![]
+                place: vec![],
+                heap_element: None,
             }]
         );
         super::super::analyze(&m, &Limits::default()).unwrap();
