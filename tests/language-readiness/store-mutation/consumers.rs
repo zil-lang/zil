@@ -17,7 +17,9 @@ pub(super) fn native_entry_all_backends(
     }
     for backend in backends {
         for optimization in [Optimization::O0, Optimization::O2] {
-            let dir = directory(&format!("store-mutation-{label}-{backend:?}-{optimization:?}"));
+            let dir = directory(&format!(
+                "store-mutation-{label}-{backend:?}-{optimization:?}"
+            ));
             let input = dir.join("main.zil");
             fs::write(&input, source).unwrap();
             let exe = dir.join("program");
@@ -107,7 +109,11 @@ fn live_same_root_windows_and_structural_changes_are_rejected() {
         ("drop", "store_at_mut(items,0)", "destroy(give items);"),
     ] {
         let baseline = format!("{PREFIX}let view={view};return view.value}}");
-        let accepted = check(&format!("store-mutation-{label}-baseline"), &baseline, Stage::Verify);
+        let accepted = check(
+            &format!("store-mutation-{label}-baseline"),
+            &baseline,
+            Stage::Verify,
+        );
         assert_eq!(
             accepted.status,
             ResultCategory::Success,

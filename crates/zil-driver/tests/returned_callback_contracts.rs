@@ -6,7 +6,8 @@ use zil_ir::{CallableCleanup, CallableKind, CallableReturnSource, CoreImport, Co
 
 #[test]
 fn actual_parameter_indices_and_declared_modes_survive_raw_and_wire() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/callable-instance-forwarding/extended");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/callable-instance-forwarding/extended");
     let sources = ["main", "model", "relay"]
         .iter()
         .enumerate()

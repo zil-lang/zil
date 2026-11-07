@@ -9,7 +9,12 @@ mod trust_boundary;
 
 #[test]
 fn numeric_records_preserve_complete_values_and_copy_protocols() {
-    native("store-allocation-numeric", include_str!("numeric.zil"), b"POD\n", 0);
+    native(
+        "store-allocation-numeric",
+        include_str!("numeric.zil"),
+        b"POD\n",
+        0,
+    );
 }
 
 #[test]
@@ -60,7 +65,12 @@ fn std_store_uses_actual_module_interfaces_and_native_values() {
 
 #[test]
 fn actual_shared_view_last_use_and_distinct_roots_are_precise() {
-    native("store-allocation-view", include_str!("shared.zil"), b"VIEW\n", 0);
+    native(
+        "store-allocation-view",
+        include_str!("shared.zil"),
+        b"VIEW\n",
+        0,
+    );
 }
 
 #[test]
@@ -75,7 +85,11 @@ fn actual_live_shared_view_blocks_same_root_mutations_with_spare_capacity() {
         let source = format!(
             "struct Cell{{value:i32}}fn destroy(give items:Store<Cell>){{}}fn main()->i32{{let items:Store<Cell>=store_new();store_reserve(items,3);store_push(items,Cell{{value:41}});let view=store_at(items,0);{mutation};return view.value}}"
         );
-        let report = check(&format!("store-allocation-live-{label}"), &source, Stage::Verify);
+        let report = check(
+            &format!("store-allocation-live-{label}"),
+            &source,
+            Stage::Verify,
+        );
         assert_eq!(
             report.status,
             ResultCategory::SafeReject,

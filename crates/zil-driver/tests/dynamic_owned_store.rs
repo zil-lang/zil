@@ -165,7 +165,8 @@ fn empty_pop_propagates_unit_error_without_an_element_obligation() {
 }
 
 const MODEL: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/model.zil");
-const STORAGE: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/storage.zil");
+const STORAGE: &str =
+    include_str!("../../../examples/mainline/store-transfer-and-drain/storage.zil");
 const WORK: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/work.zil");
 const MAIN: &str = include_str!("../../../examples/mainline/store-transfer-and-drain/main.zil");
 

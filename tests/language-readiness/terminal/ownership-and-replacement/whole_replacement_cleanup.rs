@@ -3,16 +3,21 @@ use super::*;
 use zil_ir::{CandidatePlan, PassingMode, TypedModule};
 
 const REBORROW: &str = include_str!("whole-helper/whole-replacement-cleanup/reborrow.zil");
-const INCOMING_READ: &str = include_str!("whole-helper/whole-replacement-cleanup/incoming-reborrow.zil");
+const INCOMING_READ: &str =
+    include_str!("whole-helper/whole-replacement-cleanup/incoming-reborrow.zil");
 const FRESH: &str = include_str!("whole-helper/whole-replacement-cleanup/fresh-create.zil");
 const INCOMING: &str = include_str!("whole-helper/whole-replacement-cleanup/incoming-give.zil");
-const CONDITIONAL: &str = include_str!("whole-helper/whole-replacement-cleanup/conditional-give.zil");
+const CONDITIONAL: &str =
+    include_str!("whole-helper/whole-replacement-cleanup/conditional-give.zil");
 const OLD: &str = include_str!("whole-helper/whole-replacement-cleanup/old-desc.zil");
 const APART: &str = include_str!("whole-helper/whole-replacement-cleanup/apart-desc.zil");
 const SUCCESS: &str = include_str!("whole-helper/whole-replacement-cleanup/success.zil");
-const ARGUMENT_FAILURE: &str = include_str!("whole-helper/whole-replacement-cleanup/argument-failure.zil");
-const WRONG_ACTUAL: &str = include_str!("whole-helper/whole-replacement-cleanup/wrong-actual-give.zil");
-const INCOMING_PACKAGE: &str = include_str!("whole-helper/whole-replacement-cleanup/incoming-package-give.zil");
+const ARGUMENT_FAILURE: &str =
+    include_str!("whole-helper/whole-replacement-cleanup/argument-failure.zil");
+const WRONG_ACTUAL: &str =
+    include_str!("whole-helper/whole-replacement-cleanup/wrong-actual-give.zil");
+const INCOMING_PACKAGE: &str =
+    include_str!("whole-helper/whole-replacement-cleanup/incoming-package-give.zil");
 const SHELL_AGE: &str = include_str!("whole-helper/whole-replacement-cleanup/shell-age.zil");
 const LOCAL_FAILURE: &str = include_str!("replace-package-terminal-failure.zil");
 const FAILURE: &str = include_str!("whole-helper/whole-replacement-cleanup/failure.zil");

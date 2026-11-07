@@ -65,7 +65,9 @@ fn cross_factory_independent_sources_keep_full_scalar_and_nominal_contracts() {
     // This closed T -> Type path was supported before CONTEXTUAL_RECORD_RELOCATION. It is a regression
     // control and is not evidence for life-bearing Type value construction.
     let report = compile_source(
-        &source(include_str!("../lifetime-identity-review/type-result-nominal.zil")),
+        &source(include_str!(
+            "../lifetime-identity-review/type-result-nominal.zil"
+        )),
         &CompileOptions::default(),
     );
     assert_eq!(

@@ -324,8 +324,8 @@ fn generic_context_injection_ambiguous_and_wrong_nominal_controls_reject() {
 #[cfg(target_os = "linux")]
 fn replacement_recovery_project(entry: &str) -> zil_driver::ProjectSources {
     use std::{collections::BTreeMap, fs, path::PathBuf};
-    let root =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/component-language-prerequisites");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/mainline/component-language-prerequisites");
     let names = [entry, "config", "component", "bridge"];
     let mut paths = BTreeMap::new();
     let modules = names
@@ -480,8 +480,8 @@ fn replacement_recovery_component_native_success_error_and_null_cleanup() {
     fn quote(path: &Path) -> String {
         format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
     }
-    let fixture =
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/component-language-prerequisites");
+    let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../examples/mainline/component-language-prerequisites");
     let clang = std::env::var_os("ZIL_CLANG")
         .map(PathBuf::from)
         .unwrap_or_else(|| "clang".into());
@@ -663,8 +663,7 @@ fn thread_local_parent_review_direct_factory_scalar_graph_and_once_body() {
 
 #[cfg(target_os = "linux")]
 fn thread_local_parent_root() -> std::path::PathBuf {
-    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../examples/mainline/concurrency")
+    std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../examples/mainline/concurrency")
 }
 
 #[cfg(target_os = "linux")]
@@ -2261,10 +2260,18 @@ fn thread_parent_cleanup_machine_cache_keeps_scalar_and_pointer_payloads_distinc
 #[test]
 fn async_registration_sealed_sync_scope_source_reaches_independent_kernel() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"
+        ),
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -2292,10 +2299,18 @@ fn async_registration_sealed_sync_native_contention() {
         backends.push(NativeBackend::LlvmApi);
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-scope.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-scope.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/atomic-contention.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/mutex-contention.zil"
+        ),
     ] {
         for backend in &backends {
             for optimization in [Optimization::O0, Optimization::O2] {
@@ -2580,7 +2595,9 @@ fn async_registration_mutex_native_failures_and_owned_body_cleanup() {
 
 #[test]
 fn async_registration_source_to_persistent_native_frame() {
-    let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"
+    );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -2595,13 +2612,27 @@ fn async_registration_source_to_persistent_native_frame() {
 fn async_registration_native_yields_resume_once() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-control.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-cancel.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-unused.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-move.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-static-callback.zil"),
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-nonyield.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-control.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-cancel.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-unused.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-move.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-static-callback.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-nonyield.zil"
+        ),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -2649,7 +2680,9 @@ fn async_registration_native_yields_resume_once() {
 #[test]
 fn async_registration_source_rejects_direct_paths_and_overlapping_heads() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-reject-foreign-ref.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/concurrency-and-registration/task-reject-foreign-ref.zil"
+        ),
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32=>worker(7)",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let f:fn(i32)->i32=worker;return f(7)}",
         "fn worker(x:i32)->i32 {task_yield(); return x} fn main()->i32 {let r=thread_scope(worker,7,()->i32=>0);return r.1}",
@@ -2672,7 +2705,9 @@ fn async_registration_source_rejects_direct_paths_and_overlapping_heads() {
 #[test]
 fn task_poll_raw_wire_and_exact_kernel_budgets() {
     use zil_ir::{InstructionKind as I, Type};
-    let text = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-poll.zil"
+    );
     let src = source(text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();
@@ -2879,7 +2914,9 @@ fn async_registration_native_allocation_failure_drop_and_closed_destroy() {
             for (index, text, failure, code, stdout) in [
                 (
                     0,
-                    include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-null.zil"),
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-null.zil"
+                    ),
                     true,
                     Some(0),
                     "AA",
@@ -3261,7 +3298,9 @@ fn async_registration_run_external_sabi(child: bool) {
                         "../../../tests/language-readiness/terminal/concurrency-and-registration/task-child-export.zil"
                     )
                 } else {
-                    include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil")
+                    include_str!(
+                        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-export.zil"
+                    )
                 })],
                 paths: Default::default(),
             };
@@ -3438,8 +3477,9 @@ fn async_registration_run_external_sabi(child: bool) {
 
 #[test]
 fn async_registration_returned_generic_owner_reaches_both_kernels() {
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
+    );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -3567,8 +3607,9 @@ fn async_registration_returned_stable_owner_native_and_failures() {
 
 #[test]
 fn async_registration_source_definition_moves_and_closed_environment_rejects() {
-    let original =
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
+    );
     let unused = original.split("fn main").next().unwrap().to_owned() + "fn main() {}";
     let neighbors=[
         unused.replace(" + ClosedEnvironment",""),
@@ -3887,8 +3928,9 @@ fn returned_registration_raw_wire_and_exact_kernel_budgets() {
 
 #[test]
 fn async_registration_copy_instances_and_return_branch_neighbors() {
-    let original =
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
+    );
     let declarations = original.split("fn install").next().unwrap();
     let copy = format!(
         "{declarations}\nfn main()->i32 {{let base=37;let f=move(x:i32)->i32=>x+base;unsafe{{let first=c_register(registration_register,registration_close_backend,f);let second=c_register(registration_register,registration_close_backend,f);registration_close(give first);registration_close(give second);}}return 0}}"
@@ -3907,8 +3949,9 @@ fn async_registration_copy_instances_and_return_branch_neighbors() {
 
 #[test]
 fn async_registration_source_library_preserves_actual_returned_environment() {
-    let original =
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-return.zil"
+    );
     let helper = original
         .split("fn install")
         .nth(1)
@@ -3948,8 +3991,9 @@ fn async_registration_source_library_preserves_actual_returned_environment() {
 
 #[test]
 fn async_registration_composed_code_capture_keeps_actual_data_and_life_boundaries() {
-    let positive =
-        include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/registration-composed.zil");
+    let positive = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/registration-composed.zil"
+    );
     let report = compile_source(&source(positive), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -4010,7 +4054,9 @@ fn async_registration_composed_code_capture_keeps_actual_data_and_life_boundarie
 #[cfg(target_os = "linux")]
 fn async_child_native_static_frames_resume_and_cancel() {
     use zil_driver::{NativeBackend, Optimization, Stage};
-    let original = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil"
+    );
     let prefix = original.split("fn main").next().unwrap();
     let mut sources = vec![original.to_owned()];
     for after in 0..=8 {
@@ -4355,7 +4401,9 @@ fn async_child_native_allocation_failure_and_embedded_cleanup() {
         process::Command,
     };
     use zil_driver::{NativeBackend, Optimization, Stage};
-    let original = include_str!("../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/concurrency-and-registration/task-child.zil"
+    );
     let prefix = original.split("fn main").next().unwrap();
     let mut cases = vec![original.to_owned()];
     for explicit in [false, true] {

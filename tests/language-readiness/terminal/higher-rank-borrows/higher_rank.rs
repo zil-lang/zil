@@ -671,8 +671,8 @@ fn hrtb_owned_preparation_failure_cleans_without_calling_body() {
     let base = "extern \"C\" fn byte_test_attempts()->i32;extern \"C\" fn byte_test_releases()->i32;extern \"C\" fn byte_test_live()->i32;enum Fault{Stop}package Packet{manages data:ByteBuffer}fn packet()->Fault!Packet{let data=bytes_new();if !bytes_reserve(data,13){return Fault.Stop}return Packet{data:give data}}fn consume(give b:ByteBuffer){}fn apply<F:for<life a> FnOnce(&'a i64)->&'a i64>(f:F,p:&i64,packet:Packet)->&i64{return f(p)}fn work(counter:&mut i32)->Fault!i64{let b=bytes_new();bytes_reserve(b,4);let f=move(p:&i64)=>{*counter+=1;consume(give b);return p};let n:i64=42;return *apply(f,&n,packet()?)}fn result()->i32{var calls=0;let answer=work(&mut calls);unsafe{return byte_test_attempts()*100+byte_test_releases()*10000+byte_test_live()*10000000+calls*1000000}}";
     let temp = Temp::new();
     let compiler = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());
-    let shim =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/byte-buffer/owned-storage-abi/fault-allocator.c");
+    let shim = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/byte-buffer/owned-storage-abi/fault-allocator.c");
     let wrapper = temp.0.join("fault-clang.py");
     fs::write(&wrapper,format!("#!/usr/bin/env python3\nimport os,sys\ncompiler={}\nextra=['-x','c',{},'-Wl,--wrap=malloc','-Wl,--wrap=realloc','-Wl,--wrap=free']\nos.execvp(compiler,[compiler]+sys.argv[1:]+extra)\n",zil_base::json_string(&compiler),zil_base::json_string(&shim.to_string_lossy()))).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();

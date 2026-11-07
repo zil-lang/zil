@@ -6,7 +6,8 @@ use zil_ir::{
     PassingMode, Type,
 };
 
-const PAIR: &str = include_str!("../../zil-driver/tests/callback_store_positions_fixtures/01_pair_store_mut.zil");
+const PAIR: &str =
+    include_str!("../../zil-driver/tests/callback_store_positions_fixtures/01_pair_store_mut.zil");
 const HELPERS: &str = r#"
 fn empty<T: StoreElement>() -> Store<T> contract { result(create) } { return store_new() }
 fn reserve<T: StoreElement>(items: Store<T>, count: i64) -> bool { return store_reserve(items, count) }
@@ -238,8 +239,9 @@ fn contextless_factory_and_unused_bad_definition_stay_rejected() {
 
 #[test]
 fn legacy_single_field_state_preserves_exact_expand_budget() {
-    let text =
-        include_str!("../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil");
+    let text = include_str!(
+        "../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil"
+    );
     let unit = source(text);
     let parsed = zil_syntax::parse(&unit).into_result().unwrap();
     let check = |n| {
@@ -633,8 +635,10 @@ fn five_module_consumer_preserves_all_six_ordinary_helpers() {
         );
         map.validate(&sources, &Limits::default()).unwrap();
         if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
-            let path = std::path::PathBuf::from(root)
-                .join(format!("store_template_consumer_expand-{}", std::process::id()));
+            let path = std::path::PathBuf::from(root).join(format!(
+                "store_template_consumer_expand-{}",
+                std::process::id()
+            ));
             std::fs::create_dir_all(&path).unwrap();
             std::fs::write(
                 path.join(format!("{}.zil", entries[index].0)),

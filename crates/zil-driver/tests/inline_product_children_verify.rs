@@ -271,7 +271,7 @@ fn real_product_verify_work_has_exact_n_minus_one_and_fresh_boundaries() {
 }
 
 #[test]
-fn original_flat_verify_boundary_stays_10398_without_product_leaf_table() {
+fn flat_verify_work_boundary_without_product_leaves() {
     // Exact source built by generic_owned_success_field_origins::baseline, unchanged in
     // accepted205@2db3. Its original workspace02 boundaries.txt records
     // Analyze8673 / Verify10398; this is a fixed historical control.

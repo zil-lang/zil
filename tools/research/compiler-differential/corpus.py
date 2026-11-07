@@ -13,8 +13,8 @@ SNAPSHOTS = {"cold_session": "base", "unchanged": "base",
 SPECS = [("tree4x2", "small", 4, 2), ("tree32x8", "medium", 32, 8),
          ("tree256x8", "large", 256, 8), ("tree1024x8", "large", 1024, 8),
          ("retained", "consumer", None, None)]
-REFERENCE = ROOT / "tools/product/external-binding-cost-followup/reference104"
-CONSUMER = ROOT / "tools/product/external-binding-cost/programs104/retained"
+REFERENCE = ROOT / "tools/product/external-binding-cost-followup/reference"
+CONSUMER = ROOT / "tools/product/external-binding-cost/programs/retained"
 
 
 def reference():

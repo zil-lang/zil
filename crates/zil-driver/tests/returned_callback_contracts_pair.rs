@@ -12,7 +12,8 @@ use zil_driver::{CompileOptions, NativeBackend, Optimization, Stage, compile_sou
 
 #[test]
 fn fnmut_returned_parameter_requires_writable_position_and_keeps_poststate() {
-    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../tests/callable-instance-forwarding/paired");
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/callable-instance-forwarding/paired");
     let out = std::env::var_os("ZIL_TEST_REPORT_DIR")
         .map(PathBuf::from)
         .unwrap_or_else(std::env::temp_dir)

@@ -894,7 +894,8 @@ fn verify_window_budget_has_an_exact_n_and_n_minus_one_boundary() {
 
 const MODEL: &str = include_str!("../../../examples/mainline/store-element-read/model.zil");
 const STORAGE: &str = include_str!("../../../examples/mainline/store-element-read/storage.zil");
-const INSPECTION: &str = include_str!("../../../examples/mainline/store-element-read/inspection.zil");
+const INSPECTION: &str =
+    include_str!("../../../examples/mainline/store-element-read/inspection.zil");
 const MAIN: &str = include_str!("../../../examples/mainline/store-element-read/main.zil");
 
 #[test]

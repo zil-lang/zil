@@ -2,9 +2,11 @@ use zil_base::{Diagnostic, FileId, Limits, ModuleId, Phase, ResultCategory, Sour
 use zil_ir::{CallableKind, CoreModule, Type};
 
 const ORIGINAL: &str = include_str!("state_replacement_fixtures/state_and_replacement.zil");
-const LAST_USE: &str = include_str!("state_replacement_fixtures/mixed_unused_copy_alias_last_use.zil");
+const LAST_USE: &str =
+    include_str!("state_replacement_fixtures/mixed_unused_copy_alias_last_use.zil");
 const MIXED_ALIAS: &str = include_str!("state_replacement_fixtures/mixed_unused_copy_alias.zil");
-const SINGLE_ALIAS: &str = include_str!("state_replacement_fixtures/single_state_unused_copy_alias.zil");
+const SINGLE_ALIAS: &str =
+    include_str!("state_replacement_fixtures/single_state_unused_copy_alias.zil");
 
 fn run(text: &str) -> Result<CoreModule, Vec<Diagnostic>> {
     let source = SourceUnit::new(FileId(0), ModuleId(0), "state205.zil", text);
@@ -291,8 +293,9 @@ fn boundary(text: &str) -> usize {
 
 #[test]
 fn real_alias_work_and_new_header_have_exact_fresh_budget_boundaries() {
-    let legacy =
-        include_str!("../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil");
+    let legacy = include_str!(
+        "../../zil-driver/tests/mixed_owning_state_cases/01-existing-state-f-sibling/main.zil"
+    );
     for (name, source) in [
         ("header", ORIGINAL),
         ("unused_alias", LAST_USE),

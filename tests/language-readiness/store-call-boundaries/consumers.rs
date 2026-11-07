@@ -16,7 +16,12 @@ fn all_scalar_values_mutate_and_roundtrip_full_error_payloads() {
         let text = format!(
             "extern \"C\" fn putchar(x:i32)->i32;fn main()->i32{{let values:Store<{ty}>=store_new();if !store_reserve(values,1){{return 1}}store_push(values,{first});let view=store_at_mut(values,0);*view={second};if *view!={second}{{return 2}}match store_push(values,{first}){{.ok(())=>{{return 3}},.err(value)=>{{if value!={first}{{return 4}}}}}}match store_pop(values){{.ok(value)=>{{if value!={second}{{return 5}}}},.err(_)=>{{return 6}}}}if store_len(values)!=0{{return 7}}unsafe{{putchar(83);putchar(10)}}return 0}}"
         );
-        super::pod_collection_consumers::native_all_backends(&format!("scalar-{ty}"), &text, b"S\n", false);
+        super::pod_collection_consumers::native_all_backends(
+            &format!("scalar-{ty}"),
+            &text,
+            b"S\n",
+            false,
+        );
     }
 }
 #[test]

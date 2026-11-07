@@ -60,9 +60,7 @@ fn trailing_copy_bound_does_not_capture_a_same_named_struct() {
     rejects_nominal_field_capture(
         "where",
         include_str!("../../../examples/mainline/generated-events/review/shadow_where.zil"),
-        include_str!(
-            "../../../examples/mainline/generated-events/review/shadow_where_control.zil"
-        ),
+        include_str!("../../../examples/mainline/generated-events/review/shadow_where_control.zil"),
     );
 }
 

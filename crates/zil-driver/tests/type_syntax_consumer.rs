@@ -462,11 +462,7 @@ fn explicit_provider_locks_fail_closed_without_repair_or_order_fallback() {
 
 #[test]
 fn explicit_file_and_memory_graphs_have_the_same_inputs_and_results() {
-    for name in [
-        "type_values",
-        "providers_hygiene",
-        "fresh_and_named",
-    ] {
+    for name in ["type_values", "providers_hygiene", "fresh_and_named"] {
         let out = directory(&format!("{name}-input-equivalence"));
         let input = materialize(name, "generated", &out);
         let mut results = Vec::new();

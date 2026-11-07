@@ -105,7 +105,9 @@ fn native(label: &str, source: &str, stdout: &[u8], exit: i32) {
 fn original_and_unused_sources_are_promoted_without_rewriting() {
     pass(
         "original217",
-        include_str!("../../../tools/language/language-readiness-probes/probes/product-store-element/main.zil"),
+        include_str!(
+            "../../../tools/language/language-readiness-probes/probes/product-store-element/main.zil"
+        ),
     );
     pass(
         "unused206",

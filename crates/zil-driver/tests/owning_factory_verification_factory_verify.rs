@@ -14,11 +14,16 @@ use zil_ir::*;
 
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 const FN: &str = include_str!("../../../tools/language/source-ownership-budget/cases/fn-owned.zil");
-const ONCE: &str = include_str!("../../../tools/language/source-ownership-budget/cases/once-identities.zil");
-const MUTABLE: &str = include_str!("../../../tools/language/source-ownership-budget/cases/mut-owned.zil");
-const DISCARD: &str = include_str!("../../../tools/language/source-ownership-budget/cases/discard-and-eager.zil");
-const PREPARE: &str = include_str!("../../../tools/language/source-ownership-budget/cases/prepare-failure.zil");
-const STORE: &str = include_str!("../../../tools/language/source-ownership-budget/cases/callback-store.zil");
+const ONCE: &str =
+    include_str!("../../../tools/language/source-ownership-budget/cases/once-identities.zil");
+const MUTABLE: &str =
+    include_str!("../../../tools/language/source-ownership-budget/cases/mut-owned.zil");
+const DISCARD: &str =
+    include_str!("../../../tools/language/source-ownership-budget/cases/discard-and-eager.zil");
+const PREPARE: &str =
+    include_str!("../../../tools/language/source-ownership-budget/cases/prepare-failure.zil");
+const STORE: &str =
+    include_str!("../../../tools/language/source-ownership-budget/cases/callback-store.zil");
 
 fn directory(label: &str) -> PathBuf {
     let base = std::env::var_os("ZIL_TEST_REPORT_DIR")
@@ -350,7 +355,9 @@ fn build(label: &str, source: &str, opt: Optimization, project: bool) -> PathBuf
     let report = if project {
         fs::write(
             path.join("api.zil"),
-            include_str!("../../../tools/language/source-ownership-budget/cases/cross-module/api.zil"),
+            include_str!(
+                "../../../tools/language/source-ownership-budget/cases/cross-module/api.zil"
+            ),
         )
         .unwrap();
         compile_path(&path.join("main.zil"), &options)
@@ -413,10 +420,11 @@ fn observe(
 }
 
 fn probe(path: &Path, opt: Optimization) -> PathBuf {
-    let source = include_str!("../../../tools/language/composed-store-closures/allocator_probe.c").replace(
-        "#include \"../../research/142/allocator_probe.c\"",
-        include_str!("../../../tools/research/byte-buffer-growth/allocator_probe.c"),
-    );
+    let source = include_str!("../../../tools/language/composed-store-closures/allocator_probe.c")
+        .replace(
+            "#include \"../../research/142/allocator_probe.c\"",
+            include_str!("../../../tools/research/byte-buffer-growth/allocator_probe.c"),
+        );
     fs::write(path.join("allocator_probe.c"), source).unwrap();
     let output = path.join("probe");
     let result = Command::new(std::env::var_os("ZIL_CLANG").unwrap_or_else(|| "clang".into()))
@@ -458,7 +466,8 @@ fn native_owning_modes_and_distinct_values_clean_exactly_once_without_allocation
 
 #[test]
 fn native_cross_module_nested_factory_keeps_complete_input_identity() {
-    let source = include_str!("../../../tools/language/source-ownership-budget/cases/cross-module/main.zil");
+    let source =
+        include_str!("../../../tools/language/source-ownership-budget/cases/cross-module/main.zil");
     for opt in [Optimization::O0, Optimization::O2] {
         let path = build("cross-module", source, opt, true);
         assert!(observe(&path.join("program"), &path, "ordinary", "XA", 0, None).is_empty());
@@ -524,12 +533,16 @@ fn extended_signature_controls_keep_raw_wire_and_native_contracts() {
     for (label, source, expected) in [
         (
             "address-signatures",
-            include_str!("../../../tools/language/source-ownership-budget/cases/address-signatures.zil"),
+            include_str!(
+                "../../../tools/language/source-ownership-budget/cases/address-signatures.zil"
+            ),
             "",
         ),
         (
             "copy-error-result",
-            include_str!("../../../tools/language/source-ownership-budget/cases/copy-error-result.zil"),
+            include_str!(
+                "../../../tools/language/source-ownership-budget/cases/copy-error-result.zil"
+            ),
             "ABXCDY",
         ),
         (

@@ -78,7 +78,7 @@
     },
     {
       "kind": "active-test",
-      "current_sha256": "481215d7e8c0a81d7b1e651feb3f317d6ee83f06abf7b53c0a6a23b696f63705",
+      "current_sha256": "b198d307244c27b2f59f63c1c0433c6bf6f440c6e29cd59897c572a7a5d8f05f",
       "historical_path": ".task/G10.1.10-inputs/consumers.rs",
       "current_path": "tests/fixtures/resource-packages/consumers.rs",
       "source_sha256": "8a10fdc532318bb85d6f4b5e89b5121bceab076c580dba0d26c47c5001ff5124",
@@ -199,7 +199,7 @@
     },
     {
       "kind": "active-test",
-      "current_sha256": "2a238b5e638b4fa3e7eb88d4f503f3464bb3cc8ceb23371b783352bfe76ed8f4",
+      "current_sha256": "1ee74a470878fa257e53820967cc4bbdf3f36850d985f3693630431fc3d15099",
       "historical_path": ".task/G4.4.6.1-inputs/nominal_controls.rs",
       "current_path": "tests/fixtures/nominal-lifetimes/nominal_controls.rs",
       "source_sha256": "554869f849a973c4fbb90bd287a7fbfd58bbd9146aecf70625a0dfdfe5a3c9bd",

@@ -69,8 +69,8 @@ fn candidate(module: &TypedModule) -> CandidatePlan {
 
 #[test]
 fn phantom_nominal_classes_preserve_metadata_without_target_roots() {
-    let dir =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/higher-rank-borrows");
+    let dir = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/language-readiness/terminal/higher-rank-borrows");
     let positive = dir.join("phantom_stored_metadata.zil");
     let negative = dir.join("phantom_stored_metadata_escape.zil");
     let report = zil_driver::compile_path(&positive, &CompileOptions::default());

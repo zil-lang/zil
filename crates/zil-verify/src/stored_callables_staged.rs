@@ -605,9 +605,7 @@ mod tests {
             10,
             "old direct role cost changed"
         );
-        eprintln!(
-            "Verify local staged origin work N={n}, N-1/depth reject; direct old role=10"
-        );
+        eprintln!("Verify local staged origin work N={n}, N-1/depth reject; direct old role=10");
     }
     #[allow(dead_code)]
     mod tail_fixture {

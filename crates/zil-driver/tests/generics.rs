@@ -339,7 +339,9 @@ fn owned_replacement_driver_declaration_context_preserves_original_and_closes_un
 #[test]
 fn owned_replacement_generic_methods_specialize_ordinary_calls() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"
+        ),
         "struct P{}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item{return x}}impl Echo for P{type Item=i32;}fn main()->i32{let p=P{};return p.echo::<bool>(7)-7}",
         "struct Box<T:Copy>{value:T}trait Echo{type Item:Copy;fn echo<T:Copy>(self:&Self,x:Self.Item)->Self.Item;}impl<T:Copy> Echo for Box<T>{type Item=T;fn echo<U:Copy>(x:Self.Item)->Self.Item{return x}}fn main()->i32{let p=Box::<bool>{value:true};if p.echo::<i32>(true){return 0}return 1}",
         "struct P{}trait Echo{fn echo<T>(self:&Self,x:T)->T where T:Copy;}impl Echo for P{fn echo<U>(x:U)->U{return x}}fn main()->i32{let p=P{};return p.echo(7)-7}",
@@ -408,8 +410,9 @@ fn owned_replacement_generic_methods_reject_unused_invalid_contracts() {
 
 #[test]
 fn owned_replacement_unsigned_const_domains_keep_full_target_bits() {
-    let positive =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil");
+    let positive = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil"
+    );
     for text in [
         positive,
         "fn value<#N:usize>()->usize{return N}fn main()->i32{if value::<18446744073709551615usize>()==18446744073709551615usize{return 0}return 1}",
@@ -538,7 +541,9 @@ fn owned_replacement_ct_generic_type_return_record_reflection_and_syntax() {
 #[test]
 fn owned_replacement_const_scalar_functions_check_unused_definitions_and_substitute_values() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-functions.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/const-functions.zil"
+        ),
         "fn constant<#N:i32>()->i32{return N}fn main()->i32{return constant::<7>()-7}",
         "fn pick<T:Copy,#N:i32>(x:T)->T{let n:i32=N;return x}fn main()->i32{return pick::<i32,3>(7)-7}",
         "fn flag<#B:bool>()->bool{return B}fn main()->i32{if flag::<true>(){return 0}return 1}",
@@ -561,7 +566,9 @@ fn owned_replacement_const_scalar_functions_check_unused_definitions_and_substit
         assert_eq!(report.verification_runs, 1);
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unused-invalid.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/const-unused-invalid.zil"
+        ),
         include_str!(
             "../../../tests/language-readiness/terminal/generics-and-constants/const-shadow-length-invalid.zil"
         ),
@@ -591,8 +598,9 @@ fn owned_replacement_const_scalar_functions_check_unused_definitions_and_substit
 #[test]
 fn owned_replacement_const_instances_reach_wire_native_and_exact_budget() {
     use zil_base::{Limits, TargetProfile};
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-array-machine.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/const-array-machine.zil"
+    );
     let src = source(text);
     let ast = zil_syntax::parse(&src).into_result().unwrap();
     let core = zil_expand::expand(&src, &ast).unwrap();

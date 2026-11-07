@@ -293,7 +293,8 @@ fn sealed_definitions_are_discovered_from_state_only_signatures() {
 #[test]
 fn cross_module_state_owns_runtime_replacement_and_partial_exit() {
     let model = include_str!("../../../examples/mainline/owned-store-state-replacement/model.zil");
-    let storage = include_str!("../../../examples/mainline/owned-store-state-replacement/storage.zil");
+    let storage =
+        include_str!("../../../examples/mainline/owned-store-state-replacement/storage.zil");
     let state = include_str!("../../../examples/mainline/owned-store-state-replacement/state.zil");
     for (entry, input, output, exit) in [
         (
@@ -309,7 +310,9 @@ fn cross_module_state_owns_runtime_replacement_and_partial_exit() {
             1,
         ),
         (
-            include_str!("../../../examples/mainline/owned-store-state-replacement/reserve_recovery.zil"),
+            include_str!(
+                "../../../examples/mainline/owned-store-state-replacement/reserve_recovery.zil"
+            ),
             b"".as_slice(),
             b"ZAB".as_slice(),
             0,

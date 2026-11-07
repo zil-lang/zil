@@ -27,9 +27,15 @@ mod owned_aggregate_enum_terminal;
 #[test]
 fn owned_aggregate_owner_replacement_types_uses_real_tickets() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"
+        ),
         include_str!(
             "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
         ),
@@ -60,7 +66,9 @@ fn owned_aggregate_owner_replacement_types_uses_real_tickets() {
 fn owned_aggregate_owner_replacement_analyze_tracks_fresh_and_incoming() {
     for (text, expected) in [
         (
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+            ),
             ResultCategory::Success,
         ),
         (
@@ -70,7 +78,9 @@ fn owned_aggregate_owner_replacement_analyze_tracks_fresh_and_incoming() {
             ResultCategory::Success,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"
+            ),
             ResultCategory::SafeReject,
         ),
         (
@@ -93,8 +103,9 @@ fn owned_aggregate_owner_replacement_analyze_tracks_fresh_and_incoming() {
 
 #[test]
 fn owned_aggregate_owner_replacement_preparation_abort_and_pin_neighbors() {
-    let failed_rhs =
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil");
+    let failed_rhs = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"
+    );
     let temp = Temp::new();
     let report = compile_source(
         &source(failed_rhs),
@@ -212,7 +223,9 @@ fn owned_aggregate_owner_replacement_wide_long_names_budget() {
 fn owned_aggregate_owner_replacement_independent_verify_source() {
     for (text, expected) in [
         (
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+            ),
             ResultCategory::Success,
         ),
         (
@@ -222,7 +235,9 @@ fn owned_aggregate_owner_replacement_independent_verify_source() {
             ResultCategory::Success,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"
+            ),
             ResultCategory::SafeReject,
         ),
         (
@@ -232,7 +247,9 @@ fn owned_aggregate_owner_replacement_independent_verify_source() {
             ResultCategory::SafeReject,
         ),
         (
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"
+            ),
             ResultCategory::Success,
         ),
     ] {
@@ -244,15 +261,21 @@ fn owned_aggregate_owner_replacement_independent_verify_source() {
 #[test]
 fn owned_aggregate_owner_replacement_preserves_freshness_and_real_cleanup() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"),
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+        ),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-fresh.zil"
+        ),
     ] {
         record_enum_native_output(&[("main", text)], b"AB42\n");
     }
     record_enum_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-failure.zil"
+            ),
         )],
         b"A42\n",
     );
@@ -265,11 +288,15 @@ fn owned_aggregate_owner_replacement_preserves_freshness_and_real_cleanup() {
         )],
         b"BA42\n",
     );
-    let read_old = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil")
-        .replace("R{code:66}", "R{code:target.owner.code+1}");
+    let read_old = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+    )
+    .replace("R{code:66}", "R{code:target.owner.code+1}");
     record_enum_native_output(&[("main", &read_old)], b"AB42\n");
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-incoming.zil"
+        ),
         include_str!(
             "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-captured-incoming.zil"
         ),
@@ -286,8 +313,9 @@ fn owned_aggregate_owner_replacement_preserves_freshness_and_real_cleanup() {
 
 #[test]
 fn owned_aggregate_owner_replacement_error_arm_content_and_raw_neighbors() {
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arms.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arms.zil"
+    );
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -507,13 +535,15 @@ fn owned_aggregate_owner_replacement_raw_wire_and_real_parent_pin() {
     }
     // Preserve all producer claims while changing the actual staged debt from
     // Created to Incoming. Verify must derive the transfer through both calls.
-    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil")
-        .replace("fn make()", "fn make(give incoming:R)")
-        .replace(
-            "relay(&mut packet)",
-            "replace_value(&mut packet,R{code:66})",
-        )
-        .replace("let owner=make()", "let owner=make(R{code:67})");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-fresh.zil"
+    )
+    .replace("fn make()", "fn make(give incoming:R)")
+    .replace(
+        "relay(&mut packet)",
+        "replace_value(&mut packet,R{code:66})",
+    )
+    .replace("let owner=make()", "let owner=make(R{code:67})");
     let text =
         format!("{text}fn replace_value(target:&mut P,give next:R){{target.owner=give next}}");
     let input = source(&text);
@@ -567,8 +597,9 @@ fn owned_aggregate_captured_owning_base_native() {
         "{}",
         report.to_json()
     );
-    let legal =
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-base.zil");
+    let legal = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-base.zil"
+    );
     assert_eq!(legal, original.replace("let f=", "var f="));
     record_enum_native_output(&[("main", legal)], b"A42\n");
 }
@@ -704,7 +735,9 @@ fn owned_aggregate_captured_owning_callable_parameter_boundary() {
 }
 
 fn owned_aggregate_captured_slots_source() -> &'static str {
-    include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-result.zil")
+    include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/captured-owning-result.zil"
+    )
 }
 
 #[test]
@@ -945,7 +978,9 @@ fn owned_aggregate_error_arm_owned_and_borrowed_native() {
     record_enum_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/error-arms.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/error-arms.zil"
+            ),
         )],
         b"AXBX42\n",
     );
@@ -1234,7 +1269,9 @@ fn owned_aggregate_fnptr_record_enum_result_inference() {
 
 #[test]
 fn owned_aggregate_unsigned_native_and_ct() {
-    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/unsigned.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/unsigned.zil"
+    );
     record_enum_native(&[("main", text)], 42);
     for text in [
         "fn result()->i32{let x:u64=18446744073709551616u64;return 0}",
@@ -1415,7 +1452,9 @@ fn owned_aggregate_option_source_identity_and_negative_neighbors() {
     record_enum_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/option.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/option.zil"
+            ),
         )],
         42,
     );
@@ -1500,7 +1539,9 @@ fn owned_aggregate_reference_places_native() {
     record_enum_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/reference.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/reference.zil"
+            ),
         )],
         42,
     );
@@ -1995,7 +2036,9 @@ fn owned_aggregate_addressed_tag_child_mutation_epoch() {
 #[test]
 fn owned_aggregate_addressed_budget_boundaries() {
     use zil_driver::CompilationSession;
-    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/addressed.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/addressed.zil"
+    );
     record_enum_native(&[("main", text)], 42);
     let input = source(text);
     let options = |work| CompileOptions {
@@ -2221,7 +2264,9 @@ fn owned_aggregate_owned_tuple_complete_transfers() {
     record_enum_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/owned-tuples.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/owned-tuples.zil"
+            ),
         )],
         b"A42\n",
     );
@@ -2341,7 +2386,9 @@ fn owned_aggregate_selective_mixed_patterns_native() {
     record_enum_native_output(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/mixed.zil"
+            ),
         )],
         b"BAC42\n",
     );
@@ -2622,7 +2669,9 @@ fn owned_aggregate_actual_mixed_address_observation_budget() {
     for (lane, text) in [
         (
             "mixed",
-            include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil"
+            ),
         ),
         (
             "legacy",
@@ -2751,7 +2800,9 @@ fn owned_aggregate_actual_mixed_address_returns_and_captures() {
 #[test]
 fn owned_aggregate_actual_mixed_address_native_and_raw() {
     use zil_ir::PlaceProjection;
-    let text = include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/mixed-address.zil"
+    );
     record_enum_native_output(&[("main", text)], b"A42\n");
     let input = source(text);
     let ast = zil_syntax::parse(&input).into_result().unwrap();
@@ -6084,9 +6135,13 @@ fn large_copy_enum_error_default_stack_api_reliability() {
     const DEEP: &[&str] = &[
         include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth20.zil"),
         include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth32.zil"),
-        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/projection32.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/constraint-budgets/projection32.zil"
+        ),
         include_str!("../../../tests/language-readiness/terminal/constraint-budgets/depth48.zil"),
-        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/projection48.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/constraint-budgets/projection48.zil"
+        ),
     ];
     if let Ok(profile) = std::env::var("ZIL_344_STACK_CHILD") {
         // No stack_size override: Linux Rust worker threads use the default
@@ -6274,8 +6329,9 @@ fn large_copy_enum_error_default_stack_api_reliability() {
 
 #[test]
 fn ieee_float_source_ct_and_native_agree() {
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/floats/ieee-native.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/constraint-budgets/floats/ieee-native.zil"
+    );
     record_enum_native(&[("main", text)], 344);
 }
 
@@ -6331,7 +6387,9 @@ fn ieee_float_artifact_ct_reification_preserves_ieee_values() {
     record_enum_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/constraint-budgets/floats/ct-artifact.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/constraint-budgets/floats/ct-artifact.zil"
+            ),
         )],
         344,
     );
@@ -6689,20 +6747,25 @@ fn ieee_float_usize_conversions_use_target_width_in_both_ct_vms() {
 
 #[test]
 fn anonymous_sum_source_and_native() {
-    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/basic.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/basic.zil"
+    );
     record_enum_native(&[("main", text)], 42);
 }
 
 #[test]
 fn anonymous_sum_aliases_generic_copy_and_full_member_identity() {
-    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/aliases.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/aliases.zil"
+    );
     record_enum_native(&[("main", text)], 42);
 }
 
 #[test]
 fn anonymous_sum_ct_type_order_and_value_reification() {
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-types.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/ct-types.zil"
+    );
     record_enum_native(&[("main", text)], 42);
 }
 
@@ -6792,7 +6855,9 @@ fn anonymous_sum_raw_canonical_shape_and_wire_are_independently_checked() {
 
 #[test]
 fn anonymous_sum_nominal_phantom_arguments_stay_distinct_across_ct_and_runtime() {
-    let text = include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/phantom.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/phantom.zil"
+    );
     record_enum_native(&[("main", text)], 42);
     let swapped = text.replace(
         "type Integer=Phantom<i32>;\ntype Boolean=Phantom<bool>;",
@@ -6890,7 +6955,9 @@ fn anonymous_sum_float_unsigned_nested_generic_enum_layout() {
     record_enum_native(
         &[(
             "main",
-            include_str!("../../../tests/language-readiness/terminal/constraint-budgets/anonymous/float-enum.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/constraint-budgets/anonymous/float-enum.zil"
+            ),
         )],
         42,
     );
@@ -8136,8 +8203,9 @@ fn owned_aggregate_owner_replacement_error_arm_actual_mutable_alias() {
     let text = format!(
         "{prefix}fn result()->i32{{var value=make();let input=&mut value;match *input{{.ok(ref mut p)=>{{p.owner=R{{code:66}};return p.n+p.owner.code-66}},.err(_)=>{{return 0}}}}}}"
     );
-    let unknown =
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil");
+    let unknown = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
+    );
     let relay = unknown.replace("match *input", "let relay=input;match *relay");
     let read_old = unknown.replace("R{code:66}", "R{code:p.owner.code+1}");
     for text in [text.as_str(), unknown, relay.as_str(), read_old.as_str()] {
@@ -8183,8 +8251,9 @@ fn owned_aggregate_owner_replacement_error_arm_alias_abort_and_pins() {
     let typed = fs::read_to_string(&report.artifacts["typed"]).unwrap();
     assert!(typed.contains("AbortPlaceReservation"), "{typed}");
     record_enum_native_output(&[("main", text)], b"BA42\n");
-    let text =
-        include_str!("../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil");
+    let text = include_str!(
+        "../../../tests/language-readiness/terminal/ownership-and-replacement/replace-error-arm-alias.zil"
+    );
     for (case, neighbor) in [
         text.replace("let input=&mut value", "let input=&value"),
         text.replace(

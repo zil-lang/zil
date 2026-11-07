@@ -493,7 +493,9 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             assert!(run(low - 1).is_none());
             assert_eq!(run(low), Some(fingerprint));
         }
-        eprintln!("owned replacement.5.1 Verify wire={wire} work N={low} N-1 ResourceLimit, fresh/retry Pass");
+        eprintln!(
+            "owned replacement.5.1 Verify wire={wire} work N={low} N-1 ResourceLimit, fresh/retry Pass"
+        );
     }
 
     let input = source(text);
@@ -553,7 +555,9 @@ fn enum_verify_current_raw_wire_and_source_request_boundaries() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        eprintln!("owned replacement.5.1 whole Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass");
+        eprintln!(
+            "owned replacement.5.1 whole Source {kind} N={low} N-1 ResourceLimit fresh/warm/retry Pass"
+        );
     }
 
     let analyze_options = |work| CompileOptions {

@@ -55,12 +55,12 @@ class RepositoryLayoutTests(unittest.TestCase):
         })
 
     def test_existing_numbered_paths_are_audited_without_failing(self):
-        base = self.baseline("tools/language/state-bindings-consumer/consumer.py", "changes/owned replacement.2-record.md")
+        base = self.baseline("tools/language/203/consumer.py", "changes/G1.3.2-record.md")
         new, failures, legacy = layout.check(base, root=self.root)
         self.assertEqual(new, [])
         self.assertEqual(failures, [])
         self.assertEqual({path for path, _ in legacy}, {
-            "tools/language/state-bindings-consumer/consumer.py", "changes/owned replacement.2-record.md",
+            "tools/language/203/consumer.py", "changes/G1.3.2-record.md",
         })
 
     def test_versions_and_stable_cases_survive(self):
@@ -182,16 +182,16 @@ class RepositoryLayoutTests(unittest.TestCase):
     def test_full_scans_existing_production_declarations(self):
         self.baseline("crates/compiler/src/lib.rs", "tools/check.py")
         (self.root / "crates/compiler/src/lib.rs").write_text(
-            "pub fn owning_sum_layout_layout() {}\nfn product237_budget() {}\n"
-            "fn owning_sum_layout_all_65536_pairs() {}\n",
+            "pub fn impl243_layout() {}\nfn product237_budget() {}\n"
+            "fn impl243_all_65536_pairs() {}\n",
             encoding="utf-8",
         )
         (self.root / "tools/check.py").write_text("def batch336_probe():\n    pass\n", encoding="utf-8")
         _, failures, _ = layout.check(full=True, root=self.root)
         self.assertEqual({issue for _, issue in failures}, {
-            "construction ID declaration owning_sum_layout_layout",
+            "construction ID declaration impl243_layout",
             "construction ID declaration product237_budget",
-            "construction ID declaration owning_sum_layout_all_65536_pairs",
+            "construction ID declaration impl243_all_65536_pairs",
             "construction ID declaration batch336_probe",
         })
 

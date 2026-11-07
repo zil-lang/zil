@@ -349,8 +349,8 @@ fn actual_borrowed_head_failure_restores_and_releases_owned_buffer() {
     let text = "extern \"C\" fn byte_test_attempts()->i32;extern \"C\" fn byte_test_releases()->i32;extern \"C\" fn byte_test_live()->i32;package Text{manages data:ByteBuffer}enum Fault{Stop}fn grow(p:&mut Text)->bool{return bytes_reserve(p.data,13)}fn work()->Fault!i32{var text=Text{data:bytes_new()};if !bytes_reserve(text.data,4){return Fault.Stop}bytes_push(text.data,42u8);if !grow(&mut text){return Fault.Stop}return 7}fn result()->i32{let answer=work();unsafe{return byte_test_attempts()*100+byte_test_releases()*10000+byte_test_live()*1000000}}";
     let temp = Temp::new();
     let compiler = std::env::var("ZIL_CLANG").unwrap_or_else(|_| "clang".into());
-    let shim =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tools/byte-buffer/owned-storage-abi/fault-allocator.c");
+    let shim = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tools/byte-buffer/owned-storage-abi/fault-allocator.c");
     let wrapper = temp.0.join("fault-clang.py");
     fs::write(&wrapper,format!("#!/usr/bin/env python3\nimport os,sys\ncompiler={}\nextra=['-x','c',{},'-Wl,--wrap=malloc','-Wl,--wrap=realloc','-Wl,--wrap=free']\nos.execvp(compiler,[compiler]+sys.argv[1:]+extra)\n",zil_base::json_string(&compiler),zil_base::json_string(&shim.to_string_lossy()))).unwrap();
     fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();

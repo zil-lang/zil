@@ -53,11 +53,15 @@ fn original_probes_and_selected_lists_reach_the_independent_gate() {
     for (label, text) in [
         (
             "original-item",
-            include_str!("../../../tools/language/conditional-source-items/original/ct-item-if.zil"),
+            include_str!(
+                "../../../tools/language/conditional-source-items/original/ct-item-if.zil"
+            ),
         ),
         (
             "original-statement",
-            include_str!("../../../tools/language/conditional-source-items/original/ct-statement-if.zil"),
+            include_str!(
+                "../../../tools/language/conditional-source-items/original/ct-statement-if.zil"
+            ),
         ),
         (
             "local-after-list",

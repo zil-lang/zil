@@ -70,9 +70,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "array-length-closure-parameter-review",
-        include_str!(
-            "../../../examples/mainline/ct-for/review_repair/array-closure-parameter.zil"
-        ),
+        include_str!("../../../examples/mainline/ct-for/review_repair/array-closure-parameter.zil"),
     ),
     (
         "array-length-u8",
@@ -80,9 +78,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "array-length-parameter-review",
-        include_str!(
-            "../../../examples/mainline/ct-for/review_repair/array-length-parameter.zil"
-        ),
+        include_str!("../../../examples/mainline/ct-for/review_repair/array-length-parameter.zil"),
     ),
     (
         "array-length-local-review",
@@ -98,9 +94,7 @@ const CASES: &[(&str, &str)] = &[
     ),
     (
         "array-length-type-argument",
-        include_str!(
-            "../../../examples/mainline/ct-for/review_repair/array-generic-typearg.zil"
-        ),
+        include_str!("../../../examples/mainline/ct-for/review_repair/array-generic-typearg.zil"),
     ),
     (
         "range",

@@ -205,25 +205,17 @@ fn once<F:FnOnce()->i32>(f:F)->i32{return f()}
 #[test]
 fn original_probes_keep_inputs_and_remove_the_unrelated_head_switch() {
     for source in [
-        include_str!(
-            "../../../examples/mainline/mixed-capture/probes/mixed_no_head_control.zil"
-        ),
+        include_str!("../../../examples/mainline/mixed-capture/probes/mixed_no_head_control.zil"),
         include_str!(
             "../../../examples/mainline/mixed-capture/probes/mixed_disjoint_actual_head.zil"
         ),
-        include_str!(
-            "../../../examples/mainline/mixed-capture/probes/desc_read_current_head.zil"
-        ),
-        include_str!(
-            "../../../examples/mainline/mixed-capture/probes/hidden_desc_read_head.zil"
-        ),
+        include_str!("../../../examples/mainline/mixed-capture/probes/desc_read_current_head.zil"),
+        include_str!("../../../examples/mainline/mixed-capture/probes/hidden_desc_read_head.zil"),
     ] {
         native(&[("main", source)], b"", 0);
     }
     rejected(
-        include_str!(
-            "../../../examples/mainline/mixed-capture/probes/desc_write_current_head.zil"
-        ),
+        include_str!("../../../examples/mainline/mixed-capture/probes/desc_write_current_head.zil"),
         ResultCategory::SafeReject,
         Phase::Verify,
         "E-BORROW-CONFLICT",

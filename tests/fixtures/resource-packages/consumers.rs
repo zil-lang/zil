@@ -54,7 +54,12 @@ const INPUTS: &[(&str, &str, &[u8])] = &[
 ];
 
 fn input(name: &str, text: &str) -> SourceUnit {
-    SourceUnit::new(FileId(0), ModuleId(0), format!("resource-package-{name}.zil"), text)
+    SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        format!("resource-package-{name}.zil"),
+        text,
+    )
 }
 
 fn source_and_honest_raw_wire(inputs: &[(&str, &str, &[u8])]) {

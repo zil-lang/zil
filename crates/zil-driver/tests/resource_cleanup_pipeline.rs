@@ -147,7 +147,10 @@ fn reject(text: &str, code: &str) {
 #[test]
 fn resource_cleanup_factory_describe_give_and_cleanup_native() {
     let (typed, llvm) = native(
-        &[("main", include_str!("../../../examples/resource-token-lifecycle/main.zil"))],
+        &[(
+            "main",
+            include_str!("../../../examples/resource-token-lifecycle/main.zil"),
+        )],
         "CB",
     );
     for op in [

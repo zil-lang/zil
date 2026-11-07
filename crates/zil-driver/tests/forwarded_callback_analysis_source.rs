@@ -43,27 +43,39 @@ fn six_frozen_callback_signatures_reach_analyze() {
     for (name, source) in [
         (
             "fn-copy",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-copy.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-copy.zil"
+            ),
         ),
         (
             "fnmut-copy",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-copy.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-copy.zil"
+            ),
         ),
         (
             "fnonce-copy",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-copy.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-copy.zil"
+            ),
         ),
         (
             "fn-owned",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-owned.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fn-owned.zil"
+            ),
         ),
         (
             "fnmut-owned",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-owned.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fnmut-owned.zil"
+            ),
         ),
         (
             "fnonce-owned",
-            include_str!("../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-owned.zil"),
+            include_str!(
+                "../../../tests/callable-instance-forwarding/frozen-prep/probes/fnonce-owned.zil"
+            ),
         ),
     ] {
         let module = typed(source);

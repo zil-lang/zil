@@ -2063,7 +2063,7 @@ fn value_inferred_ordinary_calls_unify_every_argument_and_keep_nominal_identity(
 }
 
 #[test]
-fn value_inferred_complete_argument_work_has_an_exact_tests/language-readiness/terminal/constraint-budgets/anonymous/runtime-phase/consumer_tests.rs_boundary() {
+fn value_inferred_complete_argument_work_has_an_exact_new_path_boundary() {
     let source = value_inferred_choice_source(true, "Left");
     let (core, typed, _) = typed_control("value-inferred-budget-control", &source);
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "independent203.zil", &source);

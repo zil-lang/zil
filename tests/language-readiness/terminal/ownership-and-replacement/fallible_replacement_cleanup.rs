@@ -3,13 +3,17 @@ use super::*;
 use zil_ir::{CandidatePlan, PassingMode, TypedModule};
 
 const SCALAR: &str = include_str!("whole-helper/fallible-replacement-cleanup/scalar-success.zil");
-const ORIGINAL_FAILURE: &str = include_str!("whole-helper/fallible-replacement-cleanup/original-failure.zil");
+const ORIGINAL_FAILURE: &str =
+    include_str!("whole-helper/fallible-replacement-cleanup/original-failure.zil");
 const SUCCESS: &str = include_str!("whole-helper/fallible-replacement-cleanup/branch-success.zil");
 const FAILURE: &str = include_str!("whole-helper/fallible-replacement-cleanup/branch-failure.zil");
-const COMMIT_ERROR: &str = include_str!("whole-helper/fallible-replacement-cleanup/commit-then-error.zil");
+const COMMIT_ERROR: &str =
+    include_str!("whole-helper/fallible-replacement-cleanup/commit-then-error.zil");
 const OLD: &str = include_str!("whole-helper/fallible-replacement-cleanup/old-desc-error.zil");
-const NO_COMMIT: &str = include_str!("whole-helper/fallible-replacement-cleanup/no-commit-old-desc.zil");
-const FRESH_GIVE: &str = include_str!("whole-helper/fallible-replacement-cleanup/scalar-fresh-give.zil");
+const NO_COMMIT: &str =
+    include_str!("whole-helper/fallible-replacement-cleanup/no-commit-old-desc.zil");
+const FRESH_GIVE: &str =
+    include_str!("whole-helper/fallible-replacement-cleanup/scalar-fresh-give.zil");
 const INCOMING: &str = include_str!("whole-helper/fallible-replacement-cleanup/incoming-give.zil");
 
 fn typed(text: &str) -> TypedModule {

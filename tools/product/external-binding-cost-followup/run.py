@@ -26,7 +26,7 @@ if not __debug__:
 sys.dont_write_bytecode = True
 HERE = Path(__file__).resolve().parent
 ROOT = HERE.parents[2]
-SPEC = importlib.util.spec_from_file_location("reference104", HERE / "reference104/run.py")
+SPEC = importlib.util.spec_from_file_location("reference", HERE / "reference/run.py")
 REF = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(REF)
 REF.ROOT = ROOT
@@ -404,9 +404,9 @@ def memory_controls(out, tools, env):
     for name in ("memory_launcher", "memory_control"):
         binary = out / name
         build = checked([tools["clang"]["executable"], "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
-                         HERE / "reference104" / (name + ".c"), "-o", binary], out / (name + "-build"), env=env)
+                         HERE / "reference" / (name + ".c"), "-o", binary], out / (name + "-build"), env=env)
         binaries[name] = {"path": str(binary), "sha256": REF.sha(binary), "build": build}
-    cfg = json.loads((HERE / "reference104/memory-contract.json").read_text())["controls"]
+    cfg = json.loads((HERE / "reference/memory-contract.json").read_text())["controls"]
     observations = []
     for padding in cfg["parent_padding_bytes"]:
         pad = bytearray(padding)
@@ -466,7 +466,7 @@ def prepare(args):
             expected_outputs[name] = {"path": str(exp), "sha256": REF.sha(exp), "exit": code}
     observer = out / "observer.o"
     observer_build = checked([clang, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-c",
-                              HERE / "reference104/observer.c", "-o", observer], out / "observer-build", env=env)
+                              HERE / "reference/observer.c", "-o", observer], out / "observer-build", env=env)
     proxy = out / "clang-observer"
     proxy.write_text("#!/usr/bin/env python3\nimport os,sys\nos.execv(" + repr(clang) + ", [" + repr(clang) + "] + sys.argv[1:] + " + repr(["-x", "none", str(observer)] + REF.WRAP) + ")\n")
     proxy.chmod(0o755)
@@ -623,7 +623,7 @@ def verify_programs(identity, reference):
     seen = set()
     verify_process(observer["build"], root / "observer-build", seen)
     verify_invocation(observer["build"], [clang, "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror", "-c",
-                      str(Path(cwd) / "tools/product/external-binding-cost-followup/reference104/observer.c"), "-o", observer["path"]], None, env, cwd)
+                      str(Path(cwd) / "tools/product/external-binding-cost-followup/reference/observer.c"), "-o", observer["path"]], None, env, cwd)
     assert equal_json(observer["build"]["exit"], 0)
     for scenario in CONTRACT["scenario_order"]:
         for arm in ARMS:
@@ -932,7 +932,7 @@ def verify_memory_controls(identity):
     path = Path(identity["memory_controls"]).resolve()
     result = json.loads(path.read_text())
     assert result["status"] == "Pass"
-    cfg = json.loads((HERE / "reference104/memory-contract.json").read_text())["controls"]
+    cfg = json.loads((HERE / "reference/memory-contract.json").read_text())["controls"]
     expected = [dict(padding=p, target_bytes=n, repetition=r) for p in cfg["parent_padding_bytes"]
                 for n in cfg["target_touched_bytes"] for r in range(cfg["repetitions"])]
     assert len(result["samples"]) == len(expected) == 12
@@ -944,7 +944,7 @@ def verify_memory_controls(identity):
         process = item["build"]
         verify_process(process, path.parent / (name + "-build"), seen)
         verify_invocation(process, [identity["tools"]["clang"]["executable"], "-std=c11", "-O2", "-Wall", "-Wextra", "-Werror",
-                                   str(Path(cwd) / "tools/product/external-binding-cost-followup/reference104" / (name + ".c")), "-o", item["path"]], None, env, cwd)
+                                   str(Path(cwd) / "tools/product/external-binding-cost-followup/reference" / (name + ".c")), "-o", item["path"]], None, env, cwd)
         assert equal_json(process["exit"], 0)
     for sample, row in zip(result["samples"], expected):
         assert equal_json({key: sample.get(key) for key in row}, row)

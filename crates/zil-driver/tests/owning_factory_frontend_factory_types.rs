@@ -348,12 +348,23 @@ fn managed_capture_fields_distinguish_consumption_and_refill() {
 fn declared_once_survives_conditional_transfer_inside_the_returned_environment() {
     // Independent review's original source bytes and nearest controls. Keeping
     // the published oracle unchanged is separate from this Types-only replay.
-    let original = include_str!("../../../tools/language/owning-transfer-budget/review-cases/conditional-inside.zil");
+    let original = include_str!(
+        "../../../tools/language/owning-transfer-budget/review-cases/conditional-inside.zil"
+    );
     for text in [
         original.to_owned(),
-        include_str!("../../../tools/language/owning-transfer-budget/review-cases/direct-alias-inside.zil").to_owned(),
-        include_str!("../../../tools/language/owning-transfer-budget/review-cases/conditional-outside.zil").to_owned(),
-        include_str!("../../../tools/language/owning-transfer-budget/review-cases/direct-branch-calls.zil").to_owned(),
+        include_str!(
+            "../../../tools/language/owning-transfer-budget/review-cases/direct-alias-inside.zil"
+        )
+        .to_owned(),
+        include_str!(
+            "../../../tools/language/owning-transfer-budget/review-cases/conditional-outside.zil"
+        )
+        .to_owned(),
+        include_str!(
+            "../../../tools/language/owning-transfer-budget/review-cases/direct-branch-calls.zil"
+        )
+        .to_owned(),
         original.replace("if flag{f}else{f}", "(if flag{f}else{f})"),
         original.replace("if flag{f}else{f}", "if flag{if flag{f}else{f}}else{f}"),
     ] {

@@ -254,7 +254,10 @@ fn environment_lending_nearest_live_receiver_rejections() {
             "{name}: {}",
             report.to_json()
         );
-        eprintln!("HELPER_LIFE_COMPLETION {name} nearest rejection: {}", report.to_json());
+        eprintln!(
+            "HELPER_LIFE_COMPLETION {name} nearest rejection: {}",
+            report.to_json()
+        );
     }
 }
 
@@ -1069,7 +1072,10 @@ fn once_adapter_nearest_raw_wire_and_lending_rejections() {
             .all(|d| d.category != ResultCategory::ResourceLimit),
         "{errors:?}"
     );
-    eprintln!("HELPER_LIFE_COMPLETION actual lending Once Analyze: {}", errors[0].message);
+    eprintln!(
+        "HELPER_LIFE_COMPLETION actual lending Once Analyze: {}",
+        errors[0].message
+    );
     let mut claim = plan;
     claim.module_fingerprint = forged.fingerprint();
     let wire = zil_ir::wire::encode_module_candidate(&forged, &claim, &limits).unwrap();

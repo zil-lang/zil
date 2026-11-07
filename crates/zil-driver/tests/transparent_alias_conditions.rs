@@ -277,5 +277,8 @@ fn alias_expansion_checks_depth_and_growth_before_copying_expanded_types() {
 
 #[test]
 fn alias_example_executes_concrete_generic_while_let() {
-    native(include_str!("../../../examples/generic-alias-loop/main.zil"), Some(42));
+    native(
+        include_str!("../../../examples/generic-alias-loop/main.zil"),
+        Some(42),
+    );
 }

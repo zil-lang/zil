@@ -79,7 +79,8 @@ fn native(label: &str, source: &str, stdout: &str, exit: i32) {
 
 const SAME: &str =
     include_str!("../../zil-expand/tests/state_binding_fixtures/same_factory_distinct_modes.zil");
-const REPEATED: &str = include_str!("../../zil-expand/tests/state_binding_fixtures/once_repeated.zil");
+const REPEATED: &str =
+    include_str!("../../zil-expand/tests/state_binding_fixtures/once_repeated.zil");
 const REVERSED: &str =
     include_str!("../../zil-expand/tests/state_binding_fixtures/reversed_declared_modes.zil");
 const MARKERS: &str =

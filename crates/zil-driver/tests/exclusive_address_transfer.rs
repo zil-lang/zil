@@ -84,7 +84,10 @@ fn raw(text: &str) -> TypedModule {
 }
 #[test]
 fn native_exclusive_call_and_reborrow() {
-    let ir = native(include_str!("../../../examples/mutable-reborrow/main.zil"), 42);
+    let ir = native(
+        include_str!("../../../examples/mutable-reborrow/main.zil"),
+        42,
+    );
     assert!(ir.contains("store i32 %v."));
 }
 #[test]

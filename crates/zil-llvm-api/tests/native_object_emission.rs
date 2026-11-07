@@ -1,11 +1,11 @@
 #![cfg(feature = "native")]
 mod llvm_test_support;
+use llvm_test_support::*;
 use std::{
     fs,
     process::{Command, Output},
     sync::atomic::{AtomicUsize, Ordering},
 };
-use llvm_test_support::*;
 use zil_llvm_api::{Config, Optimization, compile_module, model::*};
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 fn run(module: &Module, optimization: Optimization) -> Output {

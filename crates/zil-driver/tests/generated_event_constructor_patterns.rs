@@ -8,9 +8,7 @@ fn generated_alias_constructor_patterns_match_the_ordinary_source() {
     for (label, text) in [
         (
             "plain",
-            include_str!(
-                "../../../examples/mainline/generated-events/review/enum_alias_plain.zil"
-            ),
+            include_str!("../../../examples/mainline/generated-events/review/enum_alias_plain.zil"),
         ),
         (
             "generated",

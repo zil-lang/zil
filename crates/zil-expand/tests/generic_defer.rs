@@ -8,8 +8,12 @@ const UNUSED: &str = "extern \"C\" fn putchar(n:i32)->i32; fn unused<T:Copy>(val
 #[test]
 fn joint_sources_reach_core_without_erasing_defer() {
     for text in [
-        include_str!("../../zil-driver/tests/generic_defer_obligations_fixtures/defer_f_implicit.zil"),
-        include_str!("../../zil-driver/tests/generic_defer_obligations_fixtures/defer_f_explicit.zil"),
+        include_str!(
+            "../../zil-driver/tests/generic_defer_obligations_fixtures/defer_f_implicit.zil"
+        ),
+        include_str!(
+            "../../zil-driver/tests/generic_defer_obligations_fixtures/defer_f_explicit.zil"
+        ),
     ] {
         let core = expand(text, &Limits::default()).unwrap();
         assert!(core.functions.iter().any(|f| {

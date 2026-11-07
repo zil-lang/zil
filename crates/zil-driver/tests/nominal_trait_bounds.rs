@@ -159,8 +159,9 @@ fn self_associated_constant_generated_self_default_impls_require_completed_ct_jo
 #[test]
 fn self_associated_constant_self_associated_identity_budgets_and_machine_values() {
     use zil_driver::CompilationSession;
-    let original =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-self.zil");
+    let original = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-self.zil"
+    );
     let unit = source(original);
     for ledger in ["work", "nodes", "steps", "bytes"] {
         let options = |n: usize| {
@@ -349,11 +350,15 @@ fn owned_replacement_dyn_source_metadata_keeps_same_named_project_traits_and_run
         ),
         (
             "a",
-            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/a.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/a.zil"
+            ),
         ),
         (
             "b",
-            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/b.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/dyn-source/project/b.zil"
+            ),
         ),
     ];
     let directory = std::env::temp_dir().join(format!(
@@ -468,7 +473,9 @@ fn owned_replacement_method_receiver_origins_survive_type_and_const_substitution
 fn owned_replacement_generic_methods_keep_provider_modules_and_exact_trait_instances() {
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-method-no-outer.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-method-no-outer.zil"
+        ),
     )]);
 
     native_both(&[(
@@ -482,7 +489,9 @@ fn owned_replacement_generic_methods_keep_provider_modules_and_exact_trait_insta
 
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"
+        ),
     )]);
     native_both(&[(
         "main",
@@ -618,7 +627,9 @@ fn owned_replacement_associated_constants_keep_declared_types_and_committed_valu
         }
     }
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"
+        ),
         include_str!(
             "../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-computed.zil"
         ),
@@ -735,7 +746,9 @@ fn owned_replacement_associated_types_remain_bound_supported_in_unused_definitio
         include_str!(
             "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-unbounded-equation.zil"
         ),
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-type-cycle.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-cycle.zil"
+        ),
         "trait Tag<T>{}trait Read{type Item:Tag<Missing>;}fn main(){}",
         "trait Tag<T:Copy>{}trait Read<T>{type Item:Tag<T>;}fn main(){}",
         "trait Read<T>{type Item:Copy=T;}fn main(){}",
@@ -767,7 +780,9 @@ fn owned_replacement_associated_types_remain_bound_supported_in_unused_definitio
 #[test]
 fn owned_replacement_symbolic_trait_arguments_preserve_declared_and_actual_targets() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil"
+        ),
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=P{};return get::<i32,P>(&p)-7}",
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct P{}impl Read<i32> for P{fn read()->i32{return 7}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn relay<U:Copy,V:Read<U>>(p:&V)->U{return get::<U,V>(p)}fn main()->i32{let p=P{};return relay::<i32,P>(&p)-7}",
         "trait Read<R:Copy>{fn read(self:&Self)->R;}struct Box<T:Copy>{value:T}impl<T:Copy> Read<T> for Box<T>{fn read()->T{return .value}}fn get<R:Copy,T:Read<R>>(p:&T)->R{return p.read()}fn main()->i32{let p=Box::<i32>{value:7};return get::<i32,Box<i32>>(&p)-7}",
@@ -963,7 +978,9 @@ fn owned_replacement_trait_call_ordinals_keep_shared_source_spans_distinct_in_na
 #[test]
 fn owned_replacement_nominal_impl_recipes_check_unused_bodies_and_prove_premises() {
     for text in [
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil"
+        ),
         "fn id(x:i32)->i32{return x}trait Read{fn read(self:&Self)->i32;}struct Box<F:Copy>{value:F}impl<T:Copy> Read for Box<fn(T)->i32>{fn read()->i32{return 7}}fn main()->i32{let p=Box::<fn(i32)->i32>{value:id};return p.read()-7}",
         "trait Read{fn read(self:&Self)->i32;}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<(T,T)>{fn read()->i32{return 7}}impl Read for Box<(i32,bool)>{fn read()->i32{return 8}}fn main(){}",
         include_str!(
@@ -991,7 +1008,9 @@ fn owned_replacement_nominal_impl_recipes_check_unused_bodies_and_prove_premises
             "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-unused-invalid.zil"
         ),
         "trait Read{}struct Box<T:Copy>{value:T}impl<T:Copy> Read for Box<fn(T)->i32>{}impl<U:Copy> Read for Box<fn(i32)->U>{}fn main(){}",
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-cycle.zil"),
+        include_str!(
+            "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-cycle.zil"
+        ),
         include_str!(
             "../../../tests/language-readiness/terminal/generics-and-constants/generic-impl-unknown-trait.zil"
         ),
@@ -1159,14 +1178,18 @@ fn owned_replacement_const_module_namespaces_and_forwarding_preserve_actual_bind
 #[test]
 fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
-    let super_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/supertraits.zil");
-    let const_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-match-shadow.zil");
-    let impl_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil");
-    let symbolic_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil");
+    let super_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/supertraits.zil"
+    );
+    let const_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/const-match-shadow.zil"
+    );
+    let impl_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/generic-impls.zil"
+    );
+    let symbolic_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/symbolic-trait-arguments.zil"
+    );
     let unit = source(super_source);
     let ast = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &ast).unwrap();
@@ -1222,13 +1245,15 @@ fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
         "../../../tests/language-readiness/terminal/generics-and-constants/associated-type-instances.zil"
     );
     native_both(&[("main", associated_source)]);
-    let unsigned_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil");
+    let unsigned_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/const-unsigned.zil"
+    );
     let ct_source = include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/ct-generics-reflection-syntax.zil"
     );
-    let associated_constants_source =
-        include_str!("../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil");
+    let associated_constants_source = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-constants.zil"
+    );
     let computed_constants_source = include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/associated-constant-computed.zil"
     );
@@ -1546,7 +1571,9 @@ fn owned_replacement_supertrait_wire_native_and_const_shadow_budgets() {
         ),
         (
             "generic-methods",
-            include_str!("../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"),
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/generic-methods.zil"
+            ),
         ),
     ] {
         let unit = source(text);
@@ -1906,11 +1933,15 @@ fn trait_owned_helper_private_function_values_keep_trait_module_and_full_signatu
     native_both(&[
         (
             "main",
-            include_str!("../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/main.zil"),
+            include_str!(
+                "../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/main.zil"
+            ),
         ),
         (
             "rules",
-            include_str!("../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/rules.zil"),
+            include_str!(
+                "../../../tests/language-readiness/function-pointer-shadowing/private-fnptr/rules.zil"
+            ),
         ),
         (
             "component",
@@ -1925,7 +1956,9 @@ fn trait_owned_helper_private_function_values_keep_trait_module_and_full_signatu
 fn trait_owned_helper_real_local_bindings_and_existing_fnptr_forwarding_take_precedence() {
     native_both(&[(
         "main",
-        include_str!("../../../tests/language-readiness/function-pointer-shadowing/local-shadow.zil"),
+        include_str!(
+            "../../../tests/language-readiness/function-pointer-shadowing/local-shadow.zil"
+        ),
     )]);
 }
 

@@ -108,7 +108,10 @@ fn raw(text: &str) -> CtProgram {
 }
 #[test]
 fn aggregate_return_materializes_records_arrays_and_tuples() {
-    native(include_str!("../../../examples/record-array-construction/main.zil"), 345045);
+    native(
+        include_str!("../../../examples/record-array-construction/main.zil"),
+        345045,
+    );
 }
 #[test]
 fn nested_aggregates_functions_generic_instances_and_empty_data() {

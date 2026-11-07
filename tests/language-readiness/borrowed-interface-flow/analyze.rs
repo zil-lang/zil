@@ -117,7 +117,9 @@ fn source_core_and_types_have_exact_fresh_work_boundaries() {
             );
         }
     }
-    eprintln!("trait shared lending source Core Expand work N={low}; N-1 ResourceLimit; fresh equality");
+    eprintln!(
+        "trait shared lending source Core Expand work N={low}; N-1 ResourceLimit; fresh equality"
+    );
 
     let (mut low, mut high) = (1, defaults.max_analysis_steps);
     while low < high {
@@ -155,7 +157,9 @@ fn source_core_and_types_have_exact_fresh_work_boundaries() {
                 && d.category == ResultCategory::ResourceLimit), "{diagnostics:?}");
         }
     }
-    eprintln!("trait shared lending source Core direct Types work N={low}; N-1 ResourceLimit; fresh equality");
+    eprintln!(
+        "trait shared lending source Core direct Types work N={low}; N-1 ResourceLimit; fresh equality"
+    );
 }
 
 #[test]

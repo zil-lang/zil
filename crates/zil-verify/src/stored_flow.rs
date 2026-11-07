@@ -3198,9 +3198,7 @@ mod tests {
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
             assert!(check(low - 1, wire).is_err());
             assert_eq!(check(low, wire).unwrap().fingerprint(), expected);
-            println!(
-                "capture helper Verify wire={wire} N={low}; N-1/fresh/warm/retry passed"
-            );
+            println!("capture helper Verify wire={wire} N={low}; N-1/fresh/warm/retry passed");
         }
     }
     #[test]
