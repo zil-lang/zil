@@ -2648,12 +2648,16 @@ impl<'a> Builder<'a, '_> {
                 let (prepared, actual) = if matches!(t, Type::Closure(_)) {
                     self.check_owned_array_closure(&t, 1, value.span)?;
                     self.owned_array_input(value, Some(&t))?
+                } else if self.affine_type(&t) {
+                    self.transfer_expr(value, Some(&t))?
                 } else {
                     self.argument_expr(value, &t)?
                 };
                 let (prepared, guard) = self.stage_argument(prepared, &actual, value.span)?;
                 guarded[i as usize] = guard;
                 prepared
+            } else if self.affine_type(&t) {
+                self.transfer_expr(value, Some(&t))?.0
             } else {
                 self.expr(value, Some(&t))?.0
             });

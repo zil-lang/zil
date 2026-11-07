@@ -1012,7 +1012,7 @@ impl Builder<'_, '_> {
                 "stored assignment requires a declared address slot",
             ));
         }
-        let (value, actual) = self.expr(rhs, Some(&field_ty))?;
+        let (value, actual) = self.transfer_expr(rhs, Some(&field_ty))?;
         self.same(&actual, &field_ty, rhs.span)?;
         self.emit(
             InstructionKind::StoreStoredBorrow {
