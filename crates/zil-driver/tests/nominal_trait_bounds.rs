@@ -408,6 +408,104 @@ fn main(){}"#;
 }
 
 #[test]
+fn generic_task_result_helper_preserves_actual_context() {
+    let source = r#"fn worker(input:&i32)->bool { task_yield(); return *input==3; }
+fn relay<life a,T:Copy>(give task:Task<T,&'a i32>)->Task<T,&'a i32> contract{result(give)} {
+    return give task;
+}
+fn bridge<life a>(input:&'a i32)->TaskCreateError!i32 {
+    var task=task_create(worker,input)?;
+    var moved=relay(give task);
+    match task_poll_close(&mut moved) {
+        Poll.Pending()=>{return 97;},
+        Poll.Ready(_)=>{}
+    }
+    task_finish_destroy(give moved);
+    return 0;
+}
+fn main()->TaskCreateError!i32 {
+    let value=3;
+    return bridge(&value);
+}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+}
+
+#[test]
+fn generic_task_helper_cannot_rebind_a_retained_input_class() {
+    let source = r#"fn relay<life a,life b,T:Copy>(give task:Task<T,&'a i32>)->Task<T,&'b i32> contract{result(give)} {
+    return give task;
+}
+fn main(){}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.code == "E-GENERIC-ARGUMENT"
+                && d.message.contains("distinct declared lifetime classes")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn generic_task_helper_cannot_duplicate_a_given_frame() {
+    let source = r#"fn duplicate<life a,T:Copy>(give task:Task<T,&'a mut i32>)->Task<T,&'a mut i32> contract{result(give)} {
+    let first=give task;
+    return give task;
+}
+fn main(){}"#;
+    let report = compile_project(
+        &project(&[("main", source)]),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_ne!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("after give")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
 fn ordinary_library_bounds_call_the_consumers_exact_trait_provider() {
     let files = [
         (

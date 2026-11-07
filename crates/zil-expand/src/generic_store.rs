@@ -125,6 +125,12 @@ pub(super) fn result(name: &str, element: &TypeRef, span: Span) -> TypeRef {
 
 /// Source result modes are deliberately finite. No arbitrary contract is
 /// accepted merely because the function happens to mention a Store.
+pub(super) fn explicit_task_result(ty: &TypeRef) -> bool {
+    matches!(&grouped(ty).kind,
+        TypeKind::Named { path, args }
+            if path.as_slice() == ["Task"]
+                && matches!(args.as_slice(), [GenericArg::Type(_), GenericArg::Type(_)]))
+}
 pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
     use zil_ir::PassingMode;
     let mut mode = PassingMode::Infer;
@@ -163,12 +169,17 @@ pub(super) fn result_mode(function: &Function) -> R<zil_ir::PassingMode> {
                 "generic Store result modes are mutually exclusive",
             ));
         }
+        let explicit_task = function
+            .return_type
+            .as_ref()
+            .is_some_and(explicit_task_result);
         if function.return_type.as_ref().and_then(carrier).is_none()
             && function
                 .return_type
                 .as_ref()
                 .and_then(callable::registration_environment)
                 .is_none()
+            && !explicit_task
         {
             return Err(unsupported(
                 clause.span,
