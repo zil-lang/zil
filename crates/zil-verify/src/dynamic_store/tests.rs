@@ -965,6 +965,104 @@ fn pod_store_canonical_name_and_complete_nominal_identity_are_both_required() {
 }
 
 #[test]
+fn composite_store_roots_keep_exact_type_identity_in_raw_and_wire_requests() {
+    let tuple = Type::Tuple(vec![Type::I32, Type::I32]);
+    let array = Type::Array {
+        element: Box::new(Type::I32),
+        length: 2,
+    };
+    let limits = Limits::default();
+    assert_ne!(definition_name(&tuple), definition_name(&array));
+    for forbidden in [
+        Type::Tuple(vec![Type::Unit]),
+        Type::Array {
+            element: Box::new(Type::I32),
+            length: 0,
+        },
+        Type::Array {
+            element: Box::new(Type::Address {
+                mutable: false,
+                inner: Box::new(Type::I32),
+            }),
+            length: 0,
+        },
+        Type::Array {
+            element: Box::new(Type::Array {
+                element: Box::new(Type::U64),
+                length: u32::MAX,
+            }),
+            length: u32::MAX,
+        },
+    ] {
+        assert!(
+            check_pod_element(
+                &forbidden,
+                &TargetProfile::host_llvm(),
+                None,
+                &mut Budget::new(&limits)
+            )
+            .is_err()
+        );
+    }
+    for (element, same_size_other) in [(tuple.clone(), array.clone()), (array, tuple)] {
+        let (module, plan) = pod_fixture(element.clone());
+        for result in pod_both(&module, &plan, &limits) {
+            result.unwrap();
+        }
+        let mut wrong = module.clone();
+        wrong.resources[0].payload = Type::OwnedStore {
+            element: Box::new(same_size_other),
+        };
+        for result in pod_both(&wrong, &plan, &limits) {
+            assert!(result.is_err());
+        }
+        let mut wrong = module.clone();
+        wrong.resources[0].name.push('x');
+        for result in pod_both(&wrong, &plan, &limits) {
+            assert!(result.is_err());
+        }
+        let mut duplicate = module.clone();
+        duplicate.resources.push(duplicate.resources[0].clone());
+        for result in pod_both(&duplicate, &plan, &limits) {
+            assert!(result.is_err());
+        }
+        for wire in [false, true] {
+            let check = |n| {
+                let selected = Limits {
+                    max_analysis_steps: n,
+                    ..limits.clone()
+                };
+                if wire {
+                    let bytes =
+                        zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+                    verify_module_bytes(&bytes, &module.target, &selected)
+                } else {
+                    let mut actual = plan.clone();
+                    actual.module_fingerprint = module.fingerprint();
+                    verify_module(module.clone(), actual, &module.target, &selected)
+                }
+            };
+            let (mut lo, mut hi) = (1, limits.max_analysis_steps);
+            check(hi).unwrap();
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2;
+                if check(mid).is_ok() {
+                    hi = mid;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            check(lo).unwrap();
+            assert_eq!(
+                check(lo - 1).unwrap_err()[0].category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            check(lo).unwrap();
+        }
+    }
+}
+
+#[test]
 fn pod_store_new_metadata_and_push_result_protocol_cannot_forge_same_name() {
     let limits = Limits::default();
     let ty = pod(vec![("n", Type::I64)]);
@@ -1478,10 +1576,10 @@ fn scalar_store_nine_direct_elements_and_canonical_carriers_are_independent() {
     }
     for forbidden in [
         Type::Unit,
-        Type::Tuple(vec![Type::I32]),
+        Type::Tuple(vec![Type::Unit]),
         Type::Array {
             element: Box::new(Type::I32),
-            length: 1,
+            length: 0,
         },
         Type::ForeignHandle,
         Type::Address {

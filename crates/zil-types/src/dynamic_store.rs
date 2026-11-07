@@ -138,7 +138,10 @@ pub(super) fn scalar_element(ty: &Type) -> bool {
 /// Shape selector for existing owning-composition exclusions. Qualification
 /// still requires the complete element and actual carrier checks below.
 pub(super) fn inline_element(ty: &Type) -> bool {
-    matches!(ty, Type::Record { .. }) || scalar_element(ty)
+    matches!(
+        ty,
+        Type::Record { .. } | Type::Tuple(_) | Type::Array { .. }
+    ) || scalar_element(ty)
 }
 
 /// This private predicate is called only after a complete type snapshot has
@@ -184,6 +187,15 @@ pub(super) fn pod_element(ty: &Type) -> bool {
 pub(super) fn charge_pod(ty: &Type, limits: &Limits, span: Span, remaining: &mut usize) -> R<()> {
     if inline_element(ty) {
         inference::charge_type_snapshot(ty, span, limits, remaining, 4)?;
+        if matches!(ty, Type::Tuple(_) | Type::Array { .. }) {
+            *remaining = remaining.checked_sub(96).ok_or_else(|| {
+                Diagnostic::limit(
+                    Phase::Types,
+                    "POD Store identity budget exceeded",
+                    Some(span),
+                )
+            })?;
+        }
     }
     Ok(())
 }
@@ -481,6 +493,12 @@ pub(super) fn result_type(name: &str, element: &Type) -> Type {
 }
 
 pub(super) fn definition_name(element: &Type) -> String {
+    if matches!(element, Type::Tuple(_)) {
+        return format!("@builtin:OwnedStore<tuple:{}>", element.fingerprint());
+    }
+    if matches!(element, Type::Array { .. }) {
+        return format!("@builtin:OwnedStore<array:{}>", element.fingerprint());
+    }
     let name = match element {
         Type::Package { name, .. } | Type::Record { name, .. } => name.as_str(),
         Type::Bool => "bool",
@@ -866,7 +884,34 @@ mod pod_tests {
             assert!(!pod_element(&record(field)));
         }
         assert!(pod_element(&Type::I32));
-        assert!(!pod_element(&Type::Tuple(vec![Type::I32])));
+        assert!(pod_element(&Type::Tuple(vec![Type::I32])));
+        assert!(!pod_element(&Type::Tuple(vec![Type::Unit])));
+        assert!(!pod_element(&Type::Array {
+            element: Box::new(Type::I32),
+            length: 0
+        }));
+        assert!(!pod_element(&Type::Array {
+            element: Box::new(Type::Array {
+                element: Box::new(Type::U64),
+                length: u32::MAX,
+            }),
+            length: u32::MAX,
+        }));
+        let tuple = Type::Tuple(vec![Type::I32, Type::I32]);
+        let array = Type::Array {
+            element: Box::new(Type::I32),
+            length: 2,
+        };
+        assert!(pod_element(&tuple) && pod_element(&array));
+        assert_ne!(definition_name(&tuple), definition_name(&array));
+        assert_eq!(
+            definition_name(&tuple),
+            format!("@builtin:OwnedStore<tuple:{}>", tuple.fingerprint())
+        );
+        assert_eq!(
+            definition_name(&array),
+            format!("@builtin:OwnedStore<array:{}>", array.fingerprint())
+        );
     }
 
     #[test]
@@ -899,7 +944,7 @@ mod pod_tests {
         assert_ne!(definition_name(&Type::U64), definition_name(&Type::Usize));
         for forbidden in [
             Type::Unit,
-            Type::Tuple(vec![Type::I32]),
+            Type::Tuple(vec![Type::Unit]),
             Type::ForeignHandle,
         ] {
             assert!(!supported_element(&forbidden));
@@ -942,6 +987,37 @@ mod pod_tests {
             let mut remaining = allowance;
             let result = charge_pod(&ty, &limits, span, &mut remaining);
             assert_eq!(result.is_ok(), allowance == cost);
+        }
+    }
+    #[test]
+    fn composite_root_registration_has_exact_fresh_budget() {
+        let limits = Limits::default();
+        let span = Span::new(zil_base::FileId(0), 0, 1);
+        for element in [
+            Type::Tuple(vec![Type::I32, Type::Bool]),
+            Type::Array {
+                element: Box::new(Type::I32),
+                length: 2,
+            },
+        ] {
+            let bound = [(element.clone(), span)];
+            let measure = |allowance| {
+                let mut remaining = allowance;
+                let mut definitions = Vec::new();
+                let result =
+                    add_definitions(&[], &mut definitions, &[], &bound, &limits, &mut remaining);
+                (result, allowance - remaining, definitions)
+            };
+            let (result, cost, definitions) = measure(limits.max_analysis_steps);
+            result.unwrap();
+            assert_eq!(definitions[0].name, definition_name(&element));
+            assert!(cost > 0);
+            assert!(measure(cost).0.is_ok());
+            assert_eq!(
+                measure(cost - 1).0.unwrap_err().category,
+                zil_base::ResultCategory::ResourceLimit
+            );
+            assert!(measure(cost).0.is_ok());
         }
     }
     #[test]

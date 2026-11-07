@@ -197,6 +197,7 @@ pub(super) fn concrete_element(
             matches!(&item.kind, ItemKind::Aggregate(aggregate)
                 if aggregate.kind == AggregateKind::Struct)
         }),
+        TypeKind::Tuple(_) | TypeKind::Array { .. } => true,
         _ => false,
     };
     if check::dependent(ty, variables) && symbolic_candidate {
@@ -208,6 +209,19 @@ pub(super) fn concrete_element(
             &mut BTreeSet::new(),
             0,
         )? {
+            return Err(error(
+                ty.span,
+                "POD Store elements require nonzero inline layout",
+            ));
+        }
+        return Ok(());
+    }
+    if matches!(
+        grouped(ty).kind,
+        TypeKind::Tuple(_) | TypeKind::Array { .. }
+    ) {
+        let (size, _) = shape.pod(ty, &mut BTreeSet::new(), 0)?;
+        if size == 0 {
             return Err(error(
                 ty.span,
                 "POD Store elements require nonzero inline layout",

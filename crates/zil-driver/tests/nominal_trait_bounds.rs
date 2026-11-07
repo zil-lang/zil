@@ -1364,6 +1364,127 @@ fn independent_key_value_and_two_callable_binders_reach_native() {
 }
 
 #[test]
+fn tuple_and_array_store_elements_keep_complete_generic_library_identity() {
+    let files = [
+        (
+            "main",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/store-elements/main.zil"
+            ),
+        ),
+        (
+            "api",
+            include_str!(
+                "../../../tests/language-readiness/terminal/generics-and-constants/store-elements/api.zil"
+            ),
+        ),
+    ];
+    let report = compile_project(&project(&files), &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&files);
+
+    for source in [
+        "fn main(){let items:Store<(void,void)>=store_new()}",
+        "fn main(){let items:Store<[i32;0]>=store_new()}",
+        "fn main(){let n:i32=1;let items:Store<(i32,&i32)>=store_new();store_push(items,(1,&n))}",
+        "fn bad<K:Copy>(items:Store<(K,i32)>){store_len(items)}fn main(){}",
+        "fn bad<K:StoreElement>(items:Store<[K;2]>){store_len(items)}fn main(){}",
+        "fn first(items:Store<(i32,i32)>)->i32{return (*store_at(items,0)).0}fn main(){let items:Store<[i32;2]>=store_new();first(items)}",
+    ] {
+        let rejected = check(source);
+        assert_ne!(
+            rejected.status,
+            ResultCategory::Success,
+            "{source}: {}",
+            rejected.to_json()
+        );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn tuple_and_array_store_allocation_failure_releases_only_acquired_storage() {
+    use std::{os::unix::fs::PermissionsExt, path::Path};
+    use zil_driver::NativeBackend;
+    let dir = std::env::temp_dir().join(format!(
+        "zil-composite-store-allocation-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::Relaxed)
+    ));
+    fs::create_dir_all(&dir).unwrap();
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let observer = dir.join("observer.o");
+    let compiled = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(Path::new(env!("CARGO_MANIFEST_DIR")).join("../../tests/language-readiness/terminal/generics-and-constants/store-elements/allocation-observer.c"))
+        .arg("-o").arg(&observer).output().unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper, format!(
+        "#!/bin/sh\nset -eu\nlink=1\nfor arg in \"$@\"; do case \"$arg\" in -c|-S|-E|--version) link=0;; esac; done\nif [ \"$link\" = 1 ]; then exec {} \"$@\" -x none {} -Wl,--wrap=realloc -Wl,--wrap=calloc -Wl,--wrap=free; fi\nexec {} \"$@\"\n",
+        quote(&clang), quote(&observer), quote(&clang)
+    )).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let program = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/store-elements/allocation.zil"
+    );
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_source(
+                &source(program),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join(format!("program-{backend:?}-{optimization:?}"))),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            for (fail_at, exit, output) in [
+                (None, 0, "2:2:2\n"),
+                (Some("1"), 10, "1:0:0\n"),
+                (Some("2"), 20, "2:1:1\n"),
+            ] {
+                let mut command = Command::new(&report.artifacts["executable"]);
+                if let Some(at) = fail_at {
+                    command.env("ZIL_POD_ALLOC_FAIL_AT", at);
+                }
+                let actual = command.output().unwrap();
+                assert_eq!(
+                    actual.status.code(),
+                    Some(exit),
+                    "{backend:?} {optimization:?} {actual:?}"
+                );
+                assert_eq!(
+                    actual.stdout,
+                    output.as_bytes(),
+                    "{backend:?} {optimization:?} {actual:?}"
+                );
+            }
+        }
+    }
+    fs::remove_dir_all(dir).unwrap();
+}
+
+#[test]
 fn generic_hash_map_combines_borrowed_package_storage_and_two_callbacks() {
     let program = include_str!(
         "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/callback-hash-map.zil"

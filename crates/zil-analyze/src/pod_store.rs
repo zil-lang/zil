@@ -6,6 +6,7 @@ use zil_ir::{Instruction, InstructionKind, Type, TypedFunction, TypedModule, Val
 use super::{Budget, CompileResult, Diagnostic, Phase, bad};
 
 const WORK: &str = "POD Store admission";
+
 const PREFIX: &str = "@builtin:OwnedStore<";
 
 fn unsupported(message: &str) -> Vec<Diagnostic> {
@@ -106,28 +107,43 @@ pub(super) fn carrier(
             "POD Store requires checked Linux x64 or Win64 LLVM",
         ));
     }
+    let composite = matches!(element, Type::Tuple(_) | Type::Array { .. });
+    if composite {
+        let (size, _) = layout(element, budget)?;
+        if size == 0 {
+            return Err(unsupported(
+                "POD Store element requires nonzero actual inline layout",
+            ));
+        }
+        budget.type_work(element, true, WORK)?;
+        budget.spend(PREFIX.len().saturating_add(80), WORK)?;
+    }
     let name = match element {
-        Type::Record { name, .. } => name.as_str(),
-        Type::Bool => "bool",
-        Type::U8 => "u8",
-        Type::U16 => "u16",
-        Type::I32 => "i32",
-        Type::I64 => "i64",
-        Type::U64 => "u64",
-        Type::Usize => "usize",
-        Type::F32 => "f32",
-        Type::F64 => "f64",
+        Type::Record { name, .. } => name.clone(),
+        Type::Bool => "bool".into(),
+        Type::U8 => "u8".into(),
+        Type::U16 => "u16".into(),
+        Type::I32 => "i32".into(),
+        Type::I64 => "i64".into(),
+        Type::U64 => "u64".into(),
+        Type::Usize => "usize".into(),
+        Type::F32 => "f32".into(),
+        Type::F64 => "f64".into(),
+        Type::Tuple(_) => format!("tuple:{}", element.fingerprint()),
+        Type::Array { .. } => format!("array:{}", element.fingerprint()),
         _ => {
             return Err(unsupported(
                 "POD Store element requires an ordinary Record or supported scalar",
             ));
         }
     };
-    let (size, _) = layout(element, budget)?;
-    if size == 0 {
-        return Err(unsupported(
-            "POD Store element requires nonzero actual inline layout",
-        ));
+    if !composite {
+        let (size, _) = layout(element, budget)?;
+        if size == 0 {
+            return Err(unsupported(
+                "POD Store element requires nonzero actual inline layout",
+            ));
+        }
     }
     budget.spend(
         PREFIX.len().saturating_add(name.len()).saturating_add(1),
@@ -142,8 +158,9 @@ pub(super) fn carrier(
             match actual.as_ref() {
                 Type::Record { name: actual, .. } | Type::Package { name: actual, .. } => {
                     budget.spend(actual.len().saturating_add(name.len()), WORK)?;
-                    actual == name
+                    actual == &name
                 }
+                Type::Tuple(_) | Type::Array { .. } => actual.as_ref() == element,
                 Type::Bool
                 | Type::U8
                 | Type::U16
@@ -268,4 +285,91 @@ pub(super) fn instruction(
         ));
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod composite_root_tests {
+    use super::*;
+    use zil_base::{Fingerprint, Limits, ModuleId, ResultCategory, SCHEMA_VERSION, TargetProfile};
+    use zil_ir::ResourceDefinition;
+
+    fn module(element: &Type) -> TypedModule {
+        let name = match element {
+            Type::Tuple(_) => format!("{PREFIX}tuple:{}>", element.fingerprint()),
+            Type::Array { .. } => format!("{PREFIX}array:{}>", element.fingerprint()),
+            _ => unreachable!(),
+        };
+        TypedModule {
+            dyn_declarations: vec![],
+            dyn_interfaces: vec![],
+            dyn_vtables: vec![],
+            life_declarations: vec![],
+            life_instances: vec![],
+            schema_version: SCHEMA_VERSION,
+            module_id: ModuleId(0),
+            source_fingerprint: Fingerprint::of(b"POD composite raw"),
+            target: TargetProfile::host_llvm(),
+            functions: vec![],
+            closures: vec![],
+            resources: vec![ResourceDefinition {
+                name,
+                payload: Type::OwnedStore {
+                    element: Box::new(element.clone()),
+                },
+                teardown: None,
+            }],
+            unsupported: vec![],
+        }
+    }
+
+    #[test]
+    fn exact_tuple_and_array_roots_reject_same_size_payloads_and_replay_budget() {
+        let tuple = Type::Tuple(vec![Type::I32, Type::I32]);
+        let array = Type::Array {
+            element: Box::new(Type::I32),
+            length: 2,
+        };
+        let limits = Limits::default();
+        for (element, other) in [(tuple.clone(), array.clone()), (array, tuple)] {
+            let correct = module(&element);
+            carrier(&correct, &element, &mut Budget::new(&limits)).unwrap();
+            let mut wrong = correct.clone();
+            wrong.resources[0].payload = Type::OwnedStore {
+                element: Box::new(other),
+            };
+            assert!(carrier(&wrong, &element, &mut Budget::new(&limits)).is_err());
+            let mut wrong = correct.clone();
+            wrong.resources[0].name.push('x');
+            assert!(carrier(&wrong, &element, &mut Budget::new(&limits)).is_err());
+            let mut duplicate = correct.clone();
+            duplicate.resources.push(duplicate.resources[0].clone());
+            assert!(carrier(&duplicate, &element, &mut Budget::new(&limits)).is_err());
+            let check = |n| {
+                carrier(
+                    &correct,
+                    &element,
+                    &mut Budget::new(&Limits {
+                        max_analysis_steps: n,
+                        ..limits.clone()
+                    }),
+                )
+            };
+            let (mut lo, mut hi) = (1, limits.max_analysis_steps);
+            check(hi).unwrap();
+            while lo < hi {
+                let mid = lo + (hi - lo) / 2;
+                if check(mid).is_ok() {
+                    hi = mid;
+                } else {
+                    lo = mid + 1;
+                }
+            }
+            check(lo).unwrap();
+            assert_eq!(
+                check(lo - 1).unwrap_err()[0].category,
+                ResultCategory::ResourceLimit
+            );
+            check(lo).unwrap();
+        }
+    }
 }
