@@ -63,7 +63,9 @@ class RepositoryLayoutTests(unittest.TestCase):
     def test_versions_and_stable_cases_survive(self):
         base = self.baseline("README.md")
         for path in ("tools/llvm23/check.py", "examples/wire-v40/main.zil",
-                     "tests/case123_u64.rs", "changes/sha-abcdef1234.md"):
+                     "tests/case123_u64.rs", "tests/case_344.rs",
+                     "changes/schema-v40.md", "changes/sha-abcdef1234.md",
+                     "changes/SOURCE-SNAPSHOT-20261026.md"):
             self.write(path)
         _, failures, _ = layout.check(base, root=self.root)
         self.assertEqual(failures, [])
@@ -80,13 +82,29 @@ class RepositoryLayoutTests(unittest.TestCase):
         ])
 
     def test_delivery_rejects_task_state_even_when_in_baseline(self):
-        base = self.baseline(".task/active.md", "_zil_goal/current.md", "goal.md")
+        base = self.baseline(".task/G10.7.5.1.md", "_zil_goal/current.md", "goal.md",
+                             "data/handoff.json", "data/construction-progress.json",
+                             "data/task-index.json")
+        self.write(".task/G2.3.md")
         _, ordinary_failures, _ = layout.check(base, root=self.root)
         _, delivery_failures, _ = layout.check(base, delivery=True, root=self.root)
         self.assertEqual(ordinary_failures, [])
         self.assertEqual({path for path, _ in delivery_failures}, {
-            ".task/active.md", "_zil_goal/current.md", "goal.md",
+            ".task/G10.7.5.1.md", ".task/G2.3.md",
+            "_zil_goal/current.md", "goal.md",
+            "data/handoff.json", "data/construction-progress.json", "data/task-index.json",
         })
+
+    def test_other_construction_labels_and_numbered_filenames_fail(self):
+        base = self.baseline("README.md")
+        paths = ("docs/g1_3-plan.md", "changes/LANGUAGE-219.md",
+                 "changes/BATCH336.md", "changes/IMPLEMENTATION-0063.md",
+                 "changes/344-feature.md", "tests/feature_344.rs",
+                 "tools/123.py")
+        for path in paths:
+            self.write(path)
+        _, failures, _ = layout.check(base, root=self.root)
+        self.assertEqual({path for path, _ in failures}, set(paths))
 
 
 if __name__ == "__main__":
