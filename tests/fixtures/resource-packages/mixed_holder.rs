@@ -40,6 +40,7 @@ const EXCLUSIVE_RECORD_BRANCH_UNINITIALIZED: &str =
     include_str!("exclusive-record-branch-uninitialized.zil");
 const EXCLUSIVE_RECORD_AFTER_MOVE: &str = include_str!("exclusive-record-after-move.zil");
 const EXCLUSIVE_PAIR: &str = include_str!("exclusive-pair.zil");
+const TWO_EXCLUSIVE_HOLDERS: &str = include_str!("two-exclusive-holders.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -381,15 +382,186 @@ fn exclusive_pair_raw_constructor_cannot_repeat_one_address() {
     let verify_error =
         zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
     assert!(
-        format!("{analyze_error:?}").contains("simultaneously live access overlaps"),
+        format!("{analyze_error:?}").contains("transferred twice"),
         "{analyze_error:?}"
     );
     assert!(
-        format!("{verify_error:?}").contains("actual target intersects"),
+        format!("{verify_error:?}").contains("transferred twice"),
         "{verify_error:?}"
     );
     let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
     assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+#[test]
+fn independent_exclusive_holder_constructors_reject_reused_address_value() {
+    let input = source("two-exclusive-holders.zil", TWO_EXCLUSIVE_HOLDERS);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let mut raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let original_raw = raw.clone();
+    let original_candidate = candidate.clone();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    // Repeated call reborrows of the same SSA address remain legal before
+    // its single transfer into a holder, even in a function with stored moves.
+    let mut reborrows = original_raw.clone();
+    let peek = reborrows
+        .functions
+        .iter()
+        .find(|f| f.name == "peek")
+        .unwrap()
+        .id;
+    let function = reborrows
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "use_two")
+        .unwrap();
+    let parameter = function.parameters[0];
+    let block = &mut function.blocks[0];
+    let position = block
+        .instructions
+        .iter()
+        .position(|i| i.kind == zil_ir::InstructionKind::Load(parameter))
+        .unwrap();
+    let address = block.instructions[position].result.unwrap();
+    let span = block.instructions[position].span;
+    let calls: Vec<_> = (0..2)
+        .map(|_| {
+            let result = zil_ir::ValueId(function.values.len() as u32);
+            function.values.push(Type::I32);
+            zil_ir::Instruction {
+                result: Some(result),
+                kind: zil_ir::InstructionKind::Call {
+                    function: peek,
+                    arguments: vec![address],
+                },
+                span,
+            }
+        })
+        .collect();
+    block.instructions.splice(position + 1..position + 1, calls);
+    let reborrow_claim = zil_analyze::analyze(&reborrows, &limits).unwrap();
+    zil_verify::verify_module(reborrows.clone(), reborrow_claim.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&reborrows, &reborrow_claim, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+
+    let function = raw
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "use_two")
+        .unwrap();
+    let addresses: Vec<_> = function
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter_map(|instruction| {
+            if let zil_ir::InstructionKind::MakeAggregate { fields } = &instruction.kind {
+                assert_eq!(fields.len(), 1);
+                Some(fields[0])
+            } else {
+                None
+            }
+        })
+        .collect();
+    assert_eq!(addresses.len(), 2);
+    assert_ne!(addresses[0], addresses[1]);
+    let second = function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .filter_map(|instruction| {
+            if let zil_ir::InstructionKind::MakeAggregate { fields } = &mut instruction.kind {
+                Some(fields)
+            } else {
+                None
+            }
+        })
+        .nth(1)
+        .unwrap();
+    second[0] = addresses[0];
+    candidate.module_fingerprint = raw.fingerprint();
+    let analyze = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("transferred twice"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("transferred twice"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    let wire_verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{wire_verify:?}").contains("transferred twice"),
+        "{wire_verify:?}"
+    );
+
+    let mut two_loads = original_raw;
+    let function = two_loads
+        .functions
+        .iter_mut()
+        .find(|function| function.name == "use_two")
+        .unwrap();
+    // Keep distinct SSA definitions and the ordinary constructor temporaries,
+    // but load the same exclusive parameter into both holders.
+    let [first, second] = function.parameters.as_slice() else {
+        panic!("two parameters expected")
+    };
+    let (first, second) = (*first, *second);
+    let mut input_loads = Vec::new();
+    for instruction in function
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+    {
+        if let zil_ir::InstructionKind::Load(local) = &mut instruction.kind {
+            if *local == first || *local == second {
+                input_loads.push(instruction.result.unwrap());
+                *local = first;
+            }
+        }
+    }
+    assert_eq!(input_loads.len(), 2);
+    assert_ne!(input_loads[0], input_loads[1]);
+    let mut claim = original_candidate;
+    claim.module_fingerprint = two_loads.fingerprint();
+    let analyze = zil_analyze::analyze(&two_loads, &limits).unwrap_err();
+    assert!(
+        format!("{analyze:?}").contains("simultaneously live access overlaps"),
+        "{analyze:?}"
+    );
+    let verify =
+        zil_verify::verify_module(two_loads.clone(), claim.clone(), &target, &limits).unwrap_err();
+    assert!(
+        format!("{verify:?}").contains("actual target intersects"),
+        "{verify:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&two_loads, &claim, &limits).unwrap();
+    let wire_verify = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        format!("{wire_verify:?}").contains("actual target intersects"),
+        "{wire_verify:?}"
+    );
 }
 
 #[test]

@@ -334,6 +334,45 @@ fn exclusive_carrier_value(ty: &Type) -> bool {
         _ => false,
     }
 }
+fn affine_stored_input(ty: &Type) -> bool {
+    match ty {
+        Type::Address { mutable: true, .. } => true,
+        Type::Tuple(fields) => fields.iter().any(affine_stored_input),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().any(|(_, field)| affine_stored_input(field))
+        }
+        Type::Array { element, .. } => affine_stored_input(element),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(affine_stored_input)),
+        Type::ErrorUnion { error, result } => {
+            affine_stored_input(error) || affine_stored_input(result)
+        }
+        _ => exclusive_carrier_value(ty),
+    }
+}
+// Address arguments to ordinary calls are reborrows. Only actual storage
+// transfers consume that SSA address; carrier values retain their move rules.
+fn transfers_address(kind: &InstructionKind) -> bool {
+    matches!(
+        kind,
+        InstructionKind::MakeAggregate { .. }
+            | InstructionKind::MakePackage { .. }
+            | InstructionKind::MakeManaged { .. }
+            | InstructionKind::MakeOwnedTuple { .. }
+            | InstructionKind::MakeVariant { .. }
+            | InstructionKind::MakeOwnedArray { .. }
+            | InstructionKind::MakeClosure { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::ExtractField { .. }
+            | InstructionKind::ExtractIndex { .. }
+            | InstructionKind::UpdateField { .. }
+            | InstructionKind::UpdateIndex { .. }
+            | InstructionKind::StorePackageField { .. }
+            | InstructionKind::StoreOwnedArrayElement { .. }
+            | InstructionKind::StoreStoredBorrow { .. }
+    )
+}
 fn pointed_carrier(ty: &Type) -> Option<(&Type, &StorageLifeShape)> {
     if let Type::Address { inner, .. } = ty {
         carrier(inner)
@@ -3945,6 +3984,7 @@ fn actual_instructions(
             InstructionKind::Store { value, .. }
             | InstructionKind::StorePackageField { value, .. }
             | InstructionKind::StoreOwnedArrayElement { value, .. }
+            | InstructionKind::StoreStoredBorrow { value, .. }
             | InstructionKind::MakeErrorUnion { value, .. }
             | InstructionKind::ExtractField {
                 aggregate: value, ..
@@ -4003,7 +4043,15 @@ fn actual_instructions(
             _ => (None, &[]),
         }
     }
-    let affine: Vec<bool> = f.values.iter().map(exclusive_carrier_value).collect();
+    let mut affine: Vec<bool> = f.values.iter().map(exclusive_carrier_value).collect();
+    for instruction in f.blocks.iter().flat_map(|block| &block.instructions) {
+        if transfers_address(&instruction.kind) {
+            let (first, rest) = consumed(&instruction.kind);
+            for value in first.into_iter().chain(rest.iter().copied()) {
+                affine[value.0 as usize] |= affine_stored_input(&f.values[value.0 as usize]);
+            }
+        }
+    }
     if affine.iter().any(|exclusive| *exclusive) {
         let (preds, reachable) = graph;
         let width = affine.len();
@@ -4034,7 +4082,10 @@ fn actual_instructions(
                     for value in first.into_iter().chain(rest.iter().copied()) {
                         let index = value.0 as usize;
                         fee(b, 1)?;
-                        if affine[index] {
+                        if affine[index]
+                            && (exclusive_carrier_value(&f.values[index])
+                                || transfers_address(&instruction.kind))
+                        {
                             spent[index] = true;
                         }
                     }
@@ -4071,7 +4122,11 @@ fn actual_instructions(
                 for value in first.into_iter().chain(rest.iter().copied()) {
                     let index = value.0 as usize;
                     fee(b, 1)?;
-                    if affine[index] && std::mem::replace(&mut spent[index], true) {
+                    if affine[index]
+                        && (exclusive_carrier_value(&f.values[index])
+                            || transfers_address(&instruction.kind))
+                        && std::mem::replace(&mut spent[index], true)
+                    {
                         return Err(failure(
                             "exclusive stored carrier SSA value was transferred twice",
                         ));
