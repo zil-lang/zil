@@ -34,6 +34,10 @@ fn ordinary_stored_view_source_has_an_inline_pointer_and_native_load() {
                 "{}",
                 report.to_json()
             );
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+            let codegen = report.native_codegen.as_ref().expect("native build report");
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none(), "{}", report.to_json());
             execute(&report.artifacts["executable"], 42);
             let llvm = fs::read_to_string(&report.artifacts["llvm"]).unwrap();
             if let Some(retained) = std::env::var_os("ZIL342_RETAIN_NATIVE") {
