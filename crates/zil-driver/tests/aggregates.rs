@@ -1,5 +1,5 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
-#[path = "../../../.task/G4.4.6.1-inputs/nominal_controls.rs"]
+#[path = "../../../tests/fixtures/nominal-lifetimes/nominal_controls.rs"]
 mod g4461_nominal_controls;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_enum_controls.rs"]
 mod g4463_enum_controls;
@@ -10047,7 +10047,7 @@ mod p0_g445_review;
 mod terminal340_nonlocal_replace;
 
 // Independent complete-parent consumers; staged failures remain visible during integration.
-#[path = "../../../.task/G10.1.10-inputs/consumers.rs"]
+#[path = "../../../tests/fixtures/resource-packages/consumers.rs"]
 mod g10110_independent_parent_consumers;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
 mod runtime_ct_phase_tests;
