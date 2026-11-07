@@ -12,6 +12,32 @@ pub(super) fn storage_identity(
     origin: origins::Origin,
     budget: &mut Budget<'_>,
 ) -> R<(zil_ir::LifeDeclarationId, zil_ir::LifeDeclarationIdentity)> {
+    let (role, template, empty, full, ordinal, module_path, public_name) = match origin.role {
+        Some(origins::CompilerRole::Option) => (
+            origins::CompilerRole::Option,
+            TEMPLATE,
+            "None",
+            "Some",
+            0,
+            "option",
+            "Option",
+        ),
+        Some(origins::CompilerRole::Poll) => (
+            origins::CompilerRole::Poll,
+            TASK_POLL,
+            "Pending",
+            "Ready",
+            1,
+            "task",
+            "Poll",
+        ),
+        None => {
+            return Err(error(
+                item.span,
+                "stored compiler nominal lacks actual prelude role provenance",
+            ));
+        }
+    };
     budget.item(item)?;
     let ItemKind::Enum(declaration) = &item.kind else {
         return Err(error(
@@ -45,17 +71,17 @@ pub(super) fn storage_identity(
     };
     if !origin.compiler
         || !origin.declaration.compiler
-        || origin.declaration.ordinal != 0
+        || (role == origins::CompilerRole::Option && origin.declaration.ordinal != 0)
         || origin.member.is_some()
         || item.public
         || !item.attributes.is_empty()
-        || declaration.name != TEMPLATE
+        || declaration.name != template
         || formal.name != "T"
         || !matches!(&formal.kind, GenericParamKind::Type(bounds) if bounds.is_empty())
-        || none.name != "None"
+        || none.name != empty
         || !matches!(none.fields, VariantFields::Unit)
         || !none.attributes.is_empty()
-        || some.name != "Some"
+        || some.name != full
         || !some.attributes.is_empty()
         || payload.manages
         || !matches!(&payload.ty.kind, TypeKind::Named {path,args} if path.as_slice()==["T"] && args.is_empty())
@@ -75,13 +101,13 @@ pub(super) fn storage_identity(
     Ok((
         zil_ir::LifeDeclarationId {
             module: zil_base::ModuleId(u32::MAX),
-            declaration: zil_base::NodeId(0),
+            declaration: zil_base::NodeId(ordinal),
             compiler: true,
         },
         zil_ir::LifeDeclarationIdentity {
             package: "@zil.builtin".into(),
-            module_path: vec!["option".into()],
-            declaration_path: vec!["enum".into(), "Option".into()],
+            module_path: vec![module_path.into()],
+            declaration_path: vec!["enum".into(), public_name.into()],
             generation_path: Vec::new(),
         },
     ))
@@ -259,11 +285,18 @@ pub(super) fn prepare(
             .identity_work(4096, span)
             .map_err(|e| vec![e])?;
         let aliases = task_aliases(module, span, &mut normal.budget).map_err(|e| vec![e])?;
-        for item in task_declarations(span).into_iter().chain(aliases) {
+        for (role, item) in task_declarations(span)
+            .into_iter()
+            .chain(aliases.into_iter().map(|item| (None, item)))
+        {
             normal.budget.item(&item).map_err(|e| vec![e])?;
             output.items.insert(0, item);
             prelude.len += 1;
             prelude.option = prelude.option.map(|index| index + 1);
+            prelude.poll = prelude.poll.map(|index| index + 1);
+            if role == Some(origins::CompilerRole::Poll) {
+                prelude.poll = Some(0);
+            }
         }
     }
     Ok((
@@ -275,7 +308,7 @@ pub(super) fn prepare(
     ))
 }
 
-fn task_declarations(span: Span) -> Vec<Item> {
+fn task_declarations(span: Span) -> Vec<(Option<origins::CompilerRole>, Item)> {
     [
         (TASK_CREATE_ERROR, vec!["Allocation"], false),
         (
@@ -286,39 +319,44 @@ fn task_declarations(span: Span) -> Vec<Item> {
         (TASK_POLL, vec!["Pending", "Ready"], true),
     ]
     .into_iter()
-    .map(|(name, variants, generic)| Item {
-        public: false,
-        attributes: vec![],
-        span,
-        kind: ItemKind::Enum(EnumDecl {
-            name: name.into(),
-            generics: if generic {
-                vec![GenericParam {
-                    name: "T".into(),
-                    kind: GenericParamKind::Type(vec![]),
-                    span,
-                }]
-            } else {
-                vec![]
-            },
-            variants: variants
-                .into_iter()
-                .map(|name| Variant {
+    .map(|(name, variants, generic)| {
+        (
+            generic.then_some(origins::CompilerRole::Poll),
+            Item {
+                public: false,
+                attributes: vec![],
+                span,
+                kind: ItemKind::Enum(EnumDecl {
                     name: name.into(),
-                    attributes: vec![],
-                    span,
-                    fields: if generic && name == "Ready" {
-                        VariantFields::Tuple(vec![VariantTupleField {
-                            ty: named("T", span),
-                            manages: false,
+                    generics: if generic {
+                        vec![GenericParam {
+                            name: "T".into(),
+                            kind: GenericParamKind::Type(vec![]),
                             span,
-                        }])
+                        }]
                     } else {
-                        VariantFields::Unit
+                        vec![]
                     },
-                })
-                .collect(),
-        }),
+                    variants: variants
+                        .into_iter()
+                        .map(|name| Variant {
+                            name: name.into(),
+                            attributes: vec![],
+                            span,
+                            fields: if generic && name == "Ready" {
+                                VariantFields::Tuple(vec![VariantTupleField {
+                                    ty: named("T", span),
+                                    manages: false,
+                                    span,
+                                }])
+                            } else {
+                                VariantFields::Unit
+                            },
+                        })
+                        .collect(),
+                }),
+            },
+        )
     })
     .collect()
 }

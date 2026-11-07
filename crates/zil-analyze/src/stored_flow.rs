@@ -675,7 +675,8 @@ pub(super) fn inventory(
             ));
         }
         nominal::rows(module, instance, limits, b)?;
-        b.stored_enum_addresses |= !decl.id.compiler && enum_address::candidate(&instance.ty);
+        b.stored_enum_addresses |= (!decl.id.compiler || enum_address::poll_declaration(decl))
+            && enum_address::candidate(&instance.ty);
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;

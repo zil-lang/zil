@@ -1,6 +1,18 @@
 //! Ordinary borrowed Enum proof. Nominal metadata supplies no actual target.
 use super::*;
 
+pub(super) fn poll_declaration(d: &LifeNominalDeclaration) -> bool {
+    d.id.compiler
+        && d.id.module.0 == u32::MAX
+        && d.id.declaration.0 == 1
+        && d.identity.package == "@zil.builtin"
+        && d.identity.module_path == ["task"]
+        && d.identity.declaration_path == ["enum", "Poll"]
+        && d.identity.generation_path.is_empty()
+        && d.kind == LifeNominalKind::Enum
+        && d.parameters == [zil_ir::LifeParameterKind::Type]
+}
+
 pub(super) fn candidate(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { storage, life }
         if matches!(storage.as_ref(), Type::Enum { .. }) && !life.slots.is_empty())
@@ -222,7 +234,11 @@ pub(crate) fn ordinary(module: &TypedModule, ty: &Type, b: &mut Budget) -> Compi
         .find(|d| d.id == instance.declaration)
         .ok_or_else(|| failure("borrowed Enum declaration is absent"))?;
     if declaration.id.compiler {
-        return Ok(false);
+        if !poll_declaration(declaration) {
+            return Ok(false);
+        }
+        poll_instance(instance, b)?;
+        return Ok(true);
     }
     if declaration.kind != LifeNominalKind::Enum {
         return Err(failure("borrowed Enum declaration kind differs"));
@@ -1076,4 +1092,32 @@ pub(super) fn refine(
         proof.inactive.push(inactive);
     }
     Ok(changed.then_some(proof))
+}
+
+pub(super) fn poll_instance(instance: &LifeNominalInstance, b: &mut Budget) -> CompileResult<()> {
+    fee(b, 96)?;
+    let (Type::BorrowedStorage { storage, life }, [LifeNominalActual::Type(actual)]) =
+        (&instance.ty, instance.arguments.as_slice())
+    else {
+        return Err(failure("Poll has no complete qualified Type actual"));
+    };
+    let Type::Enum { name, variants } = storage.as_ref() else {
+        return Err(failure("Poll has no actual Enum layout"));
+    };
+    b.type_work(actual, true, "Poll actual fingerprint")?;
+    fee(b, name.len().saturating_add(96))?;
+    if name != &format!("@std.task:v1:Poll:{}", actual.fingerprint())
+        || !matches!(variants.as_slice(),[(pending,empty),(ready,fields)] if pending=="Pending" && empty.is_empty() && ready=="Ready" && fields.len()==1 && fields[0]==*actual)
+        || !matches!(actual, Type::Address { mutable: false, .. })
+        || life.binder_count != 1
+        || !life.nominal_arguments.is_empty()
+        || !matches!(life.retained.as_slice(),[m] if m.path==[LifeTypeProjection::TypeArgument(0)] && m.class==0 && m.binder==0)
+        || !matches!(life.slots.as_slice(),[s] if s.path==[PlaceProjection::Variant(zil_ir::VariantProjection {variant:1,index:0})] && s.binder==0 && s.mode==StoredBorrowMode::SharedAddress)
+        || !shape(&instance.ty, b)?
+    {
+        return Err(failure(
+            "Poll full actual identity or shared payload relation differs",
+        ));
+    }
+    Ok(())
 }

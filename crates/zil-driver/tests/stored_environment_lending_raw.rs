@@ -12,6 +12,47 @@ use zil_ir::{
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
 #[test]
+fn standard_poll_shared_payload_has_its_actual_sealed_declaration_and_source() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/poll.zil"
+    ));
+    let declaration = module
+        .life_declarations
+        .iter()
+        .find(|d| d.id.compiler && d.id.declaration.0 == 1)
+        .unwrap();
+    assert_eq!(declaration.id.module, ModuleId(u32::MAX));
+    assert_eq!(declaration.identity.package, "@zil.builtin");
+    assert_eq!(declaration.identity.module_path, ["task"]);
+    assert_eq!(declaration.identity.declaration_path, ["enum", "Poll"]);
+    assert_eq!(declaration.parameters, [zil_ir::LifeParameterKind::Type]);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bytes = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&bytes, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn standard_poll_shared_payload_native_keeps_ready_and_pending_sources() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            "poll.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/poll.zil"),
+        )],
+        paths: Default::default(),
+    });
+}
+
+#[test]
 fn ordinary_borrowed_enum_source_uses_actual_tagged_slots() {
     let source = include_str!("../../../tests/fixtures/borrowed-enums/choice.zil");
     let module = typed_stored(source);

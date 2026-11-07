@@ -1195,6 +1195,7 @@ impl Resolver<'_> {
                             .is_some_and(|instance| {
                                 stored::option_address_payload(instance, field)
                                     || stored::enum_address_payload(instance, field)
+                                    || stored::poll_address_payload(instance, field)
                             })
                         || (stored_instance.is_some()
                             && stored::pure_inline(
@@ -1234,8 +1235,28 @@ impl Resolver<'_> {
                     }
                 }
             }
+            let poll_payload = match variants.as_slice() {
+                [(_, _), (_, fields)] => match fields.as_slice() {
+                    [payload]
+                        if stored_instance.is_some_and(|instance| {
+                            stored::poll_address_payload(instance, payload)
+                        }) =>
+                    {
+                        Some(payload)
+                    }
+                    _ => None,
+                },
+                _ => None,
+            };
+            let nominal = if let Some(payload) = poll_payload {
+                let work = inference::type_snapshot_work(payload, span, &self.generic_limits)?;
+                aggregate_templates::spend(&mut self.remaining, work.saturating_add(96), span)?;
+                tasks::poll_name(payload)
+            } else {
+                enums::nominal_name(self.owners[name], name, &variants)
+            };
             let ty = Type::Enum {
-                name: enums::nominal_name(self.owners[name], name, &variants),
+                name: nominal,
                 variants,
             };
             if owns {

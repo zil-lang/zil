@@ -922,7 +922,8 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
         nominal::rows(module, instance, limits, b)?;
-        b.stored_enum_addresses |= !d.id.compiler && enum_address::candidate(&instance.ty);
+        b.stored_enum_addresses |= (!d.id.compiler || enum_address::poll_declaration(d))
+            && enum_address::candidate(&instance.ty);
         for previous in &module.life_instances[..i] {
             type_work(&previous.ty, limits, b)?;
             type_work(&instance.ty, limits, b)?;

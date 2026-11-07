@@ -111,7 +111,10 @@ pub(super) fn inventory(core: &CoreModule, left: &mut usize, limits: &Limits) ->
     let mut declarations = BTreeMap::new();
     for (index, declaration) in core.life_declarations.iter().enumerate() {
         fee(left, declarations.len().saturating_add(1), span)?;
-        if declaration.id.compiler && !option_address::declaration(declaration) {
+        if declaration.id.compiler
+            && !option_address::declaration(declaration)
+            && !enum_address::poll_declaration(declaration)
+        {
             return Err(unsupported(
                 span,
                 "stored compiler nominal requires its authentic builtin declaration",
@@ -549,6 +552,16 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
 pub(super) fn enum_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
     !instance.declaration.compiler
         && enum_address::candidate(&instance.ty)
+        && matches!(ty, Type::Address { mutable: false, .. })
+}
+
+// The Core inventory already authenticated the reserved declaration and every
+// complete actual before Resolver uses this physical-layout dispatch.
+pub(super) fn poll_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    instance.declaration.compiler
+        && instance.declaration.module.0 == u32::MAX
+        && instance.declaration.declaration.0 == 1
+        && matches!(instance.arguments.as_slice(),[LifeNominalActual::Type(actual)] if actual==ty)
         && matches!(ty, Type::Address { mutable: false, .. })
 }
 

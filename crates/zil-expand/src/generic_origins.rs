@@ -13,12 +13,14 @@ use zil_ir::LifeDeclarationIdentity;
 pub(super) struct CompilerPrelude {
     pub(super) len: usize,
     pub(super) option: Option<usize>,
+    pub(super) poll: Option<usize>,
 }
 impl CompilerPrelude {
     fn option_only(inserted: bool) -> Self {
         Self {
             len: usize::from(inserted),
             option: inserted.then_some(0),
+            poll: None,
         }
     }
     fn origin(self, module: &Module, index: usize) -> R<Origin> {
@@ -30,8 +32,23 @@ impl CompilerPrelude {
         let mut origin = Origin::source(module.id, ordinal, module.span)?;
         origin.compiler = true;
         origin.declaration.compiler = true;
+        origin.role = if self.option == Some(index) {
+            Some(CompilerRole::Option)
+        } else if self.poll == Some(index) {
+            Some(CompilerRole::Poll)
+        } else {
+            None
+        };
         Ok(origin)
     }
+}
+
+/// Private provenance from actual prelude insertion. The traversal ordinal is
+/// deliberately separate from a public reserved nominal declaration ID.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CompilerRole {
+    Option,
+    Poll,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -51,6 +68,7 @@ pub(crate) struct Origin {
     pub(crate) member: Option<u32>,
     pub(crate) provider: bool,
     pub(crate) compiler: bool,
+    pub(crate) role: Option<CompilerRole>,
 }
 #[derive(Default)]
 pub(crate) struct Origins {
@@ -77,6 +95,7 @@ impl Origin {
             member: None,
             provider: false,
             compiler: false,
+            role: None,
         })
     }
     pub(crate) fn member(self, ordinal: usize, span: Span) -> R<Self> {
