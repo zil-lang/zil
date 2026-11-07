@@ -937,6 +937,7 @@ fn bind_lir(
                 !(ty.is_copy_value()
                     || stored_borrows::representation_type(ty)
                     || ty.is_scalar_or_address()
+                    || resource_head_address(ty)
                     || drop_plan::sum_address(ty, lir.resources)
                     || resources::supported_type(ty, lir.resources)
                     || packages::supported_value_type(ty, lir.resources)
@@ -1543,6 +1544,22 @@ impl FunctionEmitter<'_> {
             self.event(m::Event::Label(format!("bb.{}", block.id.0)));
             for (index, instruction) in block.instructions.iter().enumerate() {
                 let pollable_drop = matches!(instruction.kind,InstructionKind::DropManaged{local} if matches!(&self.function.locals[local.0 as usize].ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})));
+                // A lexical cleanup after an actual TakeLocal has no owner to
+                // drain. Only an intervening Store could reactivate this local.
+                // Live direct-function cleanup still follows the strict guard.
+                let vacated_pollable_drop = self.task_ownership.is_none()
+                    && match &instruction.kind {
+                        InstructionKind::DropManaged { local } if pollable_drop => block.instructions[..index]
+                            .iter()
+                            .rev()
+                            .find_map(|prior| match &prior.kind {
+                                InstructionKind::TakeLocal { local: moved } if moved == local => Some(true),
+                                InstructionKind::Store { local: stored, .. } if stored == local => Some(false),
+                                _ => None,
+                            })
+                            .unwrap_or(false),
+                        _ => false,
+                    };
                 if let Some(actions) = self
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))
@@ -1552,7 +1569,9 @@ impl FunctionEmitter<'_> {
                         self.event(tasks::owner_marker(action));
                     }
                 }
-                self.instruction(instruction)?;
+                if !vacated_pollable_drop {
+                    self.instruction(instruction)?;
+                }
                 if let Some(actions) = self
                     .task_ownership
                     .and_then(|p| p.actions_at(block.id, index))
@@ -1649,7 +1668,8 @@ impl FunctionEmitter<'_> {
             | InstructionKind::AsyncRegistrationValid { .. }
             | InstructionKind::AsyncRegistrationRequestClose { .. }
             | InstructionKind::AsyncRegistrationPollClose { .. }
-            | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+            | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
                 self.async_registration_instruction(instruction)?;
             }
             InstructionKind::MakeDynBorrow {

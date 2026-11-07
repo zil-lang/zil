@@ -939,6 +939,7 @@ fn check_module(
     }
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
+    registration::check_phase(module, &mut budget)?;
     Ok(CheckedModule {
         fingerprint,
         uses_owned_sum_extension: budget.sums,
@@ -2060,7 +2061,8 @@ fn check_instruction(
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
         | InstructionKind::AsyncRegistrationPollClose { .. }
-        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+                | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
@@ -3483,7 +3485,8 @@ fn instruction_operands(instruction: &InstructionKind) -> impl Iterator<Item = V
         InstructionKind::AsyncRegistrationValid { registration }
         | InstructionKind::AsyncRegistrationRequestClose { registration }
         | InstructionKind::AsyncRegistrationPollClose { registration }
-        | InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
             ([Some(*registration), None], &[])
         }
         InstructionKind::MakeDynBorrow { source, .. } => ([Some(*source), None], &[]),

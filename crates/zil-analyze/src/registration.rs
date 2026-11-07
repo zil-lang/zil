@@ -1,6 +1,7 @@
 //! Independent actual retained-owner and closed-environment admission.
 use super::*;
 use zil_base::Span;
+mod phase;
 const PREFIX: &str = "@builtin:Registration:";
 pub(super) const ASYNC_PREFIX: &str = "@builtin:AsyncRegistration:";
 fn fail(span: Span, message: &str) -> Vec<Diagnostic> {
@@ -385,7 +386,8 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                             },
                         )
                     }
-                    InstructionKind::AsyncRegistrationFinishDestroy { registration } => {
+                    InstructionKind::AsyncRegistrationFinishDestroy { registration }
+                    | InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
                         if !matches!(value(registration)?,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..}))
                         {
                             return Err(fail(i.span, "async finish consumes actual owning head"));
@@ -496,6 +498,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
             }
         }
     }
+    phase::check(module, budget)?;
     Ok(())
 }
 

@@ -441,7 +441,8 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
         | InstructionKind::AsyncRegistrationValid { .. }
         | InstructionKind::AsyncRegistrationRequestClose { .. }
         | InstructionKind::AsyncRegistrationPollClose { .. }
-        | InstructionKind::AsyncRegistrationFinishDestroy { .. } => {
+        | InstructionKind::AsyncRegistrationFinishDestroy { .. }
+        | InstructionKind::AsyncRegistrationFinishDestroyChecked { .. } => {
             panic!("pollable registration is outside this retained legacy oracle")
         }
         InstructionKind::MakeDynBorrow { .. }

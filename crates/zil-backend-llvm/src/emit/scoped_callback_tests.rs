@@ -29,6 +29,7 @@ fn function(id: u32, foreign: Option<&str>) -> TypedFunction {
         reference_return_bound: None,
         callable_return_contract: None,
         callable_contract: None,
+        protocol_contract: None,
         id: FunctionId(id),
         name: format!("test{id}"),
         foreign: foreign.map(|symbol| zil_ir::ForeignDeclaration {

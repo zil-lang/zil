@@ -791,6 +791,7 @@ pub(super) fn snapshot_context_function(
         life: function.life.clone(),
         type_parameters: function.type_parameters.clone(),
         state_parameters: function.state_parameters.clone(),
+        protocol_contract: function.protocol_contract.clone(),
         callable_return: function.callable_return.clone(),
         id: function.id,
         name: function.name.clone(),
@@ -1888,7 +1889,9 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     this.budget.work(1, parameter.span)?;
                     this.state_modes.insert(id, bound.kind);
                 }
-                if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
+                if registration::borrowed_environment(&parameter.ty).is_some() {
+                    Term::ValueAddress(Rc::new(Term::Registration(Rc::new(Term::Closure(id)), true, true)), true)
+                } else if callable_fields::placeholder_package(&parameter.ty, &bound.generic_name) {
                     this.state_term(&parameter.ty, &bound.generic_name, id, parameter.span)?
                 } else {
                     match helpers::parameter_mode(&parameter.ty, &bound.generic_name) {
@@ -2028,6 +2031,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 
     fn known_term(&mut self, ty: &Type, span: Span) -> R<Term> {
+        if let Type::Address { mutable: true, inner } = ty
+            && registration::borrowed_environment(ty).is_some()
+        {
+            let carrier = self.known_term(inner, span)?;
+            return Ok(Term::ValueAddress(Rc::new(carrier), true));
+        }
         if let Some(environment) = registration::environment(ty) {
             let source = self.known_term(environment, span)?;
             return Ok(Term::Registration(
@@ -2127,6 +2136,20 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         bound: &CoreCallableParameter,
         depth: usize,
     ) -> R<usize> {
+        if registration::borrowed_environment(ty).is_some() {
+            let Term::ValueAddress(carrier, true) = self.expr(argument, depth, false)? else {
+                return Err(error("E-TYPE-MISMATCH", argument.span, "exclusive registration address required"));
+            };
+            let Term::Registration(environment, true, true) = carrier.as_ref() else {
+                return Err(error("E-TYPE-MISMATCH", argument.span, "actual asynchronous registration required"));
+            };
+            let Term::Closure(id) = environment.as_ref() else {
+                return Err(unsupported(argument.span, "concrete registration environment required"));
+            };
+            let id = *id;
+            self.bind_source_bound(id, bound, argument.span)?;
+            return Ok(id);
+        }
         let state = callable_fields::placeholder_package(ty, &bound.generic_name);
         let wanted = if state {
             None
@@ -2647,6 +2670,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         }
     }
     fn bind_term(&mut self, term: &Term, ty: &Type, span: Span) -> R<()> {
+        if let Term::ValueAddress(carrier, true) = term
+            && let Type::Address { mutable: true, inner } = ty
+            && registration::borrowed_environment(ty).is_some()
+        {
+            return self.bind_term(carrier, inner, span);
+        }
         if let Term::Registration(environment, owned, asynchronous) = term {
             let Some(wanted) = registration::environment(ty) else {
                 return Err(error(
@@ -3744,6 +3773,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             };
         }
         if matches!(op, UnaryOp::Borrow | UnaryOp::BorrowMut) {
+            if *op == UnaryOp::BorrowMut
+                && let CoreExprKind::Name(name) = &operand.kind
+                && let Some(binding) = self.scopes.iter().rev().find_map(|scope| scope.get(name))
+                && binding.mutable
+                && matches!(binding.term, Term::Registration(_, true, true))
+            {
+                return Ok(Term::ValueAddress(Rc::new(binding.term.clone()), true));
+            }
             if !matches!(
                 operand.kind,
                 CoreExprKind::Name(_)
@@ -4330,6 +4367,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     "async_registration_request_close" | "async_registration_poll_close"
                 )
             {
+                if let CoreExprKind::Name(local) = &argument.kind
+                    && self.scopes.iter().rev().find_map(|s| s.get(local)).is_some_and(|b|
+                        matches!(&b.term, Term::ValueAddress(carrier, true) if matches!(carrier.as_ref(), Term::Registration(_, true, true))))
+                {
+                    self.expr(argument, depth + 1, false)?;
+                    let returned = if name == "async_registration_poll_close" { tasks::poll_type(&Type::Unit) } else { Type::Unit };
+                    return self.known_term(&returned, span);
+                }
                 let CoreExprKind::Unary {
                     op: UnaryOp::BorrowMut,
                     operand,

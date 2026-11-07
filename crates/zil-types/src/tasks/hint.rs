@@ -327,6 +327,7 @@ mod hint_budget {
             life: None,
             type_parameters: vec![],
             state_parameters: vec![],
+            protocol_contract: None,
             callable_return: None,
             id: zil_base::NodeId(0),
             name: "hint".into(),

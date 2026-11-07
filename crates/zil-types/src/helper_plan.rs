@@ -33,6 +33,9 @@ enum Shape {
         work: usize,
     },
     Environment(ClosureId),
+    /// Type identity retained behind an exclusive registration head, not a
+    /// callable value or a direct callback role.
+    Registration(ClosureId),
     Package(Vec<(String, ClosureId)>),
     Store(Box<Shape>),
     ErrorUnion {
@@ -84,7 +87,7 @@ impl Shape {
                 let id = fields.first()?.1;
                 fields.iter().all(|(_, other)| *other == id).then_some(id)
             }
-            Self::Unknown | Self::LocalEnvironment | Self::Store(_) | Self::ErrorUnion { .. } => {
+            Self::Unknown | Self::LocalEnvironment | Self::Store(_) | Self::ErrorUnion { .. } | Self::Registration(_) => {
                 None
             }
         }
@@ -188,6 +191,13 @@ impl Walk<'_, '_> {
                 }
             }
             Type::Closure(id) => Shape::Environment(*id),
+            Type::Address { .. } if registration::borrowed_environment(ty).is_some() => {
+                let environment = registration::borrowed_environment(ty).expect("matched carrier");
+                match self.shape(environment, bounds, bindings, span, depth + 1)? {
+                    Shape::Environment(id) => Shape::Registration(id),
+                    _ => Shape::Unknown,
+                }
+            }
             Type::Managed(payload) | Type::Desc(payload) if self.store_shapes => {
                 if let Type::OwnedStore { element } = payload.as_ref() {
                     let element = self.shape(element, bounds, bindings, span, depth + 1)?;
@@ -710,7 +720,17 @@ impl Walk<'_, '_> {
                                     local_environment = true;
                                     continue;
                                 }
-                                let selected = if let Some(state) = &signature.state_parameter {
+                                let selected = if signature.parameters.get(bound.index as usize)
+                                    .is_some_and(|ty| registration::borrowed_environment(ty).is_some()) {
+                                    match shape {
+                                        Shape::Registration(id) => Some(*id),
+                                        Shape::Complete { ty, .. } => match registration::borrowed_environment(ty) {
+                                            Some(Type::Closure(id)) => Some(*id),
+                                            _ => None,
+                                        },
+                                        _ => None,
+                                    }
+                                } else if let Some(state) = &signature.state_parameter {
                                     let binding = state
                                         .bindings
                                         .iter()

@@ -95,6 +95,27 @@ impl Engine<'_> {
         let ExprKind::Call { callee, arguments } = &mut e.kind else {
             unreachable!("call dispatch")
         };
+        if crate::foreign::bare_name(callee)
+            .is_some_and(|name| name == "async_registration_poll_close"
+                && !env.contains_key(name) && !self.signatures.contains_key(name)
+                && self.enums.contains_key(options::TASK_POLL))
+        {
+            // Carry the actual standard result into enum-pattern specialization.
+            // This is only a type hint: Types and both kernels still validate
+            // the primitive's real exclusive registration carrier and phase.
+            for argument in arguments {
+                self.expr_expected(&mut argument.value, env, None, depth + 1)?;
+            }
+            let mut result = TypeRef {
+                span: e.span,
+                kind: TypeKind::Named {
+                    path: vec![options::TASK_POLL.into()],
+                    args: vec![GenericArg::Type(named("void", e.span))],
+                },
+            };
+            self.ty(&mut result, depth + 1)?;
+            return Ok(Some(Some(result)));
+        }
         if let Some(name) = crate::foreign::bare_name(callee).filter(|name| {
             matches!(
                 *name,

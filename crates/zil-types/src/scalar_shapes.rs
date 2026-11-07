@@ -301,6 +301,7 @@ mod tests {
                         type_parameters: vec![],
                         callable_parameters: vec![],
                         state_parameters: vec![],
+                        protocol_contract: None,
                         callable_return: None,
                         foreign: None,
                         receiver: None,

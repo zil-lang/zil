@@ -104,3 +104,12 @@ int32_t async_complete(void) {
     puts("queued late entry rejected; no-future before two frees");
     return 0;
 }
+
+int32_t registration_phase_complete(void) {
+    if (requests!=1 || polls!=2 || pumped!=1 || rejected!=2 ||
+        seen_pending!=1 || seen_ready!=1 || drops!=1 ||
+        allocations!=frees || allocations!=1 || source.queued ||
+        source.context || source.callback) return 60;
+    puts("pending retried; ready drained; registration dropped once");
+    return 0;
+}

@@ -15,6 +15,7 @@ pub(super) fn primitive(e: &CoreExpr) -> Option<&str> {
             | "async_registration_request_close"
             | "async_registration_poll_close"
             | "async_registration_finish_destroy"
+            | "async_registration_finish_destroy_checked"
     )
     .then_some(n)
 }
@@ -33,6 +34,30 @@ pub(super) fn asynchronous(t: &Type) -> bool {
 }
 pub(super) fn resource(t: &Type) -> bool {
     environment(t).is_some()
+}
+pub(super) fn borrowed_environment(t: &Type) -> Option<&Type> {
+    let Type::Address { mutable: true, inner } = t else { return None };
+    let Type::Managed(payload) = inner.as_ref() else { return None };
+    let Type::AsyncRegistration { environment } = payload.as_ref() else { return None };
+    Some(environment)
+}
+pub(super) fn borrowed_template(f: &CoreFunction) -> bool {
+    matches!(f.callable_parameters.as_slice(), [b] if f.parameters.get(b.index as usize)
+        .and_then(|p| borrowed_environment(&p.ty)).is_some_and(|t| matches!(t, Type::Named(n) if n == &b.generic_name)))
+}
+pub(super) fn validate_borrowed_template(f: &CoreFunction, prepay: &mut impl FnMut(&Type, Span) -> R<()>) -> R<()> {
+    let [b] = f.callable_parameters.as_slice() else { return Err(unsupported(f.span, "one borrowed registration binder is required")) };
+    if !borrowed_template(f) || f.parameters.len() != 1 || b.index != 0 || b.generic_index != 0
+        || !b.closed_environment || b.kind != CallableKind::FnMut || b.parameters != [Type::I32]
+        || b.result != Type::I32 || b.life.is_some() || b.source_life.is_some()
+        || f.foreign.is_some() || f.receiver.is_some() || !f.state_parameters.is_empty()
+        || !f.type_parameters.is_empty() || f.callable_return.is_some()
+        || f.protocol_contract.as_ref().is_none_or(|c| c.parameter != 0)
+        || !f.return_type.is_copy_value()
+    { return Err(unsupported(f.span, "borrowed registration helper requires one exclusive closed FnMut(i32)->i32 carrier, Copy result and state contract")); }
+    prepay(&f.parameters[0].ty, f.span)?;
+    prepay(&f.return_type, f.span)?;
+    Ok(())
 }
 pub(super) fn template(f: &CoreFunction) -> bool {
     matches!(f.callable_parameters.as_slice(),[b] if environment(&f.return_type).is_some_and(|t|matches!(t,Type::Named(n)if n==&b.generic_name)))
@@ -324,9 +349,9 @@ impl Builder<'_, '_> {
                             Type::Bool,
                         )
                     }
-                    "async_registration_finish_destroy" if matches!(&ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
+                    "async_registration_finish_destroy" | "async_registration_finish_destroy_checked" if matches!(&ty,Type::Managed(p) if matches!(p.as_ref(),Type::AsyncRegistration{..})) => {
                         (
-                            InstructionKind::AsyncRegistrationFinishDestroy { registration },
+                            if name == "async_registration_finish_destroy_checked" { InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } } else { InstructionKind::AsyncRegistrationFinishDestroy { registration } },
                             Type::Unit,
                         )
                     }

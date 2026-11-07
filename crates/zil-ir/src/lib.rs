@@ -869,6 +869,8 @@ pub struct CoreFunction {
     /// Independent declared bindings within one owning State parameter.
     /// This raw table grants neither call authority nor ownership.
     pub state_parameters: Vec<CoreStateParameter>,
+    /// Raw finite state relation. A declaration grants no transition authority.
+    pub protocol_contract: Option<FunctionProtocolContract>,
     /// Source-declared opaque callable result; still untrusted and unresolved.
     pub callable_return: Option<CoreCallableReturn>,
     pub id: NodeId,
@@ -936,6 +938,42 @@ pub struct CoreStateBinding {
     pub parameters: Vec<Type>,
     pub result: Type,
     pub fields: Vec<u32>,
+}
+
+/// Finite static phase of the sealed pollable registration. It never creates
+/// an owning responsibility or proves the provider's runtime drain promise.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProtocolState {
+    Open,
+    Closing,
+    Closed,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProtocolKind {
+    AsyncRegistrationV1,
+}
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProtocolExit {
+    Return,
+    ErrorOk,
+    ErrorErr,
+    PollPending,
+    PollReady,
+}
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProtocolTransition {
+    pub input: ProtocolState,
+    pub exit: ProtocolExit,
+    pub output: Vec<ProtocolState>,
+}
+/// Untrusted upper relation for one actual parameter position. Each entry row
+/// must be proved from the complete callee CFG before callers may consume it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct FunctionProtocolContract {
+    pub protocol: ProtocolKind,
+    pub parameter: u32,
+    pub entry: Vec<ProtocolState>,
+    pub exits: Vec<ProtocolTransition>,
 }
 
 /// An explicit unsafe promise for one end of the scoped callback protocol.
@@ -1479,6 +1517,8 @@ pub struct TypedFunction {
     pub callable_return_contract: Option<CallableReturnContract>,
     /// Raw finite helper relation, independently reconstructed by Verify.
     pub callable_contract: Option<CallableParameterContract>,
+    /// Raw per-result resource relation, checked from the actual CFG by both kernels.
+    pub protocol_contract: Option<FunctionProtocolContract>,
     pub id: FunctionId,
     pub name: String,
     /// A foreign declaration has parameter locals but no executable CFG.
@@ -2029,6 +2069,10 @@ pub enum InstructionKind {
     },
     /// Consumes the head; actual CLOSED state must dominate reclamation.
     AsyncRegistrationFinishDestroy {
+        registration: ValueId,
+    },
+    /// Statically admitted Closed phase; runtime still enforces no-future/drain.
+    AsyncRegistrationFinishDestroyChecked {
         registration: ValueId,
     },
     /// A real, environment-free function address with its exact Copy signature.
@@ -3094,6 +3138,10 @@ fn encode_function(b: &mut impl FingerprintSink, f: &TypedFunction) {
     if let Some(contract) = &f.callable_contract {
         encode_callable_contract(b, contract);
     }
+    b.push(u8::from(f.protocol_contract.is_some()));
+    if let Some(contract) = &f.protocol_contract {
+        encode_protocol_contract(b, contract);
+    }
     encode_u32(b, f.id.0);
     encode_text(b, &f.name);
     b.push(u8::from(f.foreign.is_some()));
@@ -3724,6 +3772,10 @@ fn encode_instruction(b: &mut impl FingerprintSink, i: &InstructionKind) {
             b.push(138);
             encode_u32(b, registration.0);
         }
+        InstructionKind::AsyncRegistrationFinishDestroyChecked { registration } => {
+            b.push(140);
+            encode_u32(b, registration.0);
+        }
         InstructionKind::ForeignFunctionRef { function } => {
             b.push(60);
             encode_u32(b, function.0);
@@ -4197,6 +4249,32 @@ pub fn callable_return_contract_fingerprint(contract: &CallableReturnContract) -
     let mut bytes = b"ZIL-CALLABLE-RETURN-CONTRACT-3\0".to_vec();
     encode_callable_return_contract(&mut bytes, contract);
     Fingerprint::of(&bytes)
+}
+pub fn protocol_contract_fingerprint(contract: &FunctionProtocolContract) -> Fingerprint {
+    let mut bytes = b"ZIL-FUNCTION-PROTOCOL-1\0".to_vec();
+    encode_protocol_contract(&mut bytes, contract);
+    Fingerprint::of(&bytes)
+}
+fn encode_protocol_contract(b: &mut impl FingerprintSink, c: &FunctionProtocolContract) {
+    b.push(match c.protocol { ProtocolKind::AsyncRegistrationV1 => 0 });
+    encode_u32(b, c.parameter);
+    encode_len(b, c.entry.len());
+    for state in &c.entry { b.push(protocol_state_tag(*state)); }
+    encode_len(b, c.exits.len());
+    for row in &c.exits {
+        b.push(protocol_state_tag(row.input));
+        b.push(protocol_exit_tag(row.exit));
+        encode_len(b, row.output.len());
+        for state in &row.output { b.push(protocol_state_tag(*state)); }
+    }
+}
+fn protocol_state_tag(s: ProtocolState) -> u8 {
+    match s { ProtocolState::Open => 0, ProtocolState::Closing => 1, ProtocolState::Closed => 2 }
+}
+fn protocol_exit_tag(s: ProtocolExit) -> u8 {
+    match s { ProtocolExit::Return => 0, ProtocolExit::ErrorOk => 1,
+        ProtocolExit::ErrorErr => 2, ProtocolExit::PollPending => 3,
+        ProtocolExit::PollReady => 4 }
 }
 fn encode_callable_return_contract(b: &mut impl FingerprintSink, c: &CallableReturnContract) {
     match c.source {

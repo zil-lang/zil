@@ -5118,6 +5118,248 @@ fn async_registration_task_queued_cancel_native() {
 }
 
 #[test]
+fn pollable_registration_phase_matches_actual_ready_owner() {
+    let declarations =
+        include_str!("../../../tests/language-readiness/async-registration/explicit.zil")
+            .split("fn main")
+            .next()
+            .unwrap();
+    let main = r#"fn close_once<F:FnMut(i32)->i32 + ClosedEnvironment>(r:&mut AsyncRegistration<F>)->std.task.Poll<()> contract{requires(state(r,Closing,Closed));provides(on_pending(state(r,Closing)),on_ready(state(r,Closed)));} {
+        return async_registration_poll_close(r)
+    }
+    fn main()->i32 {
+        var count=37;
+        let callback=move(value:i32)->i32=>{count+=1;return value+count};
+        unsafe {
+            var owner=c_register_async(async_register,async_request,async_drain,callback);
+            async_registration_request_close(&mut owner);
+            loop {
+                match close_once(&mut owner) {
+                    Poll.Pending()=>{continue;},
+                    Poll.Ready(_)=>{break;}
+                }
+            }
+            async_registration_finish_destroy_checked(give owner);
+            return 0;
+        }
+    }"#;
+    let valid = format!("{declarations}{main}");
+    let directory =
+        std::env::temp_dir().join(format!("zil-registration-phase-{}", std::process::id()));
+    std::fs::create_dir_all(&directory).unwrap();
+    let check = |name: &str, text: &str| {
+        let path = directory.join(format!("{name}.zil"));
+        std::fs::write(&path, text).unwrap();
+        zil_driver::compile_path(
+            &path,
+            &CompileOptions {
+                stop_after: zil_driver::Stage::Verify,
+                ..CompileOptions::default()
+            },
+        )
+    };
+    let report = check("valid", &valid);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let missing_request = valid.replace("async_registration_request_close(&mut owner);", "");
+    let missing_report = check("missing_request", &missing_request);
+    assert_eq!(
+        missing_report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        missing_report.to_json()
+    );
+    let false_summary = valid.replace(
+        "on_pending(state(r,Closing))",
+        "on_pending(state(r,Closed))",
+    );
+    let false_report = check("false_summary", &false_summary);
+    assert_eq!(
+        false_report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        false_report.to_json()
+    );
+    let limits = Limits::default();
+    let target = zil_base::TargetProfile::default();
+    let source = source(&valid);
+    let ast = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand(&source, &ast).unwrap();
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let mut raw = typed.clone();
+    let claimed = raw
+        .functions
+        .iter_mut()
+        .find_map(|f| f.protocol_contract.as_mut())
+        .unwrap();
+    let pending = claimed
+        .exits
+        .iter_mut()
+        .find(|row| row.exit == zil_ir::ProtocolExit::PollPending)
+        .unwrap();
+    pending.output = vec![zil_ir::ProtocolState::Closed];
+    let errors = zil_analyze::analyze(&raw, &limits).unwrap_err();
+    assert_eq!(errors[0].code, "E-REGISTRATION", "{errors:?}");
+    let mut candidate = zil_analyze::analyze(&typed, &limits).unwrap();
+    candidate.module_fingerprint = raw.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&raw, &candidate, &limits).unwrap();
+    for (module, plan) in [
+        (raw, candidate),
+        zil_ir::wire::decode_module_candidate(&wire, &limits).unwrap(),
+    ] {
+        let errors = zil_verify::verify_module(module, plan, &target, &limits).unwrap_err();
+        assert_eq!(errors[0].code, "E-VERIFY-REGISTRATION", "{errors:?}");
+    }
+    let wrong_owner = valid.replace(
+        "async_registration_finish_destroy_checked(give owner)",
+        "async_registration_finish_destroy_checked(give other)",
+    ).replace("async_registration_request_close(&mut owner);", "var other_count=8;let other_callback=move(value:i32)->i32=>{other_count+=1;return value+other_count};var other=c_register_async(async_register,async_request,async_drain,other_callback);async_registration_request_close(&mut owner);");
+    assert_ne!(
+        check("wrong_owner", &wrong_owner).status,
+        ResultCategory::Success
+    );
+    let premature = valid.replace("match close_once(&mut owner) {", "match Poll.Ready(()) {");
+    assert_ne!(
+        check("premature", &premature).status,
+        ResultCategory::Success
+    );
+    let helper = main.split("fn main").next().unwrap();
+    let cross_module = format!(
+        "import api;\n{declarations}{}",
+        main.split("fn main")
+            .nth(1)
+            .map(|body| format!("fn main{}", body))
+            .unwrap()
+            .replace("close_once(&mut owner)", "api.close_once(&mut owner)")
+    );
+    std::fs::write(
+        directory.join("api.zil"),
+        helper.replace("fn close_once", "pub fn close_once"),
+    )
+    .unwrap();
+    let cross_report = check("cross_module", &cross_module);
+    assert_eq!(
+        cross_report.status,
+        ResultCategory::Success,
+        "{}",
+        cross_report.to_json()
+    );
+    std::fs::remove_dir_all(directory).unwrap();
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn pollable_registration_phase_queued_native_drains_before_checked_finish() {
+    use std::{
+        fs,
+        os::unix::fs::PermissionsExt,
+        path::{Path, PathBuf},
+        process::Command,
+    };
+    use zil_driver::{NativeBackend, Optimization, Stage};
+    let text = r#"
+extern "C" fn async_register(cb:extern "C" fn(c_handle,i32)->i64,ctx:c_handle)->c_handle contract{provides(static_callbacks(),async_callback_register());effects(ffi);};
+extern "C" fn async_request(token:c_handle) contract{provides(static_callbacks(),async_callback_request_close());effects(ffi);};
+extern "C" fn async_drain(token:c_handle)->i32 contract{provides(static_callbacks(),async_callback_poll_drain());effects(ffi);};
+extern "C" fn async_pump()->i32 contract{effects(ffi);};
+extern "C" fn async_seen(value:i32) contract{effects(ffi);};
+extern "C" fn async_note(code:i32) contract{effects(ffi);};
+extern "C" fn registration_phase_complete()->i32 contract{effects(ffi);};
+resource Mark {code:i32}
+impl Drop for Mark {fn drop(self:Self){unsafe{async_note(.code);}}}
+fn close_once<F:FnMut(i32)->i32 + ClosedEnvironment>(r:&mut AsyncRegistration<F>)->std.task.Poll<()> contract{requires(state(r,Closing,Closed));provides(on_pending(state(r,Closing)),on_ready(state(r,Closed)));} {
+    return async_registration_poll_close(r)
+}
+fn main()->i32 {
+    let mark=Mark{code:37};
+    var count=37;
+    let callback=move(value:i32)->i32=>{count+=1;return value+count+mark.code-37};
+    unsafe {
+        var owner=c_register_async(async_register,async_request,async_drain,callback);
+        async_registration_request_close(&mut owner);
+        loop {
+            match close_once(&mut owner) {
+                std.task.Poll.Pending()=>{async_seen(0);async_pump();continue;},
+                std.task.Poll.Ready(_)=>{async_seen(17);break;}
+            }
+        }
+        async_registration_finish_destroy_checked(give owner);
+        return registration_phase_complete()
+    }
+}
+"#;
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let quote = |path: &Path| format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"));
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = std::env::temp_dir().join(format!(
+                "zil-registration-phase-native-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            fs::create_dir_all(&dir).unwrap();
+            let observer = dir.join("host.o");
+            let compiled = Command::new(&clang)
+                .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+                .arg(
+                    Path::new(env!("CARGO_MANIFEST_DIR"))
+                        .join("../../tests/language-readiness/async-registration/queued-host.c"),
+                )
+                .arg("-o")
+                .arg(&observer)
+                .output()
+                .unwrap();
+            assert!(compiled.status.success(), "{compiled:?}");
+            let wrapper = dir.join("link.sh");
+            fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=calloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+            fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+            let report = compile_source(
+                &source(text),
+                &CompileOptions {
+                    backend,
+                    optimization,
+                    clang: Some(wrapper),
+                    stop_after: Stage::Build,
+                    output: Some(dir.join("program")),
+                    emit_dir: Some(dir.join("artifacts")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let codegen = report.native_codegen.as_ref().unwrap();
+            assert_eq!(codegen.backend, backend);
+            assert!(codegen.fallback.is_none());
+            let actual = Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(
+                actual.status.code(),
+                Some(0),
+                "{backend:?} {optimization:?}: {actual:?}"
+            );
+            assert_eq!(
+                actual.stdout,
+                b"pending retried; ready drained; registration dropped once\n"
+            );
+            fs::remove_dir_all(dir).unwrap();
+        }
+    }
+}
+
+#[test]
 fn async_registration_source_neighbors_and_unused_definitions() {
     let original =
         include_str!("../../../tests/language-readiness/async-registration/explicit.zil");

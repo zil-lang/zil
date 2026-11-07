@@ -29,6 +29,7 @@ fn module(functions: usize, constants: usize, parameter: bool) -> TypedModule {
                 reference_return_bound: None,
                 callable_return_contract: None,
                 callable_contract: None,
+                protocol_contract: None,
                 result_mode: zil_ir::PassingMode::Infer,
                 foreign: None,
                 environment: None,

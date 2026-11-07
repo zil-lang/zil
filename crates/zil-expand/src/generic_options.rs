@@ -106,7 +106,12 @@ impl crate::ct_selection::Visitor for Probe<'_> {
         self.budget.node(span, depth).map_err(|e| vec![e])
     }
     fn text(&mut self, text: &str, span: Span) -> CompileResult<()> {
-        self.budget.text(text, span).map_err(|e| vec![e])
+        self.budget.text(text, span).map_err(|e| vec![e])?;
+        // Constructor patterns are visited as paths, not expressions or types.
+        // A Poll appearing only in a match still needs the ordinary standard
+        // declarations. Alias resolution below retains user shadowing.
+        self.tasks |= task_declaration(text).is_some();
+        Ok(())
     }
     fn ty(&mut self, ty: &TypeRef, depth: usize) -> CompileResult<()> {
         if matches!(ty.kind, TypeKind::Optional(_))

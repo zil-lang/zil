@@ -124,6 +124,20 @@ impl Check<'_, '_, '_> {
                     "async_registration_request_close" | "async_registration_poll_close"
                 )
             {
+                if let ExprKind::Name(local) = &argument.value.kind
+                    && state.locals.get(local).is_some_and(|l| matches!(&group(&l.ty).kind,
+                        TypeKind::Reference { mutable: true, inner, .. }
+                        if matches!(&group(inner).kind, TypeKind::Named { path, .. } if path.as_slice() == ["AsyncRegistration"])
+                        && callable::registration_environment(inner).is_some()))
+                {
+                    self.expr(&argument.value, state, None, true)?;
+                    return Ok(if name == "async_registration_poll_close" {
+                        TypeRef { span, kind: TypeKind::Named {
+                            path: vec![options::TASK_POLL.into()],
+                            args: vec![GenericArg::Type(unit(span))],
+                        }}
+                    } else { unit(span) });
+                }
                 let ExprKind::Unary {
                     op: UnaryOp::BorrowMut,
                     operand,
@@ -154,7 +168,7 @@ impl Check<'_, '_, '_> {
                     TypeRef {
                         span,
                         kind: TypeKind::Named {
-                            path: vec!["std".into(), "task".into(), "Poll".into()],
+                            path: vec![options::TASK_POLL.into()],
                             args: vec![GenericArg::Type(unit(span))],
                         },
                     }
