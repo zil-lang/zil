@@ -34,7 +34,7 @@ pub(crate) fn admit_owned(
         budget.spend(fields.len(), "ordinary Product Store field scan")?;
         for (_, field) in fields {
             if dynamic_store::is_owned_carrier(field) {
-                dynamic_store::ordinary_owned(module, field, budget)?;
+                crate::ownership_store::ordinary_owned(module, field, budget)?;
             } else if matches!(field, Type::Package { .. }) {
                 stores(module, field, budget)?;
             }
