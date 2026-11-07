@@ -380,9 +380,9 @@ fn nested_exit_snapshots_with_shadowed_moved_ids_keep_exact_existing_limits() {
         source.push_str("}if mode==1{continue}else{break}");
     }
     source.push_str("}return value}fn main(){}");
-    // G9.3.4 now admits the preserved original scalar Store source; the
+    // scalar Store now admits the preserved original scalar Store source; the
     // complete Package request below remains the legacy exact-budget control.
-    accepted("g934-shadowed-id-scalar-store", &source);
+    accepted("scalar_store-shadowed-id-scalar-store", &source);
     let resource_only = format!(
         "resource Item{{value:i32}}{}",
         source.replace("Store<i32>", "Store<Item>")

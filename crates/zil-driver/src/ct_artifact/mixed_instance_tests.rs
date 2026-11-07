@@ -5,7 +5,8 @@ use super::*;
 use zil_verify::{CtArtifactAuthority, CtScopeParameterKind, CtSymbolUsage};
 
 #[test]
-fn g445_actual_source_record_relocation_has_independent_call_and_life_proofs() {
+fn contextual_record_relocation_actual_source_record_relocation_has_independent_call_and_life_proofs()
+ {
     for (text, separated) in [
         (
             include_str!(
@@ -450,7 +451,7 @@ impl CtArtifactAuthority for InventoryOnly<'_> {
 }
 
 #[test]
-fn g442_actual_source_instances_raw_wire_ledger_and_independent_checks() {
+fn mixed_compile_time_actual_actual_source_instances_raw_wire_ledger_and_independent_checks() {
     let values = include_str!(
         "../../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
     );
@@ -657,7 +658,7 @@ fn g442_actual_source_instances_raw_wire_ledger_and_independent_checks() {
             if unused_actuals {
                 assert!(expected.ambient_life_scopes.is_empty());
                 eprintln!(
-                    "G4.4.2 actual Source {width}: each unused T/N/Life slot alone selects a distinct instance; repeated full vector reuses it; 5 authentic active scopes; raw/Wire exact N={exact}/N-1"
+                    "mixed static member actuals actual Source {width}: each unused T/N/Life slot alone selects a distinct instance; repeated full vector reuses it; 5 authentic active scopes; raw/Wire exact N={exact}/N-1"
                 );
                 continue;
             }
@@ -854,14 +855,14 @@ fn g442_actual_source_instances_raw_wire_ledger_and_independent_checks() {
                 }
             }
             eprintln!(
-                "G4.4.2 actual compiler ledger {width}/{domain:?}: raw+Wire verifier N={exact}/N-1; 5 private ledger attacks; 7 independent semantic attacks"
+                "mixed static member actuals actual compiler ledger {width}/{domain:?}: raw+Wire verifier N={exact}/N-1; 5 private ledger attacks; 7 independent semantic attacks"
             );
         }
     }
 }
 
 #[test]
-fn g443_original_static_members_keep_host_identity_and_actual_values() {
+fn static_member_factory_original_static_members_keep_host_identity_and_actual_values() {
     let text = include_str!(
         "../../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-host-identity.zil"
     );
@@ -985,7 +986,8 @@ fn g443_original_static_members_keep_host_identity_and_actual_values() {
 }
 
 #[test]
-fn g444_nested_source_calls_keep_private_vectors_and_published_graph_dependencies() {
+fn nested_static_member_nested_source_calls_keep_private_vectors_and_published_graph_dependencies()
+{
     for (text, intermediate) in [
         (
             include_str!(
@@ -1212,7 +1214,7 @@ fn g444_nested_source_calls_keep_private_vectors_and_published_graph_dependencie
             }
         }
         eprintln!(
-            "G4.4.4 actual 3-level source chain intermediate={intermediate}: private vectors retained; raw/Wire independent N={n}/N-1"
+            "nested static member actual 3-level source chain intermediate={intermediate}: private vectors retained; raw/Wire independent N={n}/N-1"
         );
     }
 }

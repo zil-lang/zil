@@ -2849,10 +2849,10 @@ mod scoped_tests {
                 );
             }
         }
-        eprintln!("G3.3.2.4 actual closure lineage N={low}/N-1/fresh/retry");
+        eprintln!("closure lineage actual closure lineage N={low}/N-1/fresh/retry");
     }
     #[test]
-    fn g231_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
+    fn self_associated_constant_actual_output_coverage_rejects_unprepared_impls_and_tracks_moves() {
         fn audit(text: &str, extra: &str, move_original: bool) -> CompileResult<()> {
             let source =
                 SourceUnit::new(zil_base::FileId(0), ModuleId(0), "self-coverage.zil", text);
@@ -2968,7 +2968,7 @@ mod scoped_tests {
     }
 
     #[test]
-    fn g231_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
+    fn self_associated_constant_shared_constant_spans_keep_actual_source_owners_raw_and_wire() {
         let text = include_str!(
             "../../../../tests/language-readiness/terminal/341/associated-constant-self.zil"
         );
@@ -3040,7 +3040,7 @@ mod scoped_tests {
             zil_backend_llvm::Optimization::O2,
         ] {
             let dir = std::env::temp_dir().join(format!(
-                "g231-shared-{}-{:?}",
+                "self_associated_constant-shared-{}-{:?}",
                 std::process::id(),
                 optimization
             ));

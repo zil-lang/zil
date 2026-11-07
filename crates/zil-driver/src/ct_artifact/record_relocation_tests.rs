@@ -22,7 +22,7 @@ fn fixtures() -> [(&'static str, &'static str); 2] {
 }
 
 #[test]
-fn g4454_actual_recursive_values_reach_runtime_types_and_verify() {
+fn recursive_value_relocation_actual_recursive_values_reach_runtime_types_and_verify() {
     for (name, text) in fixtures() {
         let source = SourceUnit::new(
             zil_base::FileId(0),
@@ -30,7 +30,10 @@ fn g4454_actual_recursive_values_reach_runtime_types_and_verify() {
             format!("{name}.zil"),
             text,
         );
-        let dir = std::env::temp_dir().join(format!("g4454-types-{name}-{}", std::process::id()));
+        let dir = std::env::temp_dir().join(format!(
+            "recursive_value_relocation-types-{name}-{}",
+            std::process::id()
+        ));
         std::fs::create_dir_all(&dir).unwrap();
         let report = crate::compile_source(
             &source,
@@ -87,7 +90,7 @@ fn g4454_actual_recursive_values_reach_runtime_types_and_verify() {
 }
 
 #[test]
-fn g4454_actual_recursive_values_preserve_wide_bits_native_o0_o2() {
+fn recursive_value_relocation_actual_recursive_values_preserve_wide_bits_native_o0_o2() {
     for (name, text) in fixtures() {
         let source = SourceUnit::new(
             zil_base::FileId(0),
@@ -100,7 +103,7 @@ fn g4454_actual_recursive_values_preserve_wide_bits_native_o0_o2() {
             zil_backend_llvm::Optimization::O2,
         ] {
             let dir = std::env::temp_dir().join(format!(
-                "g4454-native-{name}-{}-{optimization:?}",
+                "recursive_value_relocation-native-{name}-{}-{optimization:?}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&dir).unwrap();
@@ -126,7 +129,9 @@ fn g4454_actual_recursive_values_preserve_wide_bits_native_o0_o2() {
                 .unwrap();
             assert!(output.status.success(), "{output:?}");
             assert_eq!(output.stdout, b"18446744073709551557\n");
-            eprintln!("G4.4.5.4 {name} Clang {optimization:?}: full u64=18446744073709551557");
+            eprintln!(
+                "recursive value relocation {name} Clang {optimization:?}: full u64=18446744073709551557"
+            );
             std::fs::remove_dir_all(dir).unwrap();
         }
     }
@@ -304,7 +309,7 @@ fn with_authenticated_source(
 }
 
 #[test]
-fn g4454_recursive_trace_independently_rejects_changed_data_and_occurrences() {
+fn recursive_value_relocation_recursive_trace_independently_rejects_changed_data_and_occurrences() {
     with_authenticated_source(fixtures()[1].1, |expected, facts, context| {
         let reject = |raw: &CtArtifactProgram, calls: &[compiler::SourceInstanceCall]| {
             for candidate in [
@@ -437,7 +442,7 @@ fn g4454_recursive_trace_independently_rejects_changed_data_and_occurrences() {
 }
 
 #[test]
-fn g4454_enum_expected_type_keeps_exact_nominal_identity() {
+fn recursive_value_relocation_enum_expected_type_keeps_exact_nominal_identity() {
     let text = fixtures()[1]
         .1
         .replace(
@@ -464,7 +469,7 @@ fn g4454_enum_expected_type_keeps_exact_nominal_identity() {
 }
 
 #[test]
-fn g4454_recursive_consumer_budget_is_exact_and_request_local() {
+fn recursive_value_relocation_recursive_consumer_budget_is_exact_and_request_local() {
     with_authenticated_source(fixtures()[1].1, |expected, facts, context| {
         for dimension in 0..2 {
             let maximum = if dimension == 0 {
@@ -515,7 +520,7 @@ fn g4454_recursive_consumer_budget_is_exact_and_request_local() {
                 }
             }
             eprintln!(
-                "G4.4.5.4 independent recursive consumer dimension={dimension} N={low}/N-1/fresh"
+                "recursive value relocation independent recursive consumer dimension={dimension} N={low}/N-1/fresh"
             );
         }
     });

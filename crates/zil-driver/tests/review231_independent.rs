@@ -167,7 +167,7 @@ fn independent_cross_module_impl_matches_existing_inline_boundary() {
         );
         // 233 admits this exact original three-module source through the same
         // nominal relation for both inline and where bounds. The former
-        // Unsupported result remains in the immutable construction10 evidence.
+        // Unsupported result remains in the immutable product_store_capture_review evidence.
         assert_eq!(
             report.status,
             ResultCategory::Success,

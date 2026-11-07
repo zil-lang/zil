@@ -4512,17 +4512,17 @@ fn terminal343_scalar_library_helpers_keep_sealed_identity() {
 mod general_task343;
 
 #[path = "../../../tests/language-readiness/task-composition/G8.6.1/verify_frames.rs"]
-mod g8611_verify_frames;
+mod task_verify_frame_verify_frames;
 
 #[path = "../../../tests/language-readiness/terminal/343/cas.rs"]
 mod cas343;
 
 #[test]
-fn terminal_g10_1_7_life_values_keep_default_worker_stack() {
+fn terminal_life_values_life_values_keep_default_worker_stack() {
     const CHILD: &str = "ZIL_G10_1_7_STACK_CHILD";
     if let Ok(mode) = std::env::var(CHILD) {
         std::thread::spawn(move || {
-            let directory = std::env::temp_dir().join(format!("zil-g10-1-7-{}-{mode}", std::process::id()));
+            let directory = std::env::temp_dir().join(format!("zil-terminal-life-values-{}-{mode}", std::process::id()));
             std::fs::create_dir_all(&directory).unwrap();
             for phantom in [false, true] {
                 for copy in [false, true] {
@@ -4564,7 +4564,7 @@ fn terminal_g10_1_7_life_values_keep_default_worker_stack() {
         let child = std::process::Command::new(std::env::current_exe().unwrap())
             .args([
                 "--exact",
-                "terminal_g10_1_7_life_values_keep_default_worker_stack",
+                "terminal_life_values_life_values_keep_default_worker_stack",
                 "--nocapture",
                 "--test-threads=1",
             ])
@@ -4833,7 +4833,7 @@ fn main()->i32{unsafe{let callback=(value:i32)->i32=>value+1;return callback(1);
 }
 
 #[test]
-fn async_registration_g8412_explicit_source_smoke() {
+fn async_registration_explicit_source_smoke() {
     let src = source(include_str!(
         "../../../tests/language-readiness/async-registration/explicit.zil"
     ));
@@ -5038,7 +5038,7 @@ fn async_registration841_task_queued_cancel_native() {
 }
 
 #[test]
-fn async_registration_g8412_source_neighbors_and_unused_definitions() {
+fn async_registration_source_neighbors_and_unused_definitions() {
     let original =
         include_str!("../../../tests/language-readiness/async-registration/explicit.zil");
     let cases=[
@@ -5072,10 +5072,7 @@ fn async_registration_g8412_source_neighbors_and_unused_definitions() {
             "neighbor {index}: {}",
             report.to_json()
         );
-        eprintln!(
-            "async_registration_g8412 neighbor {index}: {:?}",
-            report.status
-        );
+        eprintln!("async_registration neighbor {index}: {:?}", report.status);
     }
     for text in [
         original.replace(
@@ -5150,7 +5147,7 @@ fn async_registration_g8412_source_neighbors_and_unused_definitions() {
 }
 
 #[test]
-fn async_registration_g8412_raw_wire_and_exact_budgets() {
+fn async_registration_raw_wire_and_exact_budgets() {
     use zil_ir::{InstructionKind as I, Type};
     let src = source(include_str!(
         "../../../tests/language-readiness/async-registration/explicit.zil"
@@ -5469,7 +5466,7 @@ fn async_registration_g8412_raw_wire_and_exact_budgets() {
             ResultCategory::ResourceLimit
         );
         accepts(low).unwrap();
-        eprintln!("async_registration_g8412 exact kernel verify={verify} N={low}");
+        eprintln!("async_registration exact kernel verify={verify} N={low}");
     }
 }
 
@@ -5754,7 +5751,7 @@ fn task_origin841_unused_task_owner_cannot_skip_synchronous_cleanup_proof() {
     zil_verify::verify_module(control, plan, &target, &limits).unwrap();
 }
 
-fn g3326_captured_sources() -> Vec<(&'static str, String)> {
+fn captured_helper_source_captured_sources() -> Vec<(&'static str, String)> {
     let shared = include_str!(
         "../../../tests/language-readiness/terminal/342/fixed-context-producer/fn-input-capture.zil"
     );
@@ -5772,11 +5769,11 @@ fn g3326_captured_sources() -> Vec<(&'static str, String)> {
 }
 
 #[test]
-fn g3326_captured_source_wire_and_exact_lir_binding() {
+fn captured_helper_source_captured_source_wire_and_exact_lir_binding() {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    for (case, text) in g3326_captured_sources() {
+    for (case, text) in captured_helper_source_captured_sources() {
         let input = source(&text);
         let syntax = zil_syntax::parse(&input).into_result().unwrap();
         let aliases = Default::default();
@@ -5848,9 +5845,9 @@ fn g3326_captured_source_wire_and_exact_lir_binding() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g3326_captured_source_native_full_results_and_budget() {
+fn captured_helper_source_captured_source_native_full_results_and_budget() {
     use zil_driver::{NativeBackend, Optimization, Stage};
-    for (case, text) in g3326_captured_sources() {
+    for (case, text) in captured_helper_source_captured_sources() {
         let input = source(&text);
         // This is the actual complete Source-to-Lower threshold. The tight
         // phase is reported, never relabeled as an isolated Lower threshold.
@@ -5904,7 +5901,7 @@ fn g3326_captured_source_native_full_results_and_budget() {
         assert_eq!(short.status, ResultCategory::ResourceLimit);
         assert_eq!(check(low).status, ResultCategory::Success);
         eprintln!(
-            "G3.3.2.6 {case} whole Source-to-Lower N={low}/N-1/fresh; tight phase={:?}",
+            "captured helper lowering {case} whole Source-to-Lower N={low}/N-1/fresh; tight phase={:?}",
             short.phase
         );
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
@@ -5913,7 +5910,7 @@ fn g3326_captured_source_native_full_results_and_budget() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g3326-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-captured_helper_source-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -5954,9 +5951,9 @@ fn g3326_captured_source_native_full_results_and_budget() {
 }
 
 #[test]
-fn g333_owned_fixed_source_resource_identity_is_independent() {
+fn owned_resource_identity_owned_fixed_source_resource_identity_is_independent() {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
-    let text = g3326_captured_sources().pop().unwrap().1;
+    let text = captured_helper_source_captured_sources().pop().unwrap().1;
     let input = source(&text);
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -6159,16 +6156,16 @@ fn captured_owned_fixed_actual_source_reaches_independent_kernels_and_wire() {
     }
 }
 
-const G334_SIMPLE: &str = include_str!(
+const SHARED_HELPER_LIFE_SIMPLE: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/fn-shared-input.zil"
 );
-const G334_REVERSE: &str = include_str!(
+const SHARED_HELPER_LIFE_REVERSE: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/reverse-generics-good.zil"
 );
-const G334_CALLER: &str = include_str!(
+const SHARED_HELPER_LIFE_CALLER: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-good.zil"
 );
-fn g334_core(text: &str) -> zil_ir::CoreModule {
+fn shared_helper_life_core(text: &str) -> zil_ir::CoreModule {
     use zil_expand::source_context::{DeclarationPlacement, SourceIdentityContext};
     let input = source(text);
     let syntax = zil_syntax::parse(&input).into_result().unwrap();
@@ -6186,7 +6183,7 @@ fn g334_core(text: &str) -> zil_ir::CoreModule {
     .unwrap()
     .core
 }
-fn g334_role(core: &zil_ir::CoreModule) -> &zil_ir::CoreCallableParameter {
+fn shared_helper_life_role(core: &zil_ir::CoreModule) -> &zil_ir::CoreCallableParameter {
     core.functions
         .iter()
         .flat_map(|f| &f.callable_parameters)
@@ -6195,17 +6192,17 @@ fn g334_role(core: &zil_ir::CoreModule) -> &zil_ir::CoreCallableParameter {
 }
 
 #[test]
-fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
+fn shared_helper_life_original_bound_full_ordinals_and_complete_typed_relations() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let a = g334_core(include_str!(
+    let a = shared_helper_life_core(include_str!(
         "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-a.zil"
     ));
-    let b = g334_core(include_str!(
+    let b = shared_helper_life_core(include_str!(
         "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/unused-declared-bound-b.zil"
     ));
-    let (a, b) = (g334_role(&a), g334_role(&b));
+    let (a, b) = (shared_helper_life_role(&a), shared_helper_life_role(&b));
     assert_eq!(a.parameters, b.parameters);
     assert_eq!(a.result, b.result);
     assert_eq!(a.life, b.life);
@@ -6222,8 +6219,8 @@ fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
             && i.header_binder == expected
             && matches!(i.position, CoreClosureHeaderPosition::Class(_))));
     }
-    let reverse = g334_core(G334_REVERSE);
-    let role = g334_role(&reverse);
+    let reverse = shared_helper_life_core(SHARED_HELPER_LIFE_REVERSE);
+    let role = shared_helper_life_role(&reverse);
     let context = role.source_life.as_ref().unwrap();
     assert_eq!(
         context.parameters,
@@ -6242,8 +6239,12 @@ fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
         && i.source_parameter == Some(2)
         && i.header_binder == StorageBinder::Fixed(1)
         && matches!(i.position, CoreClosureHeaderPosition::Class(_))));
-    for text in [G334_SIMPLE, G334_REVERSE, G334_CALLER] {
-        let core = g334_core(text);
+    for text in [
+        SHARED_HELPER_LIFE_SIMPLE,
+        SHARED_HELPER_LIFE_REVERSE,
+        SHARED_HELPER_LIFE_CALLER,
+    ] {
+        let core = shared_helper_life_core(text);
         let raw = zil_types::check(&core, &target, &limits).unwrap();
         let d = &raw.closures[0];
         assert_eq!(d.kind, CallableKind::Fn);
@@ -6266,7 +6267,7 @@ fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
         let wire = wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     }
-    let twice = G334_SIMPLE.replace(
+    let twice = SHARED_HELPER_LIFE_SIMPLE.replace(
         "return helper(&f,seed)",
         "let first=helper(&f,seed);return first+helper(&f,seed)-42",
     );
@@ -6309,11 +6310,16 @@ fn g334_original_bound_full_ordinals_and_complete_typed_relations() {
 }
 
 #[test]
-fn g334_source_derived_actual_call_and_capture_neighbors_reach_both_kernels() {
+fn shared_helper_life_source_derived_actual_call_and_capture_neighbors_reach_both_kernels() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let raw = zil_types::check(&g334_core(G334_CALLER), &target, &limits).unwrap();
+    let raw = zil_types::check(
+        &shared_helper_life_core(SHARED_HELPER_LIFE_CALLER),
+        &target,
+        &limits,
+    )
+    .unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     let helper = raw
         .functions
@@ -6387,11 +6393,11 @@ fn g334_source_derived_actual_call_and_capture_neighbors_reach_both_kernels() {
 }
 
 #[test]
-fn g334_malformed_context_clone_budget_and_fresh_warm_requests() {
+fn shared_helper_life_malformed_context_clone_budget_and_fresh_warm_requests() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let core = g334_core(G334_SIMPLE);
+    let core = shared_helper_life_core(SHARED_HELPER_LIFE_SIMPLE);
     let helper = core
         .functions
         .iter()
@@ -6428,7 +6434,10 @@ fn g334_malformed_context_clone_budget_and_fresh_warm_requests() {
                 .all(|d| d.category != ResultCategory::ResourceLimit),
             "{mutation}: {errors:?}"
         );
-        eprintln!("G334 malformed bridge {mutation}: {}", errors[0].message);
+        eprintln!(
+            "SHARED_HELPER_LIFE malformed bridge {mutation}: {}",
+            errors[0].message
+        );
     }
     let mut renamed = core.clone();
     let identity = renamed.functions[helper].callable_parameters[0]
@@ -6533,18 +6542,18 @@ fn g334_malformed_context_clone_budget_and_fresh_warm_requests() {
         prior = Some(output);
     }
     eprintln!(
-        "G334 whole Types N={low}/N-1/fresh; repeated actual FunctionSession request checked (qualified profile has no scalar reuse claim)"
+        "SHARED_HELPER_LIFE whole Types N={low}/N-1/fresh; repeated actual FunctionSession request checked (qualified profile has no scalar reuse claim)"
     );
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g334_actual_source_native_clang_api_o0_o2_full_results() {
+fn shared_helper_life_actual_source_native_clang_api_o0_o2_full_results() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let mut runs = 0;
     for (case, text) in [
-        ("simple", G334_SIMPLE),
-        ("reverse", G334_REVERSE),
+        ("simple", SHARED_HELPER_LIFE_SIMPLE),
+        ("reverse", SHARED_HELPER_LIFE_REVERSE),
         (
             "ordered-f-before",
             include_str!(
@@ -6564,7 +6573,7 @@ fn g334_actual_source_native_clang_api_o0_o2_full_results() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g334-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-shared_helper_life-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -6604,13 +6613,13 @@ fn g334_actual_source_native_clang_api_o0_o2_full_results() {
         }
     }
     eprintln!(
-        "G334 real Source native runs={runs}; stdout42 newline, empty stderr, exit0, selected backend and no fallback checked"
+        "SHARED_HELPER_LIFE real Source native runs={runs}; stdout42 newline, empty stderr, exit0, selected backend and no fallback checked"
     );
 }
 
 #[test]
-fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
-    let prefix = G334_SIMPLE.split("fn apply").next().unwrap();
+fn shared_helper_life_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
+    let prefix = SHARED_HELPER_LIFE_SIMPLE.split("fn apply").next().unwrap();
     for replacement in [
         "F:ClosedEnvironment+Fn(&Tag<'s>)->i32",
         "F:Fn(&Tag<'s>)->i32+ClosedEnvironment",
@@ -6621,7 +6630,7 @@ fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
             text = text.replace("f:&F,x:", "f:&F,g:&G,x:");
         }
         text.push_str("fn main()->i32{return 0}");
-        let core = g334_core(&text);
+        let core = shared_helper_life_core(&text);
         let roles: Vec<_> = core
             .functions
             .iter()
@@ -6662,7 +6671,7 @@ fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
     }
     for body in ["return 42", "return #(42)"] {
         for (text, good) in [
-            (G334_CALLER, true),
+            (SHARED_HELPER_LIFE_CALLER, true),
             (
                 include_str!(
                     "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/actual-caller-wrong-class.zil"
@@ -6730,14 +6739,21 @@ fn g334_scope_frontiers_keep_old_unused_bodies_and_body_ct_transport() {
             "{}",
             report.to_json()
         );
-        assert!(g334_role(&g334_core(text)).source_life.is_some());
+        assert!(
+            shared_helper_life_role(&shared_helper_life_core(text))
+                .source_life
+                .is_some()
+        );
     }
 }
 
 #[test]
-fn g334_private_project_wrapper_cold_warm_change_revert_always_verifies() {
+fn shared_helper_life_private_project_wrapper_cold_warm_change_revert_always_verifies() {
     use zil_driver::{CompilationSession, Stage};
-    let dir = std::env::temp_dir().join(format!("zil-g334-project-{}", std::process::id()));
+    let dir = std::env::temp_dir().join(format!(
+        "zil-shared_helper_life-project-{}",
+        std::process::id()
+    ));
     std::fs::create_dir_all(&dir).unwrap();
     let root = dir.join("main.zil");
     let library = dir.join("library.zil");
@@ -6746,7 +6762,7 @@ fn g334_private_project_wrapper_cold_warm_change_revert_always_verifies() {
         "import library\nfn main()->i32{return library.answer()}",
     )
     .unwrap();
-    let good = G334_CALLER.replace("fn main()->i32", "pub fn answer()->i32");
+    let good = SHARED_HELPER_LIFE_CALLER.replace("fn main()->i32", "pub fn answer()->i32");
     let wrong = good.replace("return helper(&f,left)", "return helper(&f,right)");
     let options = CompileOptions {
         stop_after: Stage::Verify,
@@ -6765,7 +6781,7 @@ fn g334_private_project_wrapper_cold_warm_change_revert_always_verifies() {
     assert_eq!(disk.status, ResultCategory::Success, "{}", disk.to_json());
     assert_eq!(disk.verification_runs, 1);
     eprintln!(
-        "G334 private dependency cache cold={:?}, warm={:?}/memory_hit={}, new_session={:?}",
+        "SHARED_HELPER_LIFE private dependency cache cold={:?}, warm={:?}/memory_hit={}, new_session={:?}",
         cold.disk_cache, warm.disk_cache, warm.cache_hit, disk.disk_cache
     );
     std::fs::write(&library, &wrong).unwrap();
@@ -6802,13 +6818,13 @@ fn g334_private_project_wrapper_cold_warm_change_revert_always_verifies() {
 }
 
 #[test]
-fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
+fn shared_helper_life_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     let wrong = include_str!(
         "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-data-wrong-class.zil"
     );
-    let mut core = g334_core(wrong);
+    let mut core = shared_helper_life_core(wrong);
     assert!(
         core.functions
             .iter()
@@ -6832,7 +6848,7 @@ fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
         "../../../tests/language-readiness/terminal/342/fixed-helper-bridge/phantom-unused.zil"
     );
     assert!(
-        g334_core(unused)
+        shared_helper_life_core(unused)
             .functions
             .iter()
             .flat_map(|f| &f.callable_parameters)
@@ -6853,8 +6869,8 @@ fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
     );
     // Adversarial Core attaches a well-shaped real context to a phantom
     // signature. Types must independently enforce its physical profile.
-    let real = g334_core(G334_SIMPLE);
-    let source_role = g334_role(&real);
+    let real = shared_helper_life_core(SHARED_HELPER_LIFE_SIMPLE);
+    let source_role = shared_helper_life_role(&real);
     let helper = core
         .functions
         .iter_mut()
@@ -6872,34 +6888,34 @@ fn g334_unanchored_phantom_data_cannot_enter_the_physical_helper_profile() {
     );
 }
 
-const G335_STATEFUL: &str = include_str!(
+const MUTABLE_HELPER_LIFE_STATEFUL: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/stateful-two-calls.zil"
 );
-const G335_REVERSE: &str = include_str!(
+const MUTABLE_HELPER_LIFE_REVERSE: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/reverse-stateful-two-calls.zil"
 );
-const G335_ADAPTED: &str = include_str!(
+const MUTABLE_HELPER_LIFE_ADAPTED: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/fn-adapted-control.zil"
 );
-const G335_CALLER: &str = include_str!(
+const MUTABLE_HELPER_LIFE_CALLER: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/actual-caller-good.zil"
 );
 
 #[test]
-fn g335_actual_stateful_definition_receiver_and_source_bound_are_preserved() {
+fn mutable_helper_life_actual_stateful_definition_receiver_and_source_bound_are_preserved() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
     for (text, actual_kind) in [
-        (G335_STATEFUL, CallableKind::FnMut),
-        (G335_REVERSE, CallableKind::FnMut),
-        (G335_ADAPTED, CallableKind::Fn),
+        (MUTABLE_HELPER_LIFE_STATEFUL, CallableKind::FnMut),
+        (MUTABLE_HELPER_LIFE_REVERSE, CallableKind::FnMut),
+        (MUTABLE_HELPER_LIFE_ADAPTED, CallableKind::Fn),
     ] {
-        let core = g334_core(text);
-        let bound = g334_role(&core);
+        let core = shared_helper_life_core(text);
+        let bound = shared_helper_life_role(&core);
         assert_eq!(bound.kind, CallableKind::FnMut);
         let context = bound.source_life.as_ref().unwrap();
-        if text == G335_REVERSE {
+        if text == MUTABLE_HELPER_LIFE_REVERSE {
             assert_eq!(
                 (context.generic_parameter, bound.generic_index, bound.index),
                 (1, 0, 1)
@@ -7009,7 +7025,7 @@ fn g335_actual_stateful_definition_receiver_and_source_bound_are_preserved() {
     );
     for body in ["return 42", "return #(42)"] {
         for (text, expected) in [
-            (G335_CALLER, ResultCategory::Success),
+            (MUTABLE_HELPER_LIFE_CALLER, ResultCategory::Success),
             (wrong, ResultCategory::SafeReject),
         ] {
             let text = text.replace("return f(x)", body);
@@ -7036,11 +7052,16 @@ fn g335_actual_stateful_definition_receiver_and_source_bound_are_preserved() {
 }
 
 #[test]
-fn g335_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels() {
+fn mutable_helper_life_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let raw = zil_types::check(&g334_core(G335_CALLER), &target, &limits).unwrap();
+    let raw = zil_types::check(
+        &shared_helper_life_core(MUTABLE_HELPER_LIFE_CALLER),
+        &target,
+        &limits,
+    )
+    .unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     let helper = raw
         .functions
@@ -7140,7 +7161,7 @@ fn g335_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels()
     // SSA/CFG initialization facts remain unchanged, so Verify reaches loans.
     let disjoint = include_str!("../../../tests/language-readiness/terminal/342/fnmut-helper-bridge/overlapping-receiver-borrows.zil")
         .replace("let held=&mut f;", "var g=f;let held=&mut g;");
-    let mut bad = zil_types::check(&g334_core(&disjoint), &target, &limits).unwrap();
+    let mut bad = zil_types::check(&shared_helper_life_core(&disjoint), &target, &limits).unwrap();
     let mut forged = zil_analyze::analyze(&bad, &limits).unwrap();
     zil_verify::verify_module(bad.clone(), forged.clone(), &target, &limits).unwrap();
     let caller = bad.functions.iter_mut().find(|f| f.blocks.iter().flat_map(|b| &b.instructions)
@@ -7191,11 +7212,11 @@ fn g335_source_derived_wrong_class_capture_and_mutable_call_reach_both_kernels()
 }
 
 #[test]
-fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
+fn mutable_helper_life_context_budget_and_actual_function_session_requests_are_bounded() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let core = g334_core(G335_STATEFUL);
+    let core = shared_helper_life_core(MUTABLE_HELPER_LIFE_STATEFUL);
     let expected = zil_types::check(&core, &target, &limits).unwrap();
     let (mut low, mut high) = (1, limits.max_analysis_steps);
     while low < high {
@@ -7266,7 +7287,7 @@ fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
     // was legal on None. Keep it off the paid new template formation lane.
     let old_none = "struct Tag<life s>{p:&'s i64}fn helper<life s,F:Fn(&Tag<'s>)->i32>(f:&mut F,x:&Tag<'s>)->i32{return 42}fn main()->i32{return 42}";
     assert!(
-        g334_core(old_none)
+        shared_helper_life_core(old_none)
             .functions
             .iter()
             .flat_map(|f| &f.callable_parameters)
@@ -7329,19 +7350,23 @@ fn g335_context_budget_and_actual_function_session_requests_are_bounded() {
         );
     }
     eprintln!(
-        "G335 Types N={low}/N-1/fresh and repeated actual FunctionSession requests; qualified profile has no scalar reuse claim"
+        "MUTABLE_HELPER_LIFE Types N={low}/N-1/fresh and repeated actual FunctionSession requests; qualified profile has no scalar reuse claim"
     );
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g335_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
+fn mutable_helper_life_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let mut runs = 0;
     for (case, text, expected) in [
-        ("stateful", G335_STATEFUL, b"4243\n".as_slice()),
-        ("reverse", G335_REVERSE, b"4243\n".as_slice()),
-        ("adapted", G335_ADAPTED, b"42\n".as_slice()),
+        (
+            "stateful",
+            MUTABLE_HELPER_LIFE_STATEFUL,
+            b"4243\n".as_slice(),
+        ),
+        ("reverse", MUTABLE_HELPER_LIFE_REVERSE, b"4243\n".as_slice()),
+        ("adapted", MUTABLE_HELPER_LIFE_ADAPTED, b"42\n".as_slice()),
     ] {
         for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
             if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -7349,7 +7374,7 @@ fn g335_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g335-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-mutable_helper_life-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -7386,19 +7411,19 @@ fn g335_stateful_and_adapted_source_native_clang_api_o0_o2_full_results() {
         }
     }
     eprintln!(
-        "G335 {runs} real Source native runs; stateful complete42 and43 individually checked before stdout4243, exit0/no fallback"
+        "MUTABLE_HELPER_LIFE {runs} real Source native runs; stateful complete42 and43 individually checked before stdout4243, exit0/no fallback"
     );
 }
 
-const G336_OWNED: &str = include_str!(
+const OWNING_HELPER_LIFE_OWNED: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/helper-owned-byvalue.zil"
 );
-const G336_REVERSE: &str = include_str!(
+const OWNING_HELPER_LIFE_REVERSE: &str = include_str!(
     "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/reverse-owned-byvalue.zil"
 );
 
 #[test]
-fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
+fn owning_helper_life_verify_staged_actual_source_and_raw_wire_neighbors() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
@@ -7408,8 +7433,13 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
     let spare = include_str!(
         "../../../tests/language-readiness/terminal/342/fnonce-helper-bridge/owned-ssa-spare.zil"
     );
-    for text in [G336_OWNED, G336_REVERSE, spare, caller] {
-        let raw = zil_types::check(&g334_core(text), &target, &limits).unwrap();
+    for text in [
+        OWNING_HELPER_LIFE_OWNED,
+        OWNING_HELPER_LIFE_REVERSE,
+        spare,
+        caller,
+    ] {
+        let raw = zil_types::check(&shared_helper_life_core(text), &target, &limits).unwrap();
         let helper = raw
             .functions
             .iter()
@@ -7436,7 +7466,7 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
         zil_verify::verify_module(raw.clone(), plan.clone(), &target, &limits).unwrap();
         let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&bytes, &target, &limits).unwrap();
-        if text != G336_OWNED {
+        if text != OWNING_HELPER_LIFE_OWNED {
             continue;
         }
         for case in 0..5 {
@@ -7502,7 +7532,7 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
                     "case {case}/{wire}: {errors:?}"
                 );
                 eprintln!(
-                    "G336 actual helper neighbor {case} wire={wire}: {}",
+                    "OWNING_HELPER_LIFE actual helper neighbor {case} wire={wire}: {}",
                     errors[0].message
                 );
             }
@@ -7510,7 +7540,7 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
     }
     // Equal runtime Type bytes do not identify the actual shared class. This
     // reuses the earlier genuine right-parameter SSA rather than inventing one.
-    let raw = zil_types::check(&g334_core(caller), &target, &limits).unwrap();
+    let raw = zil_types::check(&shared_helper_life_core(caller), &target, &limits).unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     let mut changed = raw.clone();
     let f = changed
@@ -7550,7 +7580,10 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
                 .any(|d| d.category == ResultCategory::SafeReject),
             "{errors:?}"
         );
-        eprintln!("G336 actual equal-Type wrong class: {}", errors[0].message);
+        eprintln!(
+            "OWNING_HELPER_LIFE actual equal-Type wrong class: {}",
+            errors[0].message
+        );
         assert!(
             errors[0].message.contains("retained class equality"),
             "{errors:?}"
@@ -7588,7 +7621,7 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
             "{errors:?}"
         );
         eprintln!(
-            "G336 actual caller duplicate owned SSA: {}",
+            "OWNING_HELPER_LIFE actual caller duplicate owned SSA: {}",
             errors[0].message
         );
         assert!(
@@ -7601,10 +7634,15 @@ fn g336_verify_staged_actual_source_and_raw_wire_neighbors() {
 }
 
 #[test]
-fn g336_verify_staged_actual_source_work_boundary() {
+fn owning_helper_life_verify_staged_actual_source_work_boundary() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let raw = zil_types::check(&g334_core(G336_OWNED), &target, &limits).unwrap();
+    let raw = zil_types::check(
+        &shared_helper_life_core(OWNING_HELPER_LIFE_OWNED),
+        &target,
+        &limits,
+    )
+    .unwrap();
     let plan = zil_analyze::analyze(&raw, &limits).unwrap();
     let bytes = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
     for wire in [false, true] {
@@ -7649,21 +7687,21 @@ fn g336_verify_staged_actual_source_work_boundary() {
             }
         }
         eprintln!(
-            "G336 genuine staged owning Source Verify wire={wire} N={low}; N-1/fresh/repeated/retry"
+            "OWNING_HELPER_LIFE genuine staged owning Source Verify wire={wire} N={low}; N-1/fresh/repeated/retry"
         );
     }
 }
 
 #[test]
-fn g336_actual_owning_source_types_forms_owned_receiver_and_complete_relations() {
+fn owning_helper_life_actual_owning_source_types_forms_owned_receiver_and_complete_relations() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    for text in [G336_OWNED, G336_REVERSE] {
-        let core = g334_core(text);
-        let bound = g334_role(&core);
+    for text in [OWNING_HELPER_LIFE_OWNED, OWNING_HELPER_LIFE_REVERSE] {
+        let core = shared_helper_life_core(text);
+        let bound = shared_helper_life_role(&core);
         assert_eq!(bound.kind, CallableKind::FnOnce);
-        if text == G336_REVERSE {
+        if text == OWNING_HELPER_LIFE_REVERSE {
             let context = bound.source_life.as_ref().unwrap();
             assert_eq!(
                 (context.generic_parameter, bound.generic_index, bound.index),
@@ -7728,11 +7766,11 @@ fn g336_actual_owning_source_types_forms_owned_receiver_and_complete_relations()
 }
 
 #[test]
-fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
+fn owning_helper_life_owning_source_context_budget_and_physical_gate_are_independent() {
     use zil_ir::*;
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let core = g334_core(G336_OWNED);
+    let core = shared_helper_life_core(OWNING_HELPER_LIFE_OWNED);
     let expected = zil_types::check(&core, &target, &limits).unwrap();
     let (mut low, mut high) = (1, limits.max_analysis_steps);
     while low < high {
@@ -7835,7 +7873,7 @@ fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
         "{}",
         report.to_json()
     );
-    let mut phantom = g334_core(text);
+    let mut phantom = shared_helper_life_core(text);
     assert!(
         phantom
             .functions
@@ -7843,7 +7881,7 @@ fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
             .flat_map(|f| &f.callable_parameters)
             .all(|r| r.source_life.is_none())
     );
-    let template = g334_role(&core);
+    let template = shared_helper_life_role(&core);
     let role = phantom
         .functions
         .iter_mut()
@@ -7861,15 +7899,20 @@ fn g336_owning_source_context_budget_and_physical_gate_are_independent() {
         "{errors:?}"
     );
     eprintln!(
-        "G336 isolated whole Types N={low}/N-1/fresh; Named owned-F huge preflight and actual Phantom source/raw gates checked, no whole Source acceptance claim"
+        "OWNING_HELPER_LIFE isolated whole Types N={low}/N-1/fresh; Named owned-F huge preflight and actual Phantom source/raw gates checked, no whole Source acceptance claim"
     );
 }
 
 #[test]
-fn g336_analyze_actual_owning_source_request_budget_is_reproducible() {
+fn owning_helper_life_analyze_actual_owning_source_request_budget_is_reproducible() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::host_llvm();
-    let raw = zil_types::check(&g334_core(G336_OWNED), &target, &limits).unwrap();
+    let raw = zil_types::check(
+        &shared_helper_life_core(OWNING_HELPER_LIFE_OWNED),
+        &target,
+        &limits,
+    )
+    .unwrap();
     let expected = zil_analyze::analyze(&raw, &limits).unwrap();
     let (mut low, mut high) = (1, limits.max_analysis_steps);
     while low < high {
@@ -7915,18 +7958,18 @@ fn g336_analyze_actual_owning_source_request_budget_is_reproducible() {
         }
     }
     eprintln!(
-        "G336 whole Analyze actual owning Source N={low}/N-1/fresh; exact honest CandidatePlan stable"
+        "OWNING_HELPER_LIFE whole Analyze actual owning Source N={low}/N-1/fresh; exact honest CandidatePlan stable"
     );
 }
 
 #[test]
 #[cfg(target_os = "linux")]
-fn g336_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
+fn owning_helper_life_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     let mut runs = 0;
     for (case, text) in [
-        ("owned", G336_OWNED),
-        ("reverse", G336_REVERSE),
+        ("owned", OWNING_HELPER_LIFE_OWNED),
+        ("reverse", OWNING_HELPER_LIFE_REVERSE),
         (
             "distinct-inputs",
             include_str!(
@@ -7940,7 +7983,7 @@ fn g336_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-g336-{}-{case}-{backend:?}-{optimization:?}",
+                    "zil-owning_helper_life-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -7981,7 +8024,10 @@ fn g336_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
                     && backend == NativeBackend::Clang
                     && optimization == Optimization::O0
                 {
-                    eprintln!("G336 owner artifact retained {}", dir.display());
+                    eprintln!(
+                        "OWNING_HELPER_LIFE owner artifact retained {}",
+                        dir.display()
+                    );
                 } else {
                     std::fs::remove_dir_all(dir).unwrap();
                 }
@@ -7990,12 +8036,12 @@ fn g336_actual_native_clang_api_o0_o2_preserves_complete_owned_results() {
         }
     }
     eprintln!(
-        "G336 {runs} native processes; full stdout42 newline/exit0/empty stderr/currentVerify/no fallback, real owned transfer not a Fn/Mut adapter; teardown=None has no observable user Drop counter"
+        "OWNING_HELPER_LIFE {runs} native processes; full stdout42 newline/exit0/empty stderr/currentVerify/no fallback, real owned transfer not a Fn/Mut adapter; teardown=None has no observable user Drop counter"
     );
 }
 
 #[test]
-fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage() {
+fn owning_helper_life_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage() {
     use zil_base::Phase;
     for (text, phase, message) in [
         (
@@ -8060,7 +8106,7 @@ fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage
         report.to_json()
     );
     assert_eq!(report.verification_runs, 1);
-    let drop = G336_OWNED.replace(
+    let drop = OWNING_HELPER_LIFE_OWNED.replace(
         "resource Mark{n:i32}",
         "resource Mark{n:i32}impl Drop for Mark{fn drop(self:Self){}}",
     );
@@ -8081,13 +8127,13 @@ fn g336_actual_source_consumption_and_class_neighbors_keep_their_rejection_stage
 }
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-next/regressions.rs"]
-mod g337_tail;
+mod helper_tail_return_tail;
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-cfg/regressions.rs"]
-mod g338_cfg;
+mod helper_cfg_join_cfg;
 
 #[path = "../../../tests/language-readiness/terminal/342/fnonce-helper-p0-review338/regressions.rs"]
-mod p0_g338_review;
+mod helper_cfg_join_review;
 
 #[path = "../../../tests/language-readiness/terminal/342/callable-completion/regressions.rs"]
-mod g339_completion;
+mod helper_life_completion_completion;

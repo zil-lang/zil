@@ -1,8 +1,8 @@
 //! Real Copy aggregate programs, LLVM bounds checks, and forged raw controls.
-#[path = "../../../tests/fixtures/nominal-lifetimes/nominal_controls.rs"]
-mod g4461_nominal_controls;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_enum_controls.rs"]
-mod g4463_enum_controls;
+mod enum_member_controls_enum_controls;
+#[path = "../../../tests/fixtures/nominal-lifetimes/nominal_controls.rs"]
+mod nominal_member_controls_nominal_controls;
 use std::{
     fs,
     path::PathBuf,
@@ -7605,7 +7605,7 @@ fn ct5_member_own_life_context_reaches_native() {
         }
         assert_eq!(warm.active_query_count(), 0);
     }
-    eprintln!("G4.4 member source whole analysis N={low}/N-1/warm/fresh");
+    eprintln!("static member member source whole analysis N={low}/N-1/warm/fresh");
     let generated = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-generated-member.zil"
     );
@@ -7676,7 +7676,7 @@ fn ct5_member_own_life_context_reaches_native() {
 }
 
 #[test]
-fn g442_mixed_ct_scalar_call_actuals() {
+fn mixed_compile_time_actual_mixed_ct_scalar_call_actuals() {
     let text = r#"
 struct Phantom<life a,T:Copy,#N:i32>{n:i32}
 fn choose<T:Copy,#N:i32,life a>(marker:Type)->i32{return N}
@@ -7753,7 +7753,7 @@ fn main()->i32{let n=0;let m=0;return result(&n,&m)}
 }
 
 #[test]
-fn g442_mixed_ct_phantom_call_actuals() {
+fn mixed_compile_time_actual_mixed_ct_phantom_call_actuals() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
     );
@@ -7882,7 +7882,7 @@ fn g442_mixed_ct_phantom_call_actuals() {
     }
 }
 
-fn g44_source_request_boundary(input: &str, ledger: &str) -> usize {
+fn static_member_source_request_boundary(input: &str, ledger: &str) -> usize {
     use zil_driver::CompilationSession;
     let options = |n: usize| {
         let mut options = CompileOptions::default();
@@ -7944,14 +7944,16 @@ fn g44_source_request_boundary(input: &str, ledger: &str) -> usize {
 }
 
 #[test]
-fn g442_source_budgets_cache_and_comparison_growth() {
+fn mixed_compile_time_actual_source_budgets_cache_and_comparison_growth() {
     use zil_driver::CompilationSession;
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-mixed-ct-instance-values.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let n = g44_source_request_boundary(text, ledger);
-        eprintln!("G4.4.2 whole Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+        let n = static_member_source_request_boundary(text, ledger);
+        eprintln!(
+            "mixed static member actuals whole Source {ledger} N={n}; N-1/cold/warm/fresh agree"
+        );
     }
     let deep = |calls: usize, width: usize| {
         let ty = format!(
@@ -7975,15 +7977,15 @@ fn g442_source_budgets_cache_and_comparison_growth() {
             "struct Phantom<life a,T:Copy,#N:i32>{{n:i32}}fn make<T:Copy,#N:i32,life a>(marker:Type)->Phantom<'a,T,N>{{return Phantom::<'a,T,N>{{n:N}}}}fn result<life s,life t>(p:&'s i32,q:&'t i32)->i32{{let value:Phantom<'s,{ty},7>=#(({invocations}).0);return value.n}}fn main()->i32{{let n=0;let m=0;return result(&n,&m)}}"
         )
     };
-    let small = g44_source_request_boundary(&deep(2, 2), "work");
-    let wide = g44_source_request_boundary(&deep(2, 8), "work");
-    let many = g44_source_request_boundary(&deep(3, 8), "work");
+    let small = static_member_source_request_boundary(&deep(2, 2), "work");
+    let wide = static_member_source_request_boundary(&deep(2, 8), "work");
+    let many = static_member_source_request_boundary(&deep(3, 8), "work");
     assert!(
         small < wide && wide < many,
         "comparison growth {small}/{wide}/{many}"
     );
     eprintln!(
-        "G4.4.2 complete graph/instance work growth: 2x2={small}, 2x8={wide}, 3x8={many}; each exact N-1/fresh/warm checked"
+        "mixed static member actuals complete graph/instance work growth: 2x2={small}, 2x8={wide}, 3x8={many}; each exact N-1/fresh/warm checked"
     );
     let directory = Temp::new();
     let mut session = CompilationSession::default();
@@ -8052,7 +8054,7 @@ fn g442_source_budgets_cache_and_comparison_growth() {
     }
     assert!(candidates > 0);
     eprintln!(
-        "G4.4.2 actual warm/change/reorder/revert native outputs42 and {candidates} semantic candidates raw+Wire reverified"
+        "mixed static member actuals actual warm/change/reorder/revert native outputs42 and {candidates} semantic candidates raw+Wire reverified"
     );
 }
 
@@ -8124,7 +8126,7 @@ fn ct5_joint_subvalues_preserve_their_own_schema_contexts() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        eprintln!("G4.4.1 joint CT schema whole Source N={low}/N-1/warm/fresh");
+        eprintln!("static member schema joint CT schema whole Source N={low}/N-1/warm/fresh");
     }
 }
 
@@ -8339,7 +8341,7 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
     let input = source(include_str!(
         "../../../tests/language-readiness/terminal/340/replace-error-arm-alias.zil"
     ));
-    // G1.3.6: previous Analyze N46908; actual local retirement/liveness and
+    // helper resource retirement: previous Analyze N46908; actual local retirement/liveness and
     // paid producer eligibility add40. Verify retains its independent bound.
     for (stage, expected_n) in [(Stage::Analyze, 46948), (Stage::Verify, 97818)] {
         let options = |work| CompileOptions {
@@ -8390,7 +8392,7 @@ fn terminal340_owner_replacement_error_arm_alias_budget() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        println!("G1.3.3 {stage:?} N={low}; N-1/fresh/warm/retry");
+        println!("owned replacement {stage:?} N={low}; N-1/fresh/warm/retry");
     }
 }
 
@@ -8670,7 +8672,7 @@ fn terminal340_package_terminal_native_old_drop_store_and_failure() {
             b"BA42\n".as_slice(),
         ),
     ] {
-        eprintln!("G1.3.4 native case {name}");
+        eprintln!("package replacement native case {name}");
         review329_native_entry_output(&[("main", text)], "main", expected);
     }
 }
@@ -8841,10 +8843,10 @@ fn terminal340_package_terminal_exact_request_budget() {
         assert_eq!(
             low,
             if stage == Stage::Analyze {
-                // G1.3.6 paid producer exclusion inventory: previous13945+9.
+                // helper resource retirement paid producer exclusion inventory: previous13945+9.
                 13_954
             } else {
-                // G1.3.7: old28743 + three actual complete-RHS nodes.
+                // mutable helper replacement: old28743 + three actual complete-RHS nodes.
                 28_746
             },
             "{stage:?}: actual Package work changed"
@@ -8875,7 +8877,7 @@ fn terminal340_package_terminal_exact_request_budget() {
             }
             assert_eq!(warm.active_query_count(), 0);
         }
-        println!("G1.3.4 whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
+        println!("package replacement whole Source {stage:?} N={low}; N-1/fresh/warm/retry");
     }
 }
 
@@ -8925,7 +8927,7 @@ fn terminal340_package_terminal_new_provenance_and_temporary_native() {
             b"BA42\n".as_slice(),
         ),
     ] {
-        eprintln!("G1.3.4 new native case {name}");
+        eprintln!("package replacement new native case {name}");
         review329_native_entry_output(&[("main", text)], "main", expected);
     }
 }
@@ -9176,7 +9178,7 @@ fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
             assert_eq!(run(low), Some(fresh));
         }
         println!(
-            "G1.3.4.1 Verify wire={wire} N={low} N-1=ResourceLimit fresh/retry=Pass fp={fresh}"
+            "package replacement verification Verify wire={wire} N={low} N-1=ResourceLimit fresh/retry=Pass fp={fresh}"
         );
     }
     let options = |work| CompileOptions {
@@ -9210,7 +9212,9 @@ fn terminal340_package_terminal_verify_budgets_are_exact_and_fresh() {
         }
         assert_eq!(warm.active_query_count(), 0);
     }
-    println!("G1.3.4.1 whole Source->Verify N={low} N-1=ResourceLimit fresh/warm/retry=Pass");
+    println!(
+        "package replacement verification whole Source->Verify N={low} N-1=ResourceLimit fresh/warm/retry=Pass"
+    );
 }
 
 #[test]
@@ -9522,7 +9526,7 @@ fn terminal340_package_terminal_branch_join_requires_one_actual_root() {
 }
 
 #[test]
-fn g443_original_static_member_factories_reach_native_full_values() {
+fn static_member_factory_original_static_member_factories_reach_native_full_values() {
     for text in [
         include_str!(
             "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-instance.zil"
@@ -9547,7 +9551,7 @@ fn g443_original_static_member_factories_reach_native_full_values() {
 }
 
 #[test]
-fn g443_member_factories_keep_source_boundaries_and_definition_checks() {
+fn static_member_factory_member_factories_keep_source_boundaries_and_definition_checks() {
     for text in [
         "struct Maker{fn make()->i32{return 42}}fn main()->i32{return Maker.make()}",
         include_str!(
@@ -9635,7 +9639,7 @@ fn g443_member_factories_keep_source_boundaries_and_definition_checks() {
 }
 
 #[test]
-fn g443_same_named_hosts_in_distinct_modules_use_actual_imports() {
+fn static_member_factory_same_named_hosts_in_distinct_modules_use_actual_imports() {
     let root = "import left;import right;struct Pair<life a>{left:i32;right:i32}fn result<life s>(p:&'s i32)->i32{let pair:Pair<'s>=#(Pair::<'s>{left:left.Maker.make::<i32,7,'s>(i32),right:right.Maker.make::<i32,7,'s>(i32)});if pair.left!=7{return 1}if pair.right!=35{return 2}return pair.left+pair.right}fn main()->i32{let n=0;return result(&n)}";
     let left = "pub struct Maker{pub fn make<T:Copy,#N:i32,life a>(marker:Type)->i32{return N}}";
     let right = "pub struct Maker{pub fn make<T:Copy,#N:i32,life a>(marker:Type)->i32{return N*5}}";
@@ -9664,18 +9668,20 @@ fn g443_same_named_hosts_in_distinct_modules_use_actual_imports() {
 }
 
 #[test]
-fn g443_member_requests_pay_all_current_ledgers() {
+fn static_member_factory_member_requests_pay_all_current_ledgers() {
     let input = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let n = g44_source_request_boundary(input, ledger);
-        eprintln!("G4.4.3 real retained-member Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+        let n = static_member_source_request_boundary(input, ledger);
+        eprintln!(
+            "retained static member real retained-member Source {ledger} N={n}; N-1/cold/warm/fresh agree"
+        );
     }
 }
 
 #[test]
-fn g444_nested_mixed_scalar_source_and_native_values() {
+fn nested_static_member_nested_mixed_scalar_source_and_native_values() {
     let scalar = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-scalar.zil"
     );
@@ -9703,7 +9709,7 @@ fn g444_nested_mixed_scalar_source_and_native_values() {
 }
 
 #[test]
-fn g444_symbolic_forwarding_checks_definitions_before_matching_instances() {
+fn nested_static_member_symbolic_forwarding_checks_definitions_before_matching_instances() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-forwarding.zil"
     );
@@ -9792,7 +9798,7 @@ fn g444_symbolic_forwarding_checks_definitions_before_matching_instances() {
         );
         assert_eq!(report.verification_runs, 0);
     }
-    // G4.4.5 now preserves both authentic contexts and explicitly reconstructs
+    // record relocation now preserves both authentic contexts and explicitly reconstructs
     // the pure result into the caller's return schema.
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -9805,7 +9811,7 @@ fn g444_symbolic_forwarding_checks_definitions_before_matching_instances() {
 }
 
 #[test]
-fn g445_original_context_record_returns_reach_native_full_values() {
+fn contextual_record_relocation_original_context_record_returns_reach_native_full_values() {
     let reordered = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/p0-review444/good-three-layer-reordered.zil"
     );
@@ -9856,7 +9862,7 @@ fn g445_original_context_record_returns_reach_native_full_values() {
 }
 
 #[test]
-fn g445_relocation_keeps_symbolic_life_and_closed_type_identities() {
+fn contextual_record_relocation_relocation_keeps_symbolic_life_and_closed_type_identities() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-cross-factory-lifetime-separation.zil"
     );
@@ -9883,7 +9889,7 @@ fn g445_relocation_keeps_symbolic_life_and_closed_type_identities() {
         );
         assert_eq!(report.verification_runs, 0);
     }
-    // Closed Type forwarding already worked in G4.4.4; keep its precise
+    // Closed Type forwarding already worked in nested static member; keep its precise
     // nominal identity as a control without claiming a new scoped-Type value.
     let control = "struct First{n:i32}struct Second{n:i32}fn selected<T:Copy,#N:i32,life a>(marker:Type)->Type{return T}fn relay<T:Copy,#N:i32,life a>(marker:Type)->Type{return selected::<T,N,'a>(marker)}fn result<life s>(p:&'s i32)->i32{let value:#(relay::<First,42,'s>(i32))=First{n:42};return value.n}fn main()->i32{let n=0;return result(&n)}";
     let report = compile_source(&source(control), &CompileOptions::default());
@@ -9907,7 +9913,7 @@ fn g445_relocation_keeps_symbolic_life_and_closed_type_identities() {
 }
 
 #[test]
-fn g445_real_record_relocations_pay_all_request_ledgers() {
+fn contextual_record_relocation_real_record_relocations_pay_all_request_ledgers() {
     for (shape, input) in [
         (
             "single",
@@ -9923,27 +9929,27 @@ fn g445_real_record_relocations_pay_all_request_ledgers() {
         ),
     ] {
         for ledger in ["work", "nodes", "steps", "bytes"] {
-            let n = g44_source_request_boundary(input, ledger);
+            let n = static_member_source_request_boundary(input, ledger);
             eprintln!(
-                "G4.4.5 real record relocation {shape}/{ledger} N={n}; N-1/cold/warm/fresh agree"
+                "record relocation real record relocation {shape}/{ledger} N={n}; N-1/cold/warm/fresh agree"
             );
         }
     }
 }
 
 #[test]
-fn g444_nested_requests_pay_each_current_ledger() {
+fn nested_static_member_nested_requests_pay_each_current_ledger() {
     let input = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-nested-mixed-intermediate.zil"
     );
     for ledger in ["work", "nodes", "steps", "bytes"] {
-        let n = g44_source_request_boundary(input, ledger);
-        eprintln!("G4.4.4 nested Source {ledger} N={n}; N-1/cold/warm/fresh agree");
+        let n = static_member_source_request_boundary(input, ledger);
+        eprintln!("nested static member nested Source {ledger} N={n}; N-1/cold/warm/fresh agree");
     }
 }
 
 #[test]
-fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
+fn static_member_factory_actual_semantic_cache_rechecks_changed_and_reordered_members() {
     use zil_driver::{CompilationSession, DiskCacheStatus};
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct5-static-member-retained.zil"
@@ -10030,7 +10036,7 @@ fn g443_actual_semantic_cache_rechecks_changed_and_reordered_members() {
     }
     assert_eq!(candidates, 3);
     eprintln!(
-        "G4.4.3 actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
+        "retained static member actual Project cache: warm/change/reorder/revert native42/43, {candidates} actual candidates raw/Wire reverified"
     );
 }
 
@@ -10041,19 +10047,19 @@ mod whole_helper_review;
 mod whole_helper_error_review;
 
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/p0-review4452/consumer_tests.rs"]
-mod p0_g445_review;
+mod contextual_record_relocation_review;
 
 #[path = "../../../tests/language-readiness/terminal/340/nonlocal-replace/controls.rs"]
 mod terminal340_nonlocal_replace;
 
 // Independent complete-parent consumers; staged failures remain visible during integration.
 #[path = "../../../tests/fixtures/resource-packages/consumers.rs"]
-mod g10110_independent_parent_consumers;
+mod parent_consumer_independent_parent_consumers;
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/runtime-phase/consumer_tests.rs"]
 mod runtime_ct_phase_tests;
 
 #[test]
-fn g4453_contextual_type_result_preserves_life_across_factories() {
+fn contextual_type_life_contextual_type_result_preserves_life_across_factories() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-type-result.zil"
     );
@@ -10069,7 +10075,7 @@ fn g4453_contextual_type_result_preserves_life_across_factories() {
 }
 
 #[test]
-fn g4453_pure_composite_fields_keep_every_returned_bit() {
+fn contextual_type_life_pure_composite_fields_keep_every_returned_bit() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-cross-factory-pure-composites.zil"
     );
@@ -10085,7 +10091,7 @@ fn g4453_pure_composite_fields_keep_every_returned_bit() {
 }
 
 #[test]
-fn g4453_ambient_type_actual_retains_nested_life_graph() {
+fn contextual_type_life_ambient_type_actual_retains_nested_life_graph() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-ambient-type-actual.zil"
     );
@@ -10101,7 +10107,7 @@ fn g4453_ambient_type_actual_retains_nested_life_graph() {
 }
 
 #[test]
-fn g4453_generic_host_keeps_its_actual_type_binding() {
+fn contextual_type_life_generic_host_keeps_its_actual_type_binding() {
     let text = include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-context.zil"
     );
@@ -10117,7 +10123,7 @@ fn g4453_generic_host_keeps_its_actual_type_binding() {
 }
 
 #[test]
-fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
+fn contextual_type_life_generic_parameter_subsets_keep_authentic_source_contexts() {
     for text in [
         include_str!(
             "../../../tests/language-readiness/terminal/344/anonymous/ct6-const-only-factory.zil"
@@ -10138,7 +10144,7 @@ fn g4453_generic_parameter_subsets_keep_authentic_source_contexts() {
     }
 }
 
-fn g4453_host_source_native(text: &str) {
+fn contextual_type_life_host_source_native(text: &str) {
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
         report.status,
@@ -10151,42 +10157,42 @@ fn g4453_host_source_native(text: &str) {
 }
 
 #[test]
-fn g4453_host_complete_context_and_ordinary_static_member() {
-    g4453_host_source_native(include_str!(
+fn contextual_type_life_host_complete_context_and_ordinary_static_member() {
+    contextual_type_life_host_source_native(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-full-context.zil"
     ));
 }
 
 #[test]
-fn g4453_host_member_distinct_life_owners_source_native() {
-    g4453_host_source_native(include_str!(
+fn contextual_type_life_host_member_distinct_life_owners_source_native() {
+    contextual_type_life_host_source_native(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-lives.zil"
     ));
 }
 
 #[test]
-fn g4453_host_member_nearest_life_shadow_source_native() {
-    g4453_host_source_native(include_str!(
+fn contextual_type_life_host_member_nearest_life_shadow_source_native() {
+    contextual_type_life_host_source_native(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generic-host-member-life-shadow.zil"
     ));
 }
 
 #[test]
-fn g4453_host_generated_member_life_owners_source_native() {
-    g4453_host_source_native(include_str!(
+fn contextual_type_life_host_generated_member_life_owners_source_native() {
+    contextual_type_life_host_source_native(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-host-member-lives.zil"
     ));
 }
 
 #[test]
-fn g4453_generated_factory_forwards_its_real_life_source_native() {
-    g4453_host_source_native(include_str!(
+fn contextual_type_life_generated_factory_forwards_its_real_life_source_native() {
+    contextual_type_life_host_source_native(include_str!(
         "../../../tests/language-readiness/terminal/344/anonymous/ct6-generated-factory-forward-life.zil"
     ));
 }
 
 #[test]
-fn g4453_ordinary_static_member_keeps_effect_and_duplicate_checks() {
+fn contextual_type_life_ordinary_static_member_keeps_effect_and_duplicate_checks() {
     for text in [
         "struct Host{fn make()->i32{let n=42;let address=&n;return n}}fn main()->i32{return #(Host.make())}",
         "struct Host{fn make()->i32{return 42}fn make()->i32{return 7}}fn main()->i32{return #(Host.make())}",
@@ -10203,7 +10209,7 @@ fn g4453_ordinary_static_member_keeps_effect_and_duplicate_checks() {
 }
 
 #[test]
-fn g4453_ordinary_static_member_preserves_actual_module_privacy() {
+fn contextual_type_life_ordinary_static_member_preserves_actual_module_privacy() {
     let main = "import provider;fn main()->i32{return #(provider.Host.make())}";
     let provider = "pub struct Host{fn make()->i32{return 42}}";
     let report = zil_driver::compile_project(
@@ -10221,4 +10227,4 @@ fn g4453_ordinary_static_member_preserves_actual_module_privacy() {
 }
 
 #[path = "../../../tests/language-readiness/terminal/344/anonymous/qualified_pure_backend.rs"]
-mod g4463_qualified_pure_backend;
+mod enum_member_controls_qualified_pure_backend;

@@ -122,8 +122,12 @@ mod tests {
     #[test]
     fn editor202_full_store_types_match_driver_and_invalidate_changed_bounds() {
         let cases = [
-            include_str!("../../zil-driver/tests/impl202_fixtures/01_original_push.zil"),
-            include_str!("../../zil-driver/tests/impl202_fixtures/02_original_factory.zil"),
+            include_str!(
+                "../../zil-driver/tests/complete_store_element_binding_fixtures/01_original_push.zil"
+            ),
+            include_str!(
+                "../../zil-driver/tests/complete_store_element_binding_fixtures/02_original_factory.zil"
+            ),
         ];
         let mut editor = EditorSession::new();
         let options = CompileOptions {
@@ -175,9 +179,11 @@ mod tests {
     fn editor203_state_declaration_edits_invalidate_even_when_actual_closure_types_stay_equal() {
         let cases = [
             include_str!(
-                "../../zil-driver/tests/impl203_fixtures/01_same_factory_distinct_modes.zil"
+                "../../zil-driver/tests/declared_state_modes_fixtures/01_same_factory_distinct_modes.zil"
             ),
-            include_str!("../../zil-driver/tests/impl203_fixtures/04_mode_cleanup_markers.zil"),
+            include_str!(
+                "../../zil-driver/tests/declared_state_modes_fixtures/04_mode_cleanup_markers.zil"
+            ),
         ];
         let options = CompileOptions {
             stop_after: Stage::Verify,
