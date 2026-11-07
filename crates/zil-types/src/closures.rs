@@ -336,9 +336,45 @@ impl Pending {
             if matches!(capture.ty, Type::Managed(_)) {
                 capture.moved
             } else {
-                !capture.borrowed && matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+                !capture.borrowed
+                    && (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+                        || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
+    }
+}
+
+fn tuple_pattern_takes_owner(
+    pattern: &CorePattern,
+    ty: &Type,
+    work: &mut usize,
+    depth: usize,
+    depth_limit: usize,
+) -> R<bool> {
+    if depth > depth_limit {
+        return Err(limit("owned Tuple pattern depth exceeded", pattern.span));
+    }
+    *work = work
+        .checked_sub(1)
+        .ok_or_else(|| limit("owned Tuple pattern budget exceeded", pattern.span))?;
+    match (&pattern.kind, ty) {
+        // UnpackTuple creates an owned hidden target for a discarded field;
+        // its cleanup also consumes the captured environment's owner.
+        (CorePatternKind::Name(_) | CorePatternKind::Wildcard, ty) => {
+            Ok(!ty.is_copy_value() && dynamic_store::contains_inline_carrier(ty))
+        }
+        (CorePatternKind::Tuple(patterns), Type::Tuple(fields))
+            if patterns.len() == fields.len() =>
+        {
+            let mut takes = false;
+            for (pattern, field) in patterns.iter().zip(fields) {
+                takes |= tuple_pattern_takes_owner(pattern, field, work, depth + 1, depth_limit)?;
+            }
+            Ok(takes)
+        }
+        // A reference binding keeps the child in its actual parent place.
+        (CorePatternKind::Reference { .. }, _) => Ok(false),
+        _ => Ok(false),
     }
 }
 
@@ -533,6 +569,12 @@ impl State {
     ) -> R<()> {
         self.snapshot(extra, span)?;
         inference::charge_type_snapshot(ty, span, &self.limits, &mut self.work_left, copies)
+    }
+
+    /// Retained factories cannot borrow the internal work ledger directly.
+    /// Recheck a newly admitted complete Store parent on the same request.
+    pub(super) fn ordinary_store_capture(&mut self, ty: &Type, span: Span) -> R<bool> {
+        dynamic_store::owned_capture(ty, &mut self.work_left, &self.limits, span)
     }
 
     pub(super) fn source_helper_bounds(
@@ -836,6 +878,22 @@ impl State {
                     return Err(unsupported(
                         capture.span,
                         "Package capture with Store fields requires a complete owning leaf Store transfer",
+                    ));
+                }
+                owns_leaf_store = true;
+            }
+            if owned_shapes::sum(&capture.stored_type())
+                && dynamic_store::owned_capture(
+                    &capture.ty,
+                    checker.work_left,
+                    &self.limits,
+                    capture.span,
+                )?
+            {
+                if !capture.moved || capture.borrowed {
+                    return Err(unsupported(
+                        capture.span,
+                        "owned Sum capture requires an explicit complete move",
                     ));
                 }
                 owns_leaf_store = true;
@@ -1594,6 +1652,7 @@ impl Graph {
                 || errors::owned(ty)
                 || owned_shapes::enumeration(ty)
                 || owned_shapes::tuple(ty)
+                || owned_shapes::sum(ty)
                 || packages::ordinary(ty)
                 || packages::owned_array_supported(ty)
                 || lending::supported_result(ty)
@@ -1602,6 +1661,13 @@ impl Graph {
                 // It does not make a Managed value Copy or grant a capture.
                 || matches!(ty, Type::Managed(payload)
                     if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+                // A variant/error arm can bind the actual owned Store leaf.
+                // The pattern still takes its owning Sum in the Builder; this
+                // graph node only carries the already resolved leaf type.
+                || matches!(ty, Type::Managed(_)
+                    if dynamic_store::element(ty).is_some_and(|element|
+                        dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element)))
                 || matches!(ty, Type::Slice { element } if element.is_copy_value()) =>
             {
                 AGGREGATE
@@ -2602,11 +2668,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         // outer position. Managed/Package captures instead change ownership at
         // creation, even if the nested environment is never invoked.
         let write = write && !(self.nested_moves != 0 && ty.is_copy_value());
+        let owned_sum_capture = (self.move_capture || self.nested_moves != 0)
+            && matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            )
+            && dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?;
         let nested_owned = self.nested_moves != 0
             && matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            );
+            )
+            || (self.nested_moves != 0 && owned_sum_capture);
         let nested_writeback =
             write && self.nested_depth != 0 && self.move_capture && ty.is_copy_value();
         if nested_owned && matches!(ty, Type::Package { .. }) {
@@ -2621,7 +2694,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         // Package slots may be restored after the nested creation. Their flow
         // classification below decides FnMut/FnOnce at each actual exit.
-        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_) | Type::Closure(_));
+        let nested_consumed = nested_owned
+            && (matches!(ty, Type::Managed(_) | Type::Closure(_)) || owned_sum_capture);
         if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
             return Err(unsupported(
                 span,
@@ -2676,10 +2750,19 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         let (inner, address) = match ty {
             ty if ty.is_copy_value() => (ty, None),
             ty @ Type::Package { .. }
-                if packages::supported(ty) || packages::product::nested(ty) =>
+                if packages::supported(ty)
+                    || packages::product::nested(ty)
+                    || ((self.move_capture || nested_owned) && packages::ordinary(ty)) =>
             {
-                if packages::product::nested(ty) {
+                if packages::product::nested(ty) && packages::product::supported(ty) {
                     packages::product::validate(
+                        ty,
+                        self.work_left,
+                        self.limits.max_call_depth,
+                        span,
+                    )?;
+                } else if packages::product::nested(ty) {
+                    packages::product::validate_owned(
                         ty,
                         self.work_left,
                         self.limits.max_call_depth,
@@ -2702,6 +2785,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 (ty, None)
             }
+            ty if owned_sum_capture => (ty, None),
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
@@ -2794,11 +2878,17 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
             _ => Ok(false),
         }
     }
-    fn pattern_local(&self, variable: Variable, span: Span) -> R<LocalType> {
-        Ok(match self.graph.address_shape(variable, span)? {
-            Some((inner, Some(mutable))) => LocalType::Address(inner, mutable),
-            _ => LocalType::Scalar(variable),
-        })
+    fn pattern_local(&mut self, variable: Variable, span: Span) -> R<LocalType> {
+        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
+            return Ok(LocalType::Address(inner, mutable));
+        }
+        // Pattern matching takes an owned Sum, but an ordinary use of a bound
+        // resource name describes its leaf. Keep that distinction in closure
+        // inference as the Builder does for a managed local.
+        if let Some(ty @ (Type::Managed(_) | Type::Desc(_))) = self.graph.ty(variable)? {
+            return self.known(&ty, span);
+        }
+        Ok(LocalType::Scalar(variable))
     }
     fn block(&mut self, block: &CoreBlock, depth: usize) -> R<()> {
         self.visit(depth, block.span)?;
@@ -2819,6 +2909,51 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                     let value = variable.scalar(statement.span)?;
                     if self.pattern_needs_mutable(pattern, depth + 1)? {
                         self.mark_address_write(initializer, depth + 1)?;
+                    }
+                    // Classify each actual child: `ref` can coexist with a
+                    // by-value owner binding in the same Tuple pattern.
+                    if let CoreExprKind::Name(name) = &initializer.kind
+                        && self.lookup(name).is_none()
+                        && self.outer.get(name).is_some_and(|(_, ty)| {
+                            matches!(ty, Type::Tuple(_))
+                                && dynamic_store::contains_inline_carrier(ty)
+                        })
+                    {
+                        *self.work_left = self
+                            .work_left
+                            .checked_sub(
+                                self.captures
+                                    .len()
+                                    .saturating_mul(name.len().saturating_add(1)),
+                            )
+                            .ok_or_else(|| {
+                                limit(
+                                    "owned Tuple capture transfer budget exceeded",
+                                    initializer.span,
+                                )
+                            })?;
+                        if let Some(capture) = self.captures.iter_mut().find(|c| c.name == *name) {
+                            inference::charge_type_snapshot(
+                                &capture.ty,
+                                initializer.span,
+                                self.limits,
+                                self.work_left,
+                                2,
+                            )?;
+                            if owned_shapes::tuple(&capture.ty)
+                                && tuple_pattern_takes_owner(
+                                    pattern,
+                                    &capture.ty,
+                                    self.work_left,
+                                    0,
+                                    self.limits.max_call_depth,
+                                )?
+                            {
+                                capture.moved = true;
+                                capture.borrowed = false;
+                                capture.consumed = true;
+                            }
+                        }
                     }
                     for (name, variable, span) in self.graph.pattern_bind(pattern, value)? {
                         let value = self.pattern_local(variable, span)?;
@@ -3860,12 +3995,44 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 return self.known(&dynamic_store::result_type(name, element), span);
             }
             let first = self.expr(&arguments[0], depth + 1)?;
-            let LocalType::Resource(variable, _) = first else {
-                return Err(error(
-                    "E-OWNED-STORE-TYPE",
-                    span,
-                    "Store primitive requires a resource description",
-                ));
+            let variable = match first {
+                LocalType::Resource(variable, _) => variable,
+                LocalType::Address(head, _) => {
+                    let Some(Type::Managed(payload)) = self.graph.ty(head)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    inference::charge_type_snapshot(
+                        &payload,
+                        span,
+                        self.limits,
+                        self.work_left,
+                        2,
+                    )?;
+                    if !matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                    {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    }
+                    let variable = self.graph.fresh(VALUE, false);
+                    self.graph.bind(variable, &payload, span)?;
+                    variable
+                }
+                _ => {
+                    return Err(error(
+                        "E-OWNED-STORE-TYPE",
+                        span,
+                        "Store primitive requires a resource description",
+                    ));
+                }
             };
             let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
                 return Err(error(
@@ -4685,6 +4852,43 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 self.mark_resource_write(variable, argument.span)?;
             }
             variable.bind(&mut self.graph, parameter, argument.span)?;
+            if matches!(
+                parameter,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && let CoreExprKind::Name(name) = &argument.kind
+                && self.lookup(name).is_none()
+            {
+                *self.work_left = self
+                    .work_left
+                    .checked_sub(
+                        self.captures
+                            .len()
+                            .saturating_mul(name.len().saturating_add(1)),
+                    )
+                    .ok_or_else(|| {
+                        limit("owned Sum capture transfer budget exceeded", argument.span)
+                    })?;
+                if let Some(capture) = self
+                    .captures
+                    .iter_mut()
+                    .find(|capture| capture.name == *name)
+                {
+                    inference::charge_type_snapshot(
+                        &capture.ty,
+                        argument.span,
+                        self.limits,
+                        self.work_left,
+                        2,
+                    )?;
+                    if owned_shapes::sum(&capture.ty)
+                        && dynamic_store::contains_inline_carrier(&capture.ty)
+                    {
+                        capture.moved = true;
+                        capture.borrowed = false;
+                        capture.consumed = true;
+                    }
+                }
+            }
         }
         if let Some(value) = nested_result {
             return Ok(value);
@@ -4700,7 +4904,27 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         };
         let mut fields = Vec::new();
         for item in items {
-            fields.push(self.expr(item, depth + 1)?.scalar(item.span)?);
+            let value = self.expr(item, depth + 1)?;
+            let field = if let LocalType::Resource(payload, true) = value {
+                if let Some(ty) = self.graph.ty(payload)?
+                    && matches!(&ty, Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                {
+                    let variable = self.graph.fresh(VALUE, false);
+                    self.graph
+                        .bind(variable, &Type::Managed(Box::new(ty)), item.span)?;
+                    variable
+                } else {
+                    return Err(unsupported(
+                        item.span,
+                        "ordinary Tuple capture requires a complete inline Store owner",
+                    ));
+                }
+            } else {
+                value.scalar(item.span)?
+            };
+            fields.push(field);
         }
         let result = self.graph.fresh(VALUE, false);
         self.graph.tuple(result, fields, span)?;

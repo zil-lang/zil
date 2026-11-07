@@ -3,6 +3,8 @@
 use std::collections::{BTreeMap, BTreeSet};
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span, TargetProfile};
 use zil_ir::*;
+#[path = "source_dyn_inventory.rs"]
+mod dyn_inventory;
 #[path = "source_inventory.rs"]
 mod inventory;
 
@@ -54,7 +56,6 @@ impl<'a> SourceProgramContext<'a> {
         let mut imports = BTreeMap::new();
         let mut ids = BTreeSet::new();
         for module in &program.modules {
-            unconsumed_life_inventory(&module.core)?;
             let (extra_nodes, extra_work) = inventory::inventory(
                 &module.core,
                 &Limits {
@@ -65,6 +66,16 @@ impl<'a> SourceProgramContext<'a> {
             )?;
             nodes += extra_nodes;
             work -= extra_work;
+            let (dyn_nodes, dyn_work) = dyn_inventory::inventory(
+                &module.core,
+                &Limits {
+                    max_nodes: limits.max_nodes.saturating_sub(nodes),
+                    max_analysis_steps: work,
+                    ..limits.clone()
+                },
+            )?;
+            nodes += dyn_nodes;
+            work -= dyn_work;
             if !module.core.closure_life_contexts.is_empty()
                 || !module.core.aggregate_templates.is_empty()
                 || !module.core.aggregate_applications.is_empty()
@@ -618,11 +629,9 @@ pub(super) fn hint_type(
             hint_type(result, depth + 1, nodes, work, limits)?;
             Ok(false)
         }
-        Type::Dyn { .. } => Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "dyn CT hints require complete scoped metadata handling",
-            None,
-        )]),
+        // A raw dyn identity may be carried as a runtime type hint. It supplies
+        // no CT value shape or permission to execute dynamic operations.
+        Type::Dyn { .. } => Ok(false),
         Type::Unsupported(name) => {
             *work = work.checked_sub(name.len()).ok_or_else(limit)?;
             Ok(false)
@@ -896,7 +905,6 @@ fn evaluate_with_context(
     context: Option<&SourceProgramContext<'_>>,
     compiler: Option<&dyn SourceCompiler>,
 ) -> CompileResult<(CoreModule, SourceEvaluationUsage)> {
-    unconsumed_life_inventory(core)?;
     if core.schema_version != SCHEMA_VERSION {
         return Err(vec![Diagnostic::error(
             Phase::Ct,
@@ -1189,6 +1197,16 @@ impl<'a> Walker<'a> {
         )?;
         self.nodes += extra_nodes;
         self.work_left -= extra_work;
+        let (dyn_nodes, dyn_work) = dyn_inventory::inventory(
+            core,
+            &Limits {
+                max_nodes: self.limits.max_nodes.saturating_sub(self.nodes),
+                max_analysis_steps: self.work_left,
+                ..self.limits.clone()
+            },
+        )?;
+        self.nodes += dyn_nodes;
+        self.work_left -= dyn_work;
         if !core.closure_life_contexts.is_empty()
             || !core.aggregate_templates.is_empty()
             || !core.aggregate_applications.is_empty()
@@ -1721,6 +1739,9 @@ impl<'a> Walker<'a> {
             CoreExprKind::Unary { .. } => self.expr_unary(e, expected, depth),
             CoreExprKind::Binary { .. } => self.expr_binary(e, expected, depth),
             CoreExprKind::Call { .. } => self.expr_call(e, expected, depth),
+            CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
+                self.expr_runtime_dyn(e, depth)
+            }
             CoreExprKind::Array(..) => self.expr_array(e, expected, depth),
             CoreExprKind::Index { .. } => self.expr_index(e, expected, depth),
             CoreExprKind::Slice { .. } => self.expr_slice(e, expected, depth),
@@ -2327,6 +2348,45 @@ impl<'a> Walker<'a> {
             span: e.span,
         })
     }
+    fn expr_runtime_dyn(&mut self, e: &CoreExpr, depth: usize) -> CompileResult<CoreExpr> {
+        let kind = match &e.kind {
+            CoreExprKind::MakeDynBorrow {
+                interface,
+                vtable,
+                source,
+                mutable,
+            } => CoreExprKind::MakeDynBorrow {
+                interface: *interface,
+                vtable: *vtable,
+                source: Box::new(self.expr(source, None, depth + 1)?),
+                mutable: *mutable,
+            },
+            CoreExprKind::CallDynSlot {
+                callee,
+                interface,
+                slot,
+                arguments,
+            } => {
+                let callee = Box::new(self.expr(callee, None, depth + 1)?);
+                let mut output = Vec::new();
+                for argument in arguments {
+                    output.push(self.expr(argument, None, depth + 1)?);
+                }
+                CoreExprKind::CallDynSlot {
+                    callee,
+                    interface: *interface,
+                    slot: *slot,
+                    arguments: output,
+                }
+            }
+            _ => unreachable!("runtime dyn expression dispatch"),
+        };
+        Ok(CoreExpr {
+            id: e.id,
+            kind,
+            span: e.span,
+        })
+    }
     fn expr_leaf(
         &mut self,
         e: &CoreExpr,
@@ -2482,6 +2542,9 @@ impl<'a> Walker<'a> {
                 )]);
             }
             match &e.kind {
+                CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. } => {
+                    return Err(unsupported(e.span, "dynamic dispatch is runtime-only"));
+                }
                 CoreExprKind::Call { callee, .. } if matches!(&callee.kind, CoreExprKind::Name(name) if name == "thread_scope") =>
                 {
                     return Err(vec![Diagnostic::error(
@@ -3178,22 +3241,6 @@ fn integer(
     }
 }
 
-// Closed39 bootstrap boundary before metadata snapshots. CT4 source consumers
-// replace this with a bounded traversal; ignored tables must not be cloned.
-fn unconsumed_life_inventory(core: &CoreModule) -> CompileResult<()> {
-    if !core.dyn_declarations.is_empty()
-        || !core.dyn_interfaces.is_empty()
-        || !core.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Ct,
-            "retained nominal/dynamic inventory consumer is not yet implemented",
-            None,
-        )]);
-    }
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3260,6 +3307,205 @@ mod tests {
             left: Box::new(a),
             right: Box::new(b),
         })
+    }
+    fn raw_dyn_module() -> CoreModule {
+        let mut core = module(number("7"), Type::I32);
+        let declaration = LifeDeclarationId {
+            module: core.module_id,
+            declaration: NodeId(41),
+            compiler: false,
+        };
+        let interface = DynInterfaceId {
+            module: core.module_id,
+            index: 0,
+        };
+        let vtable = DynVtableId {
+            module: core.module_id,
+            index: 0,
+        };
+        let application = DynTraitApplication {
+            declaration,
+            actuals: vec![],
+        };
+        core.dyn_declarations.push(DynDeclaration {
+            id: declaration,
+            identity: LifeDeclarationIdentity {
+                package: "transport".into(),
+                module_path: vec!["module".into()],
+                declaration_path: vec!["Trait".into()],
+                generation_path: vec![7],
+            },
+            kind: DynDeclarationKind::Trait,
+            parameters: vec![],
+            members: vec![DynMemberDeclaration {
+                name: "value".into(),
+                kind: DynMemberKind::Method(vec![]),
+            }],
+        });
+        core.dyn_interfaces.push(DynInterface {
+            id: interface,
+            application: application.clone(),
+            inherited: vec![],
+            associated_types: vec![],
+            associated_constants: vec![],
+            retained_life: RetainedLifeShape {
+                binder_count: 0,
+                ports: vec![],
+                retained: vec![],
+                nominal_arguments: vec![],
+            },
+            slots: vec![DynSlot {
+                member: DynMember {
+                    application,
+                    ordinal: 0,
+                },
+                actuals: vec![],
+                receiver: DynReceiver {
+                    mutable: false,
+                    mode: PassingMode::Infer,
+                },
+                parameters: vec![],
+                parameter_modes: vec![],
+                result: Type::I32,
+                result_mode: PassingMode::Infer,
+                call_kind: CallKind::Direct,
+                storage_life: None,
+                contract: DynContract {
+                    requires: None,
+                    guarantees: None,
+                    hold: None,
+                    call: None,
+                    result: None,
+                    cleanup: None,
+                    effects: None,
+                    resume: None,
+                    threads: None,
+                },
+            }],
+        });
+        core.dyn_vtables.push(CoreDynVtable {
+            id: vtable,
+            interface,
+            self_type: Type::Record {
+                name: "Provider".into(),
+                fields: vec![],
+            },
+            implementation: declaration,
+            actuals: vec![],
+            ports: vec![],
+            entries: vec![CoreDynEntry {
+                slot: 0,
+                module: core.module_id,
+                function: NodeId(92),
+            }],
+            cleanup: None,
+        });
+        core
+    }
+    #[test]
+    fn dyn_runtime_tables_survive_scalar_ct_with_exact_shared_budget() {
+        let core = raw_dyn_module();
+        let target = TargetProfile::host_llvm();
+        let limits = Limits::default();
+        let (output, usage) =
+            evaluate_source_constants_with_usage(&core, &target, &limits).unwrap();
+        assert_eq!(output.dyn_declarations, core.dyn_declarations);
+        assert_eq!(output.dyn_interfaces, core.dyn_interfaces);
+        assert_eq!(output.dyn_vtables, core.dyn_vtables);
+        assert_eq!(output.dyn_interfaces[0].slots[0].contract.requires, None);
+        let exact = Limits {
+            max_nodes: usage.nodes,
+            ..limits.clone()
+        };
+        assert!(evaluate_source_constants(&core, &target, &exact).is_ok());
+        let short = Limits {
+            max_nodes: usage.nodes - 1,
+            ..limits.clone()
+        };
+        assert_eq!(
+            evaluate_source_constants(&core, &target, &short).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(
+            evaluate_source_constants_with_usage(&core, &target, &limits)
+                .unwrap()
+                .1,
+            usage
+        );
+    }
+    #[test]
+    fn dyn_unused_bad_or_oversize_tables_are_not_ignored() {
+        let core = raw_dyn_module();
+        let target = TargetProfile::host_llvm();
+        evaluate_source_constants_with_usage(&core, &target, &Limits::default()).unwrap();
+        let mut malformed = core.clone();
+        malformed.dyn_vtables[0].entries[0].slot = 999;
+        let carried = evaluate_source_constants(&malformed, &target, &Limits::default()).unwrap();
+        assert_eq!(carried.dyn_vtables, malformed.dyn_vtables);
+        let mut bad = core.clone();
+        bad.dyn_interfaces[0].slots[0].contract.effects =
+            Some(vec![DynEffect::Cleanup(Type::Record {
+                name: "oversized".repeat(32),
+                fields: vec![],
+            })]);
+        let (_, extra_work) = dyn_inventory::inventory(&bad, &Limits::default()).unwrap();
+        assert!(extra_work > 0);
+        let short = Limits {
+            max_analysis_steps: extra_work - 1,
+            ..Limits::default()
+        };
+        assert_eq!(
+            dyn_inventory::inventory(&bad, &short).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        assert_eq!(
+            evaluate_source_constants(&bad, &target, &short).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+        let mut deep = core;
+        let ty = &mut deep.dyn_vtables[0].self_type;
+        for _ in 0..130 {
+            *ty = Type::Address {
+                mutable: false,
+                inner: Box::new(ty.clone()),
+            };
+        }
+        assert_eq!(
+            evaluate_source_constants(&deep, &target, &Limits::default()).unwrap_err()[0].category,
+            zil_base::ResultCategory::ResourceLimit
+        );
+    }
+    #[test]
+    fn runtime_dyn_expression_is_transported_with_original_references() {
+        let mut core = raw_dyn_module();
+        let interface = core.dyn_interfaces[0].id;
+        let vtable = core.dyn_vtables[0].id;
+        let mut source = expr(CoreExprKind::Name("provider".into()));
+        source.id = NodeId(9000);
+        let borrowed = expr(CoreExprKind::MakeDynBorrow {
+            interface,
+            vtable,
+            source: Box::new(source),
+            mutable: false,
+        });
+        let call = expr(CoreExprKind::CallDynSlot {
+            callee: Box::new(borrowed),
+            interface,
+            slot: 0,
+            arguments: vec![],
+        });
+        core.functions[0].body.statements[0].kind = CoreStatementKind::Return(Some(call.clone()));
+        assert_eq!(
+            crate::materialize::first_free_id(&core, &Limits::default()).unwrap(),
+            9001
+        );
+        let output =
+            evaluate_source_constants(&core, &TargetProfile::host_llvm(), &Limits::default())
+                .unwrap();
+        assert_eq!(
+            output.functions[0].body.statements[0].kind,
+            CoreStatementKind::Return(Some(call))
+        );
     }
     #[test]
     fn retained_inventory_transport_preserves_metadata_and_shared_budget() {

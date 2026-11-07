@@ -531,11 +531,14 @@ fn ordinary_local_product_mutable_helper_nearest_rejections() {
         &MUTABLE_PRODUCT_HELPER.replace("var panel=", "let panel="),
         ResultCategory::SafeReject,
     );
-    reject(
-        "store-head315",
-        "package Panel{manages items:Store<i32>;count:i32}fn bump(panel:&mut Panel){panel.count+=1}fn main(){var panel=Panel{items:store_new(),count:0};bump(&mut panel)}",
-        ResultCategory::Unsupported,
-    );
+    // G9.3.5 admits this exact ordinary Package owner with a scalar Store.
+    let store_head = "package Panel{manages items:Store<i32>;count:i32}fn bump(panel:&mut Panel){panel.count+=1}fn main(){var panel=Panel{items:store_new(),count:0};bump(&mut panel)}";
+    let module = typed(store_head);
+    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &limits).unwrap();
+    native("store-head315", store_head, "", 0);
     reject(
         "mutable-child-projection315",
         &product315(

@@ -137,6 +137,9 @@ pub(super) fn check_resolved_program_with_reuse(
         let table = signatures(core, limits, offset, Some(&exports))?;
         signatures_by_module.insert(core.module_id, table);
     }
+    let (dyn_declarations, dyn_interfaces, dyn_vtables) =
+        dyn_dispatch::inventory_program(program, &signatures_by_module, limits)
+            .map_err(|e| vec![e])?;
     // Reserve the complete ordinary-function range before any local closure
     // gets an identity. Generated environment entries never enter interfaces.
     let mut closure_state = closures::State::new(count, limits);
@@ -248,6 +251,9 @@ pub(super) fn check_resolved_program_with_reuse(
             Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
         builder.imports = Some(&imports);
         builder.enums = Some(&enum_types);
+        builder.dyn_declarations = &dyn_declarations;
+        builder.dyn_interfaces = &dyn_interfaces;
+        builder.dyn_vtables = &dyn_vtables;
         let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
         visibility.check(
             &typed,
@@ -331,6 +337,9 @@ pub(super) fn check_resolved_program_with_reuse(
                     Builder::new(f, id, table, limits, &mut closure_state).map_err(|e| vec![e])?;
                 builder.imports = Some(&imports);
                 builder.enums = Some(&enum_types);
+                builder.dyn_declarations = &dyn_declarations;
+                builder.dyn_interfaces = &dyn_interfaces;
+                builder.dyn_vtables = &dyn_vtables;
                 let typed = builder.finish(&f.body).map_err(|e| vec![e])?;
                 visibility.check(
                     &typed,
@@ -490,9 +499,9 @@ pub(super) fn check_resolved_program_with_reuse(
     let mut module = TypedModule {
         life_declarations,
         life_instances,
-        dyn_declarations: Vec::new(),
-        dyn_interfaces: Vec::new(),
-        dyn_vtables: Vec::new(),
+        dyn_declarations,
+        dyn_interfaces,
+        dyn_vtables,
         resources,
         schema_version: SCHEMA_VERSION,
         module_id: program.root,
@@ -616,8 +625,16 @@ fn interface_fingerprint(
                 PassingMode::BorrowMut => 6,
                 PassingMode::Infer => 7,
             });
-            interface_identity::encode(ty, closures, &mut bytes, limits, remaining)
-                .map_err(|e| vec![e])?;
+            interface_identity::encode(
+                ty,
+                closures,
+                &module.dyn_declarations,
+                &module.dyn_interfaces,
+                &mut bytes,
+                limits,
+                remaining,
+            )
+            .map_err(|e| vec![e])?;
         }
         bytes.push(match export.result_mode {
             PassingMode::Copy => 0,
@@ -629,8 +646,16 @@ fn interface_fingerprint(
             PassingMode::BorrowMut => 6,
             PassingMode::Infer => 7,
         });
-        interface_identity::encode(&export.result, closures, &mut bytes, limits, remaining)
-            .map_err(|e| vec![e])?;
+        interface_identity::encode(
+            &export.result,
+            closures,
+            &module.dyn_declarations,
+            &module.dyn_interfaces,
+            &mut bytes,
+            limits,
+            remaining,
+        )
+        .map_err(|e| vec![e])?;
         bytes.push(u8::from(export.reference_return_bound.is_some()));
         if let Some(bound) = &export.reference_return_bound {
             bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());

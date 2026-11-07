@@ -222,7 +222,25 @@ pub(super) fn check_definitions(
                     None,
                 ));
             }
-            if dynamic_store::is_carrier(ty) || packages::has_store_fields(ty) {
+            let inline_store_capture = matches!(
+                ty,
+                Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.inline_store_root(ty)?
+                && dynamic_store::owned_capture_store(ty, budget)?;
+            if inline_store_capture
+                && matches!(
+                    ty,
+                    Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+                )
+                && !budget.direct_sum_capture_closures.contains(&closure.id.0)
+            {
+                budget.spend(budget.direct_sum_capture_closures.len().saturating_add(1))?;
+                budget.direct_sum_capture_closures.insert(closure.id.0);
+            }
+            if dynamic_store::is_carrier(ty)
+                || packages::has_store_fields(ty)
+                || inline_store_capture
+            {
                 dynamic_store::check_owned_capture(module, ty, Some(limits), budget)?;
             }
             if packages::has_array_fields(ty) || packages::has_callable_fields(ty) {
@@ -239,14 +257,14 @@ pub(super) fn check_definitions(
             }
             if budget.sums && matches!(ty, Type::Enum { .. }) {
                 resources::charge_payload(ty, budget)?;
-                if sums::owned_enum(ty) {
+                if sums::owned_enum(ty) && !inline_store_capture {
                     return Err(unsupported(
                         "owning Enum capture is outside the finite closure profile",
                         None,
                     ));
                 }
             }
-            if errors::owned(ty, budget.sums) {
+            if errors::owned(ty, budget.sums) && !inline_store_capture {
                 return Err(unsupported(
                     "owning error-union captures are outside the finite closure profile",
                     None,
@@ -547,31 +565,30 @@ pub(crate) fn type_layout_work(ty: &Type, budget: &mut Budget) -> Check<usize> {
 
 fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, bool)> {
     let root = ty;
-    let mut pending = vec![ty];
+    let mut pending = vec![(ty, true)];
     let mut work = 0usize;
     let mut contains_store = false;
-    while let Some(ty) = pending.pop() {
+    while let Some((ty, owning)) = pending.pop() {
         budget.spend(1)?;
         work = work
             .checked_add(1)
             .ok_or_else(|| limit("inline type layout work overflow"))?;
-        if std::ptr::eq(ty, root) {
-            contains_store |= matches!(ty, Type::Managed(payload)
-                if matches!(payload.as_ref(), Type::OwnedStore { .. }));
-        }
+        contains_store |= owning
+            && matches!(ty, Type::Managed(payload)
+            if matches!(payload.as_ref(), Type::OwnedStore { .. }));
         match ty {
             Type::Array { element, .. }
             | Type::Slice { element }
             | Type::OwnedStore { element }
             | Type::Address { inner: element, .. }
-            | Type::Managed(element)
             | Type::Desc(element)
             | Type::Opaque {
                 hidden: element, ..
-            } => pending.push(element),
+            } => pending.push((element, false)),
+            Type::Managed(element) => pending.push((element, false)),
             Type::Tuple(fields) => {
                 budget.spend(fields.len())?;
-                pending.extend(fields);
+                pending.extend(fields.iter().map(|field| (field, owning)));
             }
             Type::Record { fields, .. } | Type::Package { fields, .. } => {
                 budget.spend(fields.len())?;
@@ -581,19 +598,19 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
                         contains_store |= matches!(field, Type::Managed(payload)
                             if matches!(payload.as_ref(), Type::OwnedStore { .. }));
                     }
-                    field
+                    (field, owning && matches!(ty, Type::Package { .. }))
                 }));
             }
             Type::Enum { variants, .. } => {
                 budget.spend(variants.len())?;
                 for (_, fields) in variants {
                     budget.spend(fields.len())?;
-                    pending.extend(fields);
+                    pending.extend(fields.iter().map(|field| (field, owning)));
                 }
             }
             Type::ErrorUnion { error, result } => {
                 budget.spend(2)?;
-                pending.extend([error.as_ref(), result.as_ref()]);
+                pending.extend([(error.as_ref(), owning), (result.as_ref(), owning)]);
             }
             Type::FunctionPointer { parameters, result }
             | Type::BorrowedFunctionPointer {
@@ -601,8 +618,8 @@ fn type_layout_work_with_store(ty: &Type, budget: &mut Budget) -> Check<(usize, 
             }
             | Type::ForeignCallback { parameters, result } => {
                 budget.spend(parameters.len().saturating_add(1))?;
-                pending.extend(parameters);
-                pending.push(result);
+                pending.extend(parameters.iter().map(|parameter| (parameter, false)));
+                pending.push((result, false));
             }
             _ => {}
         }
@@ -660,6 +677,11 @@ pub(super) fn self_contained(
             match ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
+                ty if budget.inline_store_root(ty)?
+                    && dynamic_store::inline_sum_capture(ty, budget)? =>
+                {
+                    dynamic_store::check_owned_capture(module, ty, None, budget)?;
+                }
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
@@ -681,6 +703,12 @@ pub(super) fn owned_type(module: &TypedModule, ty: &Type, budget: &mut Budget) -
     };
     let definition = definition(module, *id, None)?;
     budget.spend(definition.captures.len().saturating_add(1))?;
+    for capture in &definition.captures {
+        if budget.inline_store_root(capture)? && dynamic_store::inline_sum_capture(capture, budget)?
+        {
+            return Ok(true);
+        }
+    }
     Ok(definition.kind == CallableKind::FnOnce
         || definition.captures.iter().any(|ty| {
             matches!(
@@ -714,7 +742,9 @@ pub(super) fn check_resource_instruction(
                     "capture borrow requires an actual environment field",
                 ));
             };
-            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_))) {
+            let inline_sum =
+                budget.inline_store_root(ty)? && dynamic_store::inline_sum_capture(ty, budget)?;
+            if !(ty.is_copy_value() || matches!(ty, Type::Closure(_)) || inline_sum) {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -756,14 +786,21 @@ pub(super) fn check_resource_instruction(
                 ));
             };
             if matches!(instruction.kind, InstructionKind::TakeCapture { .. }) {
-                if !matches!(ty, Type::Managed(_) | Type::Closure(_)) {
+                if !matches!(ty, Type::Managed(_) | Type::Closure(_))
+                    && !(budget.inline_store_root(ty)?
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                {
                     return Err(reject(
                         "E-VERIFY-CAPTURE",
                         span,
                         "capture take requires an actual Managed field or owned Closure field",
                     ));
                 }
-                if definition.kind != CallableKind::FnOnce {
+                if definition.kind != CallableKind::FnOnce
+                    && !(definition.kind == CallableKind::FnMut
+                        && budget.inline_store_root(ty)?
+                        && dynamic_store::inline_sum_capture(ty, budget)?)
+                {
                     return Err(reject(
                         "E-VERIFY-CLOSURE-CALL",
                         span,

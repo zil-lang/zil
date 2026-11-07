@@ -87,13 +87,19 @@ fn owned(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<
                 .get(id.0 as usize)
                 .ok_or_else(|| error("absent concrete environment"))?;
             budget.spend(c.captures.len(), "defer environment classification")?;
-            c.kind == CallableKind::FnOnce
+            let mut is_owned = c.kind == CallableKind::FnOnce
                 || c.captures.iter().any(|t| {
                     matches!(
                         t,
                         Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
                     )
-                })
+                });
+            if budget.has_ordinary_store_sum_capture(*id)? {
+                for capture in &c.captures {
+                    is_owned |= budget.ordinary_store_sum_capture(*id, capture)?;
+                }
+            }
+            is_owned
         }
         Type::Enum { .. } | Type::ErrorUnion { .. } => {
             !budget.sum_functions.is_empty() && resources::sums::owned(ty)

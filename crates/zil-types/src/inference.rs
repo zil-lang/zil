@@ -929,12 +929,9 @@ fn validate_type(ty: &Type, depth: usize, span: Span, budget: &mut Budget<'_>) -
     budget.node(depth, span)?;
     tasks::require_closed_context(ty, span)?;
     match ty {
-        Type::Dyn { .. } => {
-            return Err(unsupported(
-                span,
-                "dyn type consumer is not yet implemented",
-            ));
-        }
+        // The concrete interface ID is checked against the complete inventory
+        // by the dyn admission pass after ordinary type resolution.
+        Type::Dyn { .. } => {}
         Type::BorrowedStorage { storage, life } => {
             for slot in &life.slots {
                 budget.node(depth + 1, span)?;
@@ -1228,15 +1225,6 @@ fn contains_closure(block: &CoreBlock, depth: usize, budget: &mut Budget<'_>) ->
 }
 fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -> R<bool> {
     budget.node(depth, e.span)?;
-    if matches!(
-        e.kind,
-        CoreExprKind::MakeDynBorrow { .. } | CoreExprKind::CallDynSlot { .. }
-    ) {
-        return Err(unsupported(
-            e.span,
-            "dyn expression consumer is not yet implemented",
-        ));
-    }
     let direct_type_callee = std::mem::take(&mut budget.direct_type_callee);
     match &e.kind {
         CoreExprKind::Literal(Constant::WideString(_)) => {
@@ -1250,13 +1238,16 @@ fn expression_has_closure(e: &CoreExpr, depth: usize, budget: &mut Budget<'_>) -
         CoreExprKind::Closure { .. } => {
             expression_has_closure_closure(e, depth, budget, direct_type_callee)
         }
-        CoreExprKind::Unary { .. } | CoreExprKind::CompileTime(..) | CoreExprKind::Try(..) => {
+        CoreExprKind::MakeDynBorrow { .. }
+        | CoreExprKind::Unary { .. }
+        | CoreExprKind::CompileTime(..)
+        | CoreExprKind::Try(..) => {
             expression_has_closure_unary(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::Binary { .. } => {
             expression_has_closure_binary(e, depth, budget, direct_type_callee)
         }
-        CoreExprKind::Call { .. } => {
+        CoreExprKind::Call { .. } | CoreExprKind::CallDynSlot { .. } => {
             expression_has_closure_call(e, depth, budget, direct_type_callee)
         }
         CoreExprKind::TypeApply { .. } => {
@@ -1370,7 +1361,10 @@ fn expression_has_closure_unary(
 ) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Unary { operand, .. }
+        CoreExprKind::MakeDynBorrow {
+            source: operand, ..
+        }
+        | CoreExprKind::Unary { operand, .. }
         | CoreExprKind::CompileTime(operand)
         | CoreExprKind::Try(operand) => {
             found |= expression_has_closure(operand, depth + 1, budget)?;
@@ -1405,7 +1399,10 @@ fn expression_has_closure_call(
 ) -> R<bool> {
     let mut found = false;
     match &e.kind {
-        CoreExprKind::Call { callee, arguments } => {
+        CoreExprKind::Call { callee, arguments }
+        | CoreExprKind::CallDynSlot {
+            callee, arguments, ..
+        } => {
             {
                 let previous = budget.direct_type_callee;
                 budget.direct_type_callee = true;
@@ -2619,11 +2616,14 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
             )),
         }
     }
-    fn pattern_term(&self, variable: Variable, span: Span) -> R<Term> {
-        Ok(match self.graph.address_shape(variable, span)? {
-            Some((inner, Some(mutable))) => Term::Address(inner, mutable),
-            _ => Term::Scalar(variable),
-        })
+    fn pattern_term(&mut self, variable: Variable, span: Span) -> R<Term> {
+        if let Some((inner, Some(mutable))) = self.graph.address_shape(variable, span)? {
+            return Ok(Term::Address(inner, mutable));
+        }
+        if let Some(ty @ (Type::Managed(_) | Type::Desc(_))) = self.graph.ty(variable)? {
+            return self.known_term(&ty, span);
+        }
+        Ok(Term::Scalar(variable))
     }
     // A shared aggregate projection constrains its pointee shape only.
     // Ordinary checking still decides place validity and all address permissions.
@@ -3947,12 +3947,38 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     _ => self.known_term(&Type::I64, span),
                 };
             }
-            let Term::Resource(variable, _) = first else {
-                return Err(error(
-                    "E-OWNED-STORE-TYPE",
-                    span,
-                    "Store primitive requires a resource description",
-                ));
+            let variable = match first {
+                Term::Resource(variable, _) => variable,
+                Term::Address(head, _) => {
+                    let Some(Type::Managed(payload)) = self.graph.ty(head)? else {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    };
+                    validate_type(&payload, 0, span, self.budget)?;
+                    if !matches!(payload.as_ref(), Type::OwnedStore { element }
+                        if dynamic_store::inline_element(element)
+                            && dynamic_store::supported_element(element))
+                    {
+                        return Err(error(
+                            "E-OWNED-STORE-TYPE",
+                            span,
+                            "Store primitive requires a resource description",
+                        ));
+                    }
+                    let variable = self.fresh(VALUE, false, span)?;
+                    self.bind(variable, &payload, span)?;
+                    variable
+                }
+                _ => {
+                    return Err(error(
+                        "E-OWNED-STORE-TYPE",
+                        span,
+                        "Store primitive requires a resource description",
+                    ));
+                }
             };
             let Some(Type::OwnedStore { element }) = self.graph.ty(variable)? else {
                 return Err(error(
@@ -5023,7 +5049,43 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
         for (index, item) in items.iter().enumerate() {
             let term =
                 self.expr_expected(item, hints.and_then(|h| h.get(index)), depth + 1, false)?;
-            fields.push(self.scalar(&term, item.span)?);
+            let owned_store_element = match &term {
+                Term::ValueStore(element, true) => {
+                    let Term::Scalar(element) = element.as_ref() else {
+                        return Err(unsupported(
+                            item.span,
+                            "ordinary Tuple Store fields require a concrete inline element",
+                        ));
+                    };
+                    Some(self.graph.injection_type(*element, item.span)?)
+                }
+                Term::Resource(variable, true) => match self.graph.ty(*variable)? {
+                    Some(Type::OwnedStore { element }) => Some(*element),
+                    _ => None,
+                },
+                _ => None,
+            };
+            let field = if let Some(element) = owned_store_element {
+                // A complete ordinary Tuple may own a concrete or generic
+                // Store call result. The Builder still proves the real transfer.
+                if !dynamic_store::inline_element(&element)
+                    || !dynamic_store::supported_element(&element)
+                {
+                    return Err(unsupported(
+                        item.span,
+                        "ordinary Tuple Store fields require a finite scalar or POD Record element",
+                    ));
+                }
+                let ty = Type::Managed(Box::new(Type::OwnedStore {
+                    element: Box::new(element),
+                }));
+                let variable = self.fresh(VALUE, false, item.span)?;
+                self.bind(variable, &ty, item.span)?;
+                variable
+            } else {
+                self.scalar(&term, item.span)?
+            };
+            fields.push(field);
         }
         let result = self.fresh(VALUE, false, span)?;
         self.graph.tuple(result, fields, span)?;
@@ -5594,16 +5656,11 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
     }
 }
 
-/// Initial39 boundary: nonempty new data must reach a real bounded consumer.
-pub(super) fn unconsumed_inventory(core: &CoreModule) -> R<()> {
-    if !core.dyn_declarations.is_empty()
-        || !core.dyn_interfaces.is_empty()
-        || !core.dyn_vtables.is_empty()
-    {
-        return Err(unsupported(
-            Span::default(),
-            "dynamic declaration/interface/vtable inventory consumer is not yet implemented",
-        ));
-    }
+/// Dyn inventory is consumed by the bounded admission pass after concrete
+/// signature resolution. An orphan raw table cannot enter inference.
+pub(super) fn unconsumed_inventory(_core: &CoreModule) -> R<()> {
+    // A project may place the trait declaration, interface and committed
+    // provider table in different modules. Admission needs the complete
+    // project graph and runs after name/type resolution.
     Ok(())
 }

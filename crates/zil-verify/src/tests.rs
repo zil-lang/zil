@@ -14,7 +14,7 @@ fn inst(result: Option<u32>, kind: InstructionKind) -> Instruction {
         span: span(),
     }
 }
-fn baseline() -> (TypedModule, CandidatePlan) {
+pub(super) fn baseline() -> (TypedModule, CandidatePlan) {
     let function = TypedFunction {
         storage_life: None,
         call_kind: zil_ir::CallKind::Direct,

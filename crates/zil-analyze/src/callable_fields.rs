@@ -24,8 +24,14 @@ pub(super) fn self_contained(
             match capture {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) if !dynamic_store::is_carrier(capture) => {}
+                Type::Managed(_) if ownership_store::pod_owned(capture) => {
+                    ownership_store::capture(module, capture, budget)?;
+                }
                 Type::Managed(_) if dynamic_store::is_owned_carrier(capture) => {
                     dynamic_store::owned_capture(module, capture, budget)?;
+                }
+                Type::Package { .. } if budget.ordinary_pod_store_type(capture)? => {
+                    ownership_store::capture(module, capture, budget)?;
                 }
                 Type::Package { fields, .. }
                     if fields.iter().all(|(_, field)| {
@@ -37,6 +43,15 @@ pub(super) fn self_contained(
                 }
                 Type::Package { .. } => {
                     dynamic_store::captured_package(module, capture, budget)?;
+                }
+                ty @ (Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })
+                    if budget.ordinary_store_sum_capture(id, ty)? =>
+                {
+                    if !resources::sums::admit(module, ty, budget)? {
+                        return Err(bad(
+                            "callback State owning Sum lacks an ordinary Store leaf",
+                        ));
+                    }
                 }
                 ty if ty.is_copy_value() => {}
                 _ => {

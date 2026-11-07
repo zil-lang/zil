@@ -1584,7 +1584,14 @@ fn infer_with_private(
         .as_ref()
         .map(|definitions| definitions.schedule(f, reachable, budget))
         .transpose()?;
-    let mut pattern_windows = budget.owning_address_captures || replacement_schedule.is_some();
+    let dyn_windows = if budget.dyn_interfaces.is_empty() {
+        false
+    } else {
+        budget.spend(v, "dyn actual address window classification")?;
+        f.values.iter().any(|ty| matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. })))
+    };
+    let mut pattern_windows =
+        budget.owning_address_captures || replacement_schedule.is_some() || dyn_windows;
     if budget.addressed_sums {
         budget.spend(f.blocks.len(), "pattern window function scan")?;
         for block in &f.blocks {
@@ -1932,6 +1939,12 @@ fn infer_with_private(
                             let source = values
                                 .get(address.0 as usize)
                                 .ok_or_else(|| bad("projection address outside table"))?;
+                            extend(&mut found, source, budget)?;
+                        }
+                        InstructionKind::MakeDynBorrow { source, .. } => {
+                            let source = values
+                                .get(source.0 as usize)
+                                .ok_or_else(|| bad("dyn borrow source outside value table"))?;
                             extend(&mut found, source, budget)?;
                         }
                         InstructionKind::BorrowCapture { index, .. }

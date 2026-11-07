@@ -6,7 +6,8 @@ pub(super) fn owned(ty: &Type, sum_extension: bool) -> bool {
     matches!(ty, Type::ErrorUnion { error, result }
         if matches!(error.as_ref(), Type::Package { .. })
             || matches!(result.as_ref(), Type::Package { .. } | Type::Managed(_))
-            || (sum_extension && (sums::owned(error) || sums::owned(result))))
+            || (sum_extension && (sums::owned(error) || sums::owned(result)
+                || dynamic_store::inline_owner(error))))
 }
 
 /// Classifies a raw shape; admission and responsibility are checked elsewhere.

@@ -188,6 +188,7 @@ pub(super) fn self_contained(
             match &capture.ty {
                 Type::Closure(child) => pending.push(*child),
                 Type::Managed(_) | Type::Package { .. } => {}
+                ty if capture.moved && owned_shapes::sum(ty) => {}
                 ty if ty.is_copy_value() => {}
                 _ => {
                     return Err(unsupported(
@@ -539,7 +540,10 @@ pub(super) fn validate_factory(function: &CoreFunction) -> R<()> {
         || function.parameters.iter().any(|parameter| {
             !(parameter.ty.is_copy_value()
                 || matches!(&parameter.ty, Type::Managed(_) if resources::supported(&parameter.ty))
-                || packages::capture_supported(&parameter.ty))
+                || packages::capture_supported(&parameter.ty)
+                || (matches!(&parameter.ty, Type::Package { .. })
+                    && packages::has_store_fields(&parameter.ty)
+                    && packages::ordinary(&parameter.ty)))
         })
     {
         return Err(unsupported(
@@ -599,11 +603,23 @@ impl Builder<'_, '_> {
             ));
         }
         let mut cleanup = Vec::new();
-        for (index, capture) in pending.captures.iter().enumerate() {
-            let ty = capture.stored_type();
+        for index in 0..self.closures.pending[id.0 as usize].captures.len() {
+            let (ty, moved, borrowed) = {
+                let capture = &self.closures.pending[id.0 as usize].captures[index];
+                (capture.stored_type(), capture.moved, capture.borrowed)
+            };
             if matches!(&ty, Type::Managed(_) if resources::supported(&ty))
                 || packages::capture_supported(&ty)
                 || matches!(ty, Type::Closure(_))
+                || (moved
+                    && !borrowed
+                    && matches!(ty, Type::Package { .. })
+                    && packages::has_store_fields(&ty)
+                    && self.closures.ordinary_store_capture(&ty, span)?)
+                || (moved
+                    && !borrowed
+                    && owned_shapes::sum(&ty)
+                    && self.closures.ordinary_store_capture(&ty, span)?)
             {
                 cleanup.push(index as u32);
             } else if !ty.is_copy_value() {

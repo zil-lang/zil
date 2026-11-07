@@ -19,6 +19,7 @@ pub(super) struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     pub(super) static_utf8: bool,
     pub(super) pod_stores: bool,
+    pub(super) dyn_interfaces: BTreeSet<zil_ir::DynInterfaceId>,
     pub(super) partial_depth: usize,
     pub(super) helper_nodes: usize,
     pub(super) helper_calls: usize,
@@ -60,6 +61,11 @@ pub(super) struct Budget {
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
     sum_roots: BTreeSet<usize>,
+    // Exact owning inline-Store Sum capture roots found by the paid raw walk.
+    // Empty on old Sum profiles, including owning ByteBuffer Enums.
+    ordinary_store_sum_captures: Vec<BTreeSet<usize>>,
+    ordinary_store_sum_addresses: BTreeSet<usize>,
+    ordinary_pod_store_roots: BTreeSet<usize>,
 }
 
 impl Budget {
@@ -68,6 +74,7 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
             pod_stores: false,
+            dyn_interfaces: BTreeSet::new(),
             partial_depth: limits.max_call_depth,
             helper_nodes: limits.max_nodes,
             helper_calls: limits.max_instructions,
@@ -106,7 +113,53 @@ impl Budget {
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
+            ordinary_store_sum_captures: Vec::new(),
+            ordinary_store_sum_addresses: BTreeSet::new(),
+            ordinary_pod_store_roots: BTreeSet::new(),
         }
+    }
+
+    pub(super) fn has_ordinary_store_sum_capture(
+        &mut self,
+        id: zil_ir::ClosureId,
+    ) -> CompileResult<bool> {
+        if self.ordinary_store_sum_captures.is_empty() {
+            return Ok(false);
+        }
+        self.spend(1, "ordinary Sum capture closure lookup")?;
+        Ok(self
+            .ordinary_store_sum_captures
+            .get(id.0 as usize)
+            .is_some_and(|roots| !roots.is_empty()))
+    }
+
+    pub(super) fn ordinary_store_sum_capture(
+        &mut self,
+        id: zil_ir::ClosureId,
+        ty: &Type,
+    ) -> CompileResult<bool> {
+        let Some(roots) = self.ordinary_store_sum_captures.get(id.0 as usize) else {
+            return Ok(false);
+        };
+        let len = roots.len();
+        if len == 0 {
+            return Ok(false);
+        }
+        self.lookup(len, "actual ordinary Store Sum capture root")?;
+        Ok(self.ordinary_store_sum_captures[id.0 as usize].contains(&(ty as *const Type as usize)))
+    }
+
+    pub(super) fn ordinary_store_sum_address(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.ordinary_store_sum_addresses.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.ordinary_store_sum_addresses.len(),
+            "actual ordinary Store Sum address root",
+        )?;
+        Ok(self
+            .ordinary_store_sum_addresses
+            .contains(&(ty as *const Type as usize)))
     }
 
     pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
@@ -115,6 +168,18 @@ impl Budget {
         }
         self.lookup(self.sum_roots.len(), "ordinary Sum type inventory")?;
         Ok(self.sum_roots.contains(&(ty as *const Type as usize)))
+    }
+    pub(super) fn ordinary_pod_store_type(&mut self, ty: &Type) -> CompileResult<bool> {
+        if self.ordinary_pod_store_roots.is_empty() {
+            return Ok(false);
+        }
+        self.lookup(
+            self.ordinary_pod_store_roots.len(),
+            "ordinary POD Store root lookup",
+        )?;
+        Ok(self
+            .ordinary_pod_store_roots
+            .contains(&(ty as *const Type as usize)))
     }
     pub(super) fn remaining(&self) -> usize {
         self.remaining
@@ -170,12 +235,11 @@ impl Budget {
         self.spend(2 + usize::from(copy_check), context)?;
         super::tasks::require_closed_context(ty)?;
         match ty {
-            Type::Dyn { .. } => {
-                return Err(vec![Diagnostic::unsupported(
-                    Phase::Analyze,
-                    "dyn type consumer is not yet implemented",
-                    None,
-                )]);
+            Type::Dyn { interface } => {
+                self.lookup(self.dyn_interfaces.len(), "dyn type interface lookup")?;
+                if !self.dyn_interfaces.contains(interface) {
+                    return Err(bad("dyn type lacks a checked interface"));
+                }
             }
             Type::BorrowedStorage { storage, life } => {
                 self.spend(
@@ -320,6 +384,10 @@ struct SumContext {
     product_sum: bool,
     // Presence only, carried through wrappers during the paid type walk.
     pod_aggregate: bool,
+    // Set only at the actual Managed<OwnedStore<POD>> edge of an ordinary
+    // owning aggregate. Array, element and resource-head paths cannot set it.
+    ordinary_pod_store: bool,
+    forbidden_store: bool,
 }
 
 fn package_fields_supported(ty: &Type, arrays: bool) -> bool {
@@ -416,6 +484,14 @@ fn local_value(
     module: &TypedModule,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
+    if let Type::Address {
+        mutable: false,
+        inner,
+    } = ty
+        && matches!(inner.as_ref(), Type::Dyn { .. })
+    {
+        return Ok(false);
+    }
     if matches!(ty, Type::BorrowedStorage { .. }) {
         // The paid structural preflight above already visits every actual
         // return, local, and SSA type and qualifies each stored boundary.
@@ -439,9 +515,15 @@ fn local_value(
     if let Type::Address { inner, .. } = ty
         && super::resources::product::nested(inner)
     {
-        return super::resources::product::admit(inner, budget).map(|_| false);
+        return if budget.ordinary_pod_store_type(inner)? {
+            super::resources::product::admit_owned(module, inner, budget)
+        } else {
+            super::resources::product::admit_borrowed(inner, budget).map(|_| false)
+        };
     }
-    if super::resources::product::nested(ty) {
+    if super::resources::product::nested(ty)
+        || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
+    {
         super::resources::product::admit_owned(module, ty, budget)
     } else if let Some(payload) = super::dynamic_store::product_protocol_payload(ty) {
         super::dynamic_store::product_element(payload, budget).map(|_| false)
@@ -557,16 +639,7 @@ pub(super) fn preflight(
     if module.schema_version != SCHEMA_VERSION {
         return Err(bad("unknown typed module schema version"));
     }
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(vec![Diagnostic::unsupported(
-            Phase::Analyze,
-            "dyn table consumer is not yet implemented",
-            None,
-        )]);
-    }
+    super::dyn_dispatch::inventory(module, budget)?;
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         super::stored_flow::inventory(module, limits, budget)?;
         // The second walk pays identity encoding from this same ledger.
@@ -661,6 +734,7 @@ pub(super) fn preflight(
         // Reuse the already paid structural visit to classify new ordinary
         // positions. No extra recursive eligibility scan runs on legacy types.
         let root = ty as *const Type as usize;
+        let dyn_carrier = matches!(ty, Type::Address { mutable: false, inner } if matches!(inner.as_ref(), Type::Dyn { .. }));
         // The old Store protocol already admitted Unit!ordinary Product with
         // no Store/Sum child; retain that exact profile and fee path.
         let sum_address_root = matches!(ty,Type::Address{inner,..}if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}))
@@ -670,6 +744,7 @@ pub(super) fn preflight(
             if **error == Type::Unit || **result == Type::Unit);
         let mut anonymous = Vec::new();
         let mut new_sum = false;
+        let mut new_ordinary_pod_store = false;
         let mut first = Some((
             ty,
             0usize,
@@ -719,7 +794,17 @@ pub(super) fn preflight(
                     child.pod_aggregate = true;
                     child.product_sum |= context.in_product;
                 }
-                Type::Managed(_) => {
+                Type::Record { .. } => {
+                    child.forbidden_store = true;
+                }
+                Type::Managed(payload) => {
+                    let ordinary_pod_store = context.pod_aggregate
+                        && !context.blocked
+                        && !context.forbidden_store
+                        && store_element.is_none()
+                        && !resource_head
+                        && matches!(payload.as_ref(), Type::OwnedStore { element }
+                            if !matches!(element.as_ref(), Type::Package { .. }));
                     let extension = context.in_enum
                         || context.in_tuple
                         || context.product_sum
@@ -727,6 +812,7 @@ pub(super) fn preflight(
                             && (!legacy_product_union
                                 || super::dynamic_store::is_owned_carrier(ty)));
                     if extension
+                        && !ordinary_pod_store
                         && (context.blocked
                             || store_element.is_some()
                             || capture_owner.is_some()
@@ -738,10 +824,12 @@ pub(super) fn preflight(
                             None,
                         )]);
                     }
-                    new_sum |= extension;
+                    new_sum |= extension || (context.in_error && ordinary_pod_store);
                     child = SumContext {
                         blocked: true,
                         pod_aggregate: context.pod_aggregate,
+                        ordinary_pod_store,
+                        forbidden_store: context.forbidden_store,
                         ..SumContext::default()
                     };
                 }
@@ -750,6 +838,19 @@ pub(super) fn preflight(
                         pod_aggregate: context.pod_aggregate,
                         ..SumContext::default()
                     };
+                }
+                Type::Address { inner, .. }
+                    if depth == 0
+                        && matches!(inner.as_ref(), Type::Package { .. })
+                        && store_element.is_none()
+                        && capture_owner.is_none()
+                        && !resource_head =>
+                {
+                    // A concrete borrowed Package receiver still contains its
+                    // actual owning fields. The address itself grants no Store
+                    // ownership; field admission and live-loan checks run on
+                    // the complete underlying Package and its real source.
+                    child = SumContext::default();
                 }
                 Type::Array { .. }
                 | Type::OwnedStore { .. }
@@ -762,6 +863,8 @@ pub(super) fn preflight(
                     child = SumContext {
                         blocked: true,
                         pod_aggregate: context.pod_aggregate,
+                        forbidden_store: context.forbidden_store
+                            || matches!(ty, Type::Array { .. }),
                         ..SumContext::default()
                     }
                 }
@@ -780,12 +883,13 @@ pub(super) fn preflight(
                         child,
                     ));
                 }
-                Type::Dyn { .. } => {
-                    return Err(vec![Diagnostic::unsupported(
-                        Phase::Analyze,
-                        "dyn type consumer is not yet implemented",
-                        None,
-                    )]);
+                Type::Dyn { interface } => {
+                    budget.lookup(budget.dyn_interfaces.len(), "dyn type interface")?;
+                    if !dyn_carrier || depth != 1 || !budget.dyn_interfaces.contains(interface) {
+                        return Err(bad(
+                            "dyn type requires an exact admitted shared address carrier",
+                        ));
+                    }
                 }
                 Type::Array { element, length } => {
                     budget.input(*length as usize, "array type size")?;
@@ -823,13 +927,21 @@ pub(super) fn preflight(
                 }
                 Type::OwnedStore { element } => {
                     if !matches!(element.as_ref(), Type::Package { .. }) {
-                        if context.pod_aggregate {
+                        if context.forbidden_store {
+                            return Err(vec![Diagnostic::unsupported(
+                                Phase::Analyze,
+                                "ordinary POD Store ownership does not qualify Record or Array children",
+                                None,
+                            )]);
+                        }
+                        if context.pod_aggregate && !context.ordinary_pod_store {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
                                 "POD Store admission does not grant owning aggregate field or payload qualification",
                                 None,
                             )]);
                         }
+                        new_ordinary_pod_store |= context.ordinary_pod_store;
                         if resource_head && depth != 0 {
                             return Err(vec![Diagnostic::unsupported(
                                 Phase::Analyze,
@@ -999,6 +1111,61 @@ pub(super) fn preflight(
             budget.spend(1, "ordinary Sum root allocation")?;
             budget.sum_roots.insert(root);
         }
+        if new_sum
+            && new_ordinary_pod_store
+            && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(),Type::Tuple(_)|Type::Enum{..}|Type::ErrorUnion{..}|Type::Package{..}))
+        {
+            budget.lookup(
+                budget.ordinary_store_sum_addresses.len(),
+                "ordinary Store Sum address insertion",
+            )?;
+            budget.spend(1, "ordinary Store Sum address root allocation")?;
+            budget.ordinary_store_sum_addresses.insert(root);
+        }
+        if new_sum
+            && new_ordinary_pod_store
+            && let Some(owner) = capture_owner
+            && matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
+            )
+        {
+            if budget.ordinary_store_sum_captures.is_empty() {
+                budget.spend(
+                    module.closures.len().saturating_add(module.functions.len()),
+                    "new ordinary Sum capture indexed lookup reserve",
+                )?;
+                budget.ordinary_store_sum_captures = vec![BTreeSet::new(); module.closures.len()];
+            }
+            let len = budget
+                .ordinary_store_sum_captures
+                .get(owner.0 as usize)
+                .ok_or_else(|| bad("ordinary Sum capture owner absent"))?
+                .len();
+            budget.spend(len.saturating_add(1), "ordinary Sum capture root insertion")?;
+            budget.ordinary_store_sum_captures[owner.0 as usize].insert(root);
+        }
+        if new_ordinary_pod_store && matches!(ty, Type::Package { .. }) {
+            budget.lookup(
+                budget.ordinary_pod_store_roots.len(),
+                "ordinary POD Store root insertion",
+            )?;
+            budget.spend(1, "ordinary POD Store root allocation")?;
+            budget.ordinary_pod_store_roots.insert(root);
+        }
+        if new_ordinary_pod_store
+            && let Type::Address { inner, .. } = ty
+            && matches!(inner.as_ref(), Type::Package { .. })
+        {
+            budget.lookup(
+                budget.ordinary_pod_store_roots.len(),
+                "borrowed ordinary POD Store root insertion",
+            )?;
+            budget.spend(1, "borrowed ordinary POD Store root allocation")?;
+            budget
+                .ordinary_pod_store_roots
+                .insert(inner.as_ref() as *const Type as usize);
+        }
     }
     // Complete shape and depth preflight precedes recursive Product admission.
     // A Store element is a value, not an owning user-resource header.
@@ -1127,6 +1294,18 @@ pub(super) fn preflight(
                 budget.owning_address_captures = true;
                 continue;
             }
+            if matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            ) && budget.ordinary_store_sum_capture(closure.id, ty)?
+            {
+                if !super::resources::sums::admit(module, ty, budget)? {
+                    return Err(bad(
+                        "owning Sum capture requires a complete ordinary Store leaf",
+                    ));
+                }
+                continue;
+            }
             if ty.is_slice_address() || super::resources::owned_error(ty) {
                 return Err(vec![Diagnostic::unsupported(
                     Phase::Analyze,
@@ -1134,7 +1313,11 @@ pub(super) fn preflight(
                     None,
                 )]);
             }
-            if super::resources::product::nested(ty) {
+            if super::ownership_store::pod_owned(ty)
+                || (matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)?)
+            {
+                super::ownership_store::capture(module, ty, budget)?;
+            } else if super::resources::product::nested(ty) {
                 // Capture admission is independent from ordinary value admission.
                 // It rechecks the complete finite Product before granting an environment slot.
                 super::resources::product::admit(ty, budget)?;
@@ -1372,6 +1555,14 @@ pub(super) fn preflight(
         {
             return Err(bad("function references an absent environment"));
         }
+        if let Some(id) = function.environment
+            && budget.has_ordinary_store_sum_capture(id)?
+        {
+            for ty in &module.closures[id.0 as usize].captures {
+                budget.input(1, "entry Sum capture membership")?;
+                sum_function |= budget.ordinary_store_sum_capture(id, ty)?;
+            }
+        }
         for (index, local) in function.locals.iter().enumerate() {
             budget.input(1, "local type preflight")?;
             if local.id.0 as usize != index {
@@ -1424,11 +1615,6 @@ pub(super) fn preflight(
                         budget.scoped_functions.insert(function.id);
                     }
                     InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
-                        return Err(vec![Diagnostic::unsupported(
-                            Phase::Analyze,
-                            "dyn instruction consumer is not yet implemented",
-                            Some(instruction.span),
-                        )]);
                     }
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {

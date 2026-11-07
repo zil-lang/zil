@@ -866,27 +866,55 @@ fn scalar_mutable_window_uses_actual_whole_store_root() {
 }
 
 #[test]
-fn scalar_store_does_not_qualify_hidden_owning_fields() {
+fn scalar_store_qualifies_ordinary_owning_fields_but_not_record_or_array_children() {
     let baseline = scalar_fixture(Type::I32);
     let store = Type::Managed(Box::new(baseline.resources[0].payload.clone()));
     for owner in [
-        Type::Record {
-            name: "Bag".into(),
-            fields: vec![("items".into(), store.clone())],
-        },
         Type::Package {
             name: "Bag".into(),
             fields: vec![("items".into(), store.clone())],
         },
         Type::Tuple(vec![store.clone()]),
+        Type::Enum {
+            name: "Owner".into(),
+            variants: vec![("Item".into(), vec![store.clone()])],
+        },
         Type::ErrorUnion {
             error: Box::new(Type::Unit),
-            result: Box::new(store),
+            result: Box::new(store.clone()),
         },
     ] {
         let mut raw = baseline.clone();
         raw.functions[0].locals.push(local(1, owner));
-        assert!(analyze(&raw, &Limits::default()).is_err(), "{raw:#?}");
+        accepted(&raw);
+    }
+    for owner in [
+        Type::Record {
+            name: "Bag".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Array {
+            element: Box::new(store.clone()),
+            length: 1,
+        },
+        Type::Package {
+            name: "Bag".into(),
+            fields: vec![(
+                "items".into(),
+                Type::Array {
+                    element: Box::new(store),
+                    length: 1,
+                },
+            )],
+        },
+    ] {
+        let mut raw = baseline.clone();
+        raw.functions[0].locals.push(local(1, owner));
+        rejected(
+            &raw,
+            ResultCategory::Unsupported,
+            "does not qualify Record or Array children",
+        );
     }
 }
 
@@ -1010,27 +1038,40 @@ fn pod_store_rebuilds_unused_definitions_full_identity_and_all_leaves() {
 #[test]
 fn pod_store_does_not_qualify_an_unused_owning_resource_head() {
     let mut raw = pod_fixture(pod_element());
-    let hidden = Type::Record {
+    let store = Type::Managed(Box::new(raw.resources[0].payload.clone()));
+    let hidden_record = Type::Record {
         name: "Hidden".into(),
-        fields: vec![(
-            "items".into(),
-            Type::Managed(Box::new(raw.resources[0].payload.clone())),
-        )],
+        fields: vec![("items".into(), store.clone())],
     };
     raw.resources.push(ResourceDefinition {
         name: "Hidden".into(),
-        payload: hidden,
+        payload: hidden_record,
         teardown: None,
     });
     rejected(
         &raw,
         ResultCategory::Unsupported,
-        "does not grant user resource-head qualification",
+        "does not qualify Record or Array children",
+    );
+
+    raw.resources.pop();
+    raw.resources.push(ResourceDefinition {
+        name: "HiddenPackage".into(),
+        payload: Type::Package {
+            name: "HiddenPackage".into(),
+            fields: vec![("items".into(), store)],
+        },
+        teardown: None,
+    });
+    rejected(
+        &raw,
+        ResultCategory::Unsupported,
+        "does not grant owning aggregate field or payload qualification",
     );
 }
 
 #[test]
-fn pod_store_does_not_qualify_unused_owning_aggregate_fields_or_payloads() {
+fn pod_store_qualifies_unused_ordinary_owning_aggregate_fields_and_payloads() {
     let baseline = pod_fixture(pod_element());
     let store = Type::Managed(Box::new(baseline.resources[0].payload.clone()));
     let bag = Type::Package {
@@ -1056,8 +1097,32 @@ fn pod_store_does_not_qualify_unused_owning_aggregate_fields_or_payloads() {
             result: Box::new(store.clone()),
         },
         Type::ErrorUnion {
-            error: Box::new(store),
+            error: Box::new(store.clone()),
             result: Box::new(Type::Unit),
+        },
+    ] {
+        let mut raw = baseline.clone();
+        raw.functions[0].locals.push(local(1, owner));
+        accepted(&raw);
+    }
+    for owner in [
+        Type::Record {
+            name: "Hidden".into(),
+            fields: vec![("items".into(), store.clone())],
+        },
+        Type::Array {
+            element: Box::new(store.clone()),
+            length: 1,
+        },
+        Type::Package {
+            name: "NestedArray".into(),
+            fields: vec![(
+                "items".into(),
+                Type::Array {
+                    element: Box::new(store),
+                    length: 0,
+                },
+            )],
         },
     ] {
         let mut raw = baseline.clone();
@@ -1065,7 +1130,7 @@ fn pod_store_does_not_qualify_unused_owning_aggregate_fields_or_payloads() {
         rejected(
             &raw,
             ResultCategory::Unsupported,
-            "does not grant owning aggregate field or payload qualification",
+            "does not qualify Record or Array children",
         );
     }
     // Preserve the old flat Product field family with an owned Package element.

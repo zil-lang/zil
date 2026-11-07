@@ -3059,8 +3059,24 @@ fn render_type_key(ty: &TypeRef) -> R<String> {
         TypeKind::Named { path, args } if path.as_slice() == ["void"] && args.is_empty() => {
             "()".into()
         }
-        TypeKind::Named { path, args } => {
-            let mut key = format!("N{}:{}", path.join(".").len(), path.join("."));
+        TypeKind::Named { path, args }
+        | TypeKind::Dyn {
+            path,
+            args,
+            bindings: _,
+        } => {
+            if matches!(&ty.kind, TypeKind::Dyn { bindings, .. } if !bindings.is_empty()) {
+                return Err(unsupported(
+                    ty.span,
+                    "dyn binding needs its canonical identity consumer",
+                ));
+            }
+            let prefix = if matches!(&ty.kind, TypeKind::Dyn { .. }) {
+                'D'
+            } else {
+                'N'
+            };
+            let mut key = format!("{prefix}{}:{}", path.join(".").len(), path.join("."));
             for a in args {
                 let argument = match a {
                     GenericArg::Lifetime(_) => {
@@ -3271,6 +3287,18 @@ fn unify_argument(
                 span,
                 "shared reference cannot grant exclusive access",
             ));
+        }
+        if !wanted
+            && !available
+            && matches!(&expected.kind, TypeKind::Dyn { path, args, bindings } if path.len() == 1 && args.is_empty() && bindings.is_empty())
+            && matches!(&actual.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
+        {
+            // This is only a syntactic candidate. The selected concrete
+            // provider must come from the committed Source catalog, and Types
+            // checks its exact table and real borrowed receiver before it
+            // emits MakeDynBorrow. No generic substitution is inferred here.
+            budget.node(span, 0)?;
+            return Ok(());
         }
         return unify_bounded(expected, actual, variables, found, span, budget);
     }

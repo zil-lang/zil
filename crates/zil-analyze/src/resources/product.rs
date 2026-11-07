@@ -16,7 +16,14 @@ pub(crate) fn nested(ty: &Type) -> bool {
 }
 
 pub(crate) fn admit(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
-    admit_shape(ty, budget, false).map(|_| ())
+    admit_shape(ty, budget, false, None, false).map(|_| ())
+}
+
+/// A borrowed nested Product retains its old finite field profile. A valid
+/// owner outside that profile is unsupported at this boundary; malformed
+/// Product identities still fail the independent structural check.
+pub(crate) fn admit_borrowed(ty: &Type, budget: &mut Budget) -> CompileResult<()> {
+    admit_shape(ty, budget, false, None, true).map(|_| ())
 }
 
 /// Admission for ordinary complete ownership, independent of element/capture
@@ -26,7 +33,7 @@ pub(crate) fn admit_owned(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<bool> {
-    let has_stores = admit_shape(ty, budget, true)?;
+    let has_stores = admit_shape(ty, budget, true, Some(module), false)?;
     fn stores(module: &TypedModule, ty: &Type, budget: &mut Budget) -> CompileResult<()> {
         let Type::Package { fields, .. } = ty else {
             unreachable!("admitted Product")
@@ -34,7 +41,7 @@ pub(crate) fn admit_owned(
         budget.spend(fields.len(), "ordinary Product Store field scan")?;
         for (_, field) in fields {
             if dynamic_store::is_owned_carrier(field) {
-                dynamic_store::ordinary_owned(module, field, budget)?;
+                crate::ownership_store::ordinary_owned(module, field, budget)?;
             } else if matches!(field, Type::Package { .. }) {
                 stores(module, field, budget)?;
             }
@@ -49,11 +56,23 @@ pub(crate) fn admit_owned(
     Ok(has_stores)
 }
 
-fn admit_shape(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bool> {
+fn admit_shape(
+    ty: &Type,
+    budget: &mut Budget,
+    stores: bool,
+    module: Option<&TypedModule>,
+    borrowed: bool,
+) -> CompileResult<bool> {
     // Raw preflight has bounded depth already. Pay before any new identity
     // collection, Copy classification or repeated complete-type traversal.
     budget.type_work(ty, true, "ordinary Product admission")?;
-    fn fields(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bool> {
+    fn fields(
+        ty: &Type,
+        budget: &mut Budget,
+        stores: bool,
+        module: Option<&TypedModule>,
+        borrowed: bool,
+    ) -> CompileResult<bool> {
         let Type::Package {
             name,
             fields: entries,
@@ -94,11 +113,35 @@ fn admit_shape(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bo
                     has_stores |= dynamic_store::is_owned_carrier(ty);
                 }
                 Type::Package { .. } => {
-                    has_stores |= fields(ty, budget, stores)?;
+                    has_stores |= fields(ty, budget, stores, module, borrowed)?;
+                    owned = true;
+                }
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } if stores => {
+                    // Copy companions already took the single finite Copy
+                    // classification on the old Product path. Do not send
+                    // them through owning Sum admission or repeat that walk.
+                    if ty.is_copy_value() {
+                        continue;
+                    }
+                    let actual = module.expect("ordinary Product has an actual module");
+                    // Sum admission independently walks every possible branch
+                    // and checks each actual Store's exact sealed resource.
+                    let sum_store = super::sums::admit(actual, ty, budget)?;
+                    if !sum_store {
+                        return Err(error("ordinary Product Sum lacks an owning Store"));
+                    }
+                    has_stores = true;
                     owned = true;
                 }
                 ty if ty.is_copy_value() => {}
                 _ => {
+                    if borrowed {
+                        return Err(vec![Diagnostic::unsupported(
+                            Phase::Analyze,
+                            "ordinary Package Product does not grant a borrowed Package boundary",
+                            None,
+                        )]);
+                    }
                     return Err(error(
                         "ordinary Product has an unsupported owning or borrowed child",
                     ));
@@ -110,7 +153,7 @@ fn admit_shape(ty: &Type, budget: &mut Budget, stores: bool) -> CompileResult<bo
         }
         Ok(has_stores)
     }
-    fields(ty, budget, stores)
+    fields(ty, budget, stores, module, borrowed)
 }
 
 fn visit(

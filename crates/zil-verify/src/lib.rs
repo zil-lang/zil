@@ -55,6 +55,7 @@ mod ct_program;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
+mod dynamic_dispatch;
 mod dynamic_store;
 #[cfg(test)]
 mod error_scope_tests;
@@ -322,6 +323,11 @@ struct Budget {
     // Derived from raw instructions; only avoids work in unaffected modules.
     static_utf8: bool,
     pod_stores: bool,
+    // Raw type roots that actually contain the new Store element family.
+    // This is a work gate only; each consumer still checks the complete type.
+    inline_store_roots: BTreeSet<usize>,
+    inline_store_addresses: bool,
+    inline_store_package_addresses: bool,
     sums: bool,
     tasks: bool,
     // Independent paid raw-type inventory; this only enables a proof, not permission.
@@ -335,6 +341,9 @@ struct Budget {
     task_ownership: std::collections::BTreeMap<FunctionId, TaskOwnership>,
     limits: Limits,
     sum_functions: Vec<bool>,
+    // Filled by the already paid closure-definition walk only for newly
+    // admitted direct owning Sum capture roots.
+    direct_sum_capture_closures: BTreeSet<u32>,
     function_count: usize,
     current_function: Option<usize>,
     private_slot_functions: Option<Vec<bool>>,
@@ -355,6 +364,9 @@ impl Budget {
             remaining: limits.max_analysis_steps,
             static_utf8: false,
             pod_stores: false,
+            inline_store_roots: BTreeSet::new(),
+            inline_store_addresses: false,
+            inline_store_package_addresses: false,
             sums: false,
             tasks: false,
             task_origin_roots: false,
@@ -367,6 +379,7 @@ impl Budget {
             task_ownership: std::collections::BTreeMap::new(),
             limits: limits.clone(),
             sum_functions: Vec::new(),
+            direct_sum_capture_closures: BTreeSet::new(),
             function_count: 0,
             current_function: None,
             private_slot_functions: None,
@@ -387,6 +400,15 @@ impl Budget {
             .checked_sub(amount)
             .ok_or_else(|| limit("independent verification work budget exhausted"))?;
         Ok(())
+    }
+    fn inline_store_root(&mut self, ty: &Type) -> Check<bool> {
+        if self.inline_store_roots.is_empty() {
+            return Ok(false);
+        }
+        self.spend(self.inline_store_roots.len().saturating_add(1))?;
+        Ok(self
+            .inline_store_roots
+            .contains(&(ty as *const Type as usize)))
     }
     fn mark_private_slot(&mut self, function: usize) -> Check<()> {
         if self.private_slot_functions.is_none() {
@@ -560,15 +582,7 @@ fn check_module(
         ));
     }
     check_target(&module.target, expected_target)?;
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(unsupported(
-            "dyn table consumer is not yet implemented",
-            None,
-        ));
-    }
+    let has_dyn = dynamic_dispatch::present(module);
     if let Some(feature) = module
         .unsupported
         .first()
@@ -605,6 +619,9 @@ fn check_module(
 
     let mut budget = Budget::new(limits);
     budget.stored_context = true;
+    if has_dyn {
+        dynamic_dispatch::inventory(module, &mut budget)?;
+    }
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         stored_flow::inventory(module, limits, &mut budget)?;
         stored_flow::inventory(module, limits, &mut budget)?;
@@ -1077,6 +1094,7 @@ fn check_type_shape(
             || (context & 2 != 0
                 && context & 16 != 0
                 && matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. })))
+            || (context & 2 != 0 && dynamic_store::inline_owner(ty))
         {
             budget.mark_sum(budget.current_function)?;
         }
@@ -1104,12 +1122,7 @@ fn check_type_shape(
                 budget.stored_borrows = true;
                 pending.push((storage, depth + 1, context));
             }
-            Type::Dyn { .. } => {
-                return Err(unsupported(
-                    "dyn type consumer is not yet implemented",
-                    None,
-                ));
-            }
+            Type::Dyn { .. } => {}
             Type::Registration {
                 environment: element,
             }
@@ -1122,13 +1135,10 @@ fn check_type_shape(
                     && (matches!(element.as_ref(), Type::Record { .. })
                         || dynamic_store::direct_scalar(element))
                 {
-                    // The scalar extension also excludes an owning Store
-                    // nested in a plain Record or Array. Bit 128 is carried
-                    // during the existing bounded raw-tree walk; old Record
-                    // Store selection and request fees remain unchanged.
-                    if context & (4 | 64 | 1 | 2) != 0
-                        || (dynamic_store::direct_scalar(element) && context & 128 != 0)
-                    {
+                    // Ordinary owning Product/Sum positions retain the same
+                    // sealed Store identity and independent resource check.
+                    // Bit 128 still excludes plain Records and owning arrays.
+                    if context & 128 != 0 {
                         return Err(unsupported(
                             "POD Store ownership is not admitted inside owning aggregate fields",
                             None,
@@ -1241,10 +1251,26 @@ fn check_type_shape(
     }
     // Unused local/SSA/signature/definition types receive the same independent
     // POD qualification, after the whole raw tree has passed the depth bound.
+    let inline_store_root = !pod_stores.is_empty()
+        && (matches!(
+            ty,
+            Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+        ) || matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. })
+                || matches!(inner.as_ref(), Type::Managed(payload) if matches!(payload.as_ref(), Type::Package { .. }))
+                || matches!(inner.as_ref(), Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))));
     for element in pod_stores {
         dynamic_store::check_pod_element(element, target, None, budget)?;
         budget.pod_stores = true;
         budget.head_descriptions = true;
+    }
+    if inline_store_root {
+        budget.spend(budget.inline_store_roots.len().saturating_add(1))?;
+        budget.inline_store_roots.insert(ty as *const Type as usize);
+        budget.inline_store_addresses |= matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }));
+        budget.inline_store_package_addresses |= matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Package { .. }));
     }
     // Fingerprint only after the complete raw type tree has been bounded.
     // This independently checks the sealed family key and payload shape.
@@ -1418,7 +1444,17 @@ fn check_function_signature_type(
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
     }
+    if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
+        return dynamic_dispatch::type_address(module, ty, span, budget);
+    }
     match ty {
+        Type::Address { inner, .. }
+            if budget.inline_store_root(ty)?
+                && matches!(inner.as_ref(), Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)? =>
+        {
+            packages::check_ordinary_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
         {
@@ -1473,6 +1509,10 @@ fn check_local_type(
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(false);
     }
+    if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
+        dynamic_dispatch::type_address(module, ty, span, budget)?;
+        return Ok(false);
+    }
     if let Type::Address {
         inner,
         mutable: false,
@@ -1495,6 +1535,13 @@ fn check_local_type(
             span,
             "local closure type references an absent environment",
         )),
+        Type::Address { inner, .. }
+            if budget.inline_store_root(ty)?
+                && matches!(inner.as_ref(), Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)? =>
+        {
+            packages::check_ordinary_type(module, inner, span, budget)
+        }
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
         {
@@ -1630,7 +1677,26 @@ fn check_function(
     }
     if matches!(function.return_type, Type::Address { .. }) {
         budget.spend(function.locals.len().saturating_add(function.values.len()))?;
+        let mut store_parent_address = false;
+        if budget.inline_store_package_addresses {
+            for ty in function
+                .locals
+                .iter()
+                .map(|local| &local.ty)
+                .chain(&function.values)
+            {
+                if let Type::Address { inner, .. } = ty
+                    && ty.is_package_address()
+                    && budget.inline_store_root(ty)?
+                    && dynamic_store::package_inline_store(inner, budget)?
+                {
+                    store_parent_address = true;
+                    break;
+                }
+            }
+        }
         if function.return_type.is_package_address()
+            || store_parent_address
             || function
                 .locals
                 .iter()
@@ -1998,10 +2064,7 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
-            return Err(unsupported(
-                "dyn instruction consumer is not yet implemented",
-                span,
-            ));
+            dynamic_dispatch::instruction(module, function, instruction, budget)?
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             stored_borrows::instruction(function, instruction, budget)?
@@ -2256,6 +2319,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if budget.inline_store_root(inner)?
+                && matches!(inner, Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)?
+            {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -2278,6 +2346,11 @@ fn check_instruction(
             let inner = local_type(function, *local, span)?;
             if let Type::Closure(id) = inner {
                 closures::definition(module, *id, span)?;
+            } else if budget.inline_store_root(inner)?
+                && matches!(inner, Type::Package { .. })
+                && dynamic_store::package_inline_store(inner, budget)?
+            {
+                packages::check_ordinary_type(module, inner, span, budget)?;
             } else if matches!(
                 inner,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
@@ -2374,7 +2447,11 @@ fn check_instruction(
                 Type::Tuple(fields) => fields.get(*index as usize),
                 Type::Record { fields, .. } => fields.get(*index as usize).map(|(_, ty)| ty),
                 Type::Package { fields, .. } => {
-                    if packages::shared_product_head(projected) {
+                    if budget.inline_store_root(value_type(function, *address, span)?)?
+                        && dynamic_store::package_inline_store(projected, budget)?
+                    {
+                        packages::check_ordinary_type(module, projected, span, budget)?;
+                    } else if packages::shared_product_head(projected) {
                         packages::check_shared_product_type(module, projected, span, budget)?;
                     } else {
                         dynamic_store::check_element(module, projected, span, budget)?;
@@ -2397,6 +2474,11 @@ fn check_instruction(
                 // Projection borrows its actual field; it grants neither a
                 // Copy read nor a consuming/replacing indirect operation.
                 closures::definition(module, *id, span)?;
+            } else if budget.inline_store_root(value_type(function, *address, span)?)?
+                && matches!(field, Type::Package { .. })
+                && dynamic_store::package_inline_store(field, budget)?
+            {
+                packages::check_ordinary_type(module, field, span, budget)?;
             } else if budget.sums
                 && matches!(
                     field,
@@ -2994,7 +3076,9 @@ fn check_instruction(
             if matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) {
+            ) || (budget.inline_store_root(ty)?
+                && dynamic_store::inline_sum_capture(ty, budget)?)
+            {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -3016,8 +3100,10 @@ fn check_instruction(
                 .captures
                 .get(*index as usize)
                 .ok_or_else(|| reject("E-VERIFY-CAPTURE", span, "capture field is absent"))?;
+            let owned_sum = budget.inline_store_root(field)?
+                && dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
-                || !field.is_copy_value()
+                || !(field.is_copy_value() || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
             {
                 return Err(reject(

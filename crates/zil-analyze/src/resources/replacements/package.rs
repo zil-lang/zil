@@ -11,7 +11,9 @@ pub(super) fn field(ty: &Type, b: &mut Budget) -> CompileResult<Option<Vec<u32>>
     let mut owners = Vec::new();
     for (index, (_, child)) in fields.iter().enumerate() {
         if let Type::Managed(payload) = child {
-            if !matches!(payload.as_ref(), Type::Record { .. }) || !payload.is_copy_value() {
+            if !(matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value())
+                && !crate::ownership_store::pod_owned(child)
+            {
                 return Ok(None);
             }
             owners.push(index as u32);
@@ -136,7 +138,7 @@ pub(super) fn ordinary_result(
             Type::Managed(payload)
                 if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value() => {}
             Type::Managed(_) if dynamic_store::is_owned_carrier(ty) => {
-                dynamic_store::ordinary_owned(module, ty, b)?;
+                crate::ownership_store::ordinary_owned(module, ty, b)?;
             }
             Type::Tuple(fields) => {
                 fee(b, fields.len())?;

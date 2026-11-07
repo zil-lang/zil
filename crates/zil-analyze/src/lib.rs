@@ -16,6 +16,7 @@ mod class_flow;
 #[cfg(test)]
 mod defer_tests;
 mod defers;
+mod dyn_dispatch;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
@@ -27,6 +28,7 @@ mod incremental;
 mod lifetimes;
 mod mixed_address_sums;
 mod owned_callbacks;
+mod ownership_store;
 mod place_replacements;
 mod pod_store;
 mod registration;
@@ -83,6 +85,7 @@ fn analyze_budgeted(
     // Raw callers need not have passed through types. In particular, reject
     // oversized metadata and unsupported recursive types before encoding a hash.
     let (package_functions, store_profiles) = preflight(module, limits, budget)?;
+    dyn_dispatch::check(module, budget)?;
     lifetimes::headers(module, budget)?;
     let mut plan = CandidatePlan::empty_for(module);
     let mut hold_graphs = Vec::with_capacity(module.functions.len());
@@ -137,6 +140,7 @@ fn analyze_budgeted(
         for (function, holds) in plan.functions.iter_mut().zip(actual) {
             function.holds = holds;
         }
+        dyn_dispatch::check_roots(module, &plan.functions, budget)?;
         return Ok(plan);
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
@@ -156,6 +160,7 @@ fn analyze_budgeted(
     for (function, holds) in plan.functions.iter_mut().zip(actual_holds) {
         function.holds = holds;
     }
+    dyn_dispatch::check_roots(module, &plan.functions, budget)?;
     tasks::loans(module, &plan, &hold_graphs, budget)?;
     Ok(plan)
 }
