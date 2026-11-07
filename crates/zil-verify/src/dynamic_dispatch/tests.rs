@@ -413,6 +413,62 @@ fn rejects_same_layout_wrong_self_and_unknown_effects() {
 }
 
 #[test]
+fn rejects_wrong_entry_body_interface_and_call_slot() {
+    let mut module = fixture();
+    module.functions[1].blocks[0].instructions[2].kind = InstructionKind::WriteAddress {
+        address: ValueId(1),
+        value: ValueId(2),
+    };
+    assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+    let mut module = fixture();
+    module.dyn_vtables[0].interface.index = 1;
+    assert_eq!(check(&module).unwrap_err().code, "E-VERIFY-DYN");
+    let (mut module, mut plan) = call_candidate();
+    let last = module.functions[0].blocks[0]
+        .instructions
+        .last_mut()
+        .unwrap();
+    let InstructionKind::CallDynSlot { slot, .. } = &mut last.kind else {
+        unreachable!()
+    };
+    *slot = 1;
+    plan.module_fingerprint = module.fingerprint();
+    assert_eq!(
+        verify_module(
+            module,
+            plan,
+            &TargetProfile::host_llvm(),
+            &Limits::default()
+        )
+        .unwrap_err()[0]
+            .code,
+        "E-VERIFY-DYN"
+    );
+}
+
+#[test]
+fn rejects_dyn_make_from_unrelated_scalar_operand() {
+    let (mut module, mut plan) = call_candidate();
+    let make = &mut module.functions[0].blocks[0].instructions[4];
+    let InstructionKind::MakeDynBorrow { source, .. } = &mut make.kind else {
+        unreachable!()
+    };
+    *source = ValueId(0);
+    plan.module_fingerprint = module.fingerprint();
+    assert_eq!(
+        verify_module(
+            module,
+            plan,
+            &TargetProfile::host_llvm(),
+            &Limits::default()
+        )
+        .unwrap_err()[0]
+            .code,
+        "E-VERIFY-DYN"
+    );
+}
+
+#[test]
 fn rejects_unused_bad_table_and_refingerprinted_wire() {
     let (mut module, mut plan) = call_candidate();
     let mut bad = module.dyn_vtables[0].clone();
