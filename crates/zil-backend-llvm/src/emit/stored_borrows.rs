@@ -764,13 +764,13 @@ impl FunctionEmitter<'_> {
             })?;
             indices.push(m::Arg::new(m::Ty::Int(32), m::Val::Int(i128::from(*index))));
         }
-        if !matches!(current, Type::Address { mutable: true, .. })
+        if !matches!(current, Type::Address { .. })
             || self.value_type(value)? != current
             || i.result.is_some()
         {
             return invalid(
                 "E-CODEGEN-STORAGE",
-                "stored replacement value differs from its actual exclusive leaf",
+                "stored replacement value differs from its actual address leaf",
                 Some(i.span),
             );
         }
@@ -806,7 +806,9 @@ impl FunctionEmitter<'_> {
     ) -> CompileResult<()> {
         if !matches!(
             mode,
-            StoredBorrowLoad::CopyShared | StoredBorrowLoad::Reborrow { mutable: true }
+            StoredBorrowLoad::CopyShared
+                | StoredBorrowLoad::Reborrow { mutable: true }
+                | StoredBorrowLoad::Take
         ) {
             return unsupported(
                 "stored mutable/reborrow/description native operation is not yet implemented",
@@ -871,7 +873,7 @@ impl FunctionEmitter<'_> {
             ) | (
                 Type::Address { mutable: true, .. },
                 StoredBorrowLoad::Reborrow { mutable: true }
-            )
+            ) | (Type::Address { .. }, StoredBorrowLoad::Take)
         ) || self.value_type(result(i)?)? != current
         {
             return invalid(

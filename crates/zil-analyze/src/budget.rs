@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use zil_ir::{CallableFlowNext, CallableTraces};
 
 use zil_base::{CompileResult, Diagnostic, Limits, Phase, SCHEMA_VERSION, Span};
-use zil_ir::{Constant, InstructionKind, LocalId, Terminator, Type, TypedModule};
+use zil_ir::{Constant, InstructionKind, LocalId, StoredBorrowLoad, Terminator, Type, TypedModule};
 
 use crate::bad;
 
@@ -1802,8 +1802,14 @@ pub(super) fn preflight(
                     }
                     InstructionKind::LoadStoredBorrow { .. }
                     | InstructionKind::StoreStoredBorrow { .. } => {
-                        budget.stored_slot_updates |=
-                            matches!(instruction.kind, InstructionKind::StoreStoredBorrow { .. });
+                        budget.stored_slot_updates |= matches!(
+                            instruction.kind,
+                            InstructionKind::StoreStoredBorrow { .. }
+                                | InstructionKind::LoadStoredBorrow {
+                                    mode: StoredBorrowLoad::Take,
+                                    ..
+                                }
+                        );
                         super::stored_borrows::instruction(function, instruction, budget)?;
                     }
                     InstructionKind::RegistrationStart {

@@ -120,7 +120,7 @@ pub(super) fn instruction(
                     mutable: *requested,
                     inner: inner.clone(),
                 },
-                (StoredBorrowLoad::Take, _) if mutable => ty.clone(),
+                (StoredBorrowLoad::Take, Type::Address { .. }) if mutable => ty.clone(),
                 _ => {
                     return Err(bad(
                         span,

@@ -24,6 +24,10 @@ const NESTED_QUALIFIED_CHILD_REFILL: &str = include_str!("nested-qualified-child
 const NESTED_QUALIFIED_CHILD_BORROW: &str = include_str!("nested-qualified-child-borrow.zil");
 const NESTED_QUALIFIED_CHILD_DIRECT_LOCAL: &str =
     include_str!("nested-qualified-child-direct-local.zil");
+const NESTED_QUALIFIED_SLOT_EXTRACTION: &str = include_str!("nested-qualified-slot-extraction.zil");
+const NESTED_QUALIFIED_SLOT_HELPER: &str =
+    include_str!("nested-qualified-slot-helper-exchange.zil");
+const MOVE_OUT: &str = include_str!("../stored-borrow-move-out.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -33,6 +37,21 @@ fn stdlib_store_head_path() -> std::path::PathBuf {
 fn cross_module_holder_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/resource-packages/cross-module-holder/main.zil")
+}
+
+fn move_out_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/stored-borrow-move-out.zil")
+}
+
+fn shared_move_out_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/resource-packages/shared-slot-move-out.zil")
+}
+
+fn local_move_out_path() -> std::path::PathBuf {
+    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/resource-packages/local-stored-slot-extraction.zil")
 }
 
 fn source(name: &str, program: &str) -> SourceUnit {
@@ -84,6 +103,14 @@ fn mixed_package_source_raw_and_wire() {
         (
             "nested-qualified-child-direct-local.zil",
             NESTED_QUALIFIED_CHILD_DIRECT_LOCAL,
+        ),
+        (
+            "nested-qualified-slot-extraction.zil",
+            NESTED_QUALIFIED_SLOT_EXTRACTION,
+        ),
+        (
+            "nested-qualified-slot-helper-exchange.zil",
+            NESTED_QUALIFIED_SLOT_HELPER,
         ),
     ] {
         let source = source(name, program);
@@ -194,6 +221,175 @@ fn nested_child_transfer_rejects_reusing_removed_field_or_parent() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn raw_take_forgery_requires_refill_before_helper_exit() {
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let source = source(
+        "replace-and-return-stored-child.zil",
+        REPLACE_AND_RETURN_CHILD,
+    );
+    let syntax = zil_syntax::parse(&source).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &source,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: source.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let raw = zil_types::check(&core, &target, &limits).unwrap();
+    let mut candidate = zil_analyze::analyze(&raw, &limits).unwrap();
+    zil_verify::verify_module(raw.clone(), candidate.clone(), &target, &limits).unwrap();
+    let mut invalid = raw;
+    let helper = invalid
+        .functions
+        .iter_mut()
+        .find(|f| f.name == "exchange")
+        .unwrap();
+    let load = helper
+        .blocks
+        .iter_mut()
+        .flat_map(|b| &mut b.instructions)
+        .find(|i| {
+            matches!(
+                i.kind,
+                zil_ir::InstructionKind::LoadStoredBorrow {
+                    mode: zil_ir::StoredBorrowLoad::Reborrow { mutable: true },
+                    ..
+                }
+            )
+        })
+        .unwrap();
+    let zil_ir::InstructionKind::LoadStoredBorrow { mode, .. } = &mut load.kind else {
+        unreachable!()
+    };
+    *mode = zil_ir::StoredBorrowLoad::Take;
+    candidate.module_fingerprint = invalid.fingerprint();
+    let analyzed = zil_analyze::analyze(&invalid, &limits).unwrap_err();
+    assert!(
+        analyzed
+            .iter()
+            .any(|d| d.message.contains("incomplete actual target facts")),
+        "{analyzed:?}"
+    );
+    let verified = zil_verify::verify_module(invalid.clone(), candidate.clone(), &target, &limits)
+        .unwrap_err();
+    assert!(
+        verified.iter().any(|d| d.message.contains("stored")),
+        "{verified:?}"
+    );
+    let wire = zil_ir::wire::encode_module_candidate(&invalid, &candidate, &limits).unwrap();
+    let wire_error = zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap_err();
+    assert!(
+        wire_error.iter().any(|d| d.message.contains("stored")),
+        "{wire_error:?}"
+    );
+}
+
+#[test]
+fn move_out_refill_source_rejects_holes_and_partial_exits() {
+    let positive = compile_path(
+        &move_out_path(),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        positive.status,
+        ResultCategory::Success,
+        "{}",
+        positive.to_json()
+    );
+    let replaced = "let previous=move_out(session.pointer)\n session.pointer=next";
+    let cases = [
+        ("second extraction", MOVE_OUT.replacen(replaced,
+            "let previous=move_out(session.pointer)\n let again=move_out(session.pointer)\n session.pointer=next", 1)),
+        ("read vacant slot", MOVE_OUT.replacen(replaced,
+            "let previous=move_out(session.pointer)\n let empty=session.pointer\n session.pointer=next\n *empty=*empty+1", 1)),
+        ("error exit without refill", MOVE_OUT.replacen("fn main()->i32{",
+            "enum Fault{Stopped}\nfn lose<life a>(session:&mut Session<'a>)->Fault!i32{\n let previous=move_out(session.pointer)\n return Fault.Stopped\n}\nfn main()->i32{", 1)),
+        ("partial shell return", MOVE_OUT.replacen("fn main()->i32{",
+            "fn partial<life a>(pointer:&'a mut i32)->Session<'a>{\n var session=make(pointer)\n let previous=move_out(session.pointer)\n return session\n}\nfn main()->i32{", 1)),
+        ("branch with vacant incoming slot", MOVE_OUT.replacen("fn main()->i32{",
+            "fn maybe<life a>(session:&mut Session<'a>,next:&'a mut i32,flag:bool){\n if flag { let previous=move_out(session.pointer) }\n let current=session.pointer\n session.pointer=next\n}\nfn main()->i32{", 1)),
+    ];
+    for (index, (name, program)) in cases.into_iter().enumerate() {
+        assert_ne!(program, MOVE_OUT, "{name}");
+        let path = std::env::temp_dir().join(format!(
+            "zil-move-out-neighbor-{}-{index}.zil",
+            std::process::id()
+        ));
+        std::fs::write(&path, &program).unwrap();
+        let report = compile_path(
+            &path,
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        std::fs::remove_file(path).unwrap();
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn move_out_native_preserves_exclusive_and_shared_targets() {
+    for (source, name) in [
+        (move_out_path(), "exclusive"),
+        (shared_move_out_path(), "shared"),
+        (local_move_out_path(), "local-drop"),
+    ] {
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+                continue;
+            }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let output = std::env::temp_dir().join(format!(
+                    "zil-move-out-{}-{name}-{backend:?}-{optimization:?}",
+                    std::process::id()
+                ));
+                let report = compile_path(
+                    &source,
+                    &CompileOptions {
+                        stop_after: Stage::Build,
+                        backend,
+                        optimization,
+                        entry: Some("main".into()),
+                        output: Some(output.clone()),
+                        ..CompileOptions::default()
+                    },
+                );
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1);
+                let run = std::process::Command::new(&report.artifacts["executable"])
+                    .output()
+                    .unwrap();
+                assert_eq!(run.status.code(), Some(0), "{run:?}");
+                assert_eq!(run.stdout, b"0\n", "{run:?}");
+                std::fs::remove_file(output).unwrap();
+            }
+        }
+    }
 }
 
 #[test]
@@ -709,6 +905,16 @@ fn mixed_package_native_both_optimizations() {
         (
             "nested-qualified-child-direct-local.zil",
             NESTED_QUALIFIED_CHILD_DIRECT_LOCAL,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-slot-extraction.zil",
+            NESTED_QUALIFIED_SLOT_EXTRACTION,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-slot-helper-exchange.zil",
+            NESTED_QUALIFIED_SLOT_HELPER,
             b"M0\n".as_slice(),
         ),
     ] {

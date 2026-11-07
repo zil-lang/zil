@@ -47,6 +47,9 @@ struct State {
     /// not their target identity; each leaf starts with a symbolic target.
     external: BTreeMap<HoldRoot, BTreeMap<Path, Permission>>,
     captures: BTreeMap<u32, Value>,
+    /// A missing row is definitely initialized. Join unions holes, so a slot
+    /// is usable only if every incoming path kept it initialized.
+    vacant: BTreeSet<Target>,
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Loan {
@@ -157,6 +160,8 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
             .saturating_add(s.captures.len()),
     )?;
     let mut out = State::default();
+    fee(b, s.vacant.len())?;
+    out.vacant = s.vacant.clone();
     for (local, value) in &s.locals {
         ordered(b, out.locals.len(), 0)?;
         out.locals.insert(*local, snapshot(value, b)?);
@@ -178,6 +183,7 @@ fn state_copy(s: &State, b: &mut Budget) -> CompileResult<State> {
     Ok(out)
 }
 fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
+    fee(b, s.vacant.len())?;
     fee(
         b,
         s.locals
@@ -285,6 +291,10 @@ fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
     Ok(())
 }
 fn state_merge(to: &mut State, from: &State, b: &mut Budget) -> CompileResult<()> {
+    for hole in &from.vacant {
+        ordered(b, to.vacant.len(), hole.place.len())?;
+        to.vacant.insert(hole.clone());
+    }
     for (local, value) in &from.locals {
         ordered(b, to.locals.len(), 0)?;
         merge(to.locals.entry(*local).or_default(), value, b)?;
@@ -1666,6 +1676,65 @@ fn select(
     Ok(out)
 }
 
+fn slot_position(
+    address: &Permission,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<Target> {
+    let mut roots = address.targets.iter();
+    let root = roots
+        .next()
+        .ok_or_else(|| failure("stored slot has no actual carrier"))?;
+    if roots.next().is_some() || !root.stored.is_empty() {
+        return Err(failure("stored slot needs one actual inline carrier"));
+    }
+    fee(
+        b,
+        root.place
+            .len()
+            .saturating_add(path.len())
+            .saturating_add(1),
+    )?;
+    let mut slot = root.clone();
+    slot.place.extend_from_slice(path);
+    Ok(slot)
+}
+
+fn require_filled(
+    state: &State,
+    address: &Permission,
+    path: &[PlaceProjection],
+    b: &mut Budget,
+) -> CompileResult<()> {
+    if state.vacant.is_empty() {
+        return Ok(());
+    }
+    for root in &address.targets {
+        fee(
+            b,
+            root.place
+                .len()
+                .saturating_add(path.len())
+                .saturating_add(1),
+        )?;
+        let mut position = root.clone();
+        position.place.extend_from_slice(path);
+        ordered(b, state.vacant.len(), position.place.len())?;
+        if state.vacant.contains(&position) {
+            return Err(failure("stored slot is vacant on an incoming path"));
+        }
+    }
+    Ok(())
+}
+
+fn clear_local_holes(state: &mut State, local: LocalId, b: &mut Budget) -> CompileResult<()> {
+    fee(b, state.vacant.len())?;
+    state
+        .vacant
+        .retain(|target| target.base != HoldRoot::Local(local));
+    Ok(())
+}
+
 fn projection_only_load(
     f: &TypedFunction,
     instruction: &Instruction,
@@ -1827,8 +1896,12 @@ fn slot_loan_ids(
                 Ok(())
             };
             match &instruction.kind {
-                InstructionKind::StoreStoredBorrow { path, .. } => {
-                    add(u32::MAX, path, true)?;
+                InstructionKind::StoreStoredBorrow { path, value, .. } => {
+                    add(
+                        u32::MAX,
+                        path,
+                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. }),
+                    )?;
                 }
                 InstructionKind::Call { function, .. } => {
                     let callee = module
@@ -1936,6 +2009,7 @@ fn transfer(
             )?;
         }
         InstructionKind::Store { local, value } => {
+            clear_local_holes(state, *local, b)?;
             ordered(b, state.locals.len(), 0)?;
             state.locals.insert(*local, snapshot(get(*value)?, b)?);
         }
@@ -1945,6 +2019,7 @@ fn transfer(
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
                 || (b.stored_enum_addresses
                     && enum_address::signature(&f.locals[local.0 as usize].ty))
+                || matches!(f.locals[local.0 as usize].ty, Type::Address { .. })
             {
                 out = snapshot(
                     state
@@ -1955,6 +2030,7 @@ fn transfer(
                 )?;
             }
             state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
         }
         InstructionKind::TakePackageField { local, index } => {
             ordered(b, state.locals.len(), 0)?;
@@ -1963,12 +2039,22 @@ fn transfer(
                 .get_mut(local)
                 .ok_or_else(|| failure("taken Package field has no live local shell"))?;
             out.slots = take_package_field_slots(holder, *index, b)?;
+            fee(b, state.vacant.len())?;
+            state.vacant.retain(|target| {
+                !(target.base == HoldRoot::Local(*local)
+                    && target.place.first() == Some(&PlaceProjection::Field(*index)))
+            });
         }
         InstructionKind::DropPackageField { local, index } => {
             ordered(b, state.locals.len(), 0)?;
             if let Some(holder) = state.locals.get_mut(local) {
                 take_package_field_slots(holder, *index, b)?;
             }
+            fee(b, state.vacant.len())?;
+            state.vacant.retain(|target| {
+                !(target.base == HoldRoot::Local(*local)
+                    && target.place.first() == Some(&PlaceProjection::Field(*index)))
+            });
         }
         InstructionKind::StorePackageField {
             local,
@@ -1986,12 +2072,18 @@ fn transfer(
                 ordered(b, holder.slots.len(), complete.len())?;
                 holder.slots.insert(complete, permission);
             }
+            fee(b, state.vacant.len())?;
+            state.vacant.retain(|target| {
+                !(target.base == HoldRoot::Local(*local)
+                    && target.place.first() == Some(&PlaceProjection::Field(*index)))
+            });
         }
         InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
         | InstructionKind::DropClosure { local } => {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
         }
         InstructionKind::BorrowLocal { local } | InstructionKind::BorrowLocalMut { local } => {
             fee(b, 1)?;
@@ -2120,6 +2212,31 @@ fn transfer(
                 out.pointer.loans.insert(parent);
             }
         }
+        InstructionKind::LoadStoredBorrow {
+            storage,
+            path,
+            mode: StoredBorrowLoad::Take,
+        } => {
+            let address = &get(*storage)?.pointer;
+            out.pointer = select(state, address, path, b)?;
+            if !address.targets.is_empty() {
+                let position = slot_position(address, path, b)?;
+                let actual = match position.base {
+                    HoldRoot::Local(local) => {
+                        state.locals.get_mut(&local).map(|value| &mut value.slots)
+                    }
+                    HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
+                        state.external.get_mut(&position.base)
+                    }
+                    HoldRoot::Static => None,
+                };
+                if let Some(slots) = actual {
+                    slots.remove(&position.place);
+                }
+                ordered(b, state.vacant.len(), position.place.len())?;
+                state.vacant.insert(position);
+            }
+        }
         InstructionKind::StoreStoredBorrow {
             storage,
             path,
@@ -2129,11 +2246,16 @@ fn transfer(
             let root = roots
                 .next()
                 .ok_or_else(|| failure("replacement carrier has no actual root"))?;
-            if roots.next().is_some() || !root.stored.is_empty() || !root.place.is_empty() {
+            if roots.next().is_some() || !root.stored.is_empty() {
                 return Err(failure(
-                    "replacement carrier requires one exact inline root",
+                    "replacement carrier requires one actual inline root",
                 ));
             }
+            let actual_path = if root.place.is_empty() {
+                path.clone()
+            } else {
+                slot_position(&get(*storage)?.pointer, path, b)?.place
+            };
             let new = retain_slot(&get(*value)?.pointer, i, u32::MAX, path, slot_ids, loans, b)?;
             if new.targets.is_empty() {
                 return Err(failure("replacement value has no actual target"));
@@ -2150,18 +2272,22 @@ fn transfer(
                         .locals
                         .get_mut(&local)
                         .ok_or_else(|| failure("replacement local carrier is unavailable"))?;
-                    ordered(b, holder.slots.len(), path.len())?;
-                    holder.slots.insert(path.clone(), new);
+                    ordered(b, holder.slots.len(), actual_path.len())?;
+                    holder.slots.insert(actual_path, new);
                 }
                 HoldRoot::Parameter(_) | HoldRoot::Capture(_) => {
                     let holder = state
                         .external
                         .get_mut(&root.base)
                         .ok_or_else(|| failure("replacement external carrier is unavailable"))?;
-                    ordered(b, holder.len(), path.len())?;
-                    holder.insert(path.clone(), new);
+                    ordered(b, holder.len(), actual_path.len())?;
+                    holder.insert(actual_path, new);
                 }
                 HoldRoot::Static => return Err(failure("static text has no stored slot")),
+            }
+            if !state.vacant.is_empty() {
+                let position = slot_position(&get(*storage)?.pointer, path, b)?;
+                state.vacant.remove(&position);
             }
         }
         InstructionKind::LoadStoredBorrow { .. } => {
@@ -2252,11 +2378,16 @@ fn transfer(
                 let root = roots
                     .next()
                     .ok_or_else(|| failure("external update has no actual carrier root"))?;
-                if roots.next().is_some() || !root.stored.is_empty() || !root.place.is_empty() {
+                if roots.next().is_some() || !root.stored.is_empty() {
                     return Err(failure(
-                        "external update needs one exact inline carrier root",
+                        "external update needs one actual inline carrier root",
                     ));
                 }
+                let actual_path = if root.place.is_empty() {
+                    path.clone()
+                } else {
+                    slot_position(&actual.pointer, path, b)?.place
+                };
                 let mut permission = Permission::default();
                 for source in sources {
                     union(
@@ -2272,7 +2403,7 @@ fn transfer(
                 }
                 fee(b, path.len().saturating_add(permission.targets.len()))?;
                 let permission = retain_slot(&permission, i, *parameter, path, slot_ids, loans, b)?;
-                updates.push((root.clone(), path.clone(), permission));
+                updates.push((root.clone(), actual_path, permission));
             }
             for (root, path, permission) in updates {
                 match root.base {
@@ -2441,6 +2572,7 @@ fn transfer(
         {
             ordered(b, state.locals.len(), 0)?;
             state.locals.remove(local);
+            clear_local_holes(state, *local, b)?;
         }
         InstructionKind::ByteBufferNew
         | InstructionKind::DescribeAddress { .. }
@@ -2832,7 +2964,9 @@ fn reverse(
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
             if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
-                || carrier(&f.locals[local.0 as usize].ty).is_some() =>
+                || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || matches!(i.kind, InstructionKind::TakeLocal { .. })
+                    && matches!(f.locals[local.0 as usize].ty, Type::Address { .. }) =>
         {
             live[f.values.len() + local.0 as usize] = true
         }
@@ -2968,6 +3102,15 @@ fn windows(
                 InstructionKind::TakePackageField { local, index }
                 | InstructionKind::DropPackageField { local, index }
                 | InstructionKind::StorePackageField { local, index, .. } => {
+                    if matches!(i.kind, InstructionKind::TakePackageField { .. }) {
+                        fee(b, state.vacant.len())?;
+                        if state.vacant.iter().any(|target| {
+                            target.base == HoldRoot::Local(*local)
+                                && target.place.first() == Some(&PlaceProjection::Field(*index))
+                        }) {
+                            return Err(failure("child Package move has a vacant stored slot"));
+                        }
+                    }
                     let actual = Permission {
                         targets: BTreeSet::from([Target {
                             base: HoldRoot::Local(*local),
@@ -2998,6 +3141,16 @@ fn windows(
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::TakeLocal { local }
                 | InstructionKind::DropClosure { local } => {
+                    if matches!(i.kind, InstructionKind::TakeLocal { .. }) {
+                        fee(b, state.vacant.len())?;
+                        if state
+                            .vacant
+                            .iter()
+                            .any(|target| target.base == HoldRoot::Local(*local))
+                        {
+                            return Err(failure("whole carrier move has a vacant stored slot"));
+                        }
+                    }
                     let mut actual = Permission::default();
                     actual.targets.insert(Target {
                         base: HoldRoot::Local(*local),
@@ -3038,6 +3191,7 @@ fn windows(
                     path,
                     mode,
                 } => {
+                    require_filled(&state, pointer(*storage)?, path, b)?;
                     let exclusive = matches!(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
@@ -3068,13 +3222,22 @@ fn windows(
                         use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     }
                     let actual = select(&state, pointer(*storage)?, path, b)?;
-                    use_permission(&actual, exclusive, &current, loans, apart, b)?;
+                    let target_write = if matches!(mode, StoredBorrowLoad::Take) {
+                        i.result.is_some_and(|id| {
+                            matches!(f.values[id.0 as usize], Type::Address { mutable: true, .. })
+                        })
+                    } else {
+                        exclusive
+                    };
+                    use_permission(&actual, target_write, &current, loans, apart, b)?;
                 }
                 InstructionKind::StoreStoredBorrow {
                     storage,
                     path,
                     value,
                 } => {
+                    let exclusive =
+                        matches!(value_type(f, *value)?, Type::Address { mutable: true, .. });
                     let mut slot = Permission {
                         targets: BTreeSet::new(),
                         loans: pointer(*storage)?.loans.clone(),
@@ -3094,8 +3257,17 @@ fn windows(
                     }
                     use_permission(&slot, true, &current, loans, apart, b)?;
                     let previous = select(&state, pointer(*storage)?, path, b)?;
-                    use_permission(&previous, true, &current, loans, apart, b)?;
-                    use_permission(pointer(*value)?, true, &current, loans, apart, b)?;
+                    if previous.targets.is_empty() {
+                        let position = slot_position(pointer(*storage)?, path, b)?;
+                        if !state.vacant.contains(&position) {
+                            return Err(failure(
+                                "replacement has neither a live slot nor an extracted hole",
+                            ));
+                        }
+                    } else {
+                        use_permission(&previous, exclusive, &current, loans, apart, b)?;
+                    }
+                    use_permission(pointer(*value)?, exclusive, &current, loans, apart, b)?;
                 }
                 InstructionKind::WriteAddress { address, .. }
                 | InstructionKind::ReborrowAddress {
@@ -3214,6 +3386,11 @@ fn windows(
                     {
                         let actual = &values[argument.0 as usize];
                         let ty = &callee.locals[parameter.0 as usize].ty;
+                        if let Some((_, shape)) = pointed_carrier(ty) {
+                            for slot in &shape.slots {
+                                require_filled(&state, &actual.pointer, &slot.path, b)?;
+                            }
+                        }
                         if let Type::Address { mutable, .. } = ty {
                             use_permission(&actual.pointer, *mutable, &current, loans, apart, b)?;
                             if *mutable && let Some((_, shape)) = pointed_carrier(ty) {
@@ -3522,6 +3699,16 @@ fn derive_cfg(
                 }
             }
             let mut grounded = true;
+            for (bi, block) in f.blocks.iter().enumerate() {
+                if reachable[bi] && matches!(block.terminator, Terminator::Return(_)) {
+                    fee(b, outputs[bi].vacant.len())?;
+                    if outputs[bi].vacant.iter().any(|target| {
+                        matches!(target.base, HoldRoot::Parameter(_) | HoldRoot::Capture(_))
+                    }) {
+                        grounded = false;
+                    }
+                }
+            }
             for (id, (ty, value)) in f.values.iter().zip(&values).enumerate() {
                 fee(b, 1)?;
                 if let Some(rows) = inactive {
@@ -3945,7 +4132,8 @@ fn actual_instructions(
                         | InstructionKind::ScopeExit { .. }
                         | InstructionKind::LoadStoredBorrow {
                             mode: StoredBorrowLoad::CopyShared
-                                | StoredBorrowLoad::Reborrow { mutable: true },
+                                | StoredBorrowLoad::Reborrow { mutable: true }
+                                | StoredBorrowLoad::Take,
                             ..
                         }
                         | InstructionKind::StoreStoredBorrow { .. }

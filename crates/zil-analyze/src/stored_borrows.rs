@@ -97,7 +97,9 @@ pub(super) fn instruction(
                     ty.clone()
                 }
                 StoredBorrowLoad::CopyDescription if matches!(ty, Type::Desc(_)) => ty.clone(),
-                StoredBorrowLoad::Take if exclusive => ty.clone(),
+                StoredBorrowLoad::Take if exclusive && matches!(ty, Type::Address { .. }) => {
+                    ty.clone()
+                }
                 StoredBorrowLoad::Reborrow { mutable } => {
                     let Type::Address {
                         mutable: source,
