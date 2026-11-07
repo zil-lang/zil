@@ -636,7 +636,7 @@ fn template_with_state(
         {
             return Err(unsupported(
                 ordinary.span,
-                "ordinary parameters beside callable types require Copy and independently checked direct bounds",
+                "ordinary parameters beside callable types require direct Copy and independently checked bounds",
             ));
         }
     }
