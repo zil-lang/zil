@@ -22,10 +22,18 @@ fn primitive()->i32 {
         .err(_)=>{return 11},
         .ok(created)=>{
             var map:pod_hash_map.PodHashMap<i64,bool>=created
-            match pod_hash_map.insert(&mut map,-7,true,&equal,&hash) {.err(_)=>{return 12},.ok(_)=>{}}
-            match pod_hash_map.get(&map,-7,&equal,&hash) {Option.None()=>{return 13},Option.Some(value)=>{if !value{return 14}}}
-            match pod_hash_map.remove(&mut map,-7,&equal,&hash) {.err(_)=>{return 15},.ok(old)=>{let found:Option<bool>=old;match found {Option.None()=>{return 16},Option.Some(value)=>{if !value{return 17}}}}}
-            return i32(pod_hash_map.len::<i64,bool>(&map))
+            match pod_hash_map.insert(&mut map,1,true,&equal,&hash) {.err(_)=>{return 12},.ok(_)=>{}}
+            match pod_hash_map.insert(&mut map,8,false,&equal,&hash) {.err(_)=>{return 13},.ok(_)=>{}}
+            match pod_hash_map.insert(&mut map,-6,true,&equal,&hash) {.err(_)=>{return 14},.ok(_)=>{}}
+            match pod_hash_map.get(&map,8,&equal,&hash) {Option.None()=>{return 15},Option.Some(value)=>{if value{return 16}}}
+            match pod_hash_map.insert(&mut map,15,true,&equal,&hash) {.ok(_)=>{return 17},.err(_)=>{}}
+            match pod_hash_map.remove(&mut map,8,&equal,&hash) {.err(_)=>{return 18},.ok(old)=>{let found:Option<bool>=old;match found {Option.None()=>{return 19},Option.Some(value)=>{if value{return 20}}}}}
+            match pod_hash_map.insert(&mut map,15,true,&equal,&hash) {.err(_)=>{return 21},.ok(_)=>{}}
+            if pod_hash_map.len::<i64,bool>(&map)!=3 {return 22}
+            match pod_hash_map.get(&map,1,&equal,&hash) {Option.None()=>{return 23},Option.Some(value)=>{if !value{return 24}}}
+            match pod_hash_map.get(&map,-6,&equal,&hash) {Option.None()=>{return 25},Option.Some(value)=>{if !value{return 26}}}
+            match pod_hash_map.get(&map,15,&equal,&hash) {Option.None()=>{return 27},Option.Some(value)=>{if !value{return 28}}}
+            return 0
         }
     }
 }
