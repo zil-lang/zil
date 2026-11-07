@@ -299,7 +299,7 @@ impl Builder<'_, '_> {
 }
 
 #[cfg(test)]
-mod terminal343_hint_budget {
+mod hint_budget {
     use super::*;
     fn signature(result: Type, receiver: Option<Type>) -> Signature {
         Signature {

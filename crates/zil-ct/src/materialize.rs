@@ -709,7 +709,7 @@ mod tests {
     }
 
     #[test]
-    fn ct202_fresh_ids_include_the_static_callee_inside_type_application() {
+    fn fresh_ids_include_the_static_callee_inside_type_application() {
         let mut core = input();
         core.functions[0].body.statements.push(statement(
             401,
@@ -735,7 +735,7 @@ mod tests {
     }
 
     #[test]
-    fn defer227_body_identity_and_depth_are_visited_before_reification() {
+    fn defer_body_identity_and_depth_are_visited_before_reification() {
         let mut core = input();
         core.functions = vec![function(
             1,

@@ -891,7 +891,7 @@ mod retained_member_tests {
     use zil_base::{FileId, Limits, SourceUnit};
 
     #[test]
-    fn g443_aligned_member_shapes_and_original_lookup_are_bounded() {
+    fn aligned_member_shapes_and_source_lookup_are_bounded() {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),

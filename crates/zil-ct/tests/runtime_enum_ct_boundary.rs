@@ -7,7 +7,7 @@ use zil_ir::*;
 
 fn record(name: &str, content: impl AsRef<[u8]>) {
     if let Some(root) = std::env::var_os("ZIL_TEST_REPORT_DIR") {
-        let dir = std::path::PathBuf::from(root).join(format!("ct239-{}", std::process::id()));
+        let dir = std::path::PathBuf::from(root).join(format!("runtime-enum-ct-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join(name), content).unwrap();
     }

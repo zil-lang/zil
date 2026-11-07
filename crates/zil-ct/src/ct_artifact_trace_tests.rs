@@ -150,7 +150,7 @@ fn program() -> CtArtifactProgram {
     p
 }
 #[test]
-fn g4462_completed_unit_calls_and_query_receipt_keep_exact_byte_neighbors() {
+fn completed_unit_calls_and_query_receipt_keep_exact_byte_neighbors() {
     let p = program();
     let authority = Authority {
         snapshot: p.snapshot.clone(),
@@ -232,7 +232,7 @@ fn g4462_completed_unit_calls_and_query_receipt_keep_exact_byte_neighbors() {
 }
 
 #[test]
-fn g4462_unit_no_result_preserves_call_checks_in_raw_and_wire() {
+fn unit_no_result_preserves_call_checks_in_raw_and_wire() {
     struct ClosedAuthority(CtSnapshotRequest);
     impl CtArtifactAuthority for ClosedAuthority {
         fn source_fingerprint(&self) -> Fingerprint {

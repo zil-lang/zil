@@ -576,7 +576,7 @@ mod tests {
     }
 
     #[test]
-    fn trait330_no_argument_default_alias_engine_and_collector_share_one_ledger() {
+    fn no_argument_trait_default_alias_engine_and_collector_share_one_ledger() {
         let source = SourceUnit::new(
             FileId(0),
             ModuleId(0),
@@ -641,7 +641,7 @@ mod tests {
     }
 
     #[test]
-    fn trait330_project_no_argument_default_keeps_normalization_and_downstream_ledger() {
+    fn project_trait_default_keeps_normalization_and_downstream_ledger() {
         let sources = [
             SourceUnit::new(
                 FileId(0),

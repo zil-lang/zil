@@ -3677,7 +3677,7 @@ mod tests {
         }
     }
     #[test]
-    fn bytes083_standalone_scalar_hints_are_symmetric_and_cumulatively_bounded() {
+    fn standalone_scalar_hints_are_symmetric_and_cumulatively_bounded() {
         let target = TargetProfile::default();
         let limits = Limits::default();
         for value in [
@@ -3724,7 +3724,7 @@ mod tests {
                     .any(|d| d.code == "E-RESOURCE-LIMIT")
             );
             println!(
-                "bytes083 scalar hints: nodes={} steps={}",
+                "scalar hint budget: nodes={} steps={}",
                 usage.nodes, usage.steps
             );
         }
@@ -3854,7 +3854,7 @@ mod tests {
         );
     }
 
-    fn runtime_template202() -> CoreModule {
+    fn runtime_generic_template() -> CoreModule {
         let application = expr(CoreExprKind::TypeApply {
             callee: Box::new(expr(CoreExprKind::Name("reserve".into()))),
             type_arguments: vec![Type::Package {
@@ -3902,10 +3902,10 @@ mod tests {
     }
 
     #[test]
-    fn ct202_runtime_application_preserves_metadata_and_scalar_argument_context() {
+    fn runtime_application_preserves_metadata_and_scalar_argument_context() {
         // Raw Core normalization only: this does not claim the raw fixture is
         // independently typechecked or that its runtime call has executed.
-        let core = runtime_template202();
+        let core = runtime_generic_template();
         let limits = Limits::default();
         let target = TargetProfile::default();
         let program = CoreProgram {
@@ -3953,10 +3953,10 @@ mod tests {
         }
     }
 
-    fn assert_runtime_bare_hint203(state: bool, indexed: bool) {
+    fn assert_runtime_bare_scalar_hint(state: bool, indexed: bool) {
         // Raw runtime-call normalization only. A scalar argument hint must not
         // authorize executing either kind of generic template during CT.
-        let mut core = runtime_template202();
+        let mut core = runtime_generic_template();
         let CoreStatementKind::Return(Some(call)) = &mut core.functions[0].body.statements[0].kind
         else {
             panic!()
@@ -4035,28 +4035,28 @@ mod tests {
     }
 
     #[test]
-    fn ct203_runtime_bare_ordinary_scalar_hint_plain() {
-        assert_runtime_bare_hint203(false, false);
+    fn runtime_bare_ordinary_scalar_hint_plain() {
+        assert_runtime_bare_scalar_hint(false, false);
     }
 
     #[test]
-    fn ct203_runtime_bare_ordinary_scalar_hint_indexed() {
-        assert_runtime_bare_hint203(false, true);
+    fn runtime_bare_ordinary_scalar_hint_indexed() {
+        assert_runtime_bare_scalar_hint(false, true);
     }
 
     #[test]
-    fn ct203_runtime_bare_state_scalar_hint_plain() {
-        assert_runtime_bare_hint203(true, false);
+    fn runtime_bare_state_scalar_hint_plain() {
+        assert_runtime_bare_scalar_hint(true, false);
     }
 
     #[test]
-    fn ct203_runtime_bare_state_scalar_hint_indexed() {
-        assert_runtime_bare_hint203(true, true);
+    fn runtime_bare_state_scalar_hint_indexed() {
+        assert_runtime_bare_scalar_hint(true, true);
     }
 
     #[test]
-    fn ct202_template_metadata_and_type_arguments_are_bounded_before_copy() {
-        let mut core = runtime_template202();
+    fn template_metadata_and_type_arguments_are_bounded_before_copy() {
+        let mut core = runtime_generic_template();
         let limits = Limits {
             max_analysis_steps: 128,
             ..Limits::default()
@@ -4098,7 +4098,7 @@ mod tests {
     }
 
     #[test]
-    fn ct202_type_application_is_forbidden_in_direct_scalar_query() {
+    fn type_application_is_forbidden_in_direct_scalar_query() {
         let application = expr(CoreExprKind::TypeApply {
             callee: Box::new(expr(CoreExprKind::Name("template".into()))),
             type_arguments: vec![Type::I32],
@@ -4122,7 +4122,7 @@ mod tests {
     }
 
     #[test]
-    fn defer227_normalization_preserves_body_and_checks_runtime_names() {
+    fn defer_normalization_preserves_body_and_checks_runtime_names() {
         let target = TargetProfile::default();
         let limits = Limits::default();
         let mut core = module(number("42"), Type::Unit);
@@ -4183,7 +4183,7 @@ mod tests {
     }
 
     #[test]
-    fn defer227_unchanged_body_has_the_same_bounded_visit_as_rebuilding() {
+    fn unchanged_defer_body_has_the_same_bounded_visit_as_rebuilding() {
         let target = TargetProfile::default();
         let mut core = module(number("42"), Type::Unit);
         let span = core.functions[0].span;
