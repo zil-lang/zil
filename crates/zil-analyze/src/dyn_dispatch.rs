@@ -106,6 +106,16 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     for declaration in &module.dyn_declarations {
         budget.spend(
             declaration
+                .identity
+                .module_path
+                .len()
+                .saturating_add(declaration.identity.declaration_path.len())
+                .saturating_add(declaration.identity.generation_path.len())
+                .saturating_add(declaration.members.len()),
+            WORK,
+        )?;
+        budget.spend(
+            declaration
                 .members
                 .len()
                 .saturating_add(declaration.parameters.len())
