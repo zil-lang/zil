@@ -91,7 +91,7 @@ fn main() {
     sources = [ROOT / p for p in [
         "crates/zil-analyze/tests/impl253_fixtures/v34",
         "crates/zil-driver/tests/review223_fixtures/v34",
-        "tests/impl254/v34",
+        "tests/borrowed-callable-arguments/v34",
     ]]
     environment = dict(os.environ, CARGO_TARGET_DIR=str(WORK / "target"),
                        CARGO_PROFILE_DEV_DEBUG="0", CARGO_INCREMENTAL="0")
