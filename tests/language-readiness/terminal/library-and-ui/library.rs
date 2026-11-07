@@ -477,6 +477,62 @@ fn ordinary_string_search_and_store_composition_are_native() {
 }
 
 #[test]
+fn ordinary_utf8_stream_search_is_native() {
+    use std::{io::Write, process::Stdio};
+    let input = include_str!("text_stream.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("text-stream-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            let program = &report.artifacts["executable"];
+            for (bytes, code, stdout) in [
+                ("猫\n猫猫".as_bytes(), 0, "3\n".as_bytes()),
+                ("dog\0猫".as_bytes(), 0, "1\n".as_bytes()),
+                ("".as_bytes(), 0, "0\n".as_bytes()),
+                (&[0xf0, 0x28, 0x8c, 0xbc][..], 2, "".as_bytes()),
+            ] {
+                let mut child = Command::new(program)
+                    .stdin(Stdio::piped())
+                    .stdout(Stdio::piped())
+                    .stderr(Stdio::piped())
+                    .spawn()
+                    .unwrap();
+                child.stdin.take().unwrap().write_all(bytes).unwrap();
+                let out = child.wait_with_output().unwrap();
+                assert_eq!(out.status.code(), Some(code), "{backend:?}/{optimization:?}: {out:?}");
+                assert_eq!(out.stdout, stdout, "{backend:?}/{optimization:?}");
+                assert!(out.stderr.is_empty());
+            }
+            let mut child = Command::new(program)
+                .stdin(Stdio::piped())
+                .stdout(Stdio::piped())
+                .spawn()
+                .unwrap();
+            child.stdin.take().unwrap().write_all(&vec![b'a'; 4097]).unwrap();
+            let out = child.wait_with_output().unwrap();
+            assert_eq!(out.status.code(), Some(3));
+            assert!(out.stdout.is_empty());
+        }
+    }
+}
+
+#[test]
 fn ordinary_standard_io_stream_is_native() {
     use std::{io::Write, process::Stdio};
     let input = include_str!("standard_io.zil");
@@ -551,6 +607,90 @@ fn ordinary_standard_io_file_ownership_is_native() {
             assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
             assert!(out.stdout.is_empty() && out.stderr.is_empty());
             assert_eq!(fs::read(data).unwrap(), "猫\0Z".as_bytes());
+        }
+    }
+}
+
+#[test]
+fn ordinary_i64_map_and_set_are_native() {
+    let input = include_str!("collections.zil");
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let dir = directory(&format!("collections-{backend:?}-{optimization:?}"));
+            fs::write(dir.join("main.zil"), input).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &dir.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(dir.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            assert_eq!(report.verification_runs, 1);
+            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            assert!(out.stdout.is_empty() && out.stderr.is_empty());
+        }
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn ordinary_i64_map_growth_failure_preserves_entries() {
+    use std::{os::unix::fs::PermissionsExt, path::Path};
+    fn quote(path: &Path) -> String {
+        format!("'{}'", path.to_string_lossy().replace('\'', "'\"'\"'"))
+    }
+    let clang = std::env::var_os("ZIL_CLANG")
+        .map(PathBuf::from)
+        .unwrap_or_else(|| "clang".into());
+    let dir = directory("collections-allocation");
+    let observer = dir.join("observer.o");
+    let compiled = Command::new(&clang)
+        .args(["-std=c11", "-Wall", "-Wextra", "-Werror", "-c"])
+        .arg(
+            Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("../../tools/language/composed-store-closures/allocator_probe.c"),
+        )
+        .arg("-o")
+        .arg(&observer)
+        .output()
+        .unwrap();
+    assert!(compiled.status.success(), "{compiled:?}");
+    let wrapper = dir.join("link.sh");
+    fs::write(&wrapper,format!("#!/bin/sh\nset -eu\nlink=1\ninput=0\nfor arg in \"$@\"; do\ncase \"$arg\" in -c|-S|-E|--version) link=0 ;; *.o|*.obj|*.ll) input=1 ;; esac\ndone\nif [ \"$link\" = 1 ] && [ \"$input\" = 1 ]; then\nexec {} \"$@\" -x none {} -Wl,--wrap=realloc -Wl,--wrap=free\nfi\nexec {} \"$@\"\n",quote(&clang),quote(&observer),quote(&clang))).unwrap();
+    fs::set_permissions(&wrapper, fs::Permissions::from_mode(0o700)).unwrap();
+    let mut backends = vec![NativeBackend::Clang];
+    if cfg!(feature = "llvm-api") {
+        backends.push(NativeBackend::LlvmApi);
+    }
+    for backend in backends {
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let run = directory(&format!("collections-failure-{backend:?}-{optimization:?}"));
+            fs::write(run.join("main.zil"), include_str!("collections_failure.zil")).unwrap();
+            let report = CompilationSession::default().compile_path(
+                &run.join("main.zil"),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    clang: Some(wrapper.clone()),
+                    output: Some(run.join("program")),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+            let out = Command::new(&report.artifacts["executable"]).output().unwrap();
+            assert_eq!(out.status.code(), Some(0), "{backend:?}/{optimization:?}: {out:?}");
+            let audit = String::from_utf8(out.stderr).unwrap();
+            assert!(audit.contains("\"failures\":1") && audit.contains("\"live\":0"), "{audit}");
         }
     }
 }
