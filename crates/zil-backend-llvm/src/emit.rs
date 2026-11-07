@@ -758,6 +758,11 @@ fn bind_lir(
         lir,
         verified.limits(),
         verified.uses_owned_sum_extension() || callback_owned_data,
+        verified.uses_owned_sum_extension()
+            && lir.resources.iter().any(|r| {
+                matches!(&r.payload, Type::OwnedStore { element }
+                    if dynamic_store::inline_protocol_element(element))
+            }),
         entry,
     )?;
     for closure in lir.closures {
