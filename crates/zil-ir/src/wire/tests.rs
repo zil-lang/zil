@@ -128,7 +128,7 @@ fn async_registration_raw_operations_preserve_every_field_without_admission() {
             assert!(identities.insert(encoded));
         }
         let mut bad = writer.output;
-        bad[5] = 255;
+        bad[5] = 254; // 255 is the explicit Unsupported payload, not an unknown opcode.
         assert_eq!(
             Reader::new(&bad, &limits)
                 .unwrap()
