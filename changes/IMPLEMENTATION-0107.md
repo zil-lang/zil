@@ -6,7 +6,7 @@
 生产实现及 crates 测试已净回退**。预先指定的 modules512 Verify 完整进程
 ON/BASE 为 0.747634，名义 95% 同时区间 [0.732010, 0.771199]；这是保留的真实
 有限收益，不是普遍退化。但 95 个端点仍有 32 个上界大于 1.01，没有满足原全矩阵
-准入条件。全部 19 个完整进程和 76 个 API 端点见 `docs/research/107/RESULTS.md`。
+准入条件。全部 19 个完整进程和 76 个 API 端点见 `docs/research/construction-input-closure/results.md`。
 本文件为作者交付，非作者审核和集成由 root 完成；权威范围仍为主树 `.task/impl/107.md`。
 
 提案/九闭包证明提交为 `87174539a778b74bf7ed6e51fa0ba42746804212`；生产实现
@@ -28,7 +28,7 @@ ON/BASE 为 0.747634，名义 95% 同时区间 [0.732010, 0.771199]；这是保�
 导出接口、证书、Verify、数据库通用合同、磁盘键/格式、规则串及预算都不改。
 
 九个生产 query 闭包和特殊 loaded_syntax 来源的逐项证明在
-`docs/research/107/INPUT-CLOSURE.md`。它明确覆盖源 FileId/ModuleId/路径/文本、
+`docs/research/construction-input-closure/input-closure.md`。它明确覆盖源 FileId/ModuleId/路径/文本、
 项目 root/有序模块/完整 paths、全部 Limits、build_inputs 和目标全部字段，
 不以“以前缓存也如此”代替封闭性证明。
 
@@ -81,7 +81,7 @@ guard 请求，共 426，请求数与测试函数数分别报告。三个 guard 
 
 ## 唯一正式确认和最终处置
 
-`docs/research/107/CONFIRMATION.md` 固定只比较 ON/BASE 一次：19 单元、每单元
+`docs/research/construction-input-closure/confirmation.md` 固定只比较 ON/BASE 一次：19 单元、每单元
 2 预热对及 64 个 ABBA/BAAB 块、总 4940 进程 / 19760 请求。95 个完整终点用
 既定 1% 线和第 18/47 次序统计同时区间；主要收益预定 modules512 Verify 完整
 进程。OFF 只做功能/工作消融，**OFF 耗时未测**。本合同的具体判定将噪声导致的

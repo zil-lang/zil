@@ -25,6 +25,6 @@ ZUI 框架，也不把同步起步范围等同用户全部 ZUI 需求。
 `indexed_control/main.zil` 保存审计先验证的独立索引表示控制。其先前真实结果
 是 O0/O2 的 `B!AC`，与新五模块预声明模型分开记账。
 
-执行参数与精确成果见 `docs/ZUI-LANGUAGE-READINESS-217.md` 以及
+执行参数与精确成果见 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/ZUI-LANGUAGE-READINESS-217.md` 以及
 `evidence/impl/217/`。必须使用干净提交、冻结 CLI 构建收据和一个全新的输出目录。
 运行器不会构建 Rust，也不重跑正式整仓。

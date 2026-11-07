@@ -40,7 +40,7 @@
 
 ## 九个生产闭包
 
-完整逐项证明见 [INPUT-CLOSURE.md](../docs/research/107/INPUT-CLOSURE.md)。冻结入口为：
+完整逐项证明见 [INPUT-CLOSURE.md](../docs/research/construction-input-closure/input-closure.md)。冻结入口为：
 
 | 调用点 | 成功raw种类 | 真正读取的构造输入 |
 |---|---|---|

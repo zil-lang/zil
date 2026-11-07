@@ -131,7 +131,7 @@ d['sources'].extend([
  {'id':'SRC-LEAN-SYNTAX','title':'Lean · Notations and Macros','url':'https://lean-lang.org/doc/reference/latest/Notations-and-Macros/','kind':'official','note':'语法、宏、卫生与elaboration分层参考。'}])
 d['meta'].update(version='ZIL-LANG-1.3',date='2026-10-23',rules=len(d['rules']),sourceSpec='_zil_design.md',scope='Current normative ZIL routes; other language survey preserved from input, not reverified')
 spec=(ROOT/'_zil_design.md').read_text();digest=hashlib.sha256(spec.encode()).hexdigest()[:12];d['meta']['specSha256']=hashlib.sha256(spec.encode()).hexdigest()
-workflow=(ROOT/'docs/WORKFLOW.md').read_text()
+workflow=(ROOT/'docs/development/workflow.md').read_text()
 guide='''# 阅读与使用
 
 ## 从目标查看方案

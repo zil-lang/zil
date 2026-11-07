@@ -22,18 +22,16 @@ EXCLUDED_ROOTS = {"evidence", "target", "out", "run-logs", ".git", "__pycache__"
 # JSON test inputs, task contracts and normative manifests remain source files.
 EXCLUDED_FILES = {
     "data/handoff.json",
-    "docs/IMPL147-RESULT.json",
-    "docs/IMPL148-RESULT.json",
-    "docs/research/146/NATIVE.json",
-    "docs/research/146/RESULT.json",
-    "docs/research/146/TESTS.json",
-    "docs/research/146/preparation-cache-screen.json",
-    "docs/research/150/arithmetic-audit.json",
-    "docs/research/150/native-summary.json",
-    "docs/research/150/summary-primary.json",
-    "docs/research/150/summary-secondary.json",
-    "docs/research/123/growth.png",
-    "docs/research/123/growth.svg",
+    "docs/research/effect-fact-equivalence/native.json",
+    "docs/research/effect-fact-equivalence/result.json",
+    "docs/research/effect-fact-equivalence/tests.json",
+    "docs/research/effect-fact-equivalence/preparation-cache-screen.json",
+    "docs/research/query-construction-identity/arithmetic-audit.json",
+    "docs/research/query-construction-identity/native-summary.json",
+    "docs/research/query-construction-identity/summary-primary.json",
+    "docs/research/query-construction-identity/summary-secondary.json",
+    "docs/research/cfg-initialization/growth.png",
+    "docs/research/cfg-initialization/growth.svg",
 }
 NATIVE_SUFFIXES = {".exe", ".o", ".obj", ".a", ".lib", ".so", ".dll", ".dylib", ".wasm", ".bc"}
 NATIVE_MAGICS = (b"\x7fELF", b"MZ", b"\xfe\xed\xfa\xce", b"\xce\xfa\xed\xfe",

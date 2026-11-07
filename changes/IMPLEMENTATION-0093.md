@@ -17,7 +17,7 @@
 完整请求与实际Build对照当前B，计数版单独构建，所有失败与退化保留。
 非Go时生产crate恢复冻结基线，完整实验补丁与原提交仍保留。
 
-预登记及退出条件见`docs/research/093/PREREGISTRATION.md`；施工方不自行合入，
+预登记及退出条件见`docs/research/streaming-fingerprints/preregistration.md`；施工方不自行合入，
 不跑正式全量，正式研究取样等待root授予独占窗口。
 
 ## 完成后的裁决

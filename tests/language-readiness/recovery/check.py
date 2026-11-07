@@ -105,7 +105,7 @@ def main():
         "collector_crates_tree": git(repo, "rev-parse", "HEAD:crates"),
         "compiler": {"path": str(binary), "sha256": sha(binary), "provenance": "Integrator-built recovery baseline binary; runtime LD_LIBRARY_PATH supplied by /workspace/.zil-env/env.sh."},
         "normative_sha256": {path: sha(repo / path) for path in NORMATIVE},
-        "replay": "source /workspace/.zil-env/env.sh && python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output docs/validation/recovery-capabilities.json",
+        "replay": "source /workspace/.zil-env/env.sh && python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output validation/results/language-readiness/recovery-capabilities.json",
         "inventory": {
             "runtime_instruction_decoder": "crates/zil-ir/src/wire.rs",
             "sha256": sha(inventory),
@@ -144,7 +144,7 @@ def main():
             "language_verdict": None,
         },
         "initial_collector_failure": {
-            "command": "python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output docs/validation/recovery-capabilities.json",
+            "command": "python3 tests/language-readiness/recovery/check.py --zil /workspace/.zil-env/target-recovery-root/debug/zil --output validation/results/language-readiness/recovery-capabilities.json",
             "exit_code": 1,
             "error": "TypeError: 'NoneType' object is not iterable at scalar_interfaces/result_origins extraction",
             "resolution": "Treat absent optional interface/origin lists as empty; no compiler or source change.",

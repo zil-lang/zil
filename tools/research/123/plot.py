@@ -35,7 +35,7 @@ for column, family in enumerate(["nested-if", "sequential-diamonds", "loop-body"
         axis.spines[["top", "right"]].set_visible(False)
 axes[0, 0].legend(frameon=False, fontsize=9)
 fig.suptitle("123: fixed 16 / 32 / 64 CFG growth\nMedians and simultaneous intervals; complete process endpoints only", fontsize=13)
-output = repo / "docs/research/123"
+output = repo / "docs/research/cfg-initialization"
 fig.savefig(output / "growth.svg")
 fig.savefig(output / "growth.png", dpi=170)
 plt.close(fig)

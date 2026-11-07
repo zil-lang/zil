@@ -24,7 +24,7 @@ Unsupported；4正例API O0/O2共8次原生成功。新增`cache.rs`只由既有
 原release CLI对应40fb基线时，8份331探针均在Expand未支持；这些旧结果不证明
 新符号检查正确，仍保留在审核JSON。候选复核新构建了target334的CLI，未冒用旧
 89891e二进制。每份源可用`zil check <source> --json`重跑，精确类别、阶段、
-诊断和hash见`docs/validation/review331-by334.json`。限定Rust目标使用独立
+诊断和hash见`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/review331-by334.json`。限定Rust目标使用独立
 target334/jobs1，不创建新Cargo target。
 
 `component-planned.zil`是单源普通消费者：`View<T>`共享字段借用，经具体Meter的

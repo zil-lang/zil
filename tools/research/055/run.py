@@ -45,7 +45,7 @@ def command(args, log=None):
 
 def source_inputs():
     paths = {'Cargo.toml', 'Cargo.lock', '_zil_design.md', MANIFEST,
-             'docs/research/055/CONTRACT.md', CASES}
+             'docs/research/typed-resource-cuts/contract.md', CASES}
     for crate in CRATES:
         paths.update(command(['git', 'ls-files', f'crates/{crate}']).splitlines())
     for p in (ROOT / 'tools/research/055').iterdir():

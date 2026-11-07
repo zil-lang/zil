@@ -22,4 +22,4 @@
 
 原/workspace执行输入在功能完成后出现一次来源未确认的public_edit字节残留；探索开始前SHA守卫拦截，旧现场没有修复/重封。新/tmp按冻结源重建，另实测新路径公开/native锚，因为路径参与project fingerprint。正式窗口有一次约0.8秒稀疏源码checkout背景事件，完整保留所有样本，不把区间写成排除了宿主干扰。
 
-完整证据、增长表、两候选失败与Rust四目标反思见[RESULTS](../docs/research/123/RESULTS.md)、[PROOF](../docs/research/123/PROOF.md)、[确认合同](../docs/research/123/CONFIRMATION.md)和`evidence/impl/123/`。本片得到可复算的有限结论及明确负结果，没有产品级净性能突破。
+完整证据、增长表、两候选失败与Rust四目标反思见[RESULTS](../docs/research/cfg-initialization/results.md)、[PROOF](../docs/research/cfg-initialization/proof.md)、[确认合同](../docs/research/cfg-initialization/confirmation.md)和`evidence/impl/123/`。本片得到可复算的有限结论及明确负结果，没有产品级净性能突破。

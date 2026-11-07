@@ -1,10 +1,10 @@
 # ZIL
 
-ZIL 是开发中的系统语言与编译器。当前可执行范围、限制和示例以 [语言初稿](docs/LANGUAGE-DRAFT.md) 为准；语言语义、安全边界和拒绝条件以 [_zil_design.md](_zil_design.md) 及其具名附件为准。开发检查点不代表完整语言或产品验收。有限普通拥有 Store 与共享借入 dyn 的范围和共同验收见 [语言交付收据](docs/validation/ordinary-ownership-and-shared-dispatch-acceptance.json)。实时任务、分配与阻塞只在独立 [goal 分支](https://github.com/zil-lang/zil/blob/goal/goal.md) 的 `goal.md`。
+ZIL 是开发中的系统语言与编译器。当前提供有限语言开发预览；可用能力和限制见[支持范围](docs/guide/supported-language.md)，语言语义以 [_zil_design.md](_zil_design.md) 为准。
 
-## 构建与运行
+## 构建和尝试
 
-当前默认后端的宿主范围是 Linux x86_64。按 `rust-toolchain.toml` 准备 Rust 1.99.1，按 [LLVM API 工具链说明](docs/LLVM-API.md)安装并配置 `tools/llvm/version.txt` 固定的 LLVM/Clang/LLD 23.1.4，再运行 `python3 tools/llvm/check_toolchain.py`。安装命令及依赖缓存说明见 [交付说明](docs/DELIVERY.md)。已有 Win64 对象/链接验证不等于 Windows 主机原生验收。在工具链与依赖已准备好的环境中：
+当前支持 Linux x86_64 宿主。先按[工具链说明](docs/development/toolchain.md)准备锁定的 Rust、LLVM/Clang/LLD 和依赖，再运行：
 
 ```sh
 cargo build --offline --locked -p zil-cli
@@ -12,20 +12,14 @@ cargo run --offline --locked -p zil-cli -- check examples/modules/main.zil --jso
 cargo run --offline --locked -p zil-cli -- run examples/modules/main.zil --entry main
 ```
 
-CLI 的 `check`、`build`、`run` 分别用于阶段检查、机器产物和执行；`--json` 用于机器报告。Success、SafeReject、Unsupported、ResourceLimit、InfraError、Cancelled 必须区分。案例登记、有限测试通过和旧轮结果都不自动证明正式发布条件。
+[快速开始](docs/guide/quickstart.md)说明 CLI、示例和结果状态；Windows 本机、完整语言与产品成本目标尚未验收。
 
-## 检查与工程入口
+## 继续阅读
 
-```sh
-cargo fmt --all -- --check
-cargo test --offline --locked --workspace --no-default-features
-cargo clippy --offline --locked --workspace --all-targets --no-default-features -- -D warnings
-```
+- [文档导航](docs/README.md)：使用、开发、设计决定和研究。
+- [开发工作流](docs/development/workflow.md)：并行分工、测试、独审和合入。
+- [验证依据](validation/README.md)：静态合同、真实输入与精简验收。
+- [恢复与交付](docs/development/delivery.md)：源码、独立看板和历史恢复。
+- [goal 看板](https://github.com/zil-lang/zil/blob/goal/goal.md)：唯一实时任务分配和状态；代理先读 [AGENTS.md](AGENTS.md)。
 
-正式组合测试、原生回归和产品门由集成者按受影响范围与冻结提交执行，保留实际选择/执行/断言数、工具链和失败字段；见 [工作流](docs/WORKFLOW.md)。当前静态合同和验收协议位于 `spec/`、`validation/`、`conformance/`；任务工单仅在任务分支保留；main 不保存 `.task/` 或实时计划副本。每轮产品证据对照见 [Rust 四目标](docs/RUST-GOALS.md)。
-
-## 源码与恢复
-
-`crates/` 包含语法、展开、类型、分析、独立核验、lowering、LLVM 后端、查询、驱动与 CLI；`lib/` 是标准库，`tests/`、`conformance/` 与 `examples/` 提供可执行输入和反例。`spec/` 记接口与诊断，`policy/` 记依赖规则，`validation/` 记静态验收协议，`docs/decisions/` 记当前有效设计理由和[仓库布局决定](docs/decisions/repository-layout.md)。不要从文件名中的旧批次号推断功能或通过状态。
-
-源码包的构建、独立 goal、Git 历史 bundle 和原始审计附件的恢复见 [交付说明](docs/DELIVERY.md)。代理接续见 [AGENTS.md](AGENTS.md)；用户上手见 [语言快速入口](docs/LANGUAGE-QUICKSTART.md)。历史施工报告仍可从 Git 历史追溯，不作为当前能力矩阵。
+`crates/` 与 `lib/` 是编译器和标准库；`tests/`、`conformance/`、`examples/` 提供测试和普通程序。文件按语义命名，完整目录职责见[仓库组织](docs/development/repository-layout.md)。

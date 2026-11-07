@@ -29,7 +29,7 @@ Copy tuple通配正控、T/life混合及usize/u64链。前者原生成功，后�
 
 两份语言文档按十行重写，原25和大数组历史JSON不改。新collector不创建Cargo
 target，机器产物仅存在临时目录。当前规范hash与派工一致；CLI来源收据与生产
-输入同一性、每份源hash及真实类别/阶段在`docs/validation/language-gaps-334.json`。
+输入同一性、每份源hash及真实类别/阶段在`validation/results/language-readiness/language-gaps-baseline.json`。
 本片没有生产修改、正式全量、Windows、弱内存或Rust同语义成本测量；Rust四目标
 与完整语言仍未完成，也不把审计本身称为新的产品突破。
 

@@ -22,7 +22,7 @@ def sha(path):
 
 
 def identities():
-    paths = sorted(SOURCE.glob("*.rs")) + [SOURCE / "run.py", CASES, ROOT / "docs/research/050/CONTRACT.md"]
+    paths = sorted(SOURCE.glob("*.rs")) + [SOURCE / "run.py", CASES, ROOT / "docs/research/region-boundary-relations/contract.md"]
     return {str(p.relative_to(ROOT)): sha(p) for p in paths}
 
 
@@ -87,7 +87,7 @@ def main():
         if cpu not in allowed:
             raise SystemExit("requested CPU is unavailable")
         os.sched_setaffinity(0, {cpu})
-        tracked = subprocess.check_output(["git", "status", "--porcelain", "--", "tools/research/050", "tests/perf/impl050", "docs/research/050/CONTRACT.md"], cwd=ROOT, text=True)
+        tracked = subprocess.check_output(["git", "status", "--porcelain", "--", "tools/research/050", "tests/perf/impl050", "docs/research/region-boundary-relations/contract.md"], cwd=ROOT, text=True)
         if tracked.strip():
             raise SystemExit("commit research source and contract before freeze")
         build(binary)

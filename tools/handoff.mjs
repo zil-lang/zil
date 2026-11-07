@@ -11,7 +11,7 @@ const commitPattern = /^(?:[0-9a-f]{40}|[0-9a-f]{64})$/;
 const sliceStates = new Set(['施工', '待验', '退回', '已合入', '卡住']);
 const formalIds = new Set(['B0', ...Array.from({length: 9}, (_, i) => `T${String(i + 1).padStart(2, '0')}`), ...Array.from({length: 4}, (_, i) => `W${i + 1}`)]);
 const nonempty = value => typeof value === 'string' && value.trim().length > 0;
-const migrationPath = 'docs/validation/handoff-migration-326.json';
+const migrationPath = 'validation/results/handoff/historical-migration.json';
 const pointer = (value, selector = '') => {
   if (typeof selector !== 'string' || selector !== '' && !selector.startsWith('/')) return undefined;
   for (const part of selector === '' ? [] : selector.slice(1).split('/')) {
@@ -109,7 +109,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
       const rawName = typeof ref === 'string' ? ref : ref?.result_path;
       const name = typeof rawName === 'string' ? rawName.replaceAll('\\', '/') : rawName;
       const full = inside(root, name);
-      if (!full || !['evidence/', 'docs/validation/'].some(prefix => name.startsWith(prefix))) { complain(id, 'Evidence reference must stay under evidence/ or docs/validation/.'); return {path: name ?? null}; }
+      if (!full || !['evidence/', 'validation/results/', 'docs/validation/'].some(prefix => name.startsWith(prefix))) { complain(id, 'Evidence reference must stay under evidence/ or validation/results/ (historical docs/validation/ identities are read at their recorded commit).'); return {path: name ?? null}; }
       let bytes, location;
       const reviewRevision = expectedReview?.review_commit;
       if (reviewRevision) {
@@ -296,7 +296,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
         }
       }
       for (const adapter of policy.review_adapters) {
-        if (!nonempty(adapter.task_id) || !nonempty(adapter.path) || !adapter.path.startsWith('docs/validation/') || !inside(root, adapter.path) || typeof adapter.selector !== 'string' || !adapter.selector.startsWith('/') || !['implementation_commit', 'delivery_commit', 'commit'].includes(adapter.commit_field)) {
+        if (!nonempty(adapter.task_id) || !nonempty(adapter.path) || !['validation/results/', 'docs/validation/'].some(prefix => adapter.path.startsWith(prefix)) || !inside(root, adapter.path) || typeof adapter.selector !== 'string' || !adapter.selector.startsWith('/') || !['implementation_commit', 'delivery_commit', 'commit'].includes(adapter.commit_field)) {
           complain('migration', 'Compact review adapter is invalid.');
         }
       }
@@ -438,7 +438,7 @@ export function inspectHandoff(cwd = process.cwd(), mainTree, {legacyAudit = fal
     }
   } else if (migration?.current_acceptance) {
     const name = migration.current_acceptance, full = inside(root, name);
-    if (!full || !name.startsWith('docs/validation/') || !fs.existsSync(full) || !tracked(name, fs.readFileSync(full))) complain('measured', 'Current compact acceptance must be a committed docs/validation JSON record.');
+    if (!full || !name.startsWith('validation/results/') || !fs.existsSync(full) || !tracked(name, fs.readFileSync(full))) complain('measured', 'Current compact acceptance must be a committed validation/results JSON record.');
     else {
       const compact = readJson(name);
       if (compact && checkCommit('measured', 'tested_commit', compact.tested_commit)) measured = {

@@ -36,7 +36,7 @@
 | 18 | 同一具体 Fn 闭包分别传独立 Fn、FnMut helper | Success / Verify | 1 |
 | 19 | Copy T 经已有 runtime while/Flow 反复更新 | 同 04 | 0 |
 
-04、15、16 与 `evidence/audits/14/probes01/` 对应原输入相同。旧 `docs/language14/terminal-matrix.md` 的组合缺口确实仍可重现，但其“需扩合同参数索引和来源域”不能统一套到单环境 F 加普通 T：T 不增加运行时环境角色。
+04、15、16 与 `evidence/audits/14/probes01/` 对应原输入相同。旧 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/language14/terminal-matrix.md` 的组合缺口确实仍可重现，但其“需扩合同参数索引和来源域”不能统一套到单环境 F 加普通 T：T 不增加运行时环境角色。
 
 ## 根因与最小实现路径
 

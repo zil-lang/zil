@@ -13,4 +13,4 @@
 完整进程计时包含工具启动，private edit各自使用真实持久缓存，不把ZIL进程内会话
 与rustc进程外构建混比。实际结果只能证明已实现子集，不能签发完整产品Pass。
 
-详细合同见`docs/research/104/CONTRACT.md`，机器参数见`tools/product/104/contract.json`。
+详细合同见`docs/research/rust-resource-cost/contract.md`，机器参数见`tools/product/104/contract.json`。

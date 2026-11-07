@@ -32,7 +32,7 @@ payload写入。普通直接/间接调用、返回及callee入口统一走333计
 
 生产限 `emit/copy_aggregates.rs`、`emit/enums.rs`、`emit/errors.rs`，
 `emit/large_copy_abi.rs`只在必要时补模型/边界；测试用既有aggregates target、固定
-`codegen-pending/large-copy-enum-error-*.zil`及 `docs/validation/large-copy-338.json`。
+`codegen-pending/large-copy-enum-error-*.zil`及 `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/large-copy-338.json`。
 root管理规范、主树工单和剩余语言文档。不改schema/Wire、Types/Analyze/Verify和默认额度。
 
 验证限定真实源两后端O0/O2、原a18、tag/活动payload/大小对齐、Copy求值与替换、两侧错误
@@ -133,7 +133,7 @@ unused源现使用正确`.lc1`指针输入/结果，不再遗留旧同名巨型S
 CLI Verify1，current与retained-C的2MiB API均SIGABRT；明确保留为合法输入的API
 可靠性未完成。不能用CLI8MiB成功冒称API2MiB通过。
 
-最终author receipt见`docs/validation/large-copy-338.json`，包含CLI构建身份、固定源
+最终author receipt见`https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/large-copy-338.json`，包含CLI构建身份、固定源
 SHA、实际正/反结果和费用历史。独审另有24次源native、四个C机器payload消费者及
 cache暖控；其来源、精确提交和限定裁决由审者/root维护，不计入本作者运行数。
 最初CLI收据脚本误把JSON已解析的object_reports当字符串检pipeline，已修正脚本，

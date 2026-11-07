@@ -53,5 +53,5 @@ allocation or peak-memory improvements from its wall-clock output.
 The first preflight used the correct baseline binary but a mistyped metadata
 label. It is preserved as an invalid identity record and excluded from formal
 timing claims. The final controller validates complete commit objects before
-starting a measurement. See `docs/research/068/results.md` for all regressions and
+starting a measurement. See `docs/research/representation-sharing/results.md` for all regressions and
 `evidence/impl/068` for the exact hashes and portable raw archive identity.

@@ -21,7 +21,7 @@ import time
 BASE = "400a082444275e1d0e2ad78c4910b9b6fc526be5"
 RESEARCH_BASE = "bf5876bd8b5e9936ad52e8f24adaa673884232dc"
 PREVIOUS_CORE = "04f7861625a760d6b0b9a5d279320ff98361cdb0"
-OVERLAY = ["tools/research/076", "tests/perf/impl076", "docs/research/076", "changes/IMPLEMENTATION-0076.md"]
+OVERLAY = ["tools/research/076", "tests/perf/impl076", "docs/research/explicit-row-sharing", "changes/IMPLEMENTATION-0076.md"]
 ENV = dict(os.environ, CARGO_INCREMENTAL="0", CARGO_PROFILE_DEV_DEBUG="0", CARGO_PROFILE_TEST_DEBUG="0", CARGO_PROFILE_RELEASE_DEBUG="0", CARGO_BUILD_JOBS="1")
 for name in ("CARGO_TARGET_DIR", "RUSTFLAGS", "CARGO_ENCODED_RUSTFLAGS"):
     ENV.pop(name, None)

@@ -6,4 +6,4 @@
 
 任务提交、作者测试、独立审核、正式集成验收分开。审核绑定精确候选 SHA，审核者不得是作者；收据记录工具链、profile、选中/执行/断言数、真实退出码、预期与实际和失败字段。原实施提交、审核对象与集成提交须在 main 或交付 bundle 的声明历史中可达；未跟踪结果、缺审核收据和错误提交绑定必须失败。源码包只带必要小收据和反例；大型原件经清单、SHA256 与附件绑定。未恢复原件时不能宣称完整回放。旧 Fail 不重标 Pass；历史收据只证明当时的源码和环境。
 
-验收门仍由 `_zil_design.md`、`spec/`、`validation/` 和适用测试定义。此决定来自 `.agent/failure-evidence.md`、`.agent/workflow-handoff.md`；实际命令见 `docs/WORKFLOW.md`，包装和恢复见 `docs/DELIVERY.md`。
+验收门仍由 `_zil_design.md`、`spec/`、`validation/` 和适用测试定义。此决定来自 `.agent/failure-evidence.md`、`.agent/workflow-handoff.md`；实际命令见 `docs/development/workflow.md`，包装和恢复见 `docs/development/delivery.md`。

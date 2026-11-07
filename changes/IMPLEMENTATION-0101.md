@@ -5,7 +5,7 @@
 
 **生产准入：R = Inconclusive。** 95 个终点无明确超过1%的退化，但89项仍不能
 排除1%回退。主要逆链完整进程比0.7081507303并不足以满足全矩阵准入。
-[结果](../docs/research/101/RESULTS.md)列出所有19个完整进程及13个>1%点估计；
+[结果](../docs/research/parameter-effect-graphs/results.md)列出所有19个完整进程及13个>1%点估计；
 [机器摘要](../evidence/impl/101/summary.json)逐项给出全部95终点。
 
 冻结BASE为`24ca9583d8789cfdfe3ccdbfe3eeff614bf56429`，候选为

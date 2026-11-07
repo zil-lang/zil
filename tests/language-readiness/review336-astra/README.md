@@ -41,7 +41,7 @@ tests are prepared but were filtered out on the 337-only candidate. A raw return
 type mismatch deliberately records Analyze candidate success followed by Verify
 rejection; Analyze is not claimed to duplicate complete raw instruction typing.
 
-The 337 review conclusion is in `docs/validation/review337-astra.json`. That
+The 337 review conclusion is in `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/review337-astra.json`. That
 receipt's tested harness remains unchanged at review commit `55c40de63` and in
 the current `raw.rs`; later 339 attacks are in a separate `raw339.rs` that reuses
 the two prepared tests once.
@@ -80,7 +80,7 @@ normal/business/create-failure/join-abort outcomes. It does not implement the ZI
 worker or grant transfer authority. Exact commands, source and artifact hashes,
 backend reports and process observations are retained compactly.
 
-The 339 conclusion is in `docs/validation/review339-astra.json`. Complementary
+The 339 conclusion is in `https://github.com/zil-lang/zil/blob/dd766f513bd8022e4d2c703f51a9343824150da8/docs/validation/review339-astra.json`. Complementary
 resource-lender/caller precondition review `b9177c458` is referenced separately;
 its counts are not added here. No full-workspace result or Rust product
 comparison is claimed. Original sources and compact receipts are retained;
