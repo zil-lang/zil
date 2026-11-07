@@ -132,6 +132,19 @@ impl Builder<'_, '_> {
             ));
         }
         if let Type::Dyn { interface } = inner {
+            if actual_inner.as_ref() == inner {
+                return Ok((
+                    self.value(
+                        InstructionKind::ReborrowAddress {
+                            address,
+                            mutable: false,
+                        },
+                        expected.clone(),
+                        e.span,
+                    )?,
+                    expected.clone(),
+                ));
+            }
             return self.dyn_coerce(address, &actual_inner, *interface, e.span);
         }
         self.same(inner, &actual_inner, e.span)?;

@@ -3288,6 +3288,18 @@ fn unify_argument(
                 "shared reference cannot grant exclusive access",
             ));
         }
+        if !wanted
+            && !available
+            && matches!(&expected.kind, TypeKind::Dyn { path, args, bindings } if path.len() == 1 && args.is_empty() && bindings.is_empty())
+            && matches!(&actual.kind, TypeKind::Named { path, args } if path.len() == 1 && args.is_empty())
+        {
+            // This is only a syntactic candidate. The selected concrete
+            // provider must come from the committed Source catalog, and Types
+            // checks its exact table and real borrowed receiver before it
+            // emits MakeDynBorrow. No generic substitution is inferred here.
+            budget.node(span, 0)?;
+            return Ok(());
+        }
         return unify_bounded(expected, actual, variables, found, span, budget);
     }
     unify_bounded(pattern, actual, variables, found, span, budget)
