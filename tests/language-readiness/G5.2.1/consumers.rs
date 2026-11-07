@@ -3,7 +3,7 @@ use super::*;
 use std::io::Write;
 use std::process::Stdio;
 use zil_base::TargetProfile;
-use zil_driver::NativeBackend;
+use zil_driver::{CodegenOptions, CompilationSession, DiskCacheStatus, NativeBackend};
 use zil_ir::{InstructionKind as I, Type};
 
 const TWO: &str = include_str!("dyn-two-provider.zil");
@@ -100,29 +100,44 @@ fn g521_cross_module_default_provider_and_nominal_interface_separation() {
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = directory("project");
             let executable = dir.join("program");
-            let report = compile_project(
-                &project(&files),
-                &CompileOptions {
-                    backend,
-                    optimization,
-                    stop_after: Stage::Build,
-                    entry: Some("main".into()),
-                    output: Some(executable.clone()),
-                    emit_dir: Some(dir.join("phases")),
-                    ..CompileOptions::default()
-                },
-            );
-            assert_eq!(
-                report.status,
-                ResultCategory::Success,
-                "{}",
-                report.to_json()
-            );
-            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
-            let result = Command::new(executable).output().unwrap();
-            assert_eq!(result.status.code(), Some(0));
-            assert_eq!(result.stdout, b"29\n");
-            assert!(result.stderr.is_empty());
+            let options = CompileOptions {
+                backend,
+                optimization,
+                stop_after: Stage::Build,
+                entry: Some("main".into()),
+                output: Some(executable.clone()),
+                emit_dir: Some(dir.join("phases")),
+                cache_dir: Some(dir.join("parsed-cache")),
+                ..CompileOptions::default()
+            };
+            for warm in [false, true] {
+                let report = compile_project(&project(&files), &options);
+                fs::write(
+                    dir.join(if warm { "warm.json" } else { "cold.json" }),
+                    report.to_json(),
+                )
+                .unwrap();
+                assert_eq!(
+                    report.status,
+                    ResultCategory::Success,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+                if warm {
+                    assert_eq!(
+                        report.disk_cache,
+                        DiskCacheStatus::Hit,
+                        "{}",
+                        report.to_json()
+                    );
+                }
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let result = Command::new(&executable).output().unwrap();
+                assert_eq!(result.status.code(), Some(0));
+                assert_eq!(result.stdout, b"29\n");
+                assert!(result.stderr.is_empty());
+            }
         }
     }
     let wrong = project_files(include_str!("project/wrong-interface.zil"));
@@ -173,15 +188,35 @@ fn g521_explicit_local_coercion_and_live_receiver_conflicts() {
 }
 
 fn source_candidate() -> (zil_ir::TypedModule, zil_ir::CandidatePlan) {
-    // This fixture has no CT expressions. Parse its real Source and retain the
-    // actual producer output; semantic cache intentionally excludes Dyn types.
+    // This fixture has no CT expressions. Use the same closed-project identity
+    // and program expansion entry as Driver, so the original trait/impl origins
+    // survive specialization instead of manufacturing a raw Core inventory.
     let unit = SourceUnit::new(FileId(0), ModuleId(0), "g521.zil", INPUT);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
-    let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();
     let target = TargetProfile::host_llvm();
-    let module = zil_types::check(&core, &target, &limits).unwrap();
-    let plan = zil_analyze::analyze(&module, &limits).unwrap();
+    let aliases = BTreeMap::new();
+    let expanded = zil_expand::expand_program_with_limits_target_context(
+        std::slice::from_ref(&unit),
+        &[&syntax.module],
+        &[Vec::new()],
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &aliases,
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap();
+    let core = zil_ir::CoreProgram {
+        root: unit.module_id,
+        source_fingerprint: unit.fingerprint(),
+        modules: expanded.into_iter().map(|(module, _)| module).collect(),
+    };
+    let typed = zil_types::check_program(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze_program(&typed, &limits).unwrap();
+    let module = typed.module;
     zil_verify::verify_module(module.clone(), plan.clone(), &target, &limits).unwrap();
     (module, plan)
 }
@@ -262,4 +297,198 @@ fn g521_source_derived_raw_wire_contract_identity_and_slot_controls() {
         zil_ir::wire::encode_module_candidate(&other, &other_plan, &Limits::default()).unwrap();
     zil_verify::verify_module(other, other_plan, &target, &Limits::default()).unwrap();
     zil_verify::verify_module_bytes(&wire, &target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn g521_dyn_request_work_nodes_and_cache_recheck_current_verify() {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "g521-budget.zil", INPUT);
+    let baseline = CompileOptions::default();
+    let initial = CompilationSession::default().compile_source(&unit, &baseline);
+    assert_eq!(
+        initial.status,
+        ResultCategory::Success,
+        "{}",
+        initial.to_json()
+    );
+    assert_eq!(initial.verification_runs, 1);
+    for ledger in ["work", "nodes"] {
+        let options = |n: usize| {
+            let mut options = CompileOptions::default();
+            match ledger {
+                "work" => options.limits.max_analysis_steps = n,
+                "nodes" => options.limits.max_nodes = n,
+                _ => unreachable!(),
+            }
+            options
+        };
+        let maximum = match ledger {
+            "work" => baseline.limits.max_analysis_steps,
+            "nodes" => baseline.limits.max_nodes,
+            _ => unreachable!(),
+        };
+        let (mut low, mut high) = (1, maximum);
+        while low < high {
+            let n = low + (high - low) / 2;
+            let report = CompilationSession::default().compile_source(&unit, &options(n));
+            match report.status {
+                ResultCategory::Success => high = n,
+                ResultCategory::ResourceLimit => low = n + 1,
+                _ => panic!("{ledger} N={n}: {}", report.to_json()),
+            }
+        }
+        assert!(low > 1, "{ledger} must have a meaningful N-1 control");
+        let mut warm = CompilationSession::default();
+        for (n, expected) in [
+            (low, ResultCategory::Success),
+            (low - 1, ResultCategory::ResourceLimit),
+            (low, ResultCategory::Success),
+        ] {
+            for report in [
+                warm.compile_source(&unit, &options(n)),
+                CompilationSession::default().compile_source(&unit, &options(n)),
+            ] {
+                assert_eq!(
+                    report.status,
+                    expected,
+                    "{ledger} N={low}: {}",
+                    report.to_json()
+                );
+                if expected == ResultCategory::Success {
+                    assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+                }
+            }
+            assert_eq!(warm.active_query_count(), 0);
+        }
+        eprintln!("G5.2.1 dyn {ledger} N={low}; N-1/cold/warm/fresh agree");
+    }
+
+    let cache = directory("raw-cache");
+    let options = CompileOptions {
+        cache_dir: Some(cache.join("raw")),
+        ..CompileOptions::default()
+    };
+    let cold = CompilationSession::default().compile_source(&unit, &options);
+    let warm = CompilationSession::default().compile_source(&unit, &options);
+    for report in [&cold, &warm] {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+    }
+    assert_eq!(warm.disk_cache, DiskCacheStatus::Hit, "{}", warm.to_json());
+
+    // semantic-v4 charge_type excludes Dyn. A trusted-local candidate cannot
+    // authorize this type; both cold and warm requests rebuild before Verify.
+    let options = CompileOptions {
+        semantic_cache: Some(cache.join("semantic")),
+        ..CompileOptions::default()
+    };
+    let mut session = CompilationSession::default();
+    let reports = [
+        session.compile_source(&unit, &options),
+        session.compile_source(&unit, &options),
+        CompilationSession::default().compile_source(&unit, &options),
+    ];
+    for report in &reports {
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+    }
+    for phase in [Phase::Types, Phase::Analyze] {
+        assert!(
+            reports[2]
+                .query_events
+                .iter()
+                .any(|event| event.phase == phase
+                    && event.disposition == zil_driver::QueryDisposition::Executed),
+            "{}",
+            reports[2].to_json()
+        );
+    }
+    let candidates = cache.join("semantic").join("semantic-v4");
+    if candidates.exists() {
+        assert!(fs::read_dir(candidates).unwrap().all(|entry| {
+            entry
+                .unwrap()
+                .path()
+                .extension()
+                .is_none_or(|ext| ext != "candidate")
+        }));
+    }
+    assert_eq!(session.active_query_count(), 0);
+}
+
+#[test]
+fn g521_project_request_eight_units_object_cache_reuses_actual_dyn_groups() {
+    if !cfg!(feature = "llvm-api") {
+        return;
+    }
+    let files = project_files(include_str!("project/main.zil"));
+    for optimization in [Optimization::O0, Optimization::O2] {
+        let dir = directory("project-objects");
+        let executable = dir.join("program");
+        let options = CompileOptions {
+            backend: NativeBackend::LlvmApi,
+            optimization,
+            stop_after: Stage::Build,
+            entry: Some("main".into()),
+            output: Some(executable.clone()),
+            object_cache: Some(dir.join("objects")),
+            codegen: CodegenOptions { units: 8, jobs: 4 },
+            ..CompileOptions::default()
+        };
+        let mut baseline_units = None;
+        for warm in [false, true] {
+            let report = compile_project(&project(&files), &options);
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1, "{}", report.to_json());
+            let native = report.native_codegen.as_ref().unwrap();
+            assert_eq!(native.backend, NativeBackend::LlvmApi);
+            assert!(native.fallback.is_none(), "{}", report.to_json());
+            assert_eq!(native.requested_units, 8);
+            assert!((1..=8).contains(&native.actual_units));
+            if let Some(units) = baseline_units {
+                assert_eq!(native.actual_units, units);
+            } else {
+                baseline_units = Some(native.actual_units);
+            }
+            if warm {
+                assert_eq!(
+                    native.object_cache.hits,
+                    native.actual_units,
+                    "{}",
+                    report.to_json()
+                );
+                assert_eq!(native.object_cache.misses, 0);
+            } else {
+                assert_eq!(native.object_cache.hits, 0, "{}", report.to_json());
+                assert_eq!(
+                    native.object_cache.misses,
+                    native.actual_units,
+                    "{}",
+                    report.to_json()
+                );
+            }
+            let result = Command::new(&executable).output().unwrap();
+            assert_eq!(result.status.code(), Some(0), "{result:?}");
+            assert_eq!(result.stdout, b"29\n");
+            assert!(result.stderr.is_empty(), "{result:?}");
+        }
+        eprintln!(
+            "G5.2.1 dyn project requested 8, actual {} units at {optimization:?}",
+            baseline_units.unwrap()
+        );
+    }
 }
