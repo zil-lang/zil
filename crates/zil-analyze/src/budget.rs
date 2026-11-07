@@ -518,7 +518,7 @@ fn local_value(
         return if budget.ordinary_pod_store_type(inner)? {
             super::resources::product::admit_owned(module, inner, budget)
         } else {
-            super::resources::product::admit(inner, budget).map(|_| false)
+            super::resources::product::admit_borrowed(inner, budget).map(|_| false)
         };
     }
     if super::resources::product::nested(ty)
