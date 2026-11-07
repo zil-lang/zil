@@ -1119,12 +1119,26 @@ impl Engine<'_> {
                 else {
                     return Err(error(pattern.span, "error arm requires an ErrorUnion"));
                 };
-                self.enum_pattern(
-                    inner,
-                    Some(if *is_error { error_ty } else { result }),
-                    env,
-                    depth + 1,
-                )?;
+                // Restoring source actuals identifies an aliased union, but
+                // an already specialized arm keeps its complete physical
+                // nominal instance for nested constructor patterns.
+                let selected = match &grouped(ty).kind {
+                    TypeKind::Error { error, result } => {
+                        if *is_error {
+                            error
+                        } else {
+                            result
+                        }
+                    }
+                    _ => {
+                        if *is_error {
+                            error_ty
+                        } else {
+                            result
+                        }
+                    }
+                };
+                self.enum_pattern(inner, Some(selected), env, depth + 1)?;
             }
             PatternKind::Tuple(patterns) => {
                 let types = ty.and_then(|ty| match &grouped(ty).kind {
