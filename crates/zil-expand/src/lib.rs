@@ -2023,8 +2023,26 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                         nominal_arguments: vec![],
                     },
                 }))
+            } else if let [s::GenericArg::Type(result), s::GenericArg::Type(port)] = args.as_slice() {
+                if matches!(&port.kind, s::TypeKind::Reference { mutable: false, lifetime: Some(_), inner } if type_ref(inner) == Type::I32) {
+                    Type::Desc(Box::new(Type::Task {
+                        result: Box::new(type_ref(result)),
+                        retained_life: zil_ir::RetainedLifeShape {
+                            binder_count: 1,
+                            ports: vec![zil_ir::RetainedBorrowPort {
+                                leaf: Type::Address { mutable: false, inner: Box::new(Type::I32) },
+                                mode: zil_ir::StoredBorrowMode::SharedAddress,
+                                binder: 0,
+                            }],
+                            retained: vec![],
+                            nominal_arguments: vec![],
+                        },
+                    }))
+                } else {
+                    Type::Unsupported("borrowed Task requires an explicit shared &'a i32 port".into())
+                }
             } else {
-                Type::Unsupported("Task requires one complete result type".into())
+                Type::Unsupported("Task requires a complete result type and at most one shared port".into())
             }
         }
         s::TypeKind::Named { path, args } if matches!(path.as_slice(), [n] if n == "Registration" || n == "AsyncRegistration") => {

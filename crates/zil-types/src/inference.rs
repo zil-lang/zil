@@ -4044,7 +4044,7 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     &if name == "task_await" {
                         signature.result.clone()
                     } else {
-                        tasks::create_type(&signature.result)
+                        tasks::create_type(&signature.result, tasks::borrowed_context(&signature.parameters))
                     },
                     span,
                 );

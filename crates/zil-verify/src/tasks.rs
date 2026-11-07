@@ -17,10 +17,11 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
 }
 pub(super) fn require_closed_context(ty: &Type, span: Option<Span>) -> Check<()> {
     if let Type::Task { retained_life, .. } = ty
-        && (retained_life.binder_count != 0
-            || !retained_life.ports.is_empty()
-            || !retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty())
+        && *retained_life != empty_context()
+        && !(retained_life.binder_count == 1
+            && retained_life.retained.is_empty()
+            && retained_life.nominal_arguments.is_empty()
+            && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort { leaf: Type::Address { mutable: false, inner }, mode: zil_ir::StoredBorrowMode::SharedAddress, binder: 0 }] if inner.as_ref() == &Type::I32))
     {
         return Err(unsupported(
             "borrowed Task retained classes require actual implemented frame port mappings",
@@ -37,7 +38,7 @@ fn task_payload(ty: &Type) -> Option<&Type> {
         _ => None,
     }
 }
-fn task_create_type(result: &Type) -> Type {
+fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
         error: Box::new(Type::Enum {
             name: "@std.task:v1:TaskCreateError".into(),
@@ -45,7 +46,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
-            retained_life: empty_context(),
+            retained_life,
         }))),
     }
 }
@@ -131,6 +132,7 @@ pub(super) fn instruction(
         InstructionKind::TaskCreate {
             worker,
             ref arguments,
+            ref port_bindings,
         } => {
             budget.spend(arguments.len().saturating_add(1))?;
             profile(module, worker, budget, span)?;
@@ -147,12 +149,38 @@ pub(super) fn instruction(
                     return Err(bad());
                 }
             }
+            let retained_life = if target.parameters.len() == 1
+                && matches!(local_type(target, target.parameters[0], span)?, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32)
+            {
+                if port_bindings.len() != 1
+                    || port_bindings[0].port != 0
+                    || port_bindings[0].source.base != zil_ir::StorageBase::Parameter(0)
+                    || !port_bindings[0].source.path.is_empty()
+                {
+                    return Err(reject("E-VERIFY-TASK", span, "task retained port differs from actual shared input"));
+                }
+                zil_ir::RetainedLifeShape {
+                    binder_count: 1,
+                    ports: vec![zil_ir::RetainedBorrowPort {
+                        leaf: Type::Address { mutable: false, inner: Box::new(Type::I32) },
+                        mode: zil_ir::StoredBorrowMode::SharedAddress,
+                        binder: 0,
+                    }],
+                    retained: vec![],
+                    nominal_arguments: vec![],
+                }
+            } else {
+                if !port_bindings.is_empty() {
+                    return Err(reject("E-VERIFY-TASK", span, "task retained port has no actual borrowed worker input"));
+                }
+                empty_context()
+            };
             for _ in 0..4 {
                 resources::charge_payload(&target.return_type, budget)?;
             }
             budget.spend(budget.task_workers.len().saturating_add(1))?;
             budget.task_workers.insert(worker);
-            let ty = task_create_type(&target.return_type);
+            let ty = task_create_type(&target.return_type, retained_life);
             let Type::ErrorUnion { result, .. } = &ty else {
                 unreachable!()
             };

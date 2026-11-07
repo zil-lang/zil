@@ -393,6 +393,7 @@ fn general_task_borrowed_initial_frame_is_not_erased_by_scalar_result() {
     creation.kind = zil_ir::InstructionKind::TaskCreate {
         worker: safe,
         arguments: vec![scalar],
+        port_bindings: vec![],
     };
     let mut claim = zil_analyze::analyze(&benign, &limits).unwrap();
     zil_verify::verify_module(benign, claim.clone(), &target, &limits).unwrap();

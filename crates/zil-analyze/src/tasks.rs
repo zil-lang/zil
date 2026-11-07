@@ -16,10 +16,11 @@ fn empty_context() -> zil_ir::RetainedLifeShape {
 }
 pub(super) fn require_closed_context(ty: &Type) -> CompileResult<()> {
     if let Type::Task { retained_life, .. } = ty
-        && (retained_life.binder_count != 0
-            || !retained_life.ports.is_empty()
-            || !retained_life.retained.is_empty()
-            || !retained_life.nominal_arguments.is_empty())
+        && *retained_life != empty_context()
+        && !(retained_life.binder_count == 1
+            && retained_life.retained.is_empty()
+            && retained_life.nominal_arguments.is_empty()
+            && matches!(retained_life.ports.as_slice(), [zil_ir::RetainedBorrowPort { leaf: Type::Address { mutable: false, inner }, mode: zil_ir::StoredBorrowMode::SharedAddress, binder: 0 }] if inner.as_ref() == &Type::I32))
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
@@ -37,7 +38,7 @@ fn task_payload(ty: &Type) -> Option<&Type> {
         _ => None,
     }
 }
-fn task_create_type(result: &Type) -> Type {
+fn task_create_type(result: &Type, retained_life: zil_ir::RetainedLifeShape) -> Type {
     Type::ErrorUnion {
         error: Box::new(Type::Enum {
             name: "@std.task:v1:TaskCreateError".into(),
@@ -45,7 +46,7 @@ fn task_create_type(result: &Type) -> Type {
         }),
         result: Box::new(Type::Managed(Box::new(Type::Task {
             result: Box::new(result.clone()),
-            retained_life: empty_context(),
+            retained_life,
         }))),
     }
 }
@@ -414,6 +415,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                     InstructionKind::TaskCreate {
                         worker: id,
                         ref arguments,
+                        ref port_bindings,
                     } => {
                         worker(module, id, budget, i.span)?;
                         let target = &module.functions[id.0 as usize];
@@ -433,6 +435,35 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 return Err(fail(i.span, "task_create actual input type differs"));
                             }
                         }
+                        let retained_life = if target.parameters.len() == 1
+                            && matches!(&target.locals[target.parameters[0].0 as usize].ty, Type::Address { mutable: false, inner } if inner.as_ref() == &Type::I32)
+                        {
+                            let expected = zil_ir::RetainedPortBinding {
+                                port: 0,
+                                source: zil_ir::StoragePosition {
+                                    base: zil_ir::StorageBase::Parameter(0),
+                                    path: vec![],
+                                },
+                            };
+                            if port_bindings.as_slice() != [expected] {
+                                return Err(fail(i.span, "task retained port must bind its actual shared input"));
+                            }
+                            zil_ir::RetainedLifeShape {
+                                binder_count: 1,
+                                ports: vec![zil_ir::RetainedBorrowPort {
+                                    leaf: Type::Address { mutable: false, inner: Box::new(Type::I32) },
+                                    mode: zil_ir::StoredBorrowMode::SharedAddress,
+                                    binder: 0,
+                                }],
+                                retained: vec![],
+                                nominal_arguments: vec![],
+                            }
+                        } else {
+                            if !port_bindings.is_empty() {
+                                return Err(fail(i.span, "task retained port lacks an actual borrowed input"));
+                            }
+                            empty_context()
+                        };
                         for _ in 0..4 {
                             budget.type_work(
                                 &target.return_type,
@@ -440,7 +471,7 @@ pub(super) fn check(module: &TypedModule, budget: &mut Budget) -> CompileResult<
                                 "general task result identity",
                             )?;
                         }
-                        let output = task_create_type(&target.return_type);
+                        let output = task_create_type(&target.return_type, retained_life);
                         Some(output)
                     }
                     InstructionKind::TaskStart {

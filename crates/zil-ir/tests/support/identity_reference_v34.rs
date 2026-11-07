@@ -499,13 +499,18 @@ fn encode_instruction(b: &mut Vec<u8>, i: &InstructionKind, v32: bool) {
                 encode_u32(b, argument.0);
             }
         }
-        InstructionKind::TaskCreate { worker, arguments } => {
+        InstructionKind::TaskCreate { worker, arguments, port_bindings } => {
             assert!(v32, "schema31 cannot represent general task creation");
             b.push(128);
             encode_u32(b, worker.0);
             encode_len(b, arguments.len());
             for argument in arguments {
                 encode_u32(b, argument.0);
+            }
+            encode_len(b, port_bindings.len());
+            for binding in port_bindings {
+                encode_u32(b, binding.port);
+                encode_storage_position(b, &binding.source);
             }
         }
         InstructionKind::SyncI32CompareExchange {
