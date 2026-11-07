@@ -545,6 +545,12 @@ pub(super) fn check_roots(
     }
     for (f, plan) in module.functions.iter().zip(plans) {
         budget.spend(f.blocks.len().saturating_add(1), WORK)?;
+        if matches!(&f.return_type, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. }))
+        {
+            return Err(bad(
+                "dyn borrowed carrier return is outside the finite scalar-result profile",
+            ));
+        }
         for block in &f.blocks {
             budget.spend(block.instructions.len(), WORK)?;
             for instruction in &block.instructions {
@@ -905,5 +911,26 @@ mod tests {
         crate::analyze(&m, &exact).unwrap();
         exact.max_analysis_steps -= 1;
         assert!(crate::analyze(&m, &exact).is_err());
+    }
+
+    #[test]
+    fn local_dyn_escape_and_nested_carrier_are_closed() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        m.functions[1].return_type = m.functions[1].values[1].clone();
+        m.functions[1].blocks[0].terminator = Terminator::Return(Some(ValueId(1)));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
+
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        let held = m.functions[1].values[1].clone();
+        m.functions[1].locals.push(local(
+            1,
+            Type::Record {
+                name: "Escape".into(),
+                fields: vec![("held".into(), held)],
+            },
+        ));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
     }
 }
