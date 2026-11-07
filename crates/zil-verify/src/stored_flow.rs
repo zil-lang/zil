@@ -1378,6 +1378,17 @@ fn projection_only_load(
     storage: ValueId,
     b: &mut Budget,
 ) -> Check<Option<LocalId>> {
+    let actual = value_type(f, storage, None)?;
+    let siblings = match qualified(actual).or_else(|| addressed(actual)) {
+        Some((Type::Package { .. }, _)) => true,
+        Some((Type::Record { .. }, shape)) => shape.slots.len() > 1,
+        _ => false,
+    };
+    if !siblings {
+        // Retain the old, conservative single-leaf parent relation without a
+        // function-wide scan for sibling projections that cannot exist.
+        return Ok(None);
+    }
     let mut adjacent = None;
     let mut uses = 0usize;
     for block in &f.blocks {

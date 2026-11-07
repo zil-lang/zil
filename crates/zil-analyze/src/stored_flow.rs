@@ -1486,6 +1486,17 @@ fn projection_only_load(
     storage: ValueId,
     b: &mut Budget,
 ) -> CompileResult<Option<LocalId>> {
+    let actual = value_type(f, storage)?;
+    let siblings = match carrier(actual).or_else(|| pointed_carrier(actual)) {
+        Some((Type::Package { .. }, _)) => true,
+        Some((Type::Record { .. }, life)) => life.slots.len() > 1,
+        _ => false,
+    };
+    if !siblings {
+        // The established single-leaf holder keeps its original parent loan.
+        // Only sibling projections need the new whole-use disambiguation.
+        return Ok(None);
+    }
     let mut adjacent = None;
     let mut uses = 0usize;
     for block in &f.blocks {
