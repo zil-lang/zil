@@ -130,6 +130,7 @@ fn primitive_name(name: &str) -> bool {
         || sync_name(name)
         || name == "Option"
         || name == "thread_scope"
+        || name == "move_out"
         || integer_name(name)
         || foreign_constructor_name(name)
         || byte_buffer_name(name)
@@ -156,6 +157,13 @@ fn primitive_name_error(name: &str, span: Span) -> Diagnostic {
             "E-OPTION-NAME",
             Some(span),
             "Option is a reserved built-in type and constructor namespace",
+        )
+    } else if name == "move_out" {
+        Diagnostic::error(
+            Phase::Expand,
+            "E-MOVE-OUT-NAME",
+            Some(span),
+            "move_out is a reserved bare stored-borrow primitive and cannot be rebound",
         )
     } else if name == "thread_scope" {
         Diagnostic::error(
@@ -1274,6 +1282,7 @@ impl Expander<'_> {
             || name == "Option"
             || name == "c_with_callback"
             || name == "thread_scope"
+            || name == "move_out"
         {
             self.diagnostics.push(primitive_name_error(name, span));
         }
@@ -1806,6 +1815,16 @@ impl Expander<'_> {
                             },
                         }
                     }
+                } else if matches!(&callee.kind, s::ExprKind::Name(name) if name == "move_out")
+                    && (arguments.len() != 1 || arguments[0].spread)
+                {
+                    self.diagnostics.push(Diagnostic::error(
+                        Phase::Expand,
+                        "E-MOVE-OUT-ARGUMENT",
+                        Some(e.span),
+                        "move_out requires exactly one non-spread stored field place",
+                    ));
+                    CoreExprKind::Unsupported("invalid stored-borrow extraction".into())
                 } else if arguments.iter().any(|a| a.spread) {
                     CoreExprKind::Unsupported("tuple argument expansion".into())
                 } else {

@@ -2033,6 +2033,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             unreachable!("expression dispatcher variant")
         };
         {
+            if matches!(&callee.kind, CoreExprKind::Name(name) if name == "move_out") {
+                return self.move_out_call(arguments, expected, e.span);
+            }
             if let CoreExprKind::TypeApply {
                 callee: target,
                 type_arguments,
