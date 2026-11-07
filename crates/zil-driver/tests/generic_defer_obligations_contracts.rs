@@ -147,6 +147,23 @@ fn main()->i32{
 "#,
         "AB",
     );
+    native(
+        "two-value-entry-managed-store-element",
+        r#"
+extern "C" fn putchar(n:i32)->i32;
+resource Ticket{code:i32}
+impl Drop for Ticket{fn drop(self:Self){unsafe{putchar(.code)}}}
+package Item{manages ticket:Ticket}
+package Entry<K:StoreElement,V:StoreElement>{key:K;value:V}
+fn main()->i32{
+ let values:Store<Entry<Managed<Ticket>,Item>>=store_new();
+ if !store_reserve(values,1){return 1}
+ store_push(values,Entry::<Managed<Ticket>,Item>{key:Ticket{code:65},value:Item{ticket:Ticket{code:66}}});
+ return i32(store_len(values))-1
+}
+"#,
+        "AB",
+    );
 }
 
 #[test]
