@@ -73,6 +73,10 @@ pub(super) fn charge_payload(ty: &Type, budget: &mut Budget) -> Check<()> {
             Type::Task {
                 result: element, ..
             }
+            | Type::Mutex { payload: element }
+            | Type::MutexGuard {
+                payload: element, ..
+            }
             | Type::Array { element, .. }
             | Type::Registration {
                 environment: element,
@@ -153,6 +157,24 @@ pub(super) fn check_type_for(
     if matches!(inner.as_ref(), Type::TaskI32 | Type::Task { .. }) {
         return tasks::carrier(module, ty, span, budget);
     }
+    if let Type::Mutex { payload } = inner.as_ref() {
+        budget.spend(module.resources.len())?;
+        let name = format!("@builtin:Mutex<{}>", payload.fingerprint());
+        if module
+            .resources
+            .iter()
+            .filter(|r| r.name == name && r.payload == **inner && r.teardown.is_none())
+            .count()
+            != 1
+        {
+            return Err(reject(
+                "E-VERIFY-MUTEX",
+                span,
+                "mutex head lacks one exact sealed resource definition",
+            ));
+        }
+        return Ok(());
+    }
     if inner.as_ref() == &Type::ByteBuffer {
         return byte_buffers::check_carrier(module, ty, span, budget);
     }
@@ -210,6 +232,19 @@ pub(super) fn check_definitions(
                     "Store definition must be unique",
                 ));
             }
+            continue;
+        }
+        if matches!(resource.payload, Type::Mutex { .. })
+            || resource.name.starts_with("@builtin:Mutex<")
+        {
+            if !names.insert(&resource.name) {
+                return Err(reject(
+                    "E-VERIFY-MUTEX",
+                    None,
+                    "mutex resource definition repeats",
+                ));
+            }
+            generic_mutex::definition(module, resource, budget)?;
             continue;
         }
         if matches!(
@@ -544,8 +579,10 @@ impl Slots {
             };
             if matches!(
                 (ty, managed),
-                (Type::Managed(_) | Type::Package { .. }, true) | (Type::Desc(_), false)
-            ) || (managed
+                (Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. }, true)
+                    | (Type::Desc(_) | Type::MutexGuard { .. }, false)
+            ) || (!managed && matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. })))
+                || (managed
                 && (errors::owned(ty, sum_extension) || (sum_extension && sums::owned(ty))))
                 || (managed
                     && matches!(ty, Type::Array { element, length }
@@ -1177,6 +1214,50 @@ impl Transfer<'_> {
                 plan.step(self, state, instruction, i, b, validate, written, budget)?;
             }
             match &instruction.kind {
+                InstructionKind::MutexCreate { value } => {
+                    if validate {
+                        tasks::require_synchronous_value(
+                            self.module,
+                            f,
+                            *value,
+                            budget,
+                            Some(span),
+                        )?;
+                    }
+                    self.consume(state, *value, span, validate)?;
+                    fresh_result = Some(FRESH);
+                }
+                InstructionKind::MutexLock { mutex } => {
+                    let src = slots.desc_value[mutex.0 as usize]
+                        .ok_or_else(|| bad(span, "lock has no actual mutex head description"))?;
+                    let dst = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                        .ok_or_else(|| bad(span, "lock produced no guard source"))?;
+                    if validate {
+                        description_live(state, slots, src, span, budget)?;
+                    }
+                    budget.spend(state.desc[src].len())?;
+                    state.desc[dst] = state.desc[src].clone();
+                    fresh_result = Some(INPUT);
+                }
+                InstructionKind::MutexValue { guard } => {
+                    if let Some(dst) = instruction
+                        .result
+                        .and_then(|v| slots.desc_value[v.0 as usize])
+                    {
+                        let src = slots.desc_value[guard.0 as usize]
+                            .ok_or_else(|| bad(span, "guard projection has no real source"))?;
+                        if validate {
+                            description_live(state, slots, src, span, budget)?;
+                        }
+                        budget.spend(state.desc[src].len())?;
+                        state.desc[dst] = state.desc[src].clone();
+                    }
+                }
+                InstructionKind::MutexUnlock { guard } => {
+                    self.consume(state, *guard, span, validate)?;
+                }
                 InstructionKind::MakeOwnedTuple { fields }
                 | InstructionKind::MakeVariant { fields, .. }
                     if result.is_some() =>
@@ -2048,6 +2129,7 @@ impl Transfer<'_> {
                     }
                 }
                 InstructionKind::DropManaged { local }
+                | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropTuple { local }
                 | InstructionKind::DropEnum { local }
                 | InstructionKind::DropClosure { local }

@@ -9,6 +9,7 @@ pub(super) fn supported(ty: &Type) -> bool {
         || byte_buffer::resource(ty)
         || tasks::resource(ty)
         || registration::resource(ty)
+        || matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Mutex { .. }))
         || matches!(ty, Type::Managed(p) | Type::Desc(p) if matches!(p.as_ref(), Type::Record { .. }) && p.is_copy_value())
 }
 pub(super) fn definitions(
@@ -56,8 +57,10 @@ impl Builder<'_, '_> {
         matches!(ty, Type::Closure(id) if (self.closures.pending[id.0 as usize].defer_action || self.closures.pending[id.0 as usize].owns_resources()))
     }
     pub(super) fn has_cleanup(&self, ty: &Type) -> bool {
-        matches!(ty, Type::Managed(_) | Type::Package { .. })
-            || errors::owned(ty)
+        matches!(
+            ty,
+            Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. }
+        ) || errors::owned(ty)
             || owned_shapes::sum(ty)
             || packages::owned_array_supported(ty)
             || self.owned_closure(ty)
@@ -66,6 +69,8 @@ impl Builder<'_, '_> {
         let ty = &self.function.locals[local.0 as usize].ty;
         let kind = if matches!(ty, Type::Managed(_)) {
             Some(InstructionKind::DropManaged { local })
+        } else if matches!(ty, Type::MutexGuard { .. }) {
+            Some(InstructionKind::DropMutexGuard { local })
         } else if matches!(ty, Type::Package { .. }) {
             Some(InstructionKind::DropPackage { local })
         } else if owned_shapes::tuple(ty) {

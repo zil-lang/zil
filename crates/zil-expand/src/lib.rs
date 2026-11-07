@@ -80,6 +80,13 @@ fn sync_name(name: &str) -> bool {
         name,
         "MutexI32"
             | "AtomicI32"
+            | "Mutex"
+            | "MutexGuard"
+            | "MutexCreateError"
+            | "mutex_create"
+            | "mutex_lock"
+            | "mutex_value"
+            | "mutex_unlock"
             | "mutex_scope"
             | "atomic_scope"
             | "mutex_load"
@@ -1996,6 +2003,7 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                             payload.as_ref(),
                             Type::ByteBuffer
                                 | Type::OwnedStore { .. }
+                                | Type::Mutex { .. }
                                 | Type::TaskI32
                                 | Type::Task { .. }
                                 | Type::Registration { .. }
@@ -2052,6 +2060,30 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
                 Type::Unsupported("Store requires exactly one element type".into())
             }
         }
+        s::TypeKind::Named { path, args } if path.as_slice() == ["Mutex"] => {
+            if let [s::GenericArg::Type(payload)] = args.as_slice() {
+                Type::Desc(Box::new(Type::Mutex {
+                    payload: Box::new(type_ref(payload)),
+                }))
+            } else {
+                Type::Unsupported("Mutex requires one complete payload type".into())
+            }
+        }
+        s::TypeKind::Named { path, args } if path.as_slice() == ["MutexGuard"] => {
+            if let [s::GenericArg::Type(payload)] = args.as_slice() {
+                Type::MutexGuard {
+                    payload: Box::new(type_ref(payload)),
+                    retained_life: zil_ir::RetainedLifeShape {
+                        binder_count: 1,
+                        ports: vec![],
+                        retained: vec![],
+                        nominal_arguments: vec![],
+                    },
+                }
+            } else {
+                Type::Unsupported("MutexGuard requires one complete payload type".into())
+            }
+        }
         s::TypeKind::Named { path, args } if path.as_slice() == ["Ref"] && args.len() == 1 => {
             match &args[0] {
                 s::GenericArg::Type(inner) => Type::Desc(Box::new(type_ref(inner))),
@@ -2064,6 +2096,10 @@ pub fn type_ref(t: &s::TypeRef) -> Type {
             "c_handle" => Type::ForeignHandle,
             "MutexI32" => Type::SyncCell(zil_ir::SyncCellKind::MutexI32),
             "AtomicI32" => Type::SyncCell(zil_ir::SyncCellKind::AtomicI32),
+            "MutexCreateError" => Type::Enum {
+                name: "@std.sync:v1:MutexCreateError".into(),
+                variants: vec![("Allocation".into(), vec![])],
+            },
             "c_wstr" => Type::CWideString,
             "i32" => Type::I32,
             "i64" => Type::I64,

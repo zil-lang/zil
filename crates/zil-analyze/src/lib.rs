@@ -21,6 +21,7 @@ mod dyn_dispatch;
 mod dynamic_store;
 mod foreign_scoped;
 mod forward;
+mod generic_mutex;
 mod head_access;
 mod head_loans;
 mod helpers;
@@ -171,6 +172,7 @@ fn analyze_budgeted(
     }
     foreign_scoped::check(module, &hold_graphs, budget)?;
     scoped_thread::check(module, budget)?;
+    generic_mutex::check(module, budget)?;
     tasks::check(module, budget)?;
     registration::check(module, budget)?;
     for (function, package) in module.functions.iter().zip(package_functions) {

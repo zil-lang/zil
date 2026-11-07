@@ -811,7 +811,8 @@ fn reconstruct(
                             }
                             InstructionKind::ByteBufferBorrow { buffer, .. }
                             | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                            | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                            | InstructionKind::MutexValue { guard: buffer } => {
                                 roots_join(&mut row, &values[buffer.0 as usize], budget)?;
                             }
                             InstructionKind::BorrowOwnedArrayElement { local, .. } => {

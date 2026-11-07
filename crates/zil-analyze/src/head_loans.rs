@@ -230,6 +230,7 @@ fn transfer(
         InstructionKind::StorageLive(l)
         | InstructionKind::StorageDead(l)
         | InstructionKind::TakeLocal { local: l }
+        | InstructionKind::DropMutexGuard { local: l }
         | InstructionKind::DropClosure { local: l } => {
             locals.remove(&l);
         }
@@ -766,6 +767,10 @@ fn check_function(
                             fresh = true;
                             parents = direct(&values[buffer.0 as usize], b)?;
                         }
+                        InstructionKind::MutexValue { guard } => {
+                            fresh = true;
+                            parents = direct(&values[guard.0 as usize], b)?;
+                        }
                         InstructionKind::CallIndirect { arguments, .. }
                             if matches!(f.values[id], Type::Address { .. }) =>
                         {
@@ -1039,11 +1044,12 @@ fn check_function(
                 | InstructionKind::StorageLive(local)
                 | InstructionKind::StorageDead(local)
                 | InstructionKind::DropManaged { local }
+                | InstructionKind::DropMutexGuard { local }
                 | InstructionKind::DropPackage { local }
                 | InstructionKind::TakeLocal { local }
                     if matches!(
                         f.locals[local.0 as usize].ty,
-                        Type::Managed(_) | Type::Package { .. }
+                        Type::Managed(_) | Type::Package { .. } | Type::MutexGuard { .. }
                     ) =>
                 {
                     access(

@@ -3,6 +3,7 @@ use super::*;
 impl Builder<'_, '_> {
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
         match ty {
+            Type::MutexGuard { .. } => true,
             Type::Package { .. } => true,
             Type::Tuple(_) => owned_shapes::tuple(ty),
             Type::ErrorUnion { .. } => errors::owned(ty),
@@ -347,6 +348,7 @@ impl Builder<'_, '_> {
                     && !pure_array
                     && !matches!(decl.ty, Type::Closure(_))
                     && !resource_head
+                    && !matches!(decl.ty, Type::MutexGuard { .. })
                     && !(mutable
                         && matches!(decl.ty, Type::Managed(_))
                         && (tasks::resource(&decl.ty) || registration::asynchronous(&decl.ty)))

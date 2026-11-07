@@ -336,7 +336,22 @@ impl Budget {
             Type::TaskI32 => {
                 self.tasks = true;
             }
-            Type::Mutex { payload } | Type::MutexGuard { payload, .. } => {
+            Type::Mutex { payload } => {
+                self.type_work(payload, copy_check, context)?;
+            }
+            Type::MutexGuard {
+                payload,
+                retained_life,
+            } => {
+                self.spend(
+                    retained_life
+                        .ports
+                        .len()
+                        .saturating_add(retained_life.retained.len())
+                        .saturating_add(retained_life.nominal_arguments.len())
+                        .saturating_add(1),
+                    context,
+                )?;
                 self.type_work(payload, copy_check, context)?;
             }
             Type::ByteBuffer
@@ -473,6 +488,9 @@ pub(super) fn legacy_value(ty: &Type, span: Span, module: &TypedModule) -> Compi
             )])
         }
     } else if crate::dynamic_store::is_carrier(ty)
+        || matches!(ty, Type::MutexGuard { .. })
+        || matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::MutexGuard { .. }))
+        || matches!(ty, Type::Managed(inner) | Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
         || ty.is_shared_sync_cell_address()
         || ty.is_exclusive_task_head_address()
         || matches!(ty, Type::Address { inner, .. } if inner.is_address_pointee())
@@ -1748,6 +1766,13 @@ pub(super) fn preflight(
                         budget.scoped_threads = true;
                     }
                     InstructionKind::DescribeAddress { .. } => {
+                        budget.head_descriptions = true;
+                    }
+                    InstructionKind::MutexCreate { .. }
+                    | InstructionKind::MutexLock { .. }
+                    | InstructionKind::MutexValue { .. }
+                    | InstructionKind::MutexUnlock { .. }
+                    | InstructionKind::DropMutexGuard { .. } => {
                         budget.head_descriptions = true;
                     }
                     InstructionKind::WithScopedThread {

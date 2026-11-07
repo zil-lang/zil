@@ -1877,7 +1877,8 @@ fn infer_with_private(
                         }
                         InstructionKind::ByteBufferBorrow { buffer, .. }
                         | InstructionKind::OwnedStoreBorrow { store: buffer, .. }
-                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. } => {
+                        | InstructionKind::OwnedStoreBorrowMut { store: buffer, .. }
+                        | InstructionKind::MutexValue { guard: buffer } => {
                             let source = values
                                 .get(buffer.0 as usize)
                                 .ok_or_else(|| bad("ByteBuffer source outside table"))?;
