@@ -1089,12 +1089,16 @@ impl State {
 #[derive(Default)]
 pub(super) struct Proofs {
     pub(super) rows: Vec<Vec<Vec<Bridge>>>,
+    // Kernel-proved impossible edges, retained only for affected functions.
+    pub(super) excluded_edges: BTreeMap<usize, ExcludedEdges>,
     pub(super) replacement_writes: Vec<BTreeSet<resources::Root>>,
     pub(super) replacement_targets: BTreeMap<usize, Vec<crate::place_replacements::actual::Target>>,
     // Actual may-Commit positions not already retained for Store transfer.
     // These are retirement effects only, never must-write/fresh authority.
     pub(super) retirement_targets: BTreeMap<usize, Vec<crate::place_replacements::actual::Target>>,
 }
+type ExcludedEdges = BTreeSet<(usize, usize)>;
+type Solved = (Content, Vec<Vec<Bridge>>, ExcludedEdges);
 type FieldFresh = Vec<(usize, u8)>;
 type UnpackedFresh = (LocalId, u8, FieldFresh);
 #[derive(Clone, Default)]
@@ -1219,15 +1223,38 @@ impl Flow<'_> {
         }
         Ok(())
     }
-    fn edge(&self, state: &mut State, block: usize, next: usize, budget: &mut Budget) -> Check<()> {
+    fn edge(
+        &self,
+        state: &mut State,
+        block: usize,
+        next: usize,
+        budget: &mut Budget,
+    ) -> Check<bool> {
         if let (Some(meta), Some(p)) = (&self.place_meta, &mut state.partial)
             && let Some((local, path, tag, equal)) =
                 meta.edge(p, &self.f.blocks[block].terminator, next, budget)?
-            && self.address_replacement_tags
             && path.is_empty()
             && matches!(self.f.locals[local.0 as usize].ty, Type::ErrorUnion { .. })
         {
-            replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
+            let actual = state.locals[local.0 as usize].as_ref();
+            if state.initialized[local.0 as usize] == 2
+                && let Content::Sum(arms, _) = actual
+                && arms.len() == 1
+                && actual.complete(budget)?
+            {
+                budget.spend(1)?;
+                let (&arm, _) = arms.first_key_value().expect("one actual arm");
+                // Runtime is_error is 0/1; Content keeps error=0/ok=1.
+                // Only a live observation and complete actual singleton
+                // justify excluding a contradictory CFG edge. Bottom or
+                // moved content must still reach ordinary validation.
+                if arm <= 1 && (u32::from(arm == 0) == tag) != equal {
+                    return Ok(false);
+                }
+            }
+            if self.address_replacement_tags {
+                replacements::refine_actual_error_arm(state, local, tag, equal, budget)?;
+            }
         }
         let Terminator::Branch {
             condition,
@@ -1235,13 +1262,13 @@ impl Flow<'_> {
             else_block,
         } = self.f.blocks[block].terminator
         else {
-            return Ok(());
+            return Ok(true);
         };
         if then_block == else_block || then_block.0 as usize != next {
-            return Ok(());
+            return Ok(true);
         }
         let Some((b, i)) = self.definitions[condition.0 as usize] else {
-            return Ok(());
+            return Ok(true);
         };
         let InstructionKind::Binary {
             op: BinaryOp::Equal,
@@ -1249,7 +1276,7 @@ impl Flow<'_> {
             right,
         } = self.f.blocks[b].instructions[i].kind
         else {
-            return Ok(());
+            return Ok(true);
         };
         for (tag, constant) in [(left, right), (right, left)] {
             if !state.observations.contains(&tag) {
@@ -1275,7 +1302,7 @@ impl Flow<'_> {
                 state.facts.insert((*root, path.clone(), variant as u32));
             }
         }
-        Ok(())
+        Ok(true)
     }
     fn instantiate(
         &self,
@@ -1976,7 +2003,7 @@ fn run(
     summaries: &[Content],
     validate: bool,
     budget: &mut Budget,
-) -> Check<(Content, Vec<Vec<Bridge>>)> {
+) -> Check<Solved> {
     run_with_replacements(module, f, graph, summaries, validate, budget, None)
 }
 #[allow(clippy::too_many_arguments)]
@@ -1988,7 +2015,7 @@ fn run_with_replacements(
     validate: bool,
     budget: &mut Budget,
     replacements: Option<&replacements::Context<'_>>,
-) -> Check<(Content, Vec<Vec<Bridge>>)> {
+) -> Check<Solved> {
     let mut locals = Vec::new();
     let mut values = Vec::new();
     budget.spend(
@@ -2142,13 +2169,24 @@ fn run_with_replacements(
         resources::schedule::Worklist::new(graph, f.entry.0 as usize, budget.pod_stores, budget)?;
     let mut queued = vec![false; f.blocks.len()];
     queued[f.entry.0 as usize] = true;
+    let mut excluded_edges = BTreeSet::new();
     while let Some(block) = pending.pop(budget)? {
         queued[block] = false;
         let mut output = inputs[block].as_ref().unwrap().duplicate(budget)?;
         flow.block(block, &mut output, false, false, budget)?;
         for &next in &graph.successors[block] {
             let mut edge = output.duplicate(budget)?;
-            flow.edge(&mut edge, block, next, budget)?;
+            if !flow.edge(&mut edge, block, next, budget)? {
+                budget.spend(excluded_edges.len().saturating_add(1))?;
+                excluded_edges.insert((block, next));
+                continue;
+            }
+            if !excluded_edges.is_empty() {
+                budget.spend(excluded_edges.len().saturating_add(1))?;
+                // A later fixed-point input can widen a singleton tag. The
+                // final proof must not retain an earlier provisional exclusion.
+                excluded_edges.remove(&(block, next));
+            }
             let changed = if let Some(input) = &mut inputs[next] {
                 input.merge(&edge, budget)?
             } else {
@@ -2193,7 +2231,7 @@ fn run_with_replacements(
             }
         }
     }
-    Ok((result, rows))
+    Ok((result, rows, excluded_edges))
 }
 
 #[cfg(test)]
@@ -2224,7 +2262,8 @@ pub(super) fn test_schedule_equivalence(
         "complete Sum block-input states differ"
     );
     match (old_result, new_result) {
-        (Ok((left, left_rows)), Ok((right, right_rows))) => {
+        (Ok((left, left_rows, left_edges)), Ok((right, right_rows, right_edges))) => {
+            assert_eq!(left_edges, right_edges, "Sum edge exclusions differ");
             assert!(left == right, "Sum return content differs");
             let rows = |rows: Vec<Vec<Bridge>>| {
                 rows.into_iter()
@@ -2366,7 +2405,7 @@ pub(super) fn check_module(
     let mut queued = needed.clone();
     while let Some(index) = order.pop_front() {
         queued[index] = false;
-        let (result, _) = run(
+        let (result, _, _) = run(
             module,
             &module.functions[index],
             &graphs[index],
@@ -2385,15 +2424,22 @@ pub(super) fn check_module(
         }
     }
     let mut rows = Vec::new();
+    let mut excluded_edges = BTreeMap::new();
     for (index, f) in module.functions.iter().enumerate() {
-        rows.push(if f.foreign.is_some() || !budget.sum_function(f.id) {
-            Vec::new()
+        if f.foreign.is_some() || !budget.sum_function(f.id) {
+            rows.push(Vec::new());
         } else {
-            run(module, f, &graphs[index], &summaries, true, budget)?.1
-        });
+            let (_, bridges, excluded) = run(module, f, &graphs[index], &summaries, true, budget)?;
+            rows.push(bridges);
+            if !excluded.is_empty() {
+                budget.spend(excluded_edges.len().saturating_add(1))?;
+                excluded_edges.insert(index, excluded);
+            }
+        }
     }
     Ok(Proofs {
         rows,
+        excluded_edges,
         ..Proofs::default()
     })
 }

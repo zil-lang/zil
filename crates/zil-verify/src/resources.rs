@@ -2632,7 +2632,13 @@ impl Transfer<'_> {
                 slots.product.apply(f, slots, instruction, state, budget)?;
             }
             if let Some(rows) = self.sum_rows {
-                let bridge = &rows[b][i];
+                let bridge = rows.get(b).and_then(|row| row.get(i)).ok_or_else(|| {
+                    reject(
+                        "E-VERIFY-SUM",
+                        Some(instruction.span),
+                        "reachable instruction lacks actual Sum content bridge",
+                    )
+                })?;
                 if let Some(output) = instruction.result {
                     if let Some(fresh) = bridge.result
                         && let Some(debt) = slots.managed_value[output.0 as usize]
@@ -2984,13 +2990,14 @@ fn infer_effects(
     graphs: &[FunctionGraph],
     budget: &mut Budget,
 ) -> Check<Vec<BTreeSet<Root>>> {
-    infer_effects_data(module, graphs, budget, None)
+    infer_effects_data(module, graphs, budget, None, None)
 }
 fn infer_effects_data(
     module: &TypedModule,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
     replacements: Option<&replacements::Plan>,
+    refined: Option<&BTreeMap<usize, FunctionGraph>>,
 ) -> Check<Vec<BTreeSet<Root>>> {
     budget.spend(module.functions.len())?;
     let mut effects = vec![BTreeSet::new(); module.functions.len()];
@@ -3006,10 +3013,16 @@ fn infer_effects_data(
             scheduled[index] = false;
             #[cfg(test)]
             TEST_EFFECT_SOLVES.with(|value| value.set(value.get() + 1));
+            let graph = if let Some(rows) = refined {
+                budget.spend(rows.len().saturating_add(1))?;
+                rows.get(&index).unwrap_or(&graphs[index])
+            } else {
+                &graphs[index]
+            };
             let found = run_function_data(
                 module,
                 &module.functions[index],
-                &graphs[index],
+                graph,
                 &effects,
                 false,
                 None,
@@ -3066,6 +3079,74 @@ thread_local! {
     static TEST_RESOURCE_INPUTS: std::cell::RefCell<Option<Vec<Option<State>>>> = const { std::cell::RefCell::new(None) };
 }
 
+// These graphs are rebuilt only from this kernel's final actual-content proof.
+// The original graph remains the authority for structural/type checking.
+fn resource_graphs(
+    module: &TypedModule,
+    graphs: &[FunctionGraph],
+    exclusions: &BTreeMap<usize, BTreeSet<(usize, usize)>>,
+    budget: &mut Budget,
+) -> Check<BTreeMap<usize, FunctionGraph>> {
+    let mut refined = BTreeMap::new();
+    budget.spend(exclusions.len())?;
+    for (&index, excluded) in exclusions {
+        let original = &graphs[index];
+        let n = original.successors.len();
+        budget.spend(n.saturating_add(1))?;
+        let edges = original
+            .successors
+            .iter()
+            .fold(0usize, |n, row| n.saturating_add(row.len()));
+        // Row headers, copied edges, reachability/stack slots and retained
+        // entry-view metadata are paid before allocation or traversal.
+        budget.spend(
+            n.saturating_mul(5)
+                .saturating_add(edges.saturating_mul(3))
+                .saturating_add(original.package_views.by_local.len())
+                .saturating_add(original.package_views.by_capture.len())
+                .saturating_add(original.role_data_uses.len())
+                .saturating_add(1),
+        )?;
+        let mut successors = vec![Vec::new(); n];
+        let mut predecessors = vec![Vec::new(); n];
+        for (from, row) in original.successors.iter().enumerate() {
+            for &to in row {
+                budget.spend(excluded.len().saturating_add(1))?;
+                if !excluded.contains(&(from, to)) {
+                    successors[from].push(to);
+                    predecessors[to].push(from);
+                }
+            }
+        }
+        let mut reachable = vec![false; n];
+        let mut pending = Vec::with_capacity(n.saturating_add(edges));
+        pending.push(module.functions[index].entry.0 as usize);
+        while let Some(block) = pending.pop() {
+            budget.spend(1)?;
+            if !reachable[block] {
+                reachable[block] = true;
+                budget.spend(successors[block].len())?;
+                pending.extend(&successors[block]);
+            }
+        }
+        budget.spend(refined.len().saturating_add(1))?;
+        refined.insert(
+            index,
+            FunctionGraph {
+                successors,
+                predecessors,
+                reachable,
+                package_views: packages::CaptureViews {
+                    by_local: original.package_views.by_local.clone(),
+                    by_capture: original.package_views.by_capture.clone(),
+                },
+                role_data_uses: original.role_data_uses.clone(),
+            },
+        );
+    }
+    Ok(refined)
+}
+
 pub(super) fn check_module(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -3115,12 +3196,34 @@ pub(super) fn check_module(
     } else {
         None
     };
-    let effects = if let Some(plan) = &replacements {
-        infer_effects_data(module, graphs, budget, Some(plan))?
+    let refined = if sum_proofs.excluded_edges.is_empty() {
+        None
+    } else {
+        Some(resource_graphs(
+            module,
+            graphs,
+            &sum_proofs.excluded_edges,
+            budget,
+        )?)
+    };
+    let effects = if replacements.is_some() || refined.is_some() {
+        infer_effects_data(
+            module,
+            graphs,
+            budget,
+            replacements.as_ref(),
+            refined.as_ref(),
+        )?
     } else {
         infer_effects(module, graphs, budget)?
     };
     for (function, graph) in module.functions.iter().zip(graphs) {
+        let graph = if let Some(rows) = &refined {
+            budget.spend(rows.len().saturating_add(1))?;
+            rows.get(&(function.id.0 as usize)).unwrap_or(graph)
+        } else {
+            graph
+        };
         run_function_data(
             module,
             function,

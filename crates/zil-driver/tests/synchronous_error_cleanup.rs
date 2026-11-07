@@ -419,6 +419,250 @@ fn main()->i32{return observe(make())}
     assert!(zil_verify::verify_module_bytes(&forged, &target, &limits).is_err());
 }
 
+const LOCAL_OWNING_ERROR_TAGS: &str = r#"
+extern "C" fn putchar(n:i32)->i32;
+resource R{code:i32}
+impl Drop for R{fn drop(self:Self){unsafe{putchar(.code)}}}
+package P{manages r:R}
+fn local_ok()->i32{
+ let value:P!P=error_ok::<P,P>(P{r:R{code:65}})
+ match value{.ok(p)=>{return p.r.code-65},.err(_)=>{return 1}}
+}
+fn local_err()->i32{
+ let value:P!P=error_err::<P,P>(P{r:R{code:66}})
+ match value{.ok(_)=>{return 1},.err(p)=>{return p.r.code-66}}
+}
+fn reversed_ok()->i32{
+ let value:P!P=error_ok::<P,P>(P{r:R{code:67}})
+ match value{.err(_)=>{return 1},.ok(p)=>{return p.r.code-67}}
+}
+fn reversed_err()->i32{
+ let value:P!P=error_err::<P,P>(P{r:R{code:68}})
+ match value{.err(p)=>{return p.r.code-68},.ok(_)=>{return 1}}
+}
+fn joined(flag:bool)->i32{
+ var value:P!P=error_ok::<P,P>(P{r:R{code:69}})
+ if flag{value=error_err::<P,P>(P{r:R{code:70}})}
+ match value{.ok(p)=>{return p.r.code-69},.err(p)=>{return p.r.code-70}}
+}
+fn main()->i32{return local_ok()+local_err()+reversed_ok()+reversed_err()+joined(false)+joined(true)}
+"#;
+
+#[test]
+fn known_local_owning_error_tags_select_only_the_actual_arm() {
+    let temp = Temp::new();
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let report = compile_source(
+                &SourceUnit::new(
+                    FileId(0),
+                    ModuleId(0),
+                    "local-owning-error-tags",
+                    LOCAL_OWNING_ERROR_TAGS,
+                ),
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    output: Some(temp.0.join(format!("local-{backend:?}-{optimization:?}"))),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+            run(&report.artifacts["executable"], b"", 0, "ABCDEEF");
+        }
+    }
+}
+
+#[test]
+fn known_local_error_tag_cannot_hide_a_reachable_wrong_payload_raw_or_wire() {
+    use zil_base::{Limits, TargetProfile};
+    use zil_ir::{InstructionKind, PlaceProjection};
+    let input = SourceUnit::new(
+        FileId(0),
+        ModuleId(0),
+        "local-owning-error-raw",
+        LOCAL_OWNING_ERROR_TAGS,
+    );
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand(&input, &syntax).unwrap();
+    let target = TargetProfile::default();
+    let limits = Limits::default();
+    let original = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&original, &limits).unwrap();
+    zil_verify::verify_module(original.clone(), plan.clone(), &target, &limits).unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&original, &plan, &limits).unwrap();
+    zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
+    for mutation in [
+        "wrong-arm",
+        "false-observation",
+        "joined-wrong-arm",
+        "live-debt",
+        "stale-observation",
+        "stale-call",
+    ] {
+        let mut wrong = original.clone();
+        let joined = mutation == "joined-wrong-arm";
+        let function = wrong
+            .functions
+            .iter_mut()
+            .find(|f| f.name == if joined { "joined" } else { "local_ok" })
+            .unwrap();
+        if mutation == "live-debt" {
+            let mut extra = function
+                .blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .find(|i| matches!(i.kind, InstructionKind::MakeManaged { .. }))
+                .unwrap()
+                .clone();
+            let value = zil_ir::ValueId(function.values.len() as u32);
+            function
+                .values
+                .push(function.values[extra.result.unwrap().0 as usize].clone());
+            extra.result = Some(value);
+            let live = function
+                .blocks
+                .iter_mut()
+                .find(|b| {
+                    b.instructions.iter().any(|i| {
+                        matches!(&i.kind, InstructionKind::TakeVariantField { path, .. }
+                    if path == &[PlaceProjection::ErrorArm(false)])
+                    })
+                })
+                .unwrap();
+            let at = live
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::TakeVariantField { .. }))
+                .unwrap();
+            // An additional real Managed producer in the feasible arm has no
+            // consumer. Pruning its opposite edge must not hide that SSA debt.
+            live.instructions.insert(at + 1, extra);
+        } else if matches!(mutation, "stale-observation" | "stale-call") {
+            let (block, index) = function
+                .blocks
+                .iter()
+                .enumerate()
+                .find_map(|(b, block)| {
+                    block
+                        .instructions
+                        .iter()
+                        .position(|i| matches!(i.kind, InstructionKind::PlaceTagLocal { .. }))
+                        .map(|i| (b, i))
+                })
+                .unwrap();
+            let mut read = function.blocks[block].instructions[index].clone();
+            let InstructionKind::PlaceTagLocal { local, .. } = read.kind else {
+                unreachable!()
+            };
+            let value = zil_ir::ValueId(function.values.len() as u32);
+            read.result = Some(value);
+            if mutation == "stale-call" {
+                // Even an ordinary call invalidates a previously read tag.
+                function.values.push(zil_ir::Type::I32);
+                read.kind = InstructionKind::Call {
+                    function: original
+                        .functions
+                        .iter()
+                        .find(|f| f.name == "local_err")
+                        .unwrap()
+                        .id,
+                    arguments: Vec::new(),
+                };
+                function.blocks[block].instructions.insert(index + 1, read);
+            } else {
+                // Restoring the same actual carrier cannot revive the earlier
+                // tag observation across Take/Store invalidation.
+                function
+                    .values
+                    .push(function.locals[local.0 as usize].ty.clone());
+                read.kind = InstructionKind::TakeLocal { local };
+                let mut store = read.clone();
+                store.result = None;
+                store.kind = InstructionKind::Store { local, value };
+                function.blocks[block]
+                    .instructions
+                    .splice(index + 1..index + 1, [read, store]);
+            }
+        } else {
+            let extraction = function
+                .blocks
+                .iter_mut()
+                .flat_map(|b| &mut b.instructions)
+                .find(|i| {
+                    matches!(&i.kind, InstructionKind::TakeVariantField { path, .. }
+                if path == &[PlaceProjection::ErrorArm(joined)])
+                })
+                .unwrap();
+            let InstructionKind::TakeVariantField { path, .. } = &mut extraction.kind else {
+                unreachable!()
+            };
+            path[0] = PlaceProjection::ErrorArm(!joined);
+            if mutation == "false-observation" {
+                let tag = function
+                    .blocks
+                    .iter_mut()
+                    .flat_map(|b| &mut b.instructions)
+                    .find(|i| matches!(i.kind, InstructionKind::PlaceTagLocal { .. }))
+                    .unwrap();
+                // A numerically matching constant is not an observation of this
+                // carrier and cannot establish an impossible-edge proof.
+                tag.kind = InstructionKind::Constant(zil_ir::Constant::I32(0));
+            }
+        }
+        assert!(zil_analyze::analyze(&wrong, &limits).is_err(), "{mutation}");
+        let mut claim = plan.clone();
+        if matches!(mutation, "live-debt" | "stale-observation" | "stale-call") {
+            let function = wrong
+                .functions
+                .iter()
+                .find(|f| f.name == "local_ok")
+                .unwrap();
+            claim.functions[function.id.0 as usize]
+                .holds
+                .push(zil_ir::ValueHold {
+                    value: zil_ir::ValueId(function.values.len() as u32 - 1),
+                    roots: Vec::new(),
+                });
+        }
+        claim.module_fingerprint = wrong.fingerprint();
+        let wire = zil_ir::wire::encode_module_candidate(&wrong, &claim, &limits).unwrap();
+        for result in [
+            zil_verify::verify_module(wrong, claim, &target, &limits),
+            zil_verify::verify_module_bytes(&wire, &target, &limits),
+        ] {
+            let errors = result.expect_err(mutation);
+            assert!(
+                errors.iter().any(|d| d.phase == Phase::Verify
+                    && d.code
+                        == if mutation == "live-debt" {
+                            "E-VERIFY-RESOURCE"
+                        } else {
+                            "E-VERIFY-SUM"
+                        }),
+                "{mutation}: {errors:#?}"
+            );
+            assert!(
+                errors
+                    .iter()
+                    .all(|d| !matches!(d.code.as_str(), "E-VERIFY-PLAN" | "E-VERIFY-HOLD")),
+                "{mutation}: {errors:#?}"
+            );
+        }
+    }
+}
+
 #[test]
 fn source_nested_copy_errors_and_void_entry_execute_without_unwind() {
     for (name, source, code) in [
