@@ -86,6 +86,12 @@ fn ordinary_store_ownership_reaches_complete_native_values() {
             false,
         ),
         (
+            "ordinary-two-sum-captures",
+            include_str!("ordinary-two-sum-captures.zil"),
+            b"28\n".as_slice(),
+            false,
+        ),
+        (
             "ordinary-both-owned-error",
             include_str!("ordinary-both-owned-error.zil"),
             b"18446744073709551613\n".as_slice(),
@@ -394,6 +400,192 @@ fn ordinary_store_pair_cannot_duplicate_one_parent_raw_or_wire() {
         );
         fs::write(out.join(format!("{route}.txt")), format!("{errors:#?}")).unwrap();
     }
+}
+
+fn two_owned_sum_capture_entry(module: &zil_ir::TypedModule) -> (usize, usize) {
+    let (definition_index, definition) = module
+        .closures
+        .iter()
+        .enumerate()
+        .find(|(_, definition)| {
+            definition.kind == zil_ir::CallableKind::FnMut
+                && definition.captures.len() == 2
+                && definition.captures.iter().all(|ty| {
+                    matches!(ty, Type::Enum { variants, .. }
+                        if variants.len() == 1
+                            && variants[0].1.len() == 1
+                            && matches!(&variants[0].1[0], Type::Managed(payload)
+                                if matches!(payload.as_ref(), Type::OwnedStore { element }
+                                    if matches!(element.as_ref(), Type::U64))))
+                })
+        })
+        .expect("Source FnMut has two actual owned Enum<Store<u64>> captures");
+    let function_index = module
+        .functions
+        .iter()
+        .position(|function| {
+            function.id == definition.function && function.environment == Some(definition.id)
+        })
+        .expect("actual Source closure entry relation");
+    let entry = &module.functions[function_index];
+    for index in 0..2 {
+        assert!(
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|i| { matches!(i.kind, I::TakeCapture { index: actual } if actual == index) })
+        );
+        assert!(
+            entry
+                .blocks
+                .iter()
+                .flat_map(|block| &block.instructions)
+                .any(|i| {
+                    matches!(i.kind, I::WriteCapture { index: actual, .. } if actual == index)
+                })
+        );
+    }
+    (definition_index, function_index)
+}
+
+fn reject_direct_sum_capture_candidate(
+    label: &str,
+    module: zil_ir::TypedModule,
+    mut plan: zil_ir::CandidatePlan,
+    code: &str,
+    message: &str,
+) {
+    let limits = Limits::default();
+    plan.module_fingerprint = module.fingerprint();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &limits).unwrap();
+    let out = directory(label);
+    fs::write(out.join("candidate.wire"), &wire).unwrap();
+    for (route, result) in [
+        (
+            "raw",
+            zil_verify::verify_module(module.clone(), plan.clone(), &module.target, &limits),
+        ),
+        (
+            "wire",
+            zil_verify::verify_module_bytes(&wire, &module.target, &limits),
+        ),
+    ] {
+        let errors = result.expect_err(route);
+        assert!(
+            errors.iter().any(|d| {
+                d.phase == Phase::Verify
+                    && d.category == ResultCategory::SafeReject
+                    && d.code == code
+                    && d.message == message
+            }),
+            "{label}/{route}: {errors:?}"
+        );
+        fs::write(out.join(format!("{route}.txt")), format!("{errors:#?}")).unwrap();
+    }
+}
+
+#[test]
+fn ordinary_source_derived_two_sum_capture_debts_reject_raw_and_wire() {
+    let (module, plan) = candidate(include_str!("ordinary-two-sum-captures.zil"));
+    let (definition_index, function_index) = two_owned_sum_capture_entry(&module);
+
+    let mut shared_take = module.clone();
+    shared_take.closures[definition_index].kind = zil_ir::CallableKind::Fn;
+    reject_direct_sum_capture_candidate(
+        "ordinary-shared-takes-owned-sum",
+        shared_take,
+        plan.clone(),
+        "E-VERIFY-CLOSURE-CALL",
+        "moving an owned capture requires a Consume entry",
+    );
+
+    let mut unfilled = module.clone();
+    let entry = &mut unfilled.functions[function_index];
+    let before = entry
+        .blocks
+        .iter()
+        .flat_map(|block| &block.instructions)
+        .filter(|i| matches!(i.kind, I::WriteCapture { index: 0, .. }))
+        .count();
+    assert_eq!(before, 1, "Source has one actual refill for capture 0");
+    for block in &mut entry.blocks {
+        block
+            .instructions
+            .retain(|i| !matches!(i.kind, I::WriteCapture { index: 0, .. }));
+    }
+    reject_direct_sum_capture_candidate(
+        "ordinary-normal-exit-unfilled-capture",
+        unfilled,
+        plan.clone(),
+        "E-VERIFY-SUM",
+        "Fn/FnMut return leaves an unfilled direct Sum capture",
+    );
+
+    let mut duplicate_take = module.clone();
+    let entry = &mut duplicate_take.functions[function_index];
+    let second_take = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|i| matches!(i.kind, I::TakeLocal { local } if local.0 == 0))
+        .expect("Source FnMut takes its first actual activation owner");
+    assert!(matches!(
+        entry.values[second_take.result.unwrap().0 as usize],
+        Type::Enum { .. }
+    ));
+    second_take.kind = I::TakeCapture { index: 0 };
+    reject_direct_sum_capture_candidate(
+        "ordinary-takes-same-capture-twice",
+        duplicate_take,
+        plan.clone(),
+        "E-VERIFY-SUM",
+        "direct Sum capture was already transferred",
+    );
+
+    let mut live_write = module.clone();
+    let entry = &mut live_write.functions[function_index];
+    let (block, position) = entry
+        .blocks
+        .iter()
+        .enumerate()
+        .find_map(|(block, body)| {
+            body.instructions
+                .iter()
+                .position(|i| matches!(i.kind, I::WriteCapture { index: 1, .. }))
+                .map(|position| (block, position))
+        })
+        .expect("Source FnMut refills its second actual capture");
+    let duplicate = entry.blocks[block].instructions[position].clone();
+    entry.blocks[block]
+        .instructions
+        .insert(position + 1, duplicate);
+    reject_direct_sum_capture_candidate(
+        "ordinary-overwrites-live-capture",
+        live_write,
+        plan.clone(),
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
+
+    let mut wrong_index = module.clone();
+    let entry = &mut wrong_index.functions[function_index];
+    let write = entry
+        .blocks
+        .iter_mut()
+        .flat_map(|block| &mut block.instructions)
+        .find(|i| matches!(i.kind, I::WriteCapture { index: 1, .. }))
+        .expect("Source FnMut writes an in-range capture field");
+    if let I::WriteCapture { index, .. } = &mut write.kind {
+        *index = 0;
+    }
+    reject_direct_sum_capture_candidate(
+        "ordinary-wrong-valid-capture-index",
+        wrong_index,
+        plan,
+        "E-VERIFY-SUM",
+        "direct Sum capture refill would overwrite an active owner",
+    );
 }
 
 #[test]

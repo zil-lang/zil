@@ -190,6 +190,12 @@ fn ordinary_sum_replacement_and_owned_captures_release_every_actual_store_once()
             5,
         ),
         (
+            "two-sum-captures",
+            include_str!("ordinary-two-sum-captures.zil"),
+            b"28\n".as_slice(),
+            6,
+        ),
+        (
             "parent-captures",
             include_str!("ordinary-captures.zil"),
             b"18446744073709551612\n".as_slice(),
