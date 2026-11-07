@@ -851,4 +851,15 @@ mod tests {
         m.dyn_vtables.push(bad);
         assert!(admitted(&m).is_err());
     }
+
+    #[test]
+    fn actual_owner_window_survives_call_but_rejects_early_death() {
+        let mut m = fixture();
+        m.functions[1].parameters = vec![LocalId(0)];
+        crate::analyze(&m, &Limits::default()).unwrap();
+        m.functions[1].blocks[0]
+            .instructions
+            .insert(2, inst(None, InstructionKind::StorageDead(LocalId(0))));
+        assert!(crate::analyze(&m, &Limits::default()).is_err());
+    }
 }
