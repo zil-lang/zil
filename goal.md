@@ -265,6 +265,7 @@
 | G9.3.5.2 | Analyze 实际根、责任和捕获独立核验 | 进行中 | P0 | store_analyze935 · sol high | 沿父冻结合同实施；独立分支、单一 Cargo 窗口，最终由 root 集成验收。 |
 | G9.3.5.3 | Verify 独立责任、窗口与 raw/Wire | 进行中 | P0 | store_verify935 · sol high | 独立拥有组合和清理已集成；Source/raw/Wire 共同复测中。 |
 | G9.3.5.4 | 原样数据模型、捕获、失败分配及最近反例消费者 | 进行中 | P0 | store_consumers935 · sol high | 沿既有目标覆盖双后端 O0/O2；同字段、父壳移动和清理反例保留，随父任务验收。 |
+| G9.3.5.5 | 拥有 Tuple 模式的实际消费分类与 FnOnce 捕获 | 进行中 | P0 | capture_types_finish · sol high | 修复 Copy 伴随字段元组被误判只读的实际 Source 阻断；沿已有目标复核，不放宽 opaque 适配规则。 |
 
 </details>
 
