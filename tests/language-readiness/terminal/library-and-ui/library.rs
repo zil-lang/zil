@@ -919,6 +919,42 @@ fn ordinary_i64_hash_map_and_set_collisions_are_native() {
 }
 
 #[test]
+fn ordinary_i64_hash_set_cannot_write_map_values_or_expose_its_owner() {
+    for (source, code) in [
+        (
+            include_str!("i64_hash_set_type_negative.zil"),
+            "E-GENERIC-ARGUMENT",
+        ),
+        (
+            include_str!("i64_hash_set_field_negative.zil"),
+            "E-FIELD-PRIVATE",
+        ),
+    ] {
+        let dir = directory("hash-set-boundary");
+        fs::write(dir.join("main.zil"), source).unwrap();
+        let report = CompilationSession::default().compile_path(
+            &dir.join("main.zil"),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert!(
+            report.diagnostics.iter().any(|d| d.code == code),
+            "{}",
+            report.to_json()
+        );
+        assert!(!report.artifacts.contains_key("executable"));
+    }
+}
+
+#[test]
 fn ordinary_generic_hash_map_supports_record_and_primitive_keys() {
     let input = include_str!("pod_hash_map.zil");
     let mut backends = vec![NativeBackend::Clang];
