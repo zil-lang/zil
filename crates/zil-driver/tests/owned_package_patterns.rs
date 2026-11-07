@@ -113,6 +113,14 @@ fn error_union_owned_package_payload_borrows_its_package_child() {
 }
 
 #[test]
+fn named_pattern_mutably_borrows_owned_package_child_and_moves_sibling() {
+    native(
+        "resource R{n:i32}package Child{manages r:R;n:i32}package Parent{child:Child;manages side:R}fn bump(child:&mut Child)->i32{child.n+=1;return child.n}fn result()->i32{var p=Parent{child:Child{r:R{n:5},n:7},side:R{n:2}};let Parent{side:moved,child:ref mut child}=p;return bump(child)+moved.n}",
+        10,
+    );
+}
+
+#[test]
 fn named_owned_package_pattern_drops_each_field_once() {
     native_stdout(
         "extern \"C\" fn putchar(n:i32)->i32;resource R{n:i32}impl Drop for R{fn drop(self:Self){unsafe{putchar(.n)}}}package P{manages a:R;manages b:R}fn result()->i32{let p=P{a:R{n:65},b:R{n:66}};let P{a:moved,b:_}=p;return moved.n}",

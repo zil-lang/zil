@@ -176,6 +176,7 @@ pub(super) fn field_root(
     Ok(
         if ty.is_copy_value()
             || matches!(ty, Type::Closure(_))
+            || matches!(ty, Type::Package { .. })
             || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::Record { .. }) && inner.is_copy_value())
             || byte_buffers::is_owned(ty)
             || matches!(ty, Type::Managed(inner) if matches!(inner.as_ref(), Type::OwnedStore { .. }))
