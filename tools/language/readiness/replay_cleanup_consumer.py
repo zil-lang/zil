@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Replay existing ZUI-language177 cleanup oracles through real LLVM API objects."""
+"""Replay existing composed State/Store cleanup oracles through real LLVM API objects."""
 import argparse, hashlib, importlib.util, json, os, pathlib, subprocess, sys, time
 
 def digest(p):

@@ -193,7 +193,7 @@ def build(args):
                      "crates_tree": git(root, "rev-parse", "HEAD:crates"),
                      "normative_hash": json.loads((root / "data/normative-inputs.json").read_text())["normative_hash"]}
     selected = receipts(root, args.receipt)
-    with tempfile.TemporaryDirectory(prefix="zil-language169-package-") as temporary:
+    with tempfile.TemporaryDirectory(prefix="zil-multimodule-cleanup-package-") as temporary:
         temp = Path(temporary)
         selected.update(snapshot_history(root, temp, commit))
         selected["history/restore.py"] = (root / "tools/language/library-readiness/restore.py").read_bytes()

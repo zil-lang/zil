@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""208 actual API objects: current language177 consumer and allocation failures.
-The independent business oracle is the existing 177 consumer's scenarios().
+"""Validate actual API objects with the composed State/Store consumer and allocation failures.
+The independent business oracle is the composed State/Store consumer's scenarios().
 Probe executables are linked from API objects, never recompiled from .ll by Clang.
 """
 import argparse, hashlib, importlib.util, json, os, subprocess, sys, time
@@ -15,7 +15,7 @@ def main():
     ap.add_argument('--source-commit',help='explicit delivery identity when the source ZIP has no Git database')
     a=ap.parse_args(); repo=a.repo.resolve();cli=a.cli.resolve();clang=a.clang.resolve();out=a.out.resolve()
     out.mkdir(parents=True,exist_ok=False)
-    spec=importlib.util.spec_from_file_location('consumer177',repo/'tools/language/composed-state-store/consumer.py')
+    spec=importlib.util.spec_from_file_location('composed_state_store_oracle',repo/'tools/language/composed-state-store/consumer.py')
     oracle=importlib.util.module_from_spec(spec);spec.loader.exec_module(oracle)
     sources=repo/'examples/mainline/zui-language-store-fields'
     identity=a.source_commit or subprocess.check_output(['git','-C',str(repo),'rev-parse','HEAD'],text=True).strip()

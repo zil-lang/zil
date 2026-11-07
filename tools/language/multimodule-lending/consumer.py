@@ -18,7 +18,7 @@ def main():
     parser.add_argument("--out", type=Path, required=True)
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
-    spec = importlib.util.spec_from_file_location("record178", repo / "tools/language/generic-store-library/consumer.py")
+    spec = importlib.util.spec_from_file_location("generic_store_consumer", repo / "tools/language/generic-store-library/consumer.py")
     common = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(common)
     out.mkdir(parents=True, exist_ok=False)

@@ -29,7 +29,7 @@ def main():
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    spec = importlib.util.spec_from_file_location("consumer177", repo / "tools/language/composed-state-store/consumer.py")
+    spec = importlib.util.spec_from_file_location("composed_state_store_oracle", repo / "tools/language/composed-state-store/consumer.py")
     old = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(old)
     command, digest, save = old.command, old.digest, old.save

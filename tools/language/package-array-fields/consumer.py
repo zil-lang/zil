@@ -8,7 +8,7 @@ import subprocess
 
 
 UTILITY = Path(__file__).resolve().parents[1] / "multimodule-cleanup" / "consumer.py"
-SPEC = importlib.util.spec_from_file_location("consumer169_utilities", UTILITY)
+SPEC = importlib.util.spec_from_file_location("multimodule_cleanup_utilities", UTILITY)
 UTIL = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(UTIL)
 

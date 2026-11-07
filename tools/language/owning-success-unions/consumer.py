@@ -41,7 +41,7 @@ def main():
     args = parser.parse_args()
     repo, cli, out = args.repo.resolve(), args.cli.resolve(), args.out.resolve()
     out.mkdir(parents=True, exist_ok=False)
-    spec = importlib.util.spec_from_file_location("commands177", repo / "tools/language/composed-state-store/consumer.py")
+    spec = importlib.util.spec_from_file_location("composed_state_store_commands", repo / "tools/language/composed-state-store/consumer.py")
     shared = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(shared)
     command, digest, save = shared.command, shared.digest, shared.save
