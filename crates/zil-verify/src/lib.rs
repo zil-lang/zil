@@ -56,6 +56,7 @@ mod ct_program;
 mod defer_tests;
 mod defers;
 mod dynamic_store;
+mod dynamic_dispatch;
 #[cfg(test)]
 mod error_scope_tests;
 mod errors;
@@ -560,15 +561,7 @@ fn check_module(
         ));
     }
     check_target(&module.target, expected_target)?;
-    if !module.dyn_declarations.is_empty()
-        || !module.dyn_interfaces.is_empty()
-        || !module.dyn_vtables.is_empty()
-    {
-        return Err(unsupported(
-            "dyn table consumer is not yet implemented",
-            None,
-        ));
-    }
+    let has_dyn = dynamic_dispatch::present(module);
     if let Some(feature) = module
         .unsupported
         .first()
@@ -605,6 +598,9 @@ fn check_module(
 
     let mut budget = Budget::new(limits);
     budget.stored_context = true;
+    if has_dyn {
+        dynamic_dispatch::inventory(module, &mut budget)?;
+    }
     if !module.life_declarations.is_empty() || !module.life_instances.is_empty() {
         stored_flow::inventory(module, limits, &mut budget)?;
         stored_flow::inventory(module, limits, &mut budget)?;
@@ -1104,12 +1100,7 @@ fn check_type_shape(
                 budget.stored_borrows = true;
                 pending.push((storage, depth + 1, context));
             }
-            Type::Dyn { .. } => {
-                return Err(unsupported(
-                    "dyn type consumer is not yet implemented",
-                    None,
-                ));
-            }
+            Type::Dyn { .. } => {}
             Type::Registration {
                 environment: element,
             }
@@ -1418,6 +1409,9 @@ fn check_function_signature_type(
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
     }
+    if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
+        return dynamic_dispatch::type_address(module, ty, span, budget);
+    }
     match ty {
         Type::Address { inner, .. }
             if packages::has_children(inner) || packages::shared_product_head(inner) =>
@@ -1471,6 +1465,10 @@ fn check_local_type(
         };
     }
     if stored_flow::pure_inline(module, ty, budget)? {
+        return Ok(false);
+    }
+    if matches!(ty, Type::Address { inner, .. } if matches!(inner.as_ref(), Type::Dyn { .. })) {
+        dynamic_dispatch::type_address(module, ty, span, budget)?;
         return Ok(false);
     }
     if let Type::Address {
@@ -1998,10 +1996,7 @@ fn check_instruction(
             registration::instruction(module, function, instruction, budget)?
         }
         InstructionKind::MakeDynBorrow { .. } | InstructionKind::CallDynSlot { .. } => {
-            return Err(unsupported(
-                "dyn instruction consumer is not yet implemented",
-                span,
-            ));
+            dynamic_dispatch::instruction(module, function, instruction, budget)?
         }
         InstructionKind::LoadStoredBorrow { .. } | InstructionKind::StoreStoredBorrow { .. } => {
             stored_borrows::instruction(function, instruction, budget)?
