@@ -6407,7 +6407,12 @@ fn async_registration_source_neighbors_and_unused_definitions() {
         generic.replace(" + ClosedEnvironment", " + ClosedEnvironment + Transfer"),
     ] {
         let report = compile_source(&source(&text), &CompileOptions::default());
-        assert_eq!(report.status, ResultCategory::Success, "{}", report.to_json());
+        assert_eq!(
+            report.status,
+            ResultCategory::Success,
+            "{}",
+            report.to_json()
+        );
     }
     for text in [
         unused.replace(" + ClosedEnvironment", ""),

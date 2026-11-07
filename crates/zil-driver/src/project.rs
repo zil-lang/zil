@@ -1725,38 +1725,37 @@ fn load_sources(
                     .get_or_insert_with(|| Arc::new(BTreeMap::new()));
                 if let Some(previous) =
                     Arc::make_mut(scoped).insert((importer, import.path.clone()), id)
+                    && previous != id
                 {
-                    if previous != id {
-                        return Err(reject(
-                            "E-MODULE-IDENTITY",
-                            Some(item.span),
-                            "an import resolved to two distinct modules",
-                        ));
-                    }
+                    return Err(reject(
+                        "E-MODULE-IDENTITY",
+                        Some(item.span),
+                        "an import resolved to two distinct modules",
+                    ));
                 }
                 let owner = manifest.owner(Path::new(&project.modules[index].path))?;
                 let mut identity_path = vec![format!("__zil_pkg{owner}")];
                 identity_path.extend(import.path.iter().cloned());
-                if let Some(previous) = project.paths.insert(identity_path, id) {
-                    if previous != id {
-                        return Err(reject(
-                            "E-MODULE-IDENTITY",
-                            Some(item.span),
-                            "canonical package module identity conflicts",
-                        ));
-                    }
-                }
-            } else if let Some(previous) = project.paths.insert(import.path.clone(), id) {
-                if previous != id {
+                if let Some(previous) = project.paths.insert(identity_path, id)
+                    && previous != id
+                {
                     return Err(reject(
                         "E-MODULE-IDENTITY",
                         Some(item.span),
-                        format!(
-                            "logical module {} resolves to two distinct files",
-                            import.path.join(".")
-                        ),
+                        "canonical package module identity conflicts",
                     ));
                 }
+            } else if let Some(previous) = project.paths.insert(import.path.clone(), id)
+                && previous != id
+            {
+                return Err(reject(
+                    "E-MODULE-IDENTITY",
+                    Some(item.span),
+                    format!(
+                        "logical module {} resolves to two distinct files",
+                        import.path.join(".")
+                    ),
+                ));
             }
         }
         let stable_module_key = stable_modules.as_ref().and_then(|keys| keys.get(index));

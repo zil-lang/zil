@@ -320,13 +320,13 @@ impl ProjectManifest {
         Ok((builder.digest(), locked_sources))
     }
     pub(super) fn check_source(&self, source: &SourceUnit) -> CompileResult<()> {
-        if let Some(expected) = self.locked_sources.get(Path::new(&source.path)) {
-            if source.fingerprint() != *expected {
-                return Err(error(
-                    "E-PROJECT-LOCK-MISMATCH",
-                    format!("dependency source changed while loading: {}", source.path),
-                ));
-            }
+        if let Some(expected) = self.locked_sources.get(Path::new(&source.path))
+            && source.fingerprint() != *expected
+        {
+            return Err(error(
+                "E-PROJECT-LOCK-MISMATCH",
+                format!("dependency source changed while loading: {}", source.path),
+            ));
         }
         Ok(())
     }

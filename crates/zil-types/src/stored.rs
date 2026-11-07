@@ -684,15 +684,16 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
             "stored kind or mixed address/retained qualification requires its consumer",
         ));
     }
+    type ActualStoredSlot = (
+        Vec<PlaceProjection>,
+        StoredBorrowMode,
+        Option<(Vec<LifeTypeProjection>, u32)>,
+    );
     struct Walk<'a> {
         left: &'a mut usize,
         limit: usize,
         span: Span,
-        slots: Vec<(
-            Vec<PlaceProjection>,
-            StoredBorrowMode,
-            Option<(Vec<LifeTypeProjection>, u32)>,
-        )>,
+        slots: Vec<ActualStoredSlot>,
         owning: bool,
         owned_leaves: usize,
     }

@@ -1494,11 +1494,10 @@ fn independent_exclusive_holder_constructors_reject_reused_address_value() {
     {
         if let zil_ir::InstructionKind::Load(local) | zil_ir::InstructionKind::TakeLocal { local } =
             instruction.kind
+            && (local == first || local == second)
         {
-            if local == first || local == second {
-                input_loads.push(instruction.result.unwrap());
-                instruction.kind = zil_ir::InstructionKind::Load(first);
-            }
+            input_loads.push(instruction.result.unwrap());
+            instruction.kind = zil_ir::InstructionKind::Load(first);
         }
     }
     assert_eq!(input_loads.len(), 2);

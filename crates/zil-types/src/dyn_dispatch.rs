@@ -386,16 +386,18 @@ fn inventory_in_modules(
                     .zip(&slot.parameters)
                     .any(|(p, ty)| p.ty != *ty)
                 || !scalar_body(
-                    core,
-                    modules,
-                    table,
-                    interface,
+                    ScalarBodyContext {
+                        core,
+                        modules,
+                        table,
+                        interface,
+                        signatures,
+                        program_signatures,
+                    },
                     function,
                     fields,
                     slot.receiver.mutable,
                     &slot.result,
-                    signatures,
-                    program_signatures,
                     &mut left,
                 )?
             {
@@ -651,19 +653,31 @@ pub(super) fn inventory_program(
     Ok((declarations, interfaces, tables))
 }
 
+struct ScalarBodyContext<'a> {
+    core: &'a CoreModule,
+    modules: &'a [&'a CoreModule],
+    table: &'a CoreDynVtable,
+    interface: &'a DynInterface,
+    signatures: &'a BTreeMap<String, Signature>,
+    program_signatures: Option<&'a BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
+}
+
 fn scalar_body(
-    core: &CoreModule,
-    modules: &[&CoreModule],
-    table: &CoreDynVtable,
-    interface: &DynInterface,
+    context: ScalarBodyContext<'_>,
     function: &CoreFunction,
     fields: &[(String, Type)],
     mutable: bool,
     result: &Type,
-    signatures: &BTreeMap<String, Signature>,
-    program_signatures: Option<&BTreeMap<zil_base::ModuleId, BTreeMap<String, Signature>>>,
     left: &mut usize,
 ) -> R<bool> {
+    let ScalarBodyContext {
+        core,
+        modules,
+        table,
+        interface,
+        signatures,
+        program_signatures,
+    } = context;
     let mut current = function;
     let mut current_module = core.module_id;
     let mut seen = Vec::new();

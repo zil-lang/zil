@@ -24,6 +24,11 @@ pub(super) struct Target {
 type Targets = BTreeSet<Target>;
 type Loans = BTreeSet<usize>;
 type Path = Vec<PlaceProjection>;
+type ActualStoredSlot = (
+    Path,
+    StoredBorrowMode,
+    Option<(Vec<LifeTypeProjection>, u32)>,
+);
 type SlotLoanIds = BTreeMap<(usize, u32, Path), (usize, bool)>;
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Permission {
@@ -1238,11 +1243,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     fn walk(
         ty: &Type,
         path: &mut Path,
-        out: &mut Vec<(
-            Path,
-            StoredBorrowMode,
-            Option<(Vec<LifeTypeProjection>, u32)>,
-        )>,
+        out: &mut Vec<ActualStoredSlot>,
         b: &mut Budget,
         owning: bool,
     ) -> CompileResult<()> {
@@ -1421,14 +1422,14 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 "stored slot order, mode or binder differs from actual fields",
             ));
         }
-        if let Some((boundary, class)) = child_class {
-            if !life.retained.iter().any(|row| {
+        if let Some((boundary, class)) = child_class
+            && !life.retained.iter().any(|row| {
                 &row.path == boundary && row.class == *class && row.binder == decl.binder
-            }) {
-                return Err(failure(
-                    "nested slot binder differs from retained child class",
-                ));
-            }
+            })
+        {
+            return Err(failure(
+                "nested slot binder differs from retained child class",
+            ));
         }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
