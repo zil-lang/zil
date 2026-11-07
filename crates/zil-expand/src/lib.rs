@@ -1145,7 +1145,23 @@ impl Expander<'_> {
         host: Option<&Type>,
         default: Option<&s::Param>,
     ) {
-        self.unexecuted_attributes(&item.attributes, "declaration");
+        // `test` is inert declaration metadata consumed by the driver test
+        // runner. It does not alter the program's signature or body.
+        if matches!(item.kind, s::ItemKind::Function(_)) {
+            let unhandled = item
+                .attributes
+                .iter()
+                .filter(|attribute| {
+                    attribute.path.as_slice() != ["test"]
+                        || !attribute.arguments.is_empty()
+                        || attribute.string_value.is_some()
+                })
+                .cloned()
+                .collect::<Vec<_>>();
+            self.unexecuted_attributes(&unhandled, "declaration");
+        } else {
+            self.unexecuted_attributes(&item.attributes, "declaration");
+        }
         match &item.kind {
             s::ItemKind::Function(f) => {
                 self.function(f, prefix, host, default);

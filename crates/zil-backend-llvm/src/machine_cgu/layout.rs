@@ -436,6 +436,10 @@ fn action_key(
             2u8.hash(&mut state);
             id.hash(&mut state);
         }
+        EntryPoint::Test(id) => {
+            3u8.hash(&mut state);
+            id.hash(&mut state);
+        }
     }
     lir.target.hash(&mut state);
     lir.schema_version.hash(&mut state);

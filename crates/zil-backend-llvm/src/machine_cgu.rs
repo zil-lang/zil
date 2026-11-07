@@ -286,7 +286,7 @@ fn partition_view_recorded(
         source_ids.push(((function.span.file.0, chunk), id));
         let selected = match entry {
             EntryPoint::Main => function.name == "main",
-            EntryPoint::ReturnValue(wanted) => function.id == wanted,
+            EntryPoint::ReturnValue(wanted) | EntryPoint::Test(wanted) => function.id == wanted,
             EntryPoint::None => false,
         };
         if selected {
