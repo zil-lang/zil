@@ -21,7 +21,12 @@ NUMBERED_LABEL = re.compile(
 )
 NUMBERED_DIRECTORY = re.compile(r"[0-9]+")
 NUMBERED_PREFIX = re.compile(r"[0-9]+[-_]")
+ORDINAL_CASE = re.compile(r"[0-9]{1,2}[-_][A-Za-z][A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)*")
 NUMBERED_SUFFIX = re.compile(r"[-_][0-9]{3}$")
+STABLE_CASE_ID = re.compile(r"(?:case[-_]?[0-9]+|PLAN-[A-Z][0-9]{1,2}-[0-9]{3})", re.I)
+PERFORMANCE_SIZE = re.compile(
+    r"(?:chain[-_](?:forward|reverse)[-_][0-9]+|islands[-_][0-9]+[-_]plus[-_][0-9]+)", re.I
+)
 RESERVED_STATE = {".task", "_zil_goal"}
 RESERVED_FILES = {"_zil_goal.md", "goal.md"}
 RESERVED_DATA = {"data/handoff.json", "data/construction-progress.json", "data/task-index.json"}
@@ -74,9 +79,10 @@ def path_problems(path):
         problems.append("number-only directory")
     leaf = parts[-1]
     stem = Path(leaf).stem
-    if stem.isdecimal() or NUMBERED_PREFIX.match(stem):
+    if stem.isdecimal() or (NUMBERED_PREFIX.match(stem) and not ORDINAL_CASE.fullmatch(stem)):
         problems.append("numbered filename")
-    elif NUMBERED_SUFFIX.search(stem) and not re.fullmatch(r"case[-_]?[0-9]+", stem, re.I):
+    elif NUMBERED_SUFFIX.search(stem) and not (STABLE_CASE_ID.fullmatch(stem)
+                                               or PERFORMANCE_SIZE.fullmatch(stem)):
         problems.append("numbered filename")
     return problems
 
