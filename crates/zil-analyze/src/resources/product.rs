@@ -116,9 +116,13 @@ fn admit_shape(
                     has_stores |= fields(ty, budget, stores, module, borrowed)?;
                     owned = true;
                 }
-                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                    if stores && !ty.is_copy_value() =>
-                {
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } if stores => {
+                    // Copy companions already took the single finite Copy
+                    // classification on the old Product path. Do not send
+                    // them through owning Sum admission or repeat that walk.
+                    if ty.is_copy_value() {
+                        continue;
+                    }
                     let actual = module.expect("ordinary Product has an actual module");
                     // Sum admission independently walks every possible branch
                     // and checks each actual Store's exact sealed resource.
