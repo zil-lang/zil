@@ -1,4 +1,4 @@
-// Independent Vec-based TypedV44 reference for the retained legacy cases.
+// Independent Vec-based TypedV45 reference for the retained legacy cases.
 // New nonempty life/dyn inventories and storage instructions are tested separately.
 // Their absence is asserted here; no unsupported metadata is silently erased.
 // V31 mode explicitly rejects scoped roles/instructions; it never fabricates an old encoding.
@@ -34,7 +34,7 @@ fn cleanup_exit_tag(kind: CleanupExitKind) -> u8 {
 }
 fn encode_module(module: &TypedModule, v32: bool) -> Vec<u8> {
     let mut bytes = if v32 {
-        b"ZIL-TYPED-MODULE-V44\0"
+        b"ZIL-TYPED-MODULE-V45\0"
     } else {
         b"ZIL-TYPED-MODULE-V31\0"
     }
