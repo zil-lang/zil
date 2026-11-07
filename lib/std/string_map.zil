@@ -31,6 +31,18 @@ pub fn get(map:&StringMap,key:&string.String)->Option<i64> {
     if at<0 {return Option.None}
     return Option.Some(at_value(map.values,at))
 }
+// Indexed traversal preserves insertion order. Cloning makes the returned key
+// independent of later map mutation; a short limit or allocation failure is
+// reported by std.string, and an invalid index reports Range.
+pub fn key_clone_at(map:&StringMap,index:i64,byte_limit:i64)->string.Error!string.String {
+    if index<0 || index>=store_len(map.keys) {return string.Error.Range}
+    let key=store_at(map.keys,index)
+    return string.clone(key,byte_limit)
+}
+pub fn value_at(map:&StringMap,index:i64)->Option<i64> {
+    if index<0 || index>=store_len(map.values) {return Option.None}
+    return Option.Some(at_value(map.values,index))
+}
 pub fn insert(map:&mut StringMap,key:string.String,value:i64)->InsertError!Put {
     let at=index(map.keys,&key)
     if at>=0 {
