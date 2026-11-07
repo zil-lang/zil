@@ -280,7 +280,8 @@ fn affine_stored_input(ty: &Type) -> bool {
 fn transfers_address(kind: &InstructionKind) -> bool {
     matches!(
         kind,
-        InstructionKind::MakeAggregate { .. }
+        InstructionKind::Store { .. }
+            | InstructionKind::MakeAggregate { .. }
             | InstructionKind::MakePackage { .. }
             | InstructionKind::MakeManaged { .. }
             | InstructionKind::MakeOwnedTuple { .. }
