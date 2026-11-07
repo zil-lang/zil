@@ -14,7 +14,7 @@
 
 本阶段先补普通数据模型、泛型库、模式、同步与标准库，再收动态抽象、图/外部生命周期和完整程序。必需能力全部进入P0；有普通合法程序仍被临时白名单或未实现组合阻挡，就保留缺口，不能靠缩小子项关闭父项。运行/编译成本和安全产品门保持原要求，功能就绪与正式发布分别验收。
 
-六条 Sol high 施工线已并行推进；Astra只协助联合责任模型与逐port合同等疑难。当前重点为 G1.4.1、G2.3.3、G3.4.3、G8.5.1、G8.6.3、G9.3.6，由 G10.6.3 统一1.0功能门、真实消费者、独审和远端交付。项目清单/依赖锁/测试命令也属于闭环。固定源码备份已更新至 `archive/source-history@0282b343a`，包含6条施工线实际WIP字节；归档不计验收。GPU/ZUI、IME、原生Windows支持声明、集中注册表发布可另行交付；这些后置不能遮盖语言/库的必要组合。
+Sol high 并行实施与独审；Astra只处理逐port、槽更新和图生命周期等疑难语义。G10.6.3 已将模式、泛型、存储强更新、多端口Task、宽原子和可变dyn合流至 `task/G10.6.3@df4d11352`，工作区构建通过，联合回归尚未完成，main仍为上批版本。当前继续嵌套拥有借入与take/refill、Guard多来源与数组、拥有dyn和动态图闭环。项目清单/依赖锁/测试命令也属于闭环。固定源码备份为 `archive/source-history@d101ec7fb`，已核实际提交对象及WIP字节；另已推送本轮候选源码，归档不计验收。GPU/ZUI、IME、原生Windows支持声明、集中注册表发布可另行交付；这些后置不能遮盖语言/库的必要组合。
 
 ## G1 · 基础类型与模式
 
@@ -44,8 +44,8 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G1.4.1 | 具名 Record/Enum 的普通绑定与条件模式、名义身份/可见性及真实字段借用 | 实现待验 | P0 | sol high · patterns | 源码 `dc7be483d`；21项模式和18项既有枚举回归通过，等待共同独审。拥有 Package/非Copy选择性移动仍由父项保留。 |
-| G1.4.2 | 拥有Package具名解构、选择性移动、ref/ref mut混合及拥有错误载荷消费 | 进行中 | P0 | sol high · patterns | task/G1.4.2；let/match/if/while正例已至两核与O0/O2，继续真实StringMap错误key、清理和最近反例。 |
+| G1.4.1 | 具名 Record/Enum 的普通绑定与条件模式、名义身份/可见性及真实字段借用 | 实现待验 | P0 | sol high · patterns | `dc7be483d`已进入联合候选；具名Copy Record/Enum和身份反例通过专项，等待共同验收。 |
+| G1.4.2 | 拥有Package具名解构、选择性移动、ref/ref mut混合及拥有错误载荷消费 | 实现待验 | P0 | sol high · patterns | `557753f32`：递归拥有Package模式、ref/ref mut与兄弟移动、错误key、真实清理正反例已专项通过，进入联合候选；不代表父项全部完成。 |
 </details>
 
 ## G2 · 泛型与 trait
@@ -62,7 +62,8 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G2.3.3 | 关联投影贯通普通函数、Struct/Enum字段、泛型/具体别名及多约束库 | 进行中 | P0 | sol high · generics | `93b42cda3`：关联投影/非Copy Package Item移动、K/V/E/H独立约束及借入Map直接Store字段已有Source/原生；真实回调Map的模板资格与一般Store元素仍在补。历史G2.3.2不复用。 |
+| G2.3.3 | 关联投影贯通普通函数、Struct/Enum字段、泛型/具体别名及多约束库 | 实现待验 | P0 | sol high · generics | `deb9b77a4`：关联投影、拥有Package Item、K/V/E/H约束、真实跨模块回调Map与私有consumer provider已合候选；一般owning泛型与impl族仍由父项保留。 |
+| G2.3.4 | Tuple/Array完整POD元素、generic Store与实际类型身份 | 实现待验 | P0 | sol high · generics | `2ca7bce64`/`9995b9fc7`/`dbf09adcf`已进入候选；Source、raw/Wire同布局错型、双后端及故障清理专项通过，待共同验收。 |
 </details>
 
 <details>
@@ -139,7 +140,8 @@
 | --- | --- | --- | --- | --- | --- |
 | G3.4.1 | 原 SliceIter 与 Option<&T> 的 life/返回来源消费者 | 已合入 | — | — | [PR48 验收][e-pr48]：原始源码、两核 raw/Wire、连续 next/失效及四配置原生完整输出42；合法life遮蔽和原位置拒绝回退已修复。机器首片限thin shared Address，一般lending另缺。 |
 | G3.4.2 | 单直接可变叶 Record holder：真实来源、父 loan、helper 重借与失效 | 已合入 | — | — | `main@e800b39d5`；实际目标/父 loan、helper 重借、raw/Wire 和双后端 O0/O2 接受；通过标量 helper 与 Task/登记联编。[验收][e-native-foundations]；混合拥有 Package、多叶和槽操作仍缺。 |
-| G3.4.3 | 混合拥有/借入 Package 与多叶可变存储，同函数移动、借出及准确清理 | 进行中 | P0 | sol high · storage | `c8940e1f6`：ByteBuffer+两个独占叶同函数/原生、整壳helper rebind与Store<String>宿主地址已验阶段路径。字段take/refill及外部槽helper poststate仍实施，未提交强更新WIP不得集成。 |
+| G3.4.3 | 混合拥有/借入 Package 与多叶可变存储，同函数移动、借出及准确清理 | 进行中 | P0 | sol high · storage | `a0232ff77`槽替换/外部poststate已获独立限定复核并进入联合候选。嵌套qualified子Package的真实资源清理及move_out/take-refill实施中，未接受WIP不合入。 |
+| G3.4.4 | 存储流新能力保持旧精确请求预算 | 实现待验 | P0 | sol high · budget | `8a01aa338`：移除重复eligibility扫描，shared-only路径不造新投影，原N=14196断言不变；新exclusive路径仍预费，等待root整合复核。 |
 
 </details>
 
@@ -206,7 +208,7 @@
 | G5.0 | 具体Fn/FnMut/FnOnce、opaque拥有工厂及有限具体环境保存 | 已合入 | — | — | [已合入证据][e37]；仅动态抽象前置。 |
 | G5.1 | dyn真实Source→Core声明/provider身份 | 部分实现 | P1 | 待派 | [C39][c39] / [C40][c40] 已有源码/Core 声明与 provider 目录；当前 Types 仍拒绝未接通的动态消费者，不能当作已有机器派发。 |
 | G5.2 | 异构调用、静态vtable、关联项与有限泛型method slot的真实派发 | 部分实现 | P0 | 待派 | 首批 G5.2.1 先接单共享接收者、固定方法槽和两个 provider；关联项、泛型槽与拥有擦除存储仍按各自合同后续扩展。 |
-| G5.3 | 显式拥有/共同借入存储及管理route，移动/销毁/失败路径完整 | 部分实现 | P0 | 待派 | 依赖 G3.4、G1.3、G5.2。 |
+| G5.3 | 显式拥有/共同借入存储及管理route，移动/销毁/失败路径完整 | 进行中 | P0 | sol high · dyn | task/G5.3：显式Heap OwnedDyn、类型专属派生drop glue与构造失败清理已派工；新增公共表示由单一写者负责，现未实现验收。 |
 
 <details>
 <summary>G5.2 · 子任务</summary>
@@ -214,6 +216,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G5.2.1 | 两个 provider 的单共享 dyn 接收者与固定标量方法槽 | 已合入 | — | — | [PR52 验收][e-pr52]：实际运行时双 provider、跨模块默认包装、完整 u64 实参与返回、raw/Wire/预算/缓存及三 CGU 冷暖缓存通过；双后端 O0/O2 与共同门已验收。Unit Source、拥有/可变 dyn 和一般擦除存储仍不开放。 |
+| G5.2.2 | Unit/标量槽、独占接收者与跨模块默认包装 | 实现待验 | P0 | sol high · dyn | `794e74a7a`已合候选；真实双provider可变写入/读回、合同反例、四机器配置和缓存专项通过，完整trait111/0；待共同验收。 |
 
 <details>
 <summary>G5.2.1 · 子任务</summary>
@@ -235,7 +238,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G6.0 | 有限资源U/K/D、初始化/部分移动、Store及callable State合同 | 已合入 | — | — | [已合入证据][e37]；一般状态协议另列。 |
 | G6.1 | 逐结果的一般状态转换、角色与别名规则 | 部分实现 | P0 | 待派 | [C40][c40] 已有逐 role 检查；G6.1.1 的登记三态及逐 Poll 结果已合入，一般用户协议/转换仍待补。 |
-| G6.2 | 真实投影、失效关系、历史撤销和导出上界组合 | 部分实现 | P0 | 待派 | 依赖 G6.1、G3.4。 |
+| G6.2 | 真实投影、失效关系、历史撤销和导出上界组合 | 部分实现 | P0 | Astra · 合同审查 | 现有有限投影/失效可复用；正核运行时节点数、环/共享边、逻辑删除和组回收的真实消费者及受检边界，未以固定两节点代替动态图验收。 |
 | G6.3 | 状态协议与拥有存储、替换及异步责任共同运行 | 待排期 | P1 | 待派 | 依赖 G1.3、G6.2、G8.4、G8.6。 |
 
 <details>
@@ -272,7 +275,7 @@
 
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
-| G8.5.1 | 通用 Mutex<T>/affine Guard、结构化线程与必要原子位宽 | 进行中 | P0 | sol high · sync | `24a32cb89`：实际pthread Mutex、拥有payload/Guard drop、helper及malloc/init失败一次清理已四配置执行；通用线程共享、精确多输入Guard关系、原子位宽继续，Guard不自动跨挂起/线程。 |
+| G8.5.1 | 通用 Mutex<T>/affine Guard、结构化线程与必要原子位宽 | 进行中 | P0 | sol high · sync | `0e58169fb`：真实共享pthread Mutex、Copy/Package/拥有Tuple/Enum、i64/u64/usize原子与失败清理已四配置通过并合候选；继续多来源Guard helper与拥有数组。Guard不获跨挂起/线程权限。 |
 </details>
 
 <details>
@@ -281,7 +284,7 @@
 | 任务编号 | 任务范围 | 状态 | 优先级 | 负责人 | 进展 / 依赖 |
 | --- | --- | --- | --- | --- | --- |
 | G8.6.2 | 单共享 &i32 输入 Task：真实 port、工厂返回及 frame 全寿命保留 | 已合入 | — | — | `main@e800b39d5`；实际共享 &i32 port 保留至 Destroy/同步 Drop，跨模块返回、PC0/取消及独立 raw/Wire/预算通过。[验收][e-native-foundations]；其它结果、Task 输入和线程迁移未开放。 |
-| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 进行中 | P0 | sol high · task | `57e2340f3`后续联合WIP；独立Verify逐port摘要/父loan在`f706fcdac`，单/双port Fixed helper、共享读/独占活债反例已过；原生、main本地隐式Context、借入结果及完整回归待验。 |
+| G8.6.3 | 多共享/独占Task端口、普通结果族及跨helper完整上下文转交 | 实现待验 | P0 | sol high · task | `dccc5764c`：多共享/独占端口、标量及有限Product referent、Task<T,Context>泛型helper已合候选；非作者复核通过限定范围并实跑16项Source、4项Verify。嵌套owner transport和借入结果仍缺。 |
 
 </details>
 
@@ -306,7 +309,7 @@
 | G9.3.3 | 普通 POD 集合的可变元素借用：实际写入、helper 重借用与结构修改互斥 | 已合入 | — | — | [PR51 验收][e-pr51]：真实 std.store 可变元素与 helper 重借用、写后读回、失败保留、两核 raw/Wire 和双后端 O0/O2通过；保留整 Store 排他，不推断不同下标不交。 |
 | G9.3.4 | 标量动态序列：直接 Store<i32/u64/usize/bool/浮点等既有标量> 与真实 std.store | 已合入 | — | — | [PR51 验收][e-pr51]：bool/u8/u16/i32/i64/u64/usize/f32/f64 直接序列与真实 std.store、完整 u64 和双后端通过；Unit、一般拥有/捕获及 standalone Array/Tuple/Enum 仍排除。 |
 | G9.3.5 | POD/标量 Store 的普通拥有数据模型：字段、整值流、替换与自含捕获 | 已合入 | — | — | [PR52 验收][e-pr52]：精确源码 `498f0f5a1` 默认5248/0、参考5136/0、文本70/0；17 Source/68 原生、独审、release/10工程门和远端重建运行通过，远端 main `c2ae6edb9` 已核。仅本表有限拥有组合，首轮5242/6与历史缺件状态保留。 |
-| G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `fd93a107e`/`f9f7b1db0`：Unicode StringMap insert/get/remove及失败返key重插、I/O/排序四配置通过；root修复部分清理错误预算。POD/i64开址HashMap与一般K/V/回调组合验收继续，直接错误字段借用接G1.4.2。 |
+| G9.3.6 | 基础String查询、排序、文件/流I/O与真正可封装的Map/Set | 进行中 | P0 | sol high · stdlib | `c116bd65f`：UTF8查询/整数转换/排序/文件流、拥有StringMap、固定容量POD回调HashMap、名义i64 Map/Set已合候选；真实私有Key、失败返key/删除故障在四配置通过。一般owning K/V和自动增长泛型库仍缺。 |
 
 <details>
 <summary>G9.3.5 · 子任务</summary>
@@ -410,7 +413,7 @@
 | --- | --- | --- | --- | --- | --- |
 | G10.6.1 | 语言初稿开发预览：通用必备组合、构建文档与同批验收；不替代 B0/完整语言门 | 已合入 | — | — | [PR51 验收][e-pr51]：精确源码 `a8c7953e7` 默认5190/0、参考5078/0、文本70/0；双严格检查、release、10项工程门及远端源码恢复构建运行通过。有限预览不替代 B0/完整语言。 |
 | G10.6.2 | 通用 Native 库与异步资源联合验收：精确源码、真实消费者、独审和远端恢复 | 已合入 | — | — | `main@e800b39d5`：默认5269/0、参考5157/0、文本70/0；真实联合双后端 O0/O2、3735文件远端恢复/空缓存构建、16次 API 构建/128次运行/56次故障注入均通过。[本批记录][e-native-foundations]。 |
-| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | task/G10.6.3；功能门及普通程序已落候选；整合发现旧Sum地址根与旧路径费用回归，正修复复跑。main仍e800；未以各分支通过数替代共同验收，固定archive已保全源码。 |
+| G10.6.3 | 通用语言1.0功能门、真实普通程序、工程使用与精确源码交付 | 进行中 | P0 | root · 集成 | 候选 `df4d11352` 已推远端；全部target构建通过，联合回归进行。旧fixed-owner预算+14已定位为重复扫描/无关投影，修复待整合，不上调限额。main仍e800；各线专项数不替代共同验收。 |
 
 </details>
 
