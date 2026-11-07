@@ -35,6 +35,10 @@ const EXCLUSIVE_RECORD_PARAMETER_DUPLICATE: &str =
     include_str!("exclusive-record-parameter-duplicate.zil");
 const EXCLUSIVE_RECORD_SHARED_HEAD_COPY: &str =
     include_str!("exclusive-record-shared-head-copy.zil");
+const EXCLUSIVE_RECORD_BRANCH_REFILL: &str = include_str!("exclusive-record-branch-refill.zil");
+const EXCLUSIVE_RECORD_BRANCH_UNINITIALIZED: &str =
+    include_str!("exclusive-record-branch-uninitialized.zil");
+const EXCLUSIVE_RECORD_AFTER_MOVE: &str = include_str!("exclusive-record-after-move.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -280,6 +284,53 @@ fn exclusive_record_transfer_native_matches_moved_target() {
             assert_eq!(result.status.code(), Some(0), "{result:?}");
             let _ = std::fs::remove_file(output);
         }
+    }
+}
+
+#[test]
+fn exclusive_record_branch_join_requires_initialized_carrier() {
+    let accepted = compile_source(
+        &source(
+            "exclusive-record-branch-refill.zil",
+            EXCLUSIVE_RECORD_BRANCH_REFILL,
+        ),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        accepted.status,
+        ResultCategory::Success,
+        "{}",
+        accepted.to_json()
+    );
+    assert_eq!(accepted.verification_runs, 1);
+
+    for (name, program) in [
+        (
+            "exclusive-record-branch-uninitialized.zil",
+            EXCLUSIVE_RECORD_BRANCH_UNINITIALIZED,
+        ),
+        (
+            "exclusive-record-after-move.zil",
+            EXCLUSIVE_RECORD_AFTER_MOVE,
+        ),
+    ] {
+        let rejected = compile_source(
+            &source(name, program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            rejected.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            rejected.to_json()
+        );
+        assert_eq!(rejected.diagnostics[0].code, "E-UNINITIALIZED");
     }
 }
 
