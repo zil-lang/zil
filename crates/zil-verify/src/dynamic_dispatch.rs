@@ -170,9 +170,13 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
                 None,
             ));
         }
+        let mut member_names = BTreeSet::new();
         for member in &declaration.members {
             budget.spend(member.name.len().saturating_add(1))?;
-            if member.name.is_empty() || !matches!(member.kind, DynMemberKind::Method(_)) {
+            if member.name.is_empty()
+                || !member_names.insert(&member.name)
+                || !matches!(member.kind, DynMemberKind::Method(_))
+            {
                 return Err(bad(
                     "finite dyn declarations require named ordinary methods",
                     None,
@@ -193,7 +197,8 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> Check<()> 
         if !interfaces.insert(item.id) {
             return Err(bad("duplicate dyn interface identity", None));
         }
-        if !item.inherited.is_empty()
+        if item.slots.is_empty()
+            || !item.inherited.is_empty()
             || !item.associated_types.is_empty()
             || !item.associated_constants.is_empty()
             || item.retained_life.binder_count != 0
@@ -547,7 +552,7 @@ pub(super) fn instruction(
                     return Err(bad("dyn call argument type differs", span));
                 }
             }
-            Ok(Some(selected.result.clone()))
+            Ok((selected.result != Type::Unit).then(|| selected.result.clone()))
         }
         _ => unreachable!(),
     }
