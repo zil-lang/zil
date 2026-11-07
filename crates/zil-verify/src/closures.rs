@@ -192,6 +192,15 @@ pub(super) fn check_definitions(
         // Capture fields include independently checked finite owning Packages.
         // Hold, view binding and authority are reconstructed from the raw CFG.
         for ty in &closure.captures {
+            if matches!(ty, Type::OwnedDyn { .. })
+                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            {
+                return Err(reject(
+                    "E-VERIFY-DYN",
+                    None,
+                    "owned dyn closure capture is outside the closed owner profile",
+                ));
+            }
             budget.owning_address_captures |= owning_capture_address(ty);
             if ty.is_package_address() {
                 let Type::Address { mutable, inner } = ty else {

@@ -3073,12 +3073,6 @@ pub(super) fn check_module(
 ) -> Check<()> {
     let sum_proofs = sums::check_module(module, graphs, budget)?;
     budget.spend(module.closures.len())?;
-    for closure in &module.closures {
-        budget.spend(closure.captures.len())?;
-        if closure.captures.iter().any(|ty| matches!(ty, Type::OwnedDyn { .. }) || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))) {
-            return Err(bad(Span::default(), "owned dyn closure capture is outside the closed owner profile"));
-        }
-    }
     if module.resources.is_empty() && !budget.sums {
         let mut owning_entry = false;
         for closure in &module.closures {

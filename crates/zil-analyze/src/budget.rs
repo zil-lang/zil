@@ -1377,6 +1377,13 @@ pub(super) fn preflight(
         }
 
         for ty in &closure.captures {
+            if matches!(ty, Type::OwnedDyn { .. })
+                || matches!(ty, Type::ErrorUnion { result, .. } if matches!(result.as_ref(), Type::OwnedDyn { .. }))
+            {
+                return Err(bad(
+                    "owned dyn closure capture is outside the closed owner profile",
+                ));
+            }
             if closure.storage_life.is_some() {
                 budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
