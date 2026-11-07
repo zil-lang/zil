@@ -8,6 +8,8 @@ mod deferred;
 mod factory;
 #[path = "generic_role_check.rs"]
 mod role_check;
+#[path = "generic_error_injection.rs"]
+mod error_injection;
 
 pub(super) fn source_class_key(
     ty: &TypeRef,
@@ -45,7 +47,7 @@ pub(super) fn validate_parametric<'l>(
     dependencies: &mut helper_graph::Dependencies,
     budget: &mut Budget<'l>,
     trait_calls: &mut trait_instances::Calls,
-) -> R<()> {
+) -> R<error_injection::Choices> {
     validate_parametric_with_bounds(function, tables, dependencies, budget, trait_calls, None)
 }
 
@@ -56,7 +58,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
     budget: &mut Budget<'l>,
     trait_calls: &mut trait_instances::Calls,
     supplied_bounds: Option<trait_bounds::Bounds>,
-) -> R<()> {
+) -> R<error_injection::Choices> {
     let ParametricTables {
         ct_types,
         source_definition,
@@ -174,6 +176,8 @@ pub(super) fn validate_parametric_with_bounds<'l>(
         factory_values: BTreeMap::new(),
         factory_return_identity: None,
         scoped_source: &function.body,
+        selected_error_arms: error_injection::Choices::default(),
+        statement_ids: None,
         scoped_body_closures: None,
         scoped_copy_closures: BTreeSet::new(),
         nominals,
@@ -540,13 +544,15 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             } else if check.callable.is_some()
                 || matches!(group(&result).kind, TypeKind::Error { .. })
             {
-                role_check::same_return(
+                if let Some(is_error) = role_check::same_return_selected(
                     &actual,
                     &result,
                     value.span,
                     check.class_scope,
                     check.budget,
-                )?;
+                )? {
+                    check.selected_error_arms.expression = Some(is_error);
+                }
             } else {
                 role_check::same(
                     &actual,
@@ -564,7 +570,7 @@ pub(super) fn validate_parametric_with_bounds<'l>(
             ));
         }
     }
-    Ok(())
+    Ok(check.selected_error_arms)
 }
 
 pub(super) fn unit(span: Span) -> TypeRef {
@@ -589,9 +595,17 @@ pub(super) fn same_return(
     span: Span,
     budget: &mut Budget<'_>,
 ) -> R<()> {
+    same_return_selected(actual, expected, span, budget).map(|_| ())
+}
+pub(super) fn same_return_selected(
+    actual: &TypeRef,
+    expected: &TypeRef,
+    span: Span,
+    budget: &mut Budget<'_>,
+) -> R<Option<bool>> {
     let actual_key = type_key(actual, budget)?;
     if actual_key == type_key(expected, budget)? {
-        return Ok(());
+        return Ok(None);
     }
     if let TypeKind::Error {
         error: error_type,
@@ -601,7 +615,7 @@ pub(super) fn same_return(
         let error_match = actual_key == type_key(error_type, budget)?;
         let result_match = actual_key == type_key(result, budget)?;
         if error_match != result_match {
-            return Ok(());
+            return Ok(Some(error_match));
         }
         if error_match {
             return Err(error(span, "error union payload matches both sides"));
@@ -620,10 +634,10 @@ pub(super) fn same_return(
             Ok(found)
         }
         if matches(&actual_key, members, budget)? == 1 {
-            return Ok(());
+            return Ok(None);
         }
     }
-    same(actual, expected, span, budget)
+    same(actual, expected, span, budget).map(|_| None)
 }
 fn substituted_type(
     ty: &TypeRef,
@@ -1037,6 +1051,8 @@ struct Check<'s, 'b, 'l> {
     factory_values: BTreeMap<usize, Span>,
     factory_return_identity: Option<Span>,
     scoped_source: &'s FunctionBody,
+    selected_error_arms: error_injection::Choices,
+    statement_ids: Option<BTreeMap<usize, usize>>,
     scoped_body_closures: Option<BTreeSet<Span>>,
     scoped_copy_closures: BTreeSet<Span>,
     nominals: &'s BTreeMap<String, &'l Item>,
@@ -1055,6 +1071,17 @@ struct Check<'s, 'b, 'l> {
     budget: &'b mut Budget<'l>,
 }
 impl Check<'_, '_, '_> {
+    fn selected_error_statement(&mut self, statement: &Stmt, is_error: bool) -> R<()> {
+        if self.statement_ids.is_none() {
+            self.statement_ids = Some(error_injection::statement_ids(self.scoped_source, self.budget)?);
+        }
+        let site = self.statement_ids.as_ref().and_then(|ids| ids.get(&(statement as *const Stmt as usize))).copied()
+            .ok_or_else(|| error(statement.span, "selected generic error arm has no statement identity"))?;
+        if self.selected_error_arms.statements.insert(site, is_error).is_some() {
+            return Err(error(statement.span, "generic error arm selected twice at one source site"));
+        }
+        Ok(())
+    }
     fn life_copy(&mut self, roots: &BTreeSet<usize>, span: Span) -> R<BTreeSet<usize>> {
         for _ in roots {
             self.budget.node(span, 0)?;
@@ -5876,13 +5903,15 @@ impl Check<'_, '_, '_> {
                     )?;
                     if let Some(ty) = ty {
                         if matches!(group(ty).kind, TypeKind::Error { .. }) {
-                            role_check::same_return(
+                            if let Some(is_error) = role_check::same_return_selected(
                                 &actual,
                                 ty,
                                 statement.span,
                                 self.class_scope,
                                 self.budget,
-                            )?;
+                            )? {
+                                self.selected_error_statement(statement, is_error)?;
+                            }
                         } else {
                             role_check::same(
                                 &actual,
@@ -6147,13 +6176,15 @@ impl Check<'_, '_, '_> {
                     } else if self.callable.is_some()
                         || matches!(group(&expected).kind, TypeKind::Error { .. })
                     {
-                        role_check::same_return(
+                        if let Some(is_error) = role_check::same_return_selected(
                             &actual,
                             &expected,
                             statement.span,
                             self.class_scope,
                             self.budget,
-                        )?;
+                        )? {
+                            self.selected_error_statement(statement, is_error)?;
+                        }
                     } else {
                         role_check::same(
                             &actual,
