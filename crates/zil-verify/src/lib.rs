@@ -3036,7 +3036,8 @@ fn check_instruction(
             if matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            ) {
+            ) || dynamic_store::inline_sum_capture(ty, budget)?
+            {
                 return Err(reject(
                     "E-VERIFY-CAPTURE",
                     span,
@@ -3058,8 +3059,9 @@ fn check_instruction(
                 .captures
                 .get(*index as usize)
                 .ok_or_else(|| reject("E-VERIFY-CAPTURE", span, "capture field is absent"))?;
+            let owned_sum = dynamic_store::inline_sum_capture(field, budget)?;
             if !matches!(definition.kind, CallableKind::FnMut | CallableKind::FnOnce)
-                || !field.is_copy_value()
+                || !(field.is_copy_value() || (definition.kind == CallableKind::FnMut && owned_sum))
                 || value_type(function, *value, span)? != field
             {
                 return Err(reject(
