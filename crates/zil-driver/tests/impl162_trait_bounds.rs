@@ -337,7 +337,7 @@ fn g231_self_associated_identity_budgets_and_machine_values() {
 }
 
 #[test]
-fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_kernel_boundary() {
+fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_runs_both_providers() {
     let files = [
         (
             "main",
@@ -376,10 +376,19 @@ fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_ke
     let dump = fs::read_to_string(&report.artifacts["core"]).unwrap();
     assert_eq!(dump.matches("DynInterface {").count(), 2, "{dump}");
     assert_eq!(dump.matches("CoreDynVtable {").count(), 2, "{dump}");
+    assert_eq!(dump.matches("requires: Some(").count(), 2, "{dump}");
     assert!(dump.contains("\"a\"") && dump.contains("\"b\""), "{dump}");
-    let output = directory.join("must-not-build");
+    native_both(&files);
+
+    // Same spelling and layout do not make b.Meter a provider for a.Read.
+    let wrong_main = files[0]
+        .1
+        .replace("left(&left_value)", "left(&right_value)");
+    assert_ne!(wrong_main, files[0].1);
+    let wrong_files = [("main", wrong_main.as_str()), files[1], files[2]];
+    let output = directory.join("wrong-interface-must-not-build");
     let report = compile_project(
-        &project(&files),
+        &project(&wrong_files),
         &CompileOptions {
             stop_after: Stage::Build,
             output: Some(output.clone()),
@@ -388,7 +397,7 @@ fn terminal341_dyn_source_metadata_keeps_same_named_project_traits_and_closes_ke
     );
     assert_eq!(
         report.status,
-        ResultCategory::Unsupported,
+        ResultCategory::SafeReject,
         "{}",
         report.to_json()
     );
