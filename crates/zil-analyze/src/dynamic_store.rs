@@ -439,6 +439,13 @@ pub(super) fn owned_capture(
             "owned Store capture requires the actual Store payload",
         ));
     };
+    // The historical Item capture profile below is specific to Package
+    // elements. A scalar/POD Store keeps the same concrete capture graph and
+    // lifecycle checks, but qualifies its complete element and canonical
+    // resource through the ordinary Store kernel.
+    if !matches!(element.as_ref(), Type::Package { .. }) {
+        return super::ownership_store::ordinary_owned(module, ty, budget);
+    }
     capture_element(element, budget)?;
     let Type::Package { name, .. } = element.as_ref() else {
         unreachable!("qualified leaf")
@@ -492,6 +499,9 @@ pub(super) fn captured_package(
     ty: &Type,
     budget: &mut Budget,
 ) -> CompileResult<()> {
+    if budget.ordinary_pod_store_type(ty)? {
+        return super::ownership_store::capture(module, ty, budget);
+    }
     let Type::Package { fields, .. } = ty else {
         return Err(super::bad("expected captured Package"));
     };
@@ -717,6 +727,29 @@ mod tests203 {
     }
     fn check(module: &TypedModule, element: &Type, limits: &Limits) -> CompileResult<()> {
         callback_element(module, element, &mut Budget::new(limits))
+    }
+
+    #[test]
+    fn pod_capture_checks_its_actual_canonical_element() {
+        let (mut module, _) = fixture();
+        let element = Type::I64;
+        let payload = Type::OwnedStore {
+            element: Box::new(element.clone()),
+        };
+        let owner = Type::Managed(Box::new(payload.clone()));
+        module.resources.push(zil_ir::ResourceDefinition {
+            name: "@builtin:OwnedStore<i64>".into(),
+            payload,
+            teardown: None,
+        });
+        owned_capture(&module, &owner, &mut Budget::new(&Limits::default())).unwrap();
+
+        module.resources[0].payload = Type::OwnedStore {
+            element: Box::new(Type::F64),
+        };
+        let errors =
+            owned_capture(&module, &owner, &mut Budget::new(&Limits::default())).unwrap_err();
+        assert!(errors[0].message.contains("exact canonical definition"));
     }
 
     #[test]

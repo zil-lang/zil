@@ -42,6 +42,9 @@ fn ordinary_capture(module: &TypedModule, ty: &Type, budget: &mut Budget) -> Com
     if dynamic_store::is_owned_carrier(ty) {
         return dynamic_store::owned_capture(module, ty, budget);
     }
+    if matches!(ty, Type::Package { .. }) && budget.ordinary_pod_store_type(ty)? {
+        return ownership_store::capture(module, ty, budget);
+    }
     if let Type::Package { fields, .. } = ty {
         budget.spend(fields.len(), "owning factory Package profile")?;
         if fields
