@@ -1151,6 +1151,42 @@ fn ordinary_iterator_item_can_be_held_in_a_generic_container() {
 }
 
 #[test]
+fn independent_copy_and_store_element_bounds_prove_generic_entry_storage() {
+    let program = include_str!(
+        "../../../tests/language-readiness/terminal/generics-and-constants/associated-container/pod-map.zil"
+    );
+    let report = check(program);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    native_both(&[("main", program)]);
+
+    for invalid in [
+        program.replace(
+            "K:Copy+StoreElement,V:Copy+StoreElement",
+            "K:StoreElement,V:StoreElement",
+        ),
+        program.replace("K:Copy+StoreElement,V:Copy+StoreElement", "K:Copy,V:Copy"),
+        program.replace(
+            "struct Entry<K:Copy,V:Copy>{key:K;value:V}",
+            "struct Entry<K:Copy,V:Copy>{key:K;value:V;zero:[i32;0]}",
+        ),
+    ] {
+        let report = check(&invalid);
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    }
+}
+
+#[test]
 fn enum_payloads_use_only_declared_copy_associated_projections() {
     for source in [
         include_str!(

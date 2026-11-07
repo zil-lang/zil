@@ -869,7 +869,8 @@ impl<'a> Engine<'a> {
                         if bounds.is_empty()
                             || callable.is_some()
                             || bounds.iter().all(stores::is_bound)
-                            || matches!(&item.kind, ItemKind::Aggregate(a) if a.kind == AggregateKind::Struct)
+                            || matches!(&item.kind, ItemKind::Aggregate(a)
+                                if matches!(a.kind, AggregateKind::Struct | AggregateKind::Package))
                                 && bounds.iter().all(|bound| {
                                     copy::is_bound(bound)
                                         || stores::is_bound(bound)
