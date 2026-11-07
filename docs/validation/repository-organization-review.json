@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "reviewer": "/root/final_store_review",
+  "reviewed_commit": "162e572e3eb13914761e2ab7ea5f56a125a07832",
+  "reviewed_tree": "04932152c2c743ff793a88eae7eed800b145a27d",
+  "comparison_commits": {
+    "prior_structure": "9aa3276037a88e7ccc4b193106205f0355cb8559",
+    "accepted_language_source": "498f0f5a1e7595e12e5303750ef7686b1a7dc41b",
+    "language_main": "c2ae6edb94f56ac710b7a66a23db03c451193cc8"
+  },
+  "scope": "Independent integrated-tree review of the G10.7 documentation/asset retirement with accepted G9.3.5/G5.2.1 language source. Static source and governance integrity plus observed exact-SHA clean-clone checks; not a fresh full language or product acceptance.",
+  "verdict": "Pass",
+  "findings": [],
+  "methods": [
+    "Verified HEAD is the fixed 162e572e commit, worktree clean, and git diff --check passed. Compared all tracked blobs under crates/, tests/language-readiness/, examples/, lib/, policy/, and Cargo files against accepted language source 498f0f5a: only crates/zil-driver/tests/aggregates.rs differs, in exactly two #[path] redirects to migrated test modules; its test bodies remain byte-identical.",
+    "Compared language main c2ae6edb with 498f0f5a in the same production/test prefixes: identical. The final parent retains those language bytes. The two aggregate target modules exist at their new paths and their prior asset lineage was independently reviewed.",
+    "Compared _zil_design.md with accepted 498f0f5a: only the first authority/location paragraph differs; both new normative language sections remain byte-identical. Compared spec/interfaces.json as parsed data: only the two proposal path strings differ, and both resolve to the renamed documents.",
+    "Read both accepted-profile documents at their semantic paths and compared bytes to source 498f0f5a old paths and to SHA256 entries in validation/asset-provenance.json: both match. All prior provenance keys and 55 asset mappings are unchanged from 9aa32760; all 55 current asset hashes still match.",
+    "Compared docs/LANGUAGE-DRAFT.md, docs/RUST-GOALS.md, docs/reviews/CHAT9-REVIEW.md and the language acceptance/review/handoff JSON with c2ae6edb: byte-identical. The historical acceptance receipt remains explicitly bound to its original 498f0f5a source, rather than being falsely rebound to this documentation commit.",
+    "Verified current tree has zero tracked .task files and no .task directory, _zil_goal.md, data/task-index.json, data/handoff.json or data/construction-progress.json. The 14 formal engineering contracts and data/requirement-coverage.json are byte-identical to reviewed 9aa32760.",
+    "Recomputed all seven normative file SHA256 values and aggregate hash; confirmed designer-data spec digest, designer-docs spec/workflow byte equality, and both HTML embedded payloads match current generated data.",
+    "Independently read exact 162e572e remote clean-clone result and recomputed hashes of all 14 logs: checkout head and tree match, all exits 0, clean resulting worktree, status Pass. This establishes the documented cold-source governance/browser/package/generator route only."
+  ],
+  "evidence": {
+    "prior_structure_review": "/workspace/.zil-env/repo-structure-plan/parent-review.json",
+    "prior_language_review": "/workspace/.zil-env/ordinary-dyn-batch/final-store-review.json",
+    "cold_integrated_result": "/workspace/.zil-env/repo-structure-plan/cold-integrated/result.json",
+    "cold_integrated_result_sha256": "f6e42d9ab5b2d9a71e05f231b1fd35bee52647926f54a2060c68cca9c6d7b82c",
+    "aggregate_test_log": "/workspace/.zil-env/repo-structure-plan/aggregates-integrated.log",
+    "aggregate_test_log_sha256": "e35a5be75bb53ebe4960a1f7e2a21e578073ade42b2507a66ad18b11209fa518",
+    "aggregate_observation": "Root-run integrated aggregates log reports 296 passed, 0 failed, 0 ignored. This review did not execute Cargo; log alone is not used to rebind the prior full language acceptance to 162e572e."
+  },
+  "limits": [
+    "A full current-source language default/reference/release matrix is not claimed by this scoped review; prior accepted-language results bind 498f0f5a and the integrated tree is proved equal in language source except the two reviewed test include paths.",
+    "The initial G10.7 migration does not claim all other numbered directories or all 602 historical changes have reached final semantic naming, nor that the 14 product capabilities are complete."
+  ]
+}

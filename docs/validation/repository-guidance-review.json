@@ -18,5 +18,6 @@
     "Two links in docs/STATUS-20261030.md to evidence/status/2026-10-30 are already unresolved in the base and were not introduced by this migration; historical evidence identity remains tied to Git.",
     "The engineering-contract and governance-tool migration and final removal of main .task/_zil_goal are parent-task work and are not assessed as complete by this scoped review.",
     "No Cargo, native compiler, or product acceptance was run for this documentation review."
-  ]
+  ],
+  "reviewer": "/root/final_store_review"
 }

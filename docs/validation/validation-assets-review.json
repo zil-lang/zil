@@ -18,5 +18,6 @@
     "Cargo test discovery and execution of the moved Rust modules remain pending parent integration; this review establishes static paths and bytes only.",
     "Historical receipts retain their original compiler/source/status and old commands; any run from new paths requires a new result record.",
     "The old .task tree and _zil_goal.md remain until parent G10.7 performs final cleanup and downstream reference checks."
-  ]
+  ],
+  "reviewer": "/root/final_store_review"
 }
