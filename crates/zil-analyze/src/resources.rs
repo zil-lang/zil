@@ -465,7 +465,7 @@ fn shapes(module: &TypedModule, f: &TypedFunction, budget: &mut Budget) -> Compi
             ) || (matches!(
                 ty,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) && budget.sum_type(ty)?)
+            ) && budget.ordinary_store_sum_capture(id, ty)?)
             {
                 budget.lookup(result.len(), "resource capture insertion")?;
                 result.insert(
@@ -2319,11 +2319,13 @@ impl Flow<'_> {
                             ));
                         }
                     }
-                    if let Some(ty) = f
-                        .environment
-                        .and_then(|id| self.module.closures.get(id.0 as usize))
-                        .and_then(|closure| closure.captures.get(*index as usize))
-                        && budget.sum_type(ty)?
+                    if let Some(id) = f.environment
+                        && let Some(ty) = self
+                            .module
+                            .closures
+                            .get(id.0 as usize)
+                            .and_then(|closure| closure.captures.get(*index as usize))
+                        && budget.ordinary_store_sum_capture(id, ty)?
                         && check
                         && !exact(
                             &copied(state, Place::Capture(*index), budget)?,
@@ -2376,6 +2378,9 @@ impl Flow<'_> {
                     });
                 }
                 InstructionKind::ReadCapture { index } => {
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("capture has no environment"))?;
                     let c = f
                         .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -2390,7 +2395,7 @@ impl Flow<'_> {
                     ) || (matches!(
                         ty,
                         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                    ) && budget.sum_type(ty)?)
+                    ) && budget.ordinary_store_sum_capture(id, ty)?)
                     {
                         return Err(error(
                             "ReadCapture cannot copy an owned Managed or Package field",
@@ -2407,6 +2412,9 @@ impl Flow<'_> {
                     }
                 }
                 InstructionKind::TakeCapture { index } => {
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("TakeCapture environment absent"))?;
                     let capture_ty = f
                         .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -2418,7 +2426,7 @@ impl Flow<'_> {
                     let ordinary_sum = matches!(
                         capture_ty,
                         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                    ) && budget.sum_type(capture_ty)?;
+                    ) && budget.ordinary_store_sum_capture(id, capture_ty)?;
                     if callable != Some(CallableKind::FnOnce)
                         && !(ordinary_sum && callable == Some(CallableKind::FnMut))
                     {
@@ -2447,6 +2455,9 @@ impl Flow<'_> {
                     replace(state, place, fact, budget)?;
                 }
                 InstructionKind::WriteCapture { index, value } => {
+                    let id = f
+                        .environment
+                        .ok_or_else(|| error("WriteCapture environment absent"))?;
                     let capture_ty = f
                         .environment
                         .and_then(|id| self.module.closures.get(id.0 as usize))
@@ -2455,7 +2466,7 @@ impl Flow<'_> {
                     if matches!(
                         capture_ty,
                         Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-                    ) && budget.sum_type(capture_ty)?
+                    ) && budget.ordinary_store_sum_capture(id, capture_ty)?
                     {
                         if callable != Some(CallableKind::FnMut)
                             || f.values.get(value.0 as usize) != Some(capture_ty)
@@ -3224,11 +3235,13 @@ impl Flow<'_> {
                         }
                         if callable != Some(CallableKind::FnOnce)
                             && let Place::Capture(index) = place
-                            && let Some(ty) = f
-                                .environment
-                                .and_then(|id| self.module.closures.get(id.0 as usize))
+                            && let Some(id) = f.environment
+                            && let Some(ty) = self
+                                .module
+                                .closures
+                                .get(id.0 as usize)
                                 .and_then(|closure| closure.captures.get(*index as usize))
-                            && budget.sum_type(ty)?
+                            && budget.ordinary_store_sum_capture(id, ty)?
                         {
                             state.sums.require_capture_complete(*index, budget)?;
                         }

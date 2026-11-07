@@ -61,6 +61,9 @@ pub(super) struct Budget {
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
     sum_roots: BTreeSet<usize>,
+    // Exact owning inline-Store Sum capture roots found by the paid raw walk.
+    // Empty on old Sum profiles, including owning ByteBuffer Enums.
+    ordinary_store_sum_captures: Vec<BTreeSet<usize>>,
     ordinary_pod_store_roots: BTreeSet<usize>,
 }
 
@@ -109,12 +112,31 @@ impl Budget {
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
             sum_roots: BTreeSet::new(),
+            ordinary_store_sum_captures: Vec::new(),
             ordinary_pod_store_roots: BTreeSet::new(),
         }
     }
 
-    pub(super) fn has_sum_shapes(&self) -> bool {
-        !self.sum_roots.is_empty()
+    pub(super) fn has_ordinary_store_sum_capture(&self, id: zil_ir::ClosureId) -> bool {
+        self.ordinary_store_sum_captures
+            .get(id.0 as usize)
+            .is_some_and(|roots| !roots.is_empty())
+    }
+
+    pub(super) fn ordinary_store_sum_capture(
+        &mut self,
+        id: zil_ir::ClosureId,
+        ty: &Type,
+    ) -> CompileResult<bool> {
+        let Some(roots) = self.ordinary_store_sum_captures.get(id.0 as usize) else {
+            return Ok(false);
+        };
+        let len = roots.len();
+        if len == 0 {
+            return Ok(false);
+        }
+        self.lookup(len, "actual ordinary Store Sum capture root")?;
+        Ok(self.ordinary_store_sum_captures[id.0 as usize].contains(&(ty as *const Type as usize)))
     }
 
     pub(super) fn sum_type(&mut self, ty: &Type) -> CompileResult<bool> {
@@ -1066,6 +1088,29 @@ pub(super) fn preflight(
             budget.spend(1, "ordinary Sum root allocation")?;
             budget.sum_roots.insert(root);
         }
+        if new_sum
+            && new_ordinary_pod_store
+            && let Some(owner) = capture_owner
+            && matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. } | Type::Package { .. }
+            )
+        {
+            if budget.ordinary_store_sum_captures.is_empty() {
+                budget.spend(
+                    module.closures.len().saturating_add(module.functions.len()),
+                    "new ordinary Sum capture indexed lookup reserve",
+                )?;
+                budget.ordinary_store_sum_captures = vec![BTreeSet::new(); module.closures.len()];
+            }
+            let len = budget
+                .ordinary_store_sum_captures
+                .get(owner.0 as usize)
+                .ok_or_else(|| bad("ordinary Sum capture owner absent"))?
+                .len();
+            budget.spend(len.saturating_add(1), "ordinary Sum capture root insertion")?;
+            budget.ordinary_store_sum_captures[owner.0 as usize].insert(root);
+        }
         if new_ordinary_pod_store && matches!(ty, Type::Package { .. }) {
             budget.lookup(
                 budget.ordinary_pod_store_roots.len(),
@@ -1218,7 +1263,7 @@ pub(super) fn preflight(
             if matches!(
                 ty,
                 Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
-            ) && budget.sum_type(ty)?
+            ) && budget.ordinary_store_sum_capture(closure.id, ty)?
             {
                 if !super::resources::sums::admit(module, ty, budget)? {
                     return Err(bad(
@@ -1476,12 +1521,12 @@ pub(super) fn preflight(
         {
             return Err(bad("function references an absent environment"));
         }
-        if !budget.sum_roots.is_empty()
-            && let Some(id) = function.environment
+        if let Some(id) = function.environment
+            && budget.has_ordinary_store_sum_capture(id)
         {
             for ty in &module.closures[id.0 as usize].captures {
                 budget.input(1, "entry Sum capture membership")?;
-                sum_function |= budget.sum_type(ty)?;
+                sum_function |= budget.ordinary_store_sum_capture(id, ty)?;
             }
         }
         for (index, local) in function.locals.iter().enumerate() {
