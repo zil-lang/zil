@@ -1059,6 +1059,49 @@ fn copy_record_bound_unused_and_phantom_obligations_are_checked() {
 }
 
 #[test]
+fn nominal_record_families_keep_definition_and_unused_application_obligations() {
+    let copy_record = "trait Mark{}struct Key{n:i32}impl Mark for Key{}struct Box<T:Mark+Copy>{value:T}fn relay<T:Mark+Copy>(value:Box<T>)->Box<T>{return value}fn result()->i32{let first=Box::<Key>{value:Key{n:42}};let moved=relay(first);return moved.value.n}";
+    native(copy_record, 42);
+    let owning_package = "resource R{n:i32}package Box<T:Copy>{manages r:R;value:T}fn relay<T:Copy>(value:Box<T>)->Box<T>{return value}fn result()->i32{let first=Box::<i32>{r:R{n:7},value:42};let moved=relay(first);return moved.value}";
+    native(owning_package, 42);
+    for text in [
+        "trait Mark{}struct Box<T:Mark+Copy>{value:T}fn unused<U:Copy>(value:Box<U>)->i32{return 0}fn result()->i32{return 0}",
+        "trait Mark{}struct Box<T:Mark+Copy>{value:T}fn unused<U:Mark>(value:Box<U>)->i32{return 0}fn result()->i32{return 0}",
+        "resource R{n:i32}package Box<T:Copy>{manages r:R;value:T}fn unused<U>(value:Box<U>)->i32{return 0}fn result()->i32{return 0}",
+        "trait Mark{}trait Other{}struct Key{n:i32}impl Other for Key{}struct Box<T:Mark+Copy>{value:T}fn unused(value:Box<Key>)->i32{return 0}fn result()->i32{return 0}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+    }
+    // A nominal marker is valid for a non-Copy resource. It does not grant
+    // the generic record a layout, move token or cleanup chain for that field.
+    let managed = "trait Mark{}resource Key{n:i32}impl Mark for Key{}fn result()->i32{let key=Key{n:42};return key.n}";
+    native(managed, 42);
+    for text in [
+        "trait Mark{}resource Key{n:i32}impl Mark for Key{}struct Box<T:Mark>{value:T}fn result()->i32{return 0}",
+        "trait Mark{}resource Key{n:i32}impl Mark for Key{}struct Box<T:Mark>{value:T}fn result()->i32{let key=Key{n:42};let boxed=Box::<Key>{value:key};return 0}",
+        "package Box<T:Copy>{value:T}fn result()->i32{let value=Box::<i32>{value:42};let moved=value;return moved.value}",
+    ] {
+        let report = compile_source(&source(text), &CompileOptions::default());
+        assert_eq!(
+            report.status,
+            ResultCategory::Unsupported,
+            "{}",
+            report.to_json()
+        );
+        assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+        assert_eq!(report.verification_runs, 0);
+    }
+}
+
+#[test]
 fn copy_record_bound_phantom_identity_is_nominal() {
     let report = compile_source(
         &source(
