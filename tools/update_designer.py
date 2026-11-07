@@ -198,5 +198,7 @@ out=out.replace('</style>','.edition{max-width:132px;overflow-wrap:anywhere}.pri
 (ROOT/'data/designer-data.json').write_text(json.dumps(d,ensure_ascii=False,indent=2)+'\n')
 (ROOT/'data/designer-docs.json').write_text(json.dumps(docs,ensure_ascii=False,indent=2)+'\n')
 report={'goals':len(d['goals']),'variables':len(d['variables']),'languages':len(d['languages']),'rules':len(d['rules']),'coverage':len(d['coverage']),'zil_routes_replaced':42,'zil_settings_replaced':28,'original_goal_records_equal':d['goals']==original['goals'],'non_zil_coverage_equal':[x for x in d['coverage'] if x['language']!='zil']==[x for x in original['coverage'] if x['language']!='zil'],'non_zil_settings_equal':[x for x in d['settings'] if x['language']!='zil']==[x for x in original['settings'] if x['language']!='zil'],'spec_sha256':d['meta']['specSha256']}
-(ROOT/'evidence/designer-data.json').write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
+report_path=ROOT/'evidence/designer-data.json'
+report_path.parent.mkdir(parents=True,exist_ok=True)
+report_path.write_text(json.dumps(report,ensure_ascii=False,indent=2)+'\n')
 print(json.dumps(report,ensure_ascii=False,indent=2))
