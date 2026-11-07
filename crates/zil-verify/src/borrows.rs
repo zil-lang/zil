@@ -832,7 +832,16 @@ fn reconstruct(
                                 row.push(Root::Local(*local));
                             }
                             InstructionKind::BorrowPlaceLocal { local, path, .. } => {
-                                row.push(roots::mixed_root(f, *local, path, false, budget)?);
+                                let root = if let (
+                                    Type::Package { .. },
+                                    [zil_ir::PlaceProjection::Field(index)],
+                                ) = (&f.locals[local.0 as usize].ty, path.as_slice())
+                                {
+                                    field_root(f, *local, *index, budget)?
+                                } else {
+                                    roots::mixed_root(f, *local, path, false, budget)?
+                                };
+                                row.push(root);
                             }
                             InstructionKind::BorrowFieldLocal { local, path, .. } => {
                                 row.push(roots::inline_field_root(f, *local, path, budget)?);
