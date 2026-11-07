@@ -215,7 +215,7 @@ fn dynamic_cycle_shared_target_deletion_and_ticket_history_execute() {
                 report.to_json()
             );
             assert_eq!(report.verification_runs, 1);
-            for input in [b'3', b'5', b'8'] {
+            for input in *b"358" {
                 let mut child = Command::new(&executable)
                     .stdin(Stdio::piped())
                     .stdout(Stdio::piped())
