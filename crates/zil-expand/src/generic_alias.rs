@@ -790,6 +790,24 @@ impl Visitor<'_, '_, '_> {
                 }
             }
             PatternKind::RecordConstructor { path, fields } => {
+                if path.len() == 1
+                    && !types.contains(&path[0])
+                    && let Some(alias) = self.resolver.resolved.get(&path[0])
+                {
+                    if !alias.parameters.is_empty() {
+                        return Err(error(p.span, "record pattern requires a concrete alias"));
+                    }
+                    self.resolver.budget.ty_depth(&alias.target, depth)?;
+                    let TypeKind::Named { path: target, .. } = &grouped(&alias.target).kind else {
+                        return Err(error(
+                            p.span,
+                            "record pattern alias requires a nominal record",
+                        ));
+                    };
+                    let name = target.join(".");
+                    self.resolver.budget.text(&name, p.span)?;
+                    path[0] = name;
+                }
                 if path.len() == 2
                     && !types.contains(&path[0])
                     && let Some(alias) = self.resolver.resolved.get(&path[0])

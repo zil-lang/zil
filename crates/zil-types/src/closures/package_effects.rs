@@ -183,6 +183,11 @@ impl Scan<'_> {
                     self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { fields, .. } => {
+                for (_, field) in fields {
+                    self.pattern(field, depth + 1)?;
+                }
+            }
             _ => {}
         }
         Ok(())

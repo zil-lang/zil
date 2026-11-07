@@ -1018,7 +1018,6 @@ struct Expander<'a> {
     dyn_method_emissions: Vec<(usize, usize, NodeId)>,
     closure_context_emissions: Vec<ClosureContextEmission>,
     callable_context_emissions: Vec<CallableContextEmission>,
-    named_match: bool,
     declarations: &'a Declarations<'a>,
     default_helpers: BTreeMap<(String, String), String>,
     traits: BTreeMap<String, &'a s::TraitDecl>,
@@ -1075,7 +1074,6 @@ impl<'a> Expander<'a> {
             dyn_method_emissions: Vec::new(),
             closure_context_emissions: Vec::new(),
             callable_context_emissions: Vec::new(),
-            named_match: false,
             declarations,
             default_helpers: BTreeMap::new(),
             traits: BTreeMap::new(),
@@ -1390,6 +1388,9 @@ impl Expander<'_> {
             s::PatternKind::Tuple(fields) => fields.iter().all(Self::tuple_binding_pattern),
             s::PatternKind::Reference { pattern, .. }
             | s::PatternKind::ErrorArm { pattern, .. } => Self::tuple_binding_pattern(pattern),
+            s::PatternKind::RecordConstructor { fields, .. } => fields
+                .iter()
+                .all(|field| Self::tuple_binding_pattern(&field.pattern)),
             _ => false,
         }
     }
@@ -1406,6 +1407,7 @@ impl Expander<'_> {
                     s::PatternKind::Tuple(_)
                         | s::PatternKind::Reference { .. }
                         | s::PatternKind::ErrorArm { .. }
+                        | s::PatternKind::RecordConstructor { .. }
                 ) {
                     if !Self::tuple_binding_pattern(pattern) {
                         return self.statement(

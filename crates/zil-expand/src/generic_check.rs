@@ -1713,6 +1713,66 @@ impl Check<'_, '_, '_> {
                 }
                 Ok(())
             }
+            PatternKind::RecordConstructor { path, fields } if path.len() == 1 => {
+                let TypeKind::Named { path: actual, args } = &group(ty).kind else {
+                    return Err(error(
+                        pattern.span,
+                        "record binding requires a nominal record",
+                    ));
+                };
+                if actual.len() != 1 || path[0] != actual[0] {
+                    return Err(error(
+                        pattern.span,
+                        "record binding has a different nominal type",
+                    ));
+                }
+                let Some(Item {
+                    kind: ItemKind::Aggregate(declaration),
+                    ..
+                }) = self.nominals.get(&actual[0]).copied()
+                else {
+                    return Err(error(
+                        pattern.span,
+                        "record binding requires a declared record",
+                    ));
+                };
+                if declaration.kind != AggregateKind::Struct
+                    || declaration.generics.len() != args.len()
+                    || fields.len() != declaration.fields.len()
+                {
+                    return Err(error(
+                        pattern.span,
+                        "record binding has an invalid complete shape",
+                    ));
+                }
+                let mut labels = BTreeSet::new();
+                for field in fields {
+                    let mut declared = None;
+                    for candidate in &declaration.fields {
+                        self.budget.node(field.span, 0)?;
+                        self.budget.text(&candidate.name, candidate.span)?;
+                        self.budget.text(&field.name, field.span)?;
+                        if candidate.name == field.name {
+                            declared = Some(candidate);
+                            break;
+                        }
+                    }
+                    let declared = declared
+                        .ok_or_else(|| error(field.span, "unknown record binding field"))?;
+                    if !labels.insert(field.name.clone()) {
+                        return Err(error(field.span, "duplicate record binding field"));
+                    }
+                    let actual = nominal_field_type(
+                        &declaration.generics,
+                        args,
+                        &declared.ty,
+                        self.source_definition,
+                        self.budget,
+                    )?;
+                    self.tuple_binding_pattern(&field.pattern, &actual, mutable, state, seen)?;
+                }
+                Ok(())
+            }
             _ => Err(unsupported(
                 pattern.span,
                 "tuple binding requires names, discards and tuple patterns",
@@ -5693,7 +5753,11 @@ impl Check<'_, '_, '_> {
                     ty,
                     value,
                     mutable,
-                } if matches!(pattern.kind, PatternKind::Tuple(_)) => {
+                } if matches!(
+                    pattern.kind,
+                    PatternKind::Tuple(_) | PatternKind::RecordConstructor { .. }
+                ) =>
+                {
                     // Infer against the written complete type before adding
                     // any names. Copy is proved from symbolic bounds across
                     // every field, including those discarded by the pattern.

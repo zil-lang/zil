@@ -1075,6 +1075,13 @@ fn validate_pattern(pattern: &CorePattern, depth: usize, budget: &mut Budget<'_>
                 validate_pattern(field, depth + 1, budget)?;
             }
         }
+        CorePatternKind::Record { ty, fields } => {
+            validate_type(ty, depth + 1, pattern.span, budget)?;
+            for (name, field) in fields {
+                budget.work(name.len(), pattern.span)?;
+                validate_pattern(field, depth + 1, budget)?;
+            }
+        }
         CorePatternKind::Reference { pattern, .. } | CorePatternKind::ErrorArm { pattern, .. } => {
             validate_pattern(pattern, depth + 1, budget)?
         }

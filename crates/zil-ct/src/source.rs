@@ -1717,6 +1717,13 @@ impl<'a> Walker<'a> {
                     self.bind_pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { ty, fields } => {
+                self.pattern_type_shape(ty, depth + 1, pattern.span)?;
+                for (name, field) in fields {
+                    self.text(name, Some(pattern.span))?;
+                    self.bind_pattern(field, depth + 1)?;
+                }
+            }
             CorePatternKind::Integer(text) => self.text(text, Some(pattern.span))?,
             CorePatternKind::Reference { pattern, .. }
             | CorePatternKind::ErrorArm { pattern, .. } => self.bind_pattern(pattern, depth + 1)?,

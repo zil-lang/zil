@@ -3828,7 +3828,6 @@ fn record_enum_labels_shapes_and_unused_definitions_reject() {
         "enum E{V{pub x:i32}}fn main(){}",
         "resource R{x:i32}enum E{V{manages owner:R}}fn main(){}",
         "resource R{x:i32}enum E{V{x:i32},Other(manages R)}fn main(){}",
-        "enum E{V{x:i32}}fn unused(e:E){if let E.V{x:x}=e{}}fn main(){}",
     ] {
         let report = compile_source(&source(text), &CompileOptions::default());
         assert_eq!(
@@ -3840,6 +3839,7 @@ fn record_enum_labels_shapes_and_unused_definitions_reject() {
         assert!(!report.diagnostics.is_empty());
     }
     for text in [
+        "enum E{V{x:i32}}fn unused(e:E){if let E.V{x:x}=e{}}fn main(){}",
         "enum E<T:Copy>{V{x:T}}fn unused<T:Copy>(x:T){let value=E.V{x:x};}fn main(){}",
         "enum E<T>{R{r:T}}fn good<T:Copy>(r:T)->E<T>{return E::<T>.R{r:r}}fn main(){}",
         "enum E<T:Copy>{V{x:T}}type A<T>=E<T>;fn unused<T:Copy>(x:T)->A<T>{return A::<T>.V{x:x}}fn main(){}",

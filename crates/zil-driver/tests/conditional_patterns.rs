@@ -68,6 +68,206 @@ fn reject(s: &str, code: &str) {
     assert!(!r.artifacts.contains_key("executable"));
 }
 #[test]
+fn named_enum_fields_work_in_bindings_and_conditions() {
+    native(
+        "enum Only{Data{left:i32,right:i32}} fn result()->i32{let Only.Data{right:b,left:a}=Only.Data{left:20,right:22};return a+b}",
+        42,
+    );
+    native(
+        "enum Packet{End,Data{left:i32,right:i32}} fn result()->i32{let packet=Packet.Data{left:20,right:22};if let Packet.Data{right:b,left:a}=packet {return a+b}return 0}",
+        42,
+    );
+    native(
+        "enum Packet{End,Data{left:i32,right:i32}} fn next(n:i32)->Packet{if n<2{return Packet.Data{left:n,right:10}}return Packet.End} fn result()->i32{var n:i32=0;var total:i32=0;while let Packet.Data{right:y,left:x}=next(n) {total+=x+y;n+=1}return total}",
+        21,
+    );
+}
+#[test]
+fn named_enum_fields_validate_complete_nominal_pattern() {
+    reject(
+        "enum E{A,B{n:i32}} fn result()->i32{let E.B{n:x}=E.B{n:1};return x}",
+        "E-PATTERN-REFUTABLE",
+    );
+    reject(
+        "enum E{B{n:i32,m:i32}} fn result()->i32{let E.B{n:x}=E.B{n:1,m:2};return x}",
+        "E-GENERIC-ARGUMENT",
+    );
+}
+#[test]
+fn named_record_fields_work_in_bindings_conditions_and_match() {
+    native(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let Pair{right:b,left:a}=Pair{left:20,right:22};let p=Pair{left:3,right:4};var sum:i32=0;if let Pair{right:y,left:x}=p {sum+=x+y}var again:i32=0;while let Pair{left:x,right:y}=p {again=x+y;break}match p {Pair{right:q,left:r}=>{return a+b+sum+again+r+q}}}",
+        63,
+    );
+    native(
+        "struct Inner{x:i32,y:i32} struct Outer{part:Inner,tail:i32} fn result()->i32{let Outer{tail:c,part:Inner{y:b,x:a}}=Outer{part:Inner{x:10,y:20},tail:12};return a+b+c}",
+        42,
+    );
+    native(
+        "struct Pair{left:i32,right:i32} enum Packet{Empty,Data(Pair)} fn result()->i32{let packet=Packet.Data(Pair{left:20,right:22});match packet {Packet.Empty()=>{return 0},Packet.Data(Pair{right:b,left:a})=>{return a+b}}}",
+        42,
+    );
+}
+#[test]
+fn named_record_fields_reject_wrong_shape() {
+    reject(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let Pair{left:a,left:b}=Pair{left:1,right:2};return a+b}",
+        "E-MATCH-FIELD",
+    );
+    reject(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let Pair{left:a}=Pair{left:1,right:2};return a}",
+        "E-MATCH-ARITY",
+    );
+    reject(
+        "struct Pair{flag:bool,n:i32} fn result()->i32{let p=Pair{flag:true,n:42};match p{Pair{flag:true,n:x}=>{return x}}}",
+        "E-MATCH-NONEXHAUSTIVE",
+    );
+}
+#[test]
+fn named_record_fields_reject_forged_core_nominal_and_labels() {
+    let src = source(
+        "struct Pair{left:i32,right:i32} struct Other{left:i32,right:i32} fn result()->i32{let Pair{left:a,right:b}=Pair{left:1,right:2};return a+b}",
+    );
+    let syntax = zil_syntax::parse(&src).into_result().unwrap();
+    let original = zil_expand::expand(&src, &syntax).unwrap();
+    for forged in [0, 1] {
+        let mut core = original.clone();
+        let CoreStatementKind::TupleBinding { pattern, .. } =
+            &mut core.functions[0].body.statements[0].kind
+        else {
+            panic!("record binding was not preserved")
+        };
+        let CorePatternKind::Record { ty, fields } = &mut pattern.kind else {
+            panic!("record labels were erased")
+        };
+        if forged == 0 {
+            *ty = zil_ir::Type::Named("Other".into());
+        } else {
+            fields[1].0 = "left".into();
+        }
+        let errors =
+            zil_types::check(&core, &TargetProfile::default(), &Limits::default()).unwrap_err();
+        assert_eq!(errors[0].category, ResultCategory::SafeReject, "{errors:?}");
+        assert_eq!(
+            errors[0].code,
+            if forged == 0 {
+                "E-MATCH-TYPE"
+            } else {
+                "E-MATCH-FIELD"
+            }
+        );
+    }
+}
+#[test]
+fn named_record_fields_follow_concrete_generic_identity() {
+    native(
+        "struct Pair<T:Copy>{left:T,right:T} fn sum(p:Pair<i32>)->i32{let Pair{right:b,left:a}=p;return a+b} fn result()->i32{return sum(Pair::<i32>{left:20,right:22})}",
+        42,
+    );
+    native(
+        "struct Pair<T:Copy>{left:T,right:T} fn first<T:Copy>(p:Pair<T>)->T{let Pair{right:_,left:a}=p;return a} fn result()->i32{return first(Pair::<i32>{left:42,right:9})}",
+        42,
+    );
+    native(
+        "struct Pair{left:i32,right:i32} type Alias=Pair; fn result()->i32{let Alias{right:b,left:a}=Pair{left:20,right:22};return a+b}",
+        42,
+    );
+}
+#[test]
+fn named_record_fields_borrow_real_copy_storage() {
+    native(
+        "struct Pair{left:i32,right:i32} fn result()->i32{var p=Pair{left:20,right:22};let Pair{right:ref b,left:ref mut a}=p;*a+=1;return *a+*b-1}",
+        42,
+    );
+    reject(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let p=Pair{left:20,right:22};let Pair{right:ref b,left:ref mut a}=p;return *a+*b}",
+        "E-IMMUTABLE-ASSIGNMENT",
+    );
+    native(
+        "struct Pair{left:i32,right:i32} fn result()->i32{var p=Pair{left:20,right:22};if let Pair{right:ref b,left:ref mut a}=p {*a+=1;return *a+*b-1}}",
+        42,
+    );
+    native(
+        "struct Pair{left:i32,right:i32} fn result()->i32{let p=Pair{left:20,right:22};match p {Pair{right:ref b,left:ref a}=>{return *a+*b}}}",
+        42,
+    );
+    native(
+        "struct Pair{left:i32,right:i32} fn sum(p:&Pair)->i32{if let Pair{right:ref b,left:ref a}=*p {return *a+*b}} fn result()->i32{let p=Pair{left:20,right:22};return sum(&p)}",
+        42,
+    );
+    native(
+        "struct Pair{left:i32,right:i32} enum Packet{Empty,Data(Pair)} fn result()->i32{let packet=Packet.Data(Pair{left:20,right:22});match packet {Packet.Empty()=>{return 0},Packet.Data(Pair{right:ref b,left:ref a})=>{return *a+*b}}}",
+        42,
+    );
+}
+#[test]
+fn named_record_fields_preserve_cross_module_identity() {
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(
+                "import model;fn result()->i32{let p=model.Pair{left:20,right:22};let model.Pair{right:b,left:a}=p;return a+b}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "model.zil",
+                "pub struct Pair{pub left:i32,pub right:i32}",
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["model".into()], ModuleId(1))]),
+    };
+    let output = Temp::new();
+    let report = zil_driver::compile_project(
+        &project,
+        &CompileOptions {
+            stop_after: Stage::Build,
+            entry: Some("result".into()),
+            output: Some(output.0.join("program")),
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    let result = Command::new(&report.artifacts["executable"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, b"42\n");
+    let private = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            source(
+                "import model;fn result()->i32{let p=model.make();let model.Pair{left:ref a,right:ref b}=p;return *a+*b}",
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "model.zil",
+                "pub struct Pair{left:i32,right:i32} pub fn make()->Pair{return Pair{left:20,right:22}}",
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["model".into()], ModuleId(1))]),
+    };
+    let report = zil_driver::compile_project(&private, &CompileOptions::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(
+        report.diagnostics[0].code,
+        "E-FIELD-PRIVATE",
+        "{}",
+        report.to_json()
+    );
+}
+#[test]
 fn conditional_pattern_example_break_continue_and_unit_variant() {
     native(
         include_str!("../../../examples/enum-loop-pattern/main.zil"),

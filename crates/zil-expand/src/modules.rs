@@ -1477,7 +1477,9 @@ impl Visitor<'_, '_, '_> {
                 }
             }
             PatternKind::RecordConstructor { path, fields } => {
-                if path.len() >= 2 {
+                if let Some(name) = self.symbol(path, types, &Names::new(), p.span, true)? {
+                    *path = vec![name];
+                } else if path.len() >= 2 {
                     let count = path.len();
                     if let Some(name) =
                         self.symbol(&path[..count - 1], types, &Names::new(), p.span, true)?

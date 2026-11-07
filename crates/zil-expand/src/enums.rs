@@ -70,10 +70,7 @@ impl Expander<'_> {
         let arms = arms
             .iter()
             .map(|arm| {
-                let previous = self.named_match;
-                self.named_match = true;
                 let pattern = self.pattern(&arm.pattern);
-                self.named_match = previous;
                 let body = match &arm.body {
                     s::ArrowBody::Block(block) => self.block(block),
                     s::ArrowBody::Expression(expression) => {
@@ -149,11 +146,21 @@ impl Expander<'_> {
                 }
             }
             s::PatternKind::RecordConstructor { path, fields } => {
-                match self.record_enum_pattern(path, fields, pattern.span) {
-                    Ok(pattern) => pattern,
-                    Err(error) => {
-                        self.diagnostics.push(error);
-                        CorePatternKind::Wildcard
+                if path.len() == 1 {
+                    CorePatternKind::Record {
+                        ty: Type::Named(path[0].clone()),
+                        fields: fields
+                            .iter()
+                            .map(|field| (field.name.clone(), self.pattern(&field.pattern)))
+                            .collect(),
+                    }
+                } else {
+                    match self.record_enum_pattern(path, fields, pattern.span) {
+                        Ok(pattern) => pattern,
+                        Err(error) => {
+                            self.diagnostics.push(error);
+                            CorePatternKind::Wildcard
+                        }
                     }
                 }
             }

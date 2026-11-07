@@ -808,6 +808,12 @@ impl<C: FnMut(usize) -> R<()>> Substitution<'_, C> {
                     self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { ty, fields } => {
+                self.ty(ty, depth + 1)?;
+                for (_, field) in fields {
+                    self.pattern(field, depth + 1)?;
+                }
+            }
             CorePatternKind::Tuple(fields) => {
                 for field in fields {
                     self.pattern(field, depth + 1)?;

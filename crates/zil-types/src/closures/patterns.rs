@@ -113,6 +113,22 @@ impl Graph {
                     self.pattern_constraints(field, variable, names, bindings, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { ty, fields } => {
+                self.bind(value, ty, pattern.span)?;
+                self.spend_count(
+                    fields
+                        .len()
+                        .saturating_mul(fields.len())
+                        .saturating_add(fields.iter().map(|(name, _)| name.len()).sum::<usize>()),
+                    pattern.span,
+                )?;
+                let ordered = enums::record_pattern_fields(ty, fields, ty, pattern.span)?;
+                for (field, field_ty) in ordered {
+                    let variable = self.pattern_variable(field.span)?;
+                    self.bind(variable, field_ty, field.span)?;
+                    self.pattern_constraints(field, variable, names, bindings, depth + 1)?;
+                }
+            }
             CorePatternKind::Variant {
                 ty,
                 variant,

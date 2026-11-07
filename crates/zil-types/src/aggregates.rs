@@ -119,6 +119,57 @@ impl<'a> Visibility<'a> {
         }
         Ok(())
     }
+    fn place_fields(
+        &mut self,
+        root: &Type,
+        path: impl IntoIterator<Item = PlaceProjection>,
+        module: ModuleId,
+        span: Span,
+    ) -> R<()> {
+        let mut ty = root;
+        for step in path {
+            self.spend(1, span)?;
+            ty = match (stored::physical(ty), step) {
+                (Type::Tuple(fields), PlaceProjection::Field(index)) => {
+                    match fields.get(index as usize) {
+                        Some(next) => next,
+                        None => break,
+                    }
+                }
+                (
+                    record @ (Type::Record { .. } | Type::Package { .. }),
+                    PlaceProjection::Field(index),
+                ) => {
+                    self.field(record, index, module, span)?;
+                    match record {
+                        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+                            match fields.get(index as usize) {
+                                Some((_, next)) => next,
+                                None => break,
+                            }
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                (Type::Enum { variants, .. }, PlaceProjection::Variant(slot)) => match variants
+                    .get(slot.variant as usize)
+                    .and_then(|(_, fields)| fields.get(slot.index as usize))
+                {
+                    Some(next) => next,
+                    None => break,
+                },
+                (Type::ErrorUnion { error, result }, PlaceProjection::ErrorArm(is_error)) => {
+                    if is_error {
+                        error
+                    } else {
+                        result
+                    }
+                }
+                _ => break,
+            };
+        }
+        Ok(())
+    }
     pub(super) fn check(
         &mut self,
         function: &TypedFunction,
@@ -145,6 +196,31 @@ impl<'a> Visibility<'a> {
                     if internal.get(&(block.id, index)) == Some(&instruction.kind) {
                         continue;
                     }
+                }
+                match &instruction.kind {
+                    InstructionKind::BorrowFieldLocal { local, path, .. } => {
+                        if let Some(root) = function.locals.get(local.0 as usize) {
+                            self.place_fields(
+                                &root.ty,
+                                path.iter().copied().map(PlaceProjection::Field),
+                                module,
+                                instruction.span,
+                            )
+                            .map_err(|e| vec![e])?;
+                        }
+                    }
+                    InstructionKind::BorrowPlaceLocal { local, path, .. } => {
+                        if let Some(root) = function.locals.get(local.0 as usize) {
+                            self.place_fields(
+                                &root.ty,
+                                path.iter().copied(),
+                                module,
+                                instruction.span,
+                            )
+                            .map_err(|e| vec![e])?;
+                        }
+                    }
+                    _ => {}
                 }
                 let access = match &instruction.kind {
                     InstructionKind::ExtractField { aggregate, index }
@@ -1673,12 +1749,16 @@ impl Resolver<'_> {
         for s in &mut b.statements {
             match &mut s.kind {
                 CoreStatementKind::TupleBinding {
-                    ty, initializer, ..
+                    pattern,
+                    ty,
+                    initializer,
+                    ..
                 } => {
                     if let Some(t) = ty {
                         *t = self.ty(t, depth + 1, s.span)?;
                     }
                     self.expr(initializer, depth + 1)?;
+                    self.pattern(pattern, depth + 1)?;
                 }
                 CoreStatementKind::Binding {
                     ty, initializer, ..
@@ -1765,6 +1845,14 @@ impl Resolver<'_> {
                 *ty = self.ty(ty, depth + 1, p.span)?;
                 for field in fields {
                     self.pattern(field, depth + 1)?;
+                }
+            }
+            CorePatternKind::Record { ty, fields } => {
+                *ty = self.ty(ty, depth + 1, p.span)?;
+                for (name, field) in fields {
+                    self.charge(depth + 1, p.span)?;
+                    self.pattern(field, depth + 1)?;
+                    let _ = name;
                 }
             }
             CorePatternKind::Tuple(fields) => {

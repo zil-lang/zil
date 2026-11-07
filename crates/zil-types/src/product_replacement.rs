@@ -328,6 +328,13 @@ impl References<'_, '_> {
                     shadows |= self.pattern(field, depth + 1)?;
                 }
             }
+            CorePatternKind::Record { ty, fields } => {
+                self.ty(ty, pattern.span)?;
+                for (name, field) in fields {
+                    self.state.snapshot(name.len(), pattern.span)?;
+                    shadows |= self.pattern(field, depth + 1)?;
+                }
+            }
             CorePatternKind::Integer(text) => self.state.snapshot(text.len(), pattern.span)?,
             CorePatternKind::Wildcard | CorePatternKind::Bool(_) => {}
         }
