@@ -78,18 +78,27 @@ static void *second_call(void *unused) {
     atomic_store_explicit(&phase, 2, memory_order_relaxed);
     return NULL;
 }
+static void *resumed_call(void *unused) {
+    (void)unused;
+    /* The ZIL install helper has returned before thread_race is called. */
+    check(callback(context, 4) == 44);
+    return NULL;
+}
 static void *race_close(void *unused) {
     (void)unused;
     while (!atomic_load_explicit(&race_go, memory_order_relaxed)) sched_yield();
-    int64_t answer = callback(context, 4);
+    int64_t answer = callback(context, 5);
     /* One finite competing entry, with both CAS orders allowed. This observes
      * a real consumer race; it does not claim a particular gate interleaving. */
-    check(answer == denied || answer == 44);
+    check(answer == denied || answer == 46);
     raced = 1;
     return NULL;
 }
 int32_t thread_race(void) {
     check(installed && !closing && !raced && !race_joined);
+    pthread_t resumed;
+    check(pthread_create(&resumed, NULL, resumed_call, NULL) == 0);
+    check(pthread_join(resumed, NULL) == 0);
     check(pthread_create(&racer, NULL, race_close, NULL) == 0);
     atomic_store_explicit(&race_go, 1, memory_order_relaxed);
     return 0;
