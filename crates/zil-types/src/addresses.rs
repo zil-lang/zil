@@ -94,6 +94,31 @@ impl Builder<'_, '_> {
         ))
     }
     pub(super) fn affine_type(&self, ty: &Type) -> bool {
+        fn contains_exclusive_slot(ty: &Type) -> bool {
+            match ty {
+                Type::BorrowedStorage { storage, life } => {
+                    life.slots
+                        .iter()
+                        .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                        || contains_exclusive_slot(storage)
+                }
+                Type::Tuple(fields) => fields.iter().any(contains_exclusive_slot),
+                Type::Record { fields, .. } | Type::Package { fields, .. } => fields
+                    .iter()
+                    .any(|(_, field)| contains_exclusive_slot(field)),
+                Type::Array { element, .. } => contains_exclusive_slot(element),
+                Type::Enum { variants, .. } => variants
+                    .iter()
+                    .any(|(_, fields)| fields.iter().any(contains_exclusive_slot)),
+                Type::ErrorUnion { error, result } => {
+                    contains_exclusive_slot(error) || contains_exclusive_slot(result)
+                }
+                _ => false,
+            }
+        }
+        if contains_exclusive_slot(ty) {
+            return true;
+        }
         match ty {
             Type::MutexGuard { .. } | Type::OwnedDyn { .. } => true,
             Type::Package { .. } => true,

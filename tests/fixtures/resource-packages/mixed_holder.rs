@@ -3,6 +3,7 @@ use zil_base::{FileId, Limits, ModuleId, ResultCategory, SourceUnit, TargetProfi
 use zil_driver::{
     CompileOptions, NativeBackend, Optimization, Stage, compile_path, compile_source,
 };
+use zil_ir::Type;
 
 const PROGRAM: &str = include_str!("mixed-owned-borrowed-package.zil");
 const TWO_LEAF: &str = include_str!("two-leaf-stored-borrow.zil");
@@ -28,6 +29,12 @@ const NESTED_QUALIFIED_SLOT_EXTRACTION: &str = include_str!("nested-qualified-sl
 const NESTED_QUALIFIED_SLOT_HELPER: &str =
     include_str!("nested-qualified-slot-helper-exchange.zil");
 const MOVE_OUT: &str = include_str!("../stored-borrow-move-out.zil");
+const EXCLUSIVE_RECORD_TRANSFER: &str = include_str!("exclusive-record-transfer.zil");
+const SHARED_RECORD_COPY: &str = include_str!("shared-record-copy.zil");
+const EXCLUSIVE_RECORD_PARAMETER_DUPLICATE: &str =
+    include_str!("exclusive-record-parameter-duplicate.zil");
+const EXCLUSIVE_RECORD_SHARED_HEAD_COPY: &str =
+    include_str!("exclusive-record-shared-head-copy.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -56,6 +63,224 @@ fn local_move_out_path() -> std::path::PathBuf {
 
 fn source(name: &str, program: &str) -> SourceUnit {
     SourceUnit::new(FileId(0), ModuleId(0), name, program)
+}
+
+#[test]
+fn exclusive_record_transfer_rejects_copy_and_raw_duplicate() {
+    let input = source("exclusive-record-transfer.zil", EXCLUSIVE_RECORD_TRANSFER);
+    let limits = Limits::default();
+    let target = TargetProfile::host_llvm();
+    let valid = compile_source(
+        &input,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(valid.status, ResultCategory::Success, "{}", valid.to_json());
+    let shared = compile_source(
+        &source("shared-record-copy.zil", SHARED_RECORD_COPY),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        shared.status,
+        ResultCategory::Success,
+        "{}",
+        shared.to_json()
+    );
+
+    let duplicate = EXCLUSIVE_RECORD_TRANSFER.replace(
+        "var moved = holder",
+        "var moved = holder\n    var duplicate = holder",
+    );
+    assert_ne!(duplicate, EXCLUSIVE_RECORD_TRANSFER);
+    let rejected = compile_source(
+        &source("exclusive-record-duplicate.zil", &duplicate),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        rejected.status,
+        ResultCategory::SafeReject,
+        "{}",
+        rejected.to_json()
+    );
+    for (name, program, status) in [
+        (
+            "exclusive-record-parameter-duplicate.zil",
+            EXCLUSIVE_RECORD_PARAMETER_DUPLICATE,
+            ResultCategory::SafeReject,
+        ),
+        (
+            "exclusive-record-shared-head-copy.zil",
+            EXCLUSIVE_RECORD_SHARED_HEAD_COPY,
+            ResultCategory::Unsupported,
+        ),
+    ] {
+        let rejected = compile_source(
+            &source(name, program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(rejected.status, status, "{name}: {}", rejected.to_json());
+    }
+
+    let syntax = zil_syntax::parse(&input).into_result().unwrap();
+    let core = zil_expand::expand_with_map_limits_target_context(
+        &input,
+        &syntax,
+        &limits,
+        &target,
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: input.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core;
+    let typed = zil_types::check(&core, &target, &limits).unwrap();
+    let plan = zil_analyze::analyze(&typed, &limits).unwrap();
+    zil_verify::verify_module(typed.clone(), plan.clone(), &target, &limits).unwrap();
+
+    let mut forged_load = typed.clone();
+    let taken = forged_load
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let locals = &function.locals;
+            function.blocks.iter_mut().find_map(|block| {
+                block.instructions.iter_mut().find_map(|instruction| {
+                    let zil_ir::InstructionKind::TakeLocal { local } = instruction.kind else {
+                        return None;
+                    };
+                    if matches!(&locals[local.0 as usize].ty,
+                    Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Record { .. }))
+                    {
+                        Some((instruction, local))
+                    } else {
+                        None
+                    }
+                })
+            })
+        })
+        .unwrap();
+    taken.0.kind = zil_ir::InstructionKind::Load(taken.1);
+    let error = zil_analyze::analyze(&forged_load, &limits).unwrap_err();
+    assert!(format!("{error:?}").contains("copy of actual exclusive stored address carrier"));
+    let mut load_claim = plan.clone();
+    load_claim.module_fingerprint = forged_load.fingerprint();
+    let error =
+        zil_verify::verify_module(forged_load.clone(), load_claim.clone(), &target, &limits)
+            .unwrap_err();
+    assert!(format!("{error:?}").contains("actual exclusive stored carrier was copied"));
+    let wire = zil_ir::wire::encode_module_candidate(&forged_load, &load_claim, &limits).unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+
+    let mut forged_duplicate = typed;
+    let block = forged_duplicate
+        .functions
+        .iter_mut()
+        .find_map(|function| {
+            let locals = &function.locals;
+            function.blocks.iter_mut().find(|block| {
+                block.instructions.iter().any(|instruction| {
+                    matches!(instruction.kind, zil_ir::InstructionKind::TakeLocal { local }
+                if matches!(&locals[local.0 as usize].ty,
+                    Type::BorrowedStorage { storage, .. }
+                    if matches!(storage.as_ref(), Type::Record { .. })))
+                })
+            })
+        })
+        .unwrap();
+    let taken_result = block
+        .instructions
+        .iter()
+        .find_map(|instruction| {
+            if let zil_ir::InstructionKind::TakeLocal { .. } = instruction.kind {
+                instruction.result
+            } else {
+                None
+            }
+        })
+        .unwrap();
+    let store = block
+        .instructions
+        .iter()
+        .position(|instruction| {
+            matches!(instruction.kind, zil_ir::InstructionKind::Store { value, .. }
+            if value == taken_result)
+        })
+        .unwrap();
+    block
+        .instructions
+        .insert(store + 1, block.instructions[store].clone());
+    let error = zil_analyze::analyze(&forged_duplicate, &limits).unwrap_err();
+    assert!(
+        format!("{error:?}").contains("transferred twice"),
+        "{error:?}"
+    );
+    let mut duplicate_claim = plan;
+    duplicate_claim.module_fingerprint = forged_duplicate.fingerprint();
+    let error = zil_verify::verify_module(
+        forged_duplicate.clone(),
+        duplicate_claim.clone(),
+        &target,
+        &limits,
+    )
+    .unwrap_err();
+    assert!(format!("{error:?}").contains("transferred"), "{error:?}");
+    let wire = zil_ir::wire::encode_module_candidate(&forged_duplicate, &duplicate_claim, &limits)
+        .unwrap();
+    assert!(zil_verify::verify_module_bytes(&wire, &target, &limits).is_err());
+}
+
+#[test]
+#[cfg(target_os = "linux")]
+fn exclusive_record_transfer_native_matches_moved_target() {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../tests/fixtures/resource-packages/exclusive-record-transfer.zil");
+    for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+        if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
+            continue;
+        }
+        for optimization in [Optimization::O0, Optimization::O2] {
+            let output = std::env::temp_dir().join(format!(
+                "zil-exclusive-record-transfer-{}-{backend:?}-{optimization:?}",
+                std::process::id()
+            ));
+            let report = compile_path(
+                &path,
+                &CompileOptions {
+                    stop_after: Stage::Build,
+                    backend,
+                    optimization,
+                    entry: Some("main".into()),
+                    output: Some(output.clone()),
+                    ..CompileOptions::default()
+                },
+            );
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            let result = std::process::Command::new(&report.artifacts["executable"])
+                .output()
+                .unwrap();
+            assert_eq!(result.status.code(), Some(0), "{result:?}");
+            let _ = std::fs::remove_file(output);
+        }
+    }
 }
 
 #[test]

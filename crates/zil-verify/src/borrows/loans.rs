@@ -819,12 +819,33 @@ fn consumers(kind: &InstructionKind) -> impl Iterator<Item = &ValueId> {
         | InstructionKind::StoreOwnedArrayElement { value, .. }
         | InstructionKind::StorePackageField { value, .. } => (None, std::slice::from_ref(value)),
         InstructionKind::MakeOwnedArray { elements }
-        | InstructionKind::MakePackage { fields: elements } => (None, elements),
+        | InstructionKind::MakeManaged { fields: elements }
+        | InstructionKind::MakePackage { fields: elements }
+        | InstructionKind::MakeAggregate { fields: elements }
+        | InstructionKind::MakeOwnedTuple { fields: elements }
+        | InstructionKind::MakeVariant {
+            fields: elements, ..
+        } => (None, elements),
+        InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::ExtractField {
+            aggregate: value, ..
+        }
+        | InstructionKind::ExtractIndex {
+            aggregate: value, ..
+        } => (None, std::slice::from_ref(value)),
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        }
+        | InstructionKind::UpdateIndex {
+            aggregate, value, ..
+        } => (Some(aggregate), std::slice::from_ref(value)),
         InstructionKind::CallClosureOnce { callee, arguments } => (Some(callee), arguments),
         InstructionKind::WithForeignCallback { body, .. }
         | InstructionKind::WithScopedThread { body, .. }
         | InstructionKind::WithSyncCell { body, .. } => (Some(body), &[]),
         InstructionKind::Call { arguments, .. }
+        | InstructionKind::SuspendCall { arguments, .. }
+        | InstructionKind::TaskCreate { arguments, .. }
         | InstructionKind::CallDynSlot { arguments, .. }
         | InstructionKind::CallIndirect { arguments, .. }
         | InstructionKind::ForeignCall { arguments, .. }

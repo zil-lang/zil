@@ -242,6 +242,91 @@ fn qualified(t: &Type) -> Option<(&Type, &StorageLifeShape)> {
         None
     }
 }
+fn exclusive_carrier_value(ty: &Type) -> bool {
+    match ty {
+        Type::BorrowedStorage { storage, life } => {
+            life.slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                || exclusive_carrier_value(storage)
+        }
+        Type::Tuple(fields) => fields.iter().any(exclusive_carrier_value),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => fields
+            .iter()
+            .any(|(_, field)| exclusive_carrier_value(field)),
+        Type::Array { element, .. } => exclusive_carrier_value(element),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(exclusive_carrier_value)),
+        Type::ErrorUnion { error, result } => {
+            exclusive_carrier_value(error) || exclusive_carrier_value(result)
+        }
+        _ => false,
+    }
+}
+fn exclusive_consumers(kind: &InstructionKind) -> (Option<ValueId>, &[ValueId]) {
+    match kind {
+        InstructionKind::Store { value, .. }
+        | InstructionKind::StorePackageField { value, .. }
+        | InstructionKind::StoreOwnedArrayElement { value, .. }
+        | InstructionKind::MakeErrorUnion { value, .. }
+        | InstructionKind::ExtractField {
+            aggregate: value, ..
+        }
+        | InstructionKind::ExtractIndex {
+            aggregate: value, ..
+        } => (Some(*value), &[]),
+        InstructionKind::UpdateField {
+            aggregate, value, ..
+        }
+        | InstructionKind::UpdateIndex {
+            aggregate, value, ..
+        } => (Some(*aggregate), std::slice::from_ref(value)),
+        InstructionKind::MakeAggregate { fields }
+        | InstructionKind::MakePackage { fields }
+        | InstructionKind::MakeManaged { fields }
+        | InstructionKind::MakeOwnedTuple { fields }
+        | InstructionKind::MakeVariant { fields, .. }
+        | InstructionKind::MakeOwnedArray { elements: fields }
+        | InstructionKind::MakeClosure {
+            captures: fields, ..
+        }
+        | InstructionKind::Call {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallIndirect {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallDynSlot {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallClosure {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallClosureOnce {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallClosureBorrowed {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallClosureShared {
+            arguments: fields, ..
+        }
+        | InstructionKind::CallClosureMut {
+            arguments: fields, ..
+        }
+        | InstructionKind::ForeignCall {
+            arguments: fields, ..
+        }
+        | InstructionKind::SuspendCall {
+            arguments: fields, ..
+        }
+        | InstructionKind::TaskCreate {
+            arguments: fields, ..
+        } => (None, fields),
+        _ => (None, &[]),
+    }
+}
 fn addressed(t: &Type) -> Option<(&Type, &StorageLifeShape)> {
     if let Type::Address { inner, .. } = t {
         qualified(inner)
@@ -692,6 +777,15 @@ pub(super) fn qualifications(
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
+                if let InstructionKind::Load(local) = i.kind
+                    && f.locals
+                        .get(local.0 as usize)
+                        .is_some_and(|local| exclusive_carrier_value(&local.ty))
+                {
+                    return Err(err(
+                        "actual exclusive stored carrier was copied without a transfer",
+                    ));
+                }
                 let scalar_owner_operation = match &i.kind {
                     InstructionKind::ReadDesc { desc, .. } => f
                         .values
@@ -3545,6 +3639,99 @@ pub(super) fn check_mixed(
 ) -> Check<()> {
     check_with_mask(module, graphs, plan, Some(mask), b)
 }
+fn check_exclusive_transfers(
+    f: &TypedFunction,
+    graph: &FunctionGraph,
+    b: &mut Budget,
+) -> Check<()> {
+    // Reconstruct transfers from the raw CFG, without candidate roots or the
+    // ordinary borrow verifier's separate function partition.
+    let affine: Vec<bool> = f.values.iter().map(exclusive_carrier_value).collect();
+    if !affine.iter().any(|affine| *affine) {
+        return Ok(());
+    }
+    let width = affine.len();
+    b.spend(width.saturating_mul(f.blocks.len().saturating_add(2)))?;
+    let mut outputs = vec![vec![false; width]; f.blocks.len()];
+    loop {
+        let mut changed = false;
+        for (block_index, block) in f.blocks.iter().enumerate() {
+            if !graph.reachable[block_index] {
+                continue;
+            }
+            let mut used = vec![false; width];
+            if block_index != f.entry.0 as usize {
+                for &predecessor in &graph.predecessors[block_index] {
+                    if graph.reachable[predecessor] {
+                        b.spend(width)?;
+                        for (state, old) in used.iter_mut().zip(&outputs[predecessor]) {
+                            *state |= *old;
+                        }
+                    }
+                }
+            }
+            for instruction in &block.instructions {
+                if let Some(value) = instruction.result {
+                    used[value.0 as usize] = false;
+                }
+                let (first, rest) = exclusive_consumers(&instruction.kind);
+                for value in first.into_iter().chain(rest.iter().copied()) {
+                    b.spend(1)?;
+                    if affine[value.0 as usize] {
+                        used[value.0 as usize] = true;
+                    }
+                }
+            }
+            if used != outputs[block_index] {
+                outputs[block_index] = used;
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    for (block_index, block) in f.blocks.iter().enumerate() {
+        if !graph.reachable[block_index] {
+            continue;
+        }
+        let mut used = vec![false; width];
+        if block_index != f.entry.0 as usize {
+            for &predecessor in &graph.predecessors[block_index] {
+                if graph.reachable[predecessor] {
+                    b.spend(width)?;
+                    for (state, old) in used.iter_mut().zip(&outputs[predecessor]) {
+                        *state |= *old;
+                    }
+                }
+            }
+        }
+        for instruction in &block.instructions {
+            if let Some(value) = instruction.result {
+                used[value.0 as usize] = false;
+            }
+            let (first, rest) = exclusive_consumers(&instruction.kind);
+            for value in first.into_iter().chain(rest.iter().copied()) {
+                let index = value.0 as usize;
+                b.spend(1)?;
+                if affine[index] && std::mem::replace(&mut used[index], true) {
+                    return Err(err(
+                        "exclusive stored carrier SSA value was transferred twice",
+                    ));
+                }
+            }
+        }
+        if let Terminator::Return(Some(value)) = block.terminator
+            && affine[value.0 as usize]
+            && used[value.0 as usize]
+        {
+            return Err(err(
+                "exclusive stored carrier result was already transferred",
+            ));
+        }
+    }
+    Ok(())
+}
 fn check_with_mask(
     module: &TypedModule,
     graphs: &[FunctionGraph],
@@ -3563,6 +3750,7 @@ fn check_with_mask(
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
         }
+        check_exclusive_transfers(f, &graphs[f.id.0 as usize], b)?;
         super::class_flow::check(module, f, &graphs[f.id.0 as usize].reachable, b)?;
         if !module.resources.is_empty() && matches!(f.return_type, Type::Desc(_)) {
             return Err(unsupported(

@@ -1480,6 +1480,23 @@ fn check_type(ty: &Type, span: Option<Span>) -> Check<()> {
 fn affine_type(module: &TypedModule, ty: &Type) -> bool {
     match ty {
         Type::MutexGuard { .. } => true,
+        Type::BorrowedStorage { storage, life } => {
+            life.slots
+                .iter()
+                .any(|slot| slot.mode == StoredBorrowMode::ExclusiveAddress)
+                || affine_type(module, storage)
+        }
+        Type::Tuple(fields) => fields.iter().any(|field| affine_type(module, field)),
+        Type::Record { fields, .. } | Type::Package { fields, .. } => {
+            fields.iter().any(|(_, field)| affine_type(module, field))
+        }
+        Type::Array { element, .. } => affine_type(module, element),
+        Type::Enum { variants, .. } => variants
+            .iter()
+            .any(|(_, fields)| fields.iter().any(|field| affine_type(module, field))),
+        Type::ErrorUnion { error, result } => {
+            affine_type(module, error) || affine_type(module, result)
+        }
         Type::Address { mutable: true, .. } => true,
         Type::Closure(id) => module.closures[id.0 as usize]
             .captures
