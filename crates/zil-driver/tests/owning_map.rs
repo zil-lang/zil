@@ -7,7 +7,8 @@ use std::{
 };
 use zil_base::{FileId, Limits, ModuleId, Phase, ResultCategory, SourceUnit, TargetProfile};
 use zil_driver::{
-    CompileOptions, NativeBackend, Optimization, ProjectSources, Stage, compile_project,
+    CompileOptions, NativeBackend, Optimization, ProjectSources, Stage, compile_path,
+    compile_project,
 };
 use zil_ir::{InstructionKind, Type};
 
@@ -385,6 +386,27 @@ fn key_without_actual_keyeq_provider_is_rejected() {
         "{}",
         report.to_json()
     );
+}
+
+#[test]
+fn ordinary_path_import_resolves_registered_owning_map() {
+    let out = directory("standard-import");
+    let input = out.join("main.zil");
+    fs::write(&input, COPY_VALUE).unwrap();
+    let report = compile_path(
+        &input,
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
 }
 
 #[test]
