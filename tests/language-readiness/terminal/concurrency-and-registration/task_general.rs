@@ -2,7 +2,7 @@
 use super::*;
 const SOURCE: &str = include_str!("task-general-i32.zil");
 #[path = "../../task-composition/verified-source-consumers/source_consumers.rs"]
-mod g861;
+mod verified_source_consumers;
 fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     zil_ir::RetainedLifeShape {
         binder_count: 0,
@@ -12,7 +12,7 @@ fn closed_task_shape() -> zil_ir::RetainedLifeShape {
     }
 }
 #[test]
-fn general_async_registration_native_ordinary_poll_and_once_ready() {
+fn general_task_native_ordinary_poll_and_once_ready() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -33,7 +33,7 @@ fn general_async_registration_native_ordinary_poll_and_once_ready() {
                 ),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-general-{}-{case}-{backend:?}-{optimization:?}",
+                    "task-runtime-general-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -67,7 +67,7 @@ fn general_async_registration_native_ordinary_poll_and_once_ready() {
     }
 }
 #[test]
-fn general_async_registration_raw_constructor_result_and_pc0_boundaries() {
+fn general_task_raw_constructor_result_and_pc0_boundaries() {
     use zil_ir::{InstructionKind as I, Type};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -231,7 +231,7 @@ fn general_async_registration_raw_constructor_result_and_pc0_boundaries() {
 }
 
 #[test]
-fn general_async_registration_retained_context_cannot_enter_closed_frame_profile() {
+fn general_task_retained_context_cannot_enter_closed_frame_profile() {
     use zil_ir::{
         LifeDeclarationId, NominalLifeArgument, RetainedBorrowPort, StorageRetainedBinding,
         StoredBorrowMode, Type,
@@ -303,7 +303,7 @@ fn general_async_registration_retained_context_cannot_enter_closed_frame_profile
 }
 
 #[test]
-fn general_async_registration_borrowed_initial_frame_is_not_erased_by_scalar_result() {
+fn general_task_borrowed_initial_frame_is_not_erased_by_scalar_result() {
     let original = include_str!("task-general-borrowed-pc0.zil");
     let report = compile_source(&source(original), &CompileOptions::default());
     assert!(
@@ -418,7 +418,7 @@ fn general_async_registration_borrowed_initial_frame_is_not_erased_by_scalar_res
     }
 }
 #[test]
-fn general_async_registration_native_creation_failure_and_default_cleanup() {
+fn general_task_native_creation_failure_and_default_cleanup() {
     use std::{
         fs,
         os::unix::fs::PermissionsExt,
@@ -443,7 +443,7 @@ fn general_async_registration_native_creation_failure_and_default_cleanup() {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-general-fault-{}-{backend:?}-{optimization:?}",
+                "task-runtime-general-fault-{}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             fs::create_dir_all(&dir).unwrap();
@@ -511,7 +511,7 @@ fn general_async_registration_native_creation_failure_and_default_cleanup() {
 }
 
 #[test]
-fn general_async_registration_exact_kernel_work_boundary() {
+fn general_task_exact_kernel_work_boundary() {
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
     let core = expand(SOURCE, &limits).unwrap().core;
@@ -544,12 +544,12 @@ fn general_async_registration_exact_kernel_work_boundary() {
             ResultCategory::ResourceLimit
         );
         accepts(lo).unwrap();
-        eprintln!("general Task343 exact kernel verify={verify} N={lo}");
+        eprintln!("general Task exact kernel verify={verify} N={lo}");
     }
 }
 
 #[test]
-fn general_async_registration_user_poll_shape_does_not_replace_standard_identity() {
+fn general_task_user_poll_shape_does_not_replace_standard_identity() {
     let source_text = include_str!("task-general-user-poll.zil");
     let wrong = source_text.replace(
         "let outcome = task_poll(task)?;",
@@ -567,7 +567,7 @@ fn general_async_registration_user_poll_shape_does_not_replace_standard_identity
 }
 
 #[test]
-fn general_async_registration_generated_ascribed_and_sequence_head_hints_preserve_types() {
+fn general_task_generated_ascribed_and_sequence_head_hints_preserve_types() {
     use zil_ir::{CoreExprKind as E, CoreStatementKind as S, Type};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -643,7 +643,7 @@ fn general_async_registration_generated_ascribed_and_sequence_head_hints_preserv
 }
 
 #[test]
-fn owned_task343_native_input_before_poll_pending_and_completion() {
+fn owned_task_native_input_before_poll_pending_and_completion() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -658,7 +658,7 @@ fn owned_task343_native_input_before_poll_pending_and_completion() {
                 for polls in 0..3 {
                     let text = fixture.replace("// POLLS", &"task_poll(&mut task);".repeat(polls));
                     let dir = std::env::temp_dir().join(format!(
-                        "zil343-owned-input-{}-{case}-{polls}-{backend:?}-{optimization:?}",
+                        "task-runtime-owned-input-{}-{case}-{polls}-{backend:?}-{optimization:?}",
                         std::process::id()
                     ));
                     std::fs::create_dir_all(&dir).unwrap();
@@ -694,7 +694,7 @@ fn owned_task343_native_input_before_poll_pending_and_completion() {
 }
 
 #[test]
-fn owned_task343_native_dynamic_branch_order_matches_ordinary_teardown() {
+fn owned_task_native_dynamic_branch_order_matches_ordinary_teardown() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -717,7 +717,7 @@ fn owned_task343_native_dynamic_branch_order_matches_ordinary_teardown() {
                 ),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-owned-order-{}-{backend:?}-{optimization:?}",
+                    "task-runtime-owned-order-{}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -752,7 +752,7 @@ fn owned_task343_native_dynamic_branch_order_matches_ordinary_teardown() {
 }
 
 #[test]
-fn owned_task343_native_ready_result_moves_once() {
+fn owned_task_native_ready_result_moves_once() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -760,7 +760,7 @@ fn owned_task343_native_ready_result_moves_once() {
         }
         for optimization in [Optimization::O0, Optimization::O2] {
             let dir = std::env::temp_dir().join(format!(
-                "zil343-owned-result-{}-{backend:?}-{optimization:?}",
+                "task-runtime-owned-result-{}-{backend:?}-{optimization:?}",
                 std::process::id()
             ));
             std::fs::create_dir_all(&dir).unwrap();
@@ -800,7 +800,7 @@ fn owned_task343_native_ready_result_moves_once() {
 }
 
 #[test]
-fn owned_task343_prepared_temp_cancellation_matches_recoverable_failure_order() {
+fn owned_task_prepared_temp_cancellation_matches_recoverable_failure_order() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -812,7 +812,7 @@ fn owned_task343_prepared_temp_cancellation_matches_recoverable_failure_order() 
                 include_str!("task-owned-argument-order.zil"),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-temp-order-{}-{backend:?}-{optimization:?}",
+                    "task-runtime-temp-order-{}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -847,7 +847,7 @@ fn owned_task343_prepared_temp_cancellation_matches_recoverable_failure_order() 
 }
 
 #[test]
-fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
+fn owned_task_raw_moves_effects_and_result_debt_are_independent() {
     use zil_ir::{CallKind, InstructionKind as I, PassingMode};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -942,7 +942,7 @@ fn owned_task343_raw_moves_effects_and_result_debt_are_independent() {
 }
 
 #[test]
-fn owned_task343_exact_kernel_ledger_covers_frame_obligations() {
+fn owned_task_exact_kernel_ledger_covers_frame_obligations() {
     let defaults = Limits::default();
     let target = zil_base::TargetProfile::default();
     let typed = zil_types::check(
@@ -981,12 +981,12 @@ fn owned_task343_exact_kernel_ledger_covers_frame_obligations() {
             ResultCategory::ResourceLimit
         );
         run(lo).unwrap();
-        eprintln!("owned Task343 exact verify={verify} N={lo}");
+        eprintln!("owned Task exact verify={verify} N={lo}");
     }
 }
 
 #[test]
-fn owned_task343_managed_generic_fields_do_not_grant_copy_or_description_ownership() {
+fn owned_task_managed_generic_fields_do_not_grant_copy_or_description_ownership() {
     let base = include_str!("managed-generic-enum.zil");
     for text in [
         base.replace("Managed<Token>", "Managed<Managed<Token>>"),
@@ -1017,7 +1017,7 @@ fn owned_task343_managed_generic_fields_do_not_grant_copy_or_description_ownersh
 }
 
 #[test]
-fn owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind() {
+fn owned_task_explicit_managed_builtin_types_keep_canonical_resource_kind() {
     let text = "package Element{manages bytes:ByteBuffer}fn take_bytes(give value:Managed<ByteBuffer>){}fn take_task(give value:Managed<Task<i32>>){task_finish_destroy(give value);}fn take_store(give value:Managed<Store<Element>>){}fn main(){}";
     let report = compile_source(&source(text), &CompileOptions::default());
     assert_eq!(
@@ -1053,7 +1053,7 @@ fn owned_task343_explicit_managed_builtin_types_keep_canonical_resource_kind() {
 }
 
 #[test]
-fn owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
+fn owned_task_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
     let defaults = Limits::default();
     let target = zil_base::TargetProfile::default();
     let mut growth = vec![];
@@ -1119,7 +1119,7 @@ fn owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
         );
         run(lo).unwrap();
         growth.push(lo);
-        eprintln!("owned Task343 actual wide markers width={width} Codegen N={lo}");
+        eprintln!("owned Task actual wide markers width={width} Codegen N={lo}");
     }
     assert!(
         growth[1] > growth[0] + 4096,
@@ -1128,7 +1128,7 @@ fn owned_task343_wide_actual_action_vectors_are_prepaid_at_codegen_boundary() {
 }
 
 #[test]
-fn owned_child343_native_same_instance_result_and_cancel_stages() {
+fn owned_child_native_same_instance_result_and_cancel_stages() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -1167,7 +1167,7 @@ fn owned_child343_native_same_instance_result_and_cancel_stages() {
                 for (polls, expected) in expected.iter().enumerate() {
                     let text = fixture.replace("// POLLS", &"task_poll(&mut task);".repeat(polls));
                     let dir = std::env::temp_dir().join(format!(
-                        "zil343-owned-child-{}-{case}-{polls}-{backend:?}-{optimization:?}",
+                        "task-runtime-owned-child-{}-{case}-{polls}-{backend:?}-{optimization:?}",
                         std::process::id()
                     ));
                     std::fs::create_dir_all(&dir).unwrap();
@@ -1203,7 +1203,7 @@ fn owned_child343_native_same_instance_result_and_cancel_stages() {
 }
 
 #[test]
-fn owned_child343_created_ready_once_and_constructor_preparation_failure() {
+fn owned_child_created_ready_once_and_constructor_preparation_failure() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -1228,7 +1228,7 @@ fn owned_child343_created_ready_once_and_constructor_preparation_failure() {
                 ),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-owned-child-created-{}-{case}-{backend:?}-{optimization:?}",
+                    "task-runtime-owned-child-created-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
@@ -1263,7 +1263,7 @@ fn owned_child343_created_ready_once_and_constructor_preparation_failure() {
 }
 
 #[test]
-fn owned_child343_raw_actual_target_transfer_and_result_mode() {
+fn owned_child_raw_actual_target_transfer_and_result_mode() {
     use zil_ir::{CallKind, InstructionKind as I, PassingMode};
     let limits = Limits::default();
     let target = zil_base::TargetProfile::default();
@@ -1361,7 +1361,7 @@ fn owned_child343_raw_actual_target_transfer_and_result_mode() {
 }
 
 #[test]
-fn owned_child343_actual_frame_result_width_and_kernel_work_boundaries() {
+fn owned_child_actual_frame_result_width_and_kernel_work_boundaries() {
     let defaults = Limits::default();
     let target = zil_base::TargetProfile::default();
     let mut growth = vec![];
@@ -1419,14 +1419,14 @@ fn owned_child343_actual_frame_result_width_and_kernel_work_boundaries() {
                 growth.push(lo);
             }
             run(lo).unwrap();
-            eprintln!("owned child343 width={width} phase={phase} N={lo}");
+            eprintln!("owned child width={width} phase={phase} N={lo}");
         }
     }
     assert!(growth[1] > growth[0] + 4096, "{growth:?}");
 }
 
 #[test]
-fn owned_child343_unit_completion_and_recoverable_argument_error() {
+fn owned_child_unit_completion_and_recoverable_argument_error() {
     use zil_driver::{NativeBackend, Optimization, Stage};
     for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
         if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") {
@@ -1473,7 +1473,7 @@ fn owned_child343_unit_completion_and_recoverable_argument_error() {
             }
             for (case, text, expected) in cases {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-unit-error-{}-{case}-{backend:?}-{optimization:?}",
+                    "task-runtime-unit-error-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();

@@ -19,7 +19,7 @@ fn record(name: &str, bytes: impl AsRef<[u8]>) {
 
 fn base() -> (TypedModule, CandidatePlan) {
     let source = "fn main()->i32{let n=0;return n}";
-    let unit = SourceUnit::new(FileId(0), ModuleId(0), "review177.zil", source);
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "store-field-public-interface.zil", source);
     let syntax = zil_syntax::parse(&unit).into_result().unwrap();
     let core = zil_expand::expand(&unit, &syntax).unwrap();
     let limits = Limits::default();
@@ -453,7 +453,7 @@ fn raw_and_wire_transport_never_bypass_declared_semantic_stubs_or_local_prefligh
 #[test]
 fn package_address_predicate_does_not_widen_copy_pointees_or_verify_authority() {
     let package = Type::Package {
-        name: "Review177".into(),
+        name: "StoreFieldPackage".into(),
         fields: vec![("n".into(), Type::I64)],
     };
     let shared = Type::Address {

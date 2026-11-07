@@ -4,7 +4,7 @@ const WIDE: &str = include_str!("multi-scalar-wide-values.zil");
 const TWO_LIVES: &str = include_str!("../lifetime-identity-review/two-source-lives.zil");
 
 #[test]
-fn p0_g445_independent_sources_keep_full_scalar_and_nominal_contracts() {
+fn cross_factory_independent_sources_keep_full_scalar_and_nominal_contracts() {
     for (name, text) in [("wide-scalars", WIDE), ("two-source-lives", TWO_LIVES)] {
         let report = compile_source(
             &source(text),
@@ -78,7 +78,7 @@ fn p0_g445_independent_sources_keep_full_scalar_and_nominal_contracts() {
 
 #[test]
 #[cfg(target_os = "linux")]
-fn p0_g445_independent_native_values_preserve_width_sign_and_fraction() {
+fn cross_factory_independent_native_values_preserve_width_sign_and_fraction() {
     use zil_driver::{NativeBackend, Optimization};
     let backend = if cfg!(feature = "llvm-api") {
         NativeBackend::LlvmApi

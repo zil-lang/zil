@@ -2,7 +2,7 @@
 use super::*;
 
 #[test]
-fn independent331_live_disk_bounds_and_actual_roots_stay_distinct() {
+fn disk_cache_live_disk_bounds_and_actual_roots_stay_distinct() {
     let temp = Temp::new();
     let main = include_str!("project/main.zil");
     let api = include_str!("project/api.zil");
@@ -15,7 +15,7 @@ fn independent331_live_disk_bounds_and_actual_roots_stay_distinct() {
         paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
     };
     let options = CompileOptions {
-        semantic_cache: Some(temp.0.join("independent331")),
+        semantic_cache: Some(temp.0.join("disk-cache")),
         ..CompileOptions::default()
     };
     let mut session = zil_driver::CompilationSession::default();

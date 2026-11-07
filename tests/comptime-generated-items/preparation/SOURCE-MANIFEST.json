@@ -2,44 +2,52 @@
   "status": "design_only",
   "files": [
     {
-      "path": "project/00_frozen_type_value_main.zil",
+      "path": "project/frozen_type_value_main.zil",
       "sha256": "3743300b6dca3a7f68ae01eda587fd526fd6dce4c59f0810f04bb52d1516805c",
-      "bytes": 42
+      "bytes": 42,
+      "historical_path": "project/00_frozen_type_value_main.zil"
     },
     {
-      "path": "project/01_type_values_main.zil",
+      "path": "project/type_values_main.zil",
       "sha256": "baa3133fe4b4fab755e90ead469c19950d22dbaad70e0743c8ea21f403a39dfc",
-      "bytes": 484
+      "bytes": 484,
+      "historical_path": "project/01_type_values_main.zil"
     },
     {
-      "path": "project/02_four_categories_main.zil",
+      "path": "project/four_categories_main.zil",
       "sha256": "17d609be74cbc6dc41a7121daae9c5ffe1e16c6ef98f4ffbde8eed274dc09a9d",
-      "bytes": 444
+      "bytes": 444,
+      "historical_path": "project/02_four_categories_main.zil"
     },
     {
-      "path": "project/03_providers_hygiene_main.zil",
+      "path": "project/providers_hygiene_main.zil",
       "sha256": "ae60abf6da7d1f5c993b921773aab7091d58cab58d61ba72f58a91afd1f7df61",
-      "bytes": 722
+      "bytes": 722,
+      "historical_path": "project/03_providers_hygiene_main.zil"
     },
     {
-      "path": "project/04_generated_ownership_main.zil",
+      "path": "project/generated_ownership_main.zil",
       "sha256": "df1fd685e910460c3a4c2b0e6c568eb0b4a9f9e170498c0bf6edba4ccdd20230",
-      "bytes": 422
+      "bytes": 422,
+      "historical_path": "project/04_generated_ownership_main.zil"
     },
     {
-      "path": "project/05_generated_allocation_main.zil",
+      "path": "project/generated_allocation_main.zil",
       "sha256": "7b12be990cd30b115a9d728a63d040b83748e0b6b3135628c3debf7c2d67dda1",
-      "bytes": 233
+      "bytes": 233,
+      "historical_path": "project/05_generated_allocation_main.zil"
     },
     {
-      "path": "project/05b_generated_early_error_main.zil",
+      "path": "project/generated_early_error_main.zil",
       "sha256": "b9ef13c67065b5a768212656f2d41b04b2bafeb5f2a46763057cc070216716a3",
-      "bytes": 232
+      "bytes": 232,
+      "historical_path": "project/05b_generated_early_error_main.zil"
     },
     {
-      "path": "project/06_generated_impl_main.zil",
+      "path": "project/generated_impl_main.zil",
       "sha256": "d29d49ce5956f584581662a5f9e6dd3bb190f837c7b59776a6bac90c26cfebfb",
-      "bytes": 105
+      "bytes": 105,
+      "historical_path": "project/06_generated_impl_main.zil"
     },
     {
       "path": "project/common/io.zil",

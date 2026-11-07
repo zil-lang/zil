@@ -185,7 +185,7 @@ fn actual_completion_native_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-helper_life_completion-{}-{case}-{backend:?}-{optimization:?}",
+                    "callable-completion-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();

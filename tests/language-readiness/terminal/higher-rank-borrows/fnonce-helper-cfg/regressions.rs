@@ -215,7 +215,7 @@ fn actual_prebranch_dag_native_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-helper_cfg_join-{}-{case}-{backend:?}-{optimization:?}",
+                    "fnonce-control-flow-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();

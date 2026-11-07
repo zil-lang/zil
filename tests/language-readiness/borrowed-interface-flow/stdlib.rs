@@ -12,7 +12,7 @@ fn std_iter_resolves_real_trait_and_generic_consumer() {
                 .map(PathBuf::from)
                 .unwrap_or_else(std::env::temp_dir)
                 .join(format!(
-                    "trait_shared_lending-stdlib-{}-{}",
+                    "borrowed-interface-stdlib-{}-{}",
                     std::process::id(),
                     NEXT.fetch_add(1, Ordering::Relaxed)
                 ));

@@ -12,7 +12,7 @@ fn core_named_fields_and_actuals_get_resolved_physical_checks() {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
             zil_base::ModuleId(0),
-            "nominal_member_controls-core-named.zil",
+            "nominal-lifetime-core-named.zil",
             text,
         );
         let options = CompileOptions {
@@ -136,7 +136,7 @@ fn same_child_distinct_outer_relations_coexist() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
         zil_base::ModuleId(0),
-        "nominal_member_controls-relations.zil",
+        "nominal-lifetime-relations.zil",
         text,
     );
     let report = zil_driver::compile_source(
@@ -163,7 +163,7 @@ fn actual_pure_fields_retained_source_raw_wire() {
         let source = zil_base::SourceUnit::new(
             zil_base::FileId(0),
             zil_base::ModuleId(0),
-            "nominal_member_controls-fields.zil",
+            "nominal-lifetime-fields.zil",
             text,
         );
         let options = CompileOptions {
@@ -351,7 +351,7 @@ fn actual_core_nested_type_metadata_controls() {
     let source = zil_base::SourceUnit::new(
         zil_base::FileId(0),
         zil_base::ModuleId(0),
-        "nominal_member_controls-core.zil",
+        "nominal-lifetime-core.zil",
         "struct Phantom<life a,life b,T:Copy,#N:i32>{n:i32}\nstruct Wrap<T:Copy>{n:i32}\nfn result<life s>(p:&'s i32)->i32{let value=Wrap::<Phantom<'s,'s,i32,42>>{n:42};return value.n}\nfn main()->i32{let n=0;return result(&n)}",
     );
     let limits = Limits::default();

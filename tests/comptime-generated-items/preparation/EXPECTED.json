@@ -8,56 +8,56 @@
   ],
   "positive": [
     {
-      "entry": "00_frozen_type_value_main.zil",
+      "entry": "frozen_type_value_main.zil",
       "expected_stdout_ascii": "",
       "expected_exit": 0,
       "obligation": "original type-position #(i32) bytes, not a scalar substitute",
       "observed": null
     },
     {
-      "entry": "01_type_values_main.zil",
+      "entry": "type_values_main.zil",
       "expected_stdout_ascii": "",
       "expected_exit": 0,
       "obligation": "Type across-module parameter/result, canonical array type, ShapeReady pub field getter, target LayoutReady",
       "observed": null
     },
     {
-      "entry": "02_four_categories_main.zil",
+      "entry": "four_categories_main.zil",
       "expected_stdout_ascii": "KKZ42",
       "expected_exit": 0,
       "obligation": "all four quote categories; Syntax CT parameters/results/loop concatenation; repeated fragment fresh binders",
       "observed": null
     },
     {
-      "entry": "03_providers_hygiene_main.zil",
+      "entry": "providers_hygiene_main.zil",
       "expected_stdout_ascii": "AAZ42",
       "expected_exit": 0,
       "obligation": "five providers across modules, two Expr providers, brace/bracket input; input scope, def-site support and new tmp; one next call",
       "observed": null
     },
     {
-      "entry": "04_generated_ownership_main.zil",
+      "entry": "generated_ownership_main.zil",
       "expected_stdout_ascii": "BAAP",
       "expected_exit": 0,
       "obligation": "normal generated function drops B then A; early path drops A only; unused function has no effects; generated Package drops P",
       "observed": null
     },
     {
-      "entry": "05_generated_allocation_main.zil",
+      "entry": "generated_allocation_main.zil",
       "expected_stdout_ascii": "F",
       "expected_exit": 0,
       "obligation": "generated owned Package/ByteBuffer normal success then exactly-once cleanup",
       "observed": null
     },
     {
-      "entry": "05b_generated_early_error_main.zil",
+      "entry": "generated_early_error_main.zil",
       "expected_stdout_ascii": "F",
       "expected_exit": 1,
       "obligation": "generated early error propagates with Ticket cleanup and no allocation",
       "observed": null
     },
     {
-      "entry": "06_generated_impl_main.zil",
+      "entry": "generated_impl_main.zil",
       "expected_stdout_ascii": "T",
       "expected_exit": 0,
       "obligation": "owner module calls cross-module CT Type function to generate ordinary Drop impl; no impl query feeds the active batch; normal resource cleanup invokes generated impl",
@@ -184,7 +184,7 @@
     }
   ],
   "allocator_future_oracle": {
-    "entry": "05_generated_allocation_main.zil",
+    "entry": "generated_allocation_main.zil",
     "normal": {
       "stdout": "F",
       "exit": 0,
@@ -195,7 +195,7 @@
       "exit": 1,
       "live_allocations_after_exit": 0
     },
-    "early_error_entry": "05b_generated_early_error_main.zil",
+    "early_error_entry": "generated_early_error_main.zil",
     "early_error": {
       "stdout": "F",
       "exit": 1,
@@ -205,7 +205,7 @@
   },
   "frozen_originals": [
     {
-      "entry": "00_frozen_type_value_main.zil",
+      "entry": "frozen_type_value_main.zil",
       "copied_from": "../sources/type-value-eval.zil",
       "sha256": "3743300b6dca3a7f68ae01eda587fd526fd6dce4c59f0810f04bb52d1516805c"
     },

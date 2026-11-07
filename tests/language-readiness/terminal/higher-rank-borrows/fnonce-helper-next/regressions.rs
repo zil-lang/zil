@@ -197,7 +197,7 @@ fn actual_source_native_tail_true_false_clang_api_o0_o2() {
             }
             for optimization in [Optimization::O0, Optimization::O2] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil-helper_tail_return-{}-{case}-{backend:?}-{optimization:?}",
+                    "fnonce-helper-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();

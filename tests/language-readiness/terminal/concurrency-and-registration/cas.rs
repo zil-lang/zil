@@ -15,7 +15,7 @@ fn cas_source_observed_result_and_real_thread_contention() {
                 ("contention", include_str!("cas-contention.zil")),
             ] {
                 let dir = std::env::temp_dir().join(format!(
-                    "zil343-cas-source-{}-{case}-{backend:?}-{optimization:?}",
+                    "task-runtime-cas-source-{}-{case}-{backend:?}-{optimization:?}",
                     std::process::id()
                 ));
                 std::fs::create_dir_all(&dir).unwrap();
