@@ -25,6 +25,8 @@ fn invalid(message: &str) -> Diagnostic {
 pub(super) fn encode(
     ty: &Type,
     closures: &[ClosureDefinition],
+    dyn_declarations: &[DynDeclaration],
+    dyn_interfaces: &[DynInterface],
     bytes: &mut Vec<u8>,
     limits: &Limits,
     left: &mut usize,
@@ -256,10 +258,10 @@ pub(super) fn encode(
                         );
                         pending.push(Event::Word(definition.captures.len()));
                     }
-                    Type::Dyn { .. }
-                    | Type::Named(_)
-                    | Type::Opaque { .. }
-                    | Type::Unsupported(_) => {
+                    Type::Dyn { interface } => {
+                        dyn_type(*interface, dyn_declarations, dyn_interfaces, bytes, left)?;
+                    }
+                    Type::Named(_) | Type::Opaque { .. } | Type::Unsupported(_) => {
                         return Err(unsupported(
                             Span::default(),
                             "unresolved exported interface type",
@@ -268,6 +270,144 @@ pub(super) fn encode(
                 }
             }
         }
+    }
+    Ok(())
+}
+
+fn dyn_text(value: &str, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
+    fee(left, value.len().saturating_add(8).saturating_mul(2))?;
+    bytes.extend_from_slice(&(value.len() as u64).to_le_bytes());
+    bytes.extend_from_slice(value.as_bytes());
+    Ok(())
+}
+
+fn dyn_scalar(ty: &Type, bytes: &mut Vec<u8>, left: &mut usize) -> R<()> {
+    fee(left, 1)?;
+    let tag = match ty {
+        Type::Unit => 0,
+        Type::Bool => 1,
+        Type::I32 => 2,
+        Type::I64 => 3,
+        Type::U8 => 4,
+        Type::U16 => 5,
+        Type::U64 => 6,
+        Type::Usize => 7,
+        Type::F32 => 8,
+        Type::F64 => 9,
+        _ => return Err(invalid("dyn export slot has non-scalar ABI type")),
+    };
+    bytes.push(tag);
+    Ok(())
+}
+
+/// Resolve the relocation ID against the complete admitted interface and its
+/// original declaration. Only stable Source identity and the full fixed slot
+/// semantics are encoded; module/index numbers and generated spellings merely
+/// locate the row in this request.
+fn dyn_type(
+    id: DynInterfaceId,
+    declarations: &[DynDeclaration],
+    interfaces: &[DynInterface],
+    bytes: &mut Vec<u8>,
+    left: &mut usize,
+) -> R<()> {
+    fee(
+        left,
+        interfaces
+            .len()
+            .saturating_add(declarations.len())
+            .saturating_add(64),
+    )?;
+    let interface = interfaces
+        .iter()
+        .find(|candidate| candidate.id == id)
+        .ok_or_else(|| invalid("exported dyn interface relocation is dangling"))?;
+    let declaration = declarations
+        .iter()
+        .find(|candidate| candidate.id == interface.application.declaration)
+        .ok_or_else(|| invalid("exported dyn declaration is absent"))?;
+    if declaration.kind != DynDeclarationKind::Trait
+        || !declaration.parameters.is_empty()
+        || !interface.application.actuals.is_empty()
+        || !interface.inherited.is_empty()
+        || !interface.associated_types.is_empty()
+        || !interface.associated_constants.is_empty()
+        || interface.retained_life.binder_count != 0
+        || !interface.retained_life.ports.is_empty()
+        || !interface.retained_life.retained.is_empty()
+        || !interface.retained_life.nominal_arguments.is_empty()
+        || interface.slots.len() != declaration.members.len()
+    {
+        return Err(invalid(
+            "exported dyn interface has unresolved semantic context",
+        ));
+    }
+    bytes.extend_from_slice(b"DYNSHARED-INTERFACE-1\0");
+    dyn_text(&declaration.identity.package, bytes, left)?;
+    for path in [
+        &declaration.identity.module_path,
+        &declaration.identity.declaration_path,
+    ] {
+        fee(left, path.len().saturating_mul(8).saturating_add(8))?;
+        bytes.extend_from_slice(&(path.len() as u64).to_le_bytes());
+        for component in path {
+            dyn_text(component, bytes, left)?;
+        }
+    }
+    fee(
+        left,
+        declaration
+            .identity
+            .generation_path
+            .len()
+            .saturating_mul(8)
+            .saturating_add(8),
+    )?;
+    bytes.extend_from_slice(&(declaration.identity.generation_path.len() as u64).to_le_bytes());
+    for index in &declaration.identity.generation_path {
+        bytes.extend_from_slice(&index.to_le_bytes());
+    }
+    fee(
+        left,
+        interface.slots.len().saturating_mul(24).saturating_add(8),
+    )?;
+    bytes.extend_from_slice(&(interface.slots.len() as u64).to_le_bytes());
+    for (ordinal, slot) in interface.slots.iter().enumerate() {
+        let member = &declaration.members[ordinal];
+        if slot.member.application != interface.application
+            || slot.member.ordinal as usize != ordinal
+            || !matches!(&member.kind, DynMemberKind::Method(parameters) if parameters.is_empty())
+            || slot.receiver.mutable
+            || slot.receiver.mode != PassingMode::Borrow
+            || !slot.actuals.is_empty()
+            || slot.parameter_modes.len() != slot.parameters.len()
+            || slot
+                .parameter_modes
+                .iter()
+                .any(|mode| *mode != PassingMode::Infer)
+            || slot.result_mode != PassingMode::Infer
+            || slot.call_kind != CallKind::Direct
+            || slot.contract != dyn_dispatch::scalar_contract()
+            || slot.storage_life.as_ref() != Some(&dyn_dispatch::shared_slot_life())
+        {
+            return Err(invalid(
+                "exported dyn slot differs from admitted fixed contract",
+            ));
+        }
+        dyn_text(&member.name, bytes, left)?;
+        fee(
+            left,
+            slot.parameters.len().saturating_mul(8).saturating_add(8),
+        )?;
+        bytes.extend_from_slice(&(slot.parameters.len() as u64).to_le_bytes());
+        for parameter in &slot.parameters {
+            dyn_scalar(parameter, bytes, left)?;
+        }
+        dyn_scalar(&slot.result, bytes, left)?;
+        bytes.extend_from_slice(b"BORROW-DIRECT-INFER-READ0-VALUE-LOCAL-NOTHREAD-1\0");
+        let life = slot.storage_life.as_ref().expect("checked slot relation");
+        fee(left, 128)?;
+        bytes.extend_from_slice(&life.fingerprint().0);
     }
     Ok(())
 }
@@ -322,6 +462,8 @@ mod tests {
         encode(
             ty,
             definitions,
+            &[],
+            &[],
             &mut bytes,
             &Limits {
                 max_call_depth: depth,

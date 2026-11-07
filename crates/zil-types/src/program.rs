@@ -625,8 +625,16 @@ fn interface_fingerprint(
                 PassingMode::BorrowMut => 6,
                 PassingMode::Infer => 7,
             });
-            interface_identity::encode(ty, closures, &mut bytes, limits, remaining)
-                .map_err(|e| vec![e])?;
+            interface_identity::encode(
+                ty,
+                closures,
+                &module.dyn_declarations,
+                &module.dyn_interfaces,
+                &mut bytes,
+                limits,
+                remaining,
+            )
+            .map_err(|e| vec![e])?;
         }
         bytes.push(match export.result_mode {
             PassingMode::Copy => 0,
@@ -638,8 +646,16 @@ fn interface_fingerprint(
             PassingMode::BorrowMut => 6,
             PassingMode::Infer => 7,
         });
-        interface_identity::encode(&export.result, closures, &mut bytes, limits, remaining)
-            .map_err(|e| vec![e])?;
+        interface_identity::encode(
+            &export.result,
+            closures,
+            &module.dyn_declarations,
+            &module.dyn_interfaces,
+            &mut bytes,
+            limits,
+            remaining,
+        )
+        .map_err(|e| vec![e])?;
         bytes.push(u8::from(export.reference_return_bound.is_some()));
         if let Some(bound) = &export.reference_return_bound {
             bytes.extend_from_slice(&(bound.len() as u64).to_le_bytes());
