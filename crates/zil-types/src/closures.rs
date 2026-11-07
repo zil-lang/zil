@@ -336,7 +336,9 @@ impl Pending {
             if matches!(capture.ty, Type::Managed(_)) {
                 capture.moved
             } else {
-                !capture.borrowed && matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+                !capture.borrowed
+                    && (matches!(capture.ty, Type::Package { .. } | Type::Closure(_))
+                        || (capture.moved && owned_shapes::sum(&capture.ty)))
             }
         })
     }
@@ -842,6 +844,22 @@ impl State {
                     return Err(unsupported(
                         capture.span,
                         "Package capture with Store fields requires a complete owning leaf Store transfer",
+                    ));
+                }
+                owns_leaf_store = true;
+            }
+            if owned_shapes::sum(&capture.stored_type())
+                && dynamic_store::owned_capture(
+                    &capture.ty,
+                    checker.work_left,
+                    &self.limits,
+                    capture.span,
+                )?
+            {
+                if !capture.moved || capture.borrowed {
+                    return Err(unsupported(
+                        capture.span,
+                        "owned Sum capture requires an explicit complete move",
                     ));
                 }
                 owns_leaf_store = true;
@@ -2615,11 +2633,18 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         // outer position. Managed/Package captures instead change ownership at
         // creation, even if the nested environment is never invoked.
         let write = write && !(self.nested_moves != 0 && ty.is_copy_value());
+        let owned_sum_capture = (self.move_capture || self.nested_moves != 0)
+            && matches!(
+                ty,
+                Type::Tuple(_) | Type::Enum { .. } | Type::ErrorUnion { .. }
+            )
+            && dynamic_store::owned_capture(ty, self.work_left, self.limits, span)?;
         let nested_owned = self.nested_moves != 0
             && matches!(
                 ty,
                 Type::Managed(_) | Type::Package { .. } | Type::Closure(_)
-            );
+            )
+            || (self.nested_moves != 0 && owned_sum_capture);
         let nested_writeback =
             write && self.nested_depth != 0 && self.move_capture && ty.is_copy_value();
         if nested_owned && matches!(ty, Type::Package { .. }) {
@@ -2634,7 +2659,8 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
         }
         // Package slots may be restored after the nested creation. Their flow
         // classification below decides FnMut/FnOnce at each actual exit.
-        let nested_consumed = nested_owned && matches!(ty, Type::Managed(_) | Type::Closure(_));
+        let nested_consumed = nested_owned
+            && (matches!(ty, Type::Managed(_) | Type::Closure(_)) || owned_sum_capture);
         if self.nested_moves != 0 && matches!(ty, Type::Address { mutable: true, .. }) {
             return Err(unsupported(
                 span,
@@ -2724,6 +2750,7 @@ impl<'a, 'b> InferBuilder<'a, 'b> {
                 }
                 (ty, None)
             }
+            ty if owned_sum_capture => (ty, None),
             Type::Managed(payload) | Type::Desc(payload) if resources::supported(ty) => {
                 (payload.as_ref(), None)
             }
