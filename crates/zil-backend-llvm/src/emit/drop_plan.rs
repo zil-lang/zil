@@ -674,7 +674,7 @@ pub(super) fn functions(
     if let Some(entry) = lir.functions.iter().find(|f| match entry {
         EntryPoint::None => false,
         EntryPoint::Main => f.name == "main",
-        EntryPoint::ReturnValue(id) => f.id == id,
+        EntryPoint::ReturnValue(id) | EntryPoint::Test(id) => f.id == id,
     }) && let Type::ErrorUnion { error, .. } = &entry.return_type
         && !error.is_copy_value()
     {

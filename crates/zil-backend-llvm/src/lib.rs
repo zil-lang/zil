@@ -47,15 +47,16 @@ pub use build::{
 };
 pub use emit::{ct_layout_of_checked_type, emit, emit_with_options};
 
-/// Wrappers are explicit. `ReturnValue` is a test/CLI harness which calls the
-/// selected ZIL function and prints its full signed result; a shell exit code is
-/// never substituted for that result.
+/// Wrappers are explicit. `ReturnValue` prints the selected function's full
+/// signed result; `Test` maps a verified test result to process status.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum EntryPoint {
     #[default]
     None,
     Main,
     ReturnValue(FunctionId),
+    /// Run a verified zero-argument test and return its result as process status.
+    Test(FunctionId),
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]

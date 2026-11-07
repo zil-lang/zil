@@ -73,6 +73,63 @@ pub fn compile_project(project: &ProjectSources, options: &CompileOptions) -> Co
     CompilationSession::default().compile_project(project, options)
 }
 
+/// Discover test declarations from the original parsed root source. Every
+/// selected test is still compiled and verified through the ordinary pipeline.
+pub fn discover_tests(path: &Path, options: &CompileOptions) -> CompileResult<Vec<String>> {
+    let mut project = ProjectSources {
+        root: ModuleId(0),
+        modules: vec![SourceUnit::new(
+            FileId(0),
+            ModuleId(0),
+            path.to_string_lossy(),
+            "",
+        )],
+        paths: BTreeMap::new(),
+    };
+    load_sources(&mut project, path, options, &CompilationSession::default())?;
+    let parsed = zil_syntax::parse_with_limits(&project.modules[0], &options.limits);
+    if !parsed.diagnostics.is_empty() {
+        return Err(parsed.diagnostics);
+    }
+    let mut names = Vec::new();
+    let mut seen = BTreeSet::new();
+    for item in &parsed.module.items {
+        if !item
+            .attributes
+            .iter()
+            .any(|a| a.path.as_slice() == ["test"])
+        {
+            continue;
+        }
+        let ast::ItemKind::Function(function) = &item.kind else {
+            return Err(reject(
+                "E-TEST-SIGNATURE",
+                Some(item.span),
+                "test must be an ordinary function",
+            ));
+        };
+        if !function.params.is_empty()
+            || !function.generics.is_empty()
+            || matches!(function.body, ast::FunctionBody::Declaration)
+        {
+            return Err(reject(
+                "E-TEST-SIGNATURE",
+                Some(item.span),
+                "test must be a defined zero-argument non-generic function",
+            ));
+        }
+        if !seen.insert(function.name.clone()) {
+            return Err(reject(
+                "E-TEST-DUPLICATE",
+                Some(item.span),
+                format!("duplicate test {}", function.name),
+            ));
+        }
+        names.push(function.name.clone());
+    }
+    Ok(names)
+}
+
 pub(super) fn artifact_candidate(source: &SourceUnit, parsed: &ParseResult) -> bool {
     let standard = parsed.module.items.iter().any(|item| {
         matches!(&item.kind,
@@ -246,6 +303,14 @@ impl CompilationSession {
         options: &CompileOptions,
     ) -> CompileReport {
         let start = Instant::now();
+        let mut effective_options = options.clone();
+        if let Some(manifest) = &options.project {
+            let mut input = b"zil/manifest-build-input/v1\0".to_vec();
+            input.extend_from_slice(&options.build_inputs.0);
+            input.extend_from_slice(&manifest.fingerprint.0);
+            effective_options.build_inputs = Fingerprint::of(&input);
+        }
+        let options = &effective_options;
         // Discovery may borrow immutable syntax from the previous request.
         // Request-end eviction bounds retained raw owners, including the syntax
         // indexes owned by complete projects. Borrowing grants no authority.
@@ -270,9 +335,11 @@ impl CompilationSession {
             load_sources(&mut project, path, options, self)
         };
         let discovery_pending = match &loaded {
-            Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => {
-                discovery_cache::Pending::new(&project, syntax, options)
-            }
+            Ok(LoadedProject::Parsed(syntax)) if options.stop_after != Stage::Parse => options
+                .project
+                .is_none()
+                .then(|| discovery_cache::Pending::new(&project, syntax, options))
+                .flatten(),
             _ => None,
         };
         let mut report = match loaded {
@@ -911,7 +978,7 @@ fn take(remaining: &mut usize, count: usize, phase: Phase, message: &str) -> Com
 fn reject(code: &str, span: Option<Span>, message: impl Into<String>) -> Vec<Diagnostic> {
     vec![Diagnostic::error(Phase::Expand, code, span, message)]
 }
-fn valid_segment(segment: &str) -> bool {
+pub(super) fn valid_segment(segment: &str) -> bool {
     let mut chars = segment.chars();
     chars
         .next()
@@ -1236,7 +1303,11 @@ fn project_fingerprint(project: &ProjectSources) -> Fingerprint {
     Fingerprint::of(&bytes)
 }
 
-fn resolve_file_module(root: &Path, logical: &[String], span: Span) -> CompileResult<PathBuf> {
+pub(super) fn resolve_file_module(
+    root: &Path,
+    logical: &[String],
+    span: Span,
+) -> CompileResult<PathBuf> {
     let mut base = root.to_path_buf();
     for segment in logical {
         base.push(segment);
@@ -1358,6 +1429,16 @@ fn load_sources(
         .map_err(|e| vec![e])?;
     let root_path = std::fs::canonicalize(path)
         .map_err(|e| infra("E-SOURCE-READ", format!("{}: {e}", path.display())))?;
+    if let Some(manifest) = &options.project {
+        manifest.check_lock()?;
+        if root_path != manifest.entry && !manifest.tests.contains(&root_path) {
+            return Err(reject(
+                "E-PROJECT-PATH",
+                None,
+                "entry is not the declared root or a listed test source",
+            ));
+        }
+    }
     let directory = root_path
         .parent()
         .ok_or_else(|| infra("E-SOURCE-READ", "entry must have a parent directory"))?;
@@ -1385,11 +1466,15 @@ fn load_sources(
         .cancellation
         .check(Phase::Parse)
         .map_err(|e| vec![e])?;
-    if let Some(pair) = single_file_semantic(project, options, session) {
+    if options.project.is_none()
+        && let Some(pair) = single_file_semantic(project, options, session)
+    {
         return Ok(LoadedProject::Semantic(Box::new(pair)));
     }
     let mut prefetched = BTreeMap::new();
-    if let Some(attempt) = discovery_cache::load(project, &root_path, options, session)? {
+    if options.project.is_none()
+        && let Some(attempt) = discovery_cache::load(project, &root_path, options, session)?
+    {
         if attempt.complete
             && let Some(pair) = exact_discovered_semantic(&attempt.project, options)
         {
@@ -1492,6 +1577,12 @@ fn load_sources(
             let embedded = stdlib::source(&import.path);
             let canonical = if embedded.is_some() {
                 PathBuf::from(format!("<{}>", import.path.join(".")))
+            } else if let Some(manifest) = &options.project {
+                manifest.resolve(
+                    Path::new(&project.modules[index].path),
+                    &import.path,
+                    item.span,
+                )?
             } else {
                 resolve_file_module(directory, &import.path, item.span)?
             };
@@ -1561,7 +1652,18 @@ fn load_sources(
                 project.modules.push(source);
                 ModuleId(number)
             };
-            project.paths.insert(import.path.clone(), id);
+            if let Some(previous) = project.paths.insert(import.path.clone(), id) {
+                if previous != id {
+                    return Err(reject(
+                        "E-MODULE-IDENTITY",
+                        Some(item.span),
+                        format!(
+                            "logical module {} resolves to two distinct files",
+                            import.path.join(".")
+                        ),
+                    ));
+                }
+            }
         }
         let stable_module_key = stable_modules.as_ref().and_then(|keys| keys.get(index));
         syntax.push(LoadedSyntax {
