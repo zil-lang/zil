@@ -3061,6 +3061,31 @@ impl Flow<'_> {
                         .functions
                         .get(function.0 as usize)
                         .ok_or_else(|| error("absent callee"))?;
+                    if out_shape.is_some_and(|shape| shape.description)
+                        && callee.return_type.is_shared_package_address()
+                        && let Some(bound) = &callee.reference_return_bound
+                    {
+                        let mut sources = BTreeSet::new();
+                        budget.spend(bound.len(), "shared Package return source inputs")?;
+                        for position in bound {
+                            let actual = *arguments
+                                .get(*position as usize)
+                                .ok_or_else(|| error("shared Package return input is absent"))?;
+                            let fact = copied(state, Place::Value(actual), budget)?;
+                            budget
+                                .spend(fact.sources.len(), "shared Package return source roots")?;
+                            sources.extend(fact.sources);
+                        }
+                        if sources.is_empty() {
+                            return Err(error(
+                                "shared Package return has no actual manager source",
+                            ));
+                        }
+                        produced = Some(Fact {
+                            sources,
+                            ..Fact::default()
+                        });
+                    }
                     if let Some(contract) = &callee.callable_contract {
                         budget.spend(contract.roles.len(), "helper role write projection")?;
                         for role in &contract.roles {

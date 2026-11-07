@@ -2448,6 +2448,33 @@ impl Transfer<'_> {
                     function,
                     arguments,
                 } => {
+                    let returned = &self.module.functions[function.0 as usize];
+                    if returned.return_type.is_shared_package_address()
+                        && let Some(bound) = &returned.reference_return_bound
+                        && let Some(destination) = instruction
+                            .result
+                            .and_then(|id| slots.desc_value[id.0 as usize])
+                    {
+                        let mut roots = BTreeSet::new();
+                        budget.spend(bound.len())?;
+                        for position in bound {
+                            let actual = *arguments.get(*position as usize).ok_or_else(|| {
+                                bad(span, "shared Package return input is absent")
+                            })?;
+                            let source = slots.desc_value[actual.0 as usize].ok_or_else(|| {
+                                bad(span, "shared Package return input has no manager source")
+                            })?;
+                            budget.spend(state.desc[source].len())?;
+                            roots.extend(state.desc[source].iter().cloned());
+                        }
+                        if roots.is_empty() {
+                            return Err(bad(
+                                span,
+                                "shared Package return has no actual manager source",
+                            ));
+                        }
+                        state.desc[destination] = roots;
+                    }
                     if instruction.result.is_some_and(|id| {
                         matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
                     }) {

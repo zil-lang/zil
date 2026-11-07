@@ -114,7 +114,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 self.mutable_life = !self.binders.is_empty()
                     || only_life(f)
                     || provider_life
-                    || !self.impl_scope && (copy_life(f) || callable_life(f));
+                    || !self.impl_scope
+                        && (copy_life(f) || store_element_life(f) || callable_life(f));
                 for p in &f.generics {
                     if matches!(p.kind, s::GenericParamKind::Lifetime) {
                         self.budget.node(p.span, depth).map_err(|e| vec![e])?;
@@ -417,6 +418,33 @@ pub(super) fn copy_life(function: &s::Function) -> bool {
         }
     }
     types == 1 && lives > 0
+}
+
+/// One or two finite StoreElement binders may share a declared source life in
+/// an ordinary direct helper. This is syntax admission only; instantiated
+/// signatures, actual Store windows and return roots are checked later.
+pub(super) fn store_element_life(function: &s::Function) -> bool {
+    let mut types = 0;
+    let mut lives = 0;
+    for parameter in &function.generics {
+        match &parameter.kind {
+            s::GenericParamKind::Lifetime => lives += 1,
+            s::GenericParamKind::Type(bounds)
+                if matches!(bounds.as_slice(),
+                    [s::TypeRef { kind: s::TypeKind::Named { path, args }, .. }]
+                        if path.as_slice() == ["StoreElement"] && args.is_empty())
+                    || matches!(bounds.as_slice(),
+                    [s::TypeRef { kind: s::TypeKind::Named { path: first, args: first_args }, .. },
+                     s::TypeRef { kind: s::TypeKind::Named { path: _, args: second_args }, .. }]
+                        if first.as_slice() == ["StoreElement"] && first_args.is_empty()
+                            && second_args.is_empty()) =>
+            {
+                types += 1
+            }
+            _ => return false,
+        }
+    }
+    (1..=2).contains(&types) && lives == 1
 }
 
 /// This spelling is created only by the method lift; source identifiers cannot

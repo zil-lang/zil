@@ -87,7 +87,9 @@ pub(super) fn compile(
                 inference::type_snapshot_work(&parameter.ty, parameter.span, limits)?,
                 parameter.span,
             )?;
-            if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee()) {
+            if !matches!(&parameter.ty,Type::Address{inner,..} if inner.is_address_pointee())
+                && !matches!(&parameter.ty,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..}))
+            {
                 return Err(invalid(f, "life parameter must be a Copy or slice address"));
             }
         }
@@ -100,7 +102,8 @@ pub(super) fn compile(
         f.span,
     )?;
     if result as usize >= life.binders.len()
-        || !matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+        || !(matches!(&f.return_type,Type::Address{inner,..} if inner.is_address_pointee())
+            || matches!(&f.return_type,Type::Address{mutable:false,inner} if matches!(inner.as_ref(),Type::Package{..})))
     {
         return Err(invalid(
             f,
