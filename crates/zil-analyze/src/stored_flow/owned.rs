@@ -466,7 +466,9 @@ pub(super) fn instruction(
         }
         InstructionKind::ReadDesc { desc, index } => {
             let Type::Record { fields, .. } = payload(value_type(f, *desc)?, false, b)? else {
-                unreachable!()
+                return Err(failure(
+                    "resource field description lacks actual Record payload",
+                ));
             };
             let ty = &fields
                 .get(*index as usize)

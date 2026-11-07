@@ -16,6 +16,9 @@ const SHARED_EXCLUSIVE_REPLACEMENT: &str =
 const REPLACE_AND_RETURN_CHILD: &str = include_str!("replace-and-return-stored-child.zil");
 const LOCAL_SLOT_REPLACEMENT: &str = include_str!("local-package-slot-replacement.zil");
 const CONDITIONAL_SLOT_REPLACEMENT: &str = include_str!("conditional-package-slot-replacement.zil");
+const NESTED_QUALIFIED_PACKAGE: &str = include_str!("nested-qualified-package.zil");
+const NESTED_QUALIFIED_BYTEBUFFER: &str = include_str!("nested-qualified-bytebuffer.zil");
+const NESTED_QUALIFIED_FAILURE: &str = include_str!("nested-qualified-failure.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -55,6 +58,12 @@ fn mixed_package_source_raw_and_wire() {
             REPLACE_AND_RETURN_CHILD,
         ),
         ("local-package-slot-replacement.zil", LOCAL_SLOT_REPLACEMENT),
+        ("nested-qualified-package.zil", NESTED_QUALIFIED_PACKAGE),
+        (
+            "nested-qualified-bytebuffer.zil",
+            NESTED_QUALIFIED_BYTEBUFFER,
+        ),
+        ("nested-qualified-failure.zil", NESTED_QUALIFIED_FAILURE),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -573,6 +582,21 @@ fn mixed_package_native_both_optimizations() {
             "local-package-slot-replacement.zil",
             LOCAL_SLOT_REPLACEMENT,
             b"0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-package.zil",
+            NESTED_QUALIFIED_PACKAGE,
+            b"X0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-bytebuffer.zil",
+            NESTED_QUALIFIED_BYTEBUFFER,
+            b"0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-failure.zil",
+            NESTED_QUALIFIED_FAILURE,
+            b"F0\n".as_slice(),
         ),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {

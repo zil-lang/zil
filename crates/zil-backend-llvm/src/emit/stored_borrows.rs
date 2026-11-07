@@ -473,6 +473,8 @@ pub(super) fn reserve_binding(
                     | InstructionKind::ScopeExit { .. }
                     | InstructionKind::ByteBufferNew
                     | InstructionKind::ByteBufferPush { .. }
+                    | InstructionKind::ByteBufferReserve { .. }
+                    | InstructionKind::ByteBufferTruncate { .. }
                     | InstructionKind::DescribeAddress { .. }
                     | InstructionKind::DropPackage { .. }
                     | InstructionKind::UnsafeEnter { .. }

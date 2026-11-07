@@ -301,7 +301,8 @@ fn relation_inner(
                 if (!matches!(
                     storage.as_ref(),
                     Type::Record { .. } | Type::Package { .. } | Type::Tuple(_)
-                ) || !life.retained.is_empty())
+                ) || (!life.retained.is_empty()
+                    && !matches!(storage.as_ref(), Type::Package { .. })))
                     && !pure_nominal_value(target)
                     && !super::stored_flow::option_address::signature(target)
                 {

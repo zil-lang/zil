@@ -10,6 +10,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::UpdateField { .. }
             | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::PlaceTagLocal { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
     )
@@ -42,6 +44,10 @@ fn ordinary(ty: &Type, b: &mut Budget, depth: usize) -> Check<()> {
             }
         }
         Type::Array { element, .. } => ordinary(element, b, depth + 1)?,
+        Type::ErrorUnion { error, result } => {
+            ordinary(error, b, depth + 1)?;
+            ordinary(result, b, depth + 1)?;
+        }
         Type::Enum { variants, .. } => {
             for (_, fields) in variants {
                 b.spend(1)?;
@@ -77,6 +83,40 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Check
     )?;
     ordinary(output, b, 0)?;
     let projected = match &i.kind {
+        InstructionKind::PlaceTagLocal { local, path } => {
+            if !path.is_empty() {
+                return Err(err(
+                    "ordinary ErrorUnion tag crosses an unsupported local path",
+                ));
+            }
+            let ty = &f
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| err("ordinary ErrorUnion tag local is absent"))?
+                .ty;
+            if !matches!(ty, Type::ErrorUnion { .. }) {
+                return Err(err("ordinary tag has no actual ErrorUnion local"));
+            }
+            ordinary(ty, b, 0)?;
+            &Type::I32
+        }
+        InstructionKind::MakeErrorUnion { is_error, value } => {
+            let Type::ErrorUnion { error, result } = output else {
+                return Err(err(
+                    "ordinary ErrorUnion constructor lacks actual union shape",
+                ));
+            };
+            let arm = if *is_error {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            type_work(arm, &b.limits.clone(), b)?;
+            if vt(f, *value)? != arm {
+                return Err(err("ordinary ErrorUnion input differs from selected arm"));
+            }
+            output
+        }
         InstructionKind::MakeVariant { variant, fields } => {
             let Type::Enum { variants, .. } =
                 super::qualified(output).map_or(output, |(storage, _)| storage)

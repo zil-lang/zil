@@ -77,6 +77,11 @@ pub(super) fn capture_admission(
 
 fn has_inline_store_owner(ty: &Type) -> bool {
     match ty {
+        Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }) =>
+        {
+            has_inline_store_owner(storage)
+        }
         Type::Managed(payload) => matches!(payload.as_ref(), Type::OwnedStore { element }
             if dynamic_store::inline_protocol_element(element)),
         Type::Package { fields, .. } => fields
@@ -94,7 +99,8 @@ fn has_inline_store_owner(ty: &Type) -> bool {
 }
 
 fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    let Type::Package { fields, .. } = ty else {
+    let qualified = matches!(ty, Type::BorrowedStorage { .. });
+    let Some(Type::Package { fields, .. }) = physical_package(ty) else {
         return false;
     };
     let mut owns = false;
@@ -107,6 +113,13 @@ fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if product_type(field, resources) => owns = true,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && product_type(field, resources) =>
+            {
+                owns = true
+            }
+            Type::Address { inner, .. } if qualified && inner.is_address_pointee() => {}
             field if field.is_copy_value() => {}
             _ => return false,
         }
@@ -115,7 +128,8 @@ fn product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
 }
 
 fn owned_product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
-    let Type::Package { fields, .. } = ty else {
+    let qualified = matches!(ty, Type::BorrowedStorage { .. });
+    let Some(Type::Package { fields, .. }) = physical_package(ty) else {
         return false;
     };
     let mut owns = false;
@@ -125,6 +139,13 @@ fn owned_product_type(ty: &Type, resources: &[ResourceDefinition]) -> bool {
                 owns = true;
             }
             Type::Package { .. } if owned_product_type(field, resources) => owns = true,
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. })
+                    && owned_product_type(field, resources) =>
+            {
+                owns = true
+            }
+            Type::Address { inner, .. } if qualified && inner.is_address_pointee() => {}
             field if field.is_copy_value() => {}
             _ => return false,
         }
@@ -150,6 +171,8 @@ fn owned_field(ty: &Type) -> bool {
             ty,
             Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
         )
+        || matches!(ty, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
         || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
 }
 
@@ -167,6 +190,11 @@ pub(super) fn teardown_paths(
     let mut result = Vec::new();
     while let Some((ty, path)) = pending.pop() {
         match ty {
+            Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. }) =>
+            {
+                pending.push((storage.as_ref(), path));
+            }
             Type::Enum { .. } | Type::ErrorUnion { .. } if drop_plan::owned_sum(ty) => {
                 result.push((path, drop_plan::symbol(ty)))
             }

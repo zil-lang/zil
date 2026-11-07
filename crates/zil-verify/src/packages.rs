@@ -118,15 +118,22 @@ pub(super) fn owned_field(ty: &Type, sum_extension: bool) -> bool {
     matches!(
         ty,
         Type::Managed(_) | Type::Closure(_) | Type::Package { .. }
-    ) || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
+    ) || matches!(ty, Type::BorrowedStorage { storage, .. } if matches!(storage.as_ref(), Type::Package { .. }))
+        || matches!(ty, Type::Array { element, .. } if matches!(element.as_ref(), Type::Package { .. }))
         || (sum_extension && sums::owned(ty))
 }
 
 /// A shape classification only. Admission remains independently checked at
 /// every ordinary boundary; the old container gates never use this extension.
 pub(super) fn has_children(ty: &Type) -> bool {
-    matches!(ty, Type::Package { fields, .. }
-        if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })))
+    let physical = match ty {
+        Type::BorrowedStorage { storage, .. } => storage.as_ref(),
+        _ => ty,
+    };
+    matches!(physical, Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })
+            || matches!(field, Type::BorrowedStorage { storage, .. }
+                if matches!(storage.as_ref(), Type::Package { .. }))))
 }
 
 /// Capture admission is explicit: only the complete ordinary Product profile
@@ -203,6 +210,11 @@ pub(super) fn check_product_type(
     budget: &mut Budget,
     stores: bool,
 ) -> Check<()> {
+    if matches!(ty, Type::BorrowedStorage { storage, .. }
+        if matches!(storage.as_ref(), Type::Package { .. }))
+    {
+        return check_package_type(module, ty, span, budget, stores);
+    }
     if !has_children(ty) {
         return check_type_for(module, ty, span, budget);
     }
@@ -415,6 +427,11 @@ fn check_package_type(
         }
         if matches!(field, Type::Managed(_)) {
             resources::check_type_for(module, field, span, budget)?;
+            owns = true;
+        } else if matches!(field, Type::BorrowedStorage { storage, .. }
+            if matches!(storage.as_ref(), Type::Package { .. }))
+        {
+            check_package_type(module, field, span, budget, array_fields)?;
             owns = true;
         } else if let Type::Closure(id) = field {
             if !array_fields {
