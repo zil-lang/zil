@@ -84,3 +84,57 @@ fn ordinary_prepared_replacement_error_retires_only_prepared_owner_then_old_pare
         }
     }
 }
+
+#[test]
+fn ordinary_sum_replacement_and_owned_captures_release_every_actual_store_once() {
+    // Each row reuses the exact native Source consumer. A missing Drop on the
+    // replaced Enum branch leaves live=1 and fails the process at exit.
+    for (label, text, expected, allocations) in [
+        ("error-side", include_str!("ordinary-error-side.zil"), b"18446744073709551610\n".as_slice(), 1),
+        ("tuple-field", include_str!("ordinary-tuple-field.zil"), b"18446744073709551611\n".as_slice(), 1),
+        ("enum-field", include_str!("ordinary-enum-field.zil"), b"18446744073709551612\n".as_slice(), 2),
+        ("error-field", include_str!("ordinary-error-field.zil"), b"18446744073709551613\n".as_slice(), 1),
+        ("sum-capture", include_str!("ordinary-sum-capture.zil"), b"18446744073709551614\n".as_slice(), 1),
+        ("direct-shape-captures", include_str!("ordinary-direct-shape-captures.zil"), b"18446744073709551614\n".as_slice(), 5),
+        ("parent-captures", include_str!("ordinary-captures.zil"), b"18446744073709551612\n".as_slice(), 3),
+        ("direct-captures", include_str!("ordinary-direct-captures.zil"), b"18446744073709551612\n".as_slice(), 3),
+    ] {
+        let dir = directory(&format!("ordinary-sum-allocation-{label}"));
+        let wrapper = super::super::pod_collections::allocation::allocator_wrapper(&dir);
+        let source = SourceUnit::new(FileId(0), ModuleId(0), "ordinary-sum-allocation.zil", text);
+        for backend in [NativeBackend::Clang, NativeBackend::LlvmApi] {
+            if backend == NativeBackend::LlvmApi && !cfg!(feature = "llvm-api") { continue; }
+            for optimization in [Optimization::O0, Optimization::O2] {
+                let exe = dir.join(format!("program-{backend:?}-{optimization:?}"));
+                let report = compile_source(&source, &CompileOptions {
+                    backend,
+                    optimization,
+                    entry: Some("result".into()),
+                    stop_after: Stage::Build,
+                    clang: Some(wrapper.clone()),
+                    output: Some(exe.clone()),
+                    emit_dir: Some(dir.join(format!("phases-{backend:?}-{optimization:?}"))),
+                    ..CompileOptions::default()
+                });
+                fs::write(exe.with_extension("json"), report.to_json()).unwrap();
+                assert_eq!(report.status, ResultCategory::Success, "{label}: {}", report.to_json());
+                assert!(report.verification_runs > 0);
+                assert!(report.native_codegen.as_ref().unwrap().fallback.is_none());
+                let run = Command::new(&exe).output().unwrap();
+                assert_eq!(run.status.code(), Some(0), "{label}/{backend:?}/{optimization:?}: {run:?}");
+                assert_eq!(run.stdout, expected, "{label}/{backend:?}/{optimization:?}: {run:?}");
+                let audit = String::from_utf8(run.stderr).unwrap();
+                for field in [
+                    format!("\"alloc_calls\":{allocations}"),
+                    format!("\"allocated\":{allocations}"),
+                    format!("\"frees\":{allocations}"),
+                    "\"failures\":0".into(),
+                    "\"live\":0".into(),
+                ] {
+                    assert!(audit.contains(&field), "{label}/{backend:?}/{optimization:?}: {audit}");
+                }
+                fs::write(dir.join(format!("audit-{backend:?}-{optimization:?}.txt")), &audit).unwrap();
+            }
+        }
+    }
+}
