@@ -90,6 +90,9 @@ pub(super) fn inventory(module: &TypedModule, budget: &mut Budget) -> CompileRes
     {
         return Ok(());
     }
+    if !module.target.is_supported_x64_llvm() {
+        return Err(bad("finite shared dyn requires a checked x64 LLVM target"));
+    }
     budget.spend(
         module
             .dyn_declarations
