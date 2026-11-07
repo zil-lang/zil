@@ -525,6 +525,13 @@ pub(super) struct Facts {
     partial: Option<partial_places::State>,
 }
 impl Facts {
+    fn has_capture(&self, index: u32, budget: &mut Budget) -> CompileResult<bool> {
+        if self.captures.is_empty() {
+            return Ok(false);
+        }
+        budget.lookup(self.captures.len(), "Sum capture root membership")?;
+        Ok(self.captures.contains_key(&index))
+    }
     pub(super) fn require_capture_complete(
         &self,
         index: u32,
@@ -1028,13 +1035,18 @@ impl Plan {
             edit(&mut t, budget)?.missing = true;
             facts.values.insert(ValueId(v as u32), t);
         }
-        if let Some(id) = f.environment {
+        if !budget.sum_roots.is_empty()
+            && let Some(id) = f.environment
+        {
             let closure = module
                 .closures
                 .get(id.0 as usize)
                 .ok_or_else(|| error("Sum entry environment absent"))?;
-            budget.spend(closure.captures.len(), "Sum capture root inventory")?;
             for (index, ty) in closure.captures.iter().enumerate() {
+                if !budget.sum_type(ty)? {
+                    continue;
+                }
+                budget.spend(1, "actual Sum capture root inventory")?;
                 budget.lookup(facts.captures.len(), "Sum capture fact allocation")?;
                 facts
                     .captures
@@ -1185,7 +1197,9 @@ impl Plan {
             }
         }
         match &i.kind {
-            InstructionKind::BindPackageCapture { local, index } => {
+            InstructionKind::BindPackageCapture { local, index }
+                if facts.has_capture(*index, budget)? =>
+            {
                 let capture_type = f
                     .environment
                     .and_then(|id| module.closures.get(id.0 as usize))
@@ -1209,7 +1223,9 @@ impl Plan {
                 .missing = true;
                 facts.invalidate(*local, self, budget)?;
             }
-            InstructionKind::EndPackageCapture { local, index } => {
+            InstructionKind::EndPackageCapture { local, index }
+                if facts.has_capture(*index, budget)? =>
+            {
                 let local_tree = facts.local(*local, budget)?;
                 if check && !facts.capture(*index, budget)?.missing {
                     return Err(error("Package Sum capture binding is still occupied"));
