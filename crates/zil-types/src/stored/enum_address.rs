@@ -1,6 +1,26 @@
 //! Ordinary nominal shared-borrow sums. A shape row never creates a source.
 use super::*;
 
+pub(super) fn poll_declaration(d: &LifeNominalDeclaration) -> bool {
+    d.id.compiler
+        && d.id.module.0 == u32::MAX
+        && d.id.declaration.0 == 1
+        && d.identity.package == "@zil.builtin"
+        && d.identity.module_path == ["task"]
+        && d.identity.declaration_path == ["enum", "Poll"]
+        && d.identity.generation_path.is_empty()
+        && d.kind == LifeNominalKind::Enum
+        && d.parameters == [zil_ir::LifeParameterKind::Type]
+}
+
+// Reserved domains are rejection fences; spelling never grants the role.
+pub(super) fn poll_reserved(d: &LifeNominalDeclaration) -> bool {
+    (d.id.module.0 == u32::MAX && d.id.declaration.0 == 1)
+        || (d.identity.package == "@zil.builtin"
+            && d.identity.module_path == ["task"]
+            && d.identity.declaration_path == ["enum", "Poll"])
+}
+
 pub(super) fn candidate(ty: &Type) -> bool {
     matches!(ty, Type::BorrowedStorage { storage, life }
         if matches!(storage.as_ref(), Type::Enum { .. }) && !life.slots.is_empty())
@@ -244,4 +264,66 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth: usize, span: Span) -> R<
         }
     }
     Ok(true)
+}
+
+pub(super) fn poll_instance(
+    instance: &LifeNominalInstance,
+    left: &mut usize,
+    limits: &Limits,
+    phase: InventoryPhase,
+) -> R<()> {
+    let span = Span::default();
+    fee(left, 96, span)?;
+    let (Type::BorrowedStorage { storage, life }, [LifeNominalActual::Type(actual)]) =
+        (&instance.ty, instance.arguments.as_slice())
+    else {
+        return Err(error(
+            "E-STORED-IDENTITY",
+            span,
+            "Poll omits its full qualified actual",
+        ));
+    };
+    let Type::Enum { name, variants } = storage.as_ref() else {
+        return Err(error(
+            "E-STORED-IDENTITY",
+            span,
+            "Poll is not an actual Enum",
+        ));
+    };
+    if !matches!(variants.as_slice(),[(pending,empty),(ready,fields)] if pending=="Pending" && empty.is_empty() && ready=="Ready" && matches!(fields.as_slice(),[field] if field==actual))
+        || !matches!(actual, Type::Address { mutable: false, .. })
+        || life.binder_count != 1
+        || !life.nominal_arguments.is_empty()
+        || !matches!(life.retained.as_slice(),[map] if map.path==[LifeTypeProjection::TypeArgument(0)] && map.class==0 && map.binder==0)
+        || !matches!(life.slots.as_slice(),[slot] if slot.path==[PlaceProjection::Variant(zil_ir::VariantProjection{variant:1,index:0})] && slot.mode==StoredBorrowMode::SharedAddress && slot.binder==0)
+    {
+        return Err(error(
+            "E-STORED-IDENTITY",
+            span,
+            "Poll actual, variant payload, or class map differs",
+        ));
+    }
+    if phase == InventoryPhase::Resolved {
+        let work = inference::type_snapshot_work(actual, span, limits)?;
+        fee(
+            left,
+            work.saturating_add(name.len()).saturating_add(96),
+            span,
+        )?;
+        if name != &format!("@std.task:v1:Poll:{}", actual.fingerprint()) {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                span,
+                "Poll resolved nominal identity differs from its complete actual",
+            ));
+        }
+        if !shape(&instance.ty, left, limits.max_call_depth, span)? {
+            return Err(error(
+                "E-STORED-IDENTITY",
+                span,
+                "Poll lacks a qualified shared payload",
+            ));
+        }
+    }
+    Ok(())
 }
