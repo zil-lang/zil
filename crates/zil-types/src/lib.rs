@@ -618,6 +618,7 @@ struct Builder<'a, 'c> {
     managed_rebindings: std::collections::BTreeSet<managed_slots::BindingSite>,
     replacement_input: Option<LocalId>,
     sum_slots: BTreeMap<LocalId, Type>,
+    inline_store_sum_slots: std::collections::BTreeSet<LocalId>,
 }
 struct LoopContext {
     continue_target: BlockId,
@@ -708,6 +709,7 @@ impl<'a, 'c> Builder<'a, 'c> {
             managed_slots: std::collections::BTreeSet::new(),
             replacement_input: None,
             sum_slots: BTreeMap::new(),
+            inline_store_sum_slots: std::collections::BTreeSet::new(),
             managed_slot_work: limits.max_analysis_steps,
             managed_rebindings: managed_slots::reassigned_bindings(&f.body, limits)?,
         };
@@ -2531,6 +2533,11 @@ impl<'a, 'c> Builder<'a, 'c> {
                     )
                 })?;
                 self.closures.snapshot(work, input.span)?;
+                if self.inline_store_sum_slots.contains(local)
+                    && let Some(ty) = self.sum_slots.get(local)
+                {
+                    self.closures.snapshot_type(ty, 1, 0, input.span)?;
+                }
                 outer.insert(
                     name.clone(),
                     (
@@ -2541,6 +2548,12 @@ impl<'a, 'c> Builder<'a, 'c> {
                             .or_else(|| self.managed_captures.get(local).map(|(_, ty)| ty.clone()))
                             .or_else(|| self.closure_captures.get(local).map(|(_, ty)| ty.clone()))
                             .or_else(|| self.closure_slots.get(local).copied().map(Type::Closure))
+                            .or_else(|| {
+                                self.inline_store_sum_slots
+                                    .contains(local)
+                                    .then(|| self.sum_slots.get(local).cloned())
+                                    .flatten()
+                            })
                             .unwrap_or_else(|| self.function.locals[local.0 as usize].ty.clone()),
                     ),
                 );
@@ -2663,7 +2676,11 @@ impl<'a, 'c> Builder<'a, 'c> {
         let mut values = Vec::new();
         for capture in captures {
             let stored = capture.stored_type();
-            let value = if self.closure_slots.contains_key(&capture.source) {
+            let value = if capture.moved && self.inline_store_sum_slots.contains(&capture.source) {
+                self.take_sum_slot(capture.source, Some(&stored), capture.span, false)?
+                    .expect("actual captured Sum slot")
+                    .0
+            } else if self.closure_slots.contains_key(&capture.source) {
                 if capture.moved {
                     self.take_closure_slot(capture.source, capture.span)?.0
                 } else {

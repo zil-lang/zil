@@ -1315,40 +1315,6 @@ impl Resolver<'_> {
                     span,
                 )?
             }
-            Type::Enum { name, variants } => {
-                // The closure source inference pass runs before aggregate
-                // resolution. Its inferred alias annotation can therefore
-                // still contain the declaration's `Desc<Store>` spelling,
-                // while the actual nominal Enum has since gained its owning
-                // inline Store field. Rebind only that exact original
-                // declaration layout to the already resolved nominal type.
-                let source = name
-                    .strip_prefix("@module")
-                    .and_then(|rest| rest.split_once(':'))
-                    .and_then(|(owner, source)| {
-                        owner.parse::<u32>().ok().map(|owner| (owner, source))
-                    });
-                if let Some((owner, source)) = source
-                    && self.owners.get(source) == Some(&owner)
-                    && self
-                        .enum_declarations
-                        .get(source)
-                        .is_some_and(|declaration| declaration.variants == *variants)
-                    && let Some(resolved @ Type::Enum { .. }) = self.cache.get(source)
-                    && resolved != ty
-                {
-                    let old = inference::type_snapshot_work(ty, span, &self.generic_limits)?;
-                    let new = inference::type_snapshot_work(resolved, span, &self.generic_limits)?;
-                    aggregate_templates::spend(
-                        &mut self.remaining,
-                        old.saturating_add(new.saturating_mul(3)),
-                        span,
-                    )?;
-                    resolved.clone()
-                } else {
-                    ty.clone()
-                }
-            }
             Type::Task {
                 result,
                 retained_life,
