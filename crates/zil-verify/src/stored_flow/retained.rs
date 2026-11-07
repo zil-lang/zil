@@ -24,8 +24,8 @@ fn scan(
         return Err(err("physical retained type depth exceeded"));
     }
     match ty {
-        Type::BorrowedStorage { life, .. } => {
-            if !pure(ty, b)? {
+        Type::BorrowedStorage { storage, life } => {
+            if !matches!(storage.as_ref(), Type::Package { .. }) && !pure(ty, b)? {
                 return Err(err(
                     "retained physical boundary has an address or ownership leaf",
                 ));

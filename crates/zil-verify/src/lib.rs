@@ -358,7 +358,13 @@ struct Budget {
     invocation_callbacks: bool,
     owning_address_captures: bool,
     head_descriptions: bool,
+    stored_enum_addresses: bool,
     stored_borrows: bool,
+    stored_package_instance: bool,
+    // Derived only from the existing paid raw-instruction inventory.
+    stored_slot_updates: bool,
+    generic_mutex: bool,
+    guard_return_sources: Vec<BTreeSet<u32>>,
     // Eligibility only; pure reads and values still prove their actual shape.
     pure_nominal: bool,
     stored_context: bool,
@@ -397,7 +403,12 @@ impl Budget {
             invocation_callbacks: false,
             owning_address_captures: false,
             head_descriptions: false,
+            stored_enum_addresses: false,
             stored_borrows: false,
+            stored_package_instance: false,
+            stored_slot_updates: false,
+            generic_mutex: false,
+            guard_return_sources: Vec::new(),
             pure_nominal: false,
             stored_context: false,
         }
@@ -792,6 +803,8 @@ fn check_module(
             budget.spend(1)?;
             for instruction in &block.instructions {
                 budget.spend(1)?;
+                budget.stored_slot_updates |=
+                    matches!(instruction.kind, InstructionKind::StoreStoredBorrow { .. });
                 match &instruction.kind {
                     InstructionKind::ReservePlaceLocal { path, .. }
                     | InstructionKind::ReservePlaceAddress { path, .. }
@@ -973,11 +986,12 @@ fn check_module(
         task_input_fingerprint = tasks::interface_fingerprint(program, fingerprint, &mut budget)?;
     }
     helpers::check_module(module, &graphs, limits, &mut budget)?;
-    if budget.stored_borrows && stored_partition.is_none() {
+    let guard_sources = if budget.stored_borrows && stored_partition.is_none() {
         for f in &module.functions {
             stored_flow::header(module, f, &mut budget)?;
         }
         stored_flow::check(module, &graphs, plan, &mut budget)?;
+        Vec::new()
     } else if let Some(mask) = stored_partition.as_deref() {
         for (index, f) in module.functions.iter().enumerate() {
             if mask[index] {
@@ -985,10 +999,11 @@ fn check_module(
             }
         }
         stored_flow::check_mixed(module, &graphs, plan, mask, &mut budget)?;
-        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?;
+        borrows::check_mixed(module, plan, &graphs, mask, &mut budget)?
     } else {
-        borrows::check_module(module, plan, &graphs, &mut budget)?;
-    }
+        borrows::check_module(module, plan, &graphs, &mut budget)?
+    };
+    budget.guard_return_sources = guard_sources;
     head_access::check(module, &graphs, &mut budget)?;
     resources::check_module(module, &graphs, &mut budget)?;
     registration::check_phase(module, &mut budget)?;
@@ -1523,6 +1538,13 @@ fn check_function_signature_type(
             ))
         };
     }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && stored_flow::enum_address::signature(ty)
+    {
+        stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(());
+    }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(());
     }
@@ -1590,6 +1612,13 @@ fn check_local_type(
                 "stored nominal type lacks its instance inventory",
             ))
         };
+    }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && stored_flow::enum_address::signature(ty)
+    {
+        stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(false);
     }
     if stored_flow::pure_inline(module, ty, budget)? {
         return Ok(false);
@@ -2326,7 +2355,10 @@ fn check_instruction(
                     "ReadErrorUnion requires an error-union value",
                 ));
             };
-            if !source.is_copy_value() {
+            if !source.is_copy_value()
+                && !(budget.stored_enum_addresses
+                    && stored_flow::enum_address::ordinary(module, source, budget)?)
+            {
                 return Err(reject(
                     "E-VERIFY-ERROR",
                     span,

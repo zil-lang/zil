@@ -4,6 +4,7 @@ use super::*;
 #[path = "stored_flow_pure_copy.rs"]
 mod pure_copy;
 
+pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
@@ -23,6 +24,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Payload {
+    enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     address: Permission,
     // For a concrete Fixed environment only, a private Field(capture) prefix
@@ -48,6 +50,8 @@ struct Summary {
     external_after: Vec<(u32, Path, Vec<Source>)>,
     apart: Vec<(Source, Source)>,
     complete: bool,
+    returned_enum_variants: enum_address::Variants,
+    enum_values: Vec<(ValueId, enum_address::Variants)>,
     returned_variants: option_address::Variants,
     none_values: Vec<ValueId>,
 }
@@ -88,6 +92,7 @@ fn permission_work(p: &Permission, b: &mut Budget) -> Check<()> {
     b.spend(p.loans.len())
 }
 fn payload_work(p: &Payload, b: &mut Budget) -> Check<()> {
+    p.enum_variants.work(b)?;
     p.option_variants.work(b)?;
     permission_work(&p.address, b)?;
     b.spend(p.leaves.len())?;
@@ -184,8 +189,24 @@ fn add_leaf(
         Ok(true)
     }
 }
+fn take_package_field_leaves(holder: &mut Payload, index: u32, b: &mut Budget) -> Check<Payload> {
+    b.spend(holder.leaves.len())?;
+    let mut result = Payload::default();
+    let mut retained = Vec::new();
+    for (path, permission) in std::mem::take(&mut holder.leaves) {
+        b.spend(path.len().saturating_add(1))?;
+        if path.first() == Some(&PlaceProjection::Field(index)) {
+            result.leaves.push((path[1..].to_vec(), permission));
+        } else {
+            retained.push((path, permission));
+        }
+    }
+    holder.leaves = retained;
+    Ok(result)
+}
 fn join_payload(to: &mut Payload, from: &Payload, b: &mut Budget) -> Check<bool> {
     let mut changed = join_permission(&mut to.address, &from.address, b)?;
+    changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     for (path, p) in &from.leaves {
         changed |= add_leaf(to, path, p, b)?;
@@ -321,12 +342,14 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
     if option_address::shape(ty, limits, b)? {
         return Ok(true);
     }
+    if enum_address::shape(ty, limits, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
-    ) || (!shape.retained.is_empty() && !shape.slots.is_empty())
-        || (matches!(storage, Type::Enum { .. })
-            && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
+    ) || (matches!(storage, Type::Enum { .. })
+        && (!shape.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(unsupported(
             "nested retained/nominal stored carrier needs its independent consumer",
@@ -352,6 +375,7 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                     } else {
                         StoredBorrowMode::SharedAddress
                     },
+                    None,
                 ));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -422,11 +446,29 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
                 }
                 todo.push((element, path));
             }
-            Type::BorrowedStorage { .. } => {
-                if !retained::pure(t, b)? {
-                    return Err(err(
-                        "retained physical leaf needs a real borrowing consumer",
-                    ));
+            Type::BorrowedStorage {
+                storage: child,
+                life,
+            } => {
+                if !matches!(storage, Type::Package { .. })
+                    || !matches!(child.as_ref(), Type::Package { .. })
+                {
+                    if !retained::pure(t, b)? {
+                        return Err(err("nested physical child requires owning Package"));
+                    }
+                    continue;
+                }
+                physical(t, limits, b)?;
+                let boundary: Vec<_> = path
+                    .iter()
+                    .copied()
+                    .map(LifeTypeProjection::Place)
+                    .collect();
+                for slot in &life.slots {
+                    b.spend(path.len().saturating_add(slot.path.len()).saturating_add(1))?;
+                    let mut complete = path.clone();
+                    complete.extend(&slot.path);
+                    actual.push((complete, slot.mode, Some((boundary.clone(), slot.binder))));
                 }
             }
             Type::Managed(payload) if matches!(storage, Type::Package { .. }) => {
@@ -476,17 +518,26 @@ pub(super) fn physical(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool
         b.spend(row.path.len().saturating_add(1))?;
         class(row.binder, b)?;
     }
-    for ((path, mode), row) in actual.iter().zip(&shape.slots) {
+    for ((path, mode, child_class), row) in actual.iter().zip(&shape.slots) {
         b.spend(path.len().saturating_add(row.path.len()).saturating_add(1))?;
         if path != &row.path || mode != &row.mode {
             return Err(err(
                 "actual physical stored path or mode differs from declared leaf",
             ));
         }
+        if let Some((boundary, class)) = child_class {
+            if !shape.retained.iter().any(|entry| {
+                &entry.path == boundary && entry.class == *class && entry.binder == row.binder
+            }) {
+                return Err(err("nested slot binder differs from retained child class"));
+            }
+        }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !shape.retained.is_empty()
-                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+                || !path
+                    .iter()
+                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+                || (child_class.is_none() && path.len() != 1))
         {
             return Err(unsupported(
                 "exclusive stored holder requires direct nominal address slots",
@@ -629,11 +680,7 @@ pub(super) fn qualifications(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    b.spend(module.life_instances.len())?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
+    let mixed_package = b.stored_package_instance;
     for (index, f) in module.functions.iter().enumerate() {
         if mask.is_some_and(|mask| !mask[index]) {
             continue;
@@ -641,9 +688,26 @@ pub(super) fn qualifications(
         for block in &f.blocks {
             for i in &block.instructions {
                 b.spend(1)?;
+                let scalar_owner_operation = match &i.kind {
+                    InstructionKind::ReadDesc { desc, .. } => f
+                        .values
+                        .get(desc.0 as usize)
+                        .is_some_and(super::stored_owned::description),
+                    InstructionKind::MakeManaged { .. } => i.result.is_some_and(|id| {
+                        f.values
+                            .get(id.0 as usize)
+                            .is_some_and(super::stored_owned::owner)
+                    }),
+                    _ => false,
+                };
+                let enum_operation = enum_address::instruction(module, f, i, b)?;
+                let owned_operation = (!mixed_package
+                    && super::stored_owned::instruction(f, &i.kind))
+                    || scalar_owner_operation;
                 if !super::class_flow::pointer_instruction(f, i)
                     && !super::stored_callables::instruction(module, f, i)
-                    && !(!mixed_package && super::stored_owned::instruction(f, &i.kind))
+                    && !owned_operation
+                    && !enum_operation
                     && !pure_copy::operation(&i.kind)
                     && !matches!(
                         &i.kind,
@@ -666,8 +730,15 @@ pub(super) fn qualifications(
                             | InstructionKind::MakePackage { .. }
                             | InstructionKind::ByteBufferNew
                             | InstructionKind::ByteBufferPush { .. }
+                            | InstructionKind::ByteBufferReserve { .. }
+                            | InstructionKind::ByteBufferTruncate { .. }
                             | InstructionKind::DescribeAddress { .. }
+                            | InstructionKind::DescribeLocal { .. }
+                            | InstructionKind::DescribeCapture { .. }
                             | InstructionKind::DropPackage { .. }
+                            | InstructionKind::TakePackageField { .. }
+                            | InstructionKind::DropPackageField { .. }
+                            | InstructionKind::StorePackageField { .. }
                             | InstructionKind::DropManaged { .. }
                             | InstructionKind::TakeLocal { .. }
                             | InstructionKind::ExtractField { .. }
@@ -694,7 +765,7 @@ pub(super) fn qualifications(
                         Some(i.span),
                     ));
                 }
-                if !mixed_package && super::stored_owned::instruction(f, &i.kind) {
+                if owned_operation {
                     super::stored_owned::types(module, f, i, b)?;
                 }
                 if super::class_flow::pointer_instruction(f, i) {
@@ -704,9 +775,34 @@ pub(super) fn qualifications(
                     super::stored_callables::types(module, f, i, b)?;
                 }
                 if pure_copy::operation(&i.kind)
+                    && enum_address::types(module, f, i, b)?.is_none()
                     && option_address::types(module, f, i, b)?.is_none()
                 {
+                    // A qualified Enum claim cannot become an unsupported Copy
+                    // operation merely by deleting its nominal instance inventory.
+                    let claimed = match i.kind {
+                        InstructionKind::MakeVariant { .. } => {
+                            i.result.map(|v| vt(f, v)).transpose()?
+                        }
+                        InstructionKind::ReadVariant { value, .. }
+                        | InstructionKind::VariantTag { value } => Some(vt(f, value)?),
+                        _ => None,
+                    };
+                    if claimed.is_some_and(enum_address::candidate) {
+                        return Err(err(
+                            "borrowed Enum operation has no authenticated complete nominal instance",
+                        ));
+                    }
                     pure_copy::types(f, i, b)?;
+                }
+                if let InstructionKind::TakePackageField { local, .. }
+                | InstructionKind::DropPackageField { local, .. }
+                | InstructionKind::StorePackageField { local, .. } = &i.kind
+                    && f.locals
+                        .get(local.0 as usize)
+                        .is_some_and(|local| qualified(&local.ty).is_some())
+                {
+                    super::packages::check_instruction(module, f, i, b)?;
                 }
             }
         }
@@ -736,6 +832,13 @@ pub(super) fn qualifications(
                     Type::Record { fields, .. } => {
                         b.spend(fields.len())?;
                         todo.extend(fields.iter().map(|(_, t)| t));
+                    }
+                    Type::ErrorUnion { error, result }
+                        if b.stored_enum_addresses && enum_address::signature(t) =>
+                    {
+                        b.spend(2)?;
+                        todo.push(error);
+                        todo.push(result);
                     }
                     _ => {}
                 }
@@ -831,15 +934,22 @@ pub(super) fn inventory(module: &TypedModule, limits: &Limits, b: &mut Budget) -
                 | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
+            if enum_address::candidate(&instance.ty) {
+                return Err(err(
+                    "borrowed Enum instance disagrees with its declaration kind",
+                ));
+            }
             return Err(unsupported(
                 "nominal kind has no actual physical stored consumer",
                 None,
             ));
         }
+        b.stored_package_instance |= matches!(storage, Type::Package { .. });
         if d.parameters.len() != instance.arguments.len() {
             return Err(err("nominal actual list omits complete generic ordinal"));
         }
         nominal::rows(module, instance, limits, b)?;
+        b.stored_enum_addresses |= !d.id.compiler && enum_address::candidate(&instance.ty);
         for previous in &module.life_instances[..i] {
             type_work(&previous.ty, limits, b)?;
             type_work(&instance.ty, limits, b)?;
@@ -879,11 +989,32 @@ fn relation(
         StorageBase::Capture(_) => None,
     }
     .ok_or_else(|| err("stored relation base is absent"))?;
-    let ((_, shape), pointee) = if let Some(q) = qualified(ty) {
+    let mut boundary = ty;
+    let mut leaf_path = path;
+    let mut class_path = Vec::new();
+    if b.stored_enum_addresses {
+        while let Type::ErrorUnion { error, result } = boundary {
+            b.spend(1)?;
+            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                return Err(err(
+                    "stored sum relation omits its actual ErrorArm boundary",
+                ));
+            };
+            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+            boundary = if *arm {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            leaf_path = &leaf_path[1..];
+        }
+    }
+    let ((_, shape), pointee) = if let Some(q) = qualified(boundary) {
         (q, false)
     } else {
         (
-            addressed(ty).ok_or_else(|| err("physical leaf has no actual qualified boundary"))?,
+            addressed(boundary)
+                .ok_or_else(|| err("physical leaf has no actual qualified boundary"))?,
             true,
         )
     };
@@ -891,20 +1022,27 @@ fn relation(
     let mut local = None;
     for slot in &shape.slots {
         b.spend(slot.path.len().saturating_add(path.len()).saturating_add(1))?;
-        if slot.path == path && local.replace(slot.binder).is_some() {
+        if slot.path == leaf_path && local.replace(slot.binder).is_some() {
             return Err(err("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| err("relation selected an absent physical stored leaf"))?;
+    if pointee && !class_path.is_empty() {
+        class_path.insert(0, LifeTypeProjection::Pointee);
+    }
     b.spend(c.classes.len())?;
     for row in &c.classes {
         b.spend(row.position.path.len().saturating_add(1))?;
         if row.position.base == base
             && row.position.class == local
-            && if pointee {
-                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            && if class_path.is_empty() {
+                if pointee {
+                    row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                } else {
+                    row.position.path.is_empty()
+                }
             } else {
-                row.position.path.is_empty()
+                row.position.path == class_path
             }
         {
             return Ok(row.binder);
@@ -964,6 +1102,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         }
     }
     let Some(c) = &f.storage_life else {
+        if b.stored_enum_addresses
+            && f.parameters
+                .iter()
+                .map(|l| &f.locals[l.0 as usize].ty)
+                .chain(std::iter::once(&f.return_type))
+                .any(|ty| matches!(ty, Type::ErrorUnion { .. }) && enum_address::signature(ty))
+        {
+            return Err(err(
+                "borrowed sum wrapper signature omits its complete relation",
+            ));
+        }
         for ty in f
             .parameters
             .iter()
@@ -1260,6 +1409,34 @@ fn seed_payload(
             loans: vec![id],
         };
     }
+    if b.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && enum_address::signature(ty)
+    {
+        for (path, mode) in enum_address::slots(ty, b)? {
+            b.spend(path.len().saturating_mul(2).saturating_add(3))?;
+            let source = Source {
+                base,
+                leaf: path.clone(),
+                inline: Vec::new(),
+            };
+            let id = loans.len();
+            loans.push(Loan {
+                sources: vec![source.clone()],
+                parents: Vec::new(),
+                exclusive: mode == StoredBorrowMode::ExclusiveAddress,
+            });
+            add_leaf(
+                &mut p,
+                &path,
+                &Permission {
+                    sources: vec![source],
+                    loans: vec![id],
+                },
+                b,
+            )?;
+        }
+    }
     if let Some((_, shape)) = qualified(ty).or_else(|| addressed(ty)) {
         for slot in &shape.slots {
             b.spend(slot.path.len().saturating_mul(3).saturating_add(4))?;
@@ -1317,7 +1494,9 @@ fn seed(
         b.spend(1)?;
         let ty = &f.locals[local.0 as usize].ty;
         let mut p = seed_payload(ty, HoldRoot::Parameter(position as u32), loans, b)?;
-        if option_address::candidate(ty) {
+        if enum_address::ordinary(module, ty, b)? {
+            p.enum_variants = enum_address::Variants::parameter(position as u32, ty, b)?;
+        } else if option_address::candidate(ty) {
             b.spend(96)?;
             if option_address::signature(ty) {
                 p.option_variants = option_address::Variants::parameter(position as u32, b)?;
@@ -1358,9 +1537,11 @@ fn select(
     let mut result = Permission::default();
     for source in &address.sources {
         b.spend(width(source))?;
-        if !source.leaf.is_empty() || !source.inline.is_empty() {
+        if !source.leaf.is_empty() {
             return Err(err("stored leaf base crosses a target or inline boundary"));
         }
+        let mut actual_path = source.inline.clone();
+        actual_path.extend_from_slice(path);
         let p = match source.base {
             HoldRoot::Static => {
                 return Err(err("static text cannot supply nested carrier permissions"));
@@ -1370,7 +1551,7 @@ fn select(
             HoldRoot::Capture(p) => state.captures.get(p as usize),
         }
         .ok_or_else(|| err("carrier location is absent"))?;
-        if let Some(p) = leaf(p, path, b)? {
+        if let Some(p) = leaf(p, &actual_path, b)? {
             join_permission(&mut result, p, b)?;
         }
     }
@@ -1470,7 +1651,12 @@ fn write_sites(
     b: &mut Budget,
 ) -> Check<WriteSites> {
     let mut sites = Vec::new();
+    if !b.stored_slot_updates {
+        return Ok(sites);
+    }
+    b.spend(f.blocks.len())?;
     for block in &f.blocks {
+        b.spend(block.instructions.len())?;
         for i in &block.instructions {
             let site = i as *const Instruction as usize;
             let mut add = |parameter: u32, path: &Path, exclusive: bool| -> Check<()> {
@@ -1559,7 +1745,12 @@ fn step(
             .get(v.0 as usize)
             .ok_or_else(|| err("operand outside actual value table"))
     };
-    let option_transfer = option_address::transfer(module, f, i, values, b)?;
+    let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
+    let option_transfer = if enum_transfer.is_none() {
+        option_address::transfer(module, f, i, values, b)?
+    } else {
+        None
+    };
     match &i.kind {
         InstructionKind::StaticUtf8 { .. } => {
             b.spend(1)?;
@@ -1581,18 +1772,55 @@ fn step(
         InstructionKind::Store { local, value } => {
             state.locals[local.0 as usize] = copy_payload(val(*value)?, b)?
         }
+        InstructionKind::TakePackageField { local, index } => {
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("taken Package field local is absent"))?;
+            out = take_package_field_leaves(holder, *index, b)?;
+        }
+        InstructionKind::DropPackageField { local, index } => {
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("dropped Package field local is absent"))?;
+            take_package_field_leaves(holder, *index, b)?;
+        }
+        InstructionKind::StorePackageField {
+            local,
+            index,
+            value,
+        } => {
+            let source = copy_payload(val(*value)?, b)?;
+            let holder = state
+                .locals
+                .get_mut(local.0 as usize)
+                .ok_or_else(|| err("stored Package field local is absent"))?;
+            take_package_field_leaves(holder, *index, b)?;
+            for (path, permission) in &source.leaves {
+                b.spend(path.len().saturating_add(1))?;
+                let mut complete = vec![PlaceProjection::Field(*index)];
+                complete.extend(path);
+                add_leaf(holder, &complete, permission, b)?;
+            }
+        }
         InstructionKind::StorageLive(l)
         | InstructionKind::StorageDead(l)
         | InstructionKind::DropClosure { local: l } => {
             state.locals[l.0 as usize] = Payload::default()
         }
         InstructionKind::DescribeLocal { local } => {
-            b.spend(1)?;
-            out.address.sources.push(Source {
-                base: HoldRoot::Local(*local),
-                leaf: Vec::new(),
-                inline: Vec::new(),
-            });
+            if f.locals
+                .get(local.0 as usize)
+                .is_some_and(|local| super::stored_owned::owner(&local.ty))
+            {
+                b.spend(1)?;
+                out.address.sources.push(Source {
+                    base: HoldRoot::Local(*local),
+                    leaf: Vec::new(),
+                    inline: Vec::new(),
+                });
+            }
         }
         InstructionKind::DescribeCapture { index } => {
             b.spend(1)?;
@@ -1609,7 +1837,9 @@ fn step(
             state.locals[local.0 as usize] = Payload::default();
         }
         InstructionKind::ByteBufferNew | InstructionKind::DescribeAddress { .. } => {}
-        InstructionKind::ByteBufferPush { .. } => {
+        InstructionKind::ByteBufferPush { .. }
+        | InstructionKind::ByteBufferReserve { .. }
+        | InstructionKind::ByteBufferTruncate { .. } => {
             // ByteBuffer growth may relocate bytes. This component must not
             // silently preserve a stored pointer into that payload.
             for ty in f.locals.iter().map(|local| &local.ty).chain(&f.values) {
@@ -1621,6 +1851,9 @@ fn step(
                     let mut field = storage;
                     for step in &row.path {
                         b.spend(1)?;
+                        if let Type::BorrowedStorage { storage, .. } = field {
+                            field = storage;
+                        }
                         field = match (field, step) {
                             (
                                 Type::Record { fields, .. } | Type::Package { fields, .. },
@@ -1909,6 +2142,9 @@ fn step(
                     "stored call requires an independently checked ordinary direct body",
                 ));
             }
+            out.enum_variants = summaries[function.0 as usize]
+                .returned_enum_variants
+                .substitute(arguments, values, b)?;
             out.option_variants = summaries[function.0 as usize]
                 .returned_variants
                 .substitute(arguments, values, b)?;
@@ -1934,8 +2170,10 @@ fn step(
                 }
                 if path.is_empty() {
                     out.address = p;
-                } else if !option_address::candidate(&callee.return_type)
-                    || out.option_variants.mask() & 2 != 0
+                } else if (out.enum_variants.present() && out.enum_variants.slot_active(path))
+                    || (!out.enum_variants.present()
+                        && (!option_address::candidate(&callee.return_type)
+                            || out.option_variants.mask() & 2 != 0))
                 {
                     add_leaf(&mut out, path, &p, b)?;
                 }
@@ -1999,6 +2237,9 @@ fn step(
                     holder.leaves.push((path, permission));
                 }
             }
+        }
+        _ if enum_transfer.is_some() => {
+            out = enum_transfer.unwrap();
         }
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
@@ -2258,6 +2499,9 @@ fn reverse(
             live[f.values.len() + local.0 as usize] = true
         }
         InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
             if qualified(&f.locals[local.0 as usize].ty).is_some() =>
         {
             live[f.values.len() + local.0 as usize] = true;
@@ -2350,9 +2594,13 @@ fn live_loans(
             add_loans(&mut loans, &p.loans, b)?;
         }
     }
-    for holder in &state.external {
-        for (_, p) in &holder.leaves {
-            add_loans(&mut loans, &p.loans, b)?;
+    // Only an actual slot write can create a new external loan that is not
+    // already represented by the original parameter relation.
+    if b.stored_slot_updates {
+        for holder in &state.external {
+            for (_, p) in &holder.leaves {
+                add_loans(&mut loans, &p.loans, b)?;
+            }
         }
     }
     ancestry(&loans, &solution.loans, b)
@@ -2389,7 +2637,10 @@ fn check_call(
                 requirements,
                 b,
             )?;
-            if *mutable && let Some((_, shape)) = addressed(ty) {
+            if b.stored_slot_updates
+                && *mutable
+                && let Some((_, shape)) = addressed(ty)
+            {
                 for slot in &shape.slots {
                     let held = select(state, &value.address, &slot.path, b)?;
                     access(
@@ -2505,6 +2756,20 @@ fn windows(
                     .ok_or_else(|| err("address operand absent"))
             };
             match &i.kind {
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let actual = Permission {
+                        sources: vec![Source {
+                            base: HoldRoot::Local(*local),
+                            leaf: Vec::new(),
+                            inline: vec![PlaceProjection::Field(*index)],
+                        }],
+                        loans: Vec::new(),
+                    };
+                    b.spend(1)?;
+                    access(&actual, true, &active, &solution.loans, requirements, b)?;
+                }
                 InstructionKind::Load(local)
                     if matches!(
                         f.locals[local.0 as usize].ty,
@@ -2606,29 +2871,52 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    // Compare the actual inline slot, retaining the carrier
-                    // loans. Whole-carrier access would conflate sibling slots.
-                    let base = pointer(*storage)?;
-                    b.spend(
-                        base.sources
-                            .len()
-                            .saturating_mul(path.len().saturating_add(1)),
-                    )?;
-                    let slot = Permission {
-                        sources: base
-                            .sources
-                            .iter()
-                            .map(|source| {
-                                let mut source = source.clone();
-                                source.inline.extend(path);
-                                source
-                            })
-                            .collect(),
-                        loans: base.loans.clone(),
-                    };
-                    access(&slot, exclusive, &active, &solution.loans, requirements, b)?;
-                    let p = select(&state, pointer(*storage)?, path, b)?;
-                    access(&p, exclusive, &active, &solution.loans, requirements, b)?;
+                    // The established single shared slot has the same whole
+                    // carrier access as before mutable slot replacement was
+                    // introduced. Only a writer or multiple/exclusive slots
+                    // need the finer inline-window proof below.
+                    if !b.stored_slot_updates
+                        && matches!(mode, StoredBorrowLoad::CopyShared)
+                        && addressed(vt(f, *storage)?).is_some_and(|(_, shape)| {
+                            shape.slots.len() == 1
+                                && shape.slots[0].mode == StoredBorrowMode::SharedAddress
+                        })
+                    {
+                        access(
+                            pointer(*storage)?,
+                            false,
+                            &active,
+                            &solution.loans,
+                            requirements,
+                            b,
+                        )?;
+                        let p = select(&state, pointer(*storage)?, path, b)?;
+                        access(&p, false, &active, &solution.loans, requirements, b)?;
+                    } else {
+                        // Compare the actual inline slot, retaining the carrier
+                        // loans. Whole-carrier access would conflate sibling slots.
+                        let base = pointer(*storage)?;
+                        b.spend(
+                            base.sources
+                                .len()
+                                .saturating_mul(path.len().saturating_add(1)),
+                        )?;
+                        let slot = Permission {
+                            sources: base
+                                .sources
+                                .iter()
+                                .map(|source| {
+                                    let mut source = source.clone();
+                                    source.inline.extend(path);
+                                    source
+                                })
+                                .collect(),
+                            loans: base.loans.clone(),
+                        };
+                        access(&slot, exclusive, &active, &solution.loans, requirements, b)?;
+                        let p = select(&state, pointer(*storage)?, path, b)?;
+                        access(&p, exclusive, &active, &solution.loans, requirements, b)?;
+                    }
                 }
                 InstructionKind::StoreStoredBorrow {
                     storage,
@@ -2828,6 +3116,10 @@ fn summary_work(s: &Summary, b: &mut Budget) -> Check<()> {
     if !s.none_values.is_empty() {
         b.spend(s.none_values.len())?;
     }
+    s.returned_enum_variants.work(b)?;
+    for (_, tags) in &s.enum_values {
+        tags.work(b)?;
+    }
     s.returned_variants.work(b)?;
     b.spend(
         s.result
@@ -2881,6 +3173,12 @@ fn summarize(
     };
     for (id, (ty, p)) in f.values.iter().zip(&solution.values).enumerate() {
         b.spend(1)?;
+        if p.enum_variants.present() {
+            p.enum_variants.work(b)?;
+            summary
+                .enum_values
+                .push((ValueId(id as u32), p.enum_variants.clone()));
+        }
         if p.option_variants.mask() == 1 {
             b.spend(2)?;
             summary.none_values.push(ValueId(id as u32));
@@ -2894,8 +3192,27 @@ fn summarize(
         if matches!(ty, Type::Address { .. }) && p.address.sources.is_empty() {
             summary.complete = false;
         }
+        if b.stored_enum_addresses
+            && matches!(ty, Type::ErrorUnion { .. })
+            && enum_address::ordinary(module, ty, b)?
+        {
+            if !p.enum_variants.grounded(ty, b)? {
+                summary.complete = false;
+            }
+            for (path, _) in enum_address::slots(ty, b)? {
+                if p.enum_variants.slot_active(&path)
+                    && leaf(p, &path, b)?.is_none_or(|p| p.sources.is_empty())
+                {
+                    summary.complete = false;
+                }
+            }
+        }
         if let Some((_, shape)) = qualified(ty) {
-            if option_address::candidate(ty) {
+            if enum_address::ordinary(module, ty, b)? {
+                if !p.enum_variants.grounded(ty, b)? {
+                    summary.complete = false;
+                }
+            } else if option_address::candidate(ty) {
                 b.spend(96)?;
                 if !option_address::signature(ty) {
                     return Err(err("Option activity has no exact shape"));
@@ -2909,6 +3226,9 @@ fn summarize(
                 }
             }
             for row in &shape.slots {
+                if p.enum_variants.present() && !p.enum_variants.slot_active(&row.path) {
+                    continue;
+                }
                 if leaf(p, &row.path, b)?.is_none_or(|p| p.sources.is_empty()) {
                     summary.complete = false;
                 }
@@ -2947,7 +3267,8 @@ fn summarize(
     }
     for (bi, (block, reachable)) in f.blocks.iter().zip(&g.reachable).enumerate() {
         b.spend(1)?;
-        if *reachable && matches!(block.terminator, Terminator::Return(_)) {
+        if b.stored_slot_updates && *reachable && matches!(block.terminator, Terminator::Return(_))
+        {
             for (position, payload) in solution.outputs[bi].external.iter().enumerate() {
                 let local = *f
                     .parameters
@@ -3001,6 +3322,9 @@ fn summarize(
         if *reachable && let Terminator::Return(Some(id)) = block.terminator {
             let payload = &solution.values[id.0 as usize];
             summary
+                .returned_enum_variants
+                .join(&payload.enum_variants, b)?;
+            summary
                 .returned_variants
                 .join(&payload.option_variants, b)?;
             if matches!(f.return_type, Type::Address { .. }) {
@@ -3050,11 +3374,7 @@ fn check_with_mask(
     mask: Option<&[bool]>,
     b: &mut Budget,
 ) -> Check<()> {
-    b.spend(module.life_instances.len())?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
+    let mixed_package = b.stored_package_instance;
     if mask.is_none() {
         if !mixed_package {
             super::stored_owned::module(module, b)?;
@@ -3119,6 +3439,9 @@ fn check_with_mask(
                 || super::stored_owned::owner(ty)
                 || super::stored_owned::description(ty)
                 || mixed_resource
+                || b.stored_enum_addresses
+                    && enum_address::signature(ty)
+                    && enum_address::ordinary(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -3171,41 +3494,43 @@ fn solve_check(
                 inactive.map(|rows| rows[index].as_slice()),
                 b,
             )?;
-            for block in &f.blocks {
-                for instruction in &block.instructions {
-                    let InstructionKind::Call { function, .. } = &instruction.kind else {
-                        continue;
-                    };
-                    let callee = module
-                        .functions
-                        .get(function.0 as usize)
-                        .ok_or_else(|| err("stored call target is absent"))?;
-                    let prior = summaries
-                        .get(function.0 as usize)
-                        .ok_or_else(|| err("stored call summary is absent"))?;
-                    if !prior.complete {
-                        summary.complete = false;
-                    }
-                    for (position, local) in callee.parameters.iter().enumerate() {
-                        if let Type::Address {
-                            mutable: true,
-                            inner,
-                        } = &callee.locals[local.0 as usize].ty
-                            && let Some((_, shape)) = qualified(inner)
-                        {
-                            for slot in &shape.slots {
-                                b.spend(
-                                    slot.path
-                                        .len()
-                                        .saturating_add(prior.external_after.len())
-                                        .saturating_add(1),
-                                )?;
-                                if !prior
-                                    .external_after
-                                    .iter()
-                                    .any(|(p, path, _)| *p == position as u32 && *path == slot.path)
-                                {
-                                    summary.complete = false;
+            if b.stored_slot_updates {
+                b.spend(f.blocks.len())?;
+                for block in &f.blocks {
+                    b.spend(block.instructions.len())?;
+                    for instruction in &block.instructions {
+                        let InstructionKind::Call { function, .. } = &instruction.kind else {
+                            continue;
+                        };
+                        let callee = module
+                            .functions
+                            .get(function.0 as usize)
+                            .ok_or_else(|| err("stored call target is absent"))?;
+                        let prior = summaries
+                            .get(function.0 as usize)
+                            .ok_or_else(|| err("stored call summary is absent"))?;
+                        if !prior.complete {
+                            summary.complete = false;
+                        }
+                        for (position, local) in callee.parameters.iter().enumerate() {
+                            if let Type::Address {
+                                mutable: true,
+                                inner,
+                            } = &callee.locals[local.0 as usize].ty
+                                && let Some((_, shape)) = qualified(inner)
+                            {
+                                for slot in &shape.slots {
+                                    b.spend(
+                                        slot.path
+                                            .len()
+                                            .saturating_add(prior.external_after.len())
+                                            .saturating_add(1),
+                                    )?;
+                                    if !prior.external_after.iter().any(|(p, path, _)| {
+                                        *p == position as u32 && *path == slot.path
+                                    }) {
+                                        summary.complete = false;
+                                    }
                                 }
                             }
                         }
@@ -3241,6 +3566,12 @@ fn solve_check(
     }
     if mask.is_none()
         && inactive.is_none()
+        && let Some(proof) = enum_address::refine(module, graphs, &summaries, b)?
+    {
+        return solve_check(module, &proof.graphs, plan, Some(&proof.inactive), mask, b);
+    }
+    if mask.is_none()
+        && inactive.is_none()
         && observed_none
         && let Some(proof) = option_address::refine(module, graphs, &summaries, b)?
     {
@@ -3255,6 +3586,7 @@ fn solve_check(
                 "stored/reference operation has no complete actual target permission",
             ));
         }
+        enum_address::projections(f, &graphs[index], s, b)?;
         let lender = captured_definition(module, f).filter(|d| super::stored_callables::lending(d));
         if let Some(definition) = lender {
             b.spend(definition.lending_captures.len().saturating_add(1))?;

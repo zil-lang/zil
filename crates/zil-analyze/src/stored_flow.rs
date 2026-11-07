@@ -2,6 +2,7 @@
 //! This pass does not use a candidate, source label, or nominal name as a root.
 use super::*;
 
+pub(super) mod enum_address;
 mod nominal;
 pub(super) mod option_address;
 mod retained;
@@ -29,6 +30,7 @@ struct Permission {
 }
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
 struct Value {
+    enum_variants: enum_address::Variants,
     option_variants: option_address::Variants,
     pointer: Permission,
     slots: BTreeMap<Path, Permission>,
@@ -59,6 +61,8 @@ pub(super) struct Facts {
     external_after: BTreeMap<(u32, Path), Vec<Target>>,
     pub apart: BTreeSet<(Target, Target)>,
     complete: bool,
+    returned_enum_variants: enum_address::Variants,
+    enum_values: BTreeMap<ValueId, enum_address::Variants>,
     returned_variants: option_address::Variants,
     none_values: BTreeSet<ValueId>,
 }
@@ -123,6 +127,7 @@ fn environment_merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileRes
 }
 fn merge(to: &mut Value, from: &Value, b: &mut Budget) -> CompileResult<bool> {
     let mut changed = union(&mut to.pointer, &from.pointer, b)?;
+    changed |= to.enum_variants.join(&from.enum_variants, b)?;
     changed |= to.option_variants.join(&from.option_variants, b)?;
     changed |= environment_merge(to, from, b)?;
     if let Some(complete) = from.creation_complete {
@@ -181,6 +186,7 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
             .saturating_add(s.captures.len()),
     )?;
     for value in s.locals.values().chain(s.captures.values()) {
+        value.enum_variants.work(b)?;
         value.option_variants.work(b)?;
         target_work(&value.held.targets, b)?;
         fee(b, value.held.loans.len())?;
@@ -213,6 +219,10 @@ fn state_work(s: &State, b: &mut Budget) -> CompileResult<()> {
 }
 
 fn facts_work(f: &Facts, b: &mut Budget) -> CompileResult<()> {
+    f.returned_enum_variants.work(b)?;
+    for value in f.enum_values.values() {
+        value.work(b)?;
+    }
     f.returned_variants.work(b)?;
     if !f.none_values.is_empty() {
         fee(b, f.none_values.len())?;
@@ -318,6 +328,7 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
     let mut ty = ty;
     for part in path {
         fee(b, 1)?;
+        ty = carrier(ty).map_or(ty, |(storage, _)| storage);
         ty = match (ty, part) {
             (
                 Type::Record { fields, .. } | Type::Package { fields, .. },
@@ -335,6 +346,33 @@ fn slot<'a>(ty: &'a Type, path: &[PlaceProjection], b: &mut Budget) -> CompileRe
         .ok_or_else(|| failure("physical path crosses an absent or non-inline ancestor"))?;
     }
     Ok(ty)
+}
+
+fn take_package_field_slots(
+    holder: &mut Value,
+    index: u32,
+    b: &mut Budget,
+) -> CompileResult<BTreeMap<Path, Permission>> {
+    fee(b, holder.slots.len())?;
+    let prefix = PlaceProjection::Field(index);
+    let mut paths = Vec::new();
+    for path in holder.slots.keys() {
+        fee(b, path.len().saturating_add(1))?;
+        if path.first() == Some(&prefix) {
+            paths.push(path.clone());
+        }
+    }
+    let mut extracted = BTreeMap::new();
+    for path in paths {
+        let permission = holder
+            .slots
+            .remove(&path)
+            .ok_or_else(|| failure("selected package field slot disappeared"))?;
+        let relative = path[1..].to_vec();
+        ordered(b, extracted.len(), relative.len())?;
+        extracted.insert(relative, permission);
+    }
+    Ok(extracted)
 }
 
 pub(super) fn shape_work(ty: &Type, limits: &Limits, b: &mut Budget) -> CompileResult<()> {
@@ -627,6 +665,7 @@ pub(super) fn inventory(
             ));
         };
         physical(&instance.ty, b)?;
+        b.stored_packages |= matches!(storage, Type::Package { .. });
         fee(b, module.life_declarations.len())?;
         let decl = module
             .life_declarations
@@ -639,6 +678,11 @@ pub(super) fn inventory(
                 | (LifeNominalKind::Package, Type::Package { .. })
                 | (LifeNominalKind::Enum, Type::Enum { .. })
         ) {
+            if enum_address::candidate(&instance.ty) {
+                return Err(failure(
+                    "borrowed Enum declaration kind differs from its physical instance",
+                ));
+            }
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
                 "nominal stored kind requires its actual physical consumer",
@@ -658,6 +702,7 @@ pub(super) fn inventory(
             ));
         }
         nominal::rows(module, instance, limits, b)?;
+        b.stored_enum_addresses |= !decl.id.compiler && enum_address::candidate(&instance.ty);
         for earlier in &module.life_instances[..index] {
             shape_work(&earlier.ty, limits, b)?;
             shape_work(&instance.ty, limits, b)?;
@@ -697,11 +742,31 @@ fn binding(
         StorageBase::Capture(_) => None,
     }
     .ok_or_else(|| failure("stored relation base is absent"))?;
-    let ((_, shape), pointee) = if let Some(q) = carrier(ty) {
+    let mut boundary = ty;
+    let mut leaf_path = path;
+    let mut class_path = Vec::new();
+    if b.stored_enum_addresses {
+        while let Type::ErrorUnion { error, result } = boundary {
+            fee(b, 1)?;
+            let Some(PlaceProjection::ErrorArm(arm)) = leaf_path.first() else {
+                return Err(failure(
+                    "stored sum relation omits its actual ErrorArm boundary",
+                ));
+            };
+            class_path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(*arm)));
+            boundary = if *arm {
+                error.as_ref()
+            } else {
+                result.as_ref()
+            };
+            leaf_path = &leaf_path[1..];
+        }
+    }
+    let ((_, shape), pointee) = if let Some(q) = carrier(boundary) {
         (q, false)
     } else {
         (
-            pointed_carrier(ty)
+            pointed_carrier(boundary)
                 .ok_or_else(|| failure("physical leaf has no actual qualified boundary"))?,
             true,
         )
@@ -713,20 +778,27 @@ fn binding(
             b,
             slot.path.len().saturating_add(path.len()).saturating_add(1),
         )?;
-        if slot.path == path && local.replace(slot.binder).is_some() {
+        if slot.path == leaf_path && local.replace(slot.binder).is_some() {
             return Err(failure("duplicate actual stored leaf"));
         }
     }
     let local = local.ok_or_else(|| failure("relation selected an absent physical stored leaf"))?;
+    if pointee && !class_path.is_empty() {
+        class_path.insert(0, LifeTypeProjection::Pointee);
+    }
     fee(b, c.classes.len())?;
     for row in &c.classes {
         fee(b, row.position.path.len().saturating_add(1))?;
         if row.position.base == base
             && row.position.class == local
-            && if pointee {
-                row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+            && if class_path.is_empty() {
+                if pointee {
+                    row.position.path.as_slice() == [LifeTypeProjection::Pointee]
+                } else {
+                    row.position.path.is_empty()
+                }
             } else {
-                row.position.path.is_empty()
+                row.position.path == class_path
             }
         {
             return Ok(row.binder);
@@ -797,6 +869,17 @@ pub(super) fn header(module: &TypedModule, f: &TypedFunction, b: &mut Budget) ->
         )]);
     }
     let Some(c) = &f.storage_life else {
+        if b.stored_enum_addresses
+            && f.parameters
+                .iter()
+                .map(|l| &f.locals[l.0 as usize].ty)
+                .chain(std::iter::once(&f.return_type))
+                .any(|ty| matches!(ty, Type::ErrorUnion { .. }) && enum_address::signature(ty))
+        {
+            return Err(failure(
+                "borrowed sum wrapper signature omits its complete relation",
+            ));
+        }
         for ty in f
             .parameters
             .iter()
@@ -1031,12 +1114,14 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     if option_address::shape(ty, b)? {
         return Ok(true);
     }
+    if enum_address::shape(ty, b)? {
+        return Ok(true);
+    }
     if !matches!(
         storage,
         Type::Record { .. } | Type::Package { .. } | Type::Tuple(_) | Type::Enum { .. }
-    ) || (!life.retained.is_empty() && !life.slots.is_empty())
-        || (matches!(storage, Type::Enum { .. })
-            && (!life.slots.is_empty() || !retained::pure(storage, b)?))
+    ) || (matches!(storage, Type::Enum { .. })
+        && (!life.slots.is_empty() || !retained::pure(storage, b)?))
     {
         return Err(vec![Diagnostic::unsupported(
             Phase::Analyze,
@@ -1048,7 +1133,11 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
     fn walk(
         ty: &Type,
         path: &mut Path,
-        out: &mut Vec<(Path, StoredBorrowMode)>,
+        out: &mut Vec<(
+            Path,
+            StoredBorrowMode,
+            Option<(Vec<LifeTypeProjection>, u32)>,
+        )>,
         b: &mut Budget,
         owning: bool,
     ) -> CompileResult<()> {
@@ -1069,6 +1158,7 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                     } else {
                         StoredBorrowMode::SharedAddress
                     },
+                    None,
                 ));
             }
             Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -1134,11 +1224,32 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 }
                 walk(element, path, out, b, owning)?;
             }
-            Type::BorrowedStorage { .. } => {
-                if !retained::pure(ty, b)? {
-                    return Err(failure(
-                        "retained physical leaf needs a real borrowing consumer",
-                    ));
+            Type::BorrowedStorage { storage, life } => {
+                if !owning || !matches!(storage.as_ref(), Type::Package { .. }) {
+                    if !retained::pure(ty, b)? {
+                        return Err(failure("nested physical child requires an owning Package"));
+                    }
+                    return Ok(());
+                }
+                physical(ty, b)?;
+                let start = out.len();
+                let prefix = path.len();
+                walk(storage, path, out, b, true)?;
+                let boundary: Vec<_> = path
+                    .iter()
+                    .copied()
+                    .map(LifeTypeProjection::Place)
+                    .collect();
+                for (actual, _, class) in &mut out[start..] {
+                    let relative = actual
+                        .get(prefix..)
+                        .ok_or_else(|| failure("nested physical slot lost prefix"))?;
+                    let child = life
+                        .slots
+                        .iter()
+                        .find(|slot| slot.path == relative)
+                        .ok_or_else(|| failure("nested physical slot lacks child class"))?;
+                    *class = Some((boundary.clone(), child.binder));
                 }
             }
             Type::Managed(payload) if owning => {
@@ -1198,17 +1309,28 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 .ok_or_else(|| failure("binder overflow"))?;
         }
     }
-    for ((path, mode), decl) in actual.iter().zip(&life.slots) {
+    for ((path, mode, child_class), decl) in actual.iter().zip(&life.slots) {
         fee(b, path.len().saturating_add(decl.path.len()))?;
         if path != &decl.path || mode != &decl.mode || decl.binder >= life.binder_count {
             return Err(failure(
                 "stored slot order, mode or binder differs from actual fields",
             ));
         }
+        if let Some((boundary, class)) = child_class {
+            if !life.retained.iter().any(|row| {
+                &row.path == boundary && row.class == *class && row.binder == decl.binder
+            }) {
+                return Err(failure(
+                    "nested slot binder differs from retained child class",
+                ));
+            }
+        }
         if *mode == StoredBorrowMode::ExclusiveAddress
             && (!matches!(storage, Type::Record { .. } | Type::Package { .. })
-                || !life.retained.is_empty()
-                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+                || !path
+                    .iter()
+                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+                || (child_class.is_none() && path.len() != 1))
         {
             return Err(vec![Diagnostic::unsupported(
                 Phase::Analyze,
@@ -1216,6 +1338,11 @@ pub(super) fn physical(ty: &Type, b: &mut Budget) -> CompileResult<bool> {
                 None,
             )]);
         }
+        // Only the new owning or disjoint exclusive holders need narrower
+        // inline-slot windows. Shared-only and single exclusive legacy holders
+        // retain their whole-carrier access and incur no projection work.
+        b.stored_projected_slots |= matches!(storage, Type::Package { .. })
+            || (*mode == StoredBorrowMode::ExclusiveAddress && life.slots.len() > 1);
         ordered(b, seen.len(), 0)?;
         if seen.insert(decl.binder) {
             if decl.binder != next {
@@ -1361,6 +1488,32 @@ fn seed_value(
             loans: Loans::from([id]),
         };
     }
+    if b.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && enum_address::signature(ty)
+    {
+        for (path, mode) in enum_address::slots(ty, b)? {
+            let target = Target {
+                base,
+                stored: path.clone(),
+                place: Vec::new(),
+            };
+            fee(b, path.len().saturating_mul(2).saturating_add(3))?;
+            let id = loans.len();
+            loans.push(Loan {
+                targets: BTreeSet::from([target.clone()]),
+                parents: Loans::new(),
+                mutable: mode == StoredBorrowMode::ExclusiveAddress,
+            });
+            value.slots.insert(
+                path,
+                Permission {
+                    targets: BTreeSet::from([target]),
+                    loans: Loans::from([id]),
+                },
+            );
+        }
+    }
     let qualified = carrier(ty).or_else(|| pointed_carrier(ty));
     if let Some((_, life)) = qualified {
         let mut slots = BTreeMap::new();
@@ -1416,7 +1569,10 @@ fn seed(
             loans,
             b,
         )?;
-        if option_address::candidate(&f.locals[local.0 as usize].ty) {
+        if enum_address::ordinary(module, &f.locals[local.0 as usize].ty, b)? {
+            value.enum_variants =
+                enum_address::Variants::parameter(index as u32, &f.locals[local.0 as usize].ty, b)?;
+        } else if option_address::candidate(&f.locals[local.0 as usize].ty) {
             fee(b, 96)?;
             if option_address::signature(&f.locals[local.0 as usize].ty) {
                 value.option_variants = option_address::Variants::parameter(index as u32, b)?;
@@ -1430,7 +1586,9 @@ fn seed(
             loans,
             b,
         )?;
-        if b.stored_owned_fixed && matches!(f.locals[local.0 as usize].ty, Type::Desc(_)) {
+        if matches!(&f.locals[local.0 as usize].ty, Type::Desc(payload)
+            if super::stored_callables::resource_payload(payload, b)?)
+        {
             owned::describe(&mut value, HoldRoot::Parameter(index as u32), b)?;
         }
         ordered(b, state.locals.len(), 0)?;
@@ -1465,9 +1623,11 @@ fn select(
     let mut out = Permission::default();
     for root in &address.targets {
         fee(b, root.stored.len().saturating_add(1))?;
-        if !root.stored.is_empty() || !root.place.is_empty() {
+        if !root.stored.is_empty() {
             return Err(failure("stored target is not an inline carrier address"));
         }
+        let mut actual_path = root.place.clone();
+        actual_path.extend_from_slice(path);
         let slots = match root.base {
             HoldRoot::Static => {
                 return Err(failure("static UTF8 cannot grant nested carrier slots"));
@@ -1487,8 +1647,8 @@ fn select(
                     .ok_or_else(|| failure("external carrier has no actual slot facts"))?
             }
         };
-        ordered(b, slots.len(), path.len())?;
-        if let Some(leaf) = slots.get(path) {
+        ordered(b, slots.len(), actual_path.len())?;
+        if let Some(leaf) = slots.get(&actual_path) {
             union(&mut out, leaf, b)?;
         }
     }
@@ -1739,7 +1899,12 @@ fn transfer(
             .get(id.0 as usize)
             .ok_or_else(|| failure("operand is outside actual values"))
     };
-    let option_transfer = option_address::transfer(module, f, i, values, b)?;
+    let enum_transfer = enum_address::transfer(module, f, i, values, b)?;
+    let option_transfer = if enum_transfer.is_none() {
+        option_address::transfer(module, f, i, values, b)?
+    } else {
+        None
+    };
     match &i.kind {
         InstructionKind::StaticUtf8 { .. } => {
             fee(b, 1)?;
@@ -1767,6 +1932,8 @@ fn transfer(
             ordered(b, state.locals.len(), 0)?;
             if super::stored_callables::fixed_value(module, &f.locals[local.0 as usize].ty)
                 || carrier(&f.locals[local.0 as usize].ty).is_some()
+                || (b.stored_enum_addresses
+                    && enum_address::signature(&f.locals[local.0 as usize].ty))
             {
                 out = snapshot(
                     state
@@ -1777,6 +1944,37 @@ fn transfer(
                 )?;
             }
             state.locals.remove(local);
+        }
+        InstructionKind::TakePackageField { local, index } => {
+            ordered(b, state.locals.len(), 0)?;
+            let holder = state
+                .locals
+                .get_mut(local)
+                .ok_or_else(|| failure("taken Package field has no live local shell"))?;
+            out.slots = take_package_field_slots(holder, *index, b)?;
+        }
+        InstructionKind::DropPackageField { local, index } => {
+            ordered(b, state.locals.len(), 0)?;
+            if let Some(holder) = state.locals.get_mut(local) {
+                take_package_field_slots(holder, *index, b)?;
+            }
+        }
+        InstructionKind::StorePackageField {
+            local,
+            index,
+            value,
+        } => {
+            let source = snapshot(get(*value)?, b)?;
+            ordered(b, state.locals.len(), 0)?;
+            let holder = state.locals.entry(*local).or_default();
+            take_package_field_slots(holder, *index, b)?;
+            for (path, permission) in source.slots {
+                fee(b, path.len().saturating_add(1))?;
+                let mut complete = vec![PlaceProjection::Field(*index)];
+                complete.extend(path);
+                ordered(b, holder.slots.len(), complete.len())?;
+                holder.slots.insert(complete, permission);
+            }
         }
         InstructionKind::StorageLive(local)
         | InstructionKind::StorageDead(local)
@@ -1985,6 +2183,9 @@ fn transfer(
             let summary = summaries
                 .get(function.0 as usize)
                 .ok_or_else(|| failure("callee stored summary absent"))?;
+            out.enum_variants = summary
+                .returned_enum_variants
+                .substitute(arguments, values, b)?;
             out.option_variants = summary.returned_variants.substitute(arguments, values, b)?;
             for (path, sources) in &summary.returned {
                 let mut permission = Permission::default();
@@ -2011,8 +2212,10 @@ fn transfer(
                 }
                 if path.is_empty() {
                     out.pointer = permission;
-                } else if !option_address::candidate(&callee.return_type)
-                    || out.option_variants.mask() & 2 != 0
+                } else if (out.enum_variants.present() && out.enum_variants.slot_active(path))
+                    || (!out.enum_variants.present()
+                        && (!option_address::candidate(&callee.return_type)
+                            || out.option_variants.mask() & 2 != 0))
                 {
                     ordered(b, out.slots.len(), path.len())?;
                     fee(b, path.len())?;
@@ -2210,6 +2413,12 @@ fn transfer(
         InstructionKind::DescribeLocal { local } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Local(*local), b)?;
         }
+        InstructionKind::DescribeLocal { local }
+            if matches!(f.locals.get(local.0 as usize).map(|local| &local.ty),
+                Some(Type::Managed(payload)) if super::stored_callables::resource_payload(payload, b)?) =>
+        {
+            owned::describe(&mut out, HoldRoot::Local(*local), b)?;
+        }
         InstructionKind::DescribeCapture { index } if b.stored_owned_fixed => {
             owned::describe(&mut out, HoldRoot::Capture(*index), b)?;
         }
@@ -2228,7 +2437,9 @@ fn transfer(
             // The resource proof owns these effects. None creates a stored
             // pointer or changes an existing stored target.
         }
-        InstructionKind::ByteBufferPush { .. } => {
+        InstructionKind::ByteBufferPush { .. }
+        | InstructionKind::ByteBufferReserve { .. }
+        | InstructionKind::ByteBufferTruncate { .. } => {
             // A push can relocate ByteBuffer payload bytes. Until that
             // invalidation has a common projected source, refuse every
             // possible stored byte pointer in this function.
@@ -2250,6 +2461,13 @@ fn transfer(
             }
         }
         _ if b.stored_owned_fixed && owned::operation(&i.kind) => {}
+        InstructionKind::DescribeLocal { .. }
+        | InstructionKind::DescribeCapture { .. }
+        | InstructionKind::MakeManaged { .. }
+        | InstructionKind::ReadDesc { .. } => {}
+        _ if enum_transfer.is_some() => {
+            out = enum_transfer.unwrap();
+        }
         _ if option_transfer.is_some() => {
             out = option_transfer.unwrap();
         }
@@ -2596,6 +2814,9 @@ fn reverse(
             live[f.values.len() + local.0 as usize] = true
         }
         InstructionKind::TakeLocal { local }
+        | InstructionKind::TakePackageField { local, .. }
+        | InstructionKind::DropPackageField { local, .. }
+        | InstructionKind::StorePackageField { local, .. }
         | InstructionKind::DropClosure { local }
         | InstructionKind::CallClosureShared { callee: local, .. }
         | InstructionKind::CallClosureMut { callee: local, .. }
@@ -2733,6 +2954,20 @@ fn windows(
                     .ok_or_else(|| failure("access operand outside values"))
             };
             match &i.kind {
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let actual = Permission {
+                        targets: BTreeSet::from([Target {
+                            base: HoldRoot::Local(*local),
+                            stored: Vec::new(),
+                            place: vec![PlaceProjection::Field(*index)],
+                        }]),
+                        loans: Loans::new(),
+                    };
+                    fee(b, 1)?;
+                    use_permission(&actual, true, &current, loans, apart, b)?;
+                }
                 InstructionKind::Load(local)
                     if matches!(
                         f.locals[local.0 as usize].ty,
@@ -2796,27 +3031,31 @@ fn windows(
                         mode,
                         StoredBorrowLoad::Reborrow { mutable: true } | StoredBorrowLoad::Take
                     );
-                    // The physical pointer slot is an inline field. A sibling
-                    // mutable slot remains accessible while its child is live;
-                    // the carrier's parent loans still accompany this access.
-                    let mut slot = Permission {
-                        targets: BTreeSet::new(),
-                        loans: pointer(*storage)?.loans.clone(),
-                    };
-                    for root in &pointer(*storage)?.targets {
-                        fee(
-                            b,
-                            root.stored
-                                .len()
-                                .saturating_add(root.place.len())
-                                .saturating_add(path.len()),
-                        )?;
-                        let mut target = root.clone();
-                        target.place.extend(path);
-                        ordered(b, slot.targets.len(), target.place.len())?;
-                        slot.targets.insert(target);
+                    if !b.stored_projected_slots {
+                        use_permission(pointer(*storage)?, exclusive, &current, loans, apart, b)?;
+                    } else {
+                        // The physical pointer slot is an inline field. A sibling
+                        // mutable slot remains accessible while its child is live;
+                        // the carrier's parent loans still accompany this access.
+                        let mut slot = Permission {
+                            targets: BTreeSet::new(),
+                            loans: pointer(*storage)?.loans.clone(),
+                        };
+                        for root in &pointer(*storage)?.targets {
+                            fee(
+                                b,
+                                root.stored
+                                    .len()
+                                    .saturating_add(root.place.len())
+                                    .saturating_add(path.len()),
+                            )?;
+                            let mut target = root.clone();
+                            target.place.extend(path);
+                            ordered(b, slot.targets.len(), target.place.len())?;
+                            slot.targets.insert(target);
+                        }
+                        use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     }
-                    use_permission(&slot, exclusive, &current, loans, apart, b)?;
                     let actual = select(&state, pointer(*storage)?, path, b)?;
                     use_permission(&actual, exclusive, &current, loans, apart, b)?;
                 }
@@ -3155,10 +3394,18 @@ fn derive_cfg(
                 external_after: BTreeMap::new(),
                 apart: BTreeSet::new(),
                 complete: false,
+                returned_enum_variants: enum_address::Variants::default(),
+                enum_values: BTreeMap::new(),
                 returned_variants: option_address::Variants::default(),
                 none_values: BTreeSet::new(),
             };
             for (id, value) in values.iter().enumerate() {
+                if value.enum_variants.present() {
+                    value.enum_variants.work(b)?;
+                    actual
+                        .enum_values
+                        .insert(ValueId(id as u32), value.enum_variants.clone());
+                }
                 if value.option_variants.none() {
                     observed_none = true;
                     fee(b, actual.none_values.len().saturating_add(1))?;
@@ -3221,6 +3468,9 @@ fn derive_cfg(
                 }
                 if *live && let Terminator::Return(Some(id)) = block.terminator {
                     let value = &values[id.0 as usize];
+                    actual
+                        .returned_enum_variants
+                        .join(&value.enum_variants, b)?;
                     actual.returned_variants.join(&value.option_variants, b)?;
                     let mut add = |path: &Path, permission: &Permission| -> CompileResult<()> {
                         ordered(b, actual.returned.len(), path.len())?;
@@ -3275,8 +3525,27 @@ fn derive_cfg(
                 if matches!(ty, Type::Address { .. }) && value.pointer.targets.is_empty() {
                     grounded = false;
                 }
+                if b.stored_enum_addresses
+                    && matches!(ty, Type::ErrorUnion { .. })
+                    && enum_address::ordinary(module, ty, b)?
+                {
+                    if !value.enum_variants.grounded(ty, b)? {
+                        grounded = false;
+                    }
+                    for (path, _) in enum_address::slots(ty, b)? {
+                        if value.enum_variants.slot_active(&path)
+                            && value.slots.get(&path).is_none_or(|p| p.targets.is_empty())
+                        {
+                            grounded = false;
+                        }
+                    }
+                }
                 if let Some((_, life)) = carrier(ty) {
-                    if option_address::candidate(ty) {
+                    if enum_address::ordinary(module, ty, b)? {
+                        if !value.enum_variants.grounded(ty, b)? {
+                            grounded = false;
+                        }
+                    } else if option_address::candidate(ty) {
                         fee(b, 96)?;
                         if !option_address::signature(ty) {
                             return Err(failure("Option activity has no exact shape"));
@@ -3291,6 +3560,11 @@ fn derive_cfg(
                     }
                     fee(b, life.slots.len())?;
                     for slot in &life.slots {
+                        if value.enum_variants.present()
+                            && !value.enum_variants.slot_active(&slot.path)
+                        {
+                            continue;
+                        }
                         ordered(b, value.slots.len(), slot.path.len())?;
                         if value
                             .slots
@@ -3376,6 +3650,11 @@ fn derive_cfg(
             break;
         }
     }
+    if inactive.is_none()
+        && let Some(proof) = enum_address::refine(module, graphs, &summaries, b)?
+    {
+        return derive_cfg(module, &proof.graphs, Some(&proof.inactive), b);
+    }
     // Freeze only the original, fully converged graph facts. A second solve
     // receives no authority to trim another edge from its narrowed summaries.
     if !b.composition_stored.is_empty() && observed_none {
@@ -3400,6 +3679,7 @@ fn derive_cfg(
                 "stored/address producer has incomplete actual target facts",
             ));
         }
+        enum_address::projections(f, &graphs[index], facts, b)?;
         returns(module, f, facts, b)?;
         for (id, (ty, roots)) in f.values.iter().zip(&facts.values).enumerate() {
             fee(b, 1)?;
@@ -3411,7 +3691,11 @@ fn derive_cfg(
             }
             let needs_target = matches!(ty, Type::Address { .. })
                 || matches!(ty,Type::BorrowedStorage{life,..}if !life.slots.is_empty());
-            if needs_target && roots.is_empty() && !facts.none_values.contains(&ValueId(id as u32))
+            let empty_enum = facts.enum_values.get(&ValueId(id as u32)).is_some_and(|tags| !matches!(ty,Type::BorrowedStorage{life,..} if life.slots.iter().any(|s| tags.slot_active(&s.path))));
+            if needs_target
+                && roots.is_empty()
+                && !empty_enum
+                && !facts.none_values.contains(&ValueId(id as u32))
             {
                 return Err(failure(
                     "stored/address producer has no independently grounded actual origin",
@@ -3427,32 +3711,14 @@ pub(super) fn infer(
     graphs: &[(Vec<Vec<usize>>, Vec<bool>)],
     b: &mut Budget,
 ) -> CompileResult<Vec<Vec<ValueHold>>> {
-    // A qualified owning Package carries its resource ledger in the ordinary
-    // resource proof. The older Fixed-capture profile applies only when an
-    // actual qualified closure environment owns a captured resource.
-    fee(
-        b,
-        module
-            .life_instances
-            .len()
-            .saturating_add(module.closures.len()),
-    )?;
-    let mixed_package = module.life_instances.iter().any(|instance| {
-        matches!(&instance.ty, Type::BorrowedStorage { storage, .. }
-            if matches!(storage.as_ref(), Type::Package { .. }))
-    });
-    let fixed_owner = module.closures.iter().any(|closure| {
-        closure.storage_life.is_some()
-            && closure
-                .captures
-                .iter()
-                .any(|capture| matches!(capture, Type::Managed(_) | Type::Package { .. }))
-    });
-    b.stored_owned_fixed = if b.composition_stored.is_empty() && (!mixed_package || fixed_owner) {
-        owned::profile(module, b)?
-    } else {
-        false
-    };
+    // Raw paid inventories classify new owning holders and Fixed captures.
+    // Preserve the established Fixed profile without rescanning either table.
+    b.stored_owned_fixed =
+        if b.composition_stored.is_empty() && (!b.stored_packages || b.stored_fixed_owner) {
+            owned::profile(module, b)?
+        } else {
+            false
+        };
     super::stored_callables::definitions(module, b)?;
     let mut foreign_symbols = BTreeSet::new();
     for f in &module.functions {
@@ -3500,7 +3766,7 @@ pub(super) fn infer(
             .chain(std::iter::once(&f.return_type))
         {
             b.type_work(ty, true, "stored ordinary executable value profile")?;
-            let mixed_resource = if mixed_package {
+            let mixed_resource = if b.stored_packages {
                 fee(b, module.resources.len())?;
                 matches!(ty, Type::Managed(payload) | Type::Desc(payload)
                     if module.resources.iter().any(|definition| definition.payload == **payload))
@@ -3517,6 +3783,9 @@ pub(super) fn infer(
                 || ty.is_copy_value()
                 || b.stored_owned_fixed && owned::data(ty, b)?
                 || mixed_resource
+                || b.stored_enum_addresses
+                    && enum_address::signature(ty)
+                    && enum_address::ordinary(module, ty, b)?
                 || pure_inline(module, ty, b)?
                 || matches!(ty, Type::Address { inner, mutable: false } if pure_inline(module, inner, b)?))
             {
@@ -3608,10 +3877,17 @@ fn actual_instructions(
     for block in &f.blocks {
         for i in &block.instructions {
             fee(b, 1)?;
-            let owned_operation = b.stored_owned_fixed && owned::instruction(module, f, i, b)?;
+            let enum_operation = enum_address::instruction(module, f, i, b)?;
+            let owned_operation = (b.stored_owned_fixed
+                || matches!(i.kind, InstructionKind::ReadDesc { .. })
+                || matches!(i.kind, InstructionKind::MakeManaged { .. })
+                    && i.result.is_some_and(|id| matches!(f.values.get(id.0 as usize),
+                        Some(Type::Managed(payload)) if matches!(payload.as_ref(), Type::Record { .. }))))
+                && owned::instruction(module, f, i, b)?;
             if !super::class_flow::pointer_instruction(f, i)
                 && !super::stored_callables::instruction(module, f, i)
                 && !owned_operation
+                && !enum_operation
                 && !pure_copy::operation(&i.kind)
                 && !matches!(
                     &i.kind,
@@ -3634,8 +3910,15 @@ fn actual_instructions(
                         | InstructionKind::MakePackage { .. }
                         | InstructionKind::ByteBufferNew
                         | InstructionKind::ByteBufferPush { .. }
+                        | InstructionKind::ByteBufferReserve { .. }
+                        | InstructionKind::ByteBufferTruncate { .. }
                         | InstructionKind::DescribeAddress { .. }
+                        | InstructionKind::DescribeLocal { .. }
+                        | InstructionKind::DescribeCapture { .. }
                         | InstructionKind::DropPackage { .. }
+                        | InstructionKind::TakePackageField { .. }
+                        | InstructionKind::DropPackageField { .. }
+                        | InstructionKind::StorePackageField { .. }
                         | InstructionKind::DropManaged { .. }
                         | InstructionKind::TakeLocal { .. }
                         | InstructionKind::ExtractField { .. }
@@ -3693,7 +3976,25 @@ fn actual_instructions(
             if super::stored_callables::instruction(module, f, i) {
                 super::stored_callables::types(module, f, i, b)?;
             }
-            if pure_copy::operation(&i.kind) && option_address::types(module, f, i, b)?.is_none() {
+            if pure_copy::operation(&i.kind)
+                && enum_address::types(module, f, i, b)?.is_none()
+                && option_address::types(module, f, i, b)?.is_none()
+            {
+                // A qualified Enum claim cannot become an unsupported Copy
+                // operation merely by deleting its nominal instance inventory.
+                let claimed = match i.kind {
+                    InstructionKind::MakeVariant { .. } => {
+                        i.result.map(|v| value_type(f, v)).transpose()?
+                    }
+                    InstructionKind::ReadVariant { value, .. }
+                    | InstructionKind::VariantTag { value } => Some(value_type(f, value)?),
+                    _ => None,
+                };
+                if claimed.is_some_and(enum_address::candidate) {
+                    return Err(failure(
+                        "borrowed Enum operation has no authenticated complete nominal instance",
+                    ));
+                }
                 pure_copy::types(f, i, b)?;
             }
             match &i.kind {
@@ -3826,6 +4127,9 @@ fn actual_instructions(
                     if !child.is_copy_value()
                         && !pure_read(module, child, b)?
                         && !pure_inline(module, child, b)?
+                        && !(matches!(child, Type::BorrowedStorage { storage, .. }
+                            if matches!(storage.as_ref(), Type::Package { .. }))
+                            && physical(child, b)?)
                         && !matches!(child, Type::Managed(payload)
                             if module.resources.iter().any(|definition| definition.payload == **payload))
                     {
@@ -3942,6 +4246,38 @@ fn actual_instructions(
                         if value_type(f, *v)? != expected {
                             return Err(failure("constructed field differs from actual full type"));
                         }
+                    }
+                }
+                InstructionKind::TakePackageField { local, index }
+                | InstructionKind::DropPackageField { local, index }
+                | InstructionKind::StorePackageField { local, index, .. } => {
+                    let parent = &f
+                        .locals
+                        .get(local.0 as usize)
+                        .ok_or_else(|| failure("package field local is absent"))?
+                        .ty;
+                    let parent = carrier(parent).map_or(parent, |(storage, _)| storage);
+                    let Type::Package { fields, .. } = parent else {
+                        return Err(failure("package field operation lacks actual shell"));
+                    };
+                    let field = &fields
+                        .get(*index as usize)
+                        .ok_or_else(|| failure("package field index is absent"))?
+                        .1;
+                    b.type_work(field, true, "package field operation actual child")?;
+                    match &i.kind {
+                        InstructionKind::TakePackageField { .. } => result(field, b)?,
+                        InstructionKind::StorePackageField { value, .. } => {
+                            if i.result.is_some() || value_type(f, *value)? != field {
+                                return Err(failure(
+                                    "stored Package field differs from its complete child type",
+                                ));
+                            }
+                        }
+                        InstructionKind::DropPackageField { .. } if i.result.is_some() => {
+                            return Err(failure("Package field drop fabricates a result"));
+                        }
+                        _ => {}
                     }
                 }
                 InstructionKind::Call {

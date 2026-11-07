@@ -1043,7 +1043,11 @@ comptime 执行有逻辑配额和显式输入，不从未完成安全查询反�
 
 `T?` 是 Option；`E!T` 是错误联合；表达式后缀 `?` 只沿实际错误出口传播。数组类型 `[T; N]`、切片类型 `[T]`、数组值 `[a, b]`、索引 `a[i]`、半开范围 `a[lo..hi]` 各按上下文唯一解析。`&[T]`/`&mut [T]` 是地址窗口。`a ? b : c` 不属于语法，使用 `if` 表达式。`a[]` 非法，完整切片写 `a[..]`；区间端点采用非区间表达式，复杂比较或逻辑端点须用括号。`if/while/for/match/with` 的控制头在顶层遇到 `{` 即开始主体；头部需要结构构造字面量时写成 `(Node { ... })`，不得依赖类型查询判断大括号归属。
 
-共享借入 Option：实际 `Option<&'s T>` 保留原 Address 类型实参和普通 Enum 表示；该实参的来源类0通过 `TypeArgument(0)` 的 `StorageRetainedBinding` 映射到外层 binder0，真实载荷槽为 `Variant(1,0)` 的 SharedAddress，二者必须一致。首片仅开放编译器内建 Option 的完整身份、唯一 Type 形式参数、`None()`/`Some(actual)` 顺序、唯一共享地址实参、一个 binder、上述唯一保留关系及物理槽，并要求无额外 nominal_arguments。内建身份为 `{module:u32::MAX,declaration:0,compiler:true}` 与 `@zil.builtin/[option]/[enum,Option]/[]`；仅同名或同型字段不足以建立关系。Types、Analyze、Verify 分别检查实际形状及关系；两核从真实 Some 构造、活动臂读取和调用流重建被借目标，None 不制造目标。此关系不授予权限或延长局部存储期，可变地址及普通用户名义类型的直接地址实参仍须完整的形式参数物理出现关系消费者。
+共享借入 Option：实际 `Option<&'s T>` 保留原 Address 类型实参和普通 Enum 表示；该实参的来源类0通过 `TypeArgument(0)` 的 `StorageRetainedBinding` 映射到外层 binder0，真实载荷槽为 `Variant(1,0)` 的 SharedAddress，二者必须一致。首片仅开放编译器内建 Option 的完整身份、唯一 Type 形式参数、`None()`/`Some(actual)` 顺序、唯一共享地址实参、一个 binder、上述唯一保留关系及物理槽，并要求无额外 nominal_arguments。内建身份为 `{module:u32::MAX,declaration:0,compiler:true}` 与 `@zil.builtin/[option]/[enum,Option]/[]`；仅同名或同型字段不足以建立关系。Types、Analyze、Verify 分别检查实际形状及关系；两核从真实 Some 构造、活动臂读取和调用流重建被借目标，None 不制造目标。此关系不授予权限或延长局部存储期，可变地址仍须完整的独占失效消费者。
+
+普通名义 Enum 的共享借入载荷：Source 保留原声明身份、完整有序泛型实参、每个实际共享 Address 的 `Variant(variant,field)` 槽和固定来源类。直接 Address 类型实参的类0通过其真实 `TypeArgument(ordinal)` 保留行映射，显式 life 形式参数通过原名义参数行映射；两者不能因物理地址类型相同或 binder 数字相同互换实际来源。Types、Analyze、Verify 分别核查唯一完整实例、原声明种类和形式参数序、物理槽完整覆盖、共享模式、规范类编号及全部实参关系。公开 TypedIR 的完整实例和槽/类关系是待核声明语义，不含原 AST 字段配方；物理同型叶加 TypeArgument 行只证明该完整实例的关系自洽，不证明某物理叶来自哪一个已擦除的源形式参数。Source 生产者仍按原声明和实际替换生成忠实关系。
+
+每个实际 Enum 值单独携带可能 tag 集合和逐活动槽的真实权限。空变体不制造借用；构造从实际字段取得目标和父 loan；投影必须由可达 CFG 判别证明所选 tag 活动。分支汇合不要求所有互斥变体的槽同时初始化，未知或无构造依据的递归结果不能充当空变体。共享复制保留被借目标和真实父链；普通局部存储、移动、跨模块 helper 参数/结果、返回和 `ErrorUnion` 的 `ErrorArm` 包装/`?` 传播保留完整形状及实际来源。每个返回槽的真实参数来源必须满足自身声明的来源上界，局部地址不得逃逸，具有同一 life 的不同实际根也不因此混同。首片机器消费者支持直接共享薄地址叶及有限 Copy 伴随载荷；嵌套借入聚合载荷、独占叶和借入片载荷的机器消费仍须各自闭合。普通 Enum 不取得内建 Option 或标准 Poll 身份；Poll/Task 的结果来源转移还需实际标准声明及其独立消费者。
 
 借用模式：`ref`/`ref mut`必须取得实际活动位置的地址，不能复制载荷到临时值后声称借到原值。Enum路径保存每层活动variant和实际field投影；取地址时及独立核沿控制流验证活动tag、初始化和父loan。有效窗口阻止相交移动、替换、tag失效或不合法可变别名；同一活动payload真正不相交字段可按真实投影证明分离。嵌套/聚合可变借用在完整失效模型和机器表示完成前不得放行，模式表示存在不等于完成。
 
@@ -1354,6 +1358,8 @@ fn measured<T: Measure>(value: &T) -> usize {
 }
 ```
 
+私有宿主实现公开trait，不把该宿主的普通成员目录公开给外部模块。泛型正文凭已声明并证明的真实trait bound调用其方法时，特化可取得对应trait/provider的独立内部静态目标；该调用资格不授予外部对私有宿主直接成员访问，也不公开无关inherent成员。目标依据完整实际声明和bound调用身份选取，不能从同名方法、生成名或源位置猜测资格。宿主模块内的既有普通调用和资源清理仍保持原语义。
+
 匹配 impl 头只找到候选配方，全部前提满足后才发布证据。候选关联等式不得证明自身前提。泛型正文使用独立已有 bound 支持的符号投影；不要求为常见迭代器组合写手工字典。名义字段递归在声明身份停止；实际关联展开环错误，非重复增长按确定配额停止。
 
 普通关联类型的 impl 等式可显式列出额外 bound。trait 声明的 bound 与 impl 自身断言分别在各自词法 binder 中代换，并在 impl 定义期由真实符号前提证明；同拼写的 trait 参数与 impl 参数不得混同。未使用实现同样检查，不能等具体调用补证。impl 额外断言不扩大泛型调用者从 trait 声明获得的权限。模块正规化保留 bound 的真实声明身份；新扫描、代换及证明继续预付当前请求预算。该有限规则不自动开放泛型关联类型或新的 impl life/const 参数。
@@ -1367,6 +1373,8 @@ lending 使用 `<life a>` 和 `&'a T`，每次调用绑定与环境固定依赖�
 普通trait逐调用lending方法（trait shared lending）：在静态名义trait中，方法可声明仅含life的局部binder，以真实共享或可变接收者和既有地址输入约束直接共享地址或内建Option共享地址结果；referent须为既有Copy类型或声明Copy的普通关联类型。每次调用按实际参数重新实例化来源，方法局部life不与环境固定依赖或其他声明同名life合并。impl可按序alpha改名，但完整参数/结果关系、接收者模式、关联替换、trait/provider身份、所属及可见性必须一致。未调用定义及符号泛型消费者仍核定义期义务，不能由一次具体实例补证。结果从可变接收者借出时保留真实父loan直到最后使用；相交再次调用、移动和覆盖拒绝，最后使用后及不同真实根仍许可。Types记录关系，Analyze与Verify各自从完整实际CFG核验允许来源及调用窗口；复用已有StorageLifeContract及内建Option资格，不以标注授予来源。有限入口包括普通无类型参数trait、具体名义impl和既有仅type参数名义impl，不因此开放GAT、trait/impl life参数、新默认体权限、可变或fat Option载荷、dyn及异步。新增身份/关系比较、替换、克隆和队列在增长前预付当前请求，既有无此路径费用及默认额度保持。
 
 有限普通类型与life参数组合：普通自由Direct函数可在同一binder中声明一个直接`T:Copy`普通类型参数与若干life参数，次序任意。普通类型实参仅计T，`::<i32>`与实际参数推导等价；具体化只替换T，保留函数自己的life binder及真实参数/返回映射。未使用模板先按声明Copy资格和life来源上界符号检查，不能靠i32等实例补证明；调用处life关系按真实输入位置代换，不把跨函数同拼写标签当作相同对象或关系。type与life词法作用域分别维护，life名字不遮蔽外部类型/别名。实例化、模块、CT重建、接口及缓存保留显式life来源合同并继续两核独立CFG核验；合法无life路径保持既有推导语义。首片不开放混合F/StoreElement/const、泛型方法、HRTB/FP、where life/storage或其它新trait lending权限；新增遍历、映射与克隆先费后长且累计现有请求限额。
+
+普通trait的具体标量与枚举宿主：`void`、`bool`、八种既有数值标量可实现普通用户trait；标量没有用户定义的外层名义Self，故该有限入口要求impl属于真实trait声明模块。具体非泛型Enum可在实际声明模块实现普通trait，其Self在定义检查时代换为完整Enum身份，变体模式据真实声明解析。接收者沿已有按值、共享或可变参数模式，默认方法、普通泛型库和未用定义继续核完整trait前提；标量本身可Copy不使符号`T:Trait`获得Copy。跨模块静态目标包含完整trait实例身份并恢复实际provider导入，同拼写trait或同型标量不能合并目标。标量调用在有界Source正规化中显式形成接收者实参及普通函数调用；Enum沿真实名义owner解析方法。两者仍由Types及独立Analyze/Verify核参数类型、真实借入、窗口和责任，不产生新的运行时字典或公共IR权限。新增实例索引、代换、调用重写和provider恢复使用当前请求剩余额度；一般blanket、条件重叠选择和其它未贯通impl组合继续按各自合同处理。
 
 有限具体泛型 trait 实例：在已有静态名义trait范围，trait可声明有限普通类型参数，其具体有序实参、定义模块及真实Self共同确定impl身份。首片为具体本地非泛型Self的完整impl和普通泛型函数inline/where bound消费；trait参数的直接Copy前提须在未用定义与实际实例分别核验，未声明的嵌套义务不能等i32特化补证。无调用定义、所有方法签名及Self/参数替换同样完整检查。相同Self的不同trait实参不构成重复impl；bound已选定的实例可定位其独立静态方法目标，直接方法调用有多个候选时在调用处诊断歧义，不把不同实例合并成同名方法。模块/名义/phantom完整身份、所属、可见性、预算和既有保留Copy/Transfer/Share等边界保持；泛型impl、impl where、关联项、默认/泛型方法和supertrait尚不由此profile开放。
 
@@ -1456,7 +1464,7 @@ CT6 的 artifact/program/provider/dependency/function/value 版本域和专用�
 
 模块卫生改名不得将Send、Sync、Drop、Fn族等既有保留trait声明变为用户名义trait。对模块阶段实际生成的`$module<十进制编号>_`前缀，仅为保留名排除识别其原声明名；真正名义匹配仍使用完整规范身份，不能按末段制造相等。该排除同时覆盖既有inline和where名义入口，非模块名字及其它用户拼写不按任意下划线拆分。模块卫生与保留名的具体约束见 `spec/reserved-module-trait-names.md`；合法实例与最近反例必须保持独立覆盖。
 
-跨模块普通trait实现实施边界：当前项目实际解析并导入的公开、无类型实参、无supertrait及无关联项普通trait，可在另一个模块为该模块定义的具体非泛型Struct或已支持用户资源Self提供实现。Self归属以真实声明为准，不开放外来Self或泛型impl。接收者从真实trait签名继承，或显式提供等价的既有Self/共享/独占形式；资源Self仍只准入原共享接收者。方法沿既有有限签名，无方法泛型、where、默认体或新增关联项。导出方法须同时满足本地Self公开及trait真实公开；私有访问、同名身份混淆、重复impl、字段/inherent碰撞及签名不符继续拒绝，inline/where消费同一名义关系。保留trait排除同样适用于不经过泛型bound的普通声明/impl路径。复用现有Core/Typed表示和静态调用，不新增运行时字典、schema、隐式权限或默认额度；新索引与解析工作先收费。
+跨模块普通trait实现实施边界：当前项目实际解析并导入的公开、无类型实参、无supertrait及无关联项普通trait，可在另一个模块为该模块定义的具体非泛型Struct、Enum或已支持用户资源Self提供实现；标量实现由实际trait声明模块提供。名义Self归属以真实声明为准，不开放外来Self或泛型impl。接收者从真实trait签名继承，或显式提供等价的既有Self/共享/独占形式；资源Self仍只准入原共享接收者。方法沿既有有限签名，无方法泛型、where、默认体或新增关联项。公开trait的实际实现可为已核泛型消费者提供内部调用目标，该目标不公开Self声明、字段或无关私有成员；私有访问、同名身份混淆、重复impl、字段/inherent碰撞及签名不符继续拒绝，inline/where消费同一名义关系。保留trait排除同样适用于不经过泛型bound的普通声明/impl路径。复用现有Core/Typed表示和静态调用，不新增运行时字典、schema、隐式权限或默认额度；新索引与解析工作先收费。
 
 该有限profile允许同步helper含唯一callable类型F与唯一直接`T:Copy`参数，声明次序任意；F仍仅有一个既定F/&F/&mut F环境实参。普通实参或明确结果上下文确定T后，先按规范化实际T生成独立模板并完整代入正文、参数、结果及F bound，再保留唯一F进入既有具体环境实例化。实例身份必须包含模板声明和完整实际T，即使T不在F签名中也不可省略；同布局不同名义类型不能合并，透明别名按同一实际类型归一。每个独立声明沿正常lowering取得新Core节点身份，不能把多个T共用未特化模板或靠布局猜类型。嵌套helper按代入后的符号签名和真实普通参数bound检查；仅本片不开放多环境角色、F/G双callable、State<T,F>混合拥有形状或单环境混合调用模式。公开单环境合同、独立Analyze/Verify、当前调用权限及清理义务保持；具体准入完成状态以194精确冻结和非作者验收为准。
 

@@ -27,14 +27,15 @@ impl<'a> Engine<'a> {
                 .traits
                 .pattern_reference(application, &mut self.budget)?;
             let (trait_item, declaration) = self.traits.declaration_item(&reference);
-            let host = trait_instances::head(&implementation.target)
-                .and_then(|name| self.nominals.get(name));
-            let Some(host) = host else {
+            let host_name = trait_instances::head(&implementation.target);
+            let host = host_name.and_then(|name| self.nominals.get(name));
+            let scalar = host_name.is_some_and(super::super::static_traits::scalar_self);
+            if host.is_none() && !scalar {
                 return Err(error(
                     item.span,
-                    "impl Self needs an outer nominal declaration",
+                    "impl Self needs an outer nominal declaration or an ordinary scalar",
                 ));
-            };
+            }
             let foreign = if self.origins.is_some() {
                 let owner = self
                     .traits
@@ -42,21 +43,26 @@ impl<'a> Engine<'a> {
                     .expect("ledger")
                     .declaration
                     .module;
-                self.traits
+                let trait_owner = self
+                    .traits
                     .origin(trait_item, &mut self.budget)?
                     .expect("ledger")
                     .declaration
-                    .module
-                    != owner
-                    && self
-                        .traits
-                        .origin(host, &mut self.budget)?
-                        .expect("ledger")
-                        .declaration
-                        .module
-                        != owner
+                    .module;
+                trait_owner != owner
+                    && if let Some(host) = host {
+                        self.traits
+                            .origin(host, &mut self.budget)?
+                            .expect("ledger")
+                            .declaration
+                            .module
+                            != owner
+                    } else {
+                        true
+                    }
             } else {
-                trait_item.span.file != item.span.file && host.span.file != item.span.file
+                trait_item.span.file != item.span.file
+                    && host.is_none_or(|host| host.span.file != item.span.file)
             };
             if foreign {
                 return Err(error(
@@ -269,11 +275,11 @@ impl<'a> Engine<'a> {
             } else {
                 BTreeMap::new()
             };
-            let declared_arity = match &host.kind {
+            let declared_arity = host.map_or(0, |host| match &host.kind {
                 ItemKind::Aggregate(a) => a.generics.len(),
                 ItemKind::Enum(e) => e.generics.len(),
                 _ => unreachable!(),
-            };
+            });
             let TypeKind::Named { args, .. } = &grouped(&implementation.target).kind else {
                 unreachable!()
             };
@@ -757,8 +763,14 @@ impl<'a> Engine<'a> {
                 let ItemKind::Function(function) = &member.kind else {
                     continue;
                 };
-                if trait_instances::method_name(reference, &function.name, &mut self.budget, span)?
-                    != target
+                if trait_instances::method_name_with(
+                    reference,
+                    &function.name,
+                    trait_instances::head(actual)
+                        .is_some_and(super::super::static_traits::scalar_self),
+                    &mut self.budget,
+                    span,
+                )? != target
                 {
                     continue;
                 }

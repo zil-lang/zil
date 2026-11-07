@@ -183,7 +183,7 @@ pub(super) fn transfer(
 
 // Iteratively reconstruct exactly the ordinary data domain. Code, dyn, owning,
 // nested address and qualified classes are not borrowed through this profile.
-fn closed_pointee(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
+pub(super) fn closed_pointee(ty: &Type, limits: &Limits, b: &mut Budget) -> Check<bool> {
     b.spend(1)?;
     let mut todo = vec![(ty, 0usize)];
     while let Some((ty, depth)) = todo.pop() {

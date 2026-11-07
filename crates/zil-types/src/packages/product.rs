@@ -4,8 +4,8 @@ use super::*;
 use std::collections::BTreeSet;
 
 pub(crate) fn nested(ty: &Type) -> bool {
-    matches!(ty, Type::Package { fields, .. }
-        if fields.iter().any(|(_, field)| matches!(field, Type::Package { .. })))
+    matches!(crate::stored::physical(ty), Type::Package { fields, .. }
+        if fields.iter().any(|(_, field)| matches!(crate::stored::physical(field), Type::Package { .. })))
 }
 
 // Callers already bound and reserve the complete input type tree. This walk
@@ -21,23 +21,28 @@ pub(crate) fn owned_supported(ty: &Type) -> bool {
 }
 
 fn shape(ty: &Type, stores: bool) -> bool {
-    let Type::Package { name, fields } = ty else {
+    let qualified = matches!(ty, Type::BorrowedStorage { .. });
+    let Type::Package { name, fields } = crate::stored::physical(ty) else {
         return false;
     };
     !name.is_empty()
-        && fields
-            .iter()
-            .any(|(_, field)| matches!(field, Type::Managed(_) | Type::Package { .. }))
-        && fields.iter().all(|(name, field)| {
-            !name.is_empty()
-                && (field.is_copy_value()
-                    || matches!(field, Type::Managed(payload)
+        && fields.iter().any(|(_, field)| {
+            matches!(
+                crate::stored::physical(field),
+                Type::Managed(_) | Type::Package { .. }
+            )
+        }) && fields.iter().all(|(name, field)| {
+        !name.is_empty()
+            && (field.is_copy_value()
+                || (qualified
+                    && matches!(field, Type::Address { inner, .. } if inner.is_address_pointee()))
+                || matches!(field, Type::Managed(payload)
                         if (stores && dynamic_store::is_carrier(field))
                             || **payload == Type::ByteBuffer
                             || (matches!(payload.as_ref(), Type::Record { .. })
                                 && payload.is_copy_value()))
-                    || shape(field, stores))
-        })
+                || shape(field, stores))
+    })
 }
 
 pub(crate) fn validate(ty: &Type, remaining: &mut usize, depth_limit: usize, span: Span) -> R<()> {
@@ -81,7 +86,7 @@ fn validate_shape(
         ));
     }
     fn names(ty: &Type, remaining: &mut usize, span: Span) -> R<()> {
-        let Type::Package { fields, .. } = ty else {
+        let Type::Package { fields, .. } = crate::stored::physical(ty) else {
             return Ok(());
         };
         let work = fields.iter().fold(fields.len(), |work, (name, _)| {

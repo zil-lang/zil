@@ -5,6 +5,8 @@ mod shared_dynamic_dispatch_consumers;
 mod static_associated_method_consumers;
 #[path = "../../../tests/language-readiness/borrowed-interface-flow/consumers.rs"]
 mod trait_shared_lending_consumers;
+#[path = "../../../tests/language-readiness/trait-value-hosts/consumers.rs"]
+mod trait_value_hosts;
 use std::{
     collections::BTreeMap,
     fs,
@@ -1790,6 +1792,8 @@ fn borrowed_generic_package_store_fields_keep_actual_read_write_permissions() {
         "let slot=store_at_mut(map.keys,0);*slot=value",
         "store_push(map.keys,value)",
         "store_reserve(map.keys,1)",
+        "let alias=map;store_push(alias.keys,value)",
+        "store_push((*map).keys,value)",
     ] {
         let invalid = format!(
             "package Map<K:Copy+StoreElement,V:Copy+StoreElement>{{manages keys:Store<K>;manages values:Store<V>}}\

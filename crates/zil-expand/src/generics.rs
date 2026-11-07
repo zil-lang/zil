@@ -235,7 +235,7 @@ fn specialize_products_prepared<'a>(
         names_budget.node(item.span, 0).map_err(|e| vec![e])?;
         has_where |= matches!(&item.kind, ItemKind::Function(f) if !f.where_clause.is_empty());
         has_alias |= matches!(item.kind, ItemKind::TypeAlias(_));
-        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none()));
+        has_impl_recipes |= matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_some() && (!i.generics.is_empty() || !i.where_clause.is_empty() || trait_bounds::plain(&i.target).is_none() || trait_instances::head(&i.target).is_some_and(super::static_traits::scalar_self)));
         if matches!(&item.kind, ItemKind::Impl(i) if i.trait_type.is_none() && !i.generics.is_empty())
         {
             has_impl_recipes = true;
@@ -544,6 +544,7 @@ struct Engine<'a> {
     // Concrete source field layouts for stored physical records. Hints only;
     // storage classes and actual permissions live in the independent catalog.
     stored_record_fields: BTreeMap<String, Vec<(String, TypeRef)>>,
+    stored_enum_layouts: BTreeMap<String, (String, Vec<(String, Vec<TypeRef>)>)>,
     stored_nominals: bool,
     pattern_types: &'a BTreeMap<String, TypeRef>,
     templates: BTreeMap<String, &'a Item>,
@@ -656,6 +657,7 @@ impl<'a> Engine<'a> {
             next_nominal_capture: 0,
             nominal_source_actuals: BTreeMap::new(),
             stored_record_fields: BTreeMap::new(),
+            stored_enum_layouts: BTreeMap::new(),
             stored_nominals: budget.has_stored_lifetimes(),
             pattern_types,
             traits,
@@ -970,6 +972,69 @@ impl<'a> Engine<'a> {
                 let bounds = engine
                     .traits
                     .parameter_bounds(&a.generics, &mut engine.budget)?;
+                // Ordinary nominal bounds prove members, not a field's Copy
+                // layout or its owning cleanup. This finite record profile
+                // needs that layout proof even when no instance is requested.
+                let nominal_fields = bounds
+                    .values()
+                    .flatten()
+                    .any(|bound| matches!(bound, trait_bounds::Bound::Nominal(_)));
+                if a.kind == AggregateKind::Struct && nominal_fields {
+                    for field in &a.fields {
+                        if let Err(diagnostic) = copy::require(
+                            &field.ty,
+                            &engine.nominals,
+                            &bounds,
+                            &variables,
+                            &mut engine.budget,
+                        ) {
+                            if diagnostic.category == zil_base::ResultCategory::ResourceLimit {
+                                return Err(diagnostic);
+                            }
+                            return Err(unsupported(
+                                field.span,
+                                "generic nominal-bound record needs a complete Copy field layout; general owning fields require their Value cleanup profile",
+                            ));
+                        }
+                    }
+                }
+                // A Copy-only Package has no owning leaf in the current
+                // Product profile. An unused template cannot erase that
+                // definition requirement before Types sees a declaration.
+                let constrained_package = a.kind == AggregateKind::Package
+                    && bounds.values().flatten().any(|bound| {
+                        matches!(
+                            bound,
+                            trait_bounds::Bound::Copy | trait_bounds::Bound::Nominal(_)
+                        )
+                    });
+                if constrained_package && !a.fields.iter().any(|field| field.manages) {
+                    let mut copy_only = true;
+                    for field in &a.fields {
+                        match copy::require(
+                            &field.ty,
+                            &engine.nominals,
+                            &bounds,
+                            &variables,
+                            &mut engine.budget,
+                        ) {
+                            Ok(()) => {}
+                            Err(diagnostic)
+                                if diagnostic.category
+                                    == zil_base::ResultCategory::ResourceLimit =>
+                            {
+                                return Err(diagnostic);
+                            }
+                            Err(_) => copy_only = false,
+                        }
+                    }
+                    if copy_only {
+                        return Err(unsupported(
+                            item.span,
+                            "generic Package requires a manages field or complete owning child in the current Product profile",
+                        ));
+                    }
+                }
                 for field in &a.fields {
                     if field.manages
                         && stores::element(&field.ty).is_none()
@@ -1974,7 +2039,13 @@ impl<'a> Engine<'a> {
             }
             ItemKind::Impl(i) if i.generics.is_empty() => {
                 self.complete_trait_defaults(i, item.span)?;
-                let source_target = if self.traits.has_associated
+                // Concrete scalar/enum Self is needed while checking the
+                // ordinary body (including enum patterns), before Core lowers
+                // receivers. No new premise is inferred from the host's shape.
+                let concrete_value_host = trait_instances::head(&i.target).is_some_and(|host| {
+                    super::static_traits::scalar_self(host) || self.enums.contains_key(host)
+                });
+                let source_target = if (self.traits.has_associated || concrete_value_host)
                     && !i
                         .trait_type
                         .as_ref()

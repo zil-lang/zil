@@ -1194,6 +1194,7 @@ impl Resolver<'_> {
                             // resolved_inventory checks the complete layout.
                             .is_some_and(|instance| {
                                 stored::option_address_payload(instance, field)
+                                    || stored::enum_address_payload(instance, field)
                             })
                         || (stored_instance.is_some()
                             && stored::pure_inline(
@@ -1303,7 +1304,7 @@ impl Resolver<'_> {
                         && packages::array_field_supported(&ty))
                     || (d.kind == AggregateKind::Package
                         && !f.manages
-                        && matches!(ty, Type::Package { .. })
+                        && matches!(stored::physical(&ty), Type::Package { .. })
                         && packages::product::owned_supported(&ty))
                     || (d.kind == AggregateKind::Package
                         && f.manages
@@ -2213,6 +2214,7 @@ pub(super) fn resolve_type_method<'a>(
         {
             resolve_method(name, member, local, imports)
         }
+        Type::Enum { name, .. } => resolve_method(name, member, local, imports),
         Type::ByteBuffer => local
             .get(&format!("ByteBuffer.{member}"))
             .filter(|s| s.receiver.is_some() && !s.cleanup),

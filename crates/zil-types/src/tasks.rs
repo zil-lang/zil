@@ -295,7 +295,8 @@ pub(super) fn add_definition(
     definitions: &mut Vec<ResourceDefinition>,
     left: &mut usize,
     limits: &Limits,
-) -> R<()> {
+) -> R<bool> {
+    let mut has_mutex = false;
     let mut pending = Vec::new();
     for f in functions {
         let n = f
@@ -314,6 +315,8 @@ pub(super) fn add_definition(
         );
     }
     while let Some(ty) = pending.pop() {
+        // Reuse the paid complete-type inventory; this flag grants no permission.
+        has_mutex |= matches!(ty, Type::Mutex { .. } | Type::MutexGuard { .. });
         if let Type::Managed(p) | Type::Desc(p) = ty
             && let Some(payload) = payload(p)
         {
@@ -403,7 +406,7 @@ pub(super) fn add_definition(
         }
         pending.extend(children);
     }
-    Ok(())
+    Ok(has_mutex)
 }
 impl Builder<'_, '_> {
     pub(super) fn task_call(

@@ -2,6 +2,7 @@
 //! reconstructed independently by Analyze and Verify, never by these checks.
 use super::*;
 
+mod enum_address;
 mod nominal;
 mod option_address;
 mod retained;
@@ -475,7 +476,7 @@ pub(super) fn shared_value(ty: &Type) -> bool {
     // Do not recursively repeat that qualification without debiting work at
     // every expression lookup. This private dispatch tag grants no raw Copy
     // capability; both kernels reconstruct the actual targets independently.
-    matches!(ty, Type::BorrowedStorage { .. })
+    matches!(ty, Type::BorrowedStorage { .. }) || enum_address::sum_value(ty)
 }
 
 /// Builder sees only Resolver output whose complete nominal inventory was
@@ -487,7 +488,10 @@ pub(super) fn option_address_value(
     limits: &Limits,
     span: Span,
 ) -> R<bool> {
-    option_address::shape(ty, left, limits.max_call_depth, span, false)
+    if option_address::shape(ty, left, limits.max_call_depth, span, false)? {
+        return Ok(true);
+    }
+    enum_address::shape(ty, left, limits.max_call_depth, span)
 }
 
 /// Narrow value-only qualification for an actual nested stored field. This
@@ -540,6 +544,16 @@ pub(super) fn pure_inline(ty: &Type, left: &mut usize, limits: &Limits, span: Sp
     }
     retained::expected(ty, limits.max_call_depth, span, left)?;
     Ok(true)
+}
+
+pub(super) fn enum_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
+    !instance.declaration.compiler
+        && enum_address::candidate(&instance.ty)
+        && matches!(ty, Type::Address { mutable: false, .. })
+}
+
+pub(super) fn sum_value(ty: &Type) -> bool {
+    enum_address::sum_value(ty)
 }
 
 pub(super) fn option_address_payload(instance: &LifeNominalInstance, ty: &Type) -> bool {
@@ -604,12 +618,14 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
     if option_address::shape(ty, left, depth_limit, span, false)? {
         return Ok(());
     }
+    if enum_address::shape(ty, left, depth_limit, span)? {
+        return Ok(());
+    }
     if !matches!(
         storage.as_ref(),
         Type::Record { .. } | Type::Package { .. } | Type::Enum { .. }
-    ) || (!life.retained.is_empty() && !life.slots.is_empty())
-        || (matches!(storage.as_ref(), Type::Enum { .. })
-            && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
+    ) || (matches!(storage.as_ref(), Type::Enum { .. })
+        && (!life.slots.is_empty() || !retained::pure(storage, span, left)?))
     {
         return Err(unsupported(
             span,
@@ -620,7 +636,11 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         left: &'a mut usize,
         limit: usize,
         span: Span,
-        slots: Vec<(Vec<PlaceProjection>, StoredBorrowMode)>,
+        slots: Vec<(
+            Vec<PlaceProjection>,
+            StoredBorrowMode,
+            Option<(Vec<LifeTypeProjection>, u32)>,
+        )>,
         owning: bool,
         owned_leaves: usize,
     }
@@ -654,6 +674,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                         } else {
                             StoredBorrowMode::SharedAddress
                         },
+                        None,
                     ));
                 }
                 Type::Record { name, fields } | Type::Package { name, fields } => {
@@ -726,12 +747,41 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                     // Element is a type-class path, never a physical slot.
                     self.ty(element, path, depth + 1)?;
                 }
-                Type::BorrowedStorage { .. } => {
-                    if !retained::pure(ty, self.span, self.left)? {
-                        return Err(unsupported(
-                            self.span,
-                            "retained physical leaf needs a real borrowing consumer",
-                        ));
+                Type::BorrowedStorage { storage, life } => {
+                    if !self.owning || !matches!(storage.as_ref(), Type::Package { .. }) {
+                        if !retained::pure(ty, self.span, self.left)? {
+                            return Err(unsupported(
+                                self.span,
+                                "nested qualified storage needs an owning Package child",
+                            ));
+                        }
+                        return Ok(());
+                    }
+                    shape(ty, self.left, self.limit, self.span)?;
+                    let start = self.slots.len();
+                    let prefix = path.len();
+                    self.ty(storage, path, depth + 1)?;
+                    let boundary: Vec<_> = path
+                        .iter()
+                        .copied()
+                        .map(LifeTypeProjection::Place)
+                        .collect();
+                    for (actual, _, class) in &mut self.slots[start..] {
+                        let relative = actual.get(prefix..).ok_or_else(|| {
+                            error(
+                                "E-STORED-TYPE",
+                                self.span,
+                                "nested slot lost its physical prefix",
+                            )
+                        })?;
+                        let child = life
+                            .slots
+                            .iter()
+                            .find(|slot| slot.path == relative)
+                            .ok_or_else(|| {
+                                error("E-STORED-TYPE", self.span, "nested slot has no child class")
+                            })?;
+                        *class = Some((boundary.clone(), child.binder));
                     }
                 }
                 Type::Managed(_) if self.owning => {
@@ -803,7 +853,7 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
         }
         classes.insert(row.binder);
     }
-    for ((path, mode), slot) in walk.slots.iter().zip(&life.slots) {
+    for ((path, mode, child_class), slot) in walk.slots.iter().zip(&life.slots) {
         fee(
             walk.left,
             path.len()
@@ -819,10 +869,25 @@ pub(super) fn shape(ty: &Type, left: &mut usize, depth_limit: usize, span: Span)
                 "stored slot differs from actual physical leaf",
             ));
         }
+        if let Some((boundary, class)) = child_class {
+            let mapped = life
+                .retained
+                .iter()
+                .find(|row| &row.path == boundary && row.class == *class);
+            if !mapped.is_some_and(|row| row.binder == slot.binder) {
+                return Err(error(
+                    "E-STORED-TYPE",
+                    span,
+                    "nested stored slot binder differs from the retained child class map",
+                ));
+            }
+        }
         if *mode == StoredBorrowMode::ExclusiveAddress
-            && (!life.retained.is_empty()
-                || !matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. })
-                || !matches!(path.as_slice(), [PlaceProjection::Field(_)]))
+            && (!matches!(storage.as_ref(), Type::Record { .. } | Type::Package { .. })
+                || !path
+                    .iter()
+                    .all(|part| matches!(part, PlaceProjection::Field(_)))
+                || (child_class.is_none() && path.len() != 1))
         {
             return Err(unsupported(
                 span,

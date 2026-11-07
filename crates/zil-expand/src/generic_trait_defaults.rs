@@ -436,11 +436,14 @@ impl Engine<'_> {
             let mut body = member.clone();
             substitute_item(&mut body, &substitutions)?;
             let calls = self.check_default(declaration, &body, &reference, false)?;
-            trait_instances::rewrite_calls(&mut body, &calls, &BTreeMap::new(), &mut self.budget)?;
             self.budget.text("Self", span)?;
             self.budget.ty(&implementation.target)?;
             substitutions.clear();
             substitutions.insert("Self".into(), implementation.target.clone());
+            // Receiver-sensitive targets need the real implementation host
+            // while selecting their internal callable. A symbolic Self cannot
+            // choose a scalar target or a private nominal provider alias.
+            trait_instances::rewrite_calls(&mut body, &calls, &substitutions, &mut self.budget)?;
             let anchors = if self.traits.has_generic_methods {
                 let resolved = trait_instances::resolve_generic_calls(
                     &calls,

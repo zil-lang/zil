@@ -2829,7 +2829,11 @@ impl Check<'_, '_, '_> {
         };
         let static_method = selected_reference.is_some();
         let mut method_origin = self.budget.context.origin;
-        if static_method || method.name != name || !method.generics.is_empty() {
+        if static_method
+            || method.name != name
+            || !method.generics.is_empty()
+            || !self.traits.private_hosts.is_empty()
+        {
             self.budget.text(self.definition, object.span)?;
             self.budget.text(&method.name, object.span)?;
             self.budget.node(object.span, 0)?;
@@ -2848,6 +2852,16 @@ impl Check<'_, '_, '_> {
             let (owner, _) = self.traits.declaration_item(&reference);
             method_origin = self.traits.origin(owner, self.budget)?;
             self.budget.text(name, object.span)?;
+            let scalar_host =
+                if self
+                    .traits
+                    .scalar_trait(&reference.key.name, self.budget, object.span)?
+                {
+                    self.budget.ty(host)?;
+                    Some(host.clone())
+                } else {
+                    None
+                };
             self.trait_calls
                 .entry(self.definition.to_owned())
                 .or_default()
@@ -2866,6 +2880,16 @@ impl Check<'_, '_, '_> {
                         member: name.to_owned(),
                         generic: !method.generics.is_empty(),
                         static_host: static_method,
+                        private_receiver: if self.traits.private_hosts.is_empty() {
+                            None
+                        } else {
+                            self.budget.ty(host)?;
+                            Some(trait_instances::PrivateReceiver {
+                                host: host.clone(),
+                                owners: std::rc::Rc::clone(&self.traits.private_hosts),
+                            })
+                        },
+                        scalar_host,
                     },
                 );
         }
@@ -4243,7 +4267,50 @@ impl Check<'_, '_, '_> {
             self.tick(projected.span)?;
             projected = inner;
         }
-        if matches!(projected.kind, ExprKind::Member { .. }) && !self.place(projected, state)?.1 {
+        if !matches!(projected.kind, ExprKind::Member { .. }) {
+            return Ok(());
+        }
+        // A let-bound owning Package still supplies management descriptions
+        // for its Store payload. Binding mutability does not describe the
+        // authority of a reference to its inline header. Keep every actual
+        // shared reference on the projection path read-only, including aliases
+        // and explicit dereferences; the ordinary alias proof follows below.
+        let mut cursor = projected;
+        let mut complete = true;
+        loop {
+            self.tick(cursor.span)?;
+            let parent = match &cursor.kind {
+                ExprKind::Group(inner) => inner.as_ref(),
+                ExprKind::Member { object, .. }
+                | ExprKind::Index { object, .. }
+                | ExprKind::Slice { object, .. } => object.as_ref(),
+                ExprKind::Unary {
+                    op: UnaryOp::Borrow,
+                    ..
+                } => {
+                    return Err(error(
+                        target.span,
+                        "shared Package reference cannot write its Store field",
+                    ));
+                }
+                ExprKind::Unary { operand, .. } => operand.as_ref(),
+                _ => break,
+            };
+            match self.value_hint(parent, state, 0, false)? {
+                Some(ty)
+                    if matches!(group(&ty).kind, TypeKind::Reference { mutable: false, .. }) =>
+                {
+                    return Err(error(
+                        target.span,
+                        "shared Package reference cannot write its Store field",
+                    ));
+                }
+                Some(_) => {}
+                None => complete = false,
+            }
+            cursor = parent;
+        }
+        if !complete && !self.place(projected, state)?.1 {
             return Err(error(
                 target.span,
                 "shared Package reference cannot write its Store field",

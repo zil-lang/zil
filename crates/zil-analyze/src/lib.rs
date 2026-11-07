@@ -182,8 +182,46 @@ fn analyze_budgeted(
     helpers::check(module, budget)?;
     owned_callbacks::check(module, budget)?;
     let head_effects = head_access::check(module, &hold_graphs, budget)?;
+    let early_holds = if budget.generic_mutex {
+        Some(holds::infer_module(
+            module,
+            &hold_graphs,
+            &store_profiles,
+            budget,
+        )?)
+    } else {
+        None
+    };
+    if let Some(rows) = early_holds.as_ref() {
+        budget.spend(module.functions.len(), "guard return source functions")?;
+        budget.guard_return_sources = vec![BTreeSet::new(); module.functions.len()];
+        for (index, function) in module.functions.iter().enumerate() {
+            if !matches!(function.return_type, Type::MutexGuard { .. }) {
+                continue;
+            }
+            budget.spend(function.blocks.len(), "guard return source blocks")?;
+            for (block, live) in function.blocks.iter().zip(&hold_graphs[index].1) {
+                if !live {
+                    continue;
+                }
+                if let Terminator::Return(Some(value)) = block.terminator {
+                    let roots = &rows[index][value.0 as usize].roots;
+                    budget.spend(roots.len(), "guard return source roots")?;
+                    for root in roots {
+                        if let HoldRoot::Parameter(parameter) = root {
+                            budget.guard_return_sources[index].insert(*parameter);
+                        }
+                    }
+                }
+            }
+        }
+    }
     resources::check_module(module, &hold_graphs, budget)?;
-    let mut actual_holds = holds::infer_module(module, &hold_graphs, &store_profiles, budget)?;
+    let mut actual_holds = if let Some(rows) = early_holds {
+        rows
+    } else {
+        holds::infer_module(module, &hold_graphs, &store_profiles, budget)?
+    };
     if let Some(stored) = stored_holds {
         for (index, rows) in stored.into_iter().enumerate() {
             if budget.composition_stored[index] {

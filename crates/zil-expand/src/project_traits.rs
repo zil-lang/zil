@@ -77,17 +77,37 @@ pub(super) fn method_owners(
         };
         budget.text(trait_name, item.span)?;
         budget.text(host, item.span)?;
-        let (Some(trait_file), Some(host_file)) = (traits.get(trait_name), hosts.get(host)) else {
+        let Some(trait_file) = traits.get(trait_name) else {
             continue;
         };
-        if *host_file != item.span.file
-            || trait_file == host_file
+        let host_file = if let Some(file) = hosts.get(host) {
+            *file
+        } else {
+            let mut found = None;
+            for declaration in &specialized.items {
+                budget.node(declaration.span, 0)?;
+                if let s::ItemKind::Enum(e) = &declaration.kind {
+                    budget.text(host, item.span)?;
+                    budget.text(&e.name, declaration.span)?;
+                    if e.generics.is_empty() && e.name == host {
+                        found = Some(declaration.span.file);
+                        break;
+                    }
+                }
+            }
+            let Some(file) = found else {
+                continue;
+            };
+            file
+        };
+        if host_file != item.span.file
+            || *trait_file == host_file
             || !implementation.generics.is_empty()
             || !implementation.where_clause.is_empty()
         {
             continue;
         }
-        let position = *files.get(host_file).ok_or_else(|| {
+        let position = *files.get(&host_file).ok_or_else(|| {
             Diagnostic::error(
                 Phase::Expand,
                 "E-MODULE-ID",

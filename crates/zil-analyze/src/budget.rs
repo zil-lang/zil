@@ -49,6 +49,7 @@ pub(super) struct Budget {
     pub(super) scoped_foreign: bool,
     pub(super) scoped_threads: bool,
     pub(super) generic_mutex: bool,
+    pub(super) guard_return_sources: Vec<BTreeSet<u32>>,
     pub(super) borrowed_function_pointers: bool,
     pub(super) tasks: bool,
     // Derived only by the complete paid raw-type preflight, never producer metadata.
@@ -60,6 +61,7 @@ pub(super) struct Budget {
     pub(super) async_registrations: bool,
     pub(super) protocol_contracts: bool,
     pub(super) protocol_checked: bool,
+    pub(super) stored_enum_addresses: bool,
     pub(super) stored_borrows: bool,
     pub(super) stored_slot_updates: bool,
     // Empty for the established single-lane profiles. A mixed module has one
@@ -69,6 +71,11 @@ pub(super) struct Budget {
     pub(super) pure_nominal: bool,
     pub(super) capture_relations: bool,
     pub(super) stored_owned_fixed: bool,
+    // Presence flags from paid actual-type/slot/capture inventories. These
+    // select new proof work and never grant authority to a borrowed value.
+    pub(super) stored_packages: bool,
+    pub(super) stored_fixed_owner: bool,
+    pub(super) stored_projected_slots: bool,
     pub(super) shared_thread_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_functions: BTreeSet<zil_ir::FunctionId>,
     pub(super) scoped_helper_bodies: std::collections::BTreeMap<zil_ir::FunctionId, BTreeSet<u32>>,
@@ -113,6 +120,7 @@ impl Budget {
             scoped_foreign: false,
             scoped_threads: false,
             generic_mutex: false,
+            guard_return_sources: Vec::new(),
             borrowed_function_pointers: false,
             tasks: false,
             task_origin_roots: false,
@@ -123,12 +131,16 @@ impl Budget {
             async_registrations: false,
             protocol_contracts: false,
             protocol_checked: false,
+            stored_enum_addresses: false,
             stored_borrows: false,
             stored_slot_updates: false,
             composition_stored: Vec::new(),
             pure_nominal: false,
             capture_relations: false,
             stored_owned_fixed: false,
+            stored_packages: false,
+            stored_fixed_owner: false,
+            stored_projected_slots: false,
             shared_thread_functions: BTreeSet::new(),
             scoped_functions: BTreeSet::new(),
             scoped_helper_bodies: std::collections::BTreeMap::new(),
@@ -202,7 +214,7 @@ impl Budget {
             .ordinary_pod_store_roots
             .contains(&(ty as *const Type as usize)))
     }
-    fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
+    pub(super) fn owned_store_package_type(&mut self, ty: &Type) -> CompileResult<bool> {
         if self.owned_store_package_roots.is_empty() {
             return Ok(false);
         }
@@ -574,6 +586,13 @@ fn local_value(
             Err(bad("stored nominal type lacks its instance inventory"))
         };
     }
+    if budget.stored_enum_addresses
+        && matches!(ty, Type::ErrorUnion { .. })
+        && super::stored_flow::enum_address::signature(ty)
+    {
+        super::stored_flow::enum_address::ordinary(module, ty, budget)?;
+        return Ok(false);
+    }
     if let Type::Address { inner, .. } = ty
         && matches!(
             inner.as_ref(),
@@ -828,6 +847,15 @@ pub(super) fn preflight(
         let mut new_sum = false;
         let mut new_ordinary_pod_store = false;
         let mut contains_owned_store_package_field = false;
+        // Flat Package values with Store fields retain the old complete-
+        // Package route, including callback fields. Borrowed Package
+        // receivers still need the new owned-Store window admission, except
+        // for their old direct-callback profile. Derive both distinctions
+        // during this already charged raw type walk.
+        let mut new_product_shape = false;
+        let address_package = matches!(ty, Type::Address { inner, .. }
+            if matches!(inner.as_ref(), Type::Package { .. }));
+        let mut direct_address_callback = false;
         let mut first = Some((
             ty,
             0usize,
@@ -868,6 +896,7 @@ pub(super) fn preflight(
                     child.pod_aggregate = true;
                 }
                 Type::Package { .. } => {
+                    new_product_shape |= context.in_product && store_element.is_none();
                     child.in_product = true;
                     child.pod_aggregate = true;
                     if context.in_error {
@@ -962,6 +991,7 @@ pub(super) fn preflight(
             }
             match ty {
                 Type::BorrowedStorage { storage, .. } => {
+                    new_product_shape |= context.in_product && store_element.is_none();
                     super::stored_flow::qualification(module, ty, limits, budget)?;
                     budget.stored_borrows = true;
                     pending.push((
@@ -1076,6 +1106,13 @@ pub(super) fn preflight(
                     budget.input(fields.len(), "record fields")?;
                     for (name, t) in fields {
                         budget.input(name.len(), "field name")?;
+                        if address_package
+                            && depth == 1
+                            && matches!(ty, Type::Package { .. })
+                            && matches!(t, Type::Closure(_))
+                        {
+                            direct_address_callback = true;
+                        }
                         // Only ordinary value positions acquire the new Product
                         // profile. Resource heads remain finite Copy, including
                         // unused metadata. Reuse the paid field visit; the old
@@ -1243,7 +1280,10 @@ pub(super) fn preflight(
             budget.spend(1, "ordinary POD Store root allocation")?;
             budget.ordinary_pod_store_roots.insert(root);
         }
-        if contains_owned_store_package_field && matches!(ty, Type::Package { .. }) {
+        if contains_owned_store_package_field
+            && (new_product_shape || new_sum)
+            && matches!(ty, Type::Package { .. })
+        {
             budget.lookup(
                 budget.owned_store_package_roots.len(),
                 "owned Store Package root insertion",
@@ -1252,6 +1292,7 @@ pub(super) fn preflight(
             budget.owned_store_package_roots.insert(root);
         }
         if contains_owned_store_package_field
+            && (new_product_shape || new_sum || !direct_address_callback)
             && let Type::Address { inner, .. } = ty
             && matches!(inner.as_ref(), Type::Package { .. })
         {
@@ -1347,6 +1388,7 @@ pub(super) fn preflight(
 
         for ty in &closure.captures {
             if closure.storage_life.is_some() {
+                budget.stored_fixed_owner |= matches!(ty, Type::Managed(_) | Type::Package { .. });
                 if !super::stored_callables::capture(ty)
                     && !super::stored_callables::owned_capture(ty, budget)?
                 {

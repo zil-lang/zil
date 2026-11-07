@@ -23,6 +23,7 @@ pub(super) struct Index<'a> {
     declarations: BTreeMap<&'a str, (&'a Item, &'a TraitDecl)>,
     implementations: BTreeSet<(trait_instances::Key, &'a str)>,
     pub(super) has_instances: bool,
+    pub(super) private_hosts: trait_instances::PrivateHosts,
     pub(super) has_defaults: bool,
     has_supertraits: bool,
     pub(super) has_associated: bool,
@@ -34,6 +35,7 @@ pub(super) struct Index<'a> {
     nominals: BTreeMap<String, &'a Item>,
     instantiated_copy_shapes: BTreeMap<String, Item>,
     pub(super) recipes: Vec<&'a Item>,
+    scalar_traits: BTreeSet<&'a str>,
 }
 
 pub(super) fn plain(ty: &TypeRef) -> Option<&str> {
@@ -157,10 +159,24 @@ impl<'a> Index<'a> {
         let mut has_constants = false;
         let mut has_generic_methods = false;
         let mut nominals = BTreeMap::new();
+        let mut scalar_traits = BTreeSet::new();
         for item in &module.items {
             budget.node(item.span, 0)?;
             if matches!(item.kind, ItemKind::Aggregate(_) | ItemKind::Enum(_)) {
                 nominals.insert(name(item).expect("nominal name").to_owned(), item);
+            }
+            if let ItemKind::Impl(implementation) = &item.kind
+                && trait_instances::head(&implementation.target)
+                    .is_some_and(super::super::static_traits::scalar_self)
+                && let Some(name) = implementation
+                    .trait_type
+                    .as_ref()
+                    .and_then(trait_instances::head)
+            {
+                budget.text(name, item.span)?;
+                budget.node(item.span, 0)?;
+                scalar_traits.insert(name);
+                has_instances = true;
             }
             match &item.kind {
                 ItemKind::Impl(implementation)
@@ -222,6 +238,7 @@ impl<'a> Index<'a> {
             nominals,
             instantiated_copy_shapes: BTreeMap::new(),
             has_instances,
+            private_hosts: std::rc::Rc::new(BTreeMap::new()),
             has_defaults,
             has_supertraits,
             has_associated,
@@ -231,6 +248,7 @@ impl<'a> Index<'a> {
             instance_count: 0,
             inherent_methods: BTreeSet::new(),
             recipes: Vec::new(),
+            scalar_traits,
         };
         if has_instances && validate {
             for (item, declaration) in index.declarations.values() {
@@ -378,6 +396,18 @@ impl<'a> Index<'a> {
                 && index.declarations.contains_key(name)
             {
                 let reference = index.reference(application, budget)?;
+                if index.declarations[name].0.public
+                    && index.nominals.get(host).is_some_and(|owner| !owner.public)
+                {
+                    budget.text(name, item.span)?;
+                    budget.text(host, item.span)?;
+                    budget.node(item.span, 0)?;
+                    std::rc::Rc::make_mut(&mut index.private_hosts)
+                        .entry(name.to_owned())
+                        .or_default()
+                        .insert(host.to_owned());
+                    index.has_instances = true;
+                }
                 let key = trait_instances::copy_key(&reference.key, budget, item.span)?;
                 let generic_instance = !key.arguments.is_empty();
                 if index.implementations.insert((key, host)) && generic_instance {
@@ -1001,13 +1031,18 @@ impl<'a> Index<'a> {
                     }
                     let mut method =
                         trait_instances::signature(declaration, member, reference, budget)?;
-                    if !reference.arguments.is_empty() || !method.generics.is_empty() {
+                    let scalar = self.scalar_trait(&reference.key.name, budget, span)?;
+                    if scalar || !reference.arguments.is_empty() || !method.generics.is_empty() {
                         let generic = !method.generics.is_empty();
                         if reference.arguments.is_empty() && generic {
                             budget.item(member)?;
                         }
                         method.to_mut().name = trait_instances::method_name_with(
-                            reference, name, generic, budget, span,
+                            reference,
+                            name,
+                            generic || scalar,
+                            budget,
+                            span,
                         )?;
                     }
                     selected = Some(method);
@@ -1135,6 +1170,19 @@ impl<'a> Index<'a> {
         }
         Ok(reference.clone())
     }
+    pub(super) fn scalar_trait(&self, name: &str, budget: &mut Budget<'_>, span: Span) -> R<bool> {
+        if self.scalar_traits.is_empty() {
+            return Ok(false);
+        }
+        budget.identity_work(
+            self.scalar_traits
+                .len()
+                .saturating_mul(name.len().saturating_add(1)),
+            span,
+        )?;
+        Ok(self.scalar_traits.contains(name))
+    }
+
     pub(super) fn concrete_method(
         &self,
         host: &str,
@@ -1190,9 +1238,37 @@ impl<'a> Index<'a> {
                 let ItemKind::Function(method) = &member.kind else {
                     continue;
                 };
-                let target = trait_instances::method_name(&reference, &method.name, budget, span)?;
+                let private_host = self
+                    .private_hosts
+                    .get(&reference.key.name)
+                    .is_some_and(|hosts| hosts.contains(host));
+                let target = trait_instances::method_name_with(
+                    &reference,
+                    &method.name,
+                    private_host || super::super::static_traits::scalar_self(host),
+                    budget,
+                    span,
+                )?;
                 if method.name != name && target != name {
                     continue;
+                }
+                if private_host && name == method.name {
+                    let owner = self.nominals[host];
+                    let foreign = if self.origins.is_some() {
+                        let origin = self.origin(owner, budget)?.ok_or_else(|| {
+                            error(span, "private method host lost its source declaration")
+                        })?;
+                        budget.context.origin.is_none_or(|caller| {
+                            caller.declaration.module != origin.declaration.module
+                        })
+                    } else {
+                        owner.span.file != span.file
+                    };
+                    if foreign {
+                        // Only an actual bound-call record can have selected
+                        // the internal target before ordinary member lookup.
+                        continue;
+                    }
                 }
                 if local_collision {
                     return Err(error(
@@ -1309,7 +1385,10 @@ impl<'a> Index<'a> {
                     }) = self.nominals.get(&path.join("."))
                     {
                         if declaration.generics.len() != args.len()
-                            && declaration.kind == AggregateKind::Struct
+                            && matches!(
+                                declaration.kind,
+                                AggregateKind::Struct | AggregateKind::Package
+                            )
                             && declaration.generics.iter().any(|parameter| {
                                 matches!(&parameter.kind, GenericParamKind::Type(bounds)
                                     if bounds.iter().any(copy::is_bound))
@@ -1317,9 +1396,39 @@ impl<'a> Index<'a> {
                         {
                             return Err(error(ty.span, "Copy record type argument arity mismatch"));
                         }
+                        // Check written nominal obligations in signatures as
+                        // well as at constructors. An unused outer template
+                        // must not hide a missing bound of its field family.
+                        if declaration.generics.iter().any(|parameter| {
+                            matches!(&parameter.kind, GenericParamKind::Type(bounds)
+                                if bounds.iter().any(|bound| !copy::is_bound(bound) && !stores::is_bound(bound)))
+                        }) {
+                            if declaration.generics.len() != args.len() {
+                                return Err(error(ty.span, "nominal record type argument arity mismatch"));
+                            }
+                            let mut found = BTreeMap::new();
+                            for (parameter, argument) in declaration.generics.iter().zip(args) {
+                                budget.node(parameter.span, 0)?;
+                                budget.text(&parameter.name, parameter.span)?;
+                                if let GenericArg::Type(actual) = argument {
+                                    budget.ty(actual)?;
+                                    found.insert(parameter.name.clone(), actual.clone());
+                                }
+                            }
+                            self.check_arguments(
+                                &declaration.generics,
+                                &found,
+                                (available, variables, callback),
+                                budget,
+                                ty.span,
+                                None,
+                            )?;
+                        }
                         for (parameter, argument) in declaration.generics.iter().zip(args) {
-                            if declaration.kind == AggregateKind::Struct
-                                && let GenericParamKind::Type(bounds) = &parameter.kind
+                            if matches!(
+                                declaration.kind,
+                                AggregateKind::Struct | AggregateKind::Package
+                            ) && let GenericParamKind::Type(bounds) = &parameter.kind
                                 && bounds.iter().any(copy::is_bound)
                             {
                                 let GenericArg::Type(actual) = argument else {

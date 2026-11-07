@@ -14,6 +14,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         stored_fields: bool,
         direct_type_argument: bool,
         task_context: bool,
+        enum_fields: bool,
+        ordinary_type_argument: bool,
     }
     fn reference(ty: &s::TypeRef) -> &s::TypeRef {
         match &ty.kind {
@@ -60,6 +62,10 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let old_stored_fields = self.stored_fields;
             let old_type_argument = self.direct_type_argument;
             let old_task_context = self.task_context;
+            let old_enum_fields = self.enum_fields;
+            let old_ordinary_type_argument = self.ordinary_type_argument;
+            self.enum_fields = matches!(item.kind, s::ItemKind::Enum(_));
+            self.ordinary_type_argument = false;
             self.stored_fields = false;
             self.direct_type_argument = false;
             self.task_context = false;
@@ -152,6 +158,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             self.stored_fields = old_stored_fields;
             self.direct_type_argument = old_type_argument;
             self.task_context = old_task_context;
+            self.enum_fields = old_enum_fields;
+            self.ordinary_type_argument = old_ordinary_type_argument;
             result
         }
         fn expression(&mut self, expression: &s::Expr, depth: usize) -> CompileResult<()> {
@@ -239,6 +247,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
                 if !self.binders.contains(name) {
                     return Err(vec![failure(ty.span, "undeclared life name")]);
                 }
+                if !mutable
+                    && (self.enum_fields
+                        || (self.direct_type_argument && self.ordinary_type_argument))
+                {
+                    self.budget.note_shared_enum_addresses();
+                }
                 if !self.headers.contains(&std::ptr::from_ref(ty)) {
                     self.budget.note_stored_lifetimes();
                     self.budget.note_source_identity();
@@ -261,6 +275,12 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             }
             let old_type_argument = self.direct_type_argument;
             let old_task_context = self.task_context;
+            let old_ordinary_type_argument = self.ordinary_type_argument;
+            self.ordinary_type_argument = match &ty.kind {
+                s::TypeKind::Named { path, .. } => path.as_slice() != ["Option"],
+                s::TypeKind::Group(_) => old_ordinary_type_argument,
+                _ => false,
+            };
             self.task_context |= matches!(&ty.kind, s::TypeKind::Named { path, args }
                 if path.as_slice() == ["Task"] && args.len() == 2);
             self.direct_type_argument = match ty.kind {
@@ -271,6 +291,7 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
             let result = ct_selection::walk_type(self, ty, depth);
             self.direct_type_argument = old_type_argument;
             self.task_context = old_task_context;
+            self.ordinary_type_argument = old_ordinary_type_argument;
             result
         }
     }
@@ -284,6 +305,8 @@ pub(super) fn validate(module: &s::Module, budget: &mut generics::Budget<'_>) ->
         stored_fields: false,
         direct_type_argument: false,
         task_context: false,
+        enum_fields: false,
+        ordinary_type_argument: false,
     };
     for item in &module.items {
         ct_selection::Visitor::item(&mut walk, item, 0)?;

@@ -31,6 +31,15 @@ fn pure_class_keys(
                 out.push((path.clone(), class));
             }
         }
+        Type::ErrorUnion { error, result }
+            if b.stored_enum_addresses && super::stored_flow::enum_address::signature(ty) =>
+        {
+            for (arm, child) in [(true, error.as_ref()), (false, result.as_ref())] {
+                path.push(LifeTypeProjection::Place(PlaceProjection::ErrorArm(arm)));
+                pure_class_keys(child, path, out, b)?;
+                path.pop();
+            }
+        }
         Type::Array { element, .. } => {
             path.push(LifeTypeProjection::Element);
             pure_class_keys(element, path, out, b)?;
@@ -204,6 +213,9 @@ impl Equations {
                 ty,
                 Type::Array { .. } | Type::Tuple(_) | Type::Record { .. } | Type::Enum { .. }
             )
+            || b.stored_enum_addresses
+                && matches!(ty, Type::ErrorUnion { .. })
+                && super::stored_flow::enum_address::signature(ty)
         {
             b.spend(usize::from(outer.is_some()), "pure class pointee path")?;
             let mut path = if outer.is_some() {
@@ -814,6 +826,34 @@ fn check_with(
                             &values[aggregate.0 as usize],
                             out,
                             LifeTypeProjection::Place(PlaceProjection::Field(*index)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::MakeErrorUnion { value, is_error } if b.stored_enum_addresses => {
+                    if let (Some(out), Some(id)) = (out, i.result)
+                        && super::stored_flow::enum_address::signature(&f.values[id.0 as usize])
+                    {
+                        link_projection(
+                            &f.values[id.0 as usize],
+                            out,
+                            &values[value.0 as usize],
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)),
+                            &mut e,
+                            b,
+                        )?;
+                    }
+                }
+                InstructionKind::ReadErrorUnion { value, is_error } if b.stored_enum_addresses => {
+                    if let Some(out) = out
+                        && super::stored_flow::enum_address::signature(&f.values[value.0 as usize])
+                    {
+                        link_projection(
+                            &f.values[value.0 as usize],
+                            &values[value.0 as usize],
+                            out,
+                            LifeTypeProjection::Place(PlaceProjection::ErrorArm(*is_error)),
                             &mut e,
                             b,
                         )?;

@@ -431,14 +431,24 @@ fn mixed_state_accepts_one_callable_field_only() {
 }
 
 #[test]
-fn aggregate_bound_remains_explicitly_outside_the_finite_profile() {
+fn aggregate_copy_bound_is_checked_for_state_and_actual_callers() {
     let text = "package State<T:Copy,F>{manages bytes:ByteBuffer;callback:F;value:T}fn main(){}";
-    rejected(
-        "aggregate-bound",
-        text,
-        Phase::Expand,
-        ResultCategory::Unsupported,
-        "generic bound",
+    let case = Case::new("aggregate-bound");
+    let report = compile(&case, &[("main", text)], None);
+    assert_eq!(
+        report.status,
+        ResultCategory::Success,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.verification_runs, 1);
+    native(
+        "aggregate-bound-instance",
+        &[(
+            "main",
+            "package State<T:Copy,F>{manages bytes:ByteBuffer;callback:F;value:T}fn make<T:Copy,F:Fn()->i32>(callback:F,value:T)->State<T,F>{return State::<T,F>{bytes:bytes_new(),callback:callback,value:value}}fn read<T:Copy,F:Fn()->i32>(state:State<T,F>)->T{state.callback();return state.value}fn main()->i32{let callback=move()=>3;return read(make(callback,42))-42}",
+        )],
+        "",
     );
 }
 

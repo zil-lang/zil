@@ -2089,7 +2089,13 @@ impl Flow<'_> {
                             && (matches!(package_storage(ty), Type::Package { .. })
                                 || matches!(ty, Type::Managed(payload) if matches!(payload.as_ref(), Type::Record { .. }) && payload.is_copy_value()));
                         if shared_owned && matches!(package_storage(ty), Type::Package { .. }) {
-                            if product::has_owned_store(ty, budget)?
+                            let address_owner = if let Some(Type::Address { inner, .. }) = result {
+                                budget.owned_store_package_type(inner)?
+                            } else {
+                                false
+                            };
+                            if budget.owned_store_package_type(ty)?
+                                || address_owner
                                 || matches!(ty, Type::BorrowedStorage { .. })
                                 || budget.ordinary_pod_store_type(ty)?
                             {
@@ -2302,8 +2308,16 @@ impl Flow<'_> {
                     ) =>
                 {
                     let ty = &f.locals[local.0 as usize].ty;
+                    let address_owner = if let Some(Type::Address { inner, .. }) =
+                        i.result.and_then(|value| f.values.get(value.0 as usize))
+                    {
+                        budget.owned_store_package_type(inner)?
+                    } else {
+                        false
+                    };
                     if matches!(ty, Type::BorrowedStorage { .. })
-                        || product::has_owned_store(ty, budget)?
+                        || budget.owned_store_package_type(ty)?
+                        || address_owner
                         || budget.ordinary_pod_store_type(ty)?
                     {
                         product::admit_owned(self.module, ty, budget)?;
@@ -2881,7 +2895,10 @@ impl Flow<'_> {
                             budget,
                         )?;
                         if exact(&fact, Life::Cleaned) {
-                            return Err(error("duplicate automatic cleanup"));
+                            return Err(error(&format!(
+                                "duplicate automatic cleanup of local {} in {} block {} at instruction {} ({:?})",
+                                local.0, f.name, b, position, i.kind
+                            )));
                         }
                         for (before, later) in &state.later {
                             budget.spend(1, "resource cleanup order")?;
@@ -3141,23 +3158,32 @@ impl Flow<'_> {
                         matches!(f.values[id.0 as usize], Type::MutexGuard { .. })
                     }) {
                         let mut sources = BTreeSet::new();
-                        let mut matching_inputs = 0usize;
-                        for value in arguments {
-                            if matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
-                                || matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
+                        let selectors = budget
+                            .guard_return_sources
+                            .get(function.0 as usize)
+                            .ok_or_else(|| {
+                                error("guard helper has no checked return source summary")
+                            })?
+                            .clone();
+                        budget.spend(selectors.len(), "guard helper selected input positions")?;
+                        for position in &selectors {
+                            let value = *arguments
+                                .get(*position as usize)
+                                .ok_or_else(|| error("guard helper selected input is absent"))?;
+                            if !matches!(&f.values[value.0 as usize], Type::Desc(inner) if matches!(inner.as_ref(), Type::Mutex { .. }))
+                                && !matches!(&f.values[value.0 as usize], Type::MutexGuard { .. })
                             {
-                                matching_inputs += 1;
-                                let fact = copied(state, Place::Value(*value), budget)?;
-                                budget.spend(
-                                    fact.sources.len(),
-                                    "guard helper actual head origins",
-                                )?;
-                                sources.extend(fact.sources);
+                                return Err(error(
+                                    "guard helper selected input is not an actual mutex carrier",
+                                ));
                             }
+                            let fact = copied(state, Place::Value(value), budget)?;
+                            budget.spend(fact.sources.len(), "guard helper actual head origins")?;
+                            sources.extend(fact.sources);
                         }
-                        if matching_inputs != 1 || sources.is_empty() {
+                        if selectors.is_empty() || sources.is_empty() {
                             return Err(error(
-                                "guard helper result requires one actual mutex head input",
+                                "guard helper result has no selected actual mutex head input",
                             ));
                         }
                         Some(sources)

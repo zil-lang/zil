@@ -10,6 +10,8 @@ pub(super) fn operation(kind: &InstructionKind) -> bool {
             | InstructionKind::UpdateField { .. }
             | InstructionKind::UpdateIndex { .. }
             | InstructionKind::MakeVariant { .. }
+            | InstructionKind::MakeErrorUnion { .. }
+            | InstructionKind::PlaceTagLocal { .. }
             | InstructionKind::VariantTag { .. }
             | InstructionKind::ReadVariant { .. }
     )
@@ -44,6 +46,9 @@ fn pure(ty: &Type, b: &mut Budget, depth: usize) -> CompileResult<bool> {
             Ok(true)
         }
         Type::Array { element, .. } => pure(element, b, depth + 1),
+        Type::ErrorUnion { error, result } => {
+            Ok(pure(error, b, depth + 1)? && pure(result, b, depth + 1)?)
+        }
         Type::Record { fields, .. } => {
             for (_, field) in fields {
                 if !pure(field, b, depth + 1)? {
@@ -85,6 +90,43 @@ pub(super) fn types(f: &TypedFunction, i: &Instruction, b: &mut Budget) -> Compi
         )]);
     }
     let expected = match &i.kind {
+        InstructionKind::PlaceTagLocal { local, path } => {
+            if !path.is_empty() {
+                return Err(failure("pure ErrorUnion tag requires exact local root"));
+            }
+            let ty = &f
+                .locals
+                .get(local.0 as usize)
+                .ok_or_else(|| failure("pure ErrorUnion tag local is absent"))?
+                .ty;
+            if !matches!(ty, Type::ErrorUnion { .. }) || !pure(ty, b, 0)? {
+                return Err(failure(
+                    "pure ErrorUnion tag lacks actual complete Copy union",
+                ));
+            }
+            &Type::I32
+        }
+        InstructionKind::MakeErrorUnion { is_error, value } => {
+            let Type::ErrorUnion {
+                error,
+                result: success,
+            } = result
+            else {
+                return Err(failure(
+                    "pure ErrorUnion construction lacks actual union type",
+                ));
+            };
+            let arm = if *is_error {
+                error.as_ref()
+            } else {
+                success.as_ref()
+            };
+            b.type_work(arm, false, "pure ErrorUnion selected arm")?;
+            if value_type(f, *value)? != arm {
+                return Err(failure("pure ErrorUnion input differs from selected arm"));
+            }
+            result
+        }
         InstructionKind::ExtractField { aggregate, index } => {
             let source = value_type(f, *aggregate)?;
             if !pure(source, b, 0)? {

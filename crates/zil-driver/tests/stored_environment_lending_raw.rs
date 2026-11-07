@@ -11,6 +11,477 @@ use zil_ir::{
     CallableKind, CandidatePlan, Instruction, InstructionKind, Type, TypedModule, ValueId,
 };
 static NEXT: AtomicUsize = AtomicUsize::new(0);
+#[test]
+fn ordinary_borrowed_enum_source_uses_actual_tagged_slots() {
+    let source = include_str!("../../../tests/fixtures/borrowed-enums/choice.zil");
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn ordinary_borrowed_enum_generic_address_actuals_use_their_own_class_maps() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/generic-selection.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn ordinary_borrowed_enum_empty_tag_has_no_payload_loan() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/vacant.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn ordinary_borrowed_enum_error_wrapper_preserves_payload_permissions() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/error-wrapper.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn ordinary_borrowed_enum_error_projection_requires_the_actual_error_tag_guard() {
+    let mut module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/error-wrapper.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut changed = false;
+    for function in &mut module.functions {
+        for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let InstructionKind::ErrorTag { value } = instruction.kind
+                && matches!(&function.values[value.0 as usize], Type::ErrorUnion { result, .. }
+                    if matches!(result.as_ref(), Type::BorrowedStorage { .. }))
+            {
+                instruction.kind = InstructionKind::Constant(zil_ir::Constant::Bool(false));
+                changed = true;
+            }
+        }
+    }
+    assert!(changed);
+    assert!(zil_analyze::analyze(&module, &Limits::default()).is_err());
+    reject(
+        "borrowed-error-missing-tag-guard",
+        module,
+        plan,
+        "E-VERIFY-STORED",
+    );
+}
+
+#[test]
+fn ordinary_borrowed_enum_same_class_preserves_the_actual_selected_root() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/same-life.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let wire = zil_ir::wire::encode_module_candidate(&module, &plan, &Limits::default()).unwrap();
+    zil_verify::verify_module_bytes(&wire, &module.target, &Limits::default()).unwrap();
+}
+
+#[test]
+fn ordinary_borrowed_enum_local_address_cannot_satisfy_the_return_class() {
+    let source = "enum Choice<life a>{Empty,Value(&'a i32)}fn escape<life a>(input:&'a i32)->Choice<'a>{let local=17;return Choice::<'a>.Value(&local)}fn main(){}";
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "escape.zil", source);
+    let project = zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![unit],
+        paths: Default::default(),
+    };
+    let report = zil_driver::compile_project(&project, &Default::default());
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    assert_eq!(report.phase, Phase::Expand, "{}", report.to_json());
+    assert!(
+        report
+            .diagnostics
+            .iter()
+            .any(|d| d.message.contains("source class")),
+        "{}",
+        report.to_json()
+    );
+}
+
+#[test]
+fn ordinary_borrowed_enum_empty_join_cannot_ground_a_recursive_unknown_payload() {
+    let source = "enum Choice<life a>{Empty,Value(&'a i32)}fn seed<life a>(p:&'a i32)->Choice<'a>{return Choice::<'a>.Value(p)}fn missing<life a>(p:&'a i32)->Choice<'a>{return seed(p)}fn next<life a>(p:&'a i32,flag:bool)->Choice<'a>{var local:Choice<'a>=Choice::<'a>.Empty();if flag{local=missing(p)}return local}fn main(){}";
+    let module = typed_stored(source);
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let bad = typed_stored(&source.replace("return seed(p)", "return missing(p)"));
+    assert!(zil_analyze::analyze(&bad, &Limits::default()).is_err());
+    reject("recursive-unknown-enum", bad, plan, "E-VERIFY-STORED");
+}
+
+#[test]
+fn ordinary_borrowed_enum_raw_rejects_an_inactive_payload_and_cross_class_graft() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/choice.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    let mut inactive = module.clone();
+    let mut changed = false;
+    for function in &mut inactive.functions {
+        for instruction in function.blocks.iter_mut().flat_map(|b| &mut b.instructions) {
+            if let InstructionKind::ReadVariant { variant, .. } = &mut instruction.kind
+                && *variant == 1
+                && !changed
+            {
+                *variant = 2;
+                changed = true;
+            }
+        }
+    }
+    assert!(changed);
+    assert!(zil_analyze::analyze(&inactive, &Limits::default()).is_err());
+    reject(
+        "borrowed-enum-inactive-payload",
+        inactive,
+        plan.clone(),
+        "E-VERIFY-STORED",
+    );
+
+    let mut graft = module;
+    let mut changed = false;
+    for function in &mut graft.functions {
+        if function.parameters.len() != 3 {
+            continue;
+        }
+        let right_local = function.parameters[1];
+        let right_ty = function.locals[right_local.0 as usize].ty.clone();
+        for block in &mut function.blocks {
+            if let Some(position) = block
+                .instructions
+                .iter()
+                .position(|i| matches!(i.kind, InstructionKind::MakeVariant { variant: 1, .. }))
+            {
+                let id = ValueId(function.values.len() as u32);
+                function.values.push(right_ty.clone());
+                let span = block.instructions[position].span;
+                block.instructions.insert(
+                    position,
+                    Instruction {
+                        result: Some(id),
+                        kind: InstructionKind::Load(right_local),
+                        span,
+                    },
+                );
+                if let InstructionKind::MakeVariant { fields, .. } =
+                    &mut block.instructions[position + 1].kind
+                {
+                    fields[0] = id;
+                    changed = true;
+                }
+            }
+        }
+    }
+    assert!(changed);
+    assert!(zil_analyze::analyze(&graft, &Limits::default()).is_err());
+    reject(
+        "borrowed-enum-cross-class-graft",
+        graft,
+        plan,
+        "E-VERIFY-STORED",
+    );
+}
+
+#[test]
+fn ordinary_borrowed_enum_raw_requires_the_full_actual_shape_and_nominal_inventory() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/generic-selection.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    type Mutation = (&'static str, fn(&mut TypedModule));
+    let mutations: &[Mutation] = &[
+        ("missing-instance", |m| m.life_instances.clear()),
+        ("missing-declaration", |m| m.life_declarations.clear()),
+        ("wrong-formal-kind", |m| {
+            m.life_declarations[0].parameters[0] = zil_ir::LifeParameterKind::Lifetime
+        }),
+        ("wrong-nominal-kind", |m| {
+            m.life_declarations[0].kind = zil_ir::LifeNominalKind::Record
+        }),
+        ("duplicate-instance", |m| {
+            m.life_instances.push(m.life_instances[0].clone())
+        }),
+        ("wrong-full-actual", |m| {
+            m.life_instances[0].arguments[0] = zil_ir::LifeNominalActual::Type(Type::I64)
+        }),
+        ("wrong-retained-ordinal", |m| {
+            change_enum_shape(m, |s| {
+                s.retained[0].path = vec![zil_ir::LifeTypeProjection::TypeArgument(1)]
+            })
+        }),
+        ("wrong-local-class", |m| {
+            change_enum_shape(m, |s| s.retained[0].class = 1)
+        }),
+        ("wrong-slot-tag", |m| {
+            change_enum_shape(m, |s| {
+                s.slots[0].path = vec![zil_ir::PlaceProjection::Variant(
+                    zil_ir::VariantProjection {
+                        variant: 2,
+                        index: 0,
+                    },
+                )]
+            })
+        }),
+        ("wrong-slot-mode", |m| {
+            change_enum_shape(m, |s| {
+                s.slots[0].mode = zil_ir::StoredBorrowMode::ExclusiveAddress
+            })
+        }),
+        ("missing-slot", |m| {
+            change_enum_shape(m, |s| {
+                s.slots.pop();
+            })
+        }),
+        ("cross-class-slot", |m| {
+            change_enum_shape(m, |s| s.slots[1].binder = 0)
+        }),
+    ];
+    for (name, mutate) in mutations {
+        let mut changed = module.clone();
+        mutate(&mut changed);
+        assert_ne!(changed, module, "{name}");
+        let errors = zil_analyze::analyze(&changed, &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.category == ResultCategory::SafeReject),
+            "{name}: {errors:?}"
+        );
+        reject(name, changed, plan.clone(), "E-VERIFY-STORED");
+    }
+}
+
+#[test]
+fn ordinary_borrowed_enum_same_physical_leaf_cannot_change_a_short_source_into_a_long_class() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/borrowed-enums/mixed-classes.zil"
+    ));
+    let plan = zil_analyze::analyze(&module, &Limits::default()).unwrap();
+    zil_verify::verify_module(
+        module.clone(),
+        plan.clone(),
+        &module.target,
+        &Limits::default(),
+    )
+    .unwrap();
+    let mut graft = module.clone();
+    let mut changed = false;
+    for function in &mut graft.functions {
+        for block in &mut function.blocks {
+            if let Some(id) = block.instructions.iter().find_map(|i| match i.kind {
+                InstructionKind::ReadVariant { variant: 1, .. } => i.result,
+                _ => None,
+            }) {
+                block.terminator = zil_ir::Terminator::Return(Some(id));
+                changed = true;
+            }
+        }
+    }
+    assert!(changed);
+    assert!(zil_analyze::analyze(&graft, &Limits::default()).is_err());
+    reject(
+        "same-physical-short-source",
+        graft.clone(),
+        plan.clone(),
+        "E-VERIFY-STORED",
+    );
+    // Coherently rewrite every complete type too. The actual constructor still
+    // receives `second`; a TypeArgument map cannot replace that actual source.
+    change_enum_shape(&mut graft, |shape| {
+        let actual = shape.retained[0].binder;
+        shape.slots[1].binder = actual;
+    });
+    assert_ne!(graft, module);
+    assert!(zil_analyze::analyze(&graft, &Limits::default()).is_err());
+    reject(
+        "coherent-shape-short-source",
+        graft,
+        plan,
+        "E-VERIFY-STORED",
+    );
+}
+
+// Change both the inventory and every complete executable type. These raw
+// counterfeits must fail their own shape proof, not merely table equality.
+fn change_enum_shape(module: &mut TypedModule, mutate: fn(&mut zil_ir::StorageLifeShape)) {
+    let before = module.life_instances[0].ty.clone();
+    let mut after = before.clone();
+    let Type::BorrowedStorage { life, .. } = &mut after else {
+        panic!("qualified Enum is absent")
+    };
+    mutate(life);
+    for function in &mut module.functions {
+        for ty in function
+            .values
+            .iter_mut()
+            .chain(function.locals.iter_mut().map(|l| &mut l.ty))
+            .chain(std::iter::once(&mut function.return_type))
+        {
+            if *ty == before {
+                *ty = after.clone();
+            }
+        }
+    }
+    module.life_instances[0].ty = after;
+}
+
+#[test]
+fn ordinary_borrowed_enum_native_preserves_each_payload_source() {
+    for (name, text) in [
+        (
+            "choice.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/choice.zil"),
+        ),
+        (
+            "generic-selection.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/generic-selection.zil"),
+        ),
+        (
+            "vacant.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/vacant.zil"),
+        ),
+        (
+            "error-wrapper.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/error-wrapper.zil"),
+        ),
+        (
+            "same-life.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/same-life.zil"),
+        ),
+        (
+            "mixed-classes.zil",
+            include_str!("../../../tests/fixtures/borrowed-enums/mixed-classes.zil"),
+        ),
+    ] {
+        native_borrowed_enum(&zil_driver::ProjectSources {
+            root: ModuleId(0),
+            modules: vec![SourceUnit::new(FileId(0), ModuleId(0), name, text)],
+            paths: Default::default(),
+        });
+    }
+}
+
+#[test]
+fn ordinary_borrowed_enum_cross_module_helpers_preserve_nominal_and_source_identity() {
+    native_borrowed_enum(&zil_driver::ProjectSources {
+        root: ModuleId(0),
+        modules: vec![
+            SourceUnit::new(
+                FileId(0),
+                ModuleId(0),
+                "main.zil",
+                include_str!("../../../tests/fixtures/borrowed-enums/module-main.zil"),
+            ),
+            SourceUnit::new(
+                FileId(1),
+                ModuleId(1),
+                "api.zil",
+                include_str!("../../../tests/fixtures/borrowed-enums/module-api.zil"),
+            ),
+        ],
+        paths: std::collections::BTreeMap::from([(vec!["api".into()], ModuleId(1))]),
+    });
+}
+
+fn native_borrowed_enum(project: &zil_driver::ProjectSources) {
+    for optimization in [zil_driver::Optimization::O0, zil_driver::Optimization::O2] {
+        for backend in [
+            zil_driver::NativeBackend::Clang,
+            zil_driver::NativeBackend::LlvmApi,
+        ] {
+            let directory = std::env::temp_dir().join(format!(
+                "borrowed-enum-{}-{}",
+                std::process::id(),
+                NEXT.fetch_add(1, Ordering::Relaxed)
+            ));
+            fs::create_dir_all(&directory).unwrap();
+            let executable = directory.join("program");
+            let report = zil_driver::compile_project(
+                project,
+                &zil_driver::CompileOptions {
+                    stop_after: zil_driver::Stage::Build,
+                    optimization,
+                    backend,
+                    output: Some(executable.clone()),
+                    emit_dir: Some(directory.join("phases")),
+                    ..Default::default()
+                },
+            );
+            fs::write(directory.join("compile.json"), report.to_json()).unwrap();
+            assert_eq!(
+                report.status,
+                ResultCategory::Success,
+                "{}",
+                report.to_json()
+            );
+            assert_eq!(report.verification_runs, 1);
+            let output = std::process::Command::new(&executable).output().unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(0),
+                "{backend:?} {optimization:?}: {output:?}"
+            );
+            assert!(output.stdout.is_empty());
+        }
+    }
+}
 const SOURCE: &str = "fn make(a:i32,b:i32)->impl Fn()->&i32{return move()=>{b;return &a}}fn main()->i32{let f=make(17,25);let s=f();return *s-17}";
 
 fn typed(source: &str) -> TypedModule {
@@ -23,6 +494,31 @@ fn typed(source: &str) -> TypedModule {
     let ast = zil_syntax::parse(&s).into_result().unwrap();
     let core = zil_expand::expand(&s, &ast).unwrap();
     zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap()
+}
+fn stored_core(source: &str) -> zil_ir::CoreModule {
+    let unit = SourceUnit::new(FileId(0), ModuleId(0), "stored-borrow-move-out.zil", source);
+    let ast = zil_syntax::parse(&unit).into_result().unwrap();
+    zil_expand::expand_with_map_limits_target_context(
+        &unit,
+        &ast,
+        &Limits::default(),
+        &TargetProfile::host_llvm(),
+        zil_expand::source_context::SourceIdentityContext::ClosedSnapshot {
+            root: unit.module_id,
+            aliases: &Default::default(),
+            declarations: zil_expand::source_context::DeclarationPlacement::Original,
+        },
+    )
+    .unwrap()
+    .core
+}
+fn typed_stored(source: &str) -> TypedModule {
+    zil_types::check(
+        &stored_core(source),
+        &TargetProfile::host_llvm(),
+        &Limits::default(),
+    )
+    .unwrap()
 }
 fn baseline() -> (TypedModule, CandidatePlan) {
     let m = typed(SOURCE);
@@ -68,6 +564,197 @@ fn synchronize(m: &mut TypedModule) {
             c.lending_captures = m.closures[c.closure.0 as usize].lending_captures.clone();
             c.kind = m.closures[c.closure.0 as usize].kind;
         }
+    }
+}
+
+#[test]
+fn move_out_producer_emits_take_for_the_actual_exclusive_slot() {
+    let module = typed_stored(include_str!(
+        "../../../tests/fixtures/stored-borrow-move-out.zil"
+    ));
+    let takes: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter_map(|i| match &i.kind {
+                    InstructionKind::LoadStoredBorrow {
+                        path,
+                        mode: zil_ir::StoredBorrowLoad::Take,
+                        ..
+                    } => Some((path, &f.values[i.result.unwrap().0 as usize])),
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(takes.len(), 1);
+    assert_eq!(takes[0].0, &[zil_ir::PlaceProjection::Field(1)]);
+    assert_eq!(
+        takes[0].1,
+        &Type::Address {
+            mutable: true,
+            inner: Box::new(Type::I32),
+        }
+    );
+    assert!(
+        module
+            .functions
+            .iter()
+            .flat_map(|f| &f.blocks)
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(
+                i.kind,
+                InstructionKind::LoadStoredBorrow {
+                    mode: zil_ir::StoredBorrowLoad::Reborrow { mutable: true },
+                    ..
+                }
+            ))
+    );
+}
+
+#[test]
+fn move_out_producer_supports_a_qualified_record_slot() {
+    let module = typed_stored(
+        "struct Holder<life a>{pointer:&'a mut i32}fn exchange<life a>(holder:&mut Holder<'a>,next:&'a mut i32)->&'a mut i32{let previous=move_out(holder.pointer);holder.pointer=next;return previous}fn main(){}",
+    );
+    let paths: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| &f.blocks)
+        .flat_map(|b| &b.instructions)
+        .filter_map(|i| match &i.kind {
+            InstructionKind::LoadStoredBorrow {
+                path,
+                mode: zil_ir::StoredBorrowLoad::Take,
+                ..
+            } => Some(path),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(paths, vec![&vec![zil_ir::PlaceProjection::Field(0)]]);
+}
+
+#[test]
+fn move_out_producer_preserves_a_shared_slot_mode_across_refill() {
+    let module = typed_stored(
+        "struct Holder<life a>{pointer:&'a i32}fn exchange<life a>(holder:&mut Holder<'a>,next:&'a i32)->i32{let previous=move_out(holder.pointer);holder.pointer=next;return *previous+*holder.pointer}fn main(){}",
+    );
+    let takes: Vec<_> = module
+        .functions
+        .iter()
+        .flat_map(|f| {
+            f.blocks
+                .iter()
+                .flat_map(|b| &b.instructions)
+                .filter_map(|i| match &i.kind {
+                    InstructionKind::LoadStoredBorrow {
+                        path,
+                        mode: zil_ir::StoredBorrowLoad::Take,
+                        ..
+                    } => Some((path, &f.values[i.result.unwrap().0 as usize])),
+                    _ => None,
+                })
+        })
+        .collect();
+    assert_eq!(takes.len(), 1);
+    assert_eq!(takes[0].0, &[zil_ir::PlaceProjection::Field(0)]);
+    assert_eq!(
+        takes[0].1,
+        &Type::Address {
+            mutable: false,
+            inner: Box::new(Type::I32)
+        }
+    );
+}
+
+#[test]
+fn qualified_holder_copy_field_assignment_uses_ordinary_place() {
+    let module = typed_stored(
+        "struct SliceIter<life a>{data:&'a i32;index:i64}fn advance<life a>(holder:&mut SliceIter<'a>){holder.index=holder.index+1}fn main(){}",
+    );
+    let advance = module
+        .functions
+        .iter()
+        .find(|f| f.name == "advance")
+        .unwrap();
+    assert!(
+        advance
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::WriteAddress { .. }))
+    );
+    assert!(
+        !advance
+            .blocks
+            .iter()
+            .flat_map(|b| &b.instructions)
+            .any(|i| matches!(i.kind, InstructionKind::StoreStoredBorrow { .. }))
+    );
+}
+
+#[test]
+fn move_out_producer_rejects_unqualified_or_unavailable_places() {
+    let sources = [
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(holder:&Holder<'a>){move_out(holder.pointer)}fn main(){}",
+            "E-ADDRESS-PERMISSION",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(pointer:&'a mut i32){let holder=Holder::<'a>{pointer:pointer};move_out(holder.pointer)}fn main(){}",
+            "E-IMMUTABLE-ASSIGNMENT",
+        ),
+        (
+            "struct Holder{count:i32}fn take(holder:&mut Holder){move_out(holder.count)}fn main(){}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32,count:i32}fn take<life a>(holder:&mut Holder<'a>){move_out(holder.count)}fn main(){}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "fn main(){var n=1;let pointer=&mut n;move_out(pointer)}",
+            "E-MOVE-OUT-PLACE",
+        ),
+        (
+            "struct Holder<life a>{pointer:&'a mut i32}fn take<life a>(pointer:&'a mut i32){move_out(Holder::<'a>{pointer:pointer}.pointer)}fn main(){}",
+            "E-UNSUPPORTED",
+        ),
+    ];
+    for (source, code) in sources {
+        let core = stored_core(source);
+        let errors =
+            zil_types::check(&core, &TargetProfile::host_llvm(), &Limits::default()).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Types && d.code == code),
+            "{source}: {errors:?}"
+        );
+    }
+}
+
+#[test]
+fn move_out_source_requires_a_single_argument_and_reserved_bare_name() {
+    for (source, code) in [
+        ("fn main(){move_out()}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn main(){move_out(1,2)}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn main(){move_out(...(1,2))}", "E-MOVE-OUT-ARGUMENT"),
+        ("fn move_out(){}fn main(){}", "E-MOVE-OUT-NAME"),
+        ("fn main(){let move_out=1}", "E-MOVE-OUT-NAME"),
+        ("fn take(move_out:i32){}fn main(){}", "E-MOVE-OUT-NAME"),
+    ] {
+        let unit = SourceUnit::new(FileId(0), ModuleId(0), "move-out-surface.zil", source);
+        let ast = zil_syntax::parse(&unit).into_result().unwrap();
+        let errors = zil_expand::expand(&unit, &ast).unwrap_err();
+        assert!(
+            errors
+                .iter()
+                .any(|d| d.phase == Phase::Expand && d.code == code),
+            "{source}: {errors:?}"
+        );
     }
 }
 

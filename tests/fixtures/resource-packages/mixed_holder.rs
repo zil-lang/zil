@@ -16,6 +16,14 @@ const SHARED_EXCLUSIVE_REPLACEMENT: &str =
 const REPLACE_AND_RETURN_CHILD: &str = include_str!("replace-and-return-stored-child.zil");
 const LOCAL_SLOT_REPLACEMENT: &str = include_str!("local-package-slot-replacement.zil");
 const CONDITIONAL_SLOT_REPLACEMENT: &str = include_str!("conditional-package-slot-replacement.zil");
+const NESTED_QUALIFIED_PACKAGE: &str = include_str!("nested-qualified-package.zil");
+const NESTED_QUALIFIED_BYTEBUFFER: &str = include_str!("nested-qualified-bytebuffer.zil");
+const NESTED_QUALIFIED_FAILURE: &str = include_str!("nested-qualified-failure.zil");
+const NESTED_QUALIFIED_CHILD_MOVE: &str = include_str!("nested-qualified-child-move.zil");
+const NESTED_QUALIFIED_CHILD_REFILL: &str = include_str!("nested-qualified-child-refill.zil");
+const NESTED_QUALIFIED_CHILD_BORROW: &str = include_str!("nested-qualified-child-borrow.zil");
+const NESTED_QUALIFIED_CHILD_DIRECT_LOCAL: &str =
+    include_str!("nested-qualified-child-direct-local.zil");
 
 fn stdlib_store_head_path() -> std::path::PathBuf {
     std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -55,6 +63,28 @@ fn mixed_package_source_raw_and_wire() {
             REPLACE_AND_RETURN_CHILD,
         ),
         ("local-package-slot-replacement.zil", LOCAL_SLOT_REPLACEMENT),
+        ("nested-qualified-package.zil", NESTED_QUALIFIED_PACKAGE),
+        (
+            "nested-qualified-bytebuffer.zil",
+            NESTED_QUALIFIED_BYTEBUFFER,
+        ),
+        ("nested-qualified-failure.zil", NESTED_QUALIFIED_FAILURE),
+        (
+            "nested-qualified-child-move.zil",
+            NESTED_QUALIFIED_CHILD_MOVE,
+        ),
+        (
+            "nested-qualified-child-refill.zil",
+            NESTED_QUALIFIED_CHILD_REFILL,
+        ),
+        (
+            "nested-qualified-child-borrow.zil",
+            NESTED_QUALIFIED_CHILD_BORROW,
+        ),
+        (
+            "nested-qualified-child-direct-local.zil",
+            NESTED_QUALIFIED_CHILD_DIRECT_LOCAL,
+        ),
     ] {
         let source = source(name, program);
         let report = compile_source(
@@ -92,6 +122,78 @@ fn mixed_package_source_raw_and_wire() {
         let wire = zil_ir::wire::encode_module_candidate(&raw, &plan, &limits).unwrap();
         zil_verify::verify_module_bytes(&wire, &target, &limits).unwrap();
     }
+}
+
+#[test]
+fn nested_child_transfer_rejects_reusing_removed_field_or_parent() {
+    let removed = "var child=give outer.child\n        let pointer=child.pointer";
+    let cases = [
+        (
+            "duplicate child transfer",
+            "var child=give outer.child\n        let duplicate=give outer.child\n        let pointer=child.pointer",
+        ),
+        (
+            "parent move with removed child",
+            "var child=give outer.child\n        let moved=outer\n        let pointer=child.pointer",
+        ),
+    ];
+    for (name, replacement) in cases {
+        let program = NESTED_QUALIFIED_CHILD_MOVE.replacen(removed, replacement, 1);
+        assert_ne!(program, NESTED_QUALIFIED_CHILD_MOVE, "{name}");
+        let report = compile_source(
+            &source(name, &program),
+            &CompileOptions {
+                stop_after: Stage::Verify,
+                ..CompileOptions::default()
+            },
+        );
+        assert_eq!(
+            report.status,
+            ResultCategory::SafeReject,
+            "{name}: {}",
+            report.to_json()
+        );
+    }
+    let borrowed = "let pointer=child_ref.pointer";
+    let program = NESTED_QUALIFIED_CHILD_BORROW.replacen(
+        borrowed,
+        "let pointer=child_ref.pointer\n        var child=give outer.child",
+        1,
+    );
+    assert_ne!(program, NESTED_QUALIFIED_CHILD_BORROW);
+    let report = compile_source(
+        &source("live child borrow blocks transfer", &program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
+    let direct = "let pointer=outer.child.pointer";
+    let program = NESTED_QUALIFIED_CHILD_DIRECT_LOCAL.replacen(
+        direct,
+        "let pointer=outer.child.pointer\n        var child=give outer.child",
+        1,
+    );
+    assert_ne!(program, NESTED_QUALIFIED_CHILD_DIRECT_LOCAL);
+    let report = compile_source(
+        &source("direct child slot borrow blocks transfer", &program),
+        &CompileOptions {
+            stop_after: Stage::Verify,
+            ..CompileOptions::default()
+        },
+    );
+    assert_eq!(
+        report.status,
+        ResultCategory::SafeReject,
+        "{}",
+        report.to_json()
+    );
 }
 
 #[test]
@@ -573,6 +675,41 @@ fn mixed_package_native_both_optimizations() {
             "local-package-slot-replacement.zil",
             LOCAL_SLOT_REPLACEMENT,
             b"0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-package.zil",
+            NESTED_QUALIFIED_PACKAGE,
+            b"X0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-bytebuffer.zil",
+            NESTED_QUALIFIED_BYTEBUFFER,
+            b"0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-failure.zil",
+            NESTED_QUALIFIED_FAILURE,
+            b"F0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-move.zil",
+            NESTED_QUALIFIED_CHILD_MOVE,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-refill.zil",
+            NESTED_QUALIFIED_CHILD_REFILL,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-borrow.zil",
+            NESTED_QUALIFIED_CHILD_BORROW,
+            b"M0\n".as_slice(),
+        ),
+        (
+            "nested-qualified-child-direct-local.zil",
+            NESTED_QUALIFIED_CHILD_DIRECT_LOCAL,
+            b"M0\n".as_slice(),
         ),
     ] {
         for optimization in [Optimization::O0, Optimization::O2] {

@@ -29,7 +29,7 @@ impl InferBuilder<'_, '_> {
         };
         if !matches!(
             nominal,
-            Type::Record { .. } | Type::Package { .. } | Type::ByteBuffer
+            Type::Record { .. } | Type::Package { .. } | Type::Enum { .. } | Type::ByteBuffer
         ) {
             return Ok(None);
         }

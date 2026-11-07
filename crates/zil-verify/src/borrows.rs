@@ -1226,7 +1226,7 @@ pub(super) fn check_module(
     plan: &CandidatePlan,
     graphs: &[FunctionGraph],
     budget: &mut Budget,
-) -> Check<()> {
+) -> Check<Vec<BTreeSet<u32>>> {
     check_module_mask(module, plan, graphs, None, budget)
 }
 pub(super) fn check_mixed(
@@ -1235,7 +1235,7 @@ pub(super) fn check_mixed(
     graphs: &[FunctionGraph],
     mask: &[bool],
     budget: &mut Budget,
-) -> Check<()> {
+) -> Check<Vec<BTreeSet<u32>>> {
     check_module_mask(module, plan, graphs, Some(mask), budget)
 }
 fn check_module_mask(
@@ -1244,7 +1244,7 @@ fn check_module_mask(
     graphs: &[FunctionGraph],
     mask: Option<&[bool]>,
     budget: &mut Budget,
-) -> Check<()> {
+) -> Check<Vec<BTreeSet<u32>>> {
     // The complete raw-type preflight already found every retained Task port.
     // Closed/legacy modules keep their original fee path and need no new table.
     let port_facts = if budget.borrowed_task_ports {
@@ -1620,7 +1620,31 @@ fn check_module_mask(
             budget,
         )?;
     }
-    Ok(())
+    if !budget.generic_mutex {
+        return Ok(Vec::new());
+    }
+    let mut guard_sources = vec![BTreeSet::new(); module.functions.len()];
+    for (index, function) in module.functions.iter().enumerate() {
+        if !matches!(function.return_type, Type::MutexGuard { .. }) {
+            continue;
+        }
+        budget.spend(function.blocks.len())?;
+        for (block, live) in function.blocks.iter().zip(&graphs[index].reachable) {
+            if !live {
+                continue;
+            }
+            if let Terminator::Return(Some(value)) = block.terminator {
+                let roots = &facts[index].values[value.0 as usize];
+                budget.spend(roots.len())?;
+                for root in roots {
+                    if let HoldRoot::Parameter(parameter) = root.coarse() {
+                        guard_sources[index].insert(parameter);
+                    }
+                }
+            }
+        }
+    }
+    Ok(guard_sources)
 }
 
 fn check_callback_return(

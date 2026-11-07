@@ -128,6 +128,7 @@ enum Fact {
     Named(Head, Vec<Fact>),
     Address(Option<Box<Fact>>, Box<Fact>),
     Tuple(Vec<Fact>),
+    Error(Box<Fact>, Box<Fact>),
     List(Box<Fact>),
     Function(Vec<Fact>, Box<Fact>),
 }
@@ -160,6 +161,7 @@ impl Fact {
             Self::Named(_, fields) | Self::Tuple(fields) => {
                 fields.iter().any(Self::has_retained_class)
             }
+            Self::Error(error, result) => error.has_retained_class() || result.has_retained_class(),
             Self::List(inner) => inner.has_retained_class(),
             Self::Function(parameters, result) => {
                 parameters.iter().any(Self::has_retained_class) || result.has_retained_class()
@@ -176,6 +178,7 @@ impl Fact {
             // outer function borrow whose upper is checked by its own lane.
             Self::Named(_, fs) => fs.iter().any(Self::has_retained_class),
             Self::Tuple(fs) => fs.iter().any(Self::has_class),
+            Self::Error(error, result) => error.has_class() || result.has_class(),
             Self::Address(_, inner) | Self::List(inner) => inner.has_class(),
             Self::Function(params, result) => {
                 params.iter().any(Self::has_class) || result.has_class()
@@ -234,6 +237,10 @@ impl Check<'_, '_, '_> {
                     self.work(life, span)?;
                 }
                 self.work(inner, span)?;
+            }
+            Fact::Error(error, result) => {
+                self.work(error, span)?;
+                self.work(result, span)?;
             }
             Fact::List(inner) => self.work(inner, span)?,
             Fact::Function(params, result) => {
@@ -449,6 +456,12 @@ impl Check<'_, '_, '_> {
                     .map(|(b, _)| Box::new(Fact::Class(b)));
                 Fact::Address(life, Box::new(self.ty(inner, scope, depth + 1)?))
             }
+            TypeKind::Error { error, result } if self.budget.has_shared_enum_addresses() => {
+                Fact::Error(
+                    Box::new(self.ty(error, scope, depth + 1)?),
+                    Box::new(self.ty(result, scope, depth + 1)?),
+                )
+            }
             TypeKind::Tuple(fs) => {
                 let mut out = Vec::new();
                 for f in fs {
@@ -511,10 +524,26 @@ impl Check<'_, '_, '_> {
         this.work(expected, span)?;
         this.work(actual, span)?;
         match (expected, actual) {
+            (Fact::Error(e,r),Fact::Error(a,z)) => {this.compatible_position(e,a,span,retained)?;this.compatible_position(r,z,span,retained)?;}
+            (Fact::Error(e,r),actual) => {
+                let same_head=|a:&Fact,b:&Fact|matches!((a,b),(Fact::Named(a,_),Fact::Named(b,_))if a==b);
+                if same_head(e,actual){this.compatible_position(e,actual,span,retained)?;}
+                else if same_head(r,actual){this.compatible_position(r,actual,span,retained)?;}
+                else if actual.has_class(){return Err(error(span,"qualified error injection has no matching actual arm"));}
+            }
             (Fact::Class(a), Fact::Class(b)) if a != b => {
                 return Err(error(
                     span,
                     "source annotation cannot equate distinct declared lifetime classes",
+                ));
+            }
+            // An anonymous physical borrow supplies local Task context
+            // identity, but cannot establish a caller's declared source class.
+            // This is a known lifetime mismatch, as when the class is absent.
+            (Fact::Class(_), Fact::LocalClass(_)) => {
+                return Err(error(
+                    span,
+                    "retained reference has no actual declared source class",
                 ));
             }
             (Fact::LocalClass(a), Fact::LocalClass(b)) if a == b => {}
@@ -604,6 +633,10 @@ impl Check<'_, '_, '_> {
                     }
                     Fact::Tuple(out)
                 }
+                Fact::Error(error, result) => Fact::Error(
+                    Box::new(this.substitute(error, map, span)?),
+                    Box::new(this.substitute(result, map, span)?),
+                ),
                 Fact::Address(life, inner) => Fact::Address(
                     life.as_ref()
                         .map(|l| this.substitute(l, map, span).map(Box::new))
@@ -648,6 +681,10 @@ impl Check<'_, '_, '_> {
             self.work(formal, span)?;
         }
         match (formal, actual) {
+            (Fact::Error(e, r), Fact::Error(a, z)) => {
+                self.infer(e, a, map, span, invariant)?;
+                self.infer(r, z, map, span, invariant)?;
+            }
             (f, Fact::Unknown) if invariant && f.has_class() => {
                 return Err(unsupported(
                     span,
@@ -728,6 +765,14 @@ impl Check<'_, '_, '_> {
     }
     fn bind_inner(&mut self, p: &Pattern, fact: &Fact, env: &mut Facts) -> R<()> {
         match &p.kind {
+            PatternKind::ErrorArm { is_error, pattern } => {
+                let selected = if let Fact::Error(e, r) = fact {
+                    if *is_error { e.as_ref() } else { r.as_ref() }
+                } else {
+                    &Fact::Unknown
+                };
+                self.bind(pattern, selected, env)?;
+            }
             PatternKind::Name(name) => {
                 self.budget.text(name, p.span)?;
                 self.lookup(env.len(), name.len(), p.span)?;
@@ -1207,8 +1252,10 @@ impl Check<'_, '_, '_> {
                         }
                     }
                 }
-                self.expr(inner, scope, env, None, depth + 1)?;
-                Fact::Unknown
+                match self.expr(inner, scope, env, None, depth + 1)? {
+                    Fact::Error(_, result) => *result,
+                    _ => Fact::Unknown,
+                }
             }
             _ => unreachable!("source fact expression dispatcher"),
         };
@@ -1358,8 +1405,8 @@ impl Check<'_, '_, '_> {
                             }
                         } else {
                             // The constructor sees this exact physical borrow
-                            // even without a lexical life name. Its span is a
-                            // private source-class identity, never a target or
+                            // even without a lexical life name. Its actual node
+                            // supplies private class identity, never a target or
                             // permission certificate.
                             Fact::Address(Some(Box::new(self.borrow_class(e)?)), Box::new(source))
                         }
@@ -2241,6 +2288,49 @@ pub(super) fn validate(module: &Module, budget: &mut Budget<'_>) -> R<()> {
 #[cfg(test)]
 mod local_class_tests {
     use super::*;
+
+    #[test]
+    fn local_borrows_cannot_satisfy_a_declared_retained_source_class() {
+        let declaration = "enum Maybe<T>{Some(T),None}";
+        let signature = "fn hold<life a>(input:&'a i32)->Maybe<&'a i32>";
+        for (body, accepted) in [
+            ("return Maybe::<&'a i32>.Some(input)", true),
+            ("return Maybe::<&'a i32>.Some(&*input)", true),
+            (
+                "let local=*input;return Maybe::<&'a i32>.Some(&local)",
+                false,
+            ),
+            (
+                "let local=*input;let alias=&local;return Maybe::<&'a i32>.Some(alias)",
+                false,
+            ),
+        ] {
+            let source = zil_base::SourceUnit::new(
+                zil_base::FileId(0),
+                zil_base::ModuleId(0),
+                "retained-source-class.zil",
+                format!("{declaration}{signature}{{{body}}}fn main(){{}}"),
+            );
+            let parsed = zil_syntax::parse(&source).into_result().unwrap();
+            let limits = zil_base::Limits::default();
+            let mut budget = Budget::new(&limits);
+            crate::lifetimes::validate(&parsed, &mut budget).unwrap();
+            assert!(budget.has_stored_lifetimes());
+            let result = validate(&parsed, &mut budget);
+            if accepted {
+                result.unwrap();
+            } else {
+                let diagnostic = result.unwrap_err();
+                assert_eq!(diagnostic.phase, Phase::Expand);
+                assert_eq!(diagnostic.category, zil_base::ResultCategory::SafeReject);
+                assert_eq!(diagnostic.code, "E-GENERIC-ARGUMENT");
+                assert_eq!(
+                    diagnostic.message,
+                    "retained reference has no actual declared source class"
+                );
+            }
+        }
+    }
 
     #[test]
     fn identical_spans_do_not_merge_distinct_actual_borrow_nodes() {

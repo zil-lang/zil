@@ -36,6 +36,15 @@ pub(super) fn receiver_type(ty: &s::TypeRef) -> bool {
         _ => false,
     }
 }
+// Scalar Self has no user-owned outer nominal declaration. Its ordinary
+// trait implementation must therefore belong to the real trait declaration.
+pub(super) fn scalar_self(name: &str) -> bool {
+    matches!(
+        name,
+        "void" | "bool" | "u8" | "u16" | "u64" | "usize" | "i32" | "i64" | "f32" | "f64"
+    )
+}
+
 fn finite_method(f: &s::Function) -> bool {
     f.generics.is_empty() && f.where_clause.is_empty() && f.contract.is_empty()
 }
@@ -169,14 +178,15 @@ impl<'a> Expander<'a> {
             };
             work = left;
         }
-        // The concrete Self must still be defined in this module. Project
-        // signatures do not grant foreign-Self or generic implementation rights.
+        // Concrete nominal Self belongs to this module. A scalar has no
+        // nominal owner and instead requires the actual local trait below.
+        // Project signatures alone grant neither ownership nor an impl.
         let locals: BTreeMap<_, _> = module
             .items
             .iter()
             .filter_map(|item| {
                 if let s::ItemKind::Aggregate(a) = &item.kind {
-                    Some((a.name.as_str(), a))
+                    Some((a.name.as_str(), (a, item.public)))
                 } else {
                     None
                 }
@@ -184,9 +194,10 @@ impl<'a> Expander<'a> {
             .collect();
         let fields: BTreeMap<_, BTreeSet<_>> = locals
             .iter()
-            .map(|(name, a)| (*name, a.fields.iter().map(|f| f.name.as_str()).collect()))
+            .map(|(name, (a, _))| (*name, a.fields.iter().map(|f| f.name.as_str()).collect()))
             .collect();
         let mut declared = BTreeSet::new();
+        let mut public_traits = BTreeSet::new();
         for item in &module.items {
             let s::ItemKind::Trait(t) = &item.kind else {
                 continue;
@@ -199,6 +210,9 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
+            if item.public {
+                public_traits.insert(t.name.as_str());
+            }
             self.collect_trait_declaration(item, &mut work);
             if t.name.starts_with("$module") {
                 self.project_trait_work = self.project_trait_work.saturating_add(t.name.len());
@@ -209,7 +223,7 @@ impl<'a> Expander<'a> {
         // A single ordinary function name is the machine target in this slice.
         // Reject unresolved collisions, never silently pick the first impl.
         let mut methods: BTreeMap<(String, String), usize> = BTreeMap::new();
-        for a in locals.values() {
+        for (a, _) in locals.values() {
             for member in &a.methods {
                 if let s::ItemKind::Function(f) = &member.kind {
                     *methods.entry((a.name.clone(), f.name.clone())).or_default() += 1;
@@ -286,18 +300,55 @@ impl<'a> Expander<'a> {
                 );
                 continue;
             }
-            let Some(host) = locals.get(host_name).filter(|a| {
+            let host = locals.get(host_name).filter(|(a, _)| {
                 matches!(
                     a.kind,
                     s::AggregateKind::Struct | s::AggregateKind::Resource
                 ) && a.generics.is_empty()
-            }) else {
+            });
+            let scalar = scalar_self(host_name);
+            if scalar && !declared.contains(trait_name) {
+                self.trait_error(
+                    "E-TRAIT-OWNER",
+                    item.span,
+                    "a scalar trait implementation requires the actual local trait declaration",
+                );
+                continue;
+            }
+            let mut enum_host = false;
+            let mut enum_public = None;
+            if host.is_none() && !scalar {
+                for declaration in &module.items {
+                    let cost = 1usize.saturating_add(match &declaration.kind {
+                        s::ItemKind::Enum(e) => e.name.len().saturating_add(host_name.len()),
+                        _ => 0,
+                    });
+                    let Some(left) = work.checked_sub(cost) else {
+                        self.diagnostics.push(Diagnostic::limit(
+                            Phase::Expand,
+                            "trait enum host lookup budget exhausted",
+                            Some(item.span),
+                        ));
+                        return;
+                    };
+                    work = left;
+                    if let s::ItemKind::Enum(e) = &declaration.kind
+                        && e.generics.is_empty()
+                        && e.name == host_name
+                    {
+                        enum_host = true;
+                        enum_public = Some(declaration.public);
+                        break;
+                    }
+                }
+            }
+            if host.is_none() && !enum_host && !scalar {
                 self.unsupported(
-                    "static local traits require a concrete local value struct or a shared-head resource implementation",
+                    "static traits require a concrete local value nominal or a scalar with its local trait",
                     item.span,
                 );
                 continue;
-            };
+            }
             if !i.generics.is_empty() || !i.where_clause.is_empty() || i.receiver_default.is_some()
             {
                 self.unsupported(
@@ -310,6 +361,10 @@ impl<'a> Expander<'a> {
                 .traits
                 .get(trait_name)
                 .expect("collected local declaration");
+            let public_host = host.map(|(_, public)| *public).or(enum_public);
+            let private_export = public_host == Some(false)
+                && (public_traits.contains(trait_name)
+                    || self.imported_public_traits.contains(trait_name));
             let mut instance_reference = None;
             let Some(left) = work.checked_sub(declaration.members.len()) else {
                 self.diagnostics.push(Diagnostic::limit(
@@ -320,7 +375,10 @@ impl<'a> Expander<'a> {
                 return;
             };
             work = left;
-            if !declaration.generics.is_empty()
+            if private_export
+                || scalar
+                || enum_host
+                || !declaration.generics.is_empty()
                 || declaration
                     .members
                     .iter()
@@ -423,7 +481,7 @@ impl<'a> Expander<'a> {
                 .traits
                 .get(trait_name)
                 .expect("collected local declaration");
-            if host.kind == s::AggregateKind::Resource
+            if host.is_some_and(|(host, _)| host.kind == s::AggregateKind::Resource)
                 && declaration.members.iter().any(|member| match &member.kind {
                     s::ItemKind::Function(function) => !function.params.first().is_some_and(|parameter|
                         parameter.name == "self" && !parameter.give
@@ -593,7 +651,7 @@ impl<'a> Expander<'a> {
                     return;
                 };
                 work = left;
-                let host_ty = Type::Named(host_name.into());
+                let host_ty = type_ref(&i.target);
                 let ty = |t: &s::TypeRef| substitute_self(type_ref(t), Some(&host_ty));
                 let mut actual: Vec<_> = f.params.iter().map(|p| (ty(&p.ty), p.give)).collect();
                 let inherited = signature.params.first().filter(|p| p.name == "self");
@@ -621,7 +679,9 @@ impl<'a> Expander<'a> {
                         .copied()
                         .unwrap_or(0)
                         != 1
-                        || fields[host_name].contains(f.name.as_str()))
+                        || fields
+                            .get(host_name)
+                            .is_some_and(|fields| fields.contains(f.name.as_str())))
                 {
                     self.unsupported("colliding trait, inherent or field name requires explicit trait-qualified resolution", member.span);
                     valid = false;
@@ -647,9 +707,10 @@ impl<'a> Expander<'a> {
                                 ..limits.clone()
                             };
                             let mut meter = TraitBudget::new(&selected);
-                            let result = trait_instances::method_name(
+                            let result = trait_instances::method_name_with(
                                 reference,
                                 &method.name,
+                                scalar || private_export,
                                 &mut meter,
                                 member.span,
                             );
@@ -658,6 +719,18 @@ impl<'a> Expander<'a> {
                             project_nodes = left.max_nodes;
                             match result {
                                 Ok(target) => {
+                                    if private_export
+                                        && reference.arguments.is_empty()
+                                        && method.generics.is_empty()
+                                        && methods.get(&(host_name.into(), method.name.clone()))
+                                            == Some(&1)
+                                        && fields.get(host_name).is_none_or(|fields| {
+                                            !fields.contains(method.name.as_str())
+                                        })
+                                    {
+                                        self.private_trait_aliases
+                                            .insert((item_ordinal, member_ordinal));
+                                    }
                                     self.trait_method_names
                                         .insert((item_ordinal, member_ordinal), target);
                                 }

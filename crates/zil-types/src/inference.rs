@@ -5214,8 +5214,12 @@ impl<'a, 'b, 'c> Solver<'a, 'b, 'c> {
                     Type::Managed(payload) => *payload,
                     other => other,
                 });
-                if let Some(ty @ (Type::Record { .. } | Type::Package { .. } | Type::ByteBuffer)) =
-                    method_type
+                if let Some(
+                    ty @ (Type::Record { .. }
+                    | Type::Package { .. }
+                    | Type::Enum { .. }
+                    | Type::ByteBuffer),
+                ) = method_type
                 {
                     validate_type(&ty, 0, span, self.budget)?;
                     if let Some(signature) =

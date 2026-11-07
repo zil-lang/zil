@@ -572,7 +572,7 @@ pub fn check(
     let (closures, synthesized, mut remaining) = closure_state.finish().map_err(|e| vec![e])?;
     functions.extend(synthesized);
     functions.sort_by_key(|f| f.id);
-    tasks::add_definition(
+    let has_mutex = tasks::add_definition(
         &functions,
         &mut resource_definitions,
         &mut remaining,
@@ -592,13 +592,15 @@ pub fn check(
         &mut remaining,
     )
     .map_err(|e| vec![e])?;
-    generic_mutex::add_definitions(
-        &functions,
-        &mut resource_definitions,
-        limits,
-        &mut remaining,
-    )
-    .map_err(|e| vec![e])?;
+    if has_mutex {
+        generic_mutex::add_definitions(
+            &functions,
+            &mut resource_definitions,
+            limits,
+            &mut remaining,
+        )
+        .map_err(|e| vec![e])?;
+    }
     let (life_declarations, life_instances) =
         stored::copy_inventory(core, &mut remaining, limits).map_err(|e| vec![e])?;
     let mut module = TypedModule {
@@ -2093,6 +2095,9 @@ impl<'a, 'c> Builder<'a, 'c> {
             unreachable!("expression dispatcher variant")
         };
         {
+            if matches!(&callee.kind, CoreExprKind::Name(name) if name == "move_out") {
+                return self.move_out_call(arguments, expected, e.span);
+            }
             if let CoreExprKind::TypeApply {
                 callee: target,
                 type_arguments,
