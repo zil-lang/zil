@@ -1,6 +1,6 @@
-# Type/Syntax 待冻结消费者源码套
+# Type/Syntax 生成项输入与预期
 
-这些是**拟议合同的源码与未来预期**，没有解析、编译、执行或全量测试。`EXPECTED.json` 的 observed 全为 null。不是现有语言通过证据，也未改动原 `sources/` 探针。原 `#(i32)` 和 `#emit #(1)` 两条字节原样复制。
+`EXPECTED.json` 固定源码预期；其 observed 字段为 null 时只表示未执行。是否支持须用当前编译器复核，不能由输入或建议合同宣称通过。原 `sources/` 探针字节不变。原 `#(i32)` 和 `#emit #(1)` 两条字节原样复制。
 
 全部入口位于同一 `project/` 目录，选择一个 `*_main.zil` 作为 root 即可共享该目录下的 generators/common/providers 模块；其他入口不导入，不要求同时含多个 main。消费者后续冻结时应连同 SOURCE-MANIFEST、provider lock、API合同和目标 profile 一起记录，不只抄 main 文件。
 
@@ -21,7 +21,7 @@
 
 `neg_*` 每条单独作为入口，具体拒绝义务见EXPECTED。类别/CT-only、private字段、名义身份、重复give、错误member owner等必须命中真实理由，不能把任意较早Unsupported记作安全拒绝。尤其 Hidden **确实存在private x**；跨模块getter失败应是可见性，不能用“不存在x”代替。layout自环应给依赖环/阶段诊断，不能无限重试后ResourceLimit。未知provider export须保留原tokens供preview。
 
-## 普通ZIL语法已做只读对照
+## 普通 ZIL 语法边界
 
 - `parser/items.rs::aggregate/field_after_prefix` 已支持普通 `pub x:i32`，仅package可写manages，且 `pub manages` 明确非法。本套管理字段均不加pub。
 - import采用现有点路径和as别名；`syntax use … as …`显式别名和三种token tree定界已有parser结构。
@@ -31,7 +31,7 @@
 
 新语法/API仅为已推荐quote/$/#splice、CT-only Type/Syntax/Ident/TokenTree/Text及CT库绑定；普通函数、数组、import、struct/package/resource/Drop/error union均保持普通语法。所有quote资源语句都是未执行的语法数据，不能在CT VM创建运行期Ticket或调用putchar。
 
-## 仍待公共冻结的最小API和锁
+## API 与锁的准入条件
 
 06的Drop实现由资源owner模块common.tracked中的#emit产生；impl_generators不导入tracked，不形成模块环，也不尝试为别的模块类型额外取得impl权限。生成的impl与同位置手写Drop经过相同规则。
 
@@ -41,4 +41,4 @@
 
 须冻结parse_*的调用信封约定：原始输入保留外层调用定界和span，parse_*只解析该调用信封内部，嵌套组不剥。例 `twice![21]`解析内容21，而 `inc!{[1,2]}`内容仍是数组Expr。此项没有执行来猜实现行为。
 
-CT公共实现按root决定采用独立sidecar、自有CtTy/闭合op/CFG；复用已有AST/名字解析、标量算术和控制流算法，不以Unit擦除，也不制造第二种函数/控制流语法。没有用户未决定才能继续的设计问题；以上API/锁细节推荐由root一次冻结后，消费者再把此套复制为正式输入。
+CT 执行必须保留独立类型/操作/CFG 身份和现有 AST/名字解析、算术与控制流语义；不得用 Unit 擦除或制造第二套普通函数语法。建议 API/锁只有在正式接口冻结并由真实消费者验证后才成为实现依据。

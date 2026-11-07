@@ -1,4 +1,4 @@
-# B0 scalar LLVM backend
+# Scalar LLVM backend tests
 
 These tests construct public Typed IR and explicit initialization claims, run
 the actual independent `zil_verify::verify_module`, and feed its immutable
@@ -54,9 +54,7 @@ With the verified Rust and LLVM tools on PATH (or `ZIL_CLANG` pointing to clang)
 cargo test --offline -p zil-lower -p zil-backend-llvm
 ```
 
-The backend has ten test functions containing sixty real clang/native
-invocations. Thirty-two invocations exercise arithmetic trap boundaries under
-O0 and O2. Other cases cover full-width positive and negative observations,
+The bounded native suite exercises arithmetic trap boundaries under O0 and O2, plus full-width positive and negative observations,
 ordinary main status, wrapping arithmetic, comparison and bit operations,
 branch/loop dataflow, recursive factorial, nonzero CFG entry, unit erasure,
 identity-only symbols, seven LIR mutations and unavailable-tool cleanup.
@@ -64,6 +62,6 @@ These tests require working clang and linking; missing tools fail the tests
 rather than causing a skip or fabricated Pass. The lower crate has two runtime
 tests and one compile-fail documentation test protecting the raw-IR boundary.
 
-No result here marks T07 resource layouts, responsibility cleanup, aggregate
+These cases do not establish resource layouts, responsibility cleanup, aggregate
 ABI, closure environments, or native-resource acceptance complete. Those
 require their own checked schemas and source-level cases.

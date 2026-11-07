@@ -1,10 +1,8 @@
-# Independent 328 source probes
+# Frozen thread-capture source probes
 
-These are the exact inputs recovered from the original local runner, not new
-coverage. The review binds backend commit `0c297f7fae81143cc33083cee03e8fb2f6c2bf66`.
+These are frozen source inputs, not a current result. The review binds backend commit `0c297f7fae81143cc33083cee03e8fb2f6c2bf66`.
 Build that commit's CLI with `--features llvm-api`; supply these fixture paths
-from this source-recovery commit. The later e622 frontend migration leaves the
-328 backend unchanged, but changes the nested-closure diagnostic as noted below.
+from this source-recovery commit. A different frontend can change the nested-closure diagnostic without changing the reviewed backend.
 
 ```sh
 source /workspace/.zil-env/env.sh
